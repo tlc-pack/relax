@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # GH actions.
 # We use it to cover windows and mac builds
 # Jenkins is still the primary CI
@@ -31,7 +48,13 @@ jobs:
       run: >-
         conda build --output-folder=conda/pkg  conda/recipe &&
         conda install tvm -c ./conda/pkg
+<<<<<<< HEAD
     - name: Build iOS RPC
+=======
+<<<<<<< HEAD
+    - name: Build iOS RPC@MacOS
+      if: startsWith(matrix.os, 'macOS')
+>>>>>>> Relax Virtual Machine
       run: |
         IOS_VERSION="14.0"
         CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
@@ -47,11 +70,29 @@ jobs:
         cd build-ios-simulator
         cmake .. ${CMAKE_FLAGS}
         cmake --build . --target ios_rpc
+<<<<<<< HEAD
     - name: Test
       shell: bash -l {0}
       run: >-
         python -m pytest -v tests/python/all-platform-minimal-test
     - name: Test iOS RPC
+=======
+=======
+>>>>>>> Relax Virtual Machine
+    - name: Test@Win
+      if: startsWith(matrix.os, 'windows')
+      shell: cmd /C call {0}
+      run: >-
+        python -m pytest -v tests/python/all-platform-minimal-test
+    - name: Test@MacOS
+      if: startsWith(matrix.os, 'macOS')
+      shell: bash -l {0}
+      run: >-
+        python -m pytest -v tests/python/all-platform-minimal-test
+<<<<<<< HEAD
+    - name: Test iOS RPC@MacOS
+      if: startsWith(matrix.os, 'macOS')
+>>>>>>> Relax Virtual Machine
       shell: bash -l {0}
       run: >-
         python -m pip install tornado psutil cloudpickle &&
@@ -59,6 +100,7 @@ jobs:
         export BUNDLE_ID=org.apache.tvmrpc &&
         export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app &&
         python -m pytest -v tests/python/contrib/test_rpc_server_device.py
+<<<<<<< HEAD
 
   Windows:
     runs-on: windows-2016
@@ -78,3 +120,7 @@ jobs:
       run: >-
         python -m pytest -v tests/python/all-platform-minimal-test
 
+=======
+=======
+>>>>>>> Relax Virtual Machine
+>>>>>>> Relax Virtual Machine
