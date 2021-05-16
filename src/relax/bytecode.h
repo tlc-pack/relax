@@ -34,6 +34,7 @@ namespace tvm {
 namespace runtime {
 namespace new_vm {
 
+
 /*! \brief A register name. */
 using RegName = int64_t;
 
@@ -42,13 +43,38 @@ using RegName = int64_t;
  */
 using Index = int64_t;
 
+enum ArgKind {
+  kRegister = 0,
+  kImmediate = 1,
+  kConstIdx = 2,
+};
+
+constexpr int64_t kVoidArg = 0xFE0201975A;
+
+struct InstrArg {
+  explicit InstrArg() : data(kVoidArg) {}
+  explicit InstrArg(int64_t data) : data(data) {}
+  InstrArg(ArgKind kind, Index value) {
+    // TODO(ziheng): check value
+    this->data = (uint64_t(kind) << 56) | (value & ((uint64_t(1) << 56)  - 1));
+  }
+  ArgKind kind() {
+    uint8_t kind = (data >> 56) & 0xFF;
+    return ArgKind(kind);
+  }
+  int64_t value() {
+    return data & ((int64_t(1) << 56) - 1);
+  }
+  int64_t data;
+};
+
 /*! \brief An enumeration of Relay's opcodes.
  *
  * The opcode is used to implement instruction
  * as a tagged union.
  */
 enum class Opcode {
-  CallPacked = 1U,
+  Call = 1U,
   // Move = 0U,
   // Ret = 1U,
   // Invoke = 2U,
@@ -80,12 +106,24 @@ enum class Opcode {
  * and by extension which field of the union
  * is active.
  */
+
+// // option1
+// class ByteCode {
+//   std::vector<int64_t> instr;
+//   std::vector<int64_t> offset;
+//   
+//   Instruction GetInstr(index);
+// }
+// // option2
+// std::vector<int64_t> instr;
+// std::vector<int64_t> instr_args;
+
 struct Instruction {
   /*! \brief The instruction opcode. */
   Opcode op;
 
   /*! \brief The destination register. */
-  RegName dst;
+  RegName dst; 
 
   union {
     struct /* CallPacked */ {
@@ -94,7 +132,7 @@ struct Instruction {
       /*! \brief The number of arguments to the packed function. */
       Index num_args;
       /*! \brief The registers containing the arguments. */
-      RegName* args;
+      InstrArg* args;
     };
 
     // struct /* InvokeClosure Operands */ {
@@ -125,8 +163,9 @@ struct Instruction {
     // };
   };
 
-  static Instruction CallPacked(Index index, Index num_args,
-                                const std::vector<RegName>& args);
+  static Instruction Call(Index index, Index num_args,
+                          const std::vector<InstrArg>& args,
+                          RegName dst);
   // /*!
   //  * \brief Construct a invoke packed instruction.
   //  * \param packed_index The index of the packed function.

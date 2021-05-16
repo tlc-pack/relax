@@ -23,6 +23,7 @@
  */
 
 #include <tvm/runtime/logging.h>
+#include <functional>
 #include "./bytecode.h"
 
 #include <sstream>
@@ -45,10 +46,10 @@ Instruction::Instruction(const Instruction& instr) {
   this->dst = instr.dst;
 
   switch (instr.op) {
-    case Opcode::CallPacked:
+    case Opcode::Call:
       this->packed_index = instr.packed_index;
       this->num_args = instr.num_args;
-      this->args = Duplicate<RegName>(instr.args, instr.num_args);
+      this->args = Duplicate<InstrArg>(instr.args, instr.num_args);
       return;
     default:
       std::ostringstream out;
@@ -69,11 +70,11 @@ Instruction& Instruction::operator=(const Instruction& instr) {
   this->dst = instr.dst;
 
   switch (instr.op) {
-    case Opcode::CallPacked:
+    case Opcode::Call:
       this->packed_index = instr.packed_index;
       this->num_args = instr.num_args;
       FreeIf(this->args);
-      this->args = Duplicate<RegName>(instr.args, instr.num_args);
+      this->args = Duplicate<InstrArg>(instr.args, instr.num_args);
       return *this;
     default:
       std::ostringstream out;
@@ -84,7 +85,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
 
 Instruction::~Instruction() {
   switch (this->op) {
-    case Opcode::CallPacked:
+    case Opcode::Call:
       delete[] this->args;
       return;
     default:
@@ -93,13 +94,15 @@ Instruction::~Instruction() {
   }
 }
 
-Instruction Instruction::CallPacked(Index packed_index, Index num_args, 
-                                    const std::vector<RegName>& args) {
+Instruction Instruction::Call(Index packed_index, Index num_args, 
+                              const std::vector<InstrArg>& args,
+                              RegName dst) {
   Instruction instr;
-  instr.op = Opcode::CallPacked;
+  instr.op = Opcode::Call;
+  instr.dst = dst;
   instr.packed_index = packed_index;
   instr.num_args = num_args;
-  instr.args = new RegName[num_args];
+  instr.args = new InstrArg[num_args];
   for (Index i = 0; i < num_args; ++i) {
     instr.args[i] = args[i];
   }
@@ -126,24 +129,49 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
 }
 
 template <typename T>
-std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ") {
+std::string StrJoin(T* items, int offset, int cnt,
+                    std::string delim = ", ",
+                    std::function<std::string(T)> repr = std::to_string) {
   if (cnt == 0) {
     return "";
   }
   std::ostringstream oss;
-  oss << items[offset];
+  oss << repr(items[offset]);
   for (int i = 1; i < cnt; ++i) {
-    oss << delim << items[offset + i];
+    oss << delim << repr(items[offset + i]);
   }
   return oss.str();
 }
 
+std::string RegNameToStr(RegName reg) {
+  if (reg == kVoidArg) {
+    return "void";
+  } else {
+    return "%" + std::to_string(reg);
+  }
+
+}
+
+std::string InstrArgToStr(InstrArg arg) {
+  switch(arg.kind()) {
+    case kRegister:
+      return RegNameToStr(arg.value());
+    case kImmediate:
+      return "i" + std::to_string(arg.value());
+    case kConstIdx:
+      return "c[" + std::to_string(arg.value()) + "]";
+    default:
+      LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
+      return "";
+  }
+}
+
 void InstructionPrint(std::ostream& os, const Instruction& instr) {
   switch (instr.op) {
-    case Opcode::CallPacked: {
-      os << "call_packed PackedFunc[" << instr.packed_index << "] (in: $"
-         << StrJoin<RegName>(instr.args, 0, instr.num_args, ", $")
-         << ")";
+    case Opcode::Call: {
+      os << "call PackedFunc[" << instr.packed_index << "] ["
+         << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
+         << "] ret " << RegNameToStr(instr.dst);
       break;
     }
     default:
