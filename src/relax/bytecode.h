@@ -75,26 +75,6 @@ struct InstrArg {
  */
 enum class Opcode {
   Call = 1U,
-  // Move = 0U,
-  // Ret = 1U,
-  // Invoke = 2U,
-  // InvokeClosure = 3U,
-  // InvokePacked = 4U,
-  // AllocTensor = 5U,
-  // AllocTensorReg = 6U,
-  // AllocADT = 7U,
-  // AllocClosure = 8U,
-  // GetField = 9U,
-  // If = 10U,
-  // LoadConst = 11U,
-  // Goto = 12U,
-  // GetTag = 13U,
-  // LoadConsti = 14U,
-  // Fatal = 15U,
-  // AllocStorage = 16U,
-  // ShapeOf = 17U,
-  // ReshapeTensor = 18U,
-  // DeviceCopy = 19U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -128,77 +108,22 @@ struct Instruction {
   union {
     struct /* CallPacked */ {
       /*! \brief The index into the packed function table. */
-      Index packed_index;
+      Index func_index;
       /*! \brief The number of arguments to the packed function. */
       Index num_args;
-      /*! \brief The registers containing the arguments. */
-      InstrArg* args;
-    };
 
-    // struct /* InvokeClosure Operands */ {
-    //   /*! \brief The register containing the closure. */
-    //   RegName closure;
-    //   /*! \brief The number of arguments to the closure. */
-    //   Index num_closure_args;
-    //   /*! \brief The closure arguments as an array. */
-    //   RegName* closure_args;
-    // };
-    // struct /* InvokePacked Operands */ {
-    //   /*! \brief The index into the packed function table. */
-    //   Index packed_index;
-    //   /*! \brief The arity of the packed function. */
-    //   Index arity;
-    //   /*! \brief The number of outputs produced by the packed function. */
-    //   Index output_size;
-    //   /*! \brief The arguments to pass to the packed function. */
-    //   RegName* packed_args;
-    // };
-    // struct /* Invoke Operands */ {
-    //   /*! \brief The function to call. */
-    //   Index func_index;
-    //   /*! \brief The number of arguments to the function. */
-    //   Index num_args;
-    //   /*! \brief The registers containing the arguments. */
-    //   RegName* invoke_args_registers;
-    // };
+      Index arg_index;
+    };
   };
 
-  static Instruction Call(Index index, Index num_args,
-                          const std::vector<InstrArg>& args,
+  static Instruction Call(Index func_index, Index num_args,
+                          Index arg_index,
                           RegName dst);
-  // /*!
-  //  * \brief Construct a invoke packed instruction.
-  //  * \param packed_index The index of the packed function.
-  //  * \param arity The arity of the function.
-  //  * \param output_size The number of outputs of the packed function.
-  //  * \param args The argument registers.
-  //  * \return The invoke packed instruction.
-  //  */
-  // static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
-  //                                 const std::vector<RegName>& args);
-  // /*!
-  //  * \brief Construct an invoke instruction.
-  //  * \param func_index The index of the function to invoke.
-  //  * \param args The registers containing the arguments.
-  //  * \param dst The destination register.
-  //  * \return The invoke instruction.
-  //  */
-  // static Instruction Invoke(Index func_index, const std::vector<RegName>& args, RegName dst);
-  // /*!
-  //  * \brief Construct an invoke closure instruction.
-  //  * \param closure The register of the closure to invoke.
-  //  * \param args The registers containing the arguments.
-  //  * \param dst The destination register.
-  //  * \return The invoke closure instruction.
-  //  */
-  // static Instruction InvokeClosure(RegName closure, const std::vector<RegName>& args, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
   Instruction& operator=(const Instruction& instr);
   ~Instruction();
-
-  friend std::ostream& operator<<(std::ostream& os, const Instruction&);
 };
 
 }  // namespace new_vm

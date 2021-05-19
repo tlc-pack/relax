@@ -31,6 +31,10 @@ VOID_ARG_ = 0xFE0201975A
 def create_arg(kind, value):
     return (int(kind) << 56) | (value & ((1 << 56) - 1))
 
+@tvm._ffi.register_object("relax.Executable")
+class Executable(Object):
+    pass
+
 @tvm._ffi.register_object("relax.Builder")
 class Builder(Object):
     def __init__(self):
@@ -48,8 +52,18 @@ class Builder(Object):
     def emit_call(self, name, args=[], ret=None):
         if ret is None:
             ret = VOID_ARG_
-        _ffi_api.BuilderEmitCall(self, name, args, ret)
+        args_ = []
+        for arg in args:
+            if isinstance(arg, tvm.nd.NDArray):
+                new_arg = _ffi_api.BuilderAddConstant(self, arg)
+                args_.append(new_arg)
+            else:
+                args_.append(arg)
+        _ffi_api.BuilderEmitCall(self, name, args_, ret)
 
-    # def get(self):
-    #     # return exectuable
-    #     pass
+    def get_source(self):
+        _ffi_api.BuilderPrint(self)
+
+    def get(self):
+        return _ffi_api.BuilderGet(self)
+
