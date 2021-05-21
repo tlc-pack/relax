@@ -50,22 +50,21 @@ std::string StrJoin(T* items, int offset, int cnt,
 }
 
 std::string RegNameToStr(RegName reg) {
-  if (reg == kVoidArg) {
+  if (reg == Instruction::kVoidArg) {
     return "void";
   } else {
     return "%" + std::to_string(reg);
   }
 }
 
-std::string ExecWordToStr(ExecWord word) {
+std::string InstrArgToStr(InstrArg arg) {
   // only for argument
-  InstrArg arg(word);
   switch(arg.kind()) {
-    case kRegister:
+    case Instruction::kRegister:
       return RegNameToStr(arg.value());
-    case kImmediate:
+    case Instruction::kImmediate:
       return "i" + std::to_string(arg.value());
-    case kConstIdx:
+    case Instruction::kConstIdx:
       return "c[" + std::to_string(arg.value()) + "]";
     default:
       LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
@@ -81,7 +80,7 @@ String ExecutableNode::AsText() const {
     switch (instr.op) {
       case Opcode::Call: {
         os << "call " << this->func_names[instr.func_idx] << " \tin: "
-           << StrJoin<ExecWord>(instr.args, 0, instr.num_args, ", ", ExecWordToStr)
+           << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
            << " \tret: " << RegNameToStr(instr.dst) << "\n";
         break;
       }

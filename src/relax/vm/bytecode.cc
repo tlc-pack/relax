@@ -32,54 +32,8 @@ namespace tvm {
 namespace relax {
 namespace vm {
 
-Instruction::Instruction() {}
-
-Instruction::Instruction(const Instruction& instr) {
-  this->op = instr.op;
-  this->dst = instr.dst;
-
-  switch (instr.op) {
-    case Opcode::Call:
-      this->func_idx = instr.func_idx;
-      this->num_args = instr.num_args;
-      this->args = instr.args;
-      return;
-    default:
-      std::ostringstream out;
-      out << "Invalid instruction " << static_cast<int>(instr.op);
-      throw std::runtime_error(out.str());
-  }
-}
-
-Instruction& Instruction::operator=(const Instruction& instr) {
-  this->op = instr.op;
-  this->dst = instr.dst;
-
-  switch (instr.op) {
-    case Opcode::Call:
-      this->func_idx = instr.func_idx;
-      this->num_args = instr.num_args;
-      this->args = instr.args;
-      return *this;
-    default:
-      std::ostringstream out;
-      out << "Invalid instruction " << static_cast<int>(instr.op);
-      throw std::runtime_error(out.str());
-  }
-}
-
-Instruction::~Instruction() {
-  switch (this->op) {
-    case Opcode::Call:
-      return;
-    default:
-      std::ostringstream out;
-      LOG(FATAL) << "Invalid instruction " << static_cast<int>(this->op);
-  }
-}
-
 Instruction Instruction::Call(Index func_idx, Index num_args, 
-                              ExecWord* args, RegName dst) {
+                              InstrArg* args, RegName dst) {
   Instruction instr;
   instr.op = Opcode::Call;
   instr.dst = dst;

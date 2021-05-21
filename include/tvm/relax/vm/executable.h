@@ -42,7 +42,6 @@ class Executable;
 class ExecutableNode : public Object {
  public:
   std::vector<ExecWord> instr_data;
-  // std::vector<ExecWord> arg_data;
   std::vector<size_t> instr_offset;
   std::vector<ObjectRef> constants;
   std::unordered_map<std::string, Index> func2idx;
@@ -60,8 +59,8 @@ class ExecutableNode : public Object {
         RegName dst = instr_data[offset + 1];
         Index func_idx = instr_data[offset + 2];
         Index num_args = instr_data[offset + 3];
-        const ExecWord* args = &instr_data[offset + 4];
-        return Instruction::Call(func_idx, num_args, const_cast<ExecWord*>(args), dst);
+        ExecWord* args = const_cast<ExecWord*>(&instr_data[offset + 4]);
+        return Instruction::Call(func_idx, num_args, reinterpret_cast<InstrArg*>(args), dst);
       }
       default:
         LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);

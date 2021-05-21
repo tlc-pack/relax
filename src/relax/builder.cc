@@ -41,7 +41,7 @@ Builder BuilderNode::Create() {
 vm::Index BuilderNode::EmitConstant(ObjectRef obj) {
   vm::Index idx = exec->constants.size();
   exec->constants.push_back(obj);
-  return vm::InstrArg(vm::kConstIdx, idx).data;
+  return vm::InstrArg(vm::Instruction::kConstIdx, idx).data;
 }
 
 void BuilderNode::EmitCall(std::string func, std::vector<InstrArg> args, RegName dst) {
@@ -80,7 +80,7 @@ TVM_REGISTER_GLOBAL("relax.BuilderEmitCall").set_body_typed(
     args_.push_back(static_cast<InstrArg>(args[i]->value));
   }
   InstrArg ret_(ret);
-  CHECK_EQ(ret_.kind(), ArgKind::kRegister);
+  CHECK_EQ(ret_.kind(), Instruction::ArgKind::kRegister);
   builder->EmitCall(name, args_, ret_.value());
 });
 

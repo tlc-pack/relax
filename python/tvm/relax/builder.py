@@ -28,7 +28,7 @@ class ArgKind(IntEnum):
 
 VOID_ARG_ = 0xFE0321975A
     
-def create_arg(kind, value):
+def _create_arg(kind, value):
     return (int(kind) << 56) | (value & ((1 << 56) - 1))
 
 @tvm._ffi.register_object("relax.Executable")
@@ -46,13 +46,13 @@ class Builder(Object):
         self.__init_handle_by_constructor__(_ffi_api.BuilderCreate)
 
     def r(self, idx):
-        return create_arg(ArgKind.REGISTER, idx)
+        return _create_arg(ArgKind.REGISTER, idx)
 
     def imm(self, value):
-        return create_arg(ArgKind.IMMEDIATE, value)
+        return _create_arg(ArgKind.IMMEDIATE, value)
 
     def const(self, idx):
-        return create_arg(ArgKind.CONSTIDX, idx)
+        return _create_arg(ArgKind.CONSTIDX, idx)
 
     def emit_call(self, name, args=[], ret=None):
         if ret is None:
