@@ -52,7 +52,7 @@ class ExecutableNode : public Object {
   // SaveToBinary(dmlc::Stream* stream);
   // SaveToFile(const std::string& path, const std::string& format);
   
-  Instruction GetInstruction(size_t i) {
+  Instruction GetInstruction(size_t i) const {
     size_t offset = instr_offset[i];
     Opcode op = static_cast<Opcode>(instr_data[offset]);
     switch (op) {
@@ -60,8 +60,8 @@ class ExecutableNode : public Object {
         RegName dst = instr_data[offset + 1];
         Index func_idx = instr_data[offset + 2];
         Index num_args = instr_data[offset + 3];
-        ExecWord* args = &instr_data[offset + 4];
-        return Instruction::Call(func_idx, num_args, args, dst);
+        const ExecWord* args = &instr_data[offset + 4];
+        return Instruction::Call(func_idx, num_args, const_cast<ExecWord*>(args), dst);
       }
       default:
         LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
@@ -70,13 +70,14 @@ class ExecutableNode : public Object {
     return Instruction();
   }
 
+  String AsText() const;
+
   void VisitAttrs(AttrVisitor* v) {
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.Executable"; 
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
- private:
 };
 
 class Executable : public ObjectRef {

@@ -52,7 +52,7 @@ enum ArgKind {
   kConstIdx = 2,
 };
 
-constexpr int64_t kVoidArg = 0xFE0201975A;
+constexpr int64_t kVoidArg = 0xFE0321975A;
 
 struct InstrArg {
   explicit InstrArg() : data(kVoidArg) {}

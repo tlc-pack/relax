@@ -34,13 +34,6 @@ namespace vm {
 
 Instruction::Instruction() {}
 
-template <typename T>
-static T* Duplicate(T* src, Index size) {
-  auto dst = new T[size];
-  std::copy(src, src + size, dst);
-  return dst;
-}
-
 Instruction::Instruction(const Instruction& instr) {
   this->op = instr.op;
   this->dst = instr.dst;
@@ -55,13 +48,6 @@ Instruction::Instruction(const Instruction& instr) {
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
       throw std::runtime_error(out.str());
-  }
-}
-
-template <typename T>
-static inline void FreeIf(T* t) {
-  if (t != nullptr) {
-    delete t;
   }
 }
 
@@ -102,26 +88,6 @@ Instruction Instruction::Call(Index func_idx, Index num_args,
   instr.args = args;
   return instr;
 }
-
-
-// void InstructionPrint(std::ostream& os, const Instruction& instr) {
-//   switch (instr.op) {
-//     case Opcode::Call: {
-//       os << "call PackedFunc[" << instr.packed_index << "] ["
-//          << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
-//          << "] ret " << RegNameToStr(instr.dst);
-//       break;
-//     }
-//     default:
-//       LOG(FATAL) << "should never hit this case" << static_cast<int>(instr.op);
-//       break;
-//   }
-// }
-// 
-// std::ostream& operator<<(std::ostream& os, const Instruction& instr) {
-//   InstructionPrint(os, instr);
-//   return os;
-// }
 
 }  // namespace vm
 }  // namespace relax

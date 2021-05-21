@@ -43,15 +43,9 @@ class BuilderNode : public Object {
 
   void EmitCall(std::string func, std::vector<vm::InstrArg> args, vm::RegName ret);
 
-  vm::Index AddConstant(ObjectRef obj) {
-    vm::Index idx = exec->constants.size();
-    exec->constants.push_back(obj);
-    return vm::InstrArg(vm::kConstIdx, idx).data;
-  }
+  vm::Index EmitConstant(ObjectRef obj);
 
   vm::Executable Get();
-
-  void Print(std::ostream& os);
 
   TVM_DLL static Builder Create();
 

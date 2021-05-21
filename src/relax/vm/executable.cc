@@ -34,6 +34,72 @@ namespace vm {
 
 TVM_REGISTER_NODE_TYPE(ExecutableNode);
 
+template <typename T>
+std::string StrJoin(T* items, int offset, int cnt,
+                    std::string delim = ", ",
+                    std::function<std::string(T)> repr = std::to_string) {
+  if (cnt == 0) {
+    return "";
+  }
+  std::ostringstream oss;
+  oss << repr(items[offset]);
+  for (int i = 1; i < cnt; ++i) {
+    oss << delim << repr(items[offset + i]);
+  }
+  return oss.str();
+}
+
+std::string RegNameToStr(RegName reg) {
+  if (reg == kVoidArg) {
+    return "void";
+  } else {
+    return "%" + std::to_string(reg);
+  }
+}
+
+std::string ExecWordToStr(ExecWord word) {
+  // only for argument
+  InstrArg arg(word);
+  switch(arg.kind()) {
+    case kRegister:
+      return RegNameToStr(arg.value());
+    case kImmediate:
+      return "i" + std::to_string(arg.value());
+    case kConstIdx:
+      return "c[" + std::to_string(arg.value()) + "]";
+    default:
+      LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
+      return "";
+  }
+}
+
+String ExecutableNode::AsText() const {
+  // print the text format
+  std::ostringstream os;
+  for (size_t i = 0; i < this->instr_offset.size(); ++i) {
+    Instruction instr = this->GetInstruction(i);
+    switch (instr.op) {
+      case Opcode::Call: {
+        os << "call " << this->func_names[instr.func_idx] << " \tin: "
+           << StrJoin<ExecWord>(instr.args, 0, instr.num_args, ", ", ExecWordToStr)
+           << " \tret: " << RegNameToStr(instr.dst) << "\n";
+        break;
+      }
+      default:
+        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+        break;
+    }
+  }
+  return String(os.str());
+}
+TVM_REGISTER_GLOBAL("relax.Executable").set_body_typed([]() {
+  return Executable();
+});
+
+TVM_REGISTER_GLOBAL("relax.ExecutableAsText").set_body_typed([](Executable exec) {
+  return exec->AsText();
+});
+
 
 }  // namespace vm
 }  // namespace relax

@@ -38,6 +38,12 @@ Builder BuilderNode::Create() {
   return ret;
 }
 
+vm::Index BuilderNode::EmitConstant(ObjectRef obj) {
+  vm::Index idx = exec->constants.size();
+  exec->constants.push_back(obj);
+  return vm::InstrArg(vm::kConstIdx, idx).data;
+}
+
 void BuilderNode::EmitCall(std::string func, std::vector<InstrArg> args, RegName dst) {
   // store function
   if (exec->func2idx.find(func) == exec->func2idx.end()) {
@@ -61,84 +67,11 @@ Executable BuilderNode::Get() {
   return Executable(this->exec);
 }
 
-void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
-  switch (dtype.code) {
-    case kDLInt:
-      os << "int";
-      break;
-    case kDLUInt:
-      os << "uint";
-      break;
-    case kDLFloat:
-      os << "float";
-      break;
-  }
-
-  os << int(dtype.bits);
-  if (dtype.lanes != 1) {
-    os << "x" << dtype.lanes;
-  }
-}
-
-template <typename T>
-std::string StrJoin(T* items, int offset, int cnt,
-                    std::string delim = ", ",
-                    std::function<std::string(T)> repr = std::to_string) {
-  if (cnt == 0) {
-    return "";
-  }
-  std::ostringstream oss;
-  oss << repr(items[offset]);
-  for (int i = 1; i < cnt; ++i) {
-    oss << delim << repr(items[offset + i]);
-  }
-  return oss.str();
-}
-
-std::string RegNameToStr(RegName reg) {
-  if (reg == kVoidArg) {
-    return "void";
-  } else {
-    return "%" + std::to_string(reg);
-  }
-
-}
-
-std::string ExecWordToStr(ExecWord word) {
-  // only for argument
-  InstrArg arg(word);
-  switch(arg.kind()) {
-    case kRegister:
-      return RegNameToStr(arg.value());
-    case kImmediate:
-      return "i" + std::to_string(arg.value());
-    case kConstIdx:
-      return "c[" + std::to_string(arg.value()) + "]";
-    default:
-      LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
-      return "";
-  }
-}
-
-void BuilderNode::Print(std::ostream& os) {
-  // print the text format
-  for (size_t i = 0; i < exec->instr_offset.size(); ++i) {
-    Instruction instr = exec->GetInstruction(i);
-    switch (instr.op) {
-      case Opcode::Call: {
-        os << "call " << exec->func_names[instr.func_idx] << " \tin: "
-           << StrJoin<ExecWord>(instr.args, 0, instr.num_args, ", ", ExecWordToStr)
-           << " \tret: " << RegNameToStr(instr.dst) << "\n";
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
-    }
-  }
-}
-
 TVM_REGISTER_GLOBAL("relax.BuilderCreate").set_body_typed(BuilderNode::Create);
+
+TVM_REGISTER_GLOBAL("relax.BuilderEmitConstant").set_body_typed([](Builder builder, ObjectRef obj) {
+  return builder->EmitConstant(obj);
+});
 
 TVM_REGISTER_GLOBAL("relax.BuilderEmitCall").set_body_typed(
 [](Builder builder, String name, Array<IntImm> args, int64_t ret) {
@@ -151,16 +84,8 @@ TVM_REGISTER_GLOBAL("relax.BuilderEmitCall").set_body_typed(
   builder->EmitCall(name, args_, ret_.value());
 });
 
-TVM_REGISTER_GLOBAL("relax.BuilderAddConstant").set_body_typed([](Builder builder, ObjectRef obj) {
-  return builder->AddConstant(obj);
-});
-
 TVM_REGISTER_GLOBAL("relax.BuilderGet").set_body_typed([](Builder builder) {
   return builder->Get();
-});
-
-TVM_REGISTER_GLOBAL("relax.BuilderPrint").set_body_typed([](Builder builder) {
-  builder->Print(LOG(INFO) << "\n");
 });
 
 

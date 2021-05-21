@@ -26,14 +26,19 @@ class ArgKind(IntEnum):
     IMMEDIATE = 1
     CONSTIDX = 2
 
-VOID_ARG_ = 0xFE0201975A
+VOID_ARG_ = 0xFE0321975A
     
 def create_arg(kind, value):
     return (int(kind) << 56) | (value & ((1 << 56) - 1))
 
 @tvm._ffi.register_object("relax.Executable")
 class Executable(Object):
-    pass
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.Executable)
+
+    def astext(self):
+        return _ffi_api.ExecutableAsText(self) 
+        
 
 @tvm._ffi.register_object("relax.Builder")
 class Builder(Object):
@@ -55,14 +60,11 @@ class Builder(Object):
         args_ = []
         for arg in args:
             if isinstance(arg, tvm.nd.NDArray):
-                new_arg = _ffi_api.BuilderAddConstant(self, arg)
+                new_arg = _ffi_api.BuilderEmitConstant(self, arg)
                 args_.append(new_arg)
             else:
                 args_.append(arg)
         _ffi_api.BuilderEmitCall(self, name, args_, ret)
-
-    def get_source(self):
-        _ffi_api.BuilderPrint(self)
 
     def get(self):
         return _ffi_api.BuilderGet(self)
