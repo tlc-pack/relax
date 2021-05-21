@@ -18,39 +18,38 @@
  */
 
 /*!
- * \file tvm/runtime/vm/bytecode.h
+ * \file tvm/relax/builder.h
  * \brief 
  */
-#ifndef TVM_RUNTIME_NEW_VM_BUILDER_H_
-#define TVM_RUNTIME_NEW_VM_BUILDER_H_
+#ifndef TVM_RELAX_BUILDER_H_
+#define TVM_RELAX_BUILDER_H_
 
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/ir/expr.h>
-#include "./bytecode.h"
-#include "./executable.h"
+#include "./vm/bytecode.h"
+#include "./vm/executable.h"
 
 namespace tvm {
-namespace runtime {
-namespace new_vm {
+namespace relax {
 
 class Builder;
 
 class BuilderNode : public Object {
  public:
-  ObjectPtr<ExecutableNode> exec; // mutable
+  ObjectPtr<vm::ExecutableNode> exec; // mutable
 
-  void EmitCall(std::string func, std::vector<InstrArg> args, RegName ret);
+  void EmitCall(std::string func, std::vector<vm::InstrArg> args, vm::RegName ret);
 
-  Index AddConstant(ObjectRef obj) {
-    Index idx = exec->constants.size();
+  vm::Index AddConstant(ObjectRef obj) {
+    vm::Index idx = exec->constants.size();
     exec->constants.push_back(obj);
-    return InstrArg(kConstIdx, idx).data;
+    return vm::InstrArg(vm::kConstIdx, idx).data;
   }
 
-  Executable Get();
+  vm::Executable Get();
 
   void Print(std::ostream& os);
 
@@ -66,13 +65,11 @@ class BuilderNode : public Object {
 
 class Builder : public ObjectRef {
  public:
-  // Builder
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Builder, ObjectRef, BuilderNode);
 };
 
 
-}  // namespace new_vm
-}  // namespace runtime
+}  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_NEW_VM_BUILDER_H_
+#endif  // TVM_RELAX_BUILDER_H_

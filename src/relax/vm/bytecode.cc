@@ -18,19 +18,19 @@
  */
 
 /*!
- * \file src/runtime/vm/bytecode.cc
- * \brief The bytecode for Relay virtual machine.
+ * \file src/relax/vm/bytecode.cc
+ * \brief The bytecode for Relax virtual machine.
  */
 
 #include <tvm/runtime/logging.h>
+#include <tvm/relax/vm/bytecode.h>
 #include <functional>
-#include "./bytecode.h"
 
 #include <sstream>
 
 namespace tvm {
-namespace runtime {
-namespace new_vm {
+namespace relax {
+namespace vm {
 
 Instruction::Instruction() {}
 
@@ -123,6 +123,6 @@ Instruction Instruction::Call(Index func_idx, Index num_args,
 //   return os;
 // }
 
-}  // namespace new_vm
-}  // namespace runtime
+}  // namespace vm
+}  // namespace relax
 }  // namespace tvm

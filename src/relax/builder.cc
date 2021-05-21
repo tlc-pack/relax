@@ -18,15 +18,16 @@
  */
 
 /*!
- * \file src/runtime/vm/builder.ccregistry
+ * \file src/relax/builder.cc
  */
 
-#include "./builder.h"
+#include <tvm/relax/builder.h>
 #include <sstream>
 
 namespace tvm {
-namespace runtime {
-namespace new_vm {
+namespace relax {
+
+using namespace vm;
 
 TVM_REGISTER_NODE_TYPE(BuilderNode);
 
@@ -163,6 +164,5 @@ TVM_REGISTER_GLOBAL("relax.BuilderPrint").set_body_typed([](Builder builder) {
 });
 
 
-}  // namespace new_vm
-}  // namespace runtime
+}  // namespace relax
 }  // namespace tvm

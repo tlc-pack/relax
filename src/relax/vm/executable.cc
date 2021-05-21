@@ -18,23 +18,23 @@
  */
 
 /*!
- * \file src/runtime/vm/executable.cc
+ * \file src/relax/vm/executable.cc
  * \brief 
  */
 
 #include <tvm/runtime/logging.h>
+#include <tvm/relax/vm/executable.h>
 #include <functional>
-#include "./executable.h"
 
 #include <sstream>
 
 namespace tvm {
-namespace runtime {
-namespace new_vm {
+namespace relax {
+namespace vm {
 
 TVM_REGISTER_NODE_TYPE(ExecutableNode);
 
 
-}  // namespace new_vm
-}  // namespace runtime
+}  // namespace vm
+}  // namespace relax
 }  // namespace tvm

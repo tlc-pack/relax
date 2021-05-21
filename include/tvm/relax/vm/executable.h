@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/runtime/vm/executable.h
+ * \file src/relax/vm/executable.h
  * \brief 
  */
-#ifndef TVM_RUNTIME_NEW_VM_EXECUTABLE_H_
-#define TVM_RUNTIME_NEW_VM_EXECUTABLE_H_
+#ifndef TVM_RELAX_VM_EXECUTABLE_H_
+#define TVM_RELAX_VM_EXECUTABLE_H_
 
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
@@ -34,8 +34,8 @@
 #include <sstream>
 
 namespace tvm {
-namespace runtime {
-namespace new_vm {
+namespace relax {
+namespace vm {
 
 class Executable;
 
@@ -85,8 +85,8 @@ class Executable : public ObjectRef {
 };
 
 
-}  // namespace new_vm
-}  // namespace runtime
+}  // namespace vm
+}  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_NEW_VM_EXECUTABLE_H_
+#endif  // TVM_RELAX_VM_EXECUTABLE_H_

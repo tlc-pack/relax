@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/runtime/vm/bytecode.h
+ * \file tvm/relax/vm/bytecode.h
  * \brief The bytecode for the virtual machine.
  */
-#ifndef TVM_RUNTIME_NEW_VM_BYTECODE_H_
-#define TVM_RUNTIME_NEW_VM_BYTECODE_H_
+#ifndef TVM_RELAX_VM_BYTECODE_H_
+#define TVM_RELAX_VM_BYTECODE_H_
 
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
@@ -31,8 +31,8 @@
 #include <vector>
 
 namespace tvm {
-namespace runtime {
-namespace new_vm {
+namespace relax {
+namespace vm {
 
 
 /*! \brief A register name. */
@@ -90,17 +90,6 @@ enum class Opcode {
  * is active.
  */
 
-// // option1
-// class ByteCode {
-//   std::vector<int64_t> instr;
-//   std::vector<int64_t> offset;
-//   
-//   Instruction GetInstr(index);
-// }
-// // option2
-// std::vector<int64_t> instr;
-// std::vector<int64_t> instr_args;
-
 struct Instruction {
   /*! \brief The instruction opcode. */
   Opcode op;
@@ -129,8 +118,8 @@ struct Instruction {
   ~Instruction();
 };
 
-}  // namespace new_vm
-}  // namespace runtime
+}  // namespace vm
+}  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_NEW_VM_BYTECODE_H_
+#endif  // TVM_RELAX_VM_BYTECODE_H_
