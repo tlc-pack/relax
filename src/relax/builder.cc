@@ -21,95 +21,43 @@
  * \file src/runtime/vm/builder.ccregistry
  */
 
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/node/reflection.h>
-#include <tvm/node/repr_printer.h>
-#include <tvm/ir/expr.h>
-#include "./bytecode.h"
-#include "./executable.h"
-
+#include "./builder.h"
 #include <sstream>
 
 namespace tvm {
 namespace runtime {
 namespace new_vm {
 
+TVM_REGISTER_NODE_TYPE(BuilderNode);
 
-class Builder;
-
-class BuilderNode : public Object {
- public:
-  std::vector<Instruction> instrs;;
-  std::vector<InstrArg> instr_args;
-  std::unordered_map<std::string, Index> func_idx;
-  std::vector<std::string> fnames;
-  std::vector<ObjectRef> constants;
-
-  void Emit(Instruction instr) {}
-
-  void EmitCall(std::string func, std::vector<InstrArg> args, RegName ret) {
-    if (func_idx.find(func) == func_idx.end()) {
-      func_idx[func] = fnames.size();
-      fnames.push_back(func);
-    } 
-    Index arg_index = instr_args.size();
-    instr_args.insert(instr_args.end(), args.begin(), args.end());
-    Instruction instr = Instruction::Call(func_idx[func], args.size(), arg_index, ret);
-    instrs.push_back(instr);
-  }
-
-  Index AddConstant(ObjectRef obj) {
-    Index idx = constants.size();
-    constants.push_back(obj);
-    return InstrArg(kConstIdx, idx).data;
-  }
-
-  Executable Get();
-
-  void Print(std::ostream& os);
-
-  TVM_DLL static Builder Create();
-
-  void VisitAttrs(AttrVisitor* v) {
-  }
-
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.Builder"; 
-  TVM_DECLARE_FINAL_OBJECT_INFO(BuilderNode, Object);
-};
-
-class Builder : public ObjectRef {
- public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Builder, ObjectRef, BuilderNode);
-};
 
 Builder BuilderNode::Create() {
   Builder ret(make_object<BuilderNode>());
+  ret->exec = make_object<ExecutableNode>();
   return ret;
 }
 
+void BuilderNode::EmitCall(std::string func, std::vector<InstrArg> args, RegName dst) {
+  // store function
+  if (exec->func2idx.find(func) == exec->func2idx.end()) {
+    exec->func2idx[func] = exec->func_names.size();
+    exec->func_names.push_back(func);
+  } 
+  Index func_idx = exec->func2idx[func];
+  // store instruction
+  exec->instr_offset.push_back(exec->instr_data.size());
+  exec->instr_data.push_back(static_cast<ExecWord>(Opcode::Call));
+  exec->instr_data.push_back(dst);
+  exec->instr_data.push_back(func_idx);
+  exec->instr_data.push_back(args.size());
+  // store arguments
+  std::transform(args.cbegin(), args.cend(),
+                 std::back_inserter(exec->instr_data),
+                 [](InstrArg arg){ return arg.data; });
+}
+
 Executable BuilderNode::Get() {
-  Bytecode code;
-  for (const Instruction& instr : this->instrs) {
-    code.text.push_back(static_cast<int64_t>(instr.op));
-    code.text.push_back(instr.dst);
-    switch(instr.op) {
-      case Opcode::Call: {
-        code.text.push_back(instr.func_index);
-        code.text.push_back(instr.num_args);
-        code.text.push_back(instr.arg_index);
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
-    }
-  }
-  for (const InstrArg& arg : this->instr_args) {
-    code.data.push_back(arg.data); 
-  }
-  return ExecutableNode::Create(code);
+  return Executable(this->exec);
 }
 
 void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
@@ -155,7 +103,9 @@ std::string RegNameToStr(RegName reg) {
 
 }
 
-std::string InstrArgToStr(InstrArg arg) {
+std::string ExecWordToStr(ExecWord word) {
+  // only for argument
+  InstrArg arg(word);
   switch(arg.kind()) {
     case kRegister:
       return RegNameToStr(arg.value());
@@ -171,11 +121,12 @@ std::string InstrArgToStr(InstrArg arg) {
 
 void BuilderNode::Print(std::ostream& os) {
   // print the text format
-  for (const Instruction& instr : instrs) {
+  for (size_t i = 0; i < exec->instr_offset.size(); ++i) {
+    Instruction instr = exec->GetInstruction(i);
     switch (instr.op) {
       case Opcode::Call: {
-        os << "call " << this->fnames[instr.func_index] << " \tin: "
-           << StrJoin<InstrArg>(this->instr_args.data(), instr.arg_index, instr.num_args, ", ", InstrArgToStr)
+        os << "call " << exec->func_names[instr.func_idx] << " \tin: "
+           << StrJoin<ExecWord>(instr.args, 0, instr.num_args, ", ", ExecWordToStr)
            << " \tret: " << RegNameToStr(instr.dst) << "\n";
         break;
       }
@@ -185,8 +136,6 @@ void BuilderNode::Print(std::ostream& os) {
     }
   }
 }
-
-TVM_REGISTER_NODE_TYPE(BuilderNode);
 
 TVM_REGISTER_GLOBAL("relax.BuilderCreate").set_body_typed(BuilderNode::Create);
 

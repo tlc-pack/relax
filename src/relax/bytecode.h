@@ -43,6 +43,9 @@ using RegName = int64_t;
  */
 using Index = int64_t;
 
+using ExecWord = int64_t; 
+
+
 enum ArgKind {
   kRegister = 0,
   kImmediate = 1,
@@ -106,18 +109,18 @@ struct Instruction {
   RegName dst; 
 
   union {
-    struct /* CallPacked */ {
+    struct /* Call */ {
       /*! \brief The index into the packed function table. */
-      Index func_index;
+      Index func_idx;
       /*! \brief The number of arguments to the packed function. */
       Index num_args;
 
-      Index arg_index;
+      ExecWord* args;
     };
   };
 
-  static Instruction Call(Index func_index, Index num_args,
-                          Index arg_index,
+  static Instruction Call(Index func_idx, Index num_args,
+                          ExecWord* args,
                           RegName dst);
 
   Instruction();

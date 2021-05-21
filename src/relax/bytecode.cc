@@ -47,9 +47,9 @@ Instruction::Instruction(const Instruction& instr) {
 
   switch (instr.op) {
     case Opcode::Call:
-      this->func_index = instr.func_index;
+      this->func_idx = instr.func_idx;
       this->num_args = instr.num_args;
-      this->arg_index = instr.arg_index;
+      this->args = instr.args;
       return;
     default:
       std::ostringstream out;
@@ -71,9 +71,9 @@ Instruction& Instruction::operator=(const Instruction& instr) {
 
   switch (instr.op) {
     case Opcode::Call:
-      this->func_index = instr.func_index;
+      this->func_idx = instr.func_idx;
       this->num_args = instr.num_args;
-      this->arg_index = instr.arg_index;
+      this->args = instr.args;
       return *this;
     default:
       std::ostringstream out;
@@ -92,14 +92,14 @@ Instruction::~Instruction() {
   }
 }
 
-Instruction Instruction::Call(Index func_index, Index num_args, 
-                              Index arg_index, RegName dst) {
+Instruction Instruction::Call(Index func_idx, Index num_args, 
+                              ExecWord* args, RegName dst) {
   Instruction instr;
   instr.op = Opcode::Call;
   instr.dst = dst;
-  instr.func_index = func_index;
+  instr.func_idx = func_idx;
   instr.num_args = num_args;
-  instr.arg_index = arg_index;
+  instr.args = args;
   return instr;
 }
 

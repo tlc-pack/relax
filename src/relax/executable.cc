@@ -32,12 +32,6 @@ namespace tvm {
 namespace runtime {
 namespace new_vm {
 
-Executable ExecutableNode::Create(Bytecode code) {
-  Executable ret(make_object<ExecutableNode>());
-  ret->code = code;
-  return ret;
-}
-
 TVM_REGISTER_NODE_TYPE(ExecutableNode);
 
 

@@ -19,7 +19,10 @@
 
 /*!
  * \file src/runtime/vm/executable.h
+ * \brief 
  */
+#ifndef TVM_RUNTIME_NEW_VM_EXECUTABLE_H_
+#define TVM_RUNTIME_NEW_VM_EXECUTABLE_H_
 
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
@@ -34,20 +37,38 @@ namespace tvm {
 namespace runtime {
 namespace new_vm {
 
-struct Bytecode {
-  std::vector<int64_t> text;
-  std::vector<int64_t> data;
-};
-
 class Executable;
 
 class ExecutableNode : public Object {
  public:
-  Bytecode code;
+  std::vector<ExecWord> instr_data;
+  // std::vector<ExecWord> arg_data;
+  std::vector<size_t> instr_offset;
+  std::vector<ObjectRef> constants;
+  std::unordered_map<std::string, Index> func2idx;
+  std::vector<std::string> func_names;
 
-  // default constructor?
-  TVM_DLL static Executable Create(Bytecode code);
-  // SaveToBinary
+  // magic number, version,  
+  // SaveToBinary(dmlc::Stream* stream);
+  // SaveToFile(const std::string& path, const std::string& format);
+  
+  Instruction GetInstruction(size_t i) {
+    size_t offset = instr_offset[i];
+    Opcode op = static_cast<Opcode>(instr_data[offset]);
+    switch (op) {
+      case Opcode::Call: {
+        RegName dst = instr_data[offset + 1];
+        Index func_idx = instr_data[offset + 2];
+        Index num_args = instr_data[offset + 3];
+        ExecWord* args = &instr_data[offset + 4];
+        return Instruction::Call(func_idx, num_args, args, dst);
+      }
+      default:
+        LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
+        break;
+    }
+    return Instruction();
+  }
 
   void VisitAttrs(AttrVisitor* v) {
   }
@@ -60,10 +81,12 @@ class ExecutableNode : public Object {
 
 class Executable : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Executable, ObjectRef, ExecutableNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Executable, ObjectRef, ExecutableNode);
 };
 
 
 }  // namespace new_vm
 }  // namespace runtime
 }  // namespace tvm
+
+#endif  // TVM_RUNTIME_NEW_VM_EXECUTABLE_H_
