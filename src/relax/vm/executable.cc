@@ -284,7 +284,8 @@ String ExecutableNode::AsText() const {
     Instruction instr = this->GetInstruction(i);
     switch (instr.op) {
       case Opcode::Call: {
-        os << "call " << this->func_names[instr.func_idx] << " \tin: "
+        os << "call " << std::setw(12) << std::left << this->func_names[instr.func_idx]
+           << " \tin: " << std::setw(8) << std::left
            << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
            << " \tret: " << RegNameToStr(instr.dst) << "\n";
         break;

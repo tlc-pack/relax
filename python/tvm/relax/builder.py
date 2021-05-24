@@ -31,24 +31,6 @@ VOID_ARG_ = 0xFE0321975A
 def _create_arg(kind, value):
     return (int(kind) << 56) | (value & ((1 << 56) - 1))
 
-@tvm._ffi.register_object("relax.Executable")
-class Executable(Object):
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.Executable)
-
-    def stats(self):
-        return _ffi_api.ExecutableStats(self)
-
-    def save_to_file(self, file_name):
-        return _ffi_api.ExecutableSaveToFile(self, file_name)
-
-    def astext(self):
-        return _ffi_api.ExecutableAsText(self) 
-
-def load_exec_from_file(file_name):
-    return _ffi_api.ExecutableLoadFromFile(file_name)
-        
-
 @tvm._ffi.register_object("relax.Builder")
 class Builder(Object):
     def __init__(self):

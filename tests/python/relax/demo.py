@@ -18,22 +18,28 @@ import numpy as np
 import tvm
 from tvm import relax as rx
 
-@tvm.register_func("vm.func0")
-def func0():
-    print("lalal0")
+@tvm.register_func("vm.builtin.print")
+def vmprint(obj):
+    print(obj)
 
-@tvm.register_func("vm.func1")
-def func1():
-    print("lalal1")
+@tvm.register_func("vm.builtin.move")
+def move(src):
+    return src
+
+@tvm.register_func("vm.add")
+def add(a, b):
+    ret = a.asnumpy() + b.asnumpy()
+    return tvm.nd.array(ret)
 
 ib = rx.Builder()
 print(ib)
 
-arr = tvm.nd.array(np.random.rand(32, 32))
+arr = tvm.nd.array(np.random.rand(4,))
 
-ib.emit_call("vm.func0", args=[ib.r(0), ib.r(1)])
-ib.emit_call("vm.func1", args=[ib.r(2), ib.imm(7482)], ret=ib.r(5))
-ib.emit_call("vm.func1", args=[ib.r(3), arr])
+ib.emit_call("vm.builtin.move", args=[arr], ret=ib.r(0))
+ib.emit_call("vm.builtin.move", args=[ib.r(0)], ret=ib.r(1))
+ib.emit_call("vm.add", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
+ib.emit_call("vm.builtin.print", args=[ib.r(2)])
 
 exec0 = ib.get()
 print(exec0)
@@ -45,9 +51,10 @@ exec1 = rx.load_exec_from_file("exec.bin")
 print(exec1)
 print(exec1.stats())
 print(exec1.astext())
+
+vm = rx.VirtualMachine(exec0)
+print(vm)
+vm.run()
+print("original: ")
+print(arr)
 exit(0)
-
-vm = rx.VirtualMachine()
-vm.load(executable)
-vm.execute()
-
