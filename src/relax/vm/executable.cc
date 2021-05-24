@@ -19,16 +19,17 @@
 
 /*!
  * \file src/relax/vm/executable.cc
- * \brief 
+ * \brief
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/relax/vm/executable.h>
-#include <functional>
-#include "../../runtime/file_utils.h"
+#include <tvm/runtime/logging.h>
 
+#include <functional>
 #include <sstream>
+
+#include "../../runtime/file_utils.h"
 
 namespace tvm {
 namespace relax {
@@ -204,9 +205,7 @@ void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) {
-  strm->Write(func_names);
-}
+void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
 
 void ExecutableNode::SaveCodeSection(dmlc::Stream* strm) {
   strm->Write(instr_offset);
@@ -240,8 +239,7 @@ void ExecutableNode::LoadCodeSection(dmlc::Stream* strm) {
 }
 
 template <typename T>
-std::string StrJoin(T* items, int offset, int cnt,
-                    std::string delim = ", ",
+std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ",
                     std::function<std::string(T)> repr = std::to_string) {
   if (cnt == 0) {
     return "";
@@ -264,13 +262,27 @@ std::string RegNameToStr(RegName reg) {
 
 std::string InstrArgToStr(InstrArg arg) {
   // only for argument
-  switch(arg.kind()) {
+  switch (arg.kind()) {
     case Instruction::kRegister:
       return RegNameToStr(arg.value());
     case Instruction::kImmediate:
       return "i" + std::to_string(arg.value());
     case Instruction::kConstIdx:
       return "c[" + std::to_string(arg.value()) + "]";
+    default:
+      LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
+      return "";
+  }
+}
+
+std::string InstrArgToPyStr(InstrArg arg) {
+  switch (arg.kind()) {
+    case Instruction::kRegister:
+      return "builder.r(" + std::to_string(arg.value()) + ")";
+    case Instruction::kImmediate:
+      return "builder.imm(" + std::to_string(arg.value()) + ")";
+    case Instruction::kConstIdx:
+      return "NDArray" + std::to_string(arg.value());
     default:
       LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
       return "";
@@ -297,6 +309,29 @@ String ExecutableNode::AsText() const {
   }
   return String(os.str());
 }
+
+String ExecutableNode::AsPython() const {
+  // print the python format
+  std::ostringstream os;
+  for (size_t i = 0; i < this->instr_offset.size(); ++i) {
+    Instruction instr = this->GetInstruction(i);
+    switch (instr.op) {
+      case Opcode::Call: {
+        os << "builder.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
+           << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
+        if (instr.dst != Instruction::kVoidArg)
+          os << ", ret=ib.r(" << instr.dst << ")";
+        os << ")\n";
+        break;
+      }
+      default:
+        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+        break;
+    }
+  }
+  return String(os.str());
+}
+
 TVM_REGISTER_GLOBAL("relax.Executable")
 .set_body_typed([]() {
   return Executable();
@@ -312,6 +347,10 @@ TVM_REGISTER_GLOBAL("relax.ExecutableAsText")
   return exec->AsText();
 });
 
+TVM_REGISTER_GLOBAL("relax.ExecutableAsPython").set_body_typed([](Executable exec) {
+  return exec->AsPython();
+});
+
 TVM_REGISTER_GLOBAL("relax.ExecutableSaveToFile")
 .set_body_typed([](Executable exec, std::string file_name) {
 	return exec->SaveToFile(file_name);
@@ -321,8 +360,6 @@ TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile")
 .set_body_typed([](std::string file_name) {
 	return ExecutableNode::LoadFromFile(file_name);
 });
-
-
 
 }  // namespace vm
 }  // namespace relax

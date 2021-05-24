@@ -33,7 +33,10 @@ class Executable(Object):
         return _ffi_api.ExecutableSaveToFile(self, file_name)
 
     def astext(self):
-        return _ffi_api.ExecutableAsText(self) 
+        return _ffi_api.ExecutableAsText(self)
+    
+    def aspython(self):
+        return _ffi_api.ExecutableAsPython(self)
 
 def load_exec_from_file(file_name):
     return _ffi_api.ExecutableLoadFromFile(file_name)

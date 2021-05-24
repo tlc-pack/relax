@@ -18,6 +18,7 @@ import numpy as np
 import tvm
 from tvm import relax as rx
 
+
 @tvm.register_func("vm.builtin.print")
 def vmprint(obj):
     print(obj)
@@ -46,6 +47,7 @@ print("Executable 0")
 print(exec0)
 print(exec0.stats())
 print(exec0.astext())
+print(exec0.aspython())
 
 exec0.save_to_file("exec.bin")
 exec1 = rx.load_exec_from_file("exec.bin")
@@ -54,6 +56,7 @@ print("Executable 1")
 print(exec1)
 print(exec1.stats())
 print(exec1.astext())
+print(exec1.aspython())
 print("============")
 
 vm = rx.VirtualMachine(exec0)

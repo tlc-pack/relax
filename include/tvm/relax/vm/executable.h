@@ -60,6 +60,8 @@ class ExecutableNode : public Object {
 
   String AsText() const;
 
+  String AsPython() const;
+
   void VisitAttrs(AttrVisitor* v) {
   }
 
