@@ -47,6 +47,7 @@ class ExecutableNode : public Object {
   std::vector<size_t> instr_offset;
   std::vector<ExecWord> instr_data;
   
+  std::string Stats() const;
   Instruction GetInstruction(size_t i) const;
 
   TVMByteArray Save();

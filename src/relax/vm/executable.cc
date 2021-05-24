@@ -43,6 +43,45 @@ constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 
 TVM_REGISTER_NODE_TYPE(ExecutableNode);
 
+std::string ExecutableNode::Stats() const {
+  std::ostringstream oss;
+  oss << "Relax VM executable statistics:" << std::endl;
+
+  // Get the number of constants and the shape of each of them.
+  oss << "  Constant shapes (# " << constants.size() << "): [";
+  for (const auto& it : constants) {
+    const auto constant = Downcast<runtime::NDArray>(it);
+    const auto& shape = constant.Shape();
+
+    // Scalar
+    if (shape.empty()) {
+      oss << "scalar, ";
+      continue;
+    }
+
+    oss << "[";
+    for (auto s : shape) {
+      oss << s << ", ";
+    }
+    oss.seekp(-2, oss.cur);
+    oss << "], " << std::endl;
+  }
+  if (!constants.empty()) oss.seekp(-2, oss.cur);
+  oss << "]" << std::endl;
+
+  // Get the number of packed funcs and the name of each of them.
+  oss << "  Packed funcs (#" << func_names.size() << "): [";
+  for (const auto& it : func_names) {
+    oss << it << ", ";
+  }
+  if (!func_names.empty()) {
+    oss.seekp(-2, oss.cur);
+  }
+  oss << "]" << std::endl;
+
+  return oss.str();
+}
+
 Instruction ExecutableNode::GetInstruction(size_t i) const {
   size_t offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
@@ -260,6 +299,11 @@ String ExecutableNode::AsText() const {
 TVM_REGISTER_GLOBAL("relax.Executable")
 .set_body_typed([]() {
   return Executable();
+});
+
+TVM_REGISTER_GLOBAL("relax.ExecutableStats")
+.set_body_typed([](Executable exec) {
+  return exec->Stats();
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecutableAsText")

@@ -36,6 +36,9 @@ class Executable(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Executable)
 
+    def stats(self):
+        return _ffi_api.ExecutableStats(self)
+
     def save_to_file(self, file_name):
         return _ffi_api.ExecutableSaveToFile(self, file_name)
 
