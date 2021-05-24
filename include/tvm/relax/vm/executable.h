@@ -41,33 +41,21 @@ class Executable;
 
 class ExecutableNode : public Object {
  public:
-  std::vector<ExecWord> instr_data;
-  std::vector<size_t> instr_offset;
   std::vector<ObjectRef> constants;
-  std::unordered_map<std::string, Index> func2idx;
   std::vector<std::string> func_names;
-
-  // magic number, version,  
-  // SaveToBinary(dmlc::Stream* stream);
-  // SaveToFile(const std::string& path, const std::string& format);
+  std::unordered_map<std::string, Index> func2idx;
+  std::vector<size_t> instr_offset;
+  std::vector<ExecWord> instr_data;
   
-  Instruction GetInstruction(size_t i) const {
-    size_t offset = instr_offset[i];
-    Opcode op = static_cast<Opcode>(instr_data[offset]);
-    switch (op) {
-      case Opcode::Call: {
-        RegName dst = instr_data[offset + 1];
-        Index func_idx = instr_data[offset + 2];
-        Index num_args = instr_data[offset + 3];
-        ExecWord* args = const_cast<ExecWord*>(&instr_data[offset + 4]);
-        return Instruction::Call(func_idx, num_args, reinterpret_cast<InstrArg*>(args), dst);
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
-        break;
-    }
-    return Instruction();
-  }
+  Instruction GetInstruction(size_t i) const;
+
+  TVMByteArray Save();
+  static Executable Load(const std::string& code);
+  void SaveToBinary(dmlc::Stream* stream);
+  static Executable LoadFromBinary(void* stream);
+  void SaveToFile(const std::string& path);
+  static Executable LoadFromFile(const std::string& file_name);
+
 
   String AsText() const;
 
@@ -77,11 +65,22 @@ class ExecutableNode : public Object {
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.Executable"; 
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
+
+ private:
+  void SaveConstantSection(dmlc::Stream* strm);
+  void SaveCodeSection(dmlc::Stream* strm);
+  void SavePackedFuncNames(dmlc::Stream* strm);
+  void LoadConstantSection(dmlc::Stream* strm);
+  void LoadCodeSection(dmlc::Stream* strm);
+  void LoadPackedFuncNames(dmlc::Stream* strm);
+
+  /*! \brief The serialized bytecode. */
+  std::string code_;
 };
 
 class Executable : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Executable, ObjectRef, ExecutableNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Executable, ObjectRef, ExecutableNode);
 };
 
 

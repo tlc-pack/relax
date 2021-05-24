@@ -38,6 +38,11 @@ ib.emit_call("vm.func1", args=[ib.r(3), arr])
 executable = ib.get()
 print(executable)
 print(executable.astext())
+
+executable.save_to_file("exec.bin")
+executable1 = rx.load_exec_from_file("exec.bin")
+print(executable1)
+print(executable1.astext())
 exit(0)
 
 vm = rx.VirtualMachine()

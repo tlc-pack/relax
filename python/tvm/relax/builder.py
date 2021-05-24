@@ -36,8 +36,14 @@ class Executable(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Executable)
 
+    def save_to_file(self, file_name):
+        return _ffi_api.ExecutableSaveToFile(self, file_name)
+
     def astext(self):
         return _ffi_api.ExecutableAsText(self) 
+
+def load_exec_from_file(file_name):
+    return _ffi_api.ExecutableLoadFromFile(file_name)
         
 
 @tvm._ffi.register_object("relax.Builder")
