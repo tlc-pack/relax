@@ -32,7 +32,6 @@ def add(a, b):
     return tvm.nd.array(ret)
 
 ib = rx.Builder()
-print(ib)
 
 arr = tvm.nd.array(np.random.rand(4,))
 
@@ -42,15 +41,20 @@ ib.emit_call("vm.add", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
 ib.emit_call("vm.builtin.print", args=[ib.r(2)])
 
 exec0 = ib.get()
+print("============")
+print("Executable 0")
 print(exec0)
 print(exec0.stats())
 print(exec0.astext())
 
 exec0.save_to_file("exec.bin")
 exec1 = rx.load_exec_from_file("exec.bin")
+print("============")
+print("Executable 1")
 print(exec1)
 print(exec1.stats())
 print(exec1.astext())
+print("============")
 
 vm = rx.VirtualMachine(exec0)
 print(vm)
