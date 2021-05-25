@@ -278,11 +278,11 @@ std::string InstrArgToStr(InstrArg arg) {
 std::string InstrArgToPyStr(InstrArg arg) {
   switch (arg.kind()) {
     case Instruction::kRegister:
-      return "builder.r(" + std::to_string(arg.value()) + ")";
+      return "ib.r(" + std::to_string(arg.value()) + ")";
     case Instruction::kImmediate:
-      return "builder.imm(" + std::to_string(arg.value()) + ")";
+      return "ib.imm(" + std::to_string(arg.value()) + ")";
     case Instruction::kConstIdx:
-      return "NDArray" + std::to_string(arg.value());
+      return "ib.c(" + std::to_string(arg.value()) + ")";
     default:
       LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
       return "";
@@ -313,11 +313,12 @@ String ExecutableNode::AsText() const {
 String ExecutableNode::AsPython() const {
   // print the python format
   std::ostringstream os;
+  os << "ib = rx.Builder()\n";
   for (size_t i = 0; i < this->instr_offset.size(); ++i) {
     Instruction instr = this->GetInstruction(i);
     switch (instr.op) {
       case Opcode::Call: {
-        os << "builder.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
+        os << "ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
            << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
         if (instr.dst != Instruction::kVoidArg)
           os << ", ret=ib.r(" << instr.dst << ")";
