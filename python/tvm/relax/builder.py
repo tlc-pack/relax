@@ -70,7 +70,7 @@ class Builder(Object):
         args_ = []
         for arg in args:
             if isinstance(arg, tvm.nd.NDArray):
-                new_arg = emit_constant(arg)
+                new_arg = self.emit_constant(arg)
                 args_.append(new_arg)
             else:
                 args_.append(arg)

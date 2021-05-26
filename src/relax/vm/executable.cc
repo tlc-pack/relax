@@ -387,20 +387,33 @@ String ExecutableNode::AsPython() const {
   // print the python format
   std::ostringstream os;
   os << "ib = rx.Builder()\n";
-  for (size_t i = 0; i < this->instr_offset.size(); ++i) {
-    Instruction instr = this->GetInstruction(i);
-    switch (instr.op) {
-      case Opcode::Call: {
-        os << "ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
-           << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
-        if (instr.dst != Instruction::kVoidArg)
-          os << ", ret=ib.r(" << instr.dst << ")";
-        os << ")\n";
-        break;
+  for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
+    const VMFunction& gfunc = this->global_funcs[fidx];
+    os << "with ib.function(\"" << gfunc.name << "\", num_inputs=" << gfunc.num_args << "):\n";
+    size_t start_instr = gfunc.start_instr;
+    size_t end_instr = this->instr_offset.size();
+    if ((fidx + 1) < global_funcs.size()) {
+      end_instr = global_funcs[fidx + 1].start_instr;
+    }
+    for (size_t idx = start_instr; idx < end_instr; ++idx) {
+      Instruction instr = this->GetInstruction(idx);
+      switch (instr.op) {
+        case Opcode::Call: {
+          os << "    ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
+            << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
+          if (instr.dst != Instruction::kVoidArg)
+            os << ", ret=ib.r(" << instr.dst << ")";
+          os << ")\n";
+          break;
+        }
+        case Opcode::Ret: {
+          os << "    ib.emit_ret(ib.r(" << instr.result << "))\n";
+          break;
+        }
+        default:
+          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          break;
       }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
     }
   }
   return String(os.str());

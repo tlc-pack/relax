@@ -129,7 +129,8 @@ TVM_REGISTER_GLOBAL("relax.BuilderC")
   return InstrArg(Instruction::kConstIdx, value).data;
 });
 
-TVM_REGISTER_GLOBAL("relax.BuilderGet").set_body_typed([](Builder builder) {
+TVM_REGISTER_GLOBAL("relax.BuilderGet")
+.set_body_typed([](Builder builder) {
   return builder->Get();
 });
 
