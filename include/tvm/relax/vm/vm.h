@@ -31,10 +31,15 @@ namespace tvm {
 namespace relax {
 namespace vm {
 
+struct VMFrame {
+  Index return_pc;
+  std::vector<ObjectRef> register_file;
+  RegName caller_return_register;
+};
+
+
 class VirtualMachine : public runtime::ModuleNode {
  public:
-  std::vector<ObjectRef> register_file;
-
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self) final;
 
@@ -44,11 +49,26 @@ class VirtualMachine : public runtime::ModuleNode {
 
   void Load(Executable exec, runtime::Module mod);
 
-  void Run();
+ protected:
+
+  void PushFrame(Index ret_pc);
+
+  void PopFrame();
+
+  inline void WriteRegister(RegName reg, const ObjectRef& obj);
+
+  inline ObjectRef ReadRegister(RegName reg) const;
+
+  ObjectRef Invoke(Index fidx, const std::vector<ObjectRef>& args);
+
+  void RunLoop();
+
  private:
   Executable exec_;
   runtime::Module mod_;
-  Index pc_;
+  std::vector<VMFrame> frames_;
+  Index pc_{0};
+  ObjectRef return_value_;
 };
 
 }  // namespace vm

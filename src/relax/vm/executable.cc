@@ -94,6 +94,10 @@ Instruction ExecutableNode::GetInstruction(size_t i) const {
       ExecWord* args = const_cast<ExecWord*>(&instr_data[offset + 4]);
       return Instruction::Call(func_idx, num_args, reinterpret_cast<InstrArg*>(args), dst);
     }
+    case Opcode::Ret: {
+      RegName result = instr_data[offset + 1];
+      return Instruction::Ret(result);
+    }
     default:
       LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
       break;
@@ -292,20 +296,36 @@ std::string InstrArgToPyStr(InstrArg arg) {
 String ExecutableNode::AsText() const {
   // print the text format
   std::ostringstream os;
-  for (size_t i = 0; i < this->instr_offset.size(); ++i) {
-    Instruction instr = this->GetInstruction(i);
-    switch (instr.op) {
-      case Opcode::Call: {
-        os << "call " << std::setw(12) << std::left << this->func_names[instr.func_idx]
-           << " \tin: " << std::setw(8) << std::left
-           << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
-           << " \tret: " << RegNameToStr(instr.dst) << "\n";
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
+  for (size_t fidx = 0; fidx < this->vmfunc_names.size(); ++fidx) {
+    os << "@" << this->vmfunc_names[fidx] << ":\n";
+    size_t begin_instr_offset = this->vmfunc_offset[fidx];
+    size_t end_instr_offset = this->instr_offset.size();
+    if (fidx + 1 < vmfunc_offset.size()) {
+      end_instr_offset = vmfunc_offset[fidx + 1];
     }
+    for (size_t idx = begin_instr_offset; idx < end_instr_offset; ++idx) {
+      os << "  ";
+      Instruction instr = this->GetInstruction(idx);
+      switch (instr.op) {
+        case Opcode::Call: {
+          os << std::setw(6) << std::left << "call"
+             << std::setw(16) << std::left << this->func_names[instr.func_idx]
+             << " in: " << std::setw(12) << std::left
+             << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
+             << " dst: " << RegNameToStr(instr.dst) << "\n";
+          break;
+        }
+        case Opcode::Ret: {
+          os << std::setw(6) << std::left << "ret"
+             << "ret " << RegNameToStr(instr.result) << "\n";
+          break;
+        }
+        default:
+          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          break;
+      }
+    }
+    os << "\n";
   }
   return String(os.str());
 }

@@ -52,10 +52,9 @@ using ExecWord = int64_t;
  */
 enum class Opcode {
   Call = 1U,
+  Ret = 2U,
 };
 
-// forward declaration
-struct InstrArg;
 
 /*! \brief A single virtual machine instruction.
  *
@@ -76,6 +75,28 @@ struct Instruction {
     kConstIdx = 2,
   };
 
+  struct Arg {
+    explicit Arg() : data(Instruction::kVoidArg) {}
+    explicit Arg(ExecWord data) : data(data) {}
+    Arg(ArgKind kind, Index value) {
+      // TODO(ziheng): check value
+      size_t value_bit = sizeof(ExecWord) * 8 - 8;
+      this->data = (static_cast<ExecWord>(kind) << value_bit) |
+                   (value & ((static_cast<ExecWord>(1) << value_bit)  - 1));
+    }
+    ArgKind kind() {
+      size_t value_bit = sizeof(ExecWord) * 8 - 8;
+      uint8_t kind = (data >> value_bit) & 0xFF;
+      return Instruction::ArgKind(kind);
+    }
+    ExecWord value() {
+      size_t value_bit = sizeof(ExecWord) * 8 - 8;
+      return data & ((static_cast<ExecWord>(1) << value_bit) - 1);
+    }
+    ExecWord data;
+  };
+
+
   /*! \brief The instruction opcode. */
   Opcode op;
 
@@ -89,35 +110,22 @@ struct Instruction {
       /*! \brief The number of arguments to the packed function. */
       Index num_args;
 
-      InstrArg* args;
+      Arg* args;
+    };
+
+    struct /* Ret */ {
+      RegName result;
     };
   };
 
   static Instruction Call(Index func_idx, Index num_args,
-                          InstrArg* args,
+                          Arg* args,
                           RegName dst);
+
+  static Instruction Ret(RegName result);
 };
 
-struct InstrArg {
-  explicit InstrArg() : data(Instruction::kVoidArg) {}
-  explicit InstrArg(ExecWord data) : data(data) {}
-  InstrArg(Instruction::ArgKind kind, Index value) {
-    // TODO(ziheng): check value
-    size_t value_bit = sizeof(ExecWord) * 8 - 8;
-    this->data = (static_cast<ExecWord>(kind) << value_bit) |
-                 (value & ((static_cast<ExecWord>(1) << value_bit)  - 1));
-  }
-  Instruction::ArgKind kind() {
-    size_t value_bit = sizeof(ExecWord) * 8 - 8;
-    uint8_t kind = (data >> value_bit) & 0xFF;
-    return Instruction::ArgKind(kind);
-  }
-  ExecWord value() {
-    size_t value_bit = sizeof(ExecWord) * 8 - 8;
-    return data & ((static_cast<ExecWord>(1) << value_bit) - 1);
-  }
-  ExecWord data;
-};
+using InstrArg = Instruction::Arg;
 
 }  // namespace vm
 }  // namespace relax

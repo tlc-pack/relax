@@ -44,7 +44,6 @@ def load_exec_from_file(file_name):
 class VirtualMachine(object):
     def __init__(self, exec, mod=None):
         self.module = _ffi_api.VirtualMachine(exec, mod)
-        self._run = self.module["run"]
 
-    def run(self):
-        return self._run()
+    def __getitem__(self, key):
+        return self.module[key]

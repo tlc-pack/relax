@@ -46,6 +46,8 @@ class ExecutableNode : public Object {
   std::unordered_map<std::string, Index> func2idx;
   std::vector<size_t> instr_offset;
   std::vector<ExecWord> instr_data;
+  std::vector<std::string> vmfunc_names;
+  std::vector<size_t> vmfunc_offset;
   
   std::string Stats() const;
   Instruction GetInstruction(size_t i) const;

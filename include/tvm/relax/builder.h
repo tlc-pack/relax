@@ -41,7 +41,11 @@ class BuilderNode : public Object {
  public:
   ObjectPtr<vm::ExecutableNode> exec; // mutable
 
+  void EmitFunc(std::string func, int64_t num_inputs); 
+
   void EmitCall(std::string func, std::vector<vm::InstrArg> args, vm::RegName ret);
+
+  void EmitRet(vm::RegName result);
 
   vm::Index EmitConstant(ObjectRef obj);
 

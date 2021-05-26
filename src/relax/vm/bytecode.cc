@@ -43,6 +43,13 @@ Instruction Instruction::Call(Index func_idx, Index num_args,
   return instr;
 }
 
+Instruction Instruction::Ret(RegName result) {
+  Instruction instr;
+  instr.op = Opcode::Ret;
+  instr.result = result;
+  return instr;
+}
+
 }  // namespace vm
 }  // namespace relax
 }  // namespace tvm

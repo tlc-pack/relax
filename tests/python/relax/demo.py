@@ -27,19 +27,32 @@ def vmprint(obj):
 def move(src):
     return src
 
-@tvm.register_func("vm.add")
+@tvm.register_func("vm.op.add")
 def add(a, b):
     ret = a.asnumpy() + b.asnumpy()
     return tvm.nd.array(ret)
 
+@tvm.register_func("vm.op.mul")
+def add(a, b):
+    ret = a.asnumpy() * b.asnumpy()
+    return tvm.nd.array(ret)
+
+
+# Building
+
 ib = rx.Builder()
 
-arr = tvm.nd.array(np.random.rand(4,))
-
-ib.emit_call("vm.builtin.move", args=[arr], ret=ib.r(0))
+func = ib.emit_func("func0", num_inputs=2)
+ib.emit_call("vm.op.add", args=[func.input(0), func.input(1)], ret=ib.r(0))
 ib.emit_call("vm.builtin.move", args=[ib.r(0)], ret=ib.r(1))
-ib.emit_call("vm.add", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
-ib.emit_call("vm.builtin.print", args=[ib.r(2)])
+ib.emit_call("vm.builtin.print", args=[ib.r(1)])
+ib.emit_ret(ib.r(1))
+
+func = ib.emit_func("func1", num_inputs=2)
+ib.emit_call("vm.op.mul", args=[func.input(0), func.input(1)], ret=ib.r(0))
+ib.emit_call("vm.builtin.move", args=[ib.r(0)], ret=ib.r(1))
+ib.emit_call("vm.builtin.print", args=[ib.r(1)])
+ib.emit_ret(ib.r(1))
 
 exec0 = ib.get()
 print("============")
@@ -47,21 +60,29 @@ print("Executable 0")
 print(exec0)
 print(exec0.stats())
 print(exec0.astext())
-print(exec0.aspython())
+# print(exec0.aspython())
 
-exec0.save_to_file("exec.bin")
-exec1 = rx.load_exec_from_file("exec.bin")
-print("============")
-print("Executable 1")
-print(exec1)
-print(exec1.stats())
-print(exec1.astext())
-print(exec1.aspython())
-print("============")
+# Execution
 
 vm = rx.VirtualMachine(exec0)
 print(vm)
-vm.run()
-print("original: ")
-print(arr)
+a = tvm.nd.array(np.random.rand(4,))
+b = tvm.nd.array(np.random.rand(4,))
+mul_res = vm["func1"](a, b)
+add_res = vm["func0"](a, b)
+np.testing.assert_allclose(add_res.asnumpy(), a.asnumpy() + b.asnumpy())
+np.testing.assert_allclose(mul_res.asnumpy(), a.asnumpy() * b.asnumpy())
 exit(0)
+
+
+# Serialization and Deserialization
+
+# exec0.save_to_file("exec.bin")
+# exec1 = rx.load_exec_from_file("exec.bin")
+# print("============")
+# print("Executable 1")
+# print(exec1)
+# print(exec1.stats())
+# print(exec1.astext())
+# print(exec1.aspython())
+# print("============")

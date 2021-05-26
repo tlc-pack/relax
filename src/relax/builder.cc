@@ -44,6 +44,11 @@ vm::Index BuilderNode::EmitConstant(ObjectRef obj) {
   return vm::InstrArg(vm::Instruction::kConstIdx, idx).data;
 }
 
+void BuilderNode::EmitFunc(std::string func_name, int64_t num_inputs) {
+  exec->vmfunc_names.push_back(func_name);
+  exec->vmfunc_offset.push_back(exec->instr_offset.size());
+}
+
 void BuilderNode::EmitCall(std::string func, std::vector<InstrArg> args, RegName dst) {
   // store function
   if (exec->func2idx.find(func) == exec->func2idx.end()) {
@@ -63,18 +68,32 @@ void BuilderNode::EmitCall(std::string func, std::vector<InstrArg> args, RegName
                  [](InstrArg arg){ return arg.data; });
 }
 
+void BuilderNode::EmitRet(RegName result) {
+  exec->instr_offset.push_back(exec->instr_data.size());
+  exec->instr_data.push_back(static_cast<ExecWord>(Opcode::Ret));
+  exec->instr_data.push_back(result);
+}
+
 Executable BuilderNode::Get() {
   return Executable(this->exec);
 }
 
-TVM_REGISTER_GLOBAL("relax.BuilderCreate").set_body_typed(BuilderNode::Create);
+TVM_REGISTER_GLOBAL("relax.BuilderCreate")
+.set_body_typed(BuilderNode::Create);
 
-TVM_REGISTER_GLOBAL("relax.BuilderEmitConstant").set_body_typed([](Builder builder, ObjectRef obj) {
+TVM_REGISTER_GLOBAL("relax.BuilderEmitConstant")
+.set_body_typed([](Builder builder, ObjectRef obj) {
   return builder->EmitConstant(obj);
 });
 
-TVM_REGISTER_GLOBAL("relax.BuilderEmitCall").set_body_typed(
-[](Builder builder, String name, Array<IntImm> args, int64_t ret) {
+TVM_REGISTER_GLOBAL("relax.BuilderEmitFunc")
+.set_body_typed([](Builder builder, String name, int64_t num_inputs) {
+  return builder->EmitFunc(name, num_inputs);
+});
+
+TVM_REGISTER_GLOBAL("relax.BuilderEmitCall")
+.set_body_typed([](Builder builder, String name,
+                   Array<IntImm> args, int64_t ret) {
   std::vector<InstrArg> args_;
   for (size_t i = 0; i < args.size(); ++i) {
     args_.push_back(static_cast<InstrArg>(args[i]->value));
@@ -82,6 +101,11 @@ TVM_REGISTER_GLOBAL("relax.BuilderEmitCall").set_body_typed(
   InstrArg ret_(ret);
   CHECK_EQ(ret_.kind(), Instruction::ArgKind::kRegister);
   builder->EmitCall(name, args_, ret_.value());
+});
+
+TVM_REGISTER_GLOBAL("relax.BuilderEmitRet")
+.set_body_typed([](Builder builder, int64_t result) {
+  builder->EmitRet(result);
 });
 
 TVM_REGISTER_GLOBAL("relax.BuilderGet").set_body_typed([](Builder builder) {
