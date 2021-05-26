@@ -114,6 +114,21 @@ TVM_REGISTER_GLOBAL("relax.BuilderEmitRet")
   builder->EmitRet(result);
 });
 
+TVM_REGISTER_GLOBAL("relax.BuilderR")
+.set_body_typed([](Builder builder, int64_t value) {
+  return InstrArg(Instruction::kRegister, value).data;
+});
+
+TVM_REGISTER_GLOBAL("relax.BuilderImm")
+.set_body_typed([](Builder builder, int64_t value) {
+  return InstrArg(Instruction::kImmediate, value).data;
+});
+
+TVM_REGISTER_GLOBAL("relax.BuilderC")
+.set_body_typed([](Builder builder, int64_t value) {
+  return InstrArg(Instruction::kConstIdx, value).data;
+});
+
 TVM_REGISTER_GLOBAL("relax.BuilderGet").set_body_typed([](Builder builder) {
   return builder->Get();
 });

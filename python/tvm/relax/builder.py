@@ -21,16 +21,8 @@ from tvm.runtime import Object
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
-class ArgKind(IntEnum):
-    REGISTER = 0
-    IMMEDIATE = 1
-    CONSTIDX = 2
-
 VOID_ARG_ = 0xFE0321975A
     
-def _create_arg(kind, value):
-    return (int(kind) << 56) | (value & ((1 << 56) - 1))
-
 class VMFuncScope(object):
     stack = []
     def __init__(self, func_name, num_inputs):
@@ -51,13 +43,13 @@ class Builder(Object):
         self.__init_handle_by_constructor__(_ffi_api.BuilderCreate)
 
     def r(self, idx):
-        return _create_arg(ArgKind.REGISTER, idx)
+        return _ffi_api.BuilderR(self, idx)
 
     def imm(self, value):
-        return _create_arg(ArgKind.IMMEDIATE, value)
+        return _ffi_api.BuilderImm(self, value)
 
     def c(self, idx):
-        return _create_arg(ArgKind.CONSTIDX, idx)
+        return _ffi_api.BuilderC(self, idx)
 
     def function(self, func_name, num_inputs=0):
         """set register file here"""
@@ -68,6 +60,9 @@ class Builder(Object):
         if len(VMFuncScope.stack) == 0:
             raise ValueError("emit should happen in a function scope")
 
+    def emit_constant(self, const):
+        return _ffi_api.BuilderEmitConstant(self, const)
+
     def emit_call(self, name, args=[], ret=None):
         self._check_scope()
         if ret is None:
@@ -75,7 +70,7 @@ class Builder(Object):
         args_ = []
         for arg in args:
             if isinstance(arg, tvm.nd.NDArray):
-                new_arg = _ffi_api.BuilderEmitConstant(self, arg)
+                new_arg = emit_constant(arg)
                 args_.append(new_arg)
             else:
                 args_.append(arg)
