@@ -38,14 +38,16 @@ namespace vm {
 /*! \brief A register name. */
 using RegName = int64_t;
 
-/*! \brief An alias for the integer type used ubiquitously
+/*!
+ * \brief An alias for the integer type used ubiquitously
  * in the VM.
  */
 using Index = int64_t;
 
 using ExecWord = int64_t; 
 
-/*! \brief An enumeration of Relay's opcodes.
+/*!
+ * \brief An enumeration of Relax's opcodes.
  *
  * The opcode is used to implement instruction
  * as a tagged union.

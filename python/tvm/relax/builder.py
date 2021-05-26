@@ -31,33 +31,24 @@ VOID_ARG_ = 0xFE0321975A
 def _create_arg(kind, value):
     return (int(kind) << 56) | (value & ((1 << 56) - 1))
 
-class WithScope(object):
-    def __init__(self, enter_value, exit_cb):
-        self._enter_value = enter_value
-        self._exit_cb = exit_cb
-
-    def __enter__(self):
-        return self._enter_value
-
-    def __exit__(self, ptype, value, trace):
-        self._exit_cb()
-
-class VMFuncInfo(object):
+class VMFuncScope(object):
+    stack = []
     def __init__(self, func_name, num_inputs):
         self.func_name = func_name
         self.num_inputs = num_inputs
-        OFFSET = 100
-        self.inputs = [_create_arg(ArgKind.REGISTER, OFFSET + i)
-                       for i in range(num_inputs)]
 
-    def input(self, idx):
-        return self.inputs[idx]
+    def __enter__(self):
+        VMFuncScope.stack.append(self)
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        VMFuncScope.stack.pop()
+
 
 @tvm._ffi.register_object("relax.Builder")
 class Builder(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.BuilderCreate)
-        self.func_scope_ = None
 
     def r(self, idx):
         return _create_arg(ArgKind.REGISTER, idx)
@@ -68,13 +59,17 @@ class Builder(Object):
     def c(self, idx):
         return _create_arg(ArgKind.CONSTIDX, idx)
 
-    def emit_func(self, func_name, num_inputs=0):
+    def function(self, func_name, num_inputs=0):
         """set register file here"""
-        _ffi_api.BuilderEmitFunc(self, func_name, num_inputs)
-        func_info = VMFuncInfo(func_name, num_inputs) 
-        return func_info
+        _ffi_api.BuilderFunction(self, func_name, num_inputs)
+        return VMFuncScope(func_name, num_inputs) 
+
+    def _check_scope(self):
+        if len(VMFuncScope.stack) == 0:
+            raise ValueError("emit should happen in a function scope")
 
     def emit_call(self, name, args=[], ret=None):
+        self._check_scope()
         if ret is None:
             ret = VOID_ARG_
         args_ = []
@@ -87,6 +82,7 @@ class Builder(Object):
         _ffi_api.BuilderEmitCall(self, name, args_, ret)
 
     def emit_ret(self, result):
+        self._check_scope()
         _ffi_api.BuilderEmitRet(self, result)
 
     def get(self):

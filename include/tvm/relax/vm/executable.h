@@ -39,18 +39,24 @@ namespace vm {
 
 class Executable;
 
+struct VMFunction {
+  std::string name; 
+  Index start_instr;
+  Index num_args;
+};
+
 class ExecutableNode : public Object {
  public:
+  std::vector<VMFunction> global_funcs;
+  std::unordered_map<std::string, Index> global_map;
   std::vector<ObjectRef> constants;
   std::vector<std::string> func_names;
   std::unordered_map<std::string, Index> func2idx;
-  std::vector<size_t> instr_offset;
+  std::vector<Index> instr_offset;
   std::vector<ExecWord> instr_data;
-  std::vector<std::string> vmfunc_names;
-  std::vector<size_t> vmfunc_offset;
   
   std::string Stats() const;
-  Instruction GetInstruction(size_t i) const;
+  Instruction GetInstruction(Index i) const;
 
   TVMByteArray Save();
   static Executable Load(const std::string& code);
@@ -72,9 +78,11 @@ class ExecutableNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
 
  private:
+  void SaveGlobalSection(dmlc::Stream* strm);
   void SaveConstantSection(dmlc::Stream* strm);
   void SaveCodeSection(dmlc::Stream* strm);
   void SavePackedFuncNames(dmlc::Stream* strm);
+  void LoadGlobalSection(dmlc::Stream* strm);
   void LoadConstantSection(dmlc::Stream* strm);
   void LoadCodeSection(dmlc::Stream* strm);
   void LoadPackedFuncNames(dmlc::Stream* strm);

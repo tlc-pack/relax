@@ -53,13 +53,11 @@ std::string ExecutableNode::Stats() const {
   for (const auto& it : constants) {
     const auto constant = Downcast<runtime::NDArray>(it);
     const auto& shape = constant.Shape();
-
     // Scalar
     if (shape.empty()) {
       oss << "scalar, ";
       continue;
     }
-
     oss << "[";
     for (auto s : shape) {
       oss << s << ", ";
@@ -70,8 +68,18 @@ std::string ExecutableNode::Stats() const {
   if (!constants.empty()) oss.seekp(-2, oss.cur);
   oss << "]" << std::endl;
 
+
+  // Get the number of globals and the name of each of them.
+  oss << "  Globals (#" << global_funcs.size() << "): [";
+  for (const auto& it : global_funcs) {
+    oss << it.name << ", ";
+  }
+  if (!global_map.empty()) oss.seekp(-2, oss.cur);
+  oss << "]" << std::endl;
+
+
   // Get the number of packed funcs and the name of each of them.
-  oss << "  Packed funcs (#" << func_names.size() << "): [";
+  oss << "  Packed functions (#" << func_names.size() << "): [";
   for (const auto& it : func_names) {
     oss << it << ", ";
   }
@@ -83,7 +91,7 @@ std::string ExecutableNode::Stats() const {
   return oss.str();
 }
 
-Instruction ExecutableNode::GetInstruction(size_t i) const {
+Instruction ExecutableNode::GetInstruction(Index i) const {
   size_t offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
   switch (op) {
@@ -132,9 +140,13 @@ TVMByteArray ExecutableNode::Save() {
   // Save header
   SaveHeader(&strm);
 
+  // Global section.
+  SaveGlobalSection(&strm);
+
   // Constant section.
   SaveConstantSection(&strm);
 
+  // Packedfunc names section.
   SavePackedFuncNames(&strm);
 
   // Code section.
@@ -155,9 +167,13 @@ Executable ExecutableNode::Load(const std::string& code) {
   // Load header.
   LoadHeader(&strm);
 
+  // Global section.
+  exec->LoadGlobalSection(&strm);
+
   // Constant section.
   exec->LoadConstantSection(&strm);
 
+  // Packedfunc names section.
   exec->LoadPackedFuncNames(&strm);
 
   // Code section.
@@ -197,6 +213,27 @@ Executable ExecutableNode::LoadFromFile(const std::string& file_name) {
   return exec;
 }
 
+void SerializeVMFunc(const VMFunction& func, dmlc::Stream* strm) {
+  strm->Write(func.name);
+  strm->Write(func.start_instr);
+  strm->Write(func.num_args);
+}
+
+VMFunction DeserializeVMFunc(dmlc::Stream* strm) {
+  VMFunction func;
+  STREAM_CHECK(strm->Read(&func.name), "vmfunc name");
+  STREAM_CHECK(strm->Read(&func.start_instr), "vmfunc start_instr");
+  STREAM_CHECK(strm->Read(&func.num_args), "vmfunc num_args");
+  return func;
+}
+
+void ExecutableNode::SaveGlobalSection(dmlc::Stream* strm) {
+  strm->Write(static_cast<uint64_t>(this->global_funcs.size()));
+  for (const auto& func : this->global_funcs) {
+    SerializeVMFunc(func, strm);
+  }
+}
+
 void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
   std::vector<DLTensor*> arrays;
   for (const auto& obj : this->constants) {
@@ -209,11 +246,26 @@ void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
+void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) {
+  strm->Write(func_names);
+}
 
 void ExecutableNode::SaveCodeSection(dmlc::Stream* strm) {
   strm->Write(instr_offset);
   strm->Write(instr_data);
+}
+
+void ExecutableNode::LoadGlobalSection(dmlc::Stream* strm) {
+  uint64_t sz;
+  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
+  size_t size = static_cast<size_t>(sz);
+  for (size_t i = 0; i < size; i++) {
+    VMFunction func = DeserializeVMFunc(strm);
+    this->global_funcs.push_back(func);
+  }
+  for (size_t i = 0; i < global_funcs.size(); ++i) {
+    this->global_map[global_funcs[i].name] = i;
+  }
 }
 
 void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
@@ -296,14 +348,15 @@ std::string InstrArgToPyStr(InstrArg arg) {
 String ExecutableNode::AsText() const {
   // print the text format
   std::ostringstream os;
-  for (size_t fidx = 0; fidx < this->vmfunc_names.size(); ++fidx) {
-    os << "@" << this->vmfunc_names[fidx] << ":\n";
-    size_t begin_instr_offset = this->vmfunc_offset[fidx];
-    size_t end_instr_offset = this->instr_offset.size();
-    if (fidx + 1 < vmfunc_offset.size()) {
-      end_instr_offset = vmfunc_offset[fidx + 1];
+  for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
+    const VMFunction& gfunc = this->global_funcs[fidx];
+    os << "@" << gfunc.name << ":\n";
+    size_t start_instr = gfunc.start_instr;
+    size_t end_instr = this->instr_offset.size();
+    if ((fidx + 1) < global_funcs.size()) {
+      end_instr = global_funcs[fidx + 1].start_instr;
     }
-    for (size_t idx = begin_instr_offset; idx < end_instr_offset; ++idx) {
+    for (size_t idx = start_instr; idx < end_instr; ++idx) {
       os << "  ";
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {

@@ -40,15 +40,15 @@ class DummyModule : public runtime::ModuleNode {
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
-  const auto& v = exec_->vmfunc_names;
-  if (std::find(v.begin(), v.end(), name) != v.end()) {
-    Index fidx = std::find(v.begin(), v.end(), name) - v.begin();
-    return PackedFunc([sptr_to_self, this, fidx](TVMArgs args, TVMRetValue* rv) {
+  const auto& m = exec_->global_map;
+  if (m.find(name) != m.end()) {
+    Index gf_idx = m.at(name);
+    return PackedFunc([sptr_to_self, this, gf_idx](TVMArgs args, TVMRetValue* rv) {
       std::vector<ObjectRef> inputs;
       for (int i = 0; i < args.size(); ++i) {
         inputs.push_back(args[i]);
       }
-      *rv = this->Invoke(fidx, inputs);
+      *rv = this->Invoke(gf_idx, inputs);
     });
   } else {
     LOG(FATAL) << "Unknown function: " << name;
@@ -62,16 +62,17 @@ void VirtualMachine::Load(Executable exec,
   this->mod_ = mod;
 }
 
-ObjectRef VirtualMachine::Invoke(Index fidx,
+ObjectRef VirtualMachine::Invoke(Index gf_idx,
                                  const std::vector<ObjectRef>& args) {
-  constexpr static const Index kOffset = 100;
   PushFrame(this->pc_ + 1);
+  const VMFunction& gfunc = exec_->global_funcs[gf_idx];
   // load arguments to the register file
+  ICHECK(static_cast<size_t>(gfunc.num_args) == args.size());
   for (size_t i = 0; i < args.size(); ++i) {
-    WriteRegister(kOffset + i, args[i]);
+    WriteRegister(i, args[i]);
   }
   // set program counter
-  pc_ = exec_->vmfunc_offset[fidx];
+  pc_ = gfunc.start_instr;
   RunLoop();
   return return_value_;
 }
@@ -87,7 +88,7 @@ void VirtualMachine::RunLoop() {
     switch (instr.op) {
       case Opcode::Call: {
         std::string func_name = exec_->func_names[instr.func_idx];
-        LOG(INFO) << "\n  pc = " << pc_ << ", execute: " << func_name;
+        DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << func_name;
         PackedFunc func = mod_->GetFunction(func_name, true);
         if (func == nullptr) {
           func = *(mod_->GetFuncFromEnv(func_name));
