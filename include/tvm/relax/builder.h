@@ -51,7 +51,7 @@ class BuilderNode : public Object {
 
   vm::Executable Get();
 
-  void Check();
+  bool Check();
 
   TVM_DLL static Builder Create();
 

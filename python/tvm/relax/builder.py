@@ -35,9 +35,9 @@ class VMFuncScope(object):
         return self
 
     def __exit__(self, ptype, value, trace):
-        self.callback()
+        if not self.callback():
+            raise ValueError("an unexpected register is used as input")
         VMFuncScope.stack.pop()
-
 
 @tvm._ffi.register_object("relax.Builder")
 class Builder(Object):
@@ -56,7 +56,7 @@ class Builder(Object):
     def function(self, func_name, num_inputs=0):
         """set register file here"""
         def callback():
-            _ffi_api.BuilderCheck(self)
+            return _ffi_api.BuilderCheck(self)
         _ffi_api.BuilderFunction(self, func_name, num_inputs)
         return VMFuncScope(func_name, num_inputs, callback) 
 

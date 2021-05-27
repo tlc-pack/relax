@@ -62,7 +62,6 @@ def test_vm_multiple_func():
     np.testing.assert_allclose(add_res.asnumpy(), a.asnumpy() + b.asnumpy())
     np.testing.assert_allclose(mul_res.asnumpy(), a.asnumpy() * b.asnumpy())
 
-
 def test_vm_serialize():
     ib = rx.Builder()
     with ib.function("func0", num_inputs=2):
@@ -76,7 +75,17 @@ def test_vm_serialize():
     exec1 = rx.load_exec_from_file("exec.bin")
     assert exec0.astext() == exec1.astext()
 
+def test_builder_checker():
+    ib = rx.Builder()
+    try:
+        with ib.function("func0", num_inputs=2):
+            ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(2)], dst=ib.r(2))
+            ib.emit_ret(ib.r(2))
+    except ValueError as ex:
+        assert True
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
     test_vm_serialize()
+    test_builder_checker()

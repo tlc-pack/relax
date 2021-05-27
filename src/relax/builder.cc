@@ -84,7 +84,7 @@ Executable BuilderNode::Get() {
   return Executable(this->exec);
 }
 
-void BuilderNode::Check() {
+bool BuilderNode::Check() {
   // check if registers are used correctly
   const VMFunction& gfunc = this->exec->global_funcs.back();
   Index num_inputs = gfunc.num_args;
@@ -96,9 +96,6 @@ void BuilderNode::Check() {
     Instruction instr = this->exec->GetInstruction(idx);
     switch (instr.op) {
       case Opcode::Call: {
-        if (instr.dst != Instruction::kVoidArg) {
-          dst_registers.emplace(instr.dst);
-        }
         for (int i = 0; i < instr.num_args; ++i) {
           if (instr.args[i].kind() == Instruction::kRegister && 
               instr.args[i].value() >= num_inputs && 
@@ -106,8 +103,12 @@ void BuilderNode::Check() {
             LOG(ERROR) << "register r(" << instr.args[i].value()
                        << ") in VM function \"" << gfunc.name
                        << "\" is used as input while the number of inputs is only " << num_inputs << ".\n";
+            return false;
           }
           arg_registers.emplace(instr.args[i].value());
+        }
+        if (instr.dst != Instruction::kVoidArg) {
+          dst_registers.emplace(instr.dst);
         }
         break;
       }
@@ -125,6 +126,7 @@ void BuilderNode::Check() {
         break;
     }
   }
+  return true;
 }
 
 TVM_REGISTER_GLOBAL("relax.BuilderCreate")
