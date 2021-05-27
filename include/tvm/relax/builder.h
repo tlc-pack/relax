@@ -53,6 +53,8 @@ class BuilderNode : public Object {
 
   bool Check();
 
+  void Formalize();
+
   TVM_DLL static Builder Create();
 
   void VisitAttrs(AttrVisitor* v) {

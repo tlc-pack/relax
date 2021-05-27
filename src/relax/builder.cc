@@ -129,6 +129,44 @@ bool BuilderNode::Check() {
   return true;
 }
 
+void BuilderNode::Formalize() {
+  // a pass to formalize user-specified register indexes in the order of use
+  const VMFunction& gfunc = this->exec->global_funcs.back();
+  Index num_inputs = gfunc.num_args;
+  RegName register_idx = num_inputs;
+  std::unordered_map<RegName, RegName> register_map;
+  size_t start_instr = gfunc.start_instr;
+  size_t end_instr = this->exec->instr_offset.size();
+  for (size_t idx = start_instr; idx < end_instr; ++idx) {
+    Instruction instr = this->exec->GetInstruction(idx);
+    switch (instr.op) {
+      case Opcode::Call: {
+        for (int i = 0; i < instr.num_args; ++i) {
+          if (instr.args[i].kind() == Instruction::kRegister && 
+              register_map.find(instr.args[i].value()) != register_map.end()) {
+            this->exec->instr_data[this->exec->instr_offset[idx] + 4 + i] = register_map[instr.args[i].value()];
+          }
+        }
+        if (instr.dst != Instruction::kVoidArg && instr.dst >= num_inputs && 
+            register_map.find(instr.dst) == register_map.end()) {
+          this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_idx;
+          register_map[instr.dst] = register_idx++;
+        }
+        break;
+      }
+      case Opcode::Ret: {
+        if (register_map.find(instr.result) != register_map.end()) {
+          this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_map[instr.result];
+        }
+        break;
+      }
+      default:
+        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+        break;
+    }
+  }
+}
+
 TVM_REGISTER_GLOBAL("relax.BuilderCreate")
 .set_body_typed(BuilderNode::Create);
 
@@ -182,6 +220,11 @@ TVM_REGISTER_GLOBAL("relax.BuilderGet")
 TVM_REGISTER_GLOBAL("relax.BuilderCheck")
 .set_body_typed([](Builder builder) {
   return builder->Check();
+});
+
+TVM_REGISTER_GLOBAL("relax.BuilderFormalize")
+.set_body_typed([](Builder builder) {
+  return builder->Formalize();
 });
 
 }  // namespace relax

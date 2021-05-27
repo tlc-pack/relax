@@ -25,18 +25,20 @@ VOID_ARG_ = 0xFE0321975A
     
 class VMFuncScope(object):
     stack = []
-    def __init__(self, func_name, num_inputs, callback):
+    def __init__(self, func_name, num_inputs, check, formalize):
         self.func_name = func_name
         self.num_inputs = num_inputs
-        self.callback = callback
+        self.check = check
+        self.formalize = formalize
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        if not self.callback():
+        if not self.check():
             raise ValueError("an unexpected register is used as input")
+        self.formalize()
         VMFuncScope.stack.pop()
 
 @tvm._ffi.register_object("relax.Builder")
@@ -55,10 +57,12 @@ class Builder(Object):
 
     def function(self, func_name, num_inputs=0):
         """set register file here"""
-        def callback():
+        def check():
             return _ffi_api.BuilderCheck(self)
+        def formalize():
+             _ffi_api.BuilderFormalize(self)
         _ffi_api.BuilderFunction(self, func_name, num_inputs)
-        return VMFuncScope(func_name, num_inputs, callback) 
+        return VMFuncScope(func_name, num_inputs, check, formalize) 
 
     def _check_scope(self):
         if len(VMFuncScope.stack) == 0:
@@ -85,6 +89,6 @@ class Builder(Object):
         _ffi_api.BuilderEmitRet(self, result)
 
     def get(self):
-        """formalize and return the executable"""
+        """return the executable"""
         return _ffi_api.BuilderGet(self)
 

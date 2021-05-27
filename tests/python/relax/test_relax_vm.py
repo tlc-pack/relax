@@ -84,8 +84,24 @@ def test_builder_checker():
     except ValueError as ex:
         assert True
 
+def test_builder_formalize():
+    ib0 = rx.Builder()
+    ib1 = rx.Builder()
+    with ib0.function("func0", num_inputs=2):
+        ib0.emit_call("test.vm.add", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(100))
+        ib0.emit_call("test.vm.mul", args=[ib0.r(1), ib0.r(100)], dst=ib0.r(50))
+        ib0.emit_ret(ib0.r(50))
+    with ib1.function("func0", num_inputs=2):
+        ib1.emit_call("test.vm.add", args=[ib1.r(0), ib1.r(1)], dst=ib1.r(2))
+        ib1.emit_call("test.vm.mul", args=[ib1.r(1), ib1.r(2)], dst=ib1.r(3))
+        ib1.emit_ret(ib1.r(3))
+    exec0 = ib0.get()
+    exec1 = ib1.get()
+    assert exec0.astext() == exec1.astext()
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
     test_vm_serialize()
     test_builder_checker()
+    test_builder_formalize()
