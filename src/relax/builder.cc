@@ -84,6 +84,49 @@ Executable BuilderNode::Get() {
   return Executable(this->exec);
 }
 
+void BuilderNode::Check() {
+  // check if registers are used correctly
+  const VMFunction& gfunc = this->exec->global_funcs.back();
+  Index num_inputs = gfunc.num_args;
+  std::unordered_set<RegName> dst_registers;
+  std::unordered_set<RegName> arg_registers;
+  size_t start_instr = gfunc.start_instr;
+  size_t end_instr = this->exec->instr_offset.size();
+  for (size_t idx = start_instr; idx < end_instr; ++idx) {
+    Instruction instr = this->exec->GetInstruction(idx);
+    switch (instr.op) {
+      case Opcode::Call: {
+        if (instr.dst != Instruction::kVoidArg) {
+          dst_registers.emplace(instr.dst);
+        }
+        for (int i = 0; i < instr.num_args; ++i) {
+          if (instr.args[i].kind() == Instruction::kRegister && 
+              instr.args[i].value() >= num_inputs && 
+              dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
+            LOG(ERROR) << "register r(" << instr.args[i].value()
+                       << ") in VM function \"" << gfunc.name
+                       << "\" is used as input while the number of inputs is only " << num_inputs << ".\n";
+          }
+          arg_registers.emplace(instr.args[i].value());
+        }
+        break;
+      }
+      case Opcode::Ret: {
+        arg_registers.emplace(instr.result);
+        for (int i = 0; i < num_inputs; i++) {
+          if (arg_registers.find(i) == arg_registers.end()) {
+            LOG(WARNING) << "register r(" << i << ") in VM function \"" << gfunc.name << "\" is unused as input.\n";
+          }
+        }
+        break;
+      }
+      default:
+        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+        break;
+    }
+  }
+}
+
 TVM_REGISTER_GLOBAL("relax.BuilderCreate")
 .set_body_typed(BuilderNode::Create);
 
@@ -134,6 +177,10 @@ TVM_REGISTER_GLOBAL("relax.BuilderGet")
   return builder->Get();
 });
 
+TVM_REGISTER_GLOBAL("relax.BuilderCheck")
+.set_body_typed([](Builder builder) {
+  return builder->Check();
+});
 
 }  // namespace relax
 }  // namespace tvm

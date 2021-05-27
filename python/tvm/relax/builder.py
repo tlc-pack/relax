@@ -25,15 +25,17 @@ VOID_ARG_ = 0xFE0321975A
     
 class VMFuncScope(object):
     stack = []
-    def __init__(self, func_name, num_inputs):
+    def __init__(self, func_name, num_inputs, callback):
         self.func_name = func_name
         self.num_inputs = num_inputs
+        self.callback = callback
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
         return self
 
     def __exit__(self, ptype, value, trace):
+        self.callback()
         VMFuncScope.stack.pop()
 
 
@@ -53,8 +55,10 @@ class Builder(Object):
 
     def function(self, func_name, num_inputs=0):
         """set register file here"""
+        def callback():
+            _ffi_api.BuilderCheck(self)
         _ffi_api.BuilderFunction(self, func_name, num_inputs)
-        return VMFuncScope(func_name, num_inputs) 
+        return VMFuncScope(func_name, num_inputs, callback) 
 
     def _check_scope(self):
         if len(VMFuncScope.stack) == 0:

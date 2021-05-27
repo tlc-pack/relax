@@ -51,6 +51,8 @@ class BuilderNode : public Object {
 
   vm::Executable Get();
 
+  void Check();
+
   TVM_DLL static Builder Create();
 
   void VisitAttrs(AttrVisitor* v) {
