@@ -36,7 +36,7 @@ def mul(a, b):
 def test_vm_execute():
     ib = rx.Builder()
     with ib.function("func0", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
+        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = rx.VirtualMachine(ex)
@@ -48,10 +48,10 @@ def test_vm_execute():
 def test_vm_multiple_func():
     ib = rx.Builder()
     with ib.function("func0", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
+        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     with ib.function("func1", num_inputs=2):
-        ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
+        ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = rx.VirtualMachine(ex)
@@ -66,10 +66,10 @@ def test_vm_multiple_func():
 def test_vm_serialize():
     ib = rx.Builder()
     with ib.function("func0", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
+        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     with ib.function("func1", num_inputs=2):
-        ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], ret=ib.r(2))
+        ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     exec0 = ib.get()
     exec0.save_to_file("exec.bin")

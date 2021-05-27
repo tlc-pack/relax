@@ -99,14 +99,14 @@ TVM_REGISTER_GLOBAL("relax.BuilderFunction")
 
 TVM_REGISTER_GLOBAL("relax.BuilderEmitCall")
 .set_body_typed([](Builder builder, String name,
-                   Array<IntImm> args, int64_t ret) {
+                   Array<IntImm> args, int64_t dst) {
   std::vector<InstrArg> args_;
   for (size_t i = 0; i < args.size(); ++i) {
     args_.push_back(static_cast<InstrArg>(args[i]->value));
   }
-  InstrArg ret_(ret);
-  CHECK_EQ(ret_.kind(), Instruction::ArgKind::kRegister);
-  builder->EmitCall(name, args_, ret_.value());
+  InstrArg dst_(dst);
+  CHECK_EQ(dst_.kind(), Instruction::ArgKind::kRegister);
+  builder->EmitCall(name, args_, dst_.value());
 });
 
 TVM_REGISTER_GLOBAL("relax.BuilderEmitRet")

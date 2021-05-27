@@ -63,10 +63,10 @@ class Builder(Object):
     def emit_constant(self, const):
         return _ffi_api.BuilderEmitConstant(self, const)
 
-    def emit_call(self, name, args=[], ret=None):
+    def emit_call(self, name, args=[], dst=None):
         self._check_scope()
-        if ret is None:
-            ret = VOID_ARG_
+        if dst is None:
+            dst = VOID_ARG_
         args_ = []
         for arg in args:
             if isinstance(arg, tvm.nd.NDArray):
@@ -74,7 +74,7 @@ class Builder(Object):
                 args_.append(new_arg)
             else:
                 args_.append(arg)
-        _ffi_api.BuilderEmitCall(self, name, args_, ret)
+        _ffi_api.BuilderEmitCall(self, name, args_, dst)
 
     def emit_ret(self, result):
         self._check_scope()
