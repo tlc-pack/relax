@@ -64,8 +64,8 @@ void VirtualMachine::Load(Executable exec,
 
 ObjectRef VirtualMachine::Invoke(Index gf_idx,
                                  const std::vector<ObjectRef>& args) {
-  PushFrame(this->pc_ + 1);
   const VMFunction& gfunc = exec_->global_funcs[gf_idx];
+  PushFrame(this->pc_ + 1, gfunc);
   // load arguments to the register file
   ICHECK(static_cast<size_t>(gfunc.num_args) == args.size());
   for (size_t i = 0; i < args.size(); ++i) {
@@ -146,10 +146,8 @@ void VirtualMachine::RunLoop() {
   }
 }
 
-void VirtualMachine::PushFrame(Index ret_pc) {
-  VMFrame frame;
-  frame.return_pc = ret_pc;
-  frame.register_file.resize(200);
+void VirtualMachine::PushFrame(Index ret_pc, const VMFunction& vm_func) {
+  auto frame = VMFrame(ret_pc, vm_func.register_file_size);
   frames_.push_back(frame);
 }
 

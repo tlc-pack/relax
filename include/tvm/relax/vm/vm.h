@@ -35,6 +35,11 @@ struct VMFrame {
   Index return_pc;
   std::vector<ObjectRef> register_file;
   RegName caller_return_register;
+
+  VMFrame(Index pc, Index register_file_size)
+      : return_pc(pc),
+        register_file(register_file_size),
+        caller_return_register(0) {}
 };
 
 
@@ -51,7 +56,7 @@ class VirtualMachine : public runtime::ModuleNode {
 
  protected:
 
-  void PushFrame(Index ret_pc);
+  void PushFrame(Index ret_pc, const VMFunction& vm_func);
 
   void PopFrame();
 

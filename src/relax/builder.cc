@@ -131,6 +131,7 @@ bool BuilderNode::Check() {
 
 void BuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
+  // and decide the number of registers to allocate for a VMFunction
   const VMFunction& gfunc = this->exec->global_funcs.back();
   Index num_inputs = gfunc.num_args;
   RegName register_idx = num_inputs;
@@ -165,6 +166,7 @@ void BuilderNode::Formalize() {
         break;
     }
   }
+  this->exec->global_funcs.back().register_file_size = register_idx;
 }
 
 TVM_REGISTER_GLOBAL("relax.BuilderCreate")

@@ -38,7 +38,8 @@ class VMFuncScope(object):
     def __exit__(self, ptype, value, trace):
         if not self.check():
             raise ValueError("an unexpected register is used as input")
-        self.formalize()
+        else:
+            self.formalize()
         VMFuncScope.stack.pop()
 
 @tvm._ffi.register_object("relax.Builder")

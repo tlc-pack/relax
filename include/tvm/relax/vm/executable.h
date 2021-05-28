@@ -43,6 +43,7 @@ struct VMFunction {
   std::string name; 
   Index start_instr;
   Index num_args;
+  Index register_file_size;
 };
 
 class ExecutableNode : public Object {
