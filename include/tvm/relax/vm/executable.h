@@ -26,12 +26,8 @@
 
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/node/reflection.h>
-#include <tvm/node/repr_printer.h>
 #include <tvm/ir/expr.h>
 #include "./bytecode.h"
-
-#include <sstream>
 
 namespace tvm {
 namespace relax {
@@ -70,9 +66,6 @@ class ExecutableNode : public Object {
   String AsText() const;
 
   String AsPython() const;
-
-  void VisitAttrs(AttrVisitor* v) {
-  }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.Executable"; 

@@ -67,9 +67,10 @@ def test_vm_serialize():
     with ib.function("func0", num_inputs=2):
         ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
+    arr = tvm.nd.array(np.random.rand(4,))
     with ib.function("func1", num_inputs=2):
-        ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
+        ib.emit_call("test.vm.mul", args=[ib.r(0), arr], dst=ib.r(1))
+        ib.emit_ret(ib.r(1))
     exec0 = ib.get()
     exec0.save_to_file("exec.bin")
     exec1 = rx.load_exec_from_file("exec.bin")
@@ -99,9 +100,38 @@ def test_builder_formalize():
     exec1 = ib1.get()
     assert exec0.astext() == exec1.astext()
 
+@tvm.register_func("test.vm.add_scalar")
+def add_scalar(a, b):
+    return a + b
+
+@tvm.register_func("test.vm.get_device_id")
+def get_device_id(device):
+    return device.device_id
+
+def test_vm_operand():
+    ib0 = rx.Builder()
+    with ib0.function("func0", num_inputs=2):
+        ib0.emit_call("test.vm.add_scalar", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(2))
+        ib0.emit_ret(ib0.r(2))
+    exec0 = ib0.get()
+    vm = rx.VirtualMachine(exec0)
+    res = vm["func0"](2, 3)
+    assert res == 5
+
+    ib1 = rx.Builder()
+    with ib1.function("func1", num_inputs=1):
+        ib1.emit_call("test.vm.get_device_id", args=[ib1.r(0)], dst=ib1.r(1))
+        ib1.emit_ret(ib1.r(1))
+    exec1 = ib1.get()
+    vm = rx.VirtualMachine(exec1)
+    res = vm["func1"](tvm.cpu(3))
+    assert res == 3
+
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
-    test_vm_serialize()
     test_builder_checker()
     test_builder_formalize()
+    test_vm_operand()
+    test_vm_serialize()

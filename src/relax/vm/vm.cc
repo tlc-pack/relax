@@ -44,9 +44,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   if (m.find(name) != m.end()) {
     Index gf_idx = m.at(name);
     return PackedFunc([sptr_to_self, this, gf_idx](TVMArgs args, TVMRetValue* rv) {
-      std::vector<ObjectRef> inputs;
+      std::vector<RegType> inputs(args.size());
       for (int i = 0; i < args.size(); ++i) {
-        inputs.push_back(args[i]);
+        inputs[i] = args[i];
       }
       *rv = this->Invoke(gf_idx, inputs);
     });
@@ -62,8 +62,8 @@ void VirtualMachine::Load(Executable exec,
   this->mod_ = mod;
 }
 
-ObjectRef VirtualMachine::Invoke(Index gf_idx,
-                                 const std::vector<ObjectRef>& args) {
+RegType VirtualMachine::Invoke(Index gf_idx,
+                               const std::vector<RegType>& args) {
   const VMFunction& gfunc = exec_->global_funcs[gf_idx];
   PushFrame(this->pc_ + 1, gfunc);
   // load arguments to the register file
@@ -158,11 +158,11 @@ void VirtualMachine::PopFrame() {
   frames_.pop_back();
 }
 
-inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
+inline void VirtualMachine::WriteRegister(Index r, const RegType& val) {
   frames_.back().register_file[r] = val;
 }
 
-inline ObjectRef VirtualMachine::ReadRegister(Index r) const {
+inline RegType VirtualMachine::ReadRegister(Index r) const {
   return frames_.back().register_file[r];
 }
 

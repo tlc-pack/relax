@@ -42,7 +42,7 @@ constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
 
-TVM_REGISTER_NODE_TYPE(ExecutableNode);
+TVM_REGISTER_OBJECT_TYPE(ExecutableNode);
 
 std::string ExecutableNode::Stats() const {
   std::ostringstream oss;

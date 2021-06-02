@@ -31,9 +31,11 @@ namespace tvm {
 namespace relax {
 namespace vm {
 
+using RegType = TVMRetValue; 
+
 struct VMFrame {
   Index return_pc;
-  std::vector<ObjectRef> register_file;
+  std::vector<RegType> register_file;
   RegName caller_return_register;
 
   VMFrame(Index pc, Index register_file_size)
@@ -60,11 +62,11 @@ class VirtualMachine : public runtime::ModuleNode {
 
   void PopFrame();
 
-  inline void WriteRegister(RegName reg, const ObjectRef& obj);
+  inline void WriteRegister(RegName reg, const RegType& obj);
 
-  inline ObjectRef ReadRegister(RegName reg) const;
+  inline RegType ReadRegister(RegName reg) const;
 
-  ObjectRef Invoke(Index fidx, const std::vector<ObjectRef>& args);
+  RegType Invoke(Index fidx, const std::vector<RegType>& args);
 
   void RunLoop();
 
@@ -73,7 +75,7 @@ class VirtualMachine : public runtime::ModuleNode {
   runtime::Module mod_;
   std::vector<VMFrame> frames_;
   Index pc_{0};
-  ObjectRef return_value_;
+  RegType return_value_;
 };
 
 }  // namespace vm
