@@ -16,23 +16,62 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
  * \file src/relax/vm/builtin.cc
  * \brief 
  */
-
 #include <tvm/relax/vm/bytecode.h>
 #include <tvm/relax/vm/memory_manager.h>
 #include <tvm/relax/vm/vm.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace relax {
 namespace vm {
 
+using tvm::runtime::NDArray;
+
+TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_typed(
+[](NDArray arr) {
+  return arr.Shape();
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.alloc_heap").set_body_typed(
+[](int64_t size) {
+  return NDArray::Empty(ShapeTuple({size}),
+                        DLDataType{kDLInt, 64, 1},
+                        DLDevice{kDLCPU, 0});
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.match_shape").set_body(
+[] (runtime::TVMArgs args, runtime::TVMRetValue* rv) {
+  ShapeTuple shape = args[0];
+  NDArray heap = args[1];
+  int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);
+  for (int i = 2; i < args.size(); ++i) {
+    int64_t heap_idx = args[i];
+    ICHECK(heap_idx >= 0 && heap_idx < heap.Shape()[0]);
+    heap_data[heap_idx] = shape[i - 2];
+  }
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body(
+[](runtime::TVMArgs args, runtime::TVMRetValue* rv) {
+  NDArray heap = args[0];
+  int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);
+  std::vector<int64_t> shape;
+  for (int i = 1; i < args.size(); ++i) {
+    int64_t heap_idx = args[i];
+    ICHECK(heap_idx >= 0 && heap_idx < heap.Shape()[0]);
+    shape.push_back(heap_data[heap_idx]);
+  }
+  *rv = ShapeTuple(shape);
+});
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -65,8 +104,6 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
   auto obj = storage->AllocNDArray(offset, shape, dtype);
   *rv = obj;
 });
-
-
 }  // namespace vm
 }  // namespace relax
 }  // namespace tvm

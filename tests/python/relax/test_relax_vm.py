@@ -77,7 +77,7 @@ def test_vm_serialize():
     exec1 = rx.load_exec_from_file("exec.bin")
     assert exec0.astext() == exec1.astext()
 
-def test_builder_checker():
+def test_vm_checker():
     ib = rx.Builder()
     try:
         with ib.function("func0", num_inputs=2):
@@ -86,7 +86,7 @@ def test_builder_checker():
     except ValueError as ex:
         assert True
 
-def test_builder_formalize():
+def test_vm_formalize():
     ib0 = rx.Builder()
     ib1 = rx.Builder()
     with ib0.function("func0", num_inputs=2):
@@ -128,7 +128,36 @@ def test_vm_operand():
     res = vm["func1"](tvm.cpu(3))
     assert res == 3
 
-def test_vm_storage_allocation():
+def test_vm_shapeof():
+    ib = rx.Builder()
+    shape = (32, 16)
+    arr = tvm.nd.array(np.random.rand(*shape))
+    with ib.function("main", num_inputs=0):
+        ib.emit_call("vm.builtin.shape_of", args=[arr], dst=ib.r(0))
+        ib.emit_ret(ib.r(0))
+    ex = ib.get()
+    vm = rx.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"]()
+    for i, s in enumerate(res):
+        assert s == shape[i]
+
+def test_vm_heap():
+    ib = rx.Builder()
+    shape = (32, 16)
+    arr = tvm.nd.array(np.random.rand(*shape))
+    with ib.function("main", num_inputs=0):
+        ib.emit_call("vm.builtin.alloc_heap", args=[ib.imm(2)], dst=ib.r(0))
+        ib.emit_call("vm.builtin.shape_of", args=[arr], dst=ib.r(1))
+        ib.emit_call("vm.builtin.match_shape", args=[ib.r(1), ib.r(0), ib.imm(0), ib.imm(1)])
+        ib.emit_call("vm.builtin.make_shape", args=[ib.r(0), ib.imm(0), ib.imm(1)], dst=ib.r(2))
+        ib.emit_ret(ib.r(2))
+    ex = ib.get()
+    vm = rx.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"]()
+    for i, s in enumerate(res):
+        assert s == shape[i]
+
+def test_vm_storage():
     ib = rx.Builder()
     with ib.function("main", num_inputs=7):
         ib.emit_call("vm.builtin.alloc_storage", args=[ib.r(rx.builder.VM_STATE_), ib.r(0), ib.r(1), ib.r(2), ib.r(3)], dst=ib.r(7))
@@ -150,8 +179,10 @@ def test_vm_storage_allocation():
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
-    test_builder_checker()
-    test_builder_formalize()
+    test_vm_checker()
+    test_vm_formalize()
     test_vm_operand()
     test_vm_serialize()
-    test_vm_storage_allocation()
+    test_vm_shapeof()
+    test_vm_heap()
+    test_vm_storage()
