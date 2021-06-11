@@ -97,7 +97,11 @@ bool BuilderNode::Check() {
     switch (instr.op) {
       case Opcode::Call: {
         for (int i = 0; i < instr.num_args; ++i) {
-          if (instr.args[i].kind() == Instruction::kRegister && 
+          if (instr.args[i].kind() == Instruction::kRegister &&
+              instr.args[i].value() == Instruction::kVMStateRegister) {
+            continue;
+          }
+          if (instr.args[i].kind() == Instruction::kRegister &&
               instr.args[i].value() >= num_inputs && 
               dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
             LOG(ERROR) << "register r(" << instr.args[i].value()

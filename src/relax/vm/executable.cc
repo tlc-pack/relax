@@ -313,9 +313,11 @@ std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ",
 std::string RegNameToStr(RegName reg) {
   if (reg == Instruction::kVoidArg) {
     return "void";
-  } else {
-    return "%" + std::to_string(reg);
   }
+  if (reg == Instruction::kVMStateRegister) {
+    return "%state";
+  }
+  return "%" + std::to_string(reg);
 }
 
 std::string InstrArgToStr(InstrArg arg) {
@@ -336,6 +338,9 @@ std::string InstrArgToStr(InstrArg arg) {
 std::string InstrArgToPyStr(InstrArg arg) {
   switch (arg.kind()) {
     case Instruction::kRegister:
+      if (arg.value() == Instruction::kVMStateRegister) {
+        return "ib.r(state)";
+      }
       return "ib.r(" + std::to_string(arg.value()) + ")";
     case Instruction::kImmediate:
       return "ib.imm(" + std::to_string(arg.value()) + ")";

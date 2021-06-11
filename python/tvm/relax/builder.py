@@ -22,6 +22,7 @@ from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
 VOID_ARG_ = 0xFE0321975A
+VM_STATE_ = 0xFA4379015C
     
 class VMFuncScope(object):
     stack = []

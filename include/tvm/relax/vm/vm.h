@@ -26,12 +26,13 @@
 
 #include "./bytecode.h"
 #include "./executable.h"
+#include "./memory_manager.h"
 
 namespace tvm {
 namespace relax {
 namespace vm {
 
-using RegType = TVMRetValue; 
+using RegType = TVMRetValue;
 
 struct VMFrame {
   Index return_pc;
@@ -44,9 +45,14 @@ struct VMFrame {
         caller_return_register(0) {}
 };
 
+struct VMState {
+  std::vector<Allocator*> allocators;
+};
 
 class VirtualMachine : public runtime::ModuleNode {
  public:
+  VMState state;
+
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self) final;
 
@@ -55,6 +61,8 @@ class VirtualMachine : public runtime::ModuleNode {
   const char* type_key() const final { return "relax.VirtualMachine"; }
 
   void Load(Executable exec, runtime::Module mod);
+
+  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
 
  protected:
 
@@ -76,6 +84,8 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<VMFrame> frames_;
   Index pc_{0};
   RegType return_value_;
+  std::vector<Device> devices_;
+  std::vector<Allocator*> allocators_;
 };
 
 }  // namespace vm

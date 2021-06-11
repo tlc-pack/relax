@@ -17,6 +17,7 @@
 import numpy as np
 import tvm
 from tvm import relax as rx
+from tvm.runtime import container
 
 
 @tvm.register_func("test.vm.move")
@@ -39,7 +40,7 @@ def test_vm_execute():
         ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
-    vm = rx.VirtualMachine(ex)
+    vm = rx.VirtualMachine(ex, tvm.cpu())
     a = tvm.nd.array(np.random.rand(4,))
     b = tvm.nd.array(np.random.rand(4,))
     add_res = vm["func0"](a, b)
@@ -54,7 +55,7 @@ def test_vm_multiple_func():
         ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
-    vm = rx.VirtualMachine(ex)
+    vm = rx.VirtualMachine(ex, tvm.cpu())
     a = tvm.nd.array(np.random.rand(4,))
     b = tvm.nd.array(np.random.rand(4,))
     mul_res = vm["func1"](a, b)
@@ -114,7 +115,7 @@ def test_vm_operand():
         ib0.emit_call("test.vm.add_scalar", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(2))
         ib0.emit_ret(ib0.r(2))
     exec0 = ib0.get()
-    vm = rx.VirtualMachine(exec0)
+    vm = rx.VirtualMachine(exec0, tvm.cpu())
     res = vm["func0"](2, 3)
     assert res == 5
 
@@ -123,10 +124,28 @@ def test_vm_operand():
         ib1.emit_call("test.vm.get_device_id", args=[ib1.r(0)], dst=ib1.r(1))
         ib1.emit_ret(ib1.r(1))
     exec1 = ib1.get()
-    vm = rx.VirtualMachine(exec1)
+    vm = rx.VirtualMachine(exec1, tvm.cpu())
     res = vm["func1"](tvm.cpu(3))
     assert res == 3
 
+def test_vm_storage_allocation():
+    ib = rx.Builder()
+    with ib.function("main", num_inputs=7):
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.r(rx.builder.VM_STATE_), ib.r(0), ib.r(1), ib.r(2), ib.r(3)], dst=ib.r(7))
+        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(7), ib.r(4), ib.r(5), ib.r(6)], dst=ib.r(8))
+        ib.emit_ret(ib.r(8))
+    ex = ib.get()
+    vm = rx.VirtualMachine(ex, tvm.cpu())
+    dtype = tvm.DataType('float32')
+    cpu_dev = tvm.cpu().device_type
+    buffer_size = 24
+    alignment = 8
+    offset = 0
+    shape = (32, 16)
+    shape_tuple = container.ShapeTuple(shape)
+    res = vm["main"](buffer_size, alignment, cpu_dev, dtype, offset, dtype, shape_tuple)
+    assert res.device == tvm.cpu()
+    assert res.shape == shape
 
 if __name__ == "__main__":
     test_vm_execute()
@@ -135,3 +154,4 @@ if __name__ == "__main__":
     test_builder_formalize()
     test_vm_operand()
     test_vm_serialize()
+    test_vm_storage_allocation()

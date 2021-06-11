@@ -70,6 +70,7 @@ enum class Opcode {
 
 struct Instruction {
   static constexpr ExecWord kVoidArg = 0xFE0321975A;
+  static constexpr RegName kVMStateRegister = 0xFA4379015C;
 
   enum ArgKind {
     kRegister = 0,

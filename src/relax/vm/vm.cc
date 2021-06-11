@@ -77,6 +77,21 @@ RegType VirtualMachine::Invoke(Index gf_idx,
   return return_value_;
 }
 
+void VirtualMachine::Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types) {
+  ICHECK_EQ(devices.size(), alloc_types.size());
+  for (size_t i = 0; i < devices.size(); i++) {
+    auto dev_type = static_cast<size_t>(devices[i].device_type);
+    auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
+    if (devices_.size() <= dev_type) {
+      devices_.resize(dev_type + 1);
+      allocators_.resize(dev_type + 1);
+    }
+    devices_[dev_type] = devices[i];
+    allocators_[dev_type] = alloc;
+  }
+  state.allocators = allocators_;
+}
+
 void VirtualMachine::RunLoop() {
   size_t start_frame = frames_.size();
   while (true) {
@@ -101,7 +116,12 @@ void VirtualMachine::RunLoop() {
           InstrArg arg = instr.args[i];
           switch (arg.kind()) {
             case Instruction::kRegister: {
-              setter(i, ReadRegister(arg.value()));
+              if (arg.value() == Instruction::kVMStateRegister) {
+                setter(i, &(this->state));
+              }
+              else {
+                setter(i, ReadRegister(arg.value()));
+              }
               break;
             }
             case Instruction::kImmediate: {
@@ -182,6 +202,25 @@ runtime::Module CreateVirtualMachine(Executable exec,
 TVM_REGISTER_GLOBAL("relax.VirtualMachine")
 .set_body_typed([](Executable exec, Optional<runtime::Module> mod) {
 	return CreateVirtualMachine(exec, mod);
+});
+
+TVM_REGISTER_GLOBAL("relax.VirtualMachineInit")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  ICHECK_EQ(args.size() % 3, 1);
+  runtime::Module mod = args[0];
+  auto vm = static_cast<VirtualMachine*>(mod.operator->());
+  std::vector<Device> devices;
+  std::vector<AllocatorType> alloc_types;
+  for (int i = 0; i < args.size() / 3; ++i) {
+    Device dev;
+    int device_type = args[i * 3 + 1];
+    dev.device_type = DLDeviceType(device_type);
+    dev.device_id = args[i * 3 + 2];
+    int type = args[i * 3 + 3];
+    devices.push_back(dev);
+    alloc_types.push_back(AllocatorType(type));
+  }
+  vm->Init(devices, alloc_types);
 });
 
 
