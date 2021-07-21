@@ -35,9 +35,9 @@
 namespace tvm {
 namespace relax {
 
-class Builder;
+class BytecodeBuilder;
 
-class BuilderNode : public Object {
+class BytecodeBuilderNode : public Object {
  public:
   ObjectPtr<vm::ExecutableNode> exec; // mutable
 
@@ -55,19 +55,20 @@ class BuilderNode : public Object {
 
   void Formalize();
 
-  TVM_DLL static Builder Create();
+  TVM_DLL static BytecodeBuilder Create();
 
   void VisitAttrs(AttrVisitor* v) {
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.Builder"; 
-  TVM_DECLARE_FINAL_OBJECT_INFO(BuilderNode, Object);
+  static constexpr const char* _type_key = "relax.BytecodeBuilder"; 
+  TVM_DECLARE_FINAL_OBJECT_INFO(BytecodeBuilderNode, Object);
 };
 
-class Builder : public ObjectRef {
+class BytecodeBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Builder, ObjectRef, BuilderNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BytecodeBuilder, ObjectRef,
+                                        BytecodeBuilderNode);
 };
 
 

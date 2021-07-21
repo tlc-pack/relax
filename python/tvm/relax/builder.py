@@ -43,27 +43,27 @@ class VMFuncScope(object):
             self.formalize()
         VMFuncScope.stack.pop()
 
-@tvm._ffi.register_object("relax.Builder")
-class Builder(Object):
+@tvm._ffi.register_object("relax.BytecodeBuilder")
+class BytecodeBuilder(Object):
     def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.BuilderCreate)
+        self.__init_handle_by_constructor__(_ffi_api.BytecodeBuilderCreate)
 
     def r(self, idx):
-        return _ffi_api.BuilderR(self, idx)
+        return _ffi_api.BytecodeBuilderR(self, idx)
 
     def imm(self, value):
-        return _ffi_api.BuilderImm(self, value)
+        return _ffi_api.BytecodeBuilderImm(self, value)
 
     def c(self, idx):
-        return _ffi_api.BuilderC(self, idx)
+        return _ffi_api.BytecodeBuilderC(self, idx)
 
     def function(self, func_name, num_inputs=0):
         """set register file here"""
         def check():
-            return _ffi_api.BuilderCheck(self)
+            return _ffi_api.BytecodeBuilderCheck(self)
         def formalize():
-             _ffi_api.BuilderFormalize(self)
-        _ffi_api.BuilderFunction(self, func_name, num_inputs)
+             _ffi_api.BytecodeBuilderFormalize(self)
+        _ffi_api.BytecodeBuilderFunction(self, func_name, num_inputs)
         return VMFuncScope(func_name, num_inputs, check, formalize) 
 
     def _check_scope(self):
@@ -71,7 +71,7 @@ class Builder(Object):
             raise ValueError("emit should happen in a function scope")
 
     def emit_constant(self, const):
-        return _ffi_api.BuilderEmitConstant(self, const)
+        return _ffi_api.BytecodeBuilderEmitConstant(self, const)
 
     def emit_call(self, name, args=[], dst=None):
         self._check_scope()
@@ -84,13 +84,13 @@ class Builder(Object):
                 args_.append(new_arg)
             else:
                 args_.append(arg)
-        _ffi_api.BuilderEmitCall(self, name, args_, dst)
+        _ffi_api.BytecodeBuilderEmitCall(self, name, args_, dst)
 
     def emit_ret(self, result):
         self._check_scope()
-        _ffi_api.BuilderEmitRet(self, result)
+        _ffi_api.BytecodeBuilderEmitRet(self, result)
 
     def get(self):
         """return the executable"""
-        return _ffi_api.BuilderGet(self)
+        return _ffi_api.BytecodeBuilderGet(self)
 
