@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/vm/vm.cc
- * \brief 
+ * \brief
  */
 
 #include <tvm/relax/vm/vm.h>
@@ -56,14 +56,12 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachine::Load(Executable exec,
-                          runtime::Module mod) {
+void VirtualMachine::Load(Executable exec, runtime::Module mod) {
   this->exec_ = exec;
   this->mod_ = mod;
 }
 
-RegType VirtualMachine::Invoke(Index gf_idx,
-                               const std::vector<RegType>& args) {
+RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
   const VMFunction& gfunc = exec_->global_funcs[gf_idx];
   PushFrame(this->pc_ + 1, gfunc);
   // load arguments to the register file
@@ -77,7 +75,8 @@ RegType VirtualMachine::Invoke(Index gf_idx,
   return return_value_;
 }
 
-void VirtualMachine::Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types) {
+void VirtualMachine::Init(const std::vector<Device>& devices,
+                          const std::vector<AllocatorType>& alloc_types) {
   ICHECK_EQ(devices.size(), alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
     auto dev_type = static_cast<size_t>(devices[i].device_type);
@@ -118,8 +117,7 @@ void VirtualMachine::RunLoop() {
             case Instruction::kRegister: {
               if (arg.value() == Instruction::kVMStateRegister) {
                 setter(i, &(this->state));
-              }
-              else {
+              } else {
                 setter(i, ReadRegister(arg.value()));
               }
               break;
@@ -186,8 +184,7 @@ inline RegType VirtualMachine::ReadRegister(Index r) const {
   return frames_.back().register_file[r];
 }
 
-runtime::Module CreateVirtualMachine(Executable exec,
-                                     Optional<runtime::Module> mod) {
+runtime::Module CreateVirtualMachine(Executable exec, Optional<runtime::Module> mod) {
   runtime::Module mod_;
   if (!mod) {
     mod_ = runtime::Module(make_object<DummyModule>());
@@ -200,12 +197,14 @@ runtime::Module CreateVirtualMachine(Executable exec,
 }
 
 TVM_REGISTER_GLOBAL("relax.VirtualMachine")
-.set_body_typed([](Executable exec, Optional<runtime::Module> mod) {
-	return CreateVirtualMachine(exec, mod);
-});
+    .set_body_typed([](Executable exec, Optional<runtime::Module> mod) {
+      return CreateVirtualMachine(exec, mod);
+    });
 
-TVM_REGISTER_GLOBAL("relax.VirtualMachineInit")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+// initilize the VirtualMachine, takes variable-length arguments
+// first argument is a runtime::Module, followed by one or more device_type, device_id,
+// and the AllocatorType associated with the device.
+TVM_REGISTER_GLOBAL("relax.VirtualMachineInit").set_body([](TVMArgs args, TVMRetValue* rv) {
   ICHECK_EQ(args.size() % 3, 1);
   runtime::Module mod = args[0];
   auto vm = static_cast<VirtualMachine*>(mod.operator->());
@@ -222,7 +221,6 @@ TVM_REGISTER_GLOBAL("relax.VirtualMachineInit")
   }
   vm->Init(devices, alloc_types);
 });
-
 
 }  // namespace vm
 }  // namespace relax
