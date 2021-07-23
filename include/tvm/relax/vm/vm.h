@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/vm/vm.h
- * \brief 
+ * \brief
  */
 #ifndef TVM_RELAX_VM_VM_H_
 #define TVM_RELAX_VM_VM_H_
@@ -31,7 +31,6 @@
 namespace tvm {
 namespace relax {
 namespace vm {
-
 
 /*!
  * \brief The register type.
@@ -54,9 +53,7 @@ struct VMFrame {
   RegName caller_return_register;
 
   VMFrame(Index pc, Index register_file_size)
-      : return_pc(pc),
-        register_file(register_file_size),
-        caller_return_register(0) {}
+      : return_pc(pc), register_file(register_file_size), caller_return_register(0) {}
 };
 
 /*!
@@ -164,8 +161,6 @@ class VirtualMachine : public runtime::ModuleNode {
   RegType return_value_;
   /*! \brief The devices. */
   std::vector<Device> devices_;
-  /*! \brief The allocator. */
-  std::vector<Allocator*> allocators_;
 };
 
 }  // namespace vm

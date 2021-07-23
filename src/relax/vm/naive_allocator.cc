@@ -18,35 +18,33 @@
  */
 
 /*!
- * \file tvm/relax/vm/naive_allocator.h
+ * \file src/relax/vm/naive_allocator.cc
+ * \brief
  */
-#ifndef TVM_RELAX_VM_NAIVE_ALLOCATOR_H_
-#define TVM_RELAX_VM_NAIVE_ALLOCATOR_H_
 
-#include <tvm/relax/vm/memory_manager.h>
-#include <tvm/runtime/device_api.h>
-
-#include <atomic>
+#include <tvm/relax/vm/naive_allocator.h>
 
 namespace tvm {
 namespace relax {
 namespace vm {
 
-class NaiveAllocator final : public Allocator {
- public:
-  explicit NaiveAllocator(Device dev) : Allocator(kNaive), used_memory_(0), device_(dev) {}
+Buffer NaiveAllocator::Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) {
+  Buffer buf;
+  buf.device = device_;
+  buf.size = nbytes;
+  buf.data =
+      runtime::DeviceAPI::Get(device_)->AllocDataSpace(device_, nbytes, alignment, type_hint);
+  used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
+  DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
+  return buf;
+}
 
-  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override;
-
-  void Free(const Buffer& buffer) override;
-
- private:
-  std::atomic<size_t> used_memory_;
-  Device device_;
-};
+void NaiveAllocator::Free(const Buffer& buffer) {
+  runtime::DeviceAPI::Get(device_)->FreeDataSpace(buffer.device, buffer.data);
+  used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
+  DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
+}
 
 }  // namespace vm
 }  // namespace relax
 }  // namespace tvm
-
-#endif  // TVM_RELAX_VM_NAIVE_ALLOCATOR_H_

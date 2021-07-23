@@ -83,12 +83,11 @@ void VirtualMachine::Init(const std::vector<Device>& devices,
     auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
     if (devices_.size() <= dev_type) {
       devices_.resize(dev_type + 1);
-      allocators_.resize(dev_type + 1);
+      state.allocators.resize(dev_type + 1);
     }
     devices_[dev_type] = devices[i];
-    allocators_[dev_type] = alloc;
+    state.allocators[dev_type] = alloc;
   }
-  state.allocators = allocators_;
 }
 
 void VirtualMachine::RunLoop() {
