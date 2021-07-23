@@ -71,21 +71,21 @@ enum class Opcode {
  * is active.
  */
 struct Instruction {
-  /*!
-   * \brief Random magic number that represents void argument.
-   */
+  /*! \brief Random magic number that represents void argument. */
   static constexpr ExecWord kVoidArg = 0xFE0321975A;
-  /*!
-   * \brief Random magic number that represents the VM state.
-   */
+  /*! \brief Random magic number that represents the VM state. */
   static constexpr RegName kVMStateRegister = 0xFA4379015C;
-
+  /*!
+   * \brief The kind of instruction's argument.
+   */
   enum ArgKind {
     kRegister = 0,
     kImmediate = 1,
     kConstIdx = 2,
   };
-
+  /*!
+   * \brief The auxiliary data structure for instruction argument.
+   */
   struct Arg {
     explicit Arg() : data(Instruction::kVoidArg) {}
     explicit Arg(ExecWord data) : data(data) {}
@@ -106,33 +106,40 @@ struct Instruction {
     }
     ExecWord data;
   };
-
-
   /*! \brief The instruction opcode. */
   Opcode op;
-
   /*! \brief The destination register. */
   RegName dst; 
-
   union {
     struct /* Call */ {
       /*! \brief The index into the packed function table. */
       Index func_idx;
       /*! \brief The number of arguments to the packed function. */
       Index num_args;
-
+      /*! \brief The arguments of the packed function. */
       Arg* args;
     };
-
     struct /* Ret */ {
+      /*! \brief The return result. */
       RegName result;
     };
   };
-
+  /*!
+   * \brief Construct a Call instruction.
+   * \param func_index The index of the function to call.
+   * \param num_args The number of arguments.
+   * \param args The input arguments.
+   * \param dst The destination register.
+   * \return The call instruction.
+   */
   static Instruction Call(Index func_idx, Index num_args,
                           Arg* args,
                           RegName dst);
-
+  /*!
+   * \brief Construct a return instruction.
+   * \param result The register containing the return value.
+   * \return The return instruction.
+   */
   static Instruction Ret(RegName result);
 };
 
