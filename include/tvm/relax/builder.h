@@ -37,24 +37,54 @@ namespace relax {
 
 class BytecodeBuilder;
 
+/*!
+ * \brief A buiilder provides api to build executable with instructions.
+ */
 class BytecodeBuilderNode : public Object {
  public:
+  /*! \brief The mutable internal executable node. */
   ObjectPtr<vm::ExecutableNode> exec; // mutable
-
+  /*!
+   * \brief To annotate the start of a vm function.
+   * \param func The function name.
+   * \param num_inputs The number of inputs.
+   */
   void Function(std::string func, int64_t num_inputs); 
-
+  /*!
+   * \brief Emit a call instruction for a packed function.
+   * \param func The packed function name.
+   * \param args The arguments of the function.
+   * \param ret The return register.
+   */
   void EmitCall(std::string func, std::vector<vm::InstrArg> args, vm::RegName ret);
-
+  /*!
+   * \brief Emit a ret instruction.
+   * \param result The return result.
+   */
   void EmitRet(vm::RegName result);
-
+  /*!
+   * \brief Emit a constant value to the constant pool.
+   * \return The index that represents the constant.
+   */
   vm::Index EmitConstant(ObjectRef obj);
-
+  /*!
+   * \brief Get the built executable.
+   * \return The built executable.
+   */
   vm::Executable Get();
-
+  /*!
+   * \brief Check whether the executable is legal.
+   * \return The check result.
+   */
   bool Check();
-
+  /*!
+   * \brief Formalize the executable.
+   */
   void Formalize();
-
+  /*!
+   * \brief Create a BytecodeBuilder.
+   * \return The BytecodeBuilder.
+   */
   TVM_DLL static BytecodeBuilder Create();
 
   void VisitAttrs(AttrVisitor* v) {

@@ -44,6 +44,9 @@ using RegName = int64_t;
  */
 using Index = int64_t;
 
+/*!
+ * \brief The storage type for the bytecode in the VM.
+ */
 using ExecWord = int64_t; 
 
 /*!
@@ -67,9 +70,14 @@ enum class Opcode {
  * and by extension which field of the union
  * is active.
  */
-
 struct Instruction {
+  /*!
+   * \brief Random magic number that represents void argument.
+   */
   static constexpr ExecWord kVoidArg = 0xFE0321975A;
+  /*!
+   * \brief Random magic number that represents the VM state.
+   */
   static constexpr RegName kVMStateRegister = 0xFA4379015C;
 
   enum ArgKind {

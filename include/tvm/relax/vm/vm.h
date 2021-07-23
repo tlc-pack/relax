@@ -32,11 +32,25 @@ namespace tvm {
 namespace relax {
 namespace vm {
 
+
+/*!
+ * \brief The register type.
+ */
 using RegType = TVMRetValue;
 
+/*!
+ * \brief A representation of a stack frame.
+ *
+ * A stack frame is a record containing the information needed
+ * to restore the caller's virtual machine state after returning
+ * from a function call.
+ */
 struct VMFrame {
+  /*! \brief The return program counter. */
   Index return_pc;
+  /*! \brief Statically allocated space for objects */
   std::vector<RegType> register_file;
+  /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
 
   VMFrame(Index pc, Index register_file_size)
@@ -45,46 +59,112 @@ struct VMFrame {
         caller_return_register(0) {}
 };
 
+/*!
+ * \brief The state of virtual machine, which can be referred in
+ * instruction.
+ */
 struct VMState {
+  /*! \brief The memory allocators. */
   std::vector<Allocator*> allocators;
 };
 
+/*!
+ * \brief The virtual machine.
+ *
+ * The virtual machine contains all the current execution state,
+ * as well as the executable.
+ *
+ * The goal is to have a single self-contained object,
+ * enabling one to easily pass around VMs, execute them on
+ * multiple threads, or serialize them to disk or over the
+ * wire.
+ */
 class VirtualMachine : public runtime::ModuleNode {
  public:
-  VMState state;
-
+  /*!
+   * \brief Initialize the virtual machine for a set of devices.
+   * \param devices The set of TVM devices.
+   * \param alloc_types The allocator types for each device.
+   */
+  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
+  /*!
+   * \brief load the executable and module for the virtual machine.
+   * \param exec The executable.
+   * \param mod The library module.
+   */
+  void Load(Executable exec, runtime::Module mod);
+  /*!
+   * \brief Get a PackedFunc from module.
+   *
+   *  The PackedFunc may not be fully initialized,
+   *  there might still be first time running overhead when
+   *  executing the function on certain devices.
+   *  For benchmarking, use prepare to eliminate
+   *
+   * \param name the name of the function.
+   * \param sptr_to_self The shared_ptr that points to this module node.
+   *
+   * \return PackedFunc(nullptr) when it is not available.
+   *
+   * \note The function will always remain valid.
+   *   If the function needs resource from the module(e.g. late linking),
+   *   it should capture sptr_to_self.
+   */
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self) final;
 
   virtual ~VirtualMachine() final {}
 
   const char* type_key() const final { return "relax.VirtualMachine"; }
-
-  void Load(Executable exec, runtime::Module mod);
-
-  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
+  /*! \brief The state of the virtual machine, which can be referred by
+   *  instructions.
+   */
+  VMState state;
 
  protected:
-
+  /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index ret_pc, const VMFunction& vm_func);
-
+  /*!
+   * \brief Pop a frame off the call stack.
+   * \return The number of frames left.
+   */
   void PopFrame();
-
+  /*!
+   * \brief Write to a VM register.
+   * \param reg The register to write to.
+   * \param obj The object to write to.
+   */
   inline void WriteRegister(RegName reg, const RegType& obj);
-
+  /*!
+   * \brief Read a VM register.
+   * \param reg The register to read from.
+   * \return The read object.
+   */
   inline RegType ReadRegister(RegName reg) const;
-
+  /*!
+   * \brief Invoke a VM function.
+   * \param func The function.
+   * \param args The arguments to the function.
+   * \return The object representing the result.
+   */
   RegType Invoke(Index fidx, const std::vector<RegType>& args);
-
+  /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
  private:
+  /*! \brief The loaded executable. */
   Executable exec_;
+  /*! \brief The loaded module. */
   runtime::Module mod_;
+  /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
+  /*! \brief The virtual machine PC. */
   Index pc_{0};
+  /*! \brief The special return register. */
   RegType return_value_;
+  /*! \brief The devices. */
   std::vector<Device> devices_;
+  /*! \brief The allocator. */
   std::vector<Allocator*> allocators_;
 };
 
