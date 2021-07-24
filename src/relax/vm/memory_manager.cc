@@ -22,12 +22,12 @@
  * \brief Allocate and manage memory for the Relay VM.
  */
 #include <tvm/relax/vm/memory_manager.h>
-#include <tvm/relax/vm/naive_allocator.h>
-#include <tvm/relax/vm/pooled_allocator.h>
-
 
 #include <memory>
 #include <utility>
+
+#include "naive_allocator.h"
+#include "pooled_allocator.h"
 
 namespace tvm {
 namespace relax {
@@ -144,9 +144,9 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   }
   auto alloc = m->allocators_.at(dev).get();
   if (alloc->type() != type) {
-    LOG(WARNING) << "The type of existing allocator for " << runtime::DeviceName(dev.device_type) << "("
-                 << dev.device_id << ") is different from the request type (" << alloc->type()
-                 << " vs " << type << ")";
+    LOG(WARNING) << "The type of existing allocator for " << runtime::DeviceName(dev.device_type)
+                 << "(" << dev.device_id << ") is different from the request type ("
+                 << alloc->type() << " vs " << type << ")";
   }
   return alloc;
 }
@@ -164,7 +164,8 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
 
 runtime::NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
-  runtime::NDArray::Container* container = new runtime::NDArray::Container(nullptr, shape, dtype, dev);
+  runtime::NDArray::Container* container =
+      new runtime::NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
   size_t size = runtime::GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
