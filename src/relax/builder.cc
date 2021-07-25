@@ -22,6 +22,7 @@
  */
 
 #include <tvm/relax/builder.h>
+
 #include <sstream>
 
 namespace tvm {
@@ -30,7 +31,6 @@ namespace relax {
 using namespace vm;
 
 TVM_REGISTER_NODE_TYPE(BytecodeBuilderNode);
-
 
 BytecodeBuilder BytecodeBuilderNode::Create() {
   BytecodeBuilder ret(make_object<BytecodeBuilderNode>());
@@ -60,7 +60,7 @@ void BytecodeBuilderNode::EmitCall(std::string func, std::vector<InstrArg> args,
   if (exec->func2idx.find(func) == exec->func2idx.end()) {
     exec->func2idx[func] = exec->func_names.size();
     exec->func_names.push_back(func);
-  } 
+  }
   Index func_idx = exec->func2idx[func];
   // store instruction
   exec->instr_offset.push_back(exec->instr_data.size());
@@ -69,9 +69,8 @@ void BytecodeBuilderNode::EmitCall(std::string func, std::vector<InstrArg> args,
   exec->instr_data.push_back(func_idx);
   exec->instr_data.push_back(args.size());
   // store arguments
-  std::transform(args.cbegin(), args.cend(),
-                 std::back_inserter(exec->instr_data),
-                 [](InstrArg arg){ return arg.data; });
+  std::transform(args.cbegin(), args.cend(), std::back_inserter(exec->instr_data),
+                 [](InstrArg arg) { return arg.data; });
 }
 
 void BytecodeBuilderNode::EmitRet(RegName result) {
@@ -80,58 +79,7 @@ void BytecodeBuilderNode::EmitRet(RegName result) {
   exec->instr_data.push_back(result);
 }
 
-Executable BytecodeBuilderNode::Get() {
-  return Executable(this->exec);
-}
-
-bool BytecodeBuilderNode::Check() {
-  // check if registers are used correctly
-  const VMFunction& gfunc = this->exec->global_funcs.back();
-  Index num_inputs = gfunc.num_args;
-  std::unordered_set<RegName> dst_registers;
-  std::unordered_set<RegName> arg_registers;
-  size_t start_instr = gfunc.start_instr;
-  size_t end_instr = this->exec->instr_offset.size();
-  for (size_t idx = start_instr; idx < end_instr; ++idx) {
-    Instruction instr = this->exec->GetInstruction(idx);
-    switch (instr.op) {
-      case Opcode::Call: {
-        for (int i = 0; i < instr.num_args; ++i) {
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              instr.args[i].value() == Instruction::kVMStateRegister) {
-            continue;
-          }
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              instr.args[i].value() >= num_inputs && 
-              dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
-            LOG(ERROR) << "register r(" << instr.args[i].value()
-                       << ") in VM function \"" << gfunc.name
-                       << "\" is used as input while the number of inputs is only " << num_inputs << ".\n";
-            return false;
-          }
-          arg_registers.emplace(instr.args[i].value());
-        }
-        if (instr.dst != Instruction::kVoidArg) {
-          dst_registers.emplace(instr.dst);
-        }
-        break;
-      }
-      case Opcode::Ret: {
-        arg_registers.emplace(instr.result);
-        for (int i = 0; i < num_inputs; i++) {
-          if (arg_registers.find(i) == arg_registers.end()) {
-            LOG(WARNING) << "register r(" << i << ") in VM function \"" << gfunc.name << "\" is unused as input.\n";
-          }
-        }
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
-    }
-  }
-  return true;
-}
+Executable BytecodeBuilderNode::Get() { return Executable(this->exec); }
 
 void BytecodeBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
@@ -147,12 +95,13 @@ void BytecodeBuilderNode::Formalize() {
     switch (instr.op) {
       case Opcode::Call: {
         for (int i = 0; i < instr.num_args; ++i) {
-          if (instr.args[i].kind() == Instruction::kRegister && 
+          if (instr.args[i].kind() == Instruction::kRegister &&
               register_map.find(instr.args[i].value()) != register_map.end()) {
-            this->exec->instr_data[this->exec->instr_offset[idx] + 4 + i] = register_map[instr.args[i].value()];
+            this->exec->instr_data[this->exec->instr_offset[idx] + 4 + i] =
+                register_map[instr.args[i].value()];
           }
         }
-        if (instr.dst != Instruction::kVoidArg && instr.dst >= num_inputs && 
+        if (instr.dst != Instruction::kVoidArg && instr.dst >= num_inputs &&
             register_map.find(instr.dst) == register_map.end()) {
           this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_idx;
           register_map[instr.dst] = register_idx++;
@@ -173,64 +122,103 @@ void BytecodeBuilderNode::Formalize() {
   this->exec->global_funcs.back().register_file_size = register_idx;
 }
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderCreate")
-.set_body_typed(BytecodeBuilderNode::Create);
+TVM_REGISTER_GLOBAL("relax.BytecodeBuilderCreate").set_body_typed(BytecodeBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitConstant")
-.set_body_typed([](BytecodeBuilder builder, ObjectRef obj) {
-  return builder->EmitConstant(obj);
-});
+    .set_body_typed([](BytecodeBuilder builder, ObjectRef obj) {
+      return builder->EmitConstant(obj);
+    });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFunction")
-.set_body_typed([](BytecodeBuilder builder, String name, int64_t num_inputs) {
-  return builder->Function(name, num_inputs);
-});
+    .set_body_typed([](BytecodeBuilder builder, String name, int64_t num_inputs) {
+      return builder->Function(name, num_inputs);
+    });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitCall")
-.set_body_typed([](BytecodeBuilder builder, String name,
-                   Array<IntImm> args, int64_t dst) {
-  std::vector<InstrArg> args_;
-  for (size_t i = 0; i < args.size(); ++i) {
-    args_.push_back(static_cast<InstrArg>(args[i]->value));
-  }
-  InstrArg dst_(dst);
-  CHECK_EQ(dst_.kind(), Instruction::ArgKind::kRegister);
-  builder->EmitCall(name, args_, dst_.value());
-});
+    .set_body_typed([](BytecodeBuilder builder, String name, Array<IntImm> args, int64_t dst) {
+      std::vector<InstrArg> args_;
+      for (size_t i = 0; i < args.size(); ++i) {
+        args_.push_back(static_cast<InstrArg>(args[i]->value));
+      }
+      InstrArg dst_(dst);
+      CHECK_EQ(dst_.kind(), Instruction::ArgKind::kRegister);
+      builder->EmitCall(name, args_, dst_.value());
+    });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitRet")
-.set_body_typed([](BytecodeBuilder builder, int64_t result) {
-  builder->EmitRet(result);
-});
+    .set_body_typed([](BytecodeBuilder builder, int64_t result) { builder->EmitRet(result); });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderR")
-.set_body_typed([](BytecodeBuilder builder, int64_t value) {
-  return InstrArg(Instruction::kRegister, value).data;
-});
+    .set_body_typed([](BytecodeBuilder builder, int64_t value) {
+      return InstrArg(Instruction::kRegister, value).data;
+    });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderImm")
-.set_body_typed([](BytecodeBuilder builder, int64_t value) {
-  return InstrArg(Instruction::kImmediate, value).data;
-});
+    .set_body_typed([](BytecodeBuilder builder, int64_t value) {
+      return InstrArg(Instruction::kImmediate, value).data;
+    });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderC")
-.set_body_typed([](BytecodeBuilder builder, int64_t value) {
-  return InstrArg(Instruction::kConstIdx, value).data;
-});
+    .set_body_typed([](BytecodeBuilder builder, int64_t value) {
+      return InstrArg(Instruction::kConstIdx, value).data;
+    });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderGet")
-.set_body_typed([](BytecodeBuilder builder) {
+TVM_REGISTER_GLOBAL("relax.BytecodeBuilderGet").set_body_typed([](BytecodeBuilder builder) {
   return builder->Get();
 });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderCheck")
-.set_body_typed([](BytecodeBuilder builder) {
-  return builder->Check();
+TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFormalize").set_body_typed([](BytecodeBuilder builder) {
+  return builder->Formalize();
 });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFormalize")
-.set_body_typed([](BytecodeBuilder builder) {
-  return builder->Formalize();
+// check if the executable is legal by checking if registers are used properly
+TVM_REGISTER_GLOBAL("relax.ExecutableCheck").set_body_typed([](Executable exec) {
+  const VMFunction& gfunc = exec->global_funcs.back();
+  Index num_inputs = gfunc.num_args;
+  std::unordered_set<RegName> dst_registers;
+  std::unordered_set<RegName> arg_registers;
+  size_t start_instr = gfunc.start_instr;
+  size_t end_instr = exec->instr_offset.size();
+  for (size_t idx = start_instr; idx < end_instr; ++idx) {
+    Instruction instr = exec->GetInstruction(idx);
+    switch (instr.op) {
+      case Opcode::Call: {
+        for (int i = 0; i < instr.num_args; ++i) {
+          if (instr.args[i].kind() == Instruction::kRegister &&
+              instr.args[i].value() == Instruction::kVMStateRegister) {
+            continue;
+          }
+          if (instr.args[i].kind() == Instruction::kRegister &&
+              instr.args[i].value() >= num_inputs &&
+              dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
+            LOG(ERROR) << "register r(" << instr.args[i].value() << ") in VM function \""
+                       << gfunc.name << "\" is used as input while the number of inputs is only "
+                       << num_inputs << ".\n";
+            return false;
+          }
+          arg_registers.emplace(instr.args[i].value());
+        }
+        if (instr.dst != Instruction::kVoidArg) {
+          dst_registers.emplace(instr.dst);
+        }
+        break;
+      }
+      case Opcode::Ret: {
+        arg_registers.emplace(instr.result);
+        for (int i = 0; i < num_inputs; i++) {
+          if (arg_registers.find(i) == arg_registers.end()) {
+            LOG(WARNING) << "register r(" << i << ") in VM function \"" << gfunc.name
+                         << "\" is unused as input.\n";
+          }
+        }
+        break;
+      }
+      default:
+        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+        break;
+    }
+  }
+  return true;
 });
 
 }  // namespace relax

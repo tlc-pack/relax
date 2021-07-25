@@ -19,16 +19,17 @@
 
 /*!
  * \file tvm/relax/builder.h
- * \brief 
+ * \brief
  */
 #ifndef TVM_RELAX_BUILDER_H_
 #define TVM_RELAX_BUILDER_H_
 
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/ir/expr.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/registry.h>
+
 #include "./vm/bytecode.h"
 #include "./vm/executable.h"
 
@@ -43,13 +44,13 @@ class BytecodeBuilder;
 class BytecodeBuilderNode : public Object {
  public:
   /*! \brief The mutable internal executable node. */
-  ObjectPtr<vm::ExecutableNode> exec; // mutable
+  ObjectPtr<vm::ExecutableNode> exec;  // mutable
   /*!
    * \brief To annotate the start of a vm function.
    * \param func The function name.
    * \param num_inputs The number of inputs.
    */
-  void Function(std::string func, int64_t num_inputs); 
+  void Function(std::string func, int64_t num_inputs);
   /*!
    * \brief Emit a call instruction for a packed function.
    * \param func The packed function name.
@@ -73,11 +74,6 @@ class BytecodeBuilderNode : public Object {
    */
   vm::Executable Get();
   /*!
-   * \brief Check whether the executable is legal.
-   * \return The check result.
-   */
-  bool Check();
-  /*!
    * \brief Formalize the executable.
    */
   void Formalize();
@@ -87,20 +83,17 @@ class BytecodeBuilderNode : public Object {
    */
   TVM_DLL static BytecodeBuilder Create();
 
-  void VisitAttrs(AttrVisitor* v) {
-  }
+  void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.BytecodeBuilder"; 
+  static constexpr const char* _type_key = "relax.BytecodeBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(BytecodeBuilderNode, Object);
 };
 
 class BytecodeBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BytecodeBuilder, ObjectRef,
-                                        BytecodeBuilderNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BytecodeBuilder, ObjectRef, BytecodeBuilderNode);
 };
-
 
 }  // namespace relax
 }  // namespace tvm
