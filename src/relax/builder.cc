@@ -171,55 +171,5 @@ TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFormalize").set_body_typed([](Bytecode
   return builder->Formalize();
 });
 
-// check if the executable is legal by checking if registers are used properly
-TVM_REGISTER_GLOBAL("relax.ExecutableCheck").set_body_typed([](Executable exec) {
-  const VMFunction& gfunc = exec->global_funcs.back();
-  Index num_inputs = gfunc.num_args;
-  std::unordered_set<RegName> dst_registers;
-  std::unordered_set<RegName> arg_registers;
-  size_t start_instr = gfunc.start_instr;
-  size_t end_instr = exec->instr_offset.size();
-  for (size_t idx = start_instr; idx < end_instr; ++idx) {
-    Instruction instr = exec->GetInstruction(idx);
-    switch (instr.op) {
-      case Opcode::Call: {
-        for (int i = 0; i < instr.num_args; ++i) {
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              instr.args[i].value() == Instruction::kVMStateRegister) {
-            continue;
-          }
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              instr.args[i].value() >= num_inputs &&
-              dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
-            LOG(ERROR) << "register r(" << instr.args[i].value() << ") in VM function \""
-                       << gfunc.name << "\" is used as input while the number of inputs is only "
-                       << num_inputs << ".\n";
-            return false;
-          }
-          arg_registers.emplace(instr.args[i].value());
-        }
-        if (instr.dst != Instruction::kVoidArg) {
-          dst_registers.emplace(instr.dst);
-        }
-        break;
-      }
-      case Opcode::Ret: {
-        arg_registers.emplace(instr.result);
-        for (int i = 0; i < num_inputs; i++) {
-          if (arg_registers.find(i) == arg_registers.end()) {
-            LOG(WARNING) << "register r(" << i << ") in VM function \"" << gfunc.name
-                         << "\" is unused as input.\n";
-          }
-        }
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
-    }
-  }
-  return true;
-});
-
 }  // namespace relax
 }  // namespace tvm

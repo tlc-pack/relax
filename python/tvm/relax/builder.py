@@ -60,7 +60,7 @@ class BytecodeBuilder(Object):
     def function(self, func_name, num_inputs=0):
         """set register file here"""
         def check():
-            return _ffi_api.ExecutableCheck(self.get())
+            return _ffi_api.CheckExecutable(self.get())
         def formalize():
              _ffi_api.BytecodeBuilderFormalize(self)
         _ffi_api.BytecodeBuilderFunction(self, func_name, num_inputs)
