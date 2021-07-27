@@ -25,6 +25,7 @@ VOID_ARG_ = 0xFE0321975A
 VM_STATE_ = 0xFA4379015C
     
 class VMFuncScope(object):
+    """An object corresponds to each VM function, working as a context manager."""
     stack = []
     def __init__(self, func_name, num_inputs, check, formalize):
         self.func_name = func_name
@@ -45,20 +46,24 @@ class VMFuncScope(object):
 
 @tvm._ffi.register_object("relax.BytecodeBuilder")
 class BytecodeBuilder(Object):
+    """A builder to emit instructions and build executable for the virtual machine."""
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.BytecodeBuilderCreate)
 
     def r(self, idx):
+        """set instruction's argument as a register."""
         return _ffi_api.BytecodeBuilderR(self, idx)
 
     def imm(self, value):
+        """set instruction's argument as an immediate."""
         return _ffi_api.BytecodeBuilderImm(self, value)
 
     def c(self, idx):
+        """set instruction's argument as a constant."""
         return _ffi_api.BytecodeBuilderC(self, idx)
 
     def function(self, func_name, num_inputs=0):
-        """set register file here"""
+        """annotate a VM function."""
         def check():
             return _ffi_api.CheckExecutable(self.get())
         def formalize():
@@ -74,6 +79,7 @@ class BytecodeBuilder(Object):
         return _ffi_api.BytecodeBuilderEmitConstant(self, const)
 
     def emit_call(self, name, args=[], dst=None):
+        """emit a call instruction which calls a packed function."""
         self._check_scope()
         if dst is None:
             dst = VOID_ARG_
@@ -87,6 +93,7 @@ class BytecodeBuilder(Object):
         _ffi_api.BytecodeBuilderEmitCall(self, name, args_, dst)
 
     def emit_ret(self, result):
+        """emit a return instruction"""
         self._check_scope()
         _ffi_api.BytecodeBuilderEmitRet(self, result)
 

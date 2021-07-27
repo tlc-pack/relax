@@ -126,7 +126,7 @@ struct Instruction {
   };
   /*!
    * \brief Construct a Call instruction.
-   * \param func_index The index of the function to call.
+   * \param func_idx The index of the function to call.
    * \param num_args The number of arguments.
    * \param args The input arguments.
    * \param dst The destination register.

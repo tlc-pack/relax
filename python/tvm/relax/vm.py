@@ -24,34 +24,65 @@ from ..rpc.base import RPC_SESS_MASK
 
 @tvm._ffi.register_object("relax.Executable")
 class Executable(Object):
+    """The executable object emitted by the VM compiler or the BytecodeBuilder."""
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Executable)
 
     def stats(self):
+        """print the detailed statistics of the executable."""
         return _ffi_api.ExecutableStats(self)
 
     def save_to_file(self, file_name):
+        """serialize and write the executable to a file."""
         return _ffi_api.ExecutableSaveToFile(self, file_name)
 
     def astext(self):
+        """print the instructions as text format."""
         return _ffi_api.ExecutableAsText(self)
     
     def aspython(self):
+        """print the instructions as python program."""
         return _ffi_api.ExecutableAsPython(self)
 
 def load_exec_from_file(file_name):
     return _ffi_api.ExecutableLoadFromFile(file_name)
 
 class VirtualMachine(object):
+    """Relax VM runtime."""
+
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
     
     def __init__(self, exec, device, memory_cfg=None, mod=None):
+        """
+        Construct a VirtualMachine wrapper object.
+
+        Parameters
+        ----------
+        exec: Executable
+            The VM executable.
+
+        device : tvm.runtime.Device or List[tvm.runtime.Device]
+            The device to deploy the module.
+
+        memory_cfg : str or Dict[tvm.runtime.Device, str], optional
+            Config the type of memory allocator. The allocator type can be ["naive",
+            "pooled"]. If memory_cfg is None, all devices will use pooled allocator
+            by default. If memory_cfg is string, all devices will use the specified
+            allocator type. If memory_cfg is a dict, each device uses the allocator
+            type specified in the dict, or pooled allocator if not specified in the
+            dict.
+
+        Returns
+        -------
+        vm: VirtualMachine
+            A VM wrapper object.
+        """
         self.module = _ffi_api.VirtualMachine(exec, mod)
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev, memory_cfg):
-        """Init devices and allocators."""
+        """init devices and allocators."""
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):

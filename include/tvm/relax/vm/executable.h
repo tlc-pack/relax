@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relax/vm/executable.h
+ * \file tvm/relax/vm/executable.h
  * \brief 
  */
 #ifndef TVM_RELAX_VM_EXECUTABLE_H_
@@ -102,12 +102,11 @@ class ExecutableNode : public Object {
   /*!
    * \brief Write the Executable to the provided path as a file contianing its serialized content.
    * \param path The path to write the serialized data to.
-   * \param format The format of the serialized blob.
    */
   void SaveToFile(const std::string& path);
   /*!
    * \brief Load Executable from the file.
-   * \param file The file that load the executable from.
+   * \param file_name The file that load the executable from.
    */
   static Executable LoadFromFile(const std::string& file_name);
   /*! \brief The virtual machine's function table. */

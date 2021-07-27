@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relax/vm/vm.h
+ * \file tvm/relax/vm/vm.h
  * \brief
  */
 #ifndef TVM_RELAX_VM_VM_H_
@@ -140,7 +140,7 @@ class VirtualMachine : public runtime::ModuleNode {
   inline RegType ReadRegister(RegName reg) const;
   /*!
    * \brief Invoke a VM function.
-   * \param func The function.
+   * \param fidx The function index.
    * \param args The arguments to the function.
    * \return The object representing the result.
    */
