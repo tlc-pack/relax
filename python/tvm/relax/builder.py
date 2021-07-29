@@ -44,31 +44,31 @@ class VMFuncScope(object):
             self.formalize()
         VMFuncScope.stack.pop()
 
-@tvm._ffi.register_object("relax.BytecodeBuilder")
-class BytecodeBuilder(Object):
+@tvm._ffi.register_object("relax.ExecBuilder")
+class ExecBuilder(Object):
     """A builder to emit instructions and build executable for the virtual machine."""
     def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.BytecodeBuilderCreate)
+        self.__init_handle_by_constructor__(_ffi_api.ExecBuilderCreate)
 
     def r(self, idx):
         """set instruction's argument as a register."""
-        return _ffi_api.BytecodeBuilderR(self, idx)
+        return _ffi_api.ExecBuilderR(self, idx)
 
     def imm(self, value):
         """set instruction's argument as an immediate."""
-        return _ffi_api.BytecodeBuilderImm(self, value)
+        return _ffi_api.ExecBuilderImm(self, value)
 
     def c(self, idx):
         """set instruction's argument as a constant."""
-        return _ffi_api.BytecodeBuilderC(self, idx)
+        return _ffi_api.ExecBuilderC(self, idx)
 
     def function(self, func_name, num_inputs=0):
         """annotate a VM function."""
         def check():
             return _ffi_api.CheckExecutable(self.get())
         def formalize():
-             _ffi_api.BytecodeBuilderFormalize(self)
-        _ffi_api.BytecodeBuilderFunction(self, func_name, num_inputs)
+             _ffi_api.ExecBuilderFormalize(self)
+        _ffi_api.ExecBuilderFunction(self, func_name, num_inputs)
         return VMFuncScope(func_name, num_inputs, check, formalize) 
 
     def _check_scope(self):
@@ -76,7 +76,7 @@ class BytecodeBuilder(Object):
             raise ValueError("emit should happen in a function scope")
 
     def emit_constant(self, const):
-        return _ffi_api.BytecodeBuilderEmitConstant(self, const)
+        return _ffi_api.ExecBuilderEmitConstant(self, const)
 
     def emit_call(self, name, args=[], dst=None):
         """emit a call instruction which calls a packed function."""
@@ -90,14 +90,14 @@ class BytecodeBuilder(Object):
                 args_.append(new_arg)
             else:
                 args_.append(arg)
-        _ffi_api.BytecodeBuilderEmitCall(self, name, args_, dst)
+        _ffi_api.ExecBuilderEmitCall(self, name, args_, dst)
 
     def emit_ret(self, result):
         """emit a return instruction"""
         self._check_scope()
-        _ffi_api.BytecodeBuilderEmitRet(self, result)
+        _ffi_api.ExecBuilderEmitRet(self, result)
 
     def get(self):
         """return the executable"""
-        return _ffi_api.BytecodeBuilderGet(self)
+        return _ffi_api.ExecBuilderGet(self)
 

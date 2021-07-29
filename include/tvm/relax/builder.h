@@ -38,12 +38,12 @@ namespace relax {
 
 namespace vm = tvm::runtime::relax_vm;
 
-class BytecodeBuilder;
+class ExecBuilder;
 
 /*!
  * \brief A buiilder provides api to build executable with instructions.
  */
-class BytecodeBuilderNode : public Object {
+class ExecBuilderNode : public Object {
  public:
   /*! \brief The mutable internal executable node. */
   ObjectPtr<vm::ExecutableNode> exec;  // mutable
@@ -80,21 +80,21 @@ class BytecodeBuilderNode : public Object {
    */
   void Formalize();
   /*!
-   * \brief Create a BytecodeBuilder.
-   * \return The BytecodeBuilder.
+   * \brief Create a ExecBuilder.
+   * \return The ExecBuilder.
    */
-  TVM_DLL static BytecodeBuilder Create();
+  TVM_DLL static ExecBuilder Create();
 
   void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.BytecodeBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BytecodeBuilderNode, Object);
+  static constexpr const char* _type_key = "relax.ExecBuilder";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
 };
 
-class BytecodeBuilder : public ObjectRef {
+class ExecBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BytecodeBuilder, ObjectRef, BytecodeBuilderNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecBuilder, ObjectRef, ExecBuilderNode);
 };
 
 }  // namespace relax

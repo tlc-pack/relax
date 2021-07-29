@@ -30,21 +30,21 @@ namespace relax {
 
 using namespace vm;
 
-TVM_REGISTER_NODE_TYPE(BytecodeBuilderNode);
+TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
 
-BytecodeBuilder BytecodeBuilderNode::Create() {
-  BytecodeBuilder ret(make_object<BytecodeBuilderNode>());
+ExecBuilder ExecBuilderNode::Create() {
+  ExecBuilder ret(make_object<ExecBuilderNode>());
   ret->exec = make_object<ExecutableNode>();
   return ret;
 }
 
-vm::Index BytecodeBuilderNode::EmitConstant(ObjectRef obj) {
+vm::Index ExecBuilderNode::EmitConstant(ObjectRef obj) {
   vm::Index idx = exec->constants.size();
   exec->constants.push_back(obj);
   return vm::Instruction::Arg(vm::Instruction::kConstIdx, idx).data;
 }
 
-void BytecodeBuilderNode::Function(std::string func_name, int64_t num_inputs) {
+void ExecBuilderNode::Function(std::string func_name, int64_t num_inputs) {
   const auto& m = exec->global_map;
   ICHECK(m.find(func_name) == m.end());
   VMFunction vmfunc;
@@ -55,7 +55,7 @@ void BytecodeBuilderNode::Function(std::string func_name, int64_t num_inputs) {
   exec->global_funcs.push_back(vmfunc);
 }
 
-void BytecodeBuilderNode::EmitCall(std::string func, std::vector<Instruction::Arg> args, RegName dst) {
+void ExecBuilderNode::EmitCall(std::string func, std::vector<Instruction::Arg> args, RegName dst) {
   // store function
   if (exec->func2idx.find(func) == exec->func2idx.end()) {
     exec->func2idx[func] = exec->func_names.size();
@@ -73,15 +73,15 @@ void BytecodeBuilderNode::EmitCall(std::string func, std::vector<Instruction::Ar
                  [](Instruction::Arg arg) { return arg.data; });
 }
 
-void BytecodeBuilderNode::EmitRet(RegName result) {
+void ExecBuilderNode::EmitRet(RegName result) {
   exec->instr_offset.push_back(exec->instr_data.size());
   exec->instr_data.push_back(static_cast<ExecWord>(Opcode::Ret));
   exec->instr_data.push_back(result);
 }
 
-Executable BytecodeBuilderNode::Get() { return Executable(this->exec); }
+Executable ExecBuilderNode::Get() { return Executable(this->exec); }
 
-void BytecodeBuilderNode::Formalize() {
+void ExecBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
   // and decide the number of registers to allocate for a VMFunction
   const VMFunction& gfunc = this->exec->global_funcs.back();
@@ -122,20 +122,20 @@ void BytecodeBuilderNode::Formalize() {
   this->exec->global_funcs.back().register_file_size = register_idx;
 }
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderCreate").set_body_typed(BytecodeBuilderNode::Create);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitConstant")
-    .set_body_typed([](BytecodeBuilder builder, ObjectRef obj) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitConstant")
+    .set_body_typed([](ExecBuilder builder, ObjectRef obj) {
       return builder->EmitConstant(obj);
     });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFunction")
-    .set_body_typed([](BytecodeBuilder builder, String name, int64_t num_inputs) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderFunction")
+    .set_body_typed([](ExecBuilder builder, String name, int64_t num_inputs) {
       return builder->Function(name, num_inputs);
     });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitCall")
-    .set_body_typed([](BytecodeBuilder builder, String name, Array<IntImm> args, int64_t dst) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
+    .set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
       std::vector<Instruction::Arg> args_;
       for (size_t i = 0; i < args.size(); ++i) {
         args_.push_back(static_cast<Instruction::Arg>(args[i]->value));
@@ -145,29 +145,29 @@ TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitCall")
       builder->EmitCall(name, args_, dst_.value());
     });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitRet")
-    .set_body_typed([](BytecodeBuilder builder, int64_t result) { builder->EmitRet(result); });
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
+    .set_body_typed([](ExecBuilder builder, int64_t result) { builder->EmitRet(result); });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderR")
-    .set_body_typed([](BytecodeBuilder builder, int64_t value) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderR")
+    .set_body_typed([](ExecBuilder builder, int64_t value) {
       return Instruction::Arg(Instruction::kRegister, value).data;
     });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderImm")
-    .set_body_typed([](BytecodeBuilder builder, int64_t value) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderImm")
+    .set_body_typed([](ExecBuilder builder, int64_t value) {
       return Instruction::Arg(Instruction::kImmediate, value).data;
     });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderC")
-    .set_body_typed([](BytecodeBuilder builder, int64_t value) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderC")
+    .set_body_typed([](ExecBuilder builder, int64_t value) {
       return Instruction::Arg(Instruction::kConstIdx, value).data;
     });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderGet").set_body_typed([](BytecodeBuilder builder) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
   return builder->Get();
 });
 
-TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFormalize").set_body_typed([](BytecodeBuilder builder) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderFormalize").set_body_typed([](ExecBuilder builder) {
   return builder->Formalize();
 });
 
