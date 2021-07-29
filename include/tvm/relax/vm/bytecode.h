@@ -143,8 +143,6 @@ struct Instruction {
   static Instruction Ret(RegName result);
 };
 
-using InstrArg = Instruction::Arg;
-
 }  // namespace vm
 }  // namespace relax
 }  // namespace tvm

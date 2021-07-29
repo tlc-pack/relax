@@ -33,7 +33,7 @@ namespace relax {
 namespace vm {
 
 Instruction Instruction::Call(Index func_idx, Index num_args, 
-                              InstrArg* args, RegName dst) {
+                              Instruction::Arg* args, RegName dst) {
   Instruction instr;
   instr.op = Opcode::Call;
   instr.dst = dst;

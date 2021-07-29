@@ -111,7 +111,7 @@ void VirtualMachine::RunLoop() {
         std::vector<int> tcodes(instr.num_args);
         runtime::TVMArgsSetter setter(values.data(), tcodes.data());
         for (Index i = 0; i < instr.num_args; ++i) {
-          InstrArg arg = instr.args[i];
+          Instruction::Arg arg = instr.args[i];
           switch (arg.kind()) {
             case Instruction::kRegister: {
               if (arg.value() == Instruction::kVMStateRegister) {

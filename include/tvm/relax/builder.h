@@ -57,7 +57,7 @@ class BytecodeBuilderNode : public Object {
    * \param args The arguments of the function.
    * \param ret The return register.
    */
-  void EmitCall(std::string func, std::vector<vm::InstrArg> args, vm::RegName ret);
+  void EmitCall(std::string func, std::vector<vm::Instruction::Arg> args, vm::RegName ret);
   /*!
    * \brief Emit a ret instruction.
    * \param result The return result.

@@ -41,7 +41,7 @@ BytecodeBuilder BytecodeBuilderNode::Create() {
 vm::Index BytecodeBuilderNode::EmitConstant(ObjectRef obj) {
   vm::Index idx = exec->constants.size();
   exec->constants.push_back(obj);
-  return vm::InstrArg(vm::Instruction::kConstIdx, idx).data;
+  return vm::Instruction::Arg(vm::Instruction::kConstIdx, idx).data;
 }
 
 void BytecodeBuilderNode::Function(std::string func_name, int64_t num_inputs) {
@@ -55,7 +55,7 @@ void BytecodeBuilderNode::Function(std::string func_name, int64_t num_inputs) {
   exec->global_funcs.push_back(vmfunc);
 }
 
-void BytecodeBuilderNode::EmitCall(std::string func, std::vector<InstrArg> args, RegName dst) {
+void BytecodeBuilderNode::EmitCall(std::string func, std::vector<Instruction::Arg> args, RegName dst) {
   // store function
   if (exec->func2idx.find(func) == exec->func2idx.end()) {
     exec->func2idx[func] = exec->func_names.size();
@@ -70,7 +70,7 @@ void BytecodeBuilderNode::EmitCall(std::string func, std::vector<InstrArg> args,
   exec->instr_data.push_back(args.size());
   // store arguments
   std::transform(args.cbegin(), args.cend(), std::back_inserter(exec->instr_data),
-                 [](InstrArg arg) { return arg.data; });
+                 [](Instruction::Arg arg) { return arg.data; });
 }
 
 void BytecodeBuilderNode::EmitRet(RegName result) {
@@ -136,11 +136,11 @@ TVM_REGISTER_GLOBAL("relax.BytecodeBuilderFunction")
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitCall")
     .set_body_typed([](BytecodeBuilder builder, String name, Array<IntImm> args, int64_t dst) {
-      std::vector<InstrArg> args_;
+      std::vector<Instruction::Arg> args_;
       for (size_t i = 0; i < args.size(); ++i) {
-        args_.push_back(static_cast<InstrArg>(args[i]->value));
+        args_.push_back(static_cast<Instruction::Arg>(args[i]->value));
       }
-      InstrArg dst_(dst);
+      Instruction::Arg dst_(dst);
       CHECK_EQ(dst_.kind(), Instruction::ArgKind::kRegister);
       builder->EmitCall(name, args_, dst_.value());
     });
@@ -150,17 +150,17 @@ TVM_REGISTER_GLOBAL("relax.BytecodeBuilderEmitRet")
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderR")
     .set_body_typed([](BytecodeBuilder builder, int64_t value) {
-      return InstrArg(Instruction::kRegister, value).data;
+      return Instruction::Arg(Instruction::kRegister, value).data;
     });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderImm")
     .set_body_typed([](BytecodeBuilder builder, int64_t value) {
-      return InstrArg(Instruction::kImmediate, value).data;
+      return Instruction::Arg(Instruction::kImmediate, value).data;
     });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderC")
     .set_body_typed([](BytecodeBuilder builder, int64_t value) {
-      return InstrArg(Instruction::kConstIdx, value).data;
+      return Instruction::Arg(Instruction::kConstIdx, value).data;
     });
 
 TVM_REGISTER_GLOBAL("relax.BytecodeBuilderGet").set_body_typed([](BytecodeBuilder builder) {

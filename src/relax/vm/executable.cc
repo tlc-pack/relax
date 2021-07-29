@@ -98,7 +98,7 @@ Instruction ExecutableNode::GetInstruction(Index i) const {
       Index func_idx = instr_data[offset + 2];
       Index num_args = instr_data[offset + 3];
       ExecWord* args = const_cast<ExecWord*>(&instr_data[offset + 4]);
-      return Instruction::Call(func_idx, num_args, reinterpret_cast<InstrArg*>(args), dst);
+      return Instruction::Call(func_idx, num_args, reinterpret_cast<Instruction::Arg*>(args), dst);
     }
     case Opcode::Ret: {
       RegName result = instr_data[offset + 1];
@@ -316,7 +316,7 @@ std::string RegNameToStr(RegName reg) {
   return "%" + std::to_string(reg);
 }
 
-std::string InstrArgToStr(InstrArg arg) {
+std::string InstrArgToStr(Instruction::Arg arg) {
   // only for argument
   switch (arg.kind()) {
     case Instruction::kRegister:
@@ -331,7 +331,7 @@ std::string InstrArgToStr(InstrArg arg) {
   }
 }
 
-std::string InstrArgToPyStr(InstrArg arg) {
+std::string InstrArgToPyStr(Instruction::Arg arg) {
   switch (arg.kind()) {
     case Instruction::kRegister:
       if (arg.value() == Instruction::kVMStateRegister) {
@@ -366,7 +366,7 @@ String ExecutableNode::AsText() const {
         case Opcode::Call: {
           os << std::setw(6) << std::left << "call" << std::setw(16) << std::left
              << this->func_names[instr.func_idx] << " in: " << std::setw(12) << std::left
-             << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
+             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
              << " dst: " << RegNameToStr(instr.dst) << "\n";
           break;
         }
@@ -402,7 +402,7 @@ String ExecutableNode::AsPython() const {
       switch (instr.op) {
         case Opcode::Call: {
           os << "    ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
-             << StrJoin<InstrArg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
+             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
           if (instr.dst != Instruction::kVoidArg) os << ", ret=ib.r(" << instr.dst << ")";
           os << ")\n";
           break;
