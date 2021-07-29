@@ -31,8 +31,8 @@
 #include <vector>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 
 /*! \brief A register name. */
@@ -143,8 +143,8 @@ struct Instruction {
   static Instruction Ret(RegName result);
 };
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_BYTECODE_H_

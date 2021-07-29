@@ -32,8 +32,8 @@
 #include <vector>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 class PooledAllocator final : public Allocator {
  public:
@@ -104,8 +104,8 @@ class PooledAllocator final : public Allocator {
   Device device_;
 };
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_POOLED_ALLOCATOR_H_

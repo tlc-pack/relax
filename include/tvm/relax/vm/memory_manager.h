@@ -34,8 +34,8 @@
 #include <vector>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 struct Buffer {
   /*! \brief The pointer to the allocated block of memory. */
@@ -135,8 +135,8 @@ class Storage : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_MEMORY_MANAGER_H_

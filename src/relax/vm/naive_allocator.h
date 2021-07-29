@@ -29,8 +29,8 @@
 #include <atomic>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 class NaiveAllocator final : public Allocator {
  public:
@@ -58,8 +58,8 @@ class NaiveAllocator final : public Allocator {
   Device device_;
 };
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_NAIVE_ALLOCATOR_H_

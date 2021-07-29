@@ -29,8 +29,8 @@
 #include <sstream>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 Instruction Instruction::Call(Index func_idx, Index num_args, 
                               Instruction::Arg* args, RegName dst) {
@@ -50,6 +50,6 @@ Instruction Instruction::Ret(RegName result) {
   return instr;
 }
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm

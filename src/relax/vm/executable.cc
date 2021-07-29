@@ -32,8 +32,8 @@
 #include "../../runtime/file_utils.h"
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
@@ -497,6 +497,6 @@ TVM_REGISTER_GLOBAL("relax.CheckExecutable").set_body_typed([](Executable exec) 
   return CheckExecutable(exec);
 });
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm

@@ -30,8 +30,8 @@
 #include "./bytecode.h"
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 class Executable;
 
@@ -182,8 +182,8 @@ class Executable : public ObjectRef {
 };
 
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_EXECUTABLE_H_

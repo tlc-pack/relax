@@ -25,8 +25,8 @@
 #include <tvm/relax/vm/vm.h>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 class DummyModule : public runtime::ModuleNode {
  public:
@@ -221,6 +221,6 @@ TVM_REGISTER_GLOBAL("relax.VirtualMachineInit").set_body([](TVMArgs args, TVMRet
   vm->Init(devices, alloc_types);
 });
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm

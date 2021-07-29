@@ -31,8 +31,8 @@
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 using tvm::runtime::NDArray;
 
@@ -91,6 +91,6 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
   return tensor;
 });
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm

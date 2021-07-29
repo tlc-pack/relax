@@ -36,6 +36,8 @@
 namespace tvm {
 namespace relax {
 
+namespace vm = tvm::runtime::relax_vm;
+
 class BytecodeBuilder;
 
 /*!

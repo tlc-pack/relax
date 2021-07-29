@@ -29,8 +29,8 @@
 #include "./memory_manager.h"
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 /*!
  * \brief The register type.
@@ -163,8 +163,8 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<Device> devices_;
 };
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_VM_H_

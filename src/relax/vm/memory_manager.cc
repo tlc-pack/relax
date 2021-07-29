@@ -30,8 +30,8 @@
 #include "pooled_allocator.h"
 
 namespace tvm {
-namespace relax {
-namespace vm {
+namespace runtime {
+namespace relax_vm {
 
 static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<runtime::NDArray::Container*>(obj);
@@ -176,6 +176,6 @@ runtime::NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, 
   return runtime::NDArray(runtime::GetObjectPtr<Object>(container));
 }
 
-}  // namespace vm
-}  // namespace relax
+}  // namespace relax_vm
+}  // namespace runtime
 }  // namespace tvm
