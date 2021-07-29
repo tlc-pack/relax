@@ -249,6 +249,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/parser/*.cc
     src/printer/*.cc
     src/support/*.cc
+    src/relax/*.cc
     )
 
 file(GLOB CODEGEN_SRCS
@@ -276,6 +277,7 @@ file(GLOB_RECURSE RELAY_IR_SRCS
 file(GLOB_RECURSE RELAY_QNN_SRCS
     src/relay/qnn/*.cc
 )
+
 list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})

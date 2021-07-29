@@ -1,0 +1,397 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+#ifndef TVM_TVM_RELAX_EXPR_H_
+#define TVM_TVM_RELAX_EXPR_H_
+
+#include <tvm/ir/expr.h>
+#include <tvm/ir/span.h>
+#include <tvm/node/node.h>
+#include <tvm/relay/expr.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/object.h>
+#include <tvm/tir/expr.h>
+
+namespace tvm {
+namespace relax {
+
+using ExprNode = RelayExprNode;
+using Expr = RelayExpr;
+
+/*! \brief The variable class for all Relax bindings. */
+class VarNode : public ExprNode {
+ public:
+  /*! \brief The identifier of the variable, is used for comparing stable equality across transformations. */
+  relay::Id id;
+  /*! \brief The shape annotation, used by binding sites and parameter declarations. */
+  runtime::Optional<runtime::Array<PrimExpr>> shape_annotation;
+  /* \brief The type annotation, used by binding sites and parameter declarations. */
+  runtime::Optional<Type> type_annotation;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("id", &id);
+    v->Visit("shape_annotation", &shape_annotation);
+    v->Visit("type_annotation", &type_annotation);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
+    return equal(id, other->id) && equal(shape_annotation, other->shape_annotation) &&
+           equal(type_annotation, other->type_annotation) &&
+           // Do we use the analysis information in equality?
+           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(id);
+    hash_reduce(shape_annotation);
+    hash_reduce(type_annotation);
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+    hash_reduce(span);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.Var";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 2;
+  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, ExprNode);
+};
+
+class Var : public Expr {
+ public:
+  TVM_DLL Var(relay::Id id, runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
+              runtime::Optional<Type> type_annotation, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
+};
+
+/*! \brief A sub-type of the variable node used to mark dataflow variables from
+ * normal visible "function local" bindings.
+ */
+class DataflowVarNode : public VarNode {
+ public:
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("id", &id);
+    v->Visit("shape_annotation", &shape_annotation);
+    v->Visit("type_annotation", &type_annotation);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
+    return equal(id, other->id) && equal(shape_annotation, other->shape_annotation) &&
+           equal(type_annotation, other->type_annotation) &&
+           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(id);
+    hash_reduce(shape_annotation);
+    hash_reduce(type_annotation);
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+    hash_reduce(span);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.DataflowVar";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarNode, VarNode);
+};
+
+class DataflowVar : public Var {
+ public:
+  TVM_DLL DataflowVar(relay::Id id, runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
+                      runtime::Optional<Type> type_annotation, Type checked_type_, Array<PrimExpr> shape_,
+                      Span span);
+
+  TVM_DLL DataflowVar(std::string, runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
+                      runtime::Optional<Type> type_annotation, Type checked_type_, Array<PrimExpr> shape_,
+                      Span span);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
+};
+
+/*! \brief The base class of a variable binding in Relax. */
+class BindingNode : public Object {
+ public:
+  void VisitAttrs(AttrVisitor* v) {}
+  bool SEqualReduce(const BindingNode* other, SEqualReducer equal) const { return true; }
+  void SHashReduce(SHashReducer hash_reduce) const {}
+
+  static constexpr const char* _type_key = "relax.expr.Binding";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_BASE_OBJECT_INFO(BindingNode, Object);
+};
+
+class Binding : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Binding, ObjectRef, BindingNode);
+};
+
+/*! \brief Symbolic shape match, binds the variables of the LHS with the rhs. */
+class MatchShape;
+class MatchShapeNode : public BindingNode {
+ public:
+  Expr lhs;
+  Expr rhs;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("lhs", &lhs);
+    v->Visit("rhs", &rhs);
+  }
+
+  bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
+    return equal(lhs, other->lhs) && equal(rhs, other->rhs);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(lhs);
+    hash_reduce(rhs);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.MatchShape";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(MatchShapeNode, BindingNode);
+};
+
+class MatchShape : public Binding {
+ public:
+  TVM_DLL MatchShape(Expr lhs, Expr rhs);
+  TVM_DEFINE_OBJECT_REF_METHODS(MatchShape, Binding, MatchShapeNode);
+};
+
+class VarBinding;
+class VarBindingNode : public BindingNode {
+ public:
+  Var var;
+  Expr value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("var", &var);
+    v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
+    return equal(var, other->var) && equal(value, other->value);
+  }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(var);
+    hash_reduce(value);
+  }
+  static constexpr const char* _type_key = "relax.expr.VarBinding";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarBindingNode, BindingNode);
+};
+
+class VarBinding : public Binding {
+ public:
+  TVM_DLL VarBinding(Var var, Expr value);
+  TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
+};
+
+// write an alternative name
+// BindingGroup
+class BasicBlock;
+class BasicBlockNode : public Object {
+ public:
+  runtime::Array<Binding> bindings;
+  void VisitAttrs(AttrVisitor* v) { v->Visit("bindings", &bindings); }
+  bool SEqualReduce(const BasicBlockNode* other, SEqualReducer equal) const {
+    return equal(bindings, other->bindings);
+  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
+  static constexpr const char* _type_key = "relax.expr.BasicBlock";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_BASE_OBJECT_INFO(BasicBlockNode, Object);
+};
+
+class BasicBlock : public ObjectRef {
+ public:
+  TVM_DLL BasicBlock(runtime::Array<Binding> bindings);
+  TVM_DEFINE_OBJECT_REF_METHODS(BasicBlock, ObjectRef, BasicBlockNode);
+};
+
+// DataflowGroup + Impure BindingSequence, Let, etc
+class DataflowBlock;
+class DataflowBlockNode : public BasicBlockNode {
+ public:
+  void VisitAttrs(AttrVisitor* v) { v->Visit("bindings", &bindings); }
+  bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
+    return equal(bindings, other->bindings);
+  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
+  static constexpr const char* _type_key = "relax.expr.DataflowBlock";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockNode, BasicBlockNode);
+};
+
+class DataflowBlock : public BasicBlock {
+ public:
+  TVM_DLL DataflowBlock(runtime::Array<Binding> bindings);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BasicBlock, DataflowBlockNode);
+};
+
+/*! \brief A sequence of blocks followed by an expression.
+ *
+ * The order of blocks enforces scoping and ordering.
+ */
+class SeqExprNode : public ExprNode {
+ public:
+  Array<BasicBlock> blocks;
+  Expr body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("blocks", &blocks);
+    v->Visit("body", &body);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
+    return equal(blocks, other->blocks) && equal(body, other->body) &&
+           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(blocks);
+    hash_reduce(body);
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+    hash_reduce(span);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.SeqExpr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(SeqExprNode, ExprNode);
+};
+
+class SeqExpr : public Expr {
+ public:
+  TVM_DLL SeqExpr(Array<BasicBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
+};
+
+/*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
+ */
+class ShapeExprNode : public ExprNode {
+ public:
+  /*! The dimensions of the shape expression. */
+  runtime::Array<PrimExpr> dims;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dims", &dims);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
+    return equal(dims, other->dims) &&
+           equal(checked_type_, other->checked_type_) &&
+           equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dims);
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+    hash_reduce(span);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.ShapeExpr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, ExprNode);
+};
+
+class ShapeExpr : public Expr {
+ public:
+  TVM_DLL ShapeExpr(Array<PrimExpr> dims, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
+};
+
+/*! \brief A Relax function, eventually to replace the current Relay function definition. */
+class FunctionNode : public BaseFuncNode {
+ public:
+  /*! \brief Optionally attach the function's name for improved printing, and debugging. */
+  runtime::Optional<GlobalVar> name;
+  /*! \brief The parameters to the function. */
+  runtime::Array<Var> params;
+  /*! \brief The body of the function. */
+  Expr body;
+  /*! \brief The return type of the function. */
+  Type ret_type;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("params", &params);
+    v->Visit("body", &body);
+    v->Visit("ret_type", &ret_type);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return equal.DefEqual(params, other->params) &&
+           equal(body, other->body) &&
+           equal(ret_type, other->ret_type) && equal(checked_type_, other->checked_type_) &&
+           equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(name);
+    hash_reduce(params);
+    hash_reduce(body);
+    hash_reduce(ret_type);
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+    hash_reduce(span);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.Function";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, ExprNode);
+};
+
+class Function : public Expr {
+ public:
+  TVM_DLL Function(runtime::Optional<GlobalVar> name, runtime::Array<Var> params, Expr body,
+                   Type ret_type, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
+};
+
+}  // namespace relax
+}  // namespace tvm
+
+#endif  // TVM_TVM_RELAX_EXPR_H_
