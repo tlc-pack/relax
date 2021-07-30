@@ -386,7 +386,8 @@ String ExecutableNode::AsPython() const {
       switch (instr.op) {
         case Opcode::Call: {
           os << "    ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
-             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr) << "]";
+             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr)
+             << "]";
           if (instr.dst != Instruction::kVoidArg) os << ", ret=ib.r(" << instr.dst << ")";
           os << ")\n";
           break;
@@ -402,56 +403,6 @@ String ExecutableNode::AsPython() const {
     }
   }
   return String(os.str());
-}
-
-// helper function to check if an executable is legal by checking if registers are used properly
-bool CheckExecutable(Executable exec) {
-  const VMFunction& gfunc = exec->global_funcs.back();
-  Index num_inputs = gfunc.num_args;
-  std::unordered_set<RegName> dst_registers;
-  std::unordered_set<RegName> arg_registers;
-  size_t start_instr = gfunc.start_instr;
-  size_t end_instr = exec->instr_offset.size();
-  for (size_t idx = start_instr; idx < end_instr; ++idx) {
-    Instruction instr = exec->GetInstruction(idx);
-    switch (instr.op) {
-      case Opcode::Call: {
-        for (int i = 0; i < instr.num_args; ++i) {
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              instr.args[i].value() == Instruction::kVMStateRegister) {
-            continue;
-          }
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              instr.args[i].value() >= num_inputs &&
-              dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
-            LOG(ERROR) << "register r(" << instr.args[i].value() << ") in VM function \""
-                       << gfunc.name << "\" is used as input while the number of inputs is only "
-                       << num_inputs << ".\n";
-            return false;
-          }
-          arg_registers.emplace(instr.args[i].value());
-        }
-        if (instr.dst != Instruction::kVoidArg) {
-          dst_registers.emplace(instr.dst);
-        }
-        break;
-      }
-      case Opcode::Ret: {
-        arg_registers.emplace(instr.result);
-        for (int i = 0; i < num_inputs; i++) {
-          if (arg_registers.find(i) == arg_registers.end()) {
-            LOG(WARNING) << "register r(" << i << ") in VM function \"" << gfunc.name
-                         << "\" is unused as input.\n";
-          }
-        }
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
-    }
-  }
-  return true;
 }
 
 TVM_REGISTER_GLOBAL("relax.Executable").set_body_typed([]() { return Executable(); });
@@ -475,10 +426,6 @@ TVM_REGISTER_GLOBAL("relax.ExecutableSaveToFile")
 
 TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed([](std::string file_name) {
   return ExecutableNode::LoadFromFile(file_name);
-});
-
-TVM_REGISTER_GLOBAL("relax.CheckExecutable").set_body_typed([](Executable exec) {
-  return CheckExecutable(exec);
 });
 
 }  // namespace relax_vm

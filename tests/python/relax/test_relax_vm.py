@@ -83,6 +83,7 @@ def test_vm_checker():
         with ib.function("func0", num_inputs=2):
             ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(2)], dst=ib.r(2))
             ib.emit_ret(ib.r(2))
+        ib.get()
     except ValueError as ex:
         assert True
 

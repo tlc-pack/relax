@@ -79,58 +79,109 @@ void ExecBuilderNode::EmitRet(RegName result) {
   exec->instr_data.push_back(result);
 }
 
+// helper function to check if an executable is legal by checking if registers are used properly
+bool CheckExecutable(Executable exec) {
+  for (auto it = exec->global_funcs.cbegin(); it != exec->global_funcs.cend(); ++it) {
+    Index num_inputs = it->num_args;
+    std::unordered_set<RegName> dst_registers;
+    std::unordered_set<RegName> arg_registers;
+    size_t start_instr = it->start_instr;
+    size_t end_instr = exec->instr_offset.size();
+    for (size_t idx = start_instr; idx < end_instr; ++idx) {
+      Instruction instr = exec->GetInstruction(idx);
+      switch (instr.op) {
+        case Opcode::Call: {
+          for (int i = 0; i < instr.num_args; ++i) {
+            if (instr.args[i].kind() == Instruction::kRegister &&
+                instr.args[i].value() == Instruction::kVMStateRegister) {
+              continue;
+            }
+            if (instr.args[i].kind() == Instruction::kRegister &&
+                instr.args[i].value() >= num_inputs &&
+                dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
+              LOG(ERROR) << "register r(" << instr.args[i].value() << ") in VM function \""
+                         << it->name << "\" is used as input while the number of inputs is only "
+                         << num_inputs << ".\n";
+              return false;
+            }
+            arg_registers.emplace(instr.args[i].value());
+          }
+          if (instr.dst != Instruction::kVoidArg) {
+            dst_registers.emplace(instr.dst);
+          }
+          break;
+        }
+        case Opcode::Ret: {
+          arg_registers.emplace(instr.result);
+          for (int i = 0; i < num_inputs; i++) {
+            if (arg_registers.find(i) == arg_registers.end()) {
+              LOG(WARNING) << "register r(" << i << ") in VM function \"" << it->name
+                           << "\" is unused as input.\n";
+            }
+          }
+          break;
+        }
+        default:
+          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          break;
+      }
+    }
+  }
+  return true;
+}
+
 Executable ExecBuilderNode::Get() {
+  CheckExecutable(Executable(this->exec));
   this->Formalize();
-  return Executable(this->exec); 
+  return Executable(this->exec);
 }
 
 void ExecBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
-  // and decide the number of registers to allocate for a VMFunction
-  const VMFunction& gfunc = this->exec->global_funcs.back();
-  Index num_inputs = gfunc.num_args;
-  RegName register_idx = num_inputs;
-  std::unordered_map<RegName, RegName> register_map;
-  size_t start_instr = gfunc.start_instr;
-  size_t end_instr = this->exec->instr_offset.size();
-  for (size_t idx = start_instr; idx < end_instr; ++idx) {
-    Instruction instr = this->exec->GetInstruction(idx);
-    switch (instr.op) {
-      case Opcode::Call: {
-        for (int i = 0; i < instr.num_args; ++i) {
-          if (instr.args[i].kind() == Instruction::kRegister &&
-              register_map.find(instr.args[i].value()) != register_map.end()) {
-            this->exec->instr_data[this->exec->instr_offset[idx] + 4 + i] =
-                register_map[instr.args[i].value()];
+  // and decide the number of registers to allocate for each VMFunction in the Executable
+  for (auto it = this->exec->global_funcs.begin(); it != this->exec->global_funcs.end(); ++it) {
+    Index num_inputs = it->num_args;
+    RegName register_idx = num_inputs;
+    std::unordered_map<RegName, RegName> register_map;
+    size_t start_instr = it->start_instr;
+    size_t end_instr = this->exec->instr_offset.size();
+    for (size_t idx = start_instr; idx < end_instr; ++idx) {
+      Instruction instr = this->exec->GetInstruction(idx);
+      switch (instr.op) {
+        case Opcode::Call: {
+          for (int i = 0; i < instr.num_args; ++i) {
+            if (instr.args[i].kind() == Instruction::kRegister &&
+                register_map.find(instr.args[i].value()) != register_map.end()) {
+              this->exec->instr_data[this->exec->instr_offset[idx] + 4 + i] =
+                  register_map[instr.args[i].value()];
+            }
           }
+          if (instr.dst != Instruction::kVoidArg && instr.dst >= num_inputs &&
+              register_map.find(instr.dst) == register_map.end()) {
+            this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_idx;
+            register_map[instr.dst] = register_idx++;
+          }
+          break;
         }
-        if (instr.dst != Instruction::kVoidArg && instr.dst >= num_inputs &&
-            register_map.find(instr.dst) == register_map.end()) {
-          this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_idx;
-          register_map[instr.dst] = register_idx++;
+        case Opcode::Ret: {
+          if (register_map.find(instr.result) != register_map.end()) {
+            this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_map[instr.result];
+          }
+          break;
         }
-        break;
+        default:
+          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          break;
       }
-      case Opcode::Ret: {
-        if (register_map.find(instr.result) != register_map.end()) {
-          this->exec->instr_data[this->exec->instr_offset[idx] + 1] = register_map[instr.result];
-        }
-        break;
-      }
-      default:
-        LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
-        break;
     }
+    it->register_file_size = register_idx;
   }
-  this->exec->global_funcs.back().register_file_size = register_idx;
 }
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitConstant")
-    .set_body_typed([](ExecBuilder builder, ObjectRef obj) {
-      return builder->EmitConstant(obj);
-    });
+    .set_body_typed([](ExecBuilder builder, ObjectRef obj) { return builder->EmitConstant(obj); });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderFunction")
     .set_body_typed([](ExecBuilder builder, String name, int64_t num_inputs) {
@@ -151,20 +202,17 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
     .set_body_typed([](ExecBuilder builder, int64_t result) { builder->EmitRet(result); });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderR")
-    .set_body_typed([](ExecBuilder builder, int64_t value) {
-      return Instruction::Arg(Instruction::kRegister, value).data;
-    });
+TVM_REGISTER_GLOBAL("relax.ExecBuilderR").set_body_typed([](ExecBuilder builder, int64_t value) {
+  return Instruction::Arg(Instruction::kRegister, value).data;
+});
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderImm")
-    .set_body_typed([](ExecBuilder builder, int64_t value) {
-      return Instruction::Arg(Instruction::kImmediate, value).data;
-    });
+TVM_REGISTER_GLOBAL("relax.ExecBuilderImm").set_body_typed([](ExecBuilder builder, int64_t value) {
+  return Instruction::Arg(Instruction::kImmediate, value).data;
+});
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderC")
-    .set_body_typed([](ExecBuilder builder, int64_t value) {
-      return Instruction::Arg(Instruction::kConstIdx, value).data;
-    });
+TVM_REGISTER_GLOBAL("relax.ExecBuilderC").set_body_typed([](ExecBuilder builder, int64_t value) {
+  return Instruction::Arg(Instruction::kConstIdx, value).data;
+});
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
   return builder->Get();

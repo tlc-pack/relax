@@ -29,16 +29,12 @@ class SpecialReg(IntEnum):
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
     stack = []
-    def __init__(self, check):
-        self.check = check
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        if not self.check():
-            raise ValueError("an unexpected register is used as input")
         VMFuncScope.stack.pop()
 
 @tvm._ffi.register_object("relax.ExecBuilder")
@@ -67,10 +63,8 @@ class ExecBuilder(Object):
 
     def function(self, func_name, num_inputs=0):
         """annotate a VM function."""
-        def check():
-            return _ffi_api.CheckExecutable(self.get())
         _ffi_api.ExecBuilderFunction(self, func_name, num_inputs)
-        return VMFuncScope(check)
+        return VMFuncScope()
 
     def _check_scope(self):
         if len(VMFuncScope.stack) == 0:
