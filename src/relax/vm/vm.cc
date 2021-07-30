@@ -93,7 +93,6 @@ void VirtualMachine::Init(const std::vector<Device>& devices,
 void VirtualMachine::RunLoop() {
   size_t start_frame = frames_.size();
   while (true) {
-  main_loop:
     if (static_cast<size_t>(pc_) >= exec_->instr_offset.size()) {
       LOG(FATAL) << "run into invalide section";
     }
@@ -141,7 +140,7 @@ void VirtualMachine::RunLoop() {
           WriteRegister(instr.dst, ret);
         }
         pc_++;
-        goto main_loop;
+        break;
       }
       case Opcode::Ret: {
         // If we have hit the point from which we started
@@ -153,11 +152,10 @@ void VirtualMachine::RunLoop() {
         if (frames_.size() < start_frame) {
           ICHECK(frames_.size() == start_frame - 1);
           return;
-        } else {
-          // Otherwise we are just returning from a local call.
-          WriteRegister(caller_return_register, return_value_);
-          goto main_loop;
         }
+        // Otherwise we are just returning from a local call.
+        WriteRegister(caller_return_register, return_value_);
+        break;
       }
     }
   }
