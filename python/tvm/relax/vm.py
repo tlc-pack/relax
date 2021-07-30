@@ -24,7 +24,7 @@ from ..rpc.base import RPC_SESS_MASK
 
 @tvm._ffi.register_object("relax.Executable")
 class Executable(Object):
-    """The executable object emitted by the VM compiler or the BytecodeBuilder."""
+    """The executable object emitted by the VM compiler or the ExecBuilder."""
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Executable)
 

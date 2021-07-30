@@ -41,7 +41,7 @@ namespace vm = tvm::runtime::relax_vm;
 class ExecBuilder;
 
 /*!
- * \brief A buiilder provides api to build executable with instructions.
+ * \brief A builder provides api to build VM executable with instructions.
  */
 class ExecBuilderNode : public Object {
  public:

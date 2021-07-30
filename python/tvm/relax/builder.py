@@ -29,9 +29,7 @@ class SpecialReg(IntEnum):
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
     stack = []
-    def __init__(self, func_name, num_inputs, check):
-        self.func_name = func_name
-        self.num_inputs = num_inputs
+    def __init__(self, check):
         self.check = check
 
     def __enter__(self):
@@ -72,7 +70,7 @@ class ExecBuilder(Object):
         def check():
             return _ffi_api.CheckExecutable(self.get())
         _ffi_api.ExecBuilderFunction(self, func_name, num_inputs)
-        return VMFuncScope(func_name, num_inputs, check) 
+        return VMFuncScope(check)
 
     def _check_scope(self):
         if len(VMFuncScope.stack) == 0:
