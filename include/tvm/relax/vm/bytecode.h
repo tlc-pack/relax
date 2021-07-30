@@ -86,17 +86,20 @@ struct Instruction {
    * \brief The auxiliary data structure for instruction argument.
    */
   struct Arg {
+    /*! \brief The number of bit for storing value. */
+    static constexpr ExecWord kValueBit = sizeof(ExecWord) * 8 - 8;
+    /*! \brief The bit mask of the value part. */
+    static constexpr ExecWord kValueMask = (static_cast<ExecWord>(1) << kValueBit) - 1;
+    /*! \brief Construct a void argument. */
     explicit Arg() : data(Instruction::kVoidArg) {}
+    /*! \brief Construct from the data. */
     explicit Arg(ExecWord data) : data(data) {}
+    /*! \brief Construct from the kind and value. */
     Arg(ArgKind kind, Index value) {
-      // TODO(ziheng): check value
+      // TODO(ziheng): check value?
       this->data = (static_cast<ExecWord>(kind) << kValueBit) |
-                   (value & ((static_cast<ExecWord>(1) << kValueBit)  - 1));
+                   (value & kValueMask);
     }
-    /*!
-     * \brief The number of bit for storing value..
-     */
-    static constexpr size_t kValueBit = sizeof(ExecWord) * 8 - 8;
     /*!
      * \brief Get the kind of argument..
      * \return The kind of argument.
