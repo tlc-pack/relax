@@ -119,7 +119,7 @@ MemoryManager* MemoryManager::Global() {
 
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
-  std::lock_guard<std::mutex> lock(m->mu_);
+  std::lock_guard<std::mutex> lock(m->mutex_);
   if (m->allocators_.find(dev) == m->allocators_.end()) {
     std::unique_ptr<Allocator> alloc;
     switch (type) {
@@ -153,7 +153,7 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
 
 Allocator* MemoryManager::GetAllocator(Device dev) {
   MemoryManager* m = MemoryManager::Global();
-  std::lock_guard<std::mutex> lock(m->mu_);
+  std::lock_guard<std::mutex> lock(m->mutex_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
     LOG(FATAL) << "Allocator for " << runtime::DeviceName(dev.device_type) << "(" << dev.device_id

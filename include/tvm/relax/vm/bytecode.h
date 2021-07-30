@@ -35,19 +35,18 @@ namespace runtime {
 namespace relax_vm {
 
 
-/*! \brief A register name. */
-using RegName = int64_t;
-
-/*!
- * \brief An alias for the integer type used ubiquitously
- * in the VM.
- */
-using Index = int64_t;
-
 /*!
  * \brief The storage type for the bytecode in the VM.
  */
 using ExecWord = int64_t; 
+
+/*! \brief A register name. */
+using RegName = ExecWord;
+
+/*!
+ * \brief An alias for the integer type used ubiquitously in the VM.
+ */
+using Index = ExecWord;
 
 /*!
  * \brief An enumeration of Relax's opcodes.
@@ -72,9 +71,9 @@ enum class Opcode {
  */
 struct Instruction {
   /*! \brief Random magic number that represents void argument. */
-  static constexpr ExecWord kVoidArg = 0xFE0321975A;
+  static constexpr RegName kVoidArg = 0x00EC66FE0321975A;
   /*! \brief Random magic number that represents the VM state. */
-  static constexpr RegName kVMStateRegister = 0xFA4379015C;
+  static constexpr RegName kVMStateRegister = 0x008D14FA4379015C;
   /*!
    * \brief The kind of instruction's argument.
    */
@@ -91,19 +90,29 @@ struct Instruction {
     explicit Arg(ExecWord data) : data(data) {}
     Arg(ArgKind kind, Index value) {
       // TODO(ziheng): check value
-      size_t value_bit = sizeof(ExecWord) * 8 - 8;
-      this->data = (static_cast<ExecWord>(kind) << value_bit) |
-                   (value & ((static_cast<ExecWord>(1) << value_bit)  - 1));
+      this->data = (static_cast<ExecWord>(kind) << kValueBit) |
+                   (value & ((static_cast<ExecWord>(1) << kValueBit)  - 1));
     }
-    ArgKind kind() {
-      size_t value_bit = sizeof(ExecWord) * 8 - 8;
-      uint8_t kind = (data >> value_bit) & 0xFF;
+    /*!
+     * \brief The number of bit for storing value..
+     */
+    static constexpr size_t kValueBit = sizeof(ExecWord) * 8 - 8;
+    /*!
+     * \brief Get the kind of argument..
+     * \return The kind of argument.
+     */
+    ArgKind kind() const {
+      uint8_t kind = (data >> kValueBit) & 0xFF;
       return Instruction::ArgKind(kind);
     }
-    ExecWord value() {
-      size_t value_bit = sizeof(ExecWord) * 8 - 8;
-      return data & ((static_cast<ExecWord>(1) << value_bit) - 1);
+    /*!
+     * \brief Get the value of argument..
+     * \return The value of argument.
+     */
+    ExecWord value() const {
+      return data & ((static_cast<ExecWord>(1) << kValueBit) - 1);
     }
+    /*! \brief The underlying stored data. */
     ExecWord data;
   };
   /*! \brief The instruction opcode. */

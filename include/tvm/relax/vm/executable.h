@@ -79,17 +79,6 @@ class ExecutableNode : public Object {
    */
   String AsPython() const;
   /*!
-   * \brief Serialize the executable to a byte array.
-   * \return The binary representation of the VM.
-   */
-  TVMByteArray Save();
-  /*!
-   * \brief Load the saved VM executable from byte string.
-   * \param code The bytecode in string.
-   * \return exe The constructed executable.
-   */
-  static Executable Load(const std::string& code);
-  /*!
    * \brief Write the Executable to the binary stream in serialized form.
    * \param stream The binary stream to save the executable to.
    */
@@ -171,8 +160,6 @@ class ExecutableNode : public Object {
    * \param strm The input stream.
    */
   void LoadPackedFuncNames(dmlc::Stream* strm);
-  /*! \brief The serialized bytecode. */
-  std::string code_;
 };
 
 /*! \brief Reference to Executable. */

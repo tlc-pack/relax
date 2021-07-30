@@ -21,17 +21,18 @@ from tvm.runtime import Object
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
-VOID_ARG_ = 0xFE0321975A
-VM_STATE_ = 0xFA4379015C
-    
+class SpecialReg(IntEnum):
+    """Magic numbers that represent special registers in vm."""
+    VOID_ARG = 0x00EC66FE0321975A
+    VM_STATE = 0x008D14FA4379015C
+
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
     stack = []
-    def __init__(self, func_name, num_inputs, check, formalize):
+    def __init__(self, func_name, num_inputs, check):
         self.func_name = func_name
         self.num_inputs = num_inputs
         self.check = check
-        self.formalize = formalize
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
@@ -40,8 +41,6 @@ class VMFuncScope(object):
     def __exit__(self, ptype, value, trace):
         if not self.check():
             raise ValueError("an unexpected register is used as input")
-        else:
-            self.formalize()
         VMFuncScope.stack.pop()
 
 @tvm._ffi.register_object("relax.ExecBuilder")
@@ -62,14 +61,18 @@ class ExecBuilder(Object):
         """set instruction's argument as a constant."""
         return _ffi_api.ExecBuilderC(self, idx)
 
+    def void_arg(self):
+        return self.r(SpecialReg.VOID_ARG)
+
+    def vm_state(self):
+        return self.r(SpecialReg.VM_STATE)
+
     def function(self, func_name, num_inputs=0):
         """annotate a VM function."""
         def check():
             return _ffi_api.CheckExecutable(self.get())
-        def formalize():
-             _ffi_api.ExecBuilderFormalize(self)
         _ffi_api.ExecBuilderFunction(self, func_name, num_inputs)
-        return VMFuncScope(func_name, num_inputs, check, formalize) 
+        return VMFuncScope(func_name, num_inputs, check) 
 
     def _check_scope(self):
         if len(VMFuncScope.stack) == 0:
@@ -82,7 +85,7 @@ class ExecBuilder(Object):
         """emit a call instruction which calls a packed function."""
         self._check_scope()
         if dst is None:
-            dst = VOID_ARG_
+            dst = SpecialReg.VOID_ARG
         args_ = []
         for arg in args:
             if isinstance(arg, tvm.nd.NDArray):

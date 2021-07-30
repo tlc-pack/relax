@@ -76,10 +76,6 @@ class ExecBuilderNode : public Object {
    */
   vm::Executable Get();
   /*!
-   * \brief Formalize the executable.
-   */
-  void Formalize();
-  /*!
    * \brief Create a ExecBuilder.
    * \return The ExecBuilder.
    */
@@ -90,6 +86,12 @@ class ExecBuilderNode : public Object {
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.ExecBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
+
+ private:
+  /*!
+   * \brief Formalize the executable.
+   */
+  void Formalize();
 };
 
 class ExecBuilder : public ObjectRef {

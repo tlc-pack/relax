@@ -79,7 +79,10 @@ void ExecBuilderNode::EmitRet(RegName result) {
   exec->instr_data.push_back(result);
 }
 
-Executable ExecBuilderNode::Get() { return Executable(this->exec); }
+Executable ExecBuilderNode::Get() {
+  this->Formalize();
+  return Executable(this->exec); 
+}
 
 void ExecBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
@@ -165,10 +168,6 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderC")
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
   return builder->Get();
-});
-
-TVM_REGISTER_GLOBAL("relax.ExecBuilderFormalize").set_body_typed([](ExecBuilder builder) {
-  return builder->Formalize();
 });
 
 }  // namespace relax

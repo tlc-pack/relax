@@ -101,7 +101,7 @@ class MemoryManager {
   MemoryManager() {}
 
  private:
-  std::mutex mu_;
+  std::mutex mutex_;
   std::unordered_map<Device, std::unique_ptr<Allocator>> allocators_;
 };
 

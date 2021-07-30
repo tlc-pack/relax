@@ -130,10 +130,10 @@ void LoadHeader(dmlc::Stream* strm) {
   STREAM_CHECK(version == TVM_VERSION, "version");
 }
 
-TVMByteArray ExecutableNode::Save() {
+void ExecutableNode::SaveToBinary(dmlc::Stream* stream) {
+  std::string code;
   // Initialize the stream object.
-  code_.clear();
-  dmlc::MemoryStringStream strm(&code_);
+  dmlc::MemoryStringStream strm(&code);
 
   // Save header
   SaveHeader(&strm);
@@ -150,17 +150,23 @@ TVMByteArray ExecutableNode::Save() {
   // Code section.
   SaveCodeSection(&strm);
 
-  TVMByteArray arr;
-  arr.data = code_.c_str();
-  arr.size = code_.length();
-  return arr;
+  stream->Write(code);
 }
 
-Executable ExecutableNode::Load(const std::string& code) {
-  auto exec = make_object<ExecutableNode>();
+void ExecutableNode::SaveToFile(const std::string& path) {
+  std::string data;
+  dmlc::MemoryStringStream writer(&data);
+  dmlc::SeekStream* strm = &writer;
+  ExecutableNode::SaveToBinary(strm);
+  runtime::SaveBinaryToFile(path, data);
+}
 
-  exec->code_ = code;
-  dmlc::MemoryStringStream strm(&exec->code_);
+Executable ExecutableNode::LoadFromBinary(void* stream) {
+  std::string code;
+  static_cast<dmlc::Stream*>(stream)->Read(&code);
+  dmlc::MemoryStringStream strm(&code);
+
+  auto exec = make_object<ExecutableNode>();
 
   // Load header.
   LoadHeader(&strm);
@@ -178,28 +184,6 @@ Executable ExecutableNode::Load(const std::string& code) {
   exec->LoadCodeSection(&strm);
 
   return Executable(exec);
-}
-
-void ExecutableNode::SaveToBinary(dmlc::Stream* stream) {
-  auto code_bytes = this->Save();
-  std::string code(code_bytes.data, code_bytes.size);
-  stream->Write(code);
-}
-
-void ExecutableNode::SaveToFile(const std::string& path) {
-  std::string data;
-  dmlc::MemoryStringStream writer(&data);
-  dmlc::SeekStream* strm = &writer;
-  ExecutableNode::SaveToBinary(strm);
-  runtime::SaveBinaryToFile(path, data);
-}
-
-Executable ExecutableNode::LoadFromBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-  std::string code;
-  stream->Read(&code);
-  auto exec = ExecutableNode::Load(code);
-  return exec;
 }
 
 Executable ExecutableNode::LoadFromFile(const std::string& file_name) {

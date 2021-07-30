@@ -160,7 +160,7 @@ def test_vm_heap():
 def test_vm_storage():
     ib = rx.ExecBuilder()
     with ib.function("main", num_inputs=7):
-        ib.emit_call("vm.builtin.alloc_storage", args=[ib.r(rx.builder.VM_STATE_), ib.r(0), ib.r(1), ib.r(2), ib.r(3)], dst=ib.r(7))
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), ib.r(0), ib.r(1), ib.r(2), ib.r(3)], dst=ib.r(7))
         ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(7), ib.r(4), ib.r(5), ib.r(6)], dst=ib.r(8))
         ib.emit_ret(ib.r(8))
     ex = ib.get()
