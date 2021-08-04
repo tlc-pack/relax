@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI API for Relax IR."""
+"""FFI API for Relax."""
 import tvm._ffi
 
-tvm._ffi._init_api("relax.ir", __name__)
+tvm._ffi._init_api("relax", __name__)

@@ -15,5 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import expr
-import _ffi_api
+from . import builder
+from . import expr
+from . import vm
+
+from .vm import load_exec_from_file
+
+# Expr
+Expr = expr.Expr
+Span = expr.Span
+SourceName = expr.SourceName
+Id = expr.Id
+Var = expr.Var
+DataflowVar = expr.DataflowVar
+SeqExpr = expr.SeqExpr
+VarBinding = expr.VarBinding
+BasicBlock = expr.BasicBlock
+
+# helper functions
+const = expr.const
+
+# VM
+ExecBuilder = builder.ExecBuilder
+VirtualMachine = vm.VirtualMachine

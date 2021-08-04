@@ -16,7 +16,8 @@
 # under the License.
 from typing import List, Optional, Union, Dict
 import tvm._ffi
-from ..ir.base import Node, Span, Id
+from ..ir.base import Node, Span, SourceName
+from ..relay.base import Id
 from ..tir import PrimExpr
 from . import _ffi_api
 from .. import relay
@@ -68,7 +69,7 @@ class BasicBlock(Node):
     def __init__(self, bindings: List[Binding], span: Span) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BasicBlock, bindings, span) # type: ignore
 
-@tvm._ffi.register_object("relax.expr.DataFlowBlock")
+@tvm._ffi.register_object("relax.expr.DataflowBlock")
 class DataFlowBlock(Node):
     bindings: List[Binding]
 

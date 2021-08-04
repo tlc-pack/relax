@@ -81,7 +81,7 @@ def add_compile_parser(subparsers):
         choices=["so", "mlf"],
         default="so",
         help="output format. Use 'so' for shared object or 'mlf' for Model Library Format "
-        "(only for µTVM targets). Defaults to 'so'.",
+        "(only for microTVM targets). Defaults to 'so'.",
     )
     parser.add_argument(
         "--pass-config",
@@ -171,7 +171,7 @@ def compile_model(
     target_host: Optional[str] = None,
     desired_layout: Optional[str] = None,
     disabled_pass: Optional[str] = None,
-    pass_context_configs: Optional[str] = None,
+    pass_context_configs: Optional[List[str]] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -212,8 +212,8 @@ def compile_model(
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
         during compilation
-    pass_context_configs: str, optional
-        String containing a set of configurations to be passed to the
+    pass_context_configs: list[str], optional
+        List of strings containing a set of configurations to be passed to the
         PassContext.
 
 
