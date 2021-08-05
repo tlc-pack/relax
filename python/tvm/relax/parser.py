@@ -15,6 +15,83 @@ import numpy as np
 import synr
 from synr import ast, Transformer
 from synr.diagnostic_context import DiagnosticContext
+from tvm.relay.op.strategy.generic import conv1d_strategy
+
+
+# TODO: make this better
+var_table = {}
+
+# Skeleton AST so we can get prototype working before this PR is merged
+class rxNode:
+    pass
+
+class rxExpr(rxNode):
+    def __init__(self):
+        self.shape = None
+        self.checked_type = None
+
+class rxVar(rxExpr):
+
+    def __init__(self, name):
+        super.__init__(self)
+        self.shape_annotation = None
+        self.type_annotation = None
+        if name not in var_table:
+            self.id = name
+            var_table.add(name)
+        else:
+            assert False, "All variable names must be unique, name is: " + name
+
+class rxDataflowVar(rxVar):
+    pass
+
+class rxBinding(rxNode):
+
+    def __init__(self, var, rhs):
+        self.var = var
+        self.rhs = rhs
+
+class rxMatchShape(rxNode):
+
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
+
+# TODO: is dim a tir var or any algebraic PrimExpr?
+class Dim:
+    def __init__(self, name):
+        self.name = name
+
+class ShapeTuple(rxExpr):
+    def __init__(self, dims):
+        self.dims = dims
+
+class rxFunction(rxExpr):
+    def __init__(self, args, body):
+        self.args = args
+        self.body = body
+
+class rxBlock(rxExpr):
+    def __init__(self, body):
+        self.body = body
+
+class rxDataflowBlock(rxBlock):
+    def __init__(self, body):
+        super.__init__(self, body)
+
+class rxBasicBlock(rxBlock):
+    def __init__(self, body):
+        super.__init__()
+
+class rxIfThenElse(rxExpr):
+    def __init__(self, cond, if_true, then_else):
+        self.cond = cond
+        self.if_true = if_true
+        self.then_else = then_else
+
+
+
+
 
 # TODO: What is this doing?
 expr.Function.__str__ = print_fn # type: ignore
