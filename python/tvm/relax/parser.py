@@ -198,10 +198,10 @@ class RelaxTransformer(Transformer):
                             self._diagnostic_context.emit('error', "shape annotation must be only vars or consts for now", self.span_to_span(ty.span))            
                             self._diagnostic_context.render()
                         dims.append(dim)
-                if not dtype_erased:
-                    if not isinstance(shape_param, ast.TypeVar) and not shape_param.id.name in allowed_dtypes:
-                        self._diagnostic_context.emit('error', "dtype must be erased or one of " + allowed_dtypes, self.span_to_span(ty.span))            
+                if not dtype_erased and not shape_param.id.name in allowed_dtypes:
+                        self._diagnostic_context.emit('error', "dtype must be erased or one of " + str(allowed_dtypes), self.span_to_span(ty.span))            
                         self._diagnostic_context.render()
+                else:
                     dtype = shape_param.id.name
                 
                 return rxTensor(dtype, None), dims
@@ -268,7 +268,7 @@ class RelaxTransformer(Transformer):
                             ident = Id(exp.func_name.id.name)
                             return rxCall(rxGlobalVar(ident, None, None), params, None)
                     # TODO: Where is this supposed to be?? 
-                    self._diagnostic_context.emit('error', f"unknown functionc all {len(params)}", exp.span)
+                    self._diagnostic_context.emit('error', f"unknown functionc all {len(params)}", self.span_to_span(exp.span))
                     self._diagnostic_context.render()
             elif isinstance(exp.func_name, ast.Op):
                 if exp.func_name.name == ast.BuiltinOp.Subscript:
@@ -285,7 +285,7 @@ class RelaxTransformer(Transformer):
                     # TODO: Replace with relax node
                     return rxCall("add", [params[0], params[1]], None)
 
-            self._diagnostic_context.emit('error', "unsupported function", exp.span)
+            self._diagnostic_context.emit('error', "unsupported function", self.span_to_span(exp.span))
             self._diagnostic_context.render()
         elif isinstance(exp, ast.Attr):
             field_name = exp.field.name
@@ -294,7 +294,7 @@ class RelaxTransformer(Transformer):
             if field_name == "shape":
                 return rxShapeOf(tensor, None)
             else:
-                self._diagnostic_context.emit('error', "unsupported function", exp.span)
+                self._diagnostic_context.emit('error', "unsupported function", self.span_to_span(exp.span))
                 self._diagnostic_context.render()
         elif isinstance(exp, ast.Function):
             print(exp)
@@ -304,7 +304,7 @@ class RelaxTransformer(Transformer):
         elif isinstance(exp, ast.Var):
             return self.str_to_var[exp.id.name]
         else:
-            self._diagnostic_context.emit('error', f"don't support this construct {type(exp)}", exp.span)
+            self._diagnostic_context.emit('error', f"don't support this construct {type(exp)}", self.span_to_span(exp.span))
             self._diagnostic_context.render()
 
     def enter_block(self):
