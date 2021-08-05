@@ -26,48 +26,60 @@ class rxNode:
     pass
 
 class rxExpr(rxNode):
-    def __init__(self):
+    def __init__(self, span):
         self.shape = None
         self.checked_type = None
+        self.span = span
 
 class rxVar(rxExpr):
 
-    def __init__(self, name):
-        super.__init__(self)
-        self.shape_annotation = None
-        self.type_annotation = None
-        if name not in var_table:
-            self.id = name
-            var_table.add(name)
-        else:
-            assert False, "All variable names must be unique, name is: " + name
+    def __init__(self, id, ty, shape_annotation, span):
+        super().__init__(span)
+        self.shape_annotation = shape_annotation
+        self.type_annotation = ty
+        self.id = id
+
+class rxGlobalVar(rxVar):
+    def __init__(self, id, span):
+        super().__init__(self, id, span)
 
 class rxDataflowVar(rxVar):
     pass
 
 class rxBinding(rxNode):
 
-    def __init__(self, var, rhs):
+    def __init__(self, var, rhs, span):
         self.var = var
         self.rhs = rhs
+        super().__init__(self, span)
 
 class rxMatchShape(rxNode):
 
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs, rhs, span):
         self.lhs = lhs
         self.rhs = rhs
+        super().__init__(self, span)
 
 # TODO: is dim a tir var or any algebraic PrimExpr?
-class Dim:
-    def __init__(self, name):
+class rxDim(rxExpr):
+    def __init__(self, value):
+        self.value = value
+
+class rxTIRVar(rxNode):
+    def __init__(self, name, span):
         self.name = name
+        super().__init__(self, span)
+
 
 class ShapeTuple(rxExpr):
-    def __init__(self, dims):
+    def __init__(self, dims, span):
         self.dims = dims
+        super().__init__(self, span)
+
 
 class rxFunction(rxExpr):
-    def __init__(self, args, body):
+    def __init__(self, name, args, body):
+        self.name = name
         self.args = args
         self.body = body
 
@@ -77,11 +89,8 @@ class rxBlock(rxExpr):
 
 class rxDataflowBlock(rxBlock):
     def __init__(self, body):
-        super.__init__(self, body)
+        super().__init__(self, body)
 
-class rxBasicBlock(rxBlock):
-    def __init__(self, body):
-        super.__init__()
 
 class rxIfThenElse(rxExpr):
     def __init__(self, cond, if_true, then_else):
@@ -89,12 +98,40 @@ class rxIfThenElse(rxExpr):
         self.if_true = if_true
         self.then_else = then_else
 
+class rxType:
+    def __init__(self, span):
+        self.span = span
 
+class rxTensor(rxType):
+    def __init__(self, dtype, span):
+        self.dtype = dtype
+        super().__init__(span)
 
+class rxShapeOf(rxExpr):
+    def __init__(self, expr):
+        self.expr = expr
 
+class rxLet(rxExpr):
+    def __init__(self, bindings, body):
+        self.bindings = bindings
+        self.body = body
+
+class rxCall(rxExpr):
+    def __init__(self, function, arguments):
+        self.function = function
+        self.arguments = arguments
+
+class rxGetBuiltin(rxExpr):
+    def __init__(self, builtin_name):
+        self.builtin_name = builtin_name
+
+class rxTensorSlice(rxExpr):
+    def __init__(self, tensor, indices):
+        self.tensor = tensor
+        self.indices = indices
 
 # TODO: What is this doing?
-expr.Function.__str__ = print_fn # type: ignore
+#expr.Function.__str__ = print_fn # type: ignore
 
 # TODO: Replace with a real pretty print method once we have the real AST
 def pretty_print(f):
@@ -115,13 +152,12 @@ class RelaxTransformer(Transformer):
         return tvm_span
 
 
-    def decl_var(self, name, ty, span=None):
-        identifier = Id(name)
-        # TODO: Replace with relax node
-        var = expr.Var(identifier, ty, span)
+    def decl_var(self, name, ty, shape_annotation, span=None):
+        var = rxVar(name, ty, shape_annotation, span)
         self.str_to_var[name] = var
         return var
 
+    # Returns type, shape_annotation
     def to_type(self, ty):
         if ty is None:
             return None
@@ -129,23 +165,48 @@ class RelaxTransformer(Transformer):
         if isinstance(ty, ast.TypeVar):
             if ty.id.name == "Tensor":
                 span = self.span_to_span(ty.span)
-                # TODO: Replace with relax node
-                return expr.Tensor(None, None, span)
-
+                return rxTensor(None, span), None
+        
         if isinstance(ty, ast.TypeApply):
             if ty.id.name == "Tensor":
+                # TODO: add more dtypes
+                allowed_dtypes = ["int32", "float32", "int8", "fp16"]
                 dims = []
-                # TODO(@jroesch): add support for dtype
-                for param in ty.params:
-                    if isinstance(param, ast.TypeConstant):
-                        # TODO: Replace with relax node
-                        dim = expr.TIRExpr(tir.IntImm("int32", param.value), None)
+                dtype = ""
+                assert len(ty.params) == 2
+                shape_param = ty.params[0]
+                dtype_param = ty.params[1]
+                # Check whether the Tensor is shape / dtype erased
+                shape_erased = False
+                dtype_erased = False
+                
+                if (isinstance(shape_param, ast.TypeVar)) and shape_param.id.name == "_":
+                    shape_erased = True
+                if (isinstance(dtype_param, ast.TypeVar)) and dtype_param.id.name == "_":
+                    dtype_erased = True
+                if not shape_erased:
+                    if not isinstance(shape_param, ast.Tuple):
+                        self._diagnostic_context.emit('error', "Tensor shape must be erased or be a tuple", self.span_to_span(ty.span))    
+                        self._diagnostic_context.render()     
+                    for shape_dim in shape_param:
+                        # TODO: Turn this into a helper fn that only allows algebraic expressions
+                        if isinstance(shape_dim, ast.Var):
+                            dim = rxDim(tir.Var(shape_dim.name))
+                        elif isinstance(shape_dim, ast.Constant) and isinstance(shape_dim.value, int):
+                            dim = rxDim(tir.IntImm("int32", shape_dim.value))
+                        else:
+                            self._diagnostic_context.emit('error', "shape annotation must be only vars or consts for now", self.span_to_span(ty.span))            
+                            self._diagnostic_context.render()
                         dims.append(dim)
-                # TODO: Replace with relax node
-                return expr.Tensor(expr.Tuple(dims, span=None), None, None)
+                if not dtype_erased:
+                    if not isinstance(shape_param, ast.TypeVar) and not shape_param.id.name in allowed_dtypes:
+                        self._diagnostic_context.emit('error', "dtype must be erased or one of " + allowed_dtypes, self.span_to_span(ty.span))            
+                        self._diagnostic_context.render()
+                    dtype = shape_param.id.name
+                
+                return rxTensor(dtype, None), dims
 
         self._diagnostic_context.emit('error', "invalid type", self.span_to_span(ty.span))
-        self._diagnostic_context.render()
 
     def transform_module(self, mod: ast.Module) -> IRModule:
         for func_name in mod.funcs:
@@ -153,17 +214,16 @@ class RelaxTransformer(Transformer):
             self.module[func_name] = self.transform_function(func)
         return self.module
 
-    def transform_function(self, func: ast.Function) -> relax.Function: # TODO: update once relax ast finalized
+    def transform_function(self, func: ast.Function) -> rxFunction:
         params = []
         for param in func.params:
-            ty = self.to_type(param.ty)
+            ty, shape_dims = self.to_type(param.ty)
             param = self.decl_var(param.name, ty, None)
             params.append(param)
         new_body = self.transform_block(func.body)
         ret_type = self.to_type(func.ret_type)
         print(new_body)
-        # TODO: Replace with relax node
-        return expr.Function(func.name, params, new_body, ret_type, None)
+        return rxFunction(func.name, params, new_body, ret_type, None)
 
     def transform_stmt(self, stmt: ast.Stmt) -> relax.Expr:
         if isinstance(stmt, ast.Assign):
@@ -171,7 +231,7 @@ class RelaxTransformer(Transformer):
             lhs = self.decl_var(stmt.lhs.id.name, None, None)
             rhs = self.transform_expr(stmt.rhs)
             # TODO: Replace with relax node
-            self.blocks[-1].append(expr.Binding(lhs, rhs))
+            self.blocks[-1].append(rxBinding(lhs, rhs))
             return None
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
@@ -179,25 +239,20 @@ class RelaxTransformer(Transformer):
             self._diagnostic_context.emit('error', "only variable left-hand sides are supported in Relay", stmt.span)
             self._diagnostic_context.render()
 
-    def transform_expr(self, exp: ast.Expr) -> relax.Expr: # TODO: update once we have real relax AST
+    def transform_expr(self, exp: ast.Expr) -> rxExpr:
         if isinstance(exp, ast.Call):
             if isinstance(exp.func_name, ast.Var):
                 params = []
                 for arg in exp.params:
                     params.append(self.transform_expr(arg))
 
-                if exp.func_name.id.name == "broadcast_shape":
-                    if len(params) != 2:
-                        self._diagnostic_context.emit('error', f"broadcast_shape only takes 2 arguments {params.len()}", exp.span)
-                        self._diagnostic_context.render()
-                    # TODO: Replace with relax node
-                    return expr.BroadcastShape(params[0], params[1], span=None)
-                elif exp.func_name.id.name == "compute":
-                    if len(params) != 2:
-                        self._diagnostic_context.emit('error', f"compute only takes 2 arguments {params.len()}", exp.span)
-                        self._diagnostic_context.render()
-                    # TODO: Replace with relax node
-                    return expr.Compute(params[0], params[1], span=None)
+
+                if exp.func_name.id.name == "call_packed":
+                    # TODO: deal with call_packed
+                    pass
+                elif exp.func_name.id.name == "call_tir":
+                    #TODO: deal with call_tir
+                    pass
                 else:
                     if exp.func_name.id.name in self.str_to_var:
                         return self.str_to_var[exp.func_name.id.name]
@@ -206,14 +261,12 @@ class RelaxTransformer(Transformer):
                         relax_fn = getattr(self.definition_scope, name, None)
                         # builtin operator
                         if relax_fn is None:
-                            # TODO: Replace with relax node
-                            return expr.Call(op.Op.get(name), params, None)
+                            return rxCall(rxGetBuiltin(name), params, None)
                         else:
                             self.module[name] = relax_fn.module[name]
                             # todo: globalvar equality? use global str -> id map?
                             ident = Id(exp.func_name.id.name)
-                            # TODO: Replace with relax node
-                            return expr.Call(expr.GlobalVar(ident, None, None), params, None)
+                            return rxCall(rxGlobalVar(ident, None, None), params, None)
                     # TODO: Where is this supposed to be?? 
                     self._diagnostic_context.emit('error', f"unknown functionc all {len(params)}", exp.span)
                     self._diagnostic_context.render()
@@ -224,13 +277,13 @@ class RelaxTransformer(Transformer):
                     for index in exp.params[1].values:
                         indicies.append(self.transform_expr(index))
                     # TODO: Replace with relax node
-                    return expr.TensorSlice(tensor, indicies, None)
+                    return rxTensorSlice(tensor, indicies, None)
                 elif exp.func_name.name == ast.BuiltinOp.Add:
                     params = []
                     for arg in exp.params:
                         params.append(self.transform_expr(arg))
                     # TODO: Replace with relax node
-                    return expr.Add(params[0], params[1], None)
+                    return rxCall("add", [params[0], params[1]], None)
 
             self._diagnostic_context.emit('error', "unsupported function", exp.span)
             self._diagnostic_context.render()
@@ -239,8 +292,7 @@ class RelaxTransformer(Transformer):
             tensor = self.transform_expr(exp.object)
 
             if field_name == "shape":
-                # TODO: Replace with relax node
-                return expr.ShapeOf(tensor, None)
+                return rxShapeOf(tensor, None)
             else:
                 self._diagnostic_context.emit('error', "unsupported function", exp.span)
                 self._diagnostic_context.render()
@@ -273,8 +325,7 @@ class RelaxTransformer(Transformer):
         # assert ret_expr is not None
 
         bindings = self.exit_block()
-        # TODO: Replace with relax node
-        return expr.Let(bindings, ret_expr, span=None)
+        return rxLet(bindings, ret_expr, span=None)
 
     def transform_parameter(self, expr: ast.Parameter) -> relax.Expr:
         pass
@@ -308,7 +359,7 @@ class TVMDiagnosticContext(synr.DiagnosticContext):
             level = "error"
 
         assert span, "Span must not be null"
-        assert isinstance(span, tvm.ir.span), "Expected tvm.ir.span, but got " + str(type(span))
+        assert isinstance(span, tvm.ir.Span), "Expected tvm.ir.Span, but got " + str(type(span))
 
         diag = diagnostics.Diagnostic(level, span, message)
 
@@ -345,3 +396,16 @@ def relax(f):
     # TODO: Replace RelaxTransformer with new transformation 
     module = RelaxTransformer(definition_scope, diag_ctx).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
+
+@relax
+def my_test(x : Tensor[_, _]):
+    return None
+
+"""
+@relax
+def my_test(x : Tensor[(1, 2, 3), "int32"], y: Tensor[_, _]):
+    return call_packed("my_func", x, y)
+"""
+ones = np.ones((1, 2, 3))
+y = ones
+my_test(ones, y)
