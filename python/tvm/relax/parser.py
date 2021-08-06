@@ -25,6 +25,10 @@ var_table = {}
 class rxNode:
     pass
 
+# A node that will desugar into a different AST node in a subsequent pass
+class rxFrontendNode:
+    pass
+
 class rxExpr(rxNode):
     def __init__(self, span):
         self.shape = None
@@ -53,11 +57,21 @@ class rxBinding(rxNode):
         self.rhs = rhs
         super().__init__(self, span)
 
-class rxMatchShape(rxNode):
+# Allows arbitrary exprs on the left and the right
+# Desugars into two rxMatchShapeBinding
+# TODO: might be worth not parsing this into its own node..
+class rxFrontendMatchShapeExprs(rxFrontendNode):
 
     def __init__(self, lhs, rhs, span):
         self.lhs = lhs
         self.rhs = rhs
+        super().__init__(self, span)
+
+# 
+class rxMatchShapeBinding(rxNode):
+    def __init__(self, binding, shape, span):
+        self.binding = binding # Array[PrimExpr]
+        self.shape = shape # Expr (type is shape tuple)
         super().__init__(self, span)
 
 # TODO: is dim a tir var or any algebraic PrimExpr? or just a shape tuple with index?
@@ -71,7 +85,7 @@ class rxTIRVar(rxNode):
         super().__init__(self, span)
 
 
-class ShapeTuple(rxExpr):
+class rxShapeTuple(rxExpr):
     def __init__(self, dims, span):
         self.dims = dims
         super().__init__(self, span)
@@ -169,7 +183,7 @@ class RelaxTransformer(Transformer):
         
         if isinstance(ty, ast.TypeApply):
             if ty.id.name == "Tensor":
-                # TODO: add more dtypes
+                # TODO: add more dtypes, maybe define elsewhere
                 allowed_dtypes = ["int32", "float32", "int8", "fp16"]
                 dims = []
                 dtype = ""
@@ -188,7 +202,8 @@ class RelaxTransformer(Transformer):
                 if not shape_erased:
                     if isinstance(shape_param, ast.TypeTuple):
                         for shape_dim in shape_param.values:
-                            # TODO: Turn this into a helper fn that only allows algebraic expressions
+
+                            # TODO: use to_primexpr or whatever
                             if isinstance(shape_dim, ast.Var):
                                 dim = rxDim(tir.Var(shape_dim.name))
                             elif isinstance(shape_dim, ast.Constant) and isinstance(shape_dim.value, int):
@@ -210,6 +225,37 @@ class RelaxTransformer(Transformer):
                 return rxTensor(dtype, None), dims
 
         self._diagnostic_context.emit('error', "invalid type", self.span_to_span(ty.span))
+
+    # Turns a tuple into an array of PrimExprs
+    # Allow arithmetic indicates whether we are letting there be 
+    def expr_to_primexpr(self, expr: ast.Expr, allow_arithmetic=False) -> PrimExpr:
+        if not allow_arithmetic and not isinstance(expr, ast.Var):
+            #TODO: improve error message
+            self._diagnostic_context.emit('error', "You can only use single variables here, not an expression", self.span_to_span(expr.span))
+            self._diagnostic_context.render()
+        else:
+            if isinstance(expr, ast.Var):
+                return tir.Var(expr.id.name, "int32")
+                
+            # TODO: do all the ops here
+            elif isinstance(expr, ast.Constant) and isinstance(expr.value, int):
+                assert False
+            elif isinstance(expr, ast.Call):
+                if exp.func_name.name == ast.BuiltinOp.Add:
+                    # TODO: call this fn on args and return primexpr containing result
+                    assert False
+                if exp.func_name.name == ast.BuiltinOp.Sub:
+                    assert False
+                if exp.func_name.name == ast.BuiltinOp.Mul:
+                    assert False
+                if exp.func_name.name == ast.BuiltinOp.Div:
+                    assert False
+                if exp.func_name.name == ast.BuiltinOp.Mod:
+                    assert False
+            else:
+                self._diagnostic_context.emit('error', "The shape expression can only contain arithmetic operators, integer constants and variables", self.span_to_span(expr.span))
+                self._diagnostic_context.render()
+
 
     def transform_module(self, mod: ast.Module) -> IRModule:
         for func_name in mod.funcs:
@@ -238,8 +284,38 @@ class RelaxTransformer(Transformer):
             return None
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
+        # match_shape is the ONLY node that doesn't have to be bound to an LHS variable!
+        elif (isinstance(stmt, ast.UnassignedCall) and isinstance(stmt.call.func_name, ast.Var)
+            and stmt.call.func_name.id.name == "match_shape"):
+            if len(stmt.call.params) != 2:
+                self._diagnostic_context.emit('error', "match_shape takes exactly two arguments", self.span_to_span(stmt.span))
+                self._diagnostic_context.render()
+
+            lhs = stmt.call.params[0]
+            rhs = stmt.call.params[1]
+            
+            # If RHS is a tuple, turn it into a ShapeTuple, otherwise, process normally
+            if isinstance(rhs, ast.Tuple):
+                arithmetic_primexprs = []
+                for elem in rhs.values:
+                    arithmetic_primexprs.append(self.expr_to_primexpr(elem, allow_arithmetic=True))
+                rhs_expr = rxShapeTuple(arithmetic_primexprs)
+            else:
+                rhs_expr = self.transform_expr(rhs)
+            
+            # If LHS is a tuple of variables, then we use the binding match shape
+            # If it is an Expr, we use the sugared match_shape (and will insert bindings later)
+            if isinstance(lhs, ast.Tuple):
+                binding_tir_vars = []
+                for elem in lhs.values:
+                    # Here we only are defining variables so we don't allow arithmetic expressions
+                    binding_tir_vars.append(self.expr_to_primexpr(elem))
+                self.blocks[-1].append(rxMatchShapeBinding(binding_tir_vars, rhs_expr))
+            else:
+                lhs_expr = self.transform_expr(lhs)
+                self.blocks[-1].append(rxFrontendMatchShapeExprs(lhs_expr, rhs_expr))
         else:
-            self._diagnostic_context.emit('error', "only variable left-hand sides are supported in Relay", stmt.span)
+            self._diagnostic_context.emit('error', "only variable left-hand sides are supported in Relay", self.span_to_span(stmt.span))
             self._diagnostic_context.render()
 
     def transform_expr(self, exp: ast.Expr) -> rxExpr:
@@ -249,30 +325,20 @@ class RelaxTransformer(Transformer):
                 for arg in exp.params:
                     params.append(self.transform_expr(arg))
 
-
-                if exp.func_name.id.name == "call_packed":
-                    # TODO: deal with call_packed
-                    pass
-                elif exp.func_name.id.name == "call_tir":
-                    #TODO: deal with call_tir
-                    pass
+                if exp.func_name.id.name in self.str_to_var:
+                    return self.str_to_var[exp.func_name.id.name]
                 else:
-                    if exp.func_name.id.name in self.str_to_var:
-                        return self.str_to_var[exp.func_name.id.name]
+                    name = exp.func_name.id.name
+                    relax_fn = getattr(self.definition_scope, name, None)
+                    # builtin operator
+                    if relax_fn is None:
+                        return rxCall(rxGetBuiltin(name), params, None)
                     else:
-                        name = exp.func_name.id.name
-                        relax_fn = getattr(self.definition_scope, name, None)
-                        # builtin operator
-                        if relax_fn is None:
-                            return rxCall(rxGetBuiltin(name), params, None)
-                        else:
-                            self.module[name] = relax_fn.module[name]
-                            # todo: globalvar equality? use global str -> id map?
-                            ident = Id(exp.func_name.id.name)
-                            return rxCall(rxGlobalVar(ident, None, None), params, None)
-                    # TODO: Where is this supposed to be?? 
-                    self._diagnostic_context.emit('error', f"unknown functionc all {len(params)}", self.span_to_span(exp.span))
-                    self._diagnostic_context.render()
+                        self.module[name] = relax_fn.module[name]
+                        # todo: globalvar equality? use global str -> id map?
+                        ident = Id(exp.func_name.id.name)
+                        return rxCall(rxGlobalVar(ident, None, None), params, None)
+
             elif isinstance(exp.func_name, ast.Op):
                 if exp.func_name.name == ast.BuiltinOp.Subscript:
                     tensor = self.transform_expr(exp.params[0])
@@ -295,7 +361,7 @@ class RelaxTransformer(Transformer):
             tensor = self.transform_expr(exp.object)
 
             if field_name == "shape":
-                return rxShapeOf(tensor, None)
+                return rxShapeOf(tensor)
             else:
                 self._diagnostic_context.emit('error', "unsupported function", self.span_to_span(exp.span))
                 self._diagnostic_context.render()
@@ -395,15 +461,13 @@ def relax(f):
     diag_ctx = TVMDiagnosticContext(diag_ctx)
     ast = synr.to_ast(f, diag_ctx)
     definition_scope = inspect.getmodule(f)
-    # Why have diag context at transform time? TK?
-    # TODO: Replace RelaxTransformer with new transformation 
     module = RelaxTransformer(definition_scope, diag_ctx).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
 
 @relax
+def my_test(x: Tensor[_, "float32"]):
+    match_shape(x.shape, (1, 2, 3))
+
+@relax
 def my_test(x : Tensor[(1, 2, 3), "int32"], y: Tensor[_, _]):
     return call_packed("my_func", x, y)
-
-ones = np.ones((1, 2, 3))
-y = ones
-my_test(ones, y)
