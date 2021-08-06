@@ -202,9 +202,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "SeqExpr("<< node->blocks << ","<< node->body << ","<< node->checked_type_ << ","<< node->shape_ << ","<< node->span << ","")";
 });
 
-ShapeExpr::ShapeExpr(Array<PrimExpr> dims, Type checked_type_, Array<PrimExpr> shape_, Span span) {
+ShapeExpr::ShapeExpr(Array<PrimExpr> values, Type checked_type_, Array<PrimExpr> shape_, Span span) {
     ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
-    n->dims = std::move(dims);
+    n->values = std::move(values);
     n->checked_type_ = std::move(checked_type_);
     n->shape_ = std::move(shape_);
     n->span = std::move(span);
@@ -213,14 +213,14 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> dims, Type checked_type_, Array<PrimExpr> s
 
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
-TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> dims, Type checked_type_,Array<PrimExpr> shape_,Span span) {
-    return ShapeExpr(dims, checked_type_,shape_, span);
+TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values, Type checked_type_,Array<PrimExpr> shape_,Span span) {
+    return ShapeExpr(values, checked_type_,shape_, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<ShapeExprNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const ShapeExprNode*>(ref.get());
-    p->stream << "ShapeExpr("<< node->dims << node->checked_type_ << ","<< node->shape_ << ","<< node->span << ","")";
+    p->stream << "ShapeExpr("<< node->values << node->checked_type_ << ","<< node->shape_ << ","<< node->span << ","")";
 });
 
 Function::Function(

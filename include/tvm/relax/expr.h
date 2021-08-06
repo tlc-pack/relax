@@ -39,7 +39,7 @@ class VarNode : public ExprNode {
  public:
   /*! \brief The identifier of the variable, is used for comparing stable equality across transformations. */
   relay::Id id;
-  /* \brief The type annotation, used by binding sites and parameter declarations. */
+  /*! \brief The type annotation, used by binding sites and parameter declarations. */
   runtime::Optional<Type> type_annotation;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -294,24 +294,24 @@ class SeqExpr : public Expr {
  */
 class ShapeExprNode : public ExprNode {
  public:
-  /*! The dimensions of the shape expression. */
-  runtime::Array<PrimExpr> dims;
+  /*! The values of the shape expression. */
+  runtime::Array<PrimExpr> values;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dims", &dims);
+    v->Visit("values", &values);
     v->Visit("checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    return equal(dims, other->dims) &&
+    return equal(values, other->values) &&
            equal(checked_type_, other->checked_type_) &&
            equal(shape_, other->shape_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dims);
+    hash_reduce(values);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
     hash_reduce(span);
@@ -332,7 +332,10 @@ class ShapeExpr : public Expr {
 /*! \brief A Relax function, eventually to replace the current Relay function definition. */
 class FunctionNode : public BaseFuncNode {
  public:
-  /*! \brief Optionally attach the function's name for improved printing, and debugging. */
+  /*!
+   * \brief Optionally attach the function's name for improved printing, and debugging.
+   * It need to be consistent with the GlobalVar in the IRModule.
+   */
   runtime::Optional<GlobalVar> name;
   /*! \brief The parameters to the function. */
   runtime::Array<Var> params;
