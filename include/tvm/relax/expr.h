@@ -153,21 +153,21 @@ class Binding : public ObjectRef {
 class MatchShape;
 class MatchShapeNode : public BindingNode {
  public:
-  Expr lhs;
-  Expr rhs;
+  Array<PrimExpr> pattern;
+  Expr value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("lhs", &lhs);
-    v->Visit("rhs", &rhs);
+    v->Visit("pattern", &pattern);
+    v->Visit("value", &value);
   }
 
   bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
-    return equal(lhs, other->lhs) && equal(rhs, other->rhs);
+    return equal(pattern, other->pattern) && equal(value, other->value);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(lhs);
-    hash_reduce(rhs);
+    hash_reduce(pattern);
+    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "relax.expr.MatchShape";
@@ -178,7 +178,7 @@ class MatchShapeNode : public BindingNode {
 
 class MatchShape : public Binding {
  public:
-  TVM_DLL MatchShape(Expr lhs, Expr rhs);
+  TVM_DLL MatchShape(Array<PrimExpr> pattern, Expr value);
   TVM_DEFINE_OBJECT_REF_METHODS(MatchShape, Binding, MatchShapeNode);
 };
 

@@ -1,4 +1,5 @@
 import tvm
+from tvm import relax as rx
 from tvm.relax import Expr, Span, Id, Var, DataflowVar, const, SeqExpr, VarBinding, BasicBlock
 
 def check_span(exp: Expr, sp: Span) -> None:
@@ -9,13 +10,13 @@ def check_span(exp: Expr, sp: Span) -> None:
 
 def test_var() -> None:
     id = Id("foo")
-    sp = Span("foo", 0, 1, 2, 3)
+    sp = Span(rx.SourceName("foo"), 0, 1, 2, 3)
     # The variant with None, None
-    v1 = Var(id, None, None, sp)
+    v1 = Var(id, None, sp)
     check_span(v1, sp)
     sh = None # todo: make ty
     ty = None # todo: make ty
-    v2 = Var(id, sh, ty, sp)
+    v2 = Var(id, ty, sp)
     check_span(v2, sp)
     print(v2)
 
@@ -55,3 +56,9 @@ def test_func():
     pass
 
 # TODO(@relax-team): we should port tests from relay/test_ast.py for nodes we will share.
+
+if __name__ == "__main__":
+    test_var()
+    test_df_var()
+    test_seq_expr()
+

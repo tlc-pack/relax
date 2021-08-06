@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from . import builder
+from . import exec_builder
 from . import expr
 from . import vm
 
@@ -36,5 +36,5 @@ BasicBlock = expr.BasicBlock
 const = expr.const
 
 # VM
-ExecBuilder = builder.ExecBuilder
+ExecBuilder = exec_builder.ExecBuilder
 VirtualMachine = vm.VirtualMachine

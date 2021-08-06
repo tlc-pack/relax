@@ -47,11 +47,11 @@ class Binding(Node):
 
 @tvm._ffi.register_object("relax.expr.MatchShape")
 class MatchShape(Binding):
-    lhs: List[PrimExpr]
-    rhs: Expr
+    pattern: List[PrimExpr]
+    value: Expr
 
-    def __init__(self, lhs: List[PrimExpr], rhs: Expr, span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.MatchShape,  lhs, rhs, span) # type: ignore
+    def __init__(self, pattern: List[PrimExpr], value: Expr, span: Span) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value, span) # type: ignore
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Node):
@@ -59,7 +59,7 @@ class VarBinding(Node):
     val: Expr
 
     def __init__(self, var: Var, val: Expr, span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Binding,  var,  val, span) # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.Binding, var, val, span) # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.BasicBlock")

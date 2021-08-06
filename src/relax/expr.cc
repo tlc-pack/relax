@@ -92,24 +92,25 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 MatchShape::MatchShape(
-    Expr lhs,
-    Expr rhs) {
+    Array<PrimExpr> pattern,
+    Expr value) {
     ObjectPtr<MatchShapeNode> n = make_object<MatchShapeNode>();
-    n->lhs = std::move(lhs);
-    n->rhs = std::move(rhs);
+    n->pattern = std::move(pattern);
+    n->value = std::move(value);
     data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(MatchShapeNode);
 
-TVM_REGISTER_GLOBAL("relax.MatchShape").set_body_typed([](Expr lhs, Expr rhs) {
-    return MatchShape(lhs, rhs);
+TVM_REGISTER_GLOBAL("relax.MatchShape")
+.set_body_typed([](Array<PrimExpr> pattern, Expr value) {
+  return MatchShape(pattern, value);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<MatchShapeNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const MatchShapeNode*>(ref.get());
-    p->stream << "MatchShape("<< node->lhs << ","<< node->rhs << ","")";
+    p->stream << "MatchShape("<< node->pattern << ","<< node->value << ","")";
 });
 
 VarBinding::VarBinding(
