@@ -156,7 +156,7 @@ class RelayExprNode : public BaseExprNode {
   * \note The value will be optional if a static shape can not be inferred.
   * use .shape() instead to acesss an always defined shape expression.
   */
-  mutable Optional<Array<PrimExpr>> shape_ = Optional<Array<PrimExpr>>();
+  Optional<Array<PrimExpr>> shape_ = Optional<Array<PrimExpr>>();
 
   /*!
    * \return The checked_type
