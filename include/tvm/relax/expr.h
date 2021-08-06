@@ -39,14 +39,11 @@ class VarNode : public ExprNode {
  public:
   /*! \brief The identifier of the variable, is used for comparing stable equality across transformations. */
   relay::Id id;
-  /*! \brief The shape annotation, used by binding sites and parameter declarations. */
-  runtime::Optional<runtime::Array<PrimExpr>> shape_annotation;
   /* \brief The type annotation, used by binding sites and parameter declarations. */
   runtime::Optional<Type> type_annotation;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("id", &id);
-    v->Visit("shape_annotation", &shape_annotation);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
@@ -54,7 +51,7 @@ class VarNode : public ExprNode {
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    return equal(id, other->id) && equal(shape_annotation, other->shape_annotation) &&
+    return equal(id, other->id) &&
            equal(type_annotation, other->type_annotation) &&
            // Do we use the analysis information in equality?
            equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
@@ -62,7 +59,6 @@ class VarNode : public ExprNode {
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(id);
-    hash_reduce(shape_annotation);
     hash_reduce(type_annotation);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
@@ -78,8 +74,8 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
-  TVM_DLL Var(relay::Id id, runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
-              runtime::Optional<Type> type_annotation, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DLL Var(relay::Id id, runtime::Optional<Type> type_annotation,
+              Type checked_type_, Array<PrimExpr> shape_, Span span);
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
 };
 
@@ -90,7 +86,6 @@ class DataflowVarNode : public VarNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("id", &id);
-    v->Visit("shape_annotation", &shape_annotation);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
@@ -98,14 +93,13 @@ class DataflowVarNode : public VarNode {
   }
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
-    return equal(id, other->id) && equal(shape_annotation, other->shape_annotation) &&
+    return equal(id, other->id)  &&
            equal(type_annotation, other->type_annotation) &&
            equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(id);
-    hash_reduce(shape_annotation);
     hash_reduce(type_annotation);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
@@ -120,13 +114,11 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL DataflowVar(relay::Id id, runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
-                      runtime::Optional<Type> type_annotation, Type checked_type_, Array<PrimExpr> shape_,
-                      Span span);
+  TVM_DLL DataflowVar(relay::Id id, runtime::Optional<Type> type_annotation,
+                      Type checked_type_, Array<PrimExpr> shape_, Span span);
 
-  TVM_DLL DataflowVar(std::string, runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
-                      runtime::Optional<Type> type_annotation, Type checked_type_, Array<PrimExpr> shape_,
-                      Span span);
+  TVM_DLL DataflowVar(std::string,runtime::Optional<Type> type_annotation,
+                      Type checked_type_, Array<PrimExpr> shape_, Span span);
 
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
 };

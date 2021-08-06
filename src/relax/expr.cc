@@ -24,14 +24,12 @@ namespace relax {
 
 Var::Var(
     relay::Id id,
-    runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
     runtime::Optional<Type> type_annotation,
     Type checked_type_,
     Array<PrimExpr> shape_,
     Span span) {
     ObjectPtr<VarNode> n = make_object<VarNode>();
     n->id = std::move(id);
-    n->shape_annotation = std::move(shape_annotation);
     n->type_annotation = std::move(type_annotation);
     n->checked_type_ = std::move(checked_type_);
     n->shape_ = std::move(shape_);
@@ -41,26 +39,28 @@ Var::Var(
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
-TVM_REGISTER_GLOBAL("relax.Var").set_body_typed([](relay::Id id,runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,runtime::Optional<Type> type_annotation,Type checked_type_,Array<PrimExpr> shape_,Span span) {
-    return Var(id,shape_annotation,type_annotation,checked_type_,shape_,span);
+TVM_REGISTER_GLOBAL("relax.Var")
+.set_body_typed([](relay::Id id, runtime::Optional<Type> type_annotation,
+                   Type checked_type_, Array<PrimExpr> shape_, Span span) {
+    return Var(id, type_annotation, checked_type_, shape_, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<VarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const VarNode*>(ref.get());
-    p->stream << "Var("<< node->id << ","<< node->shape_annotation << ","<< node->type_annotation << ","<< node->checked_type_ << ","<< node->shape_ << ","<< node->span << ","")";
+  auto* node = static_cast<const VarNode*>(ref.get());
+  p->stream << "Var("<< node->id << ","<< node->type_annotation 
+            << ","<< node->checked_type_ << ","<< node->shape_ 
+            << ","<< node->span << ","")";
 });
 
 DataflowVar::DataflowVar(
     relay::Id id,
-    runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,
     runtime::Optional<Type> type_annotation,
     Type checked_type_,
     Array<PrimExpr> shape_,
     Span span) {
     ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
     n->id = std::move(id);
-    n->shape_annotation = std::move(shape_annotation);
     n->type_annotation = std::move(type_annotation);
     n->checked_type_ = std::move(checked_type_);
     n->shape_ = std::move(shape_);
@@ -70,14 +70,18 @@ DataflowVar::DataflowVar(
 
 TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
-TVM_REGISTER_GLOBAL("relax.DataflowVar").set_body_typed([](relay::Id id,runtime::Optional<runtime::Array<PrimExpr>> shape_annotation,runtime::Optional<Type> type_annotation,Type checked_type_,Array<PrimExpr> shape_,Span span) {
-    return DataflowVar(id,shape_annotation,type_annotation,checked_type_,shape_,span);
+TVM_REGISTER_GLOBAL("relax.DataflowVar")
+.set_body_typed([](relay::Id id, runtime::Optional<Type> type_annotation,
+                   Type checked_type_, Array<PrimExpr> shape_, Span span) {
+  return DataflowVar(id, type_annotation, checked_type_, shape_, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<DataflowVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const DataflowVarNode*>(ref.get());
-    p->stream << "DataflowVar("<< node->id << ","<< node->shape_annotation << ","<< node->type_annotation << ","<< node->checked_type_ << ","<< node->shape_ << ","<< node->span << ","")";
+  auto* node = static_cast<const DataflowVarNode*>(ref.get());
+  p->stream << "DataflowVar(" << node->id << "," << node->type_annotation
+            << "," << node->checked_type_ << "," << node->shape_ << ","
+            << node->span << ","")";
 });
 
 TVM_REGISTER_NODE_TYPE(BindingNode);
@@ -91,13 +95,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "Binding()";
 });
 
-MatchShape::MatchShape(
-    Array<PrimExpr> pattern,
-    Expr value) {
-    ObjectPtr<MatchShapeNode> n = make_object<MatchShapeNode>();
-    n->pattern = std::move(pattern);
-    n->value = std::move(value);
-    data_ = std::move(n);
+MatchShape::MatchShape(Array<PrimExpr> pattern,
+                       Expr value) {
+  ObjectPtr<MatchShapeNode> n = make_object<MatchShapeNode>();
+  n->pattern = std::move(pattern);
+  n->value = std::move(value);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(MatchShapeNode);
