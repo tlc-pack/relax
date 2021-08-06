@@ -60,7 +60,7 @@ class rxMatchShape(rxNode):
         self.rhs = rhs
         super().__init__(self, span)
 
-# TODO: is dim a tir var or any algebraic PrimExpr?
+# TODO: is dim a tir var or any algebraic PrimExpr? or just a shape tuple with index?
 class rxDim(rxExpr):
     def __init__(self, value):
         self.value = value
@@ -184,25 +184,28 @@ class RelaxTransformer(Transformer):
                     shape_erased = True
                 if (isinstance(dtype_param, ast.TypeVar)) and dtype_param.id.name == "_":
                     dtype_erased = True
+
                 if not shape_erased:
-                    if not isinstance(shape_param, ast.Tuple):
+                    if isinstance(shape_param, ast.TypeTuple):
+                        for shape_dim in shape_param.values:
+                            # TODO: Turn this into a helper fn that only allows algebraic expressions
+                            if isinstance(shape_dim, ast.Var):
+                                dim = rxDim(tir.Var(shape_dim.name))
+                            elif isinstance(shape_dim, ast.Constant) and isinstance(shape_dim.value, int):
+                                dim = rxDim(tir.IntImm("int32", shape_dim.value))
+                            else:
+                                self._diagnostic_context.emit('error', "shape annotation must be only vars or consts for now", self.span_to_span(ty.span))            
+                                self._diagnostic_context.render()
+                            dims.append(dim)
+                    else:
                         self._diagnostic_context.emit('error', "Tensor shape must be erased or be a tuple", self.span_to_span(ty.span))    
                         self._diagnostic_context.render()     
-                    for shape_dim in shape_param:
-                        # TODO: Turn this into a helper fn that only allows algebraic expressions
-                        if isinstance(shape_dim, ast.Var):
-                            dim = rxDim(tir.Var(shape_dim.name))
-                        elif isinstance(shape_dim, ast.Constant) and isinstance(shape_dim.value, int):
-                            dim = rxDim(tir.IntImm("int32", shape_dim.value))
-                        else:
-                            self._diagnostic_context.emit('error', "shape annotation must be only vars or consts for now", self.span_to_span(ty.span))            
-                            self._diagnostic_context.render()
-                        dims.append(dim)
-                if not dtype_erased and not shape_param.id.name in allowed_dtypes:
+                if not dtype_erased:
+                    if dtype_param.value in allowed_dtypes:
+                        dtype = dtype_param.value
+                    else:
                         self._diagnostic_context.emit('error', "dtype must be erased or one of " + str(allowed_dtypes), self.span_to_span(ty.span))            
                         self._diagnostic_context.render()
-                else:
-                    dtype = shape_param.id.name
                 
                 return rxTensor(dtype, None), dims
 
@@ -398,14 +401,9 @@ def relax(f):
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
 
 @relax
-def my_test(x : Tensor[_, _]):
-    return None
-
-"""
-@relax
 def my_test(x : Tensor[(1, 2, 3), "int32"], y: Tensor[_, _]):
     return call_packed("my_func", x, y)
-"""
+
 ones = np.ones((1, 2, 3))
 y = ones
 my_test(ones, y)
