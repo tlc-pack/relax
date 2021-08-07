@@ -19,6 +19,7 @@ from tvm.relay.op.strategy.generic import conv1d_strategy
 
 
 # TODO: make this better
+relax_scope = [] # A stack of dictionaries representing the scope
 var_table = {}
 
 # Skeleton AST so we can get prototype working before this PR is merged
@@ -27,7 +28,8 @@ class rxNode:
 
 # A node that will desugar into a different AST node in a subsequent pass
 class rxFrontendNode:
-    pass
+    def __init__(self, span):
+        self.span = span
 
 class rxExpr(rxNode):
     def __init__(self, span):
@@ -65,7 +67,7 @@ class rxFrontendMatchShapeExprs(rxFrontendNode):
     def __init__(self, lhs, rhs, span):
         self.lhs = lhs
         self.rhs = rhs
-        super().__init__(self, span)
+        super().__init__(span)
 
 # 
 class rxMatchShapeBinding(rxNode):
@@ -74,28 +76,19 @@ class rxMatchShapeBinding(rxNode):
         self.shape = shape # Expr (type is shape tuple)
         super().__init__(self, span)
 
-# TODO: is dim a tir var or any algebraic PrimExpr? or just a shape tuple with index?
-class rxDim(rxExpr):
-    def __init__(self, value):
-        self.value = value
-
-class rxTIRVar(rxNode):
-    def __init__(self, name, span):
-        self.name = name
-        super().__init__(self, span)
-
-
 class rxShapeTuple(rxExpr):
     def __init__(self, dims, span):
         self.dims = dims
-        super().__init__(self, span)
+        super().__init__(span)
 
 
 class rxFunction(rxExpr):
-    def __init__(self, name, args, body):
+    def __init__(self, name, args, body, ret_type, span):
         self.name = name
         self.args = args
         self.body = body
+        self.ret_type = ret_type
+        super().__init__(span)
 
 class rxBlock(rxExpr):
     def __init__(self, body):
@@ -115,6 +108,9 @@ class rxIfThenElse(rxExpr):
 class rxType:
     def __init__(self, span):
         self.span = span
+
+class rxDim(rxType):
+    pass
 
 class rxTensor(rxType):
     def __init__(self, dtype, span):
@@ -239,7 +235,7 @@ class RelaxTransformer(Transformer):
                 
             # TODO: do all the ops here
             elif isinstance(expr, ast.Constant) and isinstance(expr.value, int):
-                assert False
+                return tir.IntImm("int32", expr.value)
             elif isinstance(expr, ast.Call):
                 if exp.func_name.name == ast.BuiltinOp.Add:
                     # TODO: call this fn on args and return primexpr containing result
@@ -271,7 +267,6 @@ class RelaxTransformer(Transformer):
             params.append(param)
         new_body = self.transform_block(func.body)
         ret_type = self.to_type(func.ret_type)
-        print(new_body)
         return rxFunction(func.name, params, new_body, ret_type, None)
 
     def transform_stmt(self, stmt: ast.Stmt) -> relax.Expr:
@@ -299,7 +294,7 @@ class RelaxTransformer(Transformer):
                 arithmetic_primexprs = []
                 for elem in rhs.values:
                     arithmetic_primexprs.append(self.expr_to_primexpr(elem, allow_arithmetic=True))
-                rhs_expr = rxShapeTuple(arithmetic_primexprs)
+                rhs_expr = rxShapeTuple(arithmetic_primexprs, self.span_to_span(rhs.span))
             else:
                 rhs_expr = self.transform_expr(rhs)
             
@@ -313,7 +308,7 @@ class RelaxTransformer(Transformer):
                 self.blocks[-1].append(rxMatchShapeBinding(binding_tir_vars, rhs_expr))
             else:
                 lhs_expr = self.transform_expr(lhs)
-                self.blocks[-1].append(rxFrontendMatchShapeExprs(lhs_expr, rhs_expr))
+                self.blocks[-1].append(rxFrontendMatchShapeExprs(lhs_expr, rhs_expr, stmt.span))
         else:
             self._diagnostic_context.emit('error', "only variable left-hand sides are supported in Relay", self.span_to_span(stmt.span))
             self._diagnostic_context.render()
@@ -366,7 +361,6 @@ class RelaxTransformer(Transformer):
                 self._diagnostic_context.emit('error', "unsupported function", self.span_to_span(exp.span))
                 self._diagnostic_context.render()
         elif isinstance(exp, ast.Function):
-            print(exp)
             return self.transform_function(exp)
         elif isinstance(exp, ast.Tuple):
             assert False
@@ -394,7 +388,7 @@ class RelaxTransformer(Transformer):
         # assert ret_expr is not None
 
         bindings = self.exit_block()
-        return rxLet(bindings, ret_expr, span=None)
+        return rxLet(bindings, ret_expr)
 
     def transform_parameter(self, expr: ast.Parameter) -> relax.Expr:
         pass
@@ -468,6 +462,4 @@ def relax(f):
 def my_test(x: Tensor[_, "float32"]):
     match_shape(x.shape, (1, 2, 3))
 
-@relax
-def my_test(x : Tensor[(1, 2, 3), "int32"], y: Tensor[_, _]):
-    return call_packed("my_func", x, y)
+print(my_test.module['my_test'])
