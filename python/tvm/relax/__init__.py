@@ -20,6 +20,7 @@ from . import expr
 from . import ty
 from . import vm
 from . import op
+from . import ir_builder
 
 
 # Expr
