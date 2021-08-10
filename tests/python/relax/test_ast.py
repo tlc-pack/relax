@@ -95,8 +95,26 @@ def test_seq_expr() -> None:
     assert seqe.body == x
 
 
+def test_shape_expr() -> None:
+    m = tir.Var("m", dtype="int32")
+    n = tir.Var("n", dtype="int32")
+    s = rx.ShapeExpr([m, n])
+    assert s.values[0] == m
+    assert s.values[1] == n
+
+
 def test_func():
-    pass
+    x = rx.Var("foo")
+    bindings = [rx.VarBinding(x, rx.const(1))]
+    blocks = [rx.BindingBlock(bindings)]
+    seqe = rx.SeqExpr(blocks, x)
+    ret_type = TensorType(None, "float32")
+    func = rx.Function([x], seqe, ret_type, rx.GlobalVar("func"))
+    assert func.params[0] == x
+    assert func.body == seqe
+    assert func.ret_type == ret_type
+    assert func.name.name_hint == "func"
+
 
 if __name__ == "__main__":
     test_var()
@@ -106,4 +124,6 @@ if __name__ == "__main__":
     test_binding_block()
     test_dataflow_block()
     test_seq_expr()
+    test_shape_expr()
+    test_func()
 

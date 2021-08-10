@@ -140,46 +140,40 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 });
 
 
-ShapeExpr::ShapeExpr(Array<PrimExpr> values,
-                     Type checked_type_, Array<PrimExpr> shape_, Span span) {
-    ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
-    n->values = std::move(values);
-    n->checked_type_ = std::move(checked_type_);
-    n->shape_ = std::move(shape_);
-    n->span = std::move(span);
-    data_ = std::move(n);
-}
-
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
-TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values, Type checked_type_,Array<PrimExpr> shape_,Span span) {
-    return ShapeExpr(values, checked_type_,shape_, span);
+ShapeExpr::ShapeExpr(Array<PrimExpr> values) {
+  ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
+  n->values = std::move(values);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.ShapeExpr")
+.set_body_typed([](Array<PrimExpr> values) {
+  return ShapeExpr(values);
 });
 
 
-Function::Function(
-    runtime::Optional<GlobalVar> name,
-    Array<Var> params,
-    Expr body,
-    Type ret_type,
-    Type checked_type_,
-    Array<PrimExpr> shape_,
-    Span span) {
-    ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
-    n->name = std::move(name);
-    n->params = std::move(params);
-    n->body = std::move(body);
-    n->ret_type = std::move(ret_type);
-    n->checked_type_ = std::move(checked_type_);
-    n->shape_ = std::move(shape_);
-    n->span = std::move(span);
-    data_ = std::move(n);
+Function::Function(runtime::Optional<GlobalVar> name,
+                   Array<Var> params,
+                   Expr body,
+                   Type ret_type) {
+  ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
+  n->name = std::move(name);
+  n->params = std::move(params);
+  n->body = std::move(body);
+  n->ret_type = std::move(ret_type);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-TVM_REGISTER_GLOBAL("relax.Function").set_body_typed([](runtime::Optional<GlobalVar> name,Array<Var> params,Expr body,Type ret_type,Type checked_type_,Array<PrimExpr> shape_,Span span) {
-    return Function(name,params,body,ret_type,checked_type_,shape_,span);
+TVM_REGISTER_GLOBAL("relax.Function")
+.set_body_typed([](runtime::Optional<GlobalVar> name,
+                   Array<Var> params,
+                   Expr body,
+                   Type ret_type) {
+  return Function(name, params, body, ret_type);
 });
 
 } // namespace relax

@@ -336,7 +336,7 @@ class ShapeExprNode : public ExprNode {
 
 class ShapeExpr : public Expr {
  public:
-  TVM_DLL ShapeExpr(Array<PrimExpr> dims, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DLL ShapeExpr(Array<PrimExpr> values);
   TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
 };
 
@@ -381,7 +381,6 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce(ret_type);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
-    hash_reduce(span);
   }
 
   static constexpr const char* _type_key = "relax.expr.Function";
@@ -392,8 +391,8 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public Expr {
  public:
-  TVM_DLL Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                   Type ret_type, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DLL Function(runtime::Optional<GlobalVar> name, Array<Var> params,
+                   Expr body, Type ret_type);
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
 };
 

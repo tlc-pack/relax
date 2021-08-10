@@ -83,12 +83,15 @@ class SeqExpr(Expr):
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body)
 
 
+@tvm._ffi.register_object("relax.expr.ShapeExpr")
+class ShapeExpr(Expr):
+    def __init__(self, values: List[PrimExpr]) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values)
+
+
 @tvm._ffi.register_object("relax.expr.Function")
 class Function(Expr):
-    name: Optional[GlobalVar]
-    params: List[Var]
-    body: Expr
-    ret_type: Type
-
-    def __init__(self, name: Optional[GlobalVar], params: List[Var], body: Expr, ret_type: Type, span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Function,  name,  params,  body,  ret_type,  span) # type: ignore
+    def __init__(self, params: List[Var], body: Expr,
+                 ret_type: Type, name: Optional[GlobalVar] = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Function, name, params,
+                                            body, ret_type)

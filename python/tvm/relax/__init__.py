@@ -26,6 +26,7 @@ Expr = expr.Expr
 Span = expr.Span
 SourceName = expr.SourceName
 Id = expr.Id
+GlobalVar = expr.GlobalVar
 Var = expr.Var
 DataflowVar = expr.DataflowVar
 Binding = expr.Binding
@@ -34,6 +35,8 @@ VarBinding = expr.VarBinding
 BindingBlock = expr.BindingBlock
 DataflowBlock = expr.DataflowBlock
 SeqExpr = expr.SeqExpr
+ShapeExpr = expr.ShapeExpr
+Function = expr.Function
 
 # helper functions
 const = expr.const
