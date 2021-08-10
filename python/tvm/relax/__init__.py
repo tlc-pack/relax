@@ -31,6 +31,7 @@ DataflowVar = expr.DataflowVar
 SeqExpr = expr.SeqExpr
 VarBinding = expr.VarBinding
 BasicBlock = expr.BasicBlock
+MatchShape = expr.MatchShape
 
 # helper functions
 const = expr.const

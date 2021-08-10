@@ -1,12 +1,10 @@
 import tvm
+from tvm import tir
 from tvm import relax as rx
 from tvm.ir import TensorType
 from tvm.relax import Expr, Span, Var, DataflowVar, const, SeqExpr, VarBinding, BasicBlock
+import numpy as np
 
-def check_span(exp: Expr, sp: Span) -> None:
-    assert exp.id.name_hint == "foo"
-    assert exp.span.column == 0
-    assert exp.span.line == 0
 
 def test_var() -> None:
     v0 = Var("v0")
@@ -20,6 +18,7 @@ def test_var() -> None:
     for s0, s1 in zip(v1.shape_, shape_anno):
         assert s0 == s1
     assert v1.type_annotation == type_anno
+
 
 def test_df_var() -> None:
     v0 = DataflowVar("v0")
@@ -35,11 +34,27 @@ def test_df_var() -> None:
     assert v1.type_annotation == type_anno
     assert isinstance(v1, DataflowVar)
 
+
 def test_match_shape() -> None:
-    pass
+    m = tir.Var("m", dtype="int32")
+    n = tir.Var("n", dtype="int32")
+    shape = const([16, 8], "int32") 
+    b0 = rx.MatchShape([m, n], shape)
+    assert b0.pattern[0] == m
+    assert b0.pattern[1] == n
+    assert b0.value == shape
+
+    # should we support this?
+    # b0 = rx.MatchShape([m, n], [x, y]) 
+
 
 def test_var_binding() -> None:
-    pass
+    v0 = Var("v0")
+    val = const(np.random.rand(24, 56))
+    b0 = rx.VarBinding(v0, val)
+    assert b0.var.name_hint == "v0"
+    assert b0.value == val
+
 
 def test_basic_block() -> None:
     pass
@@ -64,6 +79,6 @@ def test_func():
 if __name__ == "__main__":
     test_var()
     test_df_var()
-    # test_df_var()
-    # test_seq_expr()
+    test_match_shape()
+    test_var_binding()
 

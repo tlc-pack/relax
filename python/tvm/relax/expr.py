@@ -42,29 +42,27 @@ class Var(Expr):
         name = str(self.vid.name_hint)
         return name
 
+
 @tvm._ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
     pass
+
 
 @tvm._ffi.register_object("relax.expr.Binding")
 class Binding(Node):
     pass
 
+
 @tvm._ffi.register_object("relax.expr.MatchShape")
 class MatchShape(Binding):
-    pattern: List[PrimExpr]
-    value: Expr
+    def __init__(self, pattern: List[PrimExpr], value: Expr) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value)
 
-    def __init__(self, pattern: List[PrimExpr], value: Expr, span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value, span) # type: ignore
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
-class VarBinding(Node):
-    var: Var
-    val: Expr
-
-    def __init__(self, var: Var, val: Expr, span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Binding, var, val, span) # type: ignore
+class VarBinding(Binding):
+    def __init__(self, var: Var, value: Expr) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value)
 
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")

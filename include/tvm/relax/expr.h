@@ -214,8 +214,10 @@ class VarBinding : public Binding {
 class BindingBlock;
 class BindingBlockNode : public Object {
  public:
-  runtime::Array<Binding> bindings;
-  void VisitAttrs(AttrVisitor* v) { v->Visit("bindings", &bindings); }
+  Array<Binding> bindings;
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("bindings", &bindings);
+  }
   bool SEqualReduce(const BindingBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
@@ -228,7 +230,7 @@ class BindingBlockNode : public Object {
 
 class BindingBlock : public ObjectRef {
  public:
-  TVM_DLL BindingBlock(runtime::Array<Binding> bindings);
+  TVM_DLL BindingBlock(Array<Binding> bindings);
   TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
 };
 
@@ -248,7 +250,7 @@ class DataflowBlockNode : public BindingBlockNode {
 
 class DataflowBlock : public BindingBlock {
  public:
-  TVM_DLL DataflowBlock(runtime::Array<Binding> bindings);
+  TVM_DLL DataflowBlock(Array<Binding> bindings);
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BindingBlock, DataflowBlockNode);
 };
 
@@ -264,8 +266,8 @@ class SeqExprNode : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("blocks", &blocks);
     v->Visit("body", &body);
-    v->Visit("checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -277,8 +279,8 @@ class SeqExprNode : public ExprNode {
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(blocks);
     hash_reduce(body);
-    hash_reduce(checked_type_);
     hash_reduce(shape_);
+    hash_reduce(checked_type_);
     hash_reduce(span);
   }
 
@@ -299,12 +301,12 @@ class SeqExpr : public Expr {
 class ShapeExprNode : public ExprNode {
  public:
   /*! The values of the shape expression. */
-  runtime::Array<PrimExpr> values;
+  Array<PrimExpr> values;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
-    v->Visit("checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -318,7 +320,6 @@ class ShapeExprNode : public ExprNode {
     hash_reduce(values);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
-    hash_reduce(span);
   }
 
   static constexpr const char* _type_key = "relax.expr.ShapeExpr";
@@ -342,7 +343,7 @@ class FunctionNode : public BaseFuncNode {
    */
   runtime::Optional<GlobalVar> name;
   /*! \brief The parameters to the function. */
-  runtime::Array<Var> params;
+  Array<Var> params;
   /*! \brief The body of the function. */
   Expr body;
   /*! \brief The return type of the function. */
@@ -385,7 +386,7 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public Expr {
  public:
-  TVM_DLL Function(runtime::Optional<GlobalVar> name, runtime::Array<Var> params, Expr body,
+  TVM_DLL Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
                    Type ret_type, Type checked_type_, Array<PrimExpr> shape_, Span span);
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
 };
