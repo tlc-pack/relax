@@ -16,26 +16,30 @@
 # under the License.
 """Developer API of building Relax IR nodes."""
 
-from .expr import Var, DataflowVar, VarBinding, DataFlowBlock, SeqExpr, Function
+from python.tvm.relay.expr import Tuple
+from .expr import Expr, Var, DataflowVar, VarBinding, DataflowBlock, SeqExpr, Function
 
 
 class FunctionScope(object):
     """Auxiliary scope for function"""
 
     stack = []
+    functions = []
 
     def __init__(self, name, params):
         self.name = name
         self.params = params
-        self.seq_expr = []
+        self.binding_blocks = []
+        self.body = None
 
     def __enter__(self):
         FunctionScope.stack.append(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        FunctionScope.stack.pop()
-        return Function(self.name, self.params, SeqExpr(self.seq_expr))
+        FunctionScope.functions.append(
+            Function(self.name, self.params, SeqExpr(self.binding_blocks, self.body))
+        )
 
 
 class DataflowScope(object):
@@ -52,7 +56,7 @@ class DataflowScope(object):
 
     def __exit__(self, ptype, value, trace):
         DataflowScope.stack.pop()
-        FunctionScope.stack[-1].seq_expr.append(DataFlowBlock(self.bindings))
+        FunctionScope.stack[-1].binding_blocks.append(DataflowBlock(self.bindings))
 
 
 class IRBuilder(object):
@@ -60,15 +64,17 @@ class IRBuilder(object):
     Examples
     --------
     .. code-block:: python
+
         ib = rx.ir_builder.create()
         x = ib.var("x", shape, dtype)
         with ib.function("foo", [x]):
             with ib.dataflow():
                 y = ib.dataflow_var("y", shape, dtype)
                 z = ib.dataflow_var("z", shape, dtype)
-                ib.bind(z, ib.call(add_func, [x, y])
+                ib.bind(z, ib.call(add_func, [x, y]))
                 res = ib.var("res")
-                ib.bind(res, ib.call(mul_func, [x, z])
+                ib.bind(res, ib.call(mul_func, [x, z]))
+            ib.output(res)
         ib.get()
     """
 
@@ -85,7 +91,7 @@ class IRBuilder(object):
         if len(FunctionScope.stack) == 0:
             raise ValueError("Dataflow block construction should happen in a function scope")
 
-    def var(self, name, shape, dtype):
+    def var(self, name, shape=None, dtype=None):
         """Create a global Var.
 
         Parameters
@@ -93,10 +99,10 @@ class IRBuilder(object):
         name : str
             The name of the variable
 
-        shape :
+        shape : List[Type], optional
             The shape annotation of the variable
 
-        dtype :
+        dtype : Type, optional
             The data type of the variable
 
         Returns
@@ -105,7 +111,7 @@ class IRBuilder(object):
         """
         return Var(name, shape, dtype)
 
-    def dataflow_var(self, name, shape, dtype):
+    def dataflow_var(self, name, shape=None, dtype=None):
         """Create a DataflowVar.
 
         Parameters
@@ -113,14 +119,15 @@ class IRBuilder(object):
         name : str
             The name of the variable
 
-        shape :
+        shape : List[Type], optional
             The shape annotation of the variable
 
-        dtype :
+        dtype : Type, optional
             The data type of the variable
+
         Returns
         -------
-        var : tvm.relax.DataFlowVar
+        var : tvm.relax.DataflowVar
         """
         self._check_dataflow_scope()
         return DataflowVar(name, shape, dtype)
@@ -164,9 +171,25 @@ class IRBuilder(object):
             params = [params]
         return FunctionScope(name, params)
 
+    def output(self, output):
+        """Specify the outputs of a function.
+
+        Parameters
+        ----------
+        output : str
+            The name of the function
+        """
+        self._check_function_scope()
+        if isinstance(output, Expr):
+            FunctionScope.stack[-1].body = output
+        elif isinstance(output, (list, tuple)):
+            FunctionScope.stack[-1].body = Tuple(output)
+        else:
+            raise ValueError("output must be of an Expr or a list/tuple of Expr")
+
     def get(self):
         """Return the built AST."""
-        pass
+        return FunctionScope.functions[-1]
 
 
 def create():
