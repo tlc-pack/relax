@@ -22,66 +22,62 @@
 namespace tvm {
 namespace relax {
 
-Var::Var(
-    relay::Id id,
-    runtime::Optional<Type> type_annotation,
-    Type checked_type_,
-    Array<PrimExpr> shape_,
-    Span span) {
-    ObjectPtr<VarNode> n = make_object<VarNode>();
-    n->id = std::move(id);
-    n->type_annotation = std::move(type_annotation);
-    n->checked_type_ = std::move(checked_type_);
-    n->shape_ = std::move(shape_);
-    n->span = std::move(span);
-    data_ = std::move(n);
-}
+using tvm::runtime::Optional;
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
+Var::Var(Id vid,
+         Optional<Array<PrimExpr>> shape_annotation,
+         Optional<Type> type_annotation,
+         Span span) {
+  ObjectPtr<VarNode> n = make_object<VarNode>();
+  n->vid = std::move(vid);
+  n->shape_ = std::move(shape_annotation);
+  n->type_annotation = std::move(type_annotation);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
 TVM_REGISTER_GLOBAL("relax.Var")
-.set_body_typed([](relay::Id id, runtime::Optional<Type> type_annotation,
-                   Type checked_type_, Array<PrimExpr> shape_, Span span) {
-    return Var(id, type_annotation, checked_type_, shape_, span);
+.set_body_typed([](String name_hint,
+                   Optional<Array<PrimExpr>> shape_annotation,
+                   Optional<Type> type_annotation) {
+  return Var(name_hint, shape_annotation, type_annotation);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<VarNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const VarNode*>(ref.get());
-  p->stream << "Var("<< node->id << ","<< node->type_annotation 
-            << ","<< node->checked_type_ << ","<< node->shape_ 
-            << ","<< node->span << ","")";
+  p->stream << "Var("<< node->name_hint();
+  if (node->shape_.defined()) {
+    p->stream << ", shape=" << node->shape_;
+  }
+  if (node->type_annotation.defined()) {
+    p->stream << ", ty=" << node->type_annotation;
+  }
+  p->stream << ")";
 });
-
-DataflowVar::DataflowVar(
-    relay::Id id,
-    runtime::Optional<Type> type_annotation,
-    Type checked_type_,
-    Array<PrimExpr> shape_,
-    Span span) {
-    ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
-    n->id = std::move(id);
-    n->type_annotation = std::move(type_annotation);
-    n->checked_type_ = std::move(checked_type_);
-    n->shape_ = std::move(shape_);
-    n->span = std::move(span);
-    data_ = std::move(n);
-}
 
 TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
 TVM_REGISTER_GLOBAL("relax.DataflowVar")
-.set_body_typed([](relay::Id id, runtime::Optional<Type> type_annotation,
-                   Type checked_type_, Array<PrimExpr> shape_, Span span) {
-  return DataflowVar(id, type_annotation, checked_type_, shape_, span);
+.set_body_typed([](String name_hint,
+                   Optional<Array<PrimExpr>> shape_annotation,
+                   Optional<Type> type_annotation) {
+  return DataflowVar(name_hint, shape_annotation, type_annotation);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<DataflowVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const DataflowVarNode*>(ref.get());
-  p->stream << "DataflowVar(" << node->id << "," << node->type_annotation
-            << "," << node->checked_type_ << "," << node->shape_ << ","
-            << node->span << ","")";
+  p->stream << "DataflowVar("<< node->name_hint();
+  if (node->shape_.defined()) {
+    p->stream << ", shape=" << node->shape_;
+  }
+  if (node->type_annotation.defined()) {
+    p->stream << ", ty=" << node->type_annotation;
+  }
+  p->stream << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(BindingNode);
@@ -137,23 +133,23 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "VarBinding("<< node->var << ","<< node->value << ","")";
 });
 
-BasicBlock::BasicBlock(
+BindingBlock::BindingBlock(
     runtime::Array<Binding> bindings) {
-    ObjectPtr<BasicBlockNode> n = make_object<BasicBlockNode>();
+    ObjectPtr<BindingBlockNode> n = make_object<BindingBlockNode>();
     n->bindings = std::move(bindings);
     data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(BasicBlockNode);
+TVM_REGISTER_NODE_TYPE(BindingBlockNode);
 
-TVM_REGISTER_GLOBAL("relax.BasicBlock").set_body_typed([](runtime::Array<Binding> bindings) {
-    return BasicBlock(bindings);
+TVM_REGISTER_GLOBAL("relax.BindingBlock").set_body_typed([](runtime::Array<Binding> bindings) {
+    return BindingBlock(bindings);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<BasicBlockNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const BasicBlockNode*>(ref.get());
-    p->stream << "BasicBlock("<< node->bindings << ","")";
+.set_dispatch<BindingBlockNode>([](const ObjectRef& ref, ReprPrinter* p) {
+    auto* node = static_cast<const BindingBlockNode*>(ref.get());
+    p->stream << "BindingBlock("<< node->bindings << ","")";
 });
 
 DataflowBlock::DataflowBlock(
@@ -176,7 +172,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 SeqExpr::SeqExpr(
-    runtime::Array<BasicBlock> blocks,
+    runtime::Array<BindingBlock> blocks,
     Expr body,
     Type checked_type_,
     Array<PrimExpr> shape_,
@@ -192,7 +188,7 @@ SeqExpr::SeqExpr(
 
 TVM_REGISTER_NODE_TYPE(SeqExprNode);
 
-TVM_REGISTER_GLOBAL("relax.SeqExpr").set_body_typed([](Array<BasicBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span) {
+TVM_REGISTER_GLOBAL("relax.SeqExpr").set_body_typed([](Array<BindingBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span) {
     return SeqExpr(blocks,body,checked_type_,shape_,span);
 });
 

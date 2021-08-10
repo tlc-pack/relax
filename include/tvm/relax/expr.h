@@ -31,6 +31,7 @@
 namespace tvm {
 namespace relax {
 
+using relay::Id;
 using ExprNode = RelayExprNode;
 using Expr = RelayExpr;
 
@@ -38,31 +39,34 @@ using Expr = RelayExpr;
 class VarNode : public ExprNode {
  public:
   /*! \brief The identifier of the variable, is used for comparing stable equality across transformations. */
-  relay::Id id;
+  Id vid;
   /*! \brief The type annotation, used by binding sites and parameter declarations. */
   runtime::Optional<Type> type_annotation;
 
+  /*! \return The name hint of the variable */
+  const String& name_hint() const { return vid->name_hint; }
+
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("id", &id);
+    v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
-    v->Visit("checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("span", &span);
+    v->Visit("shape_", &shape_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    return equal(id, other->id) &&
+    return equal(vid, other->vid) &&
            equal(type_annotation, other->type_annotation) &&
            // Do we use the analysis information in equality?
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+           equal(checked_type_, other->checked_type_) &&
+           equal(shape_, other->shape_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(id);
+    hash_reduce(vid);
     hash_reduce(type_annotation);
-    hash_reduce(checked_type_);
     hash_reduce(shape_);
-    hash_reduce(span);
+    hash_reduce(checked_type_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Var";
@@ -74,8 +78,16 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
-  TVM_DLL Var(relay::Id id, runtime::Optional<Type> type_annotation,
-              Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DLL Var(String name_hint,
+              runtime::Optional<Array<PrimExpr>> shape_annotation,
+              runtime::Optional<Type> type_annotation,
+              Span span = Span())
+    : Var(Id(name_hint), shape_annotation, type_annotation, span) {}
+
+  TVM_DLL Var(Id vid,
+              runtime::Optional<Array<PrimExpr>> shape_annotation,
+              runtime::Optional<Type> type_annotation,
+              Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
 };
 
@@ -85,25 +97,25 @@ class Var : public Expr {
 class DataflowVarNode : public VarNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("id", &id);
+    v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
-    v->Visit("checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("span", &span);
+    v->Visit("shape_", &shape_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
-    return equal(id, other->id)  &&
+    return equal(vid, other->vid)  &&
            equal(type_annotation, other->type_annotation) &&
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+           equal(shape_, other->shape_) &&
+           equal(checked_type_, other->checked_type_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(id);
+    hash_reduce(vid);
     hash_reduce(type_annotation);
-    hash_reduce(checked_type_);
     hash_reduce(shape_);
-    hash_reduce(span);
+    hash_reduce(checked_type_);
   }
 
   static constexpr const char* _type_key = "relax.expr.DataflowVar";
@@ -114,12 +126,7 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL DataflowVar(relay::Id id, runtime::Optional<Type> type_annotation,
-                      Type checked_type_, Array<PrimExpr> shape_, Span span);
-
-  TVM_DLL DataflowVar(std::string,runtime::Optional<Type> type_annotation,
-                      Type checked_type_, Array<PrimExpr> shape_, Span span);
-
+  using Var::Var; // inherit constructors from Var
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
 };
 
@@ -204,32 +211,29 @@ class VarBinding : public Binding {
   TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
 };
 
-// write an alternative name
-// BindingGroup
-class BasicBlock;
-class BasicBlockNode : public Object {
+class BindingBlock;
+class BindingBlockNode : public Object {
  public:
   runtime::Array<Binding> bindings;
   void VisitAttrs(AttrVisitor* v) { v->Visit("bindings", &bindings); }
-  bool SEqualReduce(const BasicBlockNode* other, SEqualReducer equal) const {
+  bool SEqualReduce(const BindingBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
-  static constexpr const char* _type_key = "relax.expr.BasicBlock";
+  static constexpr const char* _type_key = "relax.expr.BindingBlock";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(BasicBlockNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(BindingBlockNode, Object);
 };
 
-class BasicBlock : public ObjectRef {
+class BindingBlock : public ObjectRef {
  public:
-  TVM_DLL BasicBlock(runtime::Array<Binding> bindings);
-  TVM_DEFINE_OBJECT_REF_METHODS(BasicBlock, ObjectRef, BasicBlockNode);
+  TVM_DLL BindingBlock(runtime::Array<Binding> bindings);
+  TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
 };
 
-// DataflowGroup + Impure BindingSequence, Let, etc
 class DataflowBlock;
-class DataflowBlockNode : public BasicBlockNode {
+class DataflowBlockNode : public BindingBlockNode {
  public:
   void VisitAttrs(AttrVisitor* v) { v->Visit("bindings", &bindings); }
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
@@ -239,13 +243,13 @@ class DataflowBlockNode : public BasicBlockNode {
   static constexpr const char* _type_key = "relax.expr.DataflowBlock";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockNode, BasicBlockNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockNode, BindingBlockNode);
 };
 
-class DataflowBlock : public BasicBlock {
+class DataflowBlock : public BindingBlock {
  public:
   TVM_DLL DataflowBlock(runtime::Array<Binding> bindings);
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BasicBlock, DataflowBlockNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BindingBlock, DataflowBlockNode);
 };
 
 /*! \brief A sequence of blocks followed by an expression.
@@ -254,7 +258,7 @@ class DataflowBlock : public BasicBlock {
  */
 class SeqExprNode : public ExprNode {
  public:
-  Array<BasicBlock> blocks;
+  Array<BindingBlock> blocks;
   Expr body;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -286,7 +290,7 @@ class SeqExprNode : public ExprNode {
 
 class SeqExpr : public Expr {
  public:
-  TVM_DLL SeqExpr(Array<BasicBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DLL SeqExpr(Array<BindingBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span);
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
 };
 

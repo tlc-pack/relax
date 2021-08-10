@@ -29,13 +29,18 @@ const = relay.const
 
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
-    id: Id
-    shape_annotation: Optional[List[Type]]
-    type_annotation: Optional[Type]
-    span: Span
+    def __init__(self, name_hint: str,
+                 shape_annotation: Optional[List[Type]] = None,
+                 type_annotation: Optional[Type] = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Var, name_hint,
+                                            shape_annotation,
+                                            type_annotation)
 
-    def __init__(self, id: relay.base.Id, ty: Optional[Type], span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Var,  id,  ty,  span) # type: ignore
+    @property
+    def name_hint(self):
+        """Get name hint of the current var."""
+        name = str(self.vid.name_hint)
+        return name
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
@@ -62,7 +67,7 @@ class VarBinding(Node):
         self.__init_handle_by_constructor__(_ffi_api.Binding, var, val, span) # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.BasicBlock")
+@tvm._ffi.register_object("relax.expr.BindingBlock")
 class BasicBlock(Node):
     bindings: List[Binding]
 

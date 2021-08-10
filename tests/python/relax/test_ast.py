@@ -1,35 +1,39 @@
 import tvm
 from tvm import relax as rx
-from tvm.relax import Expr, Span, Id, Var, DataflowVar, const, SeqExpr, VarBinding, BasicBlock
+from tvm.ir import TensorType
+from tvm.relax import Expr, Span, Var, DataflowVar, const, SeqExpr, VarBinding, BasicBlock
 
 def check_span(exp: Expr, sp: Span) -> None:
     assert exp.id.name_hint == "foo"
     assert exp.span.column == 0
     assert exp.span.line == 0
 
-
 def test_var() -> None:
-    id = Id("foo")
-    sp = Span(rx.SourceName("foo"), 0, 1, 2, 3)
-    # The variant with None, None
-    v1 = Var(id, None, sp)
-    check_span(v1, sp)
-    sh = None # todo: make ty
-    ty = None # todo: make ty
-    v2 = Var(id, ty, sp)
-    check_span(v2, sp)
-    print(v2)
+    v0 = Var("v0")
+    assert v0.name_hint == "v0"
+    assert v0.shape_ is None
+    assert v0.type_annotation is None
+    shape_anno = [54, 96]
+    type_anno = TensorType(shape_anno, "float32")
+    v1 = Var("v1", shape_anno, type_anno)
+    assert v1.name_hint == "v1"
+    for s0, s1 in zip(v1.shape_, shape_anno):
+        assert s0 == s1
+    assert v1.type_annotation == type_anno
 
 def test_df_var() -> None:
-    id = Id("foo")
-    sp = Span("foo", 0, 1, 2, 3)
-    # The variant with None, None
-    v1 = DataflowVar(id, None, None, sp)
-    check_span(v1, sp)
-    sh = None # todo: make ty
-    ty = None # todo: make ty
-    v2 = Var(id, sh, ty, sp)
-    check_span(v2, sp)
+    v0 = DataflowVar("v0")
+    assert v0.name_hint == "v0"
+    assert v0.shape_ is None
+    assert v0.type_annotation is None
+    shape_anno = [54, 96]
+    type_anno = TensorType(shape_anno, "float16")
+    v1 = DataflowVar("v1", shape_anno, type_anno)
+    assert v1.name_hint == "v1"
+    for s0, s1 in zip(v1.shape_, shape_anno):
+        assert s0 == s1
+    assert v1.type_annotation == type_anno
+    assert isinstance(v1, DataflowVar)
 
 def test_match_shape() -> None:
     pass
@@ -60,5 +64,6 @@ def test_func():
 if __name__ == "__main__":
     test_var()
     test_df_var()
-    test_seq_expr()
+    # test_df_var()
+    # test_seq_expr()
 
