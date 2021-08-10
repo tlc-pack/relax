@@ -27,6 +27,13 @@ Expr = relay.Expr
 Type = relay.Type
 const = relay.const
 
+
+@tvm._ffi.register_object("relax.expr.ShapeExpr")
+class ShapeExpr(Expr):
+    def __init__(self, values: List[PrimExpr]) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values)
+
+
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
     def __init__(self, name_hint: str,
@@ -81,12 +88,6 @@ class DataflowBlock(Node):
 class SeqExpr(Expr):
     def __init__(self, blocks: List[BindingBlock], body: Expr) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body)
-
-
-@tvm._ffi.register_object("relax.expr.ShapeExpr")
-class ShapeExpr(Expr):
-    def __init__(self, values: List[PrimExpr]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values)
 
 
 @tvm._ffi.register_object("relax.expr.Function")

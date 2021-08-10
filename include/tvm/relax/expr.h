@@ -35,6 +35,45 @@ using relay::Id;
 using ExprNode = RelayExprNode;
 using Expr = RelayExpr;
 
+/*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
+ */
+class ShapeExprNode : public ExprNode {
+ public:
+  /*! The values of the shape expression. */
+  Array<PrimExpr> values;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("values", &values);
+    v->Visit("shape_", &shape_);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
+    return equal(values, other->values) &&
+           equal(checked_type_, other->checked_type_) &&
+           equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(values);
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.ShapeExpr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, ExprNode);
+};
+
+class ShapeExpr : public Expr {
+ public:
+  TVM_DLL ShapeExpr(Array<PrimExpr> values);
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
+};
+
+
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:
@@ -302,43 +341,6 @@ class SeqExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
 };
 
-/*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
- */
-class ShapeExprNode : public ExprNode {
- public:
-  /*! The values of the shape expression. */
-  Array<PrimExpr> values;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("values", &values);
-    v->Visit("shape_", &shape_);
-    v->Visit("checked_type_", &checked_type_);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) &&
-           equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(values);
-    hash_reduce(checked_type_);
-    hash_reduce(shape_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.ShapeExpr";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, ExprNode);
-};
-
-class ShapeExpr : public Expr {
- public:
-  TVM_DLL ShapeExpr(Array<PrimExpr> values);
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
-};
 
 /*! \brief A Relax function, eventually to replace the current Relay function definition. */
 class FunctionNode : public BaseFuncNode {

@@ -24,6 +24,21 @@ namespace relax {
 
 using tvm::runtime::Optional;
 
+
+TVM_REGISTER_NODE_TYPE(ShapeExprNode);
+
+ShapeExpr::ShapeExpr(Array<PrimExpr> values) {
+  ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
+  n->values = std::move(values);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.ShapeExpr")
+.set_body_typed([](Array<PrimExpr> values) {
+  return ShapeExpr(values);
+});
+
+
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 Var::Var(Id vid,
@@ -137,20 +152,6 @@ SeqExpr::SeqExpr(Array<BindingBlock> blocks,
 TVM_REGISTER_GLOBAL("relax.SeqExpr")
 .set_body_typed([](Array<BindingBlock> blocks, Expr body) {
   return SeqExpr(blocks, body);
-});
-
-
-TVM_REGISTER_NODE_TYPE(ShapeExprNode);
-
-ShapeExpr::ShapeExpr(Array<PrimExpr> values) {
-  ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
-  n->values = std::move(values);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("relax.ShapeExpr")
-.set_body_typed([](Array<PrimExpr> values) {
-  return ShapeExpr(values);
 });
 
 
