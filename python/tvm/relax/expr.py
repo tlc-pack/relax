@@ -66,26 +66,21 @@ class VarBinding(Binding):
 
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
-class BasicBlock(Node):
-    bindings: List[Binding]
+class BindingBlock(Node):
+    def __init__(self, bindings: List[Binding]) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings)
 
-    def __init__(self, bindings: List[Binding], span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BasicBlock, bindings, span) # type: ignore
 
 @tvm._ffi.register_object("relax.expr.DataflowBlock")
-class DataFlowBlock(Node):
-    bindings: List[Binding]
+class DataflowBlock(Node):
+    def __init__(self, bindings: List[Binding]) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings)
 
-    def __init__(self, bindings: List[Binding], span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span) # type: ignore
 
 @tvm._ffi.register_object("relax.expr.SeqExpr")
 class SeqExpr(Expr):
-    blocks: List[BasicBlock]
-    body: Expr
-
-    def __init__(self, blocks: List[BasicBlock], body: Expr, span: Span) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span) # type: ignore
+    def __init__(self, blocks: List[BindingBlock], body: Expr) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body)
 
 
 @tvm._ffi.register_object("relax.expr.Function")

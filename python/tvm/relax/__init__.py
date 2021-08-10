@@ -28,10 +28,12 @@ SourceName = expr.SourceName
 Id = expr.Id
 Var = expr.Var
 DataflowVar = expr.DataflowVar
-SeqExpr = expr.SeqExpr
-VarBinding = expr.VarBinding
-BasicBlock = expr.BasicBlock
+Binding = expr.Binding
 MatchShape = expr.MatchShape
+VarBinding = expr.VarBinding
+BindingBlock = expr.BindingBlock
+DataflowBlock = expr.DataflowBlock
+SeqExpr = expr.SeqExpr
 
 # helper functions
 const = expr.const

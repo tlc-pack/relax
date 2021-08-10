@@ -130,6 +130,7 @@ class DataflowVar : public Var {
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
 };
 
+
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public Object {
  public:
@@ -147,6 +148,7 @@ class Binding : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(Binding, ObjectRef, BindingNode);
 };
+
 
 /*! \brief Symbolic shape match, binds the variables of the LHS with the rhs. */
 class MatchShape;
@@ -211,7 +213,9 @@ class VarBinding : public Binding {
   TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
 };
 
+
 class BindingBlock;
+
 class BindingBlockNode : public Object {
  public:
   Array<Binding> bindings;
@@ -234,10 +238,13 @@ class BindingBlock : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
 };
 
+
 class DataflowBlock;
 class DataflowBlockNode : public BindingBlockNode {
  public:
-  void VisitAttrs(AttrVisitor* v) { v->Visit("bindings", &bindings); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("bindings", &bindings);
+  }
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
@@ -281,7 +288,6 @@ class SeqExprNode : public ExprNode {
     hash_reduce(body);
     hash_reduce(shape_);
     hash_reduce(checked_type_);
-    hash_reduce(span);
   }
 
   static constexpr const char* _type_key = "relax.expr.SeqExpr";
@@ -292,7 +298,7 @@ class SeqExprNode : public ExprNode {
 
 class SeqExpr : public Expr {
  public:
-  TVM_DLL SeqExpr(Array<BindingBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span);
+  TVM_DLL SeqExpr(Array<BindingBlock> blocks, Expr body);
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
 };
 

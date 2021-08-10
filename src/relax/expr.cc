@@ -127,22 +127,16 @@ TVM_REGISTER_GLOBAL("relax.DataflowBlock")
 TVM_REGISTER_NODE_TYPE(SeqExprNode);
 
 SeqExpr::SeqExpr(Array<BindingBlock> blocks,
-                 Expr body,
-                 Type checked_type_,
-                 Array<PrimExpr> shape_,
-                 Span span) {
+                 Expr body) {
   ObjectPtr<SeqExprNode> n = make_object<SeqExprNode>();
   n->blocks = std::move(blocks);
   n->body = std::move(body);
-  n->checked_type_ = std::move(checked_type_);
-  n->shape_ = std::move(shape_);
-  n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relax.SeqExpr")
-.set_body_typed([](Array<BindingBlock> blocks, Expr body, Type checked_type_, Array<PrimExpr> shape_, Span span) {
-  return SeqExpr(blocks,body,checked_type_,shape_,span);
+.set_body_typed([](Array<BindingBlock> blocks, Expr body) {
+  return SeqExpr(blocks, body);
 });
 
 
