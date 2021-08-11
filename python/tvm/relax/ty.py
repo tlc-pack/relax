@@ -6,7 +6,7 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
@@ -14,37 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name, unused-import
+"""The type nodes of the Relax language."""
+import tvm._ffi
+from tvm.ir import TensorType
 
-from . import exec_builder
-from . import expr
-from . import ty
-from . import vm
+from . import _ffi_api
 
+@tvm._ffi.register_object("relax.DynTensorType")
+class DynTensorType(TensorType):
+    """A dynamic TensorType in Relax.
 
-# Expr
-Expr = expr.Expr
-Span = expr.Span
-SourceName = expr.SourceName
-Id = expr.Id
-GlobalVar = expr.GlobalVar
-Var = expr.Var
-DataflowVar = expr.DataflowVar
-Binding = expr.Binding
-MatchShape = expr.MatchShape
-VarBinding = expr.VarBinding
-BindingBlock = expr.BindingBlock
-DataflowBlock = expr.DataflowBlock
-SeqExpr = expr.SeqExpr
-ShapeExpr = expr.ShapeExpr
-Function = expr.Function
+    This is the type assigned to tensors with a known dtype and unknown shape.
 
-# helper functions
-const = expr.const
+    Parameters
+    ----------
+    rank : Optional[int]
+        The rank of the Tensor
 
-# Type
-DynTensorType = ty.DynTensorType
+    dtype : Optional[str]
+        The content data type.
+    """
 
-# VM
-ExecBuilder = exec_builder.ExecBuilder
-VirtualMachine = vm.VirtualMachine
-load_exec_from_file = vm.load_exec_from_file
+    def __init__(self, rank=-1, dtype="float32"):
+        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, rank, dtype)

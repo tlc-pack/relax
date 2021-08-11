@@ -17,7 +17,7 @@
 * under the License.
 */
 
-#include "tvm/relax/expr.h"
+#include <tvm/relax/expr.h>
 
 namespace tvm {
 namespace relax {

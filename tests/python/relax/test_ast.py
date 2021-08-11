@@ -43,9 +43,6 @@ def test_match_shape() -> None:
     assert b0.pattern[1] == n
     assert b0.value == shape
 
-    # should we support this?
-    # b0 = rx.MatchShape([m, n], [x, y]) 
-
 
 def test_var_binding() -> None:
     v0 = rx.Var("v0")
