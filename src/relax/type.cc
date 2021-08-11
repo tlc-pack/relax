@@ -27,6 +27,18 @@
 namespace tvm {
 namespace relax {
 
+TVM_REGISTER_NODE_TYPE(ShapeTypeNode);
+
+ShapeType::ShapeType() {
+  ObjectPtr<ShapeTypeNode> n = make_object<ShapeTypeNode>();
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.ShapeType")
+.set_body_typed([]() {
+  return ShapeType();
+});
+
 DynTensorType::DynTensorType(int rank, DataType dtype) {
   ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
   n->rank = std::move(rank);

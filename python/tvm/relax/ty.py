@@ -17,9 +17,16 @@
 # pylint: disable=invalid-name, unused-import
 """The type nodes of the Relax language."""
 import tvm._ffi
-from tvm.ir import TensorType
+from tvm.ir import Type, TensorType
 
 from . import _ffi_api
+
+
+@tvm._ffi.register_object("relax.ShapeType")
+class ShapeType(Type):
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.ShapeType)
+
 
 @tvm._ffi.register_object("relax.DynTensorType")
 class DynTensorType(TensorType):

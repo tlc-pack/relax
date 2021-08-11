@@ -42,6 +42,7 @@ Function = expr.Function
 const = expr.const
 
 # Type
+ShapeType = ty.ShapeType
 DynTensorType = ty.DynTensorType
 
 # VM
