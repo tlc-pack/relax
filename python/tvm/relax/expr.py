@@ -30,12 +30,17 @@ const = relay.const
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(Expr):
+    values: List[PrimExpr]
+
     def __init__(self, values: List[PrimExpr]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values)
 
 
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
+    id: Id
+    type_annotation: Optional[Type]
+
     def __init__(self, name_hint: str,
                  shape_annotation: Optional[List[Type]] = None,
                  type_annotation: Optional[Type] = None) -> None:
@@ -62,36 +67,51 @@ class Binding(Node):
 
 @tvm._ffi.register_object("relax.expr.MatchShape")
 class MatchShape(Binding):
+    pattern: List[PrimExpr]
+    value: Expr
+
     def __init__(self, pattern: List[PrimExpr], value: Expr) -> None:
         self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value)
 
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Binding):
+    var: Var
+    value: Expr
+
     def __init__(self, var: Var, value: Expr) -> None:
         self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value)
 
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
 class BindingBlock(Node):
+    bindings: List[Binding]
+
     def __init__(self, bindings: List[Binding]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings)
 
 
 @tvm._ffi.register_object("relax.expr.DataflowBlock")
-class DataflowBlock(Node):
-    def __init__(self, bindings: List[Binding]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings)
+class DataflowBlock(BindingBlock):
+    pass
 
 
 @tvm._ffi.register_object("relax.expr.SeqExpr")
 class SeqExpr(Expr):
+    blocks: List[BindingBlock]
+    body: Expr
+
     def __init__(self, blocks: List[BindingBlock], body: Expr) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body)
 
 
 @tvm._ffi.register_object("relax.expr.Function")
 class Function(Expr):
+    name: Optional[GlobalVar]
+    params: List[Var]
+    body: Expr
+    ret_type: Type
+
     def __init__(self, params: List[Var], body: Expr,
                  ret_type: Type, name: Optional[GlobalVar] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Function, name, params,
