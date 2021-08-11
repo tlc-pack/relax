@@ -16,8 +16,9 @@
 # under the License.
 """Developer API of building Relax IR nodes."""
 
-from python.tvm.relay.expr import Tuple
-from .expr import Expr, Var, DataflowVar, VarBinding, DataflowBlock, SeqExpr, Function
+from tvm import relax as rx
+from tvm.relay.expr import Tuple, Call
+from .expr import *
 
 
 class FunctionScope(object):
@@ -29,6 +30,7 @@ class FunctionScope(object):
     def __init__(self, name, params):
         self.name = name
         self.params = params
+        self.global_bindings = []
         self.binding_blocks = []
         self.body = None
 
@@ -37,9 +39,12 @@ class FunctionScope(object):
         return self
 
     def __exit__(self, ptype, value, trace):
-        FunctionScope.functions.append(
-            Function(self.name, self.params, SeqExpr(self.binding_blocks, self.body))
-        )
+        if len(self.global_bindings) > 0:
+            binding_block = BindingBlock(self.global_bindings)
+            self.binding_blocks.append(binding_block)
+            self.global_bindings.clear()
+        seq = SeqExpr(self.binding_blocks, self.body)
+        FunctionScope.functions.append(Function(self.params, seq, None, rx.GlobalVar(self.name)))
 
 
 class DataflowScope(object):
@@ -52,6 +57,10 @@ class DataflowScope(object):
 
     def __enter__(self):
         DataflowScope.stack.append(self)
+        if len(FunctionScope.stack[-1].global_bindings) > 0:
+            binding_block = BindingBlock(FunctionScope.stack[-1].global_bindings)
+            FunctionScope.stack[-1].binding_blocks.append(binding_block)
+            FunctionScope.stack[-1].global_bindings.clear()
         return self
 
     def __exit__(self, ptype, value, trace):
@@ -84,12 +93,12 @@ class IRBuilder(object):
     @staticmethod
     def _check_dataflow_scope():
         if len(DataflowScope.stack) == 0:
-            raise ValueError("Dataflow variable binding should happen in a dataflow scope")
+            raise ValueError("Dataflow variable creation should happen in a dataflow scope")
 
     @staticmethod
     def _check_function_scope():
         if len(FunctionScope.stack) == 0:
-            raise ValueError("Dataflow block construction should happen in a function scope")
+            raise ValueError("This method should happen in a function scope")
 
     def var(self, name, shape=None, dtype=None):
         """Create a global Var.
@@ -99,10 +108,10 @@ class IRBuilder(object):
         name : str
             The name of the variable
 
-        shape : List[Type], optional
+        shape : Optional[List[Type]]
             The shape annotation of the variable
 
-        dtype : Type, optional
+        dtype : Optional[Type]
             The data type of the variable
 
         Returns
@@ -119,10 +128,10 @@ class IRBuilder(object):
         name : str
             The name of the variable
 
-        shape : List[Type], optional
+        shape : Optional[List[Type]]
             The shape annotation of the variable
 
-        dtype : Type, optional
+        dtype : Optional[Type]
             The data type of the variable
 
         Returns
@@ -143,13 +152,31 @@ class IRBuilder(object):
         value : Expr
             The value to be bound
         """
-        if isinstance(var, DataflowVar):
-            self._check_dataflow_scope()
+        self._check_function_scope()
+        if len(DataflowScope.stack) != 0:
             DataflowScope.stack[-1].bindings.append(VarBinding(var, value))
-        elif isinstance(var, Var):
-            self.var_bindings.append(VarBinding(var, value))
         else:
-            raise ValueError("var is neither DataflowVar nor Var")
+            FunctionScope.stack[-1].global_bindings.append(VarBinding(var, value))
+
+    def call(self, op, args=None, attrs=None, type_args=None):
+        """Create a function call node。
+
+        Parameters
+        ----------
+        op: tvm.ir.Op or any Expr with function type.
+            The operation to be called.
+
+        args: List[tvm.relay.Expr]
+            The arguments to the call.
+
+        attrs: Optional[tvm.Attrs]
+            Attributes to the call, can be None
+
+        type_args: Optional[List[Type]]
+            The additional type arguments, this is only
+            used in advanced usecase of template functions.
+        """
+        return Call(op, args, attrs, type_args)
 
     def dataflow(self):
         """Create a DataflowBlock."""
@@ -185,7 +212,7 @@ class IRBuilder(object):
         elif isinstance(output, (list, tuple)):
             FunctionScope.stack[-1].body = Tuple(output)
         else:
-            raise ValueError("output must be of an Expr or a list/tuple of Expr")
+            raise ValueError("output must be an Expr or a list/tuple of Expr")
 
     def get(self):
         """Return the built AST."""
