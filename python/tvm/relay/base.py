@@ -72,5 +72,5 @@ class Id(Object):
     Guaranteed to be stable across all passes.
     """
 
-    def __init__(self):
-        raise RuntimeError("Cannot directly construct Id")
+    def __init__(self, string):
+        self.__init_handle_by_constructor__(_ffi_api.Id, string)
