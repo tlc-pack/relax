@@ -74,7 +74,7 @@ class DynTensorTypeNode : public BaseTensorTypeNode {
    * \brief The rank of the tensor, use -1 to denote dynamic rank tensor.
    */
   int rank;
-  /*! \brief The content data type */
+  /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
