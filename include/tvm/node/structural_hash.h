@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file tvm/node/structural_equal.h
+ * \file tvm/node/structural_hash.h
  * \brief Structural hash class.
  */
 #ifndef TVM_NODE_STRUCTURAL_HASH_H_
@@ -174,7 +174,7 @@ class SHashReducer {
   /*!
    * \brief Push hash of key to the current sequence of hash values.
    * \param key The key to be hashed.
-   * \note This function indicate key could contain var defintions.
+   * \note This function indicates key could contain variable defintions.
    */
   void DefHash(const ObjectRef& key) const { return handler_->SHashReduce(key, true); }
   /*!
