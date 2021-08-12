@@ -14,7 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI API for Relax."""
+# pylint: disable=invalid-name, unused-import
+"""The type nodes of the Relax language."""
 import tvm._ffi
+from tvm.ir import Type, TensorType
 
-tvm._ffi._init_api("relax", __name__)
+from . import _ffi_api
+
+
+@tvm._ffi.register_object("relax.ShapeType")
+class ShapeType(Type):
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.ShapeType)
+
+
+@tvm._ffi.register_object("relax.DynTensorType")
+class DynTensorType(TensorType):
+    """A dynamic TensorType in Relax.
+
+    This is the type assigned to tensors with a known dtype and unknown shape.
+
+    Parameters
+    ----------
+    rank : Optional[int]
+        The rank of the Tensor
+
+    dtype : Optional[str]
+        The content data type.
+    """
+
+    def __init__(self, rank=-1, dtype="float32"):
+        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, rank, dtype)

@@ -14,7 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI API for Relax."""
-import tvm._ffi
+import numpy as np
+import tvm
+from tvm import relax as rx
 
-tvm._ffi._init_api("relax", __name__)
+def test_shape_type():
+    t0 = rx.ShapeType()
+    t1 = rx.ShapeType()
+    assert t0 == t1
+
+def test_dyn_tensor_type():
+    t0 = rx.DynTensorType()
+    assert t0.rank == -1
+    t1 = rx.DynTensorType(3, "int32")
+    assert t1.rank == 3
+    assert t1.dtype == "int32"
+
+if __name__ == "__main__":
+    test_shape_type()
+    test_dyn_tensor_type()
