@@ -135,6 +135,7 @@ class PrimExpr : public BaseExpr {
   TVM_DLL static PrimExpr FromObject_(ObjectRef ref);
 };
 
+class RelayExpr;
 /*!
  * \brief add operator
  *
@@ -367,10 +368,27 @@ class RelayExprNode : public BaseExprNode {
    *       This value is discarded during serialization.
    */
   mutable Type checked_type_ = Type(nullptr);
+
+  /*!
+  * \brief Stores the result of static shape analysis.
+  *
+  * \note The value will be optional if a static shape can not be inferred.
+  * use .shape() instead to acesss an always defined shape expression.
+  */
+  Optional<Array<PrimExpr>> shape_ = Optional<Array<PrimExpr>>();
+
   /*!
    * \return The checked_type
    */
   inline const Type& checked_type() const;
+
+  /*!
+   * \return An expression which corresponds to the shape of the expression.
+   *
+   * Only valid when the expression's type is a Tensor.
+   */
+  inline RelayExpr shape() const;
+
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.

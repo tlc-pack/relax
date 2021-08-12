@@ -18,28 +18,41 @@
  */
 
 /*!
- * \file base.cc
- * \brief The core base types for Relay.
+ * \file src/relax/type.cc
+ * \brief Relax's type system AST nodes throughout the IR.
  */
-
-#include <tvm/ir/type.h>
-#include <tvm/relay/base.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
-namespace relay {
+namespace relax {
 
-using namespace tvm::runtime;
+TVM_REGISTER_NODE_TYPE(ShapeTypeNode);
 
-TVM_REGISTER_NODE_TYPE(IdNode);
-
-Id::Id(String name_hint) {
-  ObjectPtr<IdNode> n = make_object<IdNode>();
-  n->name_hint = std::move(name_hint);
+ShapeType::ShapeType() {
+  ObjectPtr<ShapeTypeNode> n = make_object<ShapeTypeNode>();
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relay.ir.Id").set_body_typed([](String name_hint) { return Id(name_hint); });
+TVM_REGISTER_GLOBAL("relax.ShapeType")
+.set_body_typed([]() {
+  return ShapeType();
+});
 
-}  // namespace relay
+DynTensorType::DynTensorType(int rank, DataType dtype) {
+  ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
+  n->rank = std::move(rank);
+  n->dtype = std::move(dtype);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DynTensorTypeNode);
+
+TVM_REGISTER_GLOBAL("relax.DynTensorType")
+.set_body_typed([](int rank, DataType dtype) {
+  return DynTensorType(rank, dtype);
+});
+
+
+}  // namespace relax
 }  // namespace tvm
