@@ -38,5 +38,34 @@ def test_irbuilder():
     assert func.body.body == res
 
 
+def test_irbuilder_multifuctions():
+    ib = rx.ir_builder.create()
+    shape_anno = [24, 56]
+    type_anno = TensorType(shape_anno, "float16")
+    x = ib.var("x", shape_anno, type_anno)
+    y = ib.var("y", shape_anno, type_anno)
+    xx = ib.var("xx", shape_anno, type_anno)
+    yy = ib.var("yy", shape_anno, type_anno)
+    with ib.function("func", [x, y]):
+        with ib.dataflow():
+            z = ib.dataflow_var("y", shape_anno, type_anno)
+            ib.bind(z, ib.call(op.op.get("add"), [x, y]))
+            res = ib.var("res")
+            ib.bind(res, ib.call(op.op.get("multiply"), [x, z]))
+        ib.output(res)
+    with ib.function("func2", [xx, yy]):
+        with ib.dataflow():
+            zz = ib.dataflow_var("yy", shape_anno, type_anno)
+            ib.bind(z, ib.call(op.op.get("add"), [xx, yy]))
+            res_new = ib.var("res2")
+            ib.bind(res, ib.call(op.op.get("multiply"), [xx, zz]))
+        ib.output(res_new)
+    func = ib.get("func")
+    assert func.params[0] == x
+    assert func.name.name_hint == "func"
+    assert func.body.body == res
+
+
 if __name__ == "__main__":
     test_irbuilder()
+    test_irbuilder_multifuctions()
