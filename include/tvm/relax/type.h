@@ -71,7 +71,7 @@ class ShapeType : public Type {
 class DynTensorTypeNode : public BaseTensorTypeNode {
  public:
   /*!
-   * \brief The rank of the tensor,
+   * \brief The rank of the tensor, use -1 to denote dynamic rank tensor.
    */
   int rank;
   /*! \brief The content data type */
