@@ -20,6 +20,7 @@ import tvm._ffi
 
 from .base import Node
 from . import expr as _expr
+from ..ir.function import BaseFunc
 from . import type as _ty
 from . import _ffi_api
 
@@ -75,7 +76,7 @@ class IRModule(Node):
         return self._add(var, val, True)
 
     def _add(self, var, val, update=True):
-        if isinstance(val, _expr.RelayExpr):
+        if isinstance(val, (_expr.RelayExpr, BaseFunc)):
             if isinstance(var, string_types):
                 if _ffi_api.Module_ContainGlobalVar(self, var):
                     var = _ffi_api.Module_GetGlobalVar(self, var)
