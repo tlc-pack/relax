@@ -21,6 +21,7 @@ import tvm._ffi
 
 from tvm.runtime import Object
 from tvm.ir import SourceName, Span, Node as RelayNode
+from . import _ffi_api
 
 
 __STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
@@ -37,5 +38,5 @@ class Id(Object):
     Guaranteed to be stable across all passes.
     """
 
-    def __init__(self):
-        raise RuntimeError("Cannot directly construct Id")
+    def __init__(self, string):
+        self.__init_handle_by_constructor__(_ffi_api.Id, string)
