@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import TypeVar, Generic, Union, Dict
+from typing import TypeVar, Generic, Union, Dict, List, Tuple
 from io import StringIO
 
 import tvm
@@ -17,241 +17,309 @@ from synr import ast, Transformer
 from synr.diagnostic_context import DiagnosticContext
 from tvm.relay.op.strategy.generic import conv1d_strategy
 
+from tvm.relax.expr import *
+from tvm.relax.ty import *
+
 
 # TODO: make this better
-relax_scope = [] # A stack of dictionaries representing the scope
-var_table = {}
-
-# Skeleton AST so we can get prototype working before this PR is merged
-class rxNode:
-    pass
+# relax_scope = [] # A stack of dictionaries representing the scope
+# var_table = {}
 
 # A node that will desugar into a different AST node in a subsequent pass
-class rxFrontendNode:
-    def __init__(self, span):
-        self.span = span
+# class rxFrontendNode:
+#     def __init__(self, span):
+#         self.span = span
 
-class rxExpr(rxNode):
-    def __init__(self, span):
-        self.shape = None
-        self.checked_type = None
-        self.span = span
-
-class rxVar(rxExpr):
-
-    def __init__(self, id, ty, shape_annotation, span):
-        super().__init__(span)
-        self.shape_annotation = shape_annotation
-        self.type_annotation = ty
-        self.id = id
-
-class rxGlobalVar(rxVar):
-    def __init__(self, id, span):
-        super().__init__(self, id, span)
-
-class rxDataflowVar(rxVar):
-    pass
-
-class rxBinding(rxNode):
-
-    def __init__(self, var, rhs, span):
-        self.var = var
-        self.rhs = rhs
-        super().__init__(self, span)
 
 # Allows arbitrary exprs on the left and the right
 # Desugars into two rxMatchShapeBinding
 # TODO: might be worth not parsing this into its own node..
-class rxFrontendMatchShapeExprs(rxFrontendNode):
+# class rxFrontendMatchShapeExprs(rxFrontendNode):
+#     def __init__(self, lhs, rhs, span):
+#         self.lhs = lhs
+#         self.rhs = rhs
+#         super().__init__(span)
 
-    def __init__(self, lhs, rhs, span):
-        self.lhs = lhs
-        self.rhs = rhs
-        super().__init__(span)
+# class rxShapeTuple(rxExpr):
+#     def __init__(self, dims, span):
+#         self.dims = dims
+#         super().__init__(span)
 
-# 
-class rxMatchShapeBinding(rxNode):
-    def __init__(self, binding, shape, span):
-        self.binding = binding # Array[PrimExpr]
-        self.shape = shape # Expr (type is shape tuple)
-        super().__init__(self, span)
-
-class rxShapeTuple(rxExpr):
-    def __init__(self, dims, span):
-        self.dims = dims
-        super().__init__(span)
-
-
-class rxFunction(rxExpr):
-    def __init__(self, name, args, body, ret_type, span):
-        self.name = name
-        self.args = args
-        self.body = body
-        self.ret_type = ret_type
-        super().__init__(span)
-
-class rxBlock(rxExpr):
-    def __init__(self, body):
-        self.body = body
-
-class rxDataflowBlock(rxBlock):
-    def __init__(self, body):
-        super().__init__(self, body)
-
-
-class rxIfThenElse(rxExpr):
-    def __init__(self, cond, if_true, then_else):
-        self.cond = cond
-        self.if_true = if_true
-        self.then_else = then_else
-
-class rxType:
-    def __init__(self, span):
-        self.span = span
-
-class rxDim(rxType):
-    pass
-
-class rxTensor(rxType):
-    def __init__(self, dtype, span):
-        self.dtype = dtype
-        super().__init__(span)
-
-class rxShapeOf(rxExpr):
-    def __init__(self, expr):
-        self.expr = expr
-
-class rxLet(rxExpr):
-    def __init__(self, bindings, body):
-        self.bindings = bindings
-        self.body = body
-
-class rxCall(rxExpr):
-    def __init__(self, function, arguments):
-        self.function = function
-        self.arguments = arguments
-
-class rxGetBuiltin(rxExpr):
-    def __init__(self, builtin_name):
-        self.builtin_name = builtin_name
-
-class rxTensorSlice(rxExpr):
-    def __init__(self, tensor, indices):
-        self.tensor = tensor
-        self.indices = indices
 
 # TODO: What is this doing?
-#expr.Function.__str__ = print_fn # type: ignore
+# expr.Function.__str__ = print_fn # type: ignore
 
 # TODO: Replace with a real pretty print method once we have the real AST
 def pretty_print(f):
     print(f)
 
+
 class RelaxTransformer(Transformer):
     def __init__(self, definition_scope, diag_ctx):
+        super().__init__()
         self.definition_scope = definition_scope
         self.diag_ctx = diag_ctx
-        self.str_to_var = {}
-        self.blocks = []
         self.module = {}
-        super().__init__()
+        self._scopes = [{}]  # str -> Var
 
-    def span_to_span(self, span: synr.Span) -> tvm.ir.Span:
+    def new_scope(self):
+        class _Scope:
+            def __init__(self, transformer: "RelaxTransformer"):
+                self.transformer = transformer
+
+            def __enter__(self):
+                self.transformer._scopes.append(self.transformer._scopes[-1].copy())
+
+            def __exit__(self, *exc):
+                assert len(self.transformer._scopes) > 1, "cannot pop root scope"
+                self.transformer._scopes.pop()
+
+        return _Scope(self)
+
+    @property
+    def scope(self):
+        return self._scopes[-1]
+
+    def tvm_span(self, span: synr.Span) -> tvm.ir.Span:
+        """Converts the synr span to a TVM span
+
+        Parameters
+        ----------
+        span : synr.Span
+            The synr span
+
+        Returns
+        -------
+        tvm.ir.Span
+            The corresponding TVM span
+        """
         src_name = self.diag_ctx.str_to_source_name[span.filename]
-        tvm_span = tvm.ir.Span(src_name, span.start_line, span.end_line, span.start_column, span.end_column)
+        tvm_span = tvm.ir.Span(
+            src_name, span.start_line, span.end_line, span.start_column, span.end_column
+        )
         return tvm_span
 
+    def decl_var(
+        self,
+        name: str,
+        type_annotation: Optional[rxType],
+        shape: Optional[rxExpr],
+        span: tvm.ir.Span,
+    ) -> rxVar:
+        """Introduces a variable with the given name and annotations to the current scope.
 
-    def decl_var(self, name, ty, shape_annotation, span=None):
-        var = rxVar(name, ty, shape_annotation, span)
-        self.str_to_var[name] = var
+        Parameters
+        ----------
+        name : str
+            The name of the variable
+        type_annotation : Optional[rxType]
+            The type annotation
+        shape : Optional[rxExpr]
+            The shape annotation
+        span : tvm.ir.Span
+            The span where the variable is declared
+
+        Returns
+        -------
+        rxVar
+            The declared variable
+        """
+        if name in self.scope:
+            self._diagnostic_context.emit(
+                "error", "variable has already been declared in the current scope", span
+            )
+            self._diagnostic_context.render()
+        var = rxVar(name, type_annotation, shape, span)
+        self.scope[name] = var
         return var
 
-    # Returns type, shape_annotation
-    def to_type(self, ty):
-        if ty is None:
-            return None
+    def transform_type(self, ty: ast.Type, allow_intro: bool) -> Tuple[rxType, rxShape]:
+        """Transforms the given synr type annotation to a Relax type and shape expression.
 
+        Parameters
+        ----------
+        ty : ast.Type
+            The synr type
+        allow_intro : bool
+            Whether or not the shape annotation can introduce new dimension variables
+
+        Returns
+        -------
+        Tuple[rxType, rxExpr]:
+            The corresponding Relax type and shape expression
+        """
+        if ty is None:
+            return (None, None)
+
+        span = self.tvm_span(ty.span)
+
+        # simple annotation with no type arguments
         if isinstance(ty, ast.TypeVar):
             if ty.id.name == "Tensor":
-                span = self.span_to_span(ty.span)
-                return rxTensor(None, span), None
-        
-        if isinstance(ty, ast.TypeApply):
-            if ty.id.name == "Tensor":
-                # TODO: add more dtypes, maybe define elsewhere
-                allowed_dtypes = ["int32", "float32", "int8", "fp16"]
-                dims = []
-                dtype = ""
-                assert len(ty.params) == 2
-                shape_param = ty.params[0]
-                dtype_param = ty.params[1]
-                # Check whether the Tensor is shape / dtype erased
-                shape_erased = False
-                dtype_erased = False
-                
-                if (isinstance(shape_param, ast.TypeVar)) and shape_param.id.name == "_":
-                    shape_erased = True
-                if (isinstance(dtype_param, ast.TypeVar)) and dtype_param.id.name == "_":
-                    dtype_erased = True
-
-                if not shape_erased:
-                    if isinstance(shape_param, ast.TypeTuple):
-                        for shape_dim in shape_param.values:
-
-                            # TODO: use to_primexpr or whatever
-                            if isinstance(shape_dim, ast.Var):
-                                dim = rxDim(tir.Var(shape_dim.name))
-                            elif isinstance(shape_dim, ast.Constant) and isinstance(shape_dim.value, int):
-                                dim = rxDim(tir.IntImm("int32", shape_dim.value))
-                            else:
-                                self._diagnostic_context.emit('error', "shape annotation must be only vars or consts for now", self.span_to_span(ty.span))            
-                                self._diagnostic_context.render()
-                            dims.append(dim)
-                    else:
-                        self._diagnostic_context.emit('error', "Tensor shape must be erased or be a tuple", self.span_to_span(ty.span))    
-                        self._diagnostic_context.render()     
-                if not dtype_erased:
-                    if dtype_param.value in allowed_dtypes:
-                        dtype = dtype_param.value
-                    else:
-                        self._diagnostic_context.emit('error', "dtype must be erased or one of " + str(allowed_dtypes), self.span_to_span(ty.span))            
-                        self._diagnostic_context.render()
-                
-                return rxTensor(dtype, None), dims
-
-        self._diagnostic_context.emit('error', "invalid type", self.span_to_span(ty.span))
-
-    # Turns a tuple into an array of PrimExprs
-    # Allow arithmetic indicates whether we are letting there be 
-    def expr_to_primexpr(self, expr: ast.Expr, allow_arithmetic=False) -> PrimExpr:
-        if not allow_arithmetic and not isinstance(expr, ast.Var):
-            #TODO: improve error message
-            self._diagnostic_context.emit('error', "You can only use single variables here, not an expression", self.span_to_span(expr.span))
-            self._diagnostic_context.render()
-        else:
-            if isinstance(expr, ast.Var):
-                return tir.Var(expr.id.name, "int32")
-                
-            # TODO: do all the ops here
-            elif isinstance(expr, ast.Constant) and isinstance(expr.value, int):
-                return tir.IntImm("int32", expr.value)
-            elif isinstance(expr, ast.Call):
-                if exp.func_name.name == ast.BuiltinOp.Add:
-                    # TODO: call this fn on args and return primexpr containing result
-                    assert False
-                if exp.func_name.name == ast.BuiltinOp.Sub:
-                    assert False
-                if exp.func_name.name == ast.BuiltinOp.Mul:
-                    assert False
-                if exp.func_name.name == ast.BuiltinOp.Div:
-                    assert False
-                if exp.func_name.name == ast.BuiltinOp.Mod:
-                    assert False
+                return (rxTensor(None, span), None)
+            elif ty.id.name == "Shape":
+                return (rxShape(span), None)
+            elif ty.id.name == "Dim":
+                return (rxDim(span), None)
             else:
-                self._diagnostic_context.emit('error', "The shape expression can only contain arithmetic operators, integer constants and variables", self.span_to_span(expr.span))
+                self._diagnostic_context.emit("error", "unknown type in annotation", span)
                 self._diagnostic_context.render()
 
+        # annotation with type arguments/shape annotation
+        if isinstance(ty, ast.TypeApply):
+            if ty.id.name == "Tensor":
+                if len(ty.params) != 2:
+                    self._diagnostic_context.emit(
+                        "error",
+                        "Tensor type annotations must have 2 fields (shape and dtype)",
+                        span,
+                    )
+                    self._diagnostic_context.render()
+
+                shape_annotation, dtype_annotation = ty.params
+                shape, dtype = None, None
+
+                # parse the shape annotation
+                if isinstance(shape_annotation, ast.TypeVar):
+                    if shape_annotation.id.name != "_":
+                        # TODO: handle variable annotations, e.g. x: Tensor[my_shape, _]
+                        self._diagnostic_context.emit(
+                            "error",
+                            "variable Tensor shape annotations not yet supported",
+                            self.tvm_span(shape_annotation.span),
+                        )
+                        self._diagnostic_context.render()
+                    else:
+                        pass  # shape = None
+                elif isinstance(shape_annotation, ast.TypeTuple):
+                    shape = self.parse_shape(shape_annotation, allow_intro)
+                else:
+                    self._diagnostic_context.emit(
+                        "error",
+                        "unsupported shape annotation",
+                        self.tvm_span(shape_annotation.span),
+                    )
+                    self._diagnostic_context.render()
+
+                # parse the dtype annotation
+                if isinstance(dtype_annotation, ast.TypeVar) and dtype_annotation.id.name == "_":
+                    pass  # dtype = None
+                elif isinstance(dtype_annotation, ast.TypeConstant):
+                    dtype = dtype_annotation.value  # TODO: parse to TVM DType?
+                else:
+                    self._diagnostic_context.emit(
+                        "error",
+                        "Tensor dtype annotations must be concrete or erased",
+                        self.tvm_span(dtype_annotation.span),
+                    )
+                    self._diagnostic_context.render()
+
+                return (rxTensor(dtype, span), shape)
+            # TODO: other types with args, e.g. Ref[T], Tuple[Ts...], func types
+        self._diagnostic_context.emit("error", "invalid type", span)
+
+    def parse_shape(
+        self, shape_annotation: Union[ast.TypeTuple, ast.Tuple], allow_intro: bool
+    ) -> List[tir.PrimExpr]:
+        """Parses the given shape annotation to a list of PrimExprs
+
+        Parameters
+        ----------
+        shape_annotation : ast.TypeTuple
+            The shape annotation in synr
+        allow_intro : bool
+            Whether or not the annotation can bind previously free variables
+
+        Returns
+        -------
+        List[tir.PrimExpr]
+            The parsed shape as a list of PrimExprs
+        """
+        return [self.parse_primexpr(field, allow_intro) for field in shape_annotation.values]
+
+    def parse_primexpr(self, expr: ast.Expr, allow_intro: bool) -> tir.PrimExpr:
+        """Parses the given expression to a PrimExpr
+
+        Parameters
+        ----------
+        expr : ast.Expr
+            The input expression
+        allow_intro : bool
+            Whether or not the expression can bind previously free variables
+
+        Returns
+        -------
+        tir.PrimExpr
+            The result PrimExpr
+        """
+        if isinstance(expr, ast.Var):
+            var_name = expr.id.name
+            if var_name in self.scope:
+                var = self.scope[var_name]
+                if not isinstance(var, tir.Var):
+                    self._diagnostic_context.emit(
+                        "error",
+                        "non-dimension variables cannot appear in dimension expressions",
+                        self.tvm_span(expr.span),
+                    )
+                    self._diagnostic_context.render()
+                return var
+            elif allow_intro:
+                # introduce TIR variable to scope, e.g. for func params or rx.call_packed
+                var = tir.Var(var_name, "int32", self.tvm_span(expr.span))
+                self.scope[var_name] = var
+                return var
+            else:
+                self._diagnostic_context.emit(
+                    "error",
+                    "cannot introduce new dimension variables in this expression",
+                    self.tvm_span(expr.span),
+                )
+                self._diagnostic_context.render()
+        else:
+            # TODO: parse (simple) PrimExprs
+            self._diagnostic_context.emit(
+                "error", "only dimension variable expressions are currently supported"
+            )
+            self._diagnostic_context.render()
+
+    # Turns a tuple into an array of PrimExprs
+    # Allow arithmetic indicates whether we are letting there be
+    # def expr_to_primexpr(self, expr: ast.Expr, allow_arithmetic=False) -> PrimExpr:
+    #     if not allow_arithmetic and not isinstance(expr, ast.Var):
+    #         # TODO: improve error message
+    #         self._diagnostic_context.emit(
+    #             "error",
+    #             "You can only use single variables here, not an expression",
+    #             self.span_to_span(expr.span),
+    #         )
+    #         self._diagnostic_context.render()
+    #     else:
+    #         if isinstance(expr, ast.Var):
+    #             return tir.Var(expr.id.name, "int32")
+
+    #         # TODO: do all the ops here
+    #         elif isinstance(expr, ast.Constant) and isinstance(expr.value, int):
+    #             return tir.IntImm("int32", expr.value)
+    #         elif isinstance(expr, ast.Call):
+    #             if exp.func_name.name == ast.BuiltinOp.Add:
+    #                 # TODO: call this fn on args and return primexpr containing result
+    #                 assert False
+    #             if exp.func_name.name == ast.BuiltinOp.Sub:
+    #                 assert False
+    #             if exp.func_name.name == ast.BuiltinOp.Mul:
+    #                 assert False
+    #             if exp.func_name.name == ast.BuiltinOp.Div:
+    #                 assert False
+    #             if exp.func_name.name == ast.BuiltinOp.Mod:
+    #                 assert False
+    #         else:
+    #             self._diagnostic_context.emit(
+    #                 "error",
+    #                 "The shape expression can only contain arithmetic operators, integer constants and variables",
+    #                 self.tvm_span(expr.span),
+    #             )
+    #             self._diagnostic_context.render()
 
     def transform_module(self, mod: ast.Module) -> IRModule:
         for func_name in mod.funcs:
@@ -260,141 +328,238 @@ class RelaxTransformer(Transformer):
         return self.module
 
     def transform_function(self, func: ast.Function) -> rxFunction:
-        params = []
-        for param in func.params:
-            ty, shape_dims = self.to_type(param.ty)
-            param = self.decl_var(param.name, ty, None)
-            params.append(param)
-        new_body = self.transform_block(func.body)
-        ret_type = self.to_type(func.ret_type)
-        return rxFunction(func.name, params, new_body, ret_type, None)
+        with self.new_scope():
+            params = []
+            for param in func.params:
+                ty, shape = self.transform_type(param.ty, allow_intro=True)
+                param = self.decl_var(param.name, ty, shape, self.tvm_span(param.span))
+                params.append(param)
+            new_body = self.transform_block(func.body)
+            ret_type, _ = self.transform_type(func.ret_type, allow_intro=False)
+        return rxFunction(func.name, params, new_body, ret_type, self.tvm_span(func.span))
 
-    def transform_stmt(self, stmt: ast.Stmt) -> relax.Expr:
+    # Stmts:
+    # - Assert: probably unsupported for now
+    # - Assign: VarBinding
+    # - For: ??
+    # - If: IfThenElse, must check no empty false branch
+    # - Return: just the returned expression, must terminate blocks? (special case if-else)
+    # - UnassignedCall: match_shape
+    # - With: rx.dataflow
+    def transform_stmt(self, stmt: ast.Stmt) -> rxExpr:
         if isinstance(stmt, ast.Assign):
-            assert isinstance(stmt.lhs, ast.Var)
-            lhs = self.decl_var(stmt.lhs.id.name, None, None)
+            if not isinstance(stmt.lhs, ast.Var):
+                self._diagnostic_context.emit(
+                    "error",
+                    "the left hand side of a binding must be a variable",
+                    self.tvm_span(stmt.lhs.span),
+                )
+                self._diagnostic_context.render()
+            # TODO: figure out proper way of doing this
             rhs = self.transform_expr(stmt.rhs)
-            # TODO: Replace with relax node
-            self.blocks[-1].append(rxBinding(lhs, rhs))
-            return None
+            if isinstance(rhs, rxCall) and rhs.op == "rx.call_packed":
+                allow_intro = True
+            else:
+                allow_intro = False
+            ty, shape = self.transform_type(stmt.ty, allow_intro)
+            lhs = self.decl_var(stmt.lhs.id.name, ty, shape, self.tvm_span(stmt.lhs.span))
+            return rxVarBinding(lhs, rhs, self.tvm_span(stmt.span))
+        elif isinstance(stmt, ast.If):
+            # TODO: proper diagnostics
+
+            # check branches are non-empty
+            assert stmt.true.stmts
+            assert stmt.false.stmts
+            true_assign = stmt.true.stmts[-1]
+            false_assign = stmt.false.stmts[-1]
+
+            # check last statement in each branch lines up
+            assert isinstance(true_assign, ast.Assign) and isinstance(true_assign.lhs, ast.Var)
+            assert isinstance(false_assign, ast.Assign) and isinstance(false_assign.lhs, ast.Var)
+            assert true_assign.lhs.id.name == false_assign.lhs.id.name
+            var_name = true_assign.lhs.id.name
+
+            # rewrite branches to have a return statement so the blocks properly parse to SeqExprs
+            true_block = synr.ast.Block(
+                span=stmt.true.span,
+                stmts=stmt.true.stmts[:-1]
+                + synr.ast.Return(span=true_assign.span, value=true_assign.rhs),
+            )
+            false_block = synr.ast.Block(
+                span=stmt.false.span,
+                stmts=stmt.false.stmts[:-1]
+                + synr.ast.Return(span=false_assign.span, value=false_assign.rhs),
+            )
+
+            # parse the branches, build the final expression and binding
+            cond = self.transform_expr(stmt.condition)
+            with self.new_scope():
+                true_branch = self.transform_block(true_block)
+            with self.new_scope():
+                false_branch = self.transform_block(false_block)
+            # TODO: the spans here are all sorts of messed up, not sure how to fix
+            ite_expr = rxIfThenElse(cond, true_branch, false_branch, self.tvm_span(stmt.span))
+            var = self.decl_var(var_name, None, None, self.tvm_span(false_assign.span))
+            return rxVarBinding(var, ite_expr, self.tvm_span(stmt.span))
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
         # match_shape is the ONLY node that doesn't have to be bound to an LHS variable!
-        elif (isinstance(stmt, ast.UnassignedCall) and isinstance(stmt.call.func_name, ast.Var)
-            and stmt.call.func_name.id.name == "match_shape"):
+        elif isinstance(stmt, ast.UnassignedCall):
+            call: synr.ast.Call = stmt.call
+            op = self.transform_expr(call.func_name)
+            if op != "rx.match_shape":
+                self._diagnostic_context.emit(
+                    "error", "the results of operator calls must be bound", self.tvm_span(stmt.span)
+                )
+                self._diagnostic_context.render()
             if len(stmt.call.params) != 2:
-                self._diagnostic_context.emit('error', "match_shape takes exactly two arguments", self.span_to_span(stmt.span))
+                self._diagnostic_context.emit(
+                    "error", "rx.match_shape takes exactly two arguments", self.tvm_span(stmt.span)
+                )
                 self._diagnostic_context.render()
 
             lhs = stmt.call.params[0]
             rhs = stmt.call.params[1]
-            
-            # If RHS is a tuple, turn it into a ShapeTuple, otherwise, process normally
-            if isinstance(rhs, ast.Tuple):
-                arithmetic_primexprs = []
-                for elem in rhs.values:
-                    arithmetic_primexprs.append(self.expr_to_primexpr(elem, allow_arithmetic=True))
-                rhs_expr = rxShapeTuple(arithmetic_primexprs, self.span_to_span(rhs.span))
-            else:
-                rhs_expr = self.transform_expr(rhs)
-            
-            # If LHS is a tuple of variables, then we use the binding match shape
-            # If it is an Expr, we use the sugared match_shape (and will insert bindings later)
-            if isinstance(lhs, ast.Tuple):
-                binding_tir_vars = []
-                for elem in lhs.values:
-                    # Here we only are defining variables so we don't allow arithmetic expressions
-                    binding_tir_vars.append(self.expr_to_primexpr(elem))
-                self.blocks[-1].append(rxMatchShapeBinding(binding_tir_vars, rhs_expr))
-            else:
-                lhs_expr = self.transform_expr(lhs)
-                self.blocks[-1].append(rxFrontendMatchShapeExprs(lhs_expr, rhs_expr, stmt.span))
-        else:
-            self._diagnostic_context.emit('error', "only variable left-hand sides are supported in Relay", self.span_to_span(stmt.span))
-            self._diagnostic_context.render()
 
-    def transform_expr(self, exp: ast.Expr) -> rxExpr:
-        if isinstance(exp, ast.Call):
-            if isinstance(exp.func_name, ast.Var):
-                params = []
-                for arg in exp.params:
-                    params.append(self.transform_expr(arg))
-
-                if exp.func_name.id.name in self.str_to_var:
-                    return self.str_to_var[exp.func_name.id.name]
-                else:
-                    name = exp.func_name.id.name
-                    relax_fn = getattr(self.definition_scope, name, None)
-                    # builtin operator
-                    if relax_fn is None:
-                        return rxCall(rxGetBuiltin(name), params, None)
-                    else:
-                        self.module[name] = relax_fn.module[name]
-                        # todo: globalvar equality? use global str -> id map?
-                        ident = Id(exp.func_name.id.name)
-                        return rxCall(rxGlobalVar(ident, None, None), params, None)
-
-            elif isinstance(exp.func_name, ast.Op):
-                if exp.func_name.name == ast.BuiltinOp.Subscript:
-                    tensor = self.transform_expr(exp.params[0])
-                    indicies = []
-                    for index in exp.params[1].values:
-                        indicies.append(self.transform_expr(index))
-                    # TODO: Replace with relax node
-                    return rxTensorSlice(tensor, indicies, None)
-                elif exp.func_name.name == ast.BuiltinOp.Add:
-                    params = []
-                    for arg in exp.params:
-                        params.append(self.transform_expr(arg))
-                    # TODO: Replace with relax node
-                    return rxCall("add", [params[0], params[1]], None)
-
-            self._diagnostic_context.emit('error', "unsupported function", self.span_to_span(exp.span))
-            self._diagnostic_context.render()
-        elif isinstance(exp, ast.Attr):
-            field_name = exp.field.name
-            tensor = self.transform_expr(exp.object)
-
-            if field_name == "shape":
-                return rxShapeOf(tensor)
-            else:
-                self._diagnostic_context.emit('error', "unsupported function", self.span_to_span(exp.span))
+            rhs_expr = self.transform_expr(rhs)
+            if not isinstance(lhs, ast.Tuple):
+                self._diagnostic_context.emit(
+                    "error",
+                    "the pattern (lhs) of rx.match_shape must be a tuple",
+                    self.tvm_span(lhs.span),
+                )
                 self._diagnostic_context.render()
-        elif isinstance(exp, ast.Function):
-            return self.transform_function(exp)
-        elif isinstance(exp, ast.Tuple):
-            assert False
-        elif isinstance(exp, ast.Var):
-            return self.str_to_var[exp.id.name]
+            lhs_expr = self.parse_shape(lhs, allow_intro=True)
+            return rxMatchShape(lhs_expr, rhs_expr, self.tvm_span(stmt.span))
+        elif isinstance(stmt, ast.With):
+            assert False, "todo with/dataflow"
         else:
-            self._diagnostic_context.emit('error', f"don't support this construct {type(exp)}", self.span_to_span(exp.span))
+            self._diagnostic_context.emit(
+                "error",
+                "unsupported statement",
+                self.tvm_span(stmt.span),
+            )
             self._diagnostic_context.render()
 
-    def enter_block(self):
-        self.blocks.append([])
+    # Exprs:
+    # - ArrayLiteral
+    # - Attr
+    # - Call
+    # - Constant
+    # - DictLiteral
+    # - Slice
+    # - Tuple
+    # - Var
+    def transform_expr(self, expr: ast.Expr) -> rxExpr:
+        if isinstance(expr, ast.Attr):
+            obj = self.transform_expr(expr.object)
+            field_name = expr.field.name
+            # TODO: use some kind of proper identifier? str bad
+            if isinstance(obj, str):
+                return obj + "." + field_name
+            elif field_name == "shape":
+                return rxCall("rx.shape_of", obj, self.tvm_span(expr.span))
+            else:
+                self._diagnostic_context.emit(
+                    "error", "unsupported attribute", self.tvm_span(expr.span)
+                )
+                self._diagnostic_context.render()
+        if isinstance(expr, ast.Call):
+            op = expr.func_name
+            if isinstance(op, ast.Var):
+                args = []
+                for arg in expr.params:
+                    args.append(self.transform_expr(arg))
+                if op in self.scope:
+                    op = self.scope[op]
+                else:
+                    # TODO: fix
+                    op = op.id.name
+                return rxCall(op, args, self.tvm_span(expr.span))
+                # if exp.func_name.id.name in self.str_to_var:
+                #     return self.str_to_var[exp.func_name.id.name]
+                # else:
+                #     name = exp.func_name.id.name
+                #     relax_fn = getattr(self.definition_scope, name, None)
+                #     # builtin operator
+                #     if relax_fn is None:
+                #         return rxCall(rxGetBuiltin(name), params, None)
+                #     else:
+                #         self.module[name] = relax_fn.module[name]
+                #         # todo: globalvar equality? use global str -> id map?
+                #         ident = Id(exp.func_name.id.name)
+                #         return rxCall(rxGlobalVar(ident, None, None), params, None)
+            elif isinstance(op, ast.Op):
+                assert False, "TODO: sugar for python built in operators"
+                # if exp.func_name.name == ast.BuiltinOp.Subscript:
+                #     tensor = self.transform_expr(exp.params[0])
+                #     indicies = []
+                #     for index in exp.params[1].values:
+                #         indicies.append(self.transform_expr(index))
+                #     # TODO: Replace with relax node
+                #     return rxTensorSlice(tensor, indicies, None)
+                # elif exp.func_name.name == ast.BuiltinOp.Add:
+                #     params = []
+                #     for arg in exp.params:
+                #         params.append(self.transform_expr(arg))
+                #     # TODO: Replace with relax node
+                #     return rxCall("add", [params[0], params[1]], None)
+            else:
+                self._diagnostic_context.emit(
+                    "error", "unsupported function", self.tvm_span(expr.span)
+                )
+                self._diagnostic_context.render()
+        elif isinstance(expr, ast.Tuple):
+            fields = [self.transform_expr(field) for field in expr.values]
+            return rxTuple(fields, self.tvm_span(expr.span))
+        elif isinstance(expr, ast.Var):
+            var_name = expr.id.name
+            if var_name == "rx":
+                return "rx"
+            if var_name not in self.scope:
+                self._diagnostic_context.emit(
+                    "error", "undefined variable", self.tvm_span(expr.span)
+                )
+                self._diagnostic_context.render()
+            return self.scope[var_name]
+        else:
+            self._diagnostic_context.emit(
+                "error", "unsupported expression", self.tvm_span(expr.span)
+            )
+            self._diagnostic_context.render()
 
-    def exit_block(self):
-        back = self.blocks[-1]
-        self.blocks.pop()
-        return back
-
-    def transform_block(self, block: ast.Block) -> relax.expr:
-        self.enter_block()
-
+    def transform_block(self, block: ast.Block) -> rxSeqExpr:
+        # a block of statements needs to be converted to a SeqExpr of binding blocks
+        blocks = []
+        current_block = []
         for stmt in block.stmts[:-1]:
-            assert self.transform_stmt(stmt) is None
+            parsed_stmt = self.transform_stmt(stmt)
+            if isinstance(parsed_stmt, rxDataflowBlock):
+                assert len(current_block) > 0, "should never have an empty block"
+                blocks.append(current_block)
+                blocks.append(parsed_stmt)
+                current_block = []
+            else:
+                assert isinstance(parsed_stmt, rxBinding)
+                current_block.append(parsed_stmt)
+        if len(current_block) > 0:
+            blocks.append(current_block)
 
-        ret_expr = self.transform_stmt(block.stmts[-1])
-        # assert ret_expr is not None
+        ret_stmt = block.stmts[-1]
+        if not isinstance(ret_stmt, ast.Return):
+            self._diagnostic_context.emit(
+                "error",
+                "block must end with a returned expression",
+                self.tvm_span(ret_stmt.span),
+            )
+            self._diagnostic_context.render()
+        ret_expr = self.transform_stmt(ret_stmt)
+ 
+        return rxSeqExpr(blocks, ret_expr, self.tvm_span(block.span))
 
-        bindings = self.exit_block()
-        return rxLet(bindings, ret_expr)
-
-    def transform_parameter(self, expr: ast.Parameter) -> relax.Expr:
+    def transform_parameter(self, expr: ast.Parameter) -> rxExpr:
         pass
 
-    def transform_type(self, ty: ast.Type) -> relax.Type:
-        pass
 
 class TVMDiagnosticContext(synr.DiagnosticContext):
     def __init__(self, tvm_diag_ctx):
@@ -434,6 +599,7 @@ class TVMDiagnosticContext(synr.DiagnosticContext):
         """
         self.tvm_diag_ctx.render()
 
+
 class RelaxDecoratedFn:
     def __init__(self, fn_name, relax_module, diag_ctx):
         self.fn_name = fn_name
@@ -449,6 +615,7 @@ class RelaxDecoratedFn:
         # compiled_f(*(list(args) + [out]))
         # return out
 
+
 def relax(f):
     ir_module = tvm.IRModule({})
     diag_ctx = diagnostics.DiagnosticContext(ir_module, diagnostics.get_renderer())
@@ -458,8 +625,13 @@ def relax(f):
     module = RelaxTransformer(definition_scope, diag_ctx).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
 
+
 @relax
 def my_test(x: Tensor[_, "float32"]):
-    match_shape(x.shape, (1, 2, 3))
+    rx.match_shape((n, m), x.shape)
+    y = mul(x, x)
+    return y
 
-print(my_test.module['my_test'])
+
+f = my_test.module["my_test"]
+import pdb; pdb.set_trace()
