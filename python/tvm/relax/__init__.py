@@ -19,6 +19,7 @@ from . import exec_builder
 from . import expr
 from . import ty
 from . import vm
+from . import op
 
 
 # Expr
