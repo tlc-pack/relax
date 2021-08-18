@@ -119,9 +119,12 @@ class Function(BaseFunc):
                                             body, ret_type)
 
 
-@tvm._ffi.register_object("relax.expr.PackedFuncExpr")
-class PackedFuncExpr(BaseFunc):
-    name: String
+@tvm._ffi.register_object("relax.expr.ExternFunc")
+class ExternFunc(BaseFunc):
+    global_symbol: String
 
-    def __init__(self, name: String) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.PackedFuncExpr, name)
+    def __init__(self, global_symbol: String) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol)
+
+def extern(name):
+    return ExternFunc(name)

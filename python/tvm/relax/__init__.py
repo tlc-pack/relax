@@ -39,10 +39,11 @@ SeqExpr = expr.SeqExpr
 ShapeExpr = expr.ShapeExpr
 Tuple = expr.Tuple
 Function = expr.Function
-PackedFuncExpr = expr.PackedFuncExpr
+ExternFunc = expr.ExternFunc
 
 # helper functions
 const = expr.const
+extern = expr.extern
 
 # Type
 ShapeType = ty.ShapeType
@@ -52,3 +53,6 @@ DynTensorType = ty.DynTensorType
 ExecBuilder = exec_builder.ExecBuilder
 VirtualMachine = vm.VirtualMachine
 load_exec_from_file = vm.load_exec_from_file
+
+# Operator
+from .op.base import call_dps

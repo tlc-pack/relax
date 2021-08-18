@@ -401,31 +401,31 @@ class Function : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
 };
 
-class PackedFuncNode : public BaseFuncNode {
+class ExternFuncNode : public BaseFuncNode {
  public:
-   String name;
+  String global_symbol;
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
+    v->Visit("global_symbol", &global_symbol);
   }
 
-  bool SEqualReduce(const PackedFuncNode* other, SEqualReducer equal) const {
-    return equal(name, other->name);
+  bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
+    return equal(global_symbol, other->global_symbol);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
+    hash_reduce(global_symbol);
   }
 
-  static constexpr const char* _type_key = "relax.expr.PackedFuncExpr";
+  static constexpr const char* _type_key = "relax.expr.ExternFunc";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncNode, BaseFuncNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncNode, BaseFuncNode);
 };
 
-class PackedFuncExpr : public Expr {
+class ExternFunc : public Expr {
  public:
-  TVM_DLL PackedFuncExpr(String name);
-  TVM_DEFINE_OBJECT_REF_METHODS(PackedFuncExpr, Expr, PackedFuncNode);
+  TVM_DLL ExternFunc(String global_symbol);
+  TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, Expr, ExternFuncNode);
 };
 
 }  // namespace relax

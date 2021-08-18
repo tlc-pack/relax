@@ -177,17 +177,17 @@ TVM_REGISTER_GLOBAL("relax.Function")
   return Function(name, params, body, ret_type);
 });
 
-TVM_REGISTER_NODE_TYPE(PackedFuncNode);
+TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
-PackedFuncExpr::PackedFuncExpr(String name) {
-  ObjectPtr<PackedFuncNode> n = make_object<PackedFuncNode>();
-  n->name = std::move(name);
+ExternFunc::ExternFunc(String global_symbol) {
+  ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
+  n->global_symbol = std::move(global_symbol);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.PackedFuncExpr")
-.set_body_typed([](String name) {
-  return PackedFuncExpr(name);
+TVM_REGISTER_GLOBAL("relax.ExternFunc")
+.set_body_typed([](String global_symbol) {
+  return ExternFunc(global_symbol);
 });
 
 } // namespace relax
