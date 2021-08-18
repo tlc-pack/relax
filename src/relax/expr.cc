@@ -155,6 +155,8 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 });
 
 
+TVM_REGISTER_NODE_TYPE(FunctionNode);
+
 Function::Function(runtime::Optional<GlobalVar> name,
                    Array<Var> params,
                    Expr body,
@@ -167,14 +169,25 @@ Function::Function(runtime::Optional<GlobalVar> name,
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(FunctionNode);
-
 TVM_REGISTER_GLOBAL("relax.Function")
 .set_body_typed([](runtime::Optional<GlobalVar> name,
                    Array<Var> params,
                    Expr body,
                    Type ret_type) {
   return Function(name, params, body, ret_type);
+});
+
+TVM_REGISTER_NODE_TYPE(PackedFuncNode);
+
+PackedFuncExpr::PackedFuncExpr(String name) {
+  ObjectPtr<PackedFuncNode> n = make_object<PackedFuncNode>();
+  n->name = std::move(name);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.PackedFuncExpr")
+.set_body_typed([](String name) {
+  return PackedFuncExpr(name);
 });
 
 } // namespace relax

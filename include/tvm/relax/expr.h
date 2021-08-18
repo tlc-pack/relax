@@ -388,7 +388,7 @@ class FunctionNode : public BaseFuncNode {
   static constexpr const char* _type_key = "relax.expr.Function";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
 class Function : public Expr {
@@ -396,6 +396,33 @@ class Function : public Expr {
   TVM_DLL Function(runtime::Optional<GlobalVar> name, Array<Var> params,
                    Expr body, Type ret_type);
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
+};
+
+class PackedFuncNode : public BaseFuncNode {
+ public:
+   String name;
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("name", &name);
+  }
+
+  bool SEqualReduce(const PackedFuncNode* other, SEqualReducer equal) const {
+    return equal(name, other->name);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.PackedFuncExpr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncNode, BaseFuncNode);
+};
+
+class PackedFuncExpr : public Expr {
+ public:
+  TVM_DLL PackedFuncExpr(String name);
+  TVM_DEFINE_OBJECT_REF_METHODS(PackedFuncExpr, Expr, PackedFuncNode);
 };
 
 }  // namespace relax

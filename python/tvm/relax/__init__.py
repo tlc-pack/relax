@@ -37,7 +37,9 @@ BindingBlock = expr.BindingBlock
 DataflowBlock = expr.DataflowBlock
 SeqExpr = expr.SeqExpr
 ShapeExpr = expr.ShapeExpr
+Tuple = expr.Tuple
 Function = expr.Function
+PackedFuncExpr = expr.PackedFuncExpr
 
 # helper functions
 const = expr.const
