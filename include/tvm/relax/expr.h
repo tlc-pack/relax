@@ -32,6 +32,9 @@ namespace tvm {
 namespace relax {
 
 using relay::Id;
+using relay::Call;
+using relay::Tuple;
+using relay::TupleGetItem;
 using ExprNode = RelayExprNode;
 using Expr = RelayExpr;
 
