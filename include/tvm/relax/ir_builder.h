@@ -39,10 +39,6 @@ class IRBuilder;
  * \brief A representation of a Relax function.
  */
 struct RelaxFunction {
-  // /*! \brief The function's name. */
-  // std::string name;
-  // /*! \brief The parameters of the function. */
-  // Array<Var> params;
   /*! \brief The bindings in the function. */
   std::vector<Binding> bindings;
   /*! \brief The return of the function. */

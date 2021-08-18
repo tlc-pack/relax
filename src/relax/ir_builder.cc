@@ -40,12 +40,12 @@ IRBuilder IRBuilderNode::Create() {
 
 void IRBuilderNode::BuildFunction(std::string func_name, Array<Var> params) {
   SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
-  for (auto i : this->func.binding_blocks) {
-    LOG(INFO) << i;
-    LOG(INFO) << i->bindings;
+  if (func.ret.defined()) {
+    this->func.func = Function(GlobalVar(func_name), params, seq, this->func.ret->checked_type_);
   }
-  // this->func.func = Function(GlobalVar(func_name), params, seq, this->func.ret->checked_type_);
-  this->func.func = Function(GlobalVar(func_name), params, seq, {});
+  else {
+    this->func.func = Function(GlobalVar(func_name), params, seq, {});
+  }
 }
 
 void IRBuilderNode::BuildBlock() {
@@ -84,9 +84,9 @@ Optional<Type> InferType(const Call& call, const Array<Type>& args) {
 Var IRBuilderNode::Emit(Call call) {
   Var var;
   if (is_dataflow) {
-    var = DataflowVar(Id("lv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
+    var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter++)), NullOpt, NullOpt);
   } else {
-    var = Var(Id("gv" + std::to_string(dataflow_var_counter++)), NullOpt, NullOpt);
+    var = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
   }
 
   auto inferred_shape = InferShape(call);
@@ -104,11 +104,11 @@ Var IRBuilderNode::EmitDataflowOutput(Var var) {
   Var ret;
   if (is_dataflow) {
     ret = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
-    // fill callNode shape, dtype
-    // fill var shape, dtype
+    ret->shape_ = var->shape_;
+    ret->checked_type_ = var->checked_type_;
     this->func.bindings.emplace_back(VarBinding(ret, var));
   } else {
-    LOG(ERROR) << "EmitDataflowOutput must be called inside a dataflow block";
+    LOG(FATAL) << "EmitDataflowOutput must be called inside a dataflow block";
   }
   return ret;
 }

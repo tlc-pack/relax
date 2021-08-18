@@ -35,10 +35,21 @@ def test_irbuilder():
             assert lv0.shape_[1] == n
             assert lv0.checked_type_.rank == 2
             assert lv0.checked_type_.dtype == "float16"
-            lv1 = ib.emit(rx.op.add(lv0, y))
+            lv1 = ib.emit(rx.op.multiply(lv0, y))
+            assert lv1.name_hint == "lv1"
             gv0 = ib.emit_df_output(lv1)
+            assert gv0.name_hint == "gv0"
+            assert gv0.shape_[0] == m
+            assert gv0.shape_[1] == n
+            assert gv0.checked_type_.rank == 2
+            assert gv0.checked_type_.dtype == "float16"
         ib.emit_output(gv0)
     func = ib.get()
+    assert func.params[0] == x
+    assert func.name.name_hint == "func"
+    assert func.body.body == gv0
+    assert len(func.body.blocks) == 1
+    assert len(func.body.blocks[0].bindings) == 3
 
 
 if __name__ == "__main__":
