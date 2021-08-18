@@ -14,58 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from tvm import relay
 from tvm.relay import op
+from tvm import tir
 from tvm import relax as rx
-from tvm.ir import TensorType
 
 
 def test_irbuilder():
-    ib = rx.ir_builder.create()
-    shape_anno = [24, 56]
-    type_anno = TensorType(shape_anno, "float16")
-    x = ib.var("x", shape_anno, type_anno)
-    y = ib.var("y", shape_anno, type_anno)
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    ib = rx.IRBuilder()
     with ib.function("func", [x, y]):
-        with ib.dataflow():
-            z = ib.dataflow_var("y", shape_anno, type_anno)
-            ib.bind(z, ib.call(op.op.get("add"), [x, y]))
-            res = ib.var("res")
-            ib.bind(res, ib.call(op.op.get("multiply"), [x, z]))
-        ib.output(res)
+        with ib.dataflow() as df:
+            lv0 = ib.emit(relay.Call(op.get("relax.add"), [x, y]))
+            lv1 = ib.emit(relay.Call(op.get("relax.multiply"), [lv0, y]))
+            gv0 = ib.emit_df_output(lv1)
+        ib.emit_output(gv0)
     func = ib.get()
-    assert func.params[0] == x
-    assert func.name.name_hint == "func"
-    assert func.body.body == res
-
-
-def test_irbuilder_multifuctions():
-    ib = rx.ir_builder.create()
-    shape_anno = [24, 56]
-    type_anno = TensorType(shape_anno, "float16")
-    x = ib.var("x", shape_anno, type_anno)
-    y = ib.var("y", shape_anno, type_anno)
-    xx = ib.var("xx", shape_anno, type_anno)
-    yy = ib.var("yy", shape_anno, type_anno)
-    with ib.function("func", [x, y]):
-        with ib.dataflow():
-            z = ib.dataflow_var("y", shape_anno, type_anno)
-            ib.bind(z, ib.call(op.op.get("add"), [x, y]))
-            res = ib.var("res")
-            ib.bind(res, ib.call(op.op.get("multiply"), [x, z]))
-        ib.output(res)
-    with ib.function("func2", [xx, yy]):
-        with ib.dataflow():
-            zz = ib.dataflow_var("yy", shape_anno, type_anno)
-            ib.bind(z, ib.call(op.op.get("add"), [xx, yy]))
-            res_new = ib.var("res2")
-            ib.bind(res, ib.call(op.op.get("multiply"), [xx, zz]))
-        ib.output(res_new)
-    func = ib.get("func")
-    assert func.params[0] == x
-    assert func.name.name_hint == "func"
-    assert func.body.body == res
 
 
 if __name__ == "__main__":
     test_irbuilder()
-    test_irbuilder_multifuctions()
