@@ -383,6 +383,7 @@ class RelaxTransformer(Transformer):
             ty, shape = self.transform_type(stmt.ty, allow_intro)
             lhs = self.decl_var(stmt.lhs.id.name, ty, shape, self.tvm_span(stmt.lhs.span))
             return rxVarBinding(lhs, rhs, self.tvm_span(stmt.span))
+
         elif isinstance(stmt, ast.If):
             # TODO: proper diagnostics
 
@@ -420,8 +421,10 @@ class RelaxTransformer(Transformer):
             ite_expr = rxIfThenElse(cond, true_branch, false_branch, self.tvm_span(stmt.span))
             var = self.decl_var(var_name, None, None, self.tvm_span(false_assign.span))
             return rxVarBinding(var, ite_expr, self.tvm_span(stmt.span))
+
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
+
         # match_shape is the ONLY node that doesn't have to be bound to an LHS variable!
         elif isinstance(stmt, ast.UnassignedCall):
             call: synr.ast.Call = stmt.call
@@ -452,8 +455,44 @@ class RelaxTransformer(Transformer):
                 self._diagnostic_context.render()
             lhs_expr = self.parse_shape(lhs, allow_intro=True)
             return rxMatchShape(lhs_expr, rhs_expr, self.tvm_span(stmt.span))
+
         elif isinstance(stmt, ast.With):
-            assert False, "todo with/dataflow"
+            if not isinstance(stmt.rhs, ast.Call):
+                self._diagnostic_context.emit(
+                    "error", "unsupported with block", self.tvm_span(stmt.span)
+                )
+                self._diagnostic_context.render()
+
+            call = stmt.rhs
+            op = self.transform_expr(call.func_name)
+
+            # TODO: perhaps this ought to be more general
+
+            if op != "rx.dataflow":
+                self._diagnostic_context.emit(
+                    "error", "unsupported with block type", self.tvm_span(call.span)
+                )
+                self._diagnostic_context.render()
+            if len(call.params) > 0:
+                self._diagnostic_context.emit(
+                    "error",
+                    "dataflow block constructor takes no arguments",
+                    self.tvm_span(call.params[0].span),
+                )
+                self._diagnostic_context.render()
+            if len(stmt.lhs) > 0:
+                self._diagnostic_context.emit(
+                    "error", "dataflow blocks don't bind any patterns", self.tvm_span(stmt.lhs[0].span)
+                )
+                self._diagnostic_context.render()
+
+            return self.parse_dataflow(stmt.body)
+
+        elif isinstance(stmt, ast.Function):
+            func = self.transform_function(stmt)
+            func_var = self.decl_var(func.name, None, None, self.tvm_span(stmt.span))
+            return rxVarBinding(func_var, func, self.tvm_span(stmt.span))
+
         else:
             self._diagnostic_context.emit(
                 "error",
@@ -461,6 +500,51 @@ class RelaxTransformer(Transformer):
                 self.tvm_span(stmt.span),
             )
             self._diagnostic_context.render()
+
+    def parse_dataflow(self, block: ast.Block):
+        assert len(block.stmts) > 0, "should never have an empty dataflow block"
+        bindings = []
+
+        with self.new_scope():
+            for binding_stmt in block.stmts[:-1]:
+                if not isinstance(binding_stmt, ast.Assign):
+                    self._diagnostic_context.emit(
+                        "error",
+                        "only bindings are supported in dataflow blocks",
+                        self.tvm_span(binding_stmt.span),
+                    )
+                    self._diagnostic_context.render()
+                binding = self.transform_stmt(binding_stmt)
+                bindings.append(binding)
+
+            output_stmt = block.stmts[-1]
+            if not isinstance(output_stmt, ast.Return):
+                self._diagnostic_context.emit(
+                    "error",
+                    "dataflow blocks must end with returning the output variables",
+                    self.tvm_span(output_stmt.span),
+                )
+                self._diagnostic_context.render()
+
+            ret_val = output_stmt.value
+            if isinstance(ret_val, ast.Var):
+                ret_val = ast.Tuple(values=[ret_val], span=ret_val.span)
+
+            if not isinstance(ret_val, ast.Tuple) or any([not isinstance(f, ast.Var) for f in ret_val.values]):
+                self._diagnostic_context.emit(
+                    "error",
+                    "the returned values must be variables",
+                    self.tvm_span(ret_val.span),
+                )
+
+            ret_vars = [self.transform_expr(v) for v in ret_val.values]
+
+        # parent scope
+        for v in ret_vars:
+            self.scope[v.id] = v
+
+        return rxDataflowBlock(bindings, ret_vars, self.tvm_span(block.span))
+
 
     # Exprs:
     # - ArrayLiteral: unsupported for now?
@@ -491,8 +575,8 @@ class RelaxTransformer(Transformer):
                 args = []
                 for arg in expr.params:
                     args.append(self.transform_expr(arg))
-                if op in self.scope:
-                    op = self.scope[op]
+                if op.id.name in self.scope:
+                    op = self.transform_expr(op)
                 else:
                     # TODO: fix
                     op = op.id.name
@@ -556,10 +640,10 @@ class RelaxTransformer(Transformer):
         for stmt in block.stmts[:-1]:
             parsed_stmt = self.transform_stmt(stmt)
             if isinstance(parsed_stmt, rxDataflowBlock):
-                assert len(current_block) > 0, "should never have an empty block"
-                blocks.append(current_block)
+                if current_block:
+                    blocks.append(current_block)
+                    current_block = []
                 blocks.append(parsed_stmt)
-                current_block = []
             else:
                 assert isinstance(parsed_stmt, rxBinding)
                 current_block.append(parsed_stmt)

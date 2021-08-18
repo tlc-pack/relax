@@ -5,6 +5,10 @@ from tvm import relax as rx
 from tvm import tir
 
 
+# TODO: replace xfails with proper diagnostics checking.
+#       c.f. tests/python/unittest/test_tvmscript_error_report.py
+
+
 def rx_func(func):
     return func.module[func.fn_name]
 
@@ -216,3 +220,81 @@ def test_tuple():
     assert isinstance(tup._shape, list) and len(tup._shape) == 2
     check_shape(tup._shape[0], None)
     check_shape(tup._shape[1], (32,))
+
+
+# NOTE: this test requires patching synr to support local function definitions.
+#       it's an easy change (just two lines), but may break other users of synr
+#       (e.g. tvmscript). should investigate.
+def test_local_func():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        def bar(y: Tensor[_, _]):
+            return y
+        z = bar(x)
+        return z
+
+    f = rx_func(foo)
+    bar_bind, z_bind = f.body.blocks[0]
+    bar, bar_fn = bar_bind.var, bar_bind.value
+    bar_x = z_bind.value
+
+    assert isinstance(bar_fn, rx.expr.rxFunction)
+    assert bar_fn.body.body == bar_fn.params[0]
+
+    assert bar_x.op == bar
+
+
+def test_dataflow():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        with rx.dataflow():
+            y = add(x, x)
+            z = mul(y, x)
+            w = sub(z, x)
+            return y, w
+        t = div(y, w)
+        return t
+
+    f = rx_func(foo)
+    df_block = f.body.blocks[0]
+
+    # TODO: check correctness
+
+
+@pytest.mark.xfail
+def test_dataflow_scope_fail():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        with rx.dataflow():
+            y = add(x, x)
+            z = mul(y, x)
+            w = sub(z, x)
+            return y, w
+        t = div(y, z)
+        return t
+
+
+@pytest.mark.xfail
+def test_dataflow_syntax_fail_pattern():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        with rx.dataflow() as df:
+            y = add(x, x)
+            z = mul(y, x)
+            w = sub(z, x)
+            return y, w
+        t = div(y, z)
+        return t
+
+
+@pytest.mark.xfail
+def test_dataflow_syntax_fail_params():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        with rx.dataflow(x) as df:
+            y = add(x, x)
+            z = mul(y, x)
+            w = sub(z, x)
+            return y, w
+        t = div(y, z)
+        return t
