@@ -8,7 +8,7 @@ import tvm
 from tvm.ir.module import IRModule
 from tvm.relay.base import Id
 from tvm.ir import diagnostics
-from tvm import tir, relax
+from tvm import tir
 
 import numpy as np
 
@@ -190,6 +190,7 @@ class RelaxTransformer(Transformer):
                         )
                         self._diagnostic_context.render()
                     else:
+                        # FIXME: use a special node for unknown shape vs no shape?
                         pass  # shape = None
                 elif isinstance(shape_annotation, ast.TypeTuple):
                     shape = self.parse_shape(shape_annotation, allow_intro)
@@ -215,8 +216,17 @@ class RelaxTransformer(Transformer):
                     self._diagnostic_context.render()
 
                 return (rxTensor(dtype, span), shape)
-            # TODO: other types with args, e.g. Ref[T], Tuple[Ts...], func types
+            elif ty.id.name == "Tuple":
+                field_types = []
+                field_shapes = []
+                for field in ty.params:
+                    fty, fsh = self.transform_type(field, allow_intro=False)
+                    field_types.append(fty)
+                    field_shapes.append(fsh)
+                return rxTupleType(field_types, self.tvm_span(ty.span)), field_shapes
+            # TODO: other types with args, e.g. Ref[T], func types
         self._diagnostic_context.emit("error", "invalid type", span)
+        self._diagnostic_context.render()
 
     def parse_shape(
         self, shape_annotation: Union[ast.TypeTuple, ast.Tuple], allow_intro: bool
@@ -276,10 +286,19 @@ class RelaxTransformer(Transformer):
                     self.tvm_span(expr.span),
                 )
                 self._diagnostic_context.render()
+        elif isinstance(expr, ast.Constant):
+            if not isinstance(expr.value, int):
+                self._diagnostic_context.emit(
+                    "error", "only integer constants are supported", self.tvm_span(expr.span)
+                )
+                self._diagnostic_context.render()
+            return tir.const(expr.value, "int32", self.tvm_span(expr.span))
         else:
             # TODO: parse (simple) PrimExprs
             self._diagnostic_context.emit(
-                "error", "only dimension variable expressions are currently supported"
+                "error",
+                "only dimension variable expressions are currently supported",
+                self.tvm_span(expr.span),
             )
             self._diagnostic_context.render()
 
@@ -383,12 +402,12 @@ class RelaxTransformer(Transformer):
             true_block = synr.ast.Block(
                 span=stmt.true.span,
                 stmts=stmt.true.stmts[:-1]
-                + synr.ast.Return(span=true_assign.span, value=true_assign.rhs),
+                + [synr.ast.Return(span=true_assign.span, value=true_assign.rhs)],
             )
             false_block = synr.ast.Block(
                 span=stmt.false.span,
                 stmts=stmt.false.stmts[:-1]
-                + synr.ast.Return(span=false_assign.span, value=false_assign.rhs),
+                + [synr.ast.Return(span=false_assign.span, value=false_assign.rhs)],
             )
 
             # parse the branches, build the final expression and binding
@@ -407,6 +426,8 @@ class RelaxTransformer(Transformer):
         elif isinstance(stmt, ast.UnassignedCall):
             call: synr.ast.Call = stmt.call
             op = self.transform_expr(call.func_name)
+            # FIXME: this check is unreachable since transform_expr tries looking up func_name as a
+            #        variable and fails
             if op != "rx.match_shape":
                 self._diagnostic_context.emit(
                     "error", "the results of operator calls must be bound", self.tvm_span(stmt.span)
@@ -442,12 +463,12 @@ class RelaxTransformer(Transformer):
             self._diagnostic_context.render()
 
     # Exprs:
-    # - ArrayLiteral
-    # - Attr
+    # - ArrayLiteral: unsupported for now?
+    # - Attr: use for .shape, and intrinsic/special operator namespace
     # - Call
     # - Constant
-    # - DictLiteral
-    # - Slice
+    # - DictLiteral: unsupported for now
+    # - Slice: unsupported for now, could desugar to slice op
     # - Tuple
     # - Var
     def transform_expr(self, expr: ast.Expr) -> rxExpr:
@@ -458,7 +479,7 @@ class RelaxTransformer(Transformer):
             if isinstance(obj, str):
                 return obj + "." + field_name
             elif field_name == "shape":
-                return rxCall("rx.shape_of", obj, self.tvm_span(expr.span))
+                return rxCall("rx.shape_of", [obj], self.tvm_span(expr.span))
             else:
                 self._diagnostic_context.emit(
                     "error", "unsupported attribute", self.tvm_span(expr.span)
@@ -554,7 +575,7 @@ class RelaxTransformer(Transformer):
             )
             self._diagnostic_context.render()
         ret_expr = self.transform_stmt(ret_stmt)
- 
+
         return rxSeqExpr(blocks, ret_expr, self.tvm_span(block.span))
 
     def transform_parameter(self, expr: ast.Parameter) -> rxExpr:
@@ -616,7 +637,7 @@ class RelaxDecoratedFn:
         # return out
 
 
-def relax(f):
+def script(f):
     ir_module = tvm.IRModule({})
     diag_ctx = diagnostics.DiagnosticContext(ir_module, diagnostics.get_renderer())
     diag_ctx = TVMDiagnosticContext(diag_ctx)
@@ -624,14 +645,3 @@ def relax(f):
     definition_scope = inspect.getmodule(f)
     module = RelaxTransformer(definition_scope, diag_ctx).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
-
-
-@relax
-def my_test(x: Tensor[_, "float32"]):
-    rx.match_shape((n, m), x.shape)
-    y = mul(x, x)
-    return y
-
-
-f = my_test.module["my_test"]
-import pdb; pdb.set_trace()
