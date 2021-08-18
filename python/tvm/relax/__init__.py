@@ -21,6 +21,7 @@ from . import ty
 from . import vm
 from . import op
 from . import ir_builder
+from . import op
 
 
 # Expr

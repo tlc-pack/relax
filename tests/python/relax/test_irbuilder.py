@@ -30,8 +30,12 @@ def test_irbuilder():
     ib = rx.IRBuilder()
     with ib.function("func", [x, y]):
         with ib.dataflow() as df:
-            lv0 = ib.emit(relay.Call(op.get("relax.add"), [x, y]))
-            lv1 = ib.emit(relay.Call(op.get("relax.multiply"), [lv0, y]))
+            lv0 = ib.emit(rx.op.add(x, y))
+            assert lv0.shape_[0] == m
+            assert lv0.shape_[1] == n
+            assert lv0.checked_type_.rank == 2
+            assert lv0.checked_type_.dtype == "float16"
+            lv1 = ib.emit(rx.op.add(lv0, y))
             gv0 = ib.emit_df_output(lv1)
         ib.emit_output(gv0)
     func = ib.get()
