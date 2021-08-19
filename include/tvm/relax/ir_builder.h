@@ -41,40 +41,58 @@ class IRBuilder;
 struct RelaxFunction {
   /*! \brief The bindings in the function. */
   std::vector<Binding> bindings;
+  /*! \brief The binding blocks in the function. */
+  std::vector<BindingBlock> binding_blocks;
   /*! \brief The return of the function. */
   Expr ret;
-  /*! \brief The function body. */
-  std::vector<BindingBlock> binding_blocks;
-  /*! \brief The FunctionNode built in AST. */
+  /*! \brief The Function gets built. */
   relax::Function func;
 };
 
 /*!
- * \brief A builder provides api to build Relax IR AST.
+ * \brief A builder that provides API to build Relax AST.
  */
 class IRBuilderNode : public Object {
  public:
   /*!
-   * \brief To annotate the start of a Relax function.
+   * \brief Build a Relax function.
    * \param name The function name.
    * \param params The function parameters.
    */
   void BuildFunction(std::string name, Array<Var> params);
-
+  /*!
+   * \brief Build a Relax binding block.
+   */
   void BuildBlock();
-
+  /*!
+   * \brief Emit a call.
+   * \param call The Call to be emitted.
+   * \return The variable being binded to \p call.
+   */
   Var Emit(relay::Call call);
-
+  /*!
+   * \brief Emit a dataflow block's output variable.
+   * \param var The output variable inside the dataflow block.
+   * \return The variable being binded to the ouput \p var.
+   */
   Var EmitDataflowOutput(Var var);
   /*!
-   * \brief Emit outputs of a function.
+   * \brief Emit a function's output variable.
+   * \param output The output variable(s) of the function.
    */
   void EmitOutput(Expr output);
-
+  /*!
+   * \brief Get the function being built.
+   */
   Function Get();
-
+  /*!
+   * \brief Flip the is_dataflow boolean variable.
+   */
   inline void FlipState();
-
+  /*!
+   * \brief Create a IRBuilder.
+   * \return The IRBuilder.
+   */
   TVM_DLL static IRBuilder Create();
 
   void VisitAttrs(AttrVisitor* v) {}
@@ -84,9 +102,13 @@ class IRBuilderNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(IRBuilderNode, Object);
 
  private:
+  /*! \brief A representation of a Relax function that stores states during the IR build. */
   RelaxFunction func;
+  /*! \brief A flag denoting inside a dataflow block or not. */
   bool is_dataflow = false;
+  /*! \brief The global variable counter. */
   int global_var_counter = 0;
+  /*! \brief The dataflow variable counter. */
   int dataflow_var_counter = 0;
 };
 

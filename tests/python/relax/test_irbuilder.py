@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm import relay
-from tvm.relay import op
+
 from tvm import tir
 from tvm import relax as rx
 
