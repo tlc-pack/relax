@@ -401,9 +401,13 @@ class Function : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
 };
 
+
+/*! \brief The extern function, which can represent packed function. */
 class ExternFuncNode : public BaseFuncNode {
  public:
+  /*! \brief The name of global symbol. */
   String global_symbol;
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
   }
