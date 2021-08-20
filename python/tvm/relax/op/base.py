@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 from ...ir import BaseFunc
-from ..expr import ShapeExpr, Tuple
-from . import _make
+from ..expr import Expr, ShapeExpr, Tuple, Call
+from . import _ffi_api
+from typing import Union, List
 
-def call_dps(shape, func, args):
+def call_dps(shape: Union[ShapeExpr, List[int]],
+             func: Expr,
+             args: Union[Tuple, List[Expr]]) -> Call:
     """
     Call a destination-passing-style function and return the output.
 
@@ -37,9 +40,8 @@ def call_dps(shape, func, args):
     ret: Call
         A call node for the call_dps operator.
     """
-    assert isinstance(func, BaseFunc)
     if isinstance(shape, (list, tuple)):
         shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _make.call_dps(shape, func, args)
+    return _ffi_api.call_dps(shape, func, args)

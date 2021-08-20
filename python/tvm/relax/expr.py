@@ -23,9 +23,10 @@ from ..tir import PrimExpr
 from . import _ffi_api
 from .. import relay
 
-GlobalVar = relay.GlobalVar
 Expr = relay.Expr
 Type = relay.Type
+GlobalVar = relay.GlobalVar
+Call = relay.Call
 const = relay.const
 
 
