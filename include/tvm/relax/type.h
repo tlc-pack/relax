@@ -39,13 +39,9 @@ namespace relax {
 
 class ShapeTypeNode : public TypeNode {
  public:
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-  }
-
-  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
-    return true;
-  }
+  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const { return true; }
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
 
@@ -58,15 +54,10 @@ class ShapeType : public Type {
   explicit ShapeType();
   explicit ShapeType(runtime::ObjectPtr<runtime::Object> n) : Type(n) {}
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(ShapeType);
-  const ShapeTypeNode* operator->() const {
-    return static_cast<const ShapeTypeNode*>(data_.get());
-  }
-  const ShapeTypeNode* get() const {
-    return operator->();
-  }
-  using ContainerType = ShapeTypeNode; 
+  const ShapeTypeNode* operator->() const { return static_cast<const ShapeTypeNode*>(data_.get()); }
+  const ShapeTypeNode* get() const { return operator->(); }
+  using ContainerType = ShapeTypeNode;
 };
-
 
 class DynTensorTypeNode : public BaseTensorTypeNode {
  public:
@@ -91,6 +82,10 @@ class DynTensorTypeNode : public BaseTensorTypeNode {
     hash_reduce(rank);
     hash_reduce(dtype);
   }
+
+  inline bool IsUnknownRank() const { return rank == -1; }
+
+  inline bool IsUnknownDtype() const { return dtype.is_void(); }
 
   static constexpr const char* _type_key = "relax.DynTensorType";
   TVM_DECLARE_FINAL_OBJECT_INFO(DynTensorTypeNode, BaseTensorTypeNode);

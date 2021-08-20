@@ -42,8 +42,7 @@ void IRBuilderNode::BuildFunction(std::string func_name, Array<Var> params) {
   SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
   if (func.ret.defined()) {
     this->func.func = Function(GlobalVar(func_name), params, seq, this->func.ret->checked_type_);
-  }
-  else {
+  } else {
     this->func.func = Function(GlobalVar(func_name), params, seq, {});
   }
 }
@@ -59,7 +58,7 @@ void IRBuilderNode::BuildBlock() {
   }
 }
 
-Optional<Array<PrimExpr>> InferShape(const Call& call) {
+Optional<RelayExpr> InferShape(const Call& call) {
   auto op_map = Op::GetAttrMap<relax::FInferShape>("FInferShape");
   if (const auto* op_node = call->op.as<relay::OpNode>()) {
     Op op = GetRef<Op>(op_node);
@@ -70,7 +69,7 @@ Optional<Array<PrimExpr>> InferShape(const Call& call) {
   return NullOpt;
 }
 
-Optional<Type> InferType(const Call& call, const Array<Type>& args) {
+Type InferType(const Call& call, const Array<Type>& args) {
   auto op_map = Op::GetAttrMap<relax::FInferType>("FInferType");
   if (const auto* op_node = call->op.as<relay::OpNode>()) {
     Op op = GetRef<Op>(op_node);
@@ -78,7 +77,7 @@ Optional<Type> InferType(const Call& call, const Array<Type>& args) {
       return op_map[op](args);
     }
   }
-  return NullOpt;
+  return VoidType();
 }
 
 Var IRBuilderNode::Emit(Call call) {
@@ -90,12 +89,18 @@ Var IRBuilderNode::Emit(Call call) {
   }
 
   auto inferred_shape = InferShape(call);
+  if (inferred_shape) {
+    if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
+      call->shape_ = shape_expr->values;
+      var->shape_ = shape_expr->values;
+    }
+  }
+
   Array<Type> arg_types = Array<Type>({call->args[0]->checked_type_, call->args[1]->checked_type_});
   auto inferred_type = InferType(call, arg_types);
-  call->shape_ = inferred_shape;
-  call->checked_type_ = inferred_type.value();
-  var->shape_ = inferred_shape;
-  var->checked_type_ = inferred_type.value();
+  call->checked_type_ = inferred_type;
+  var->checked_type_ = inferred_type;
+
   this->func.bindings.emplace_back(VarBinding(var, call));
   return var;
 }
@@ -114,7 +119,6 @@ Var IRBuilderNode::EmitDataflowOutput(Var var) {
 }
 
 void IRBuilderNode::EmitOutput(Expr output) { this->func.ret = output; }
-
 
 inline void IRBuilderNode::FlipState() { is_dataflow = !is_dataflow; }
 
