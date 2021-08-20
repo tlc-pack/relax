@@ -17,18 +17,25 @@
  * under the License.
  */
 
+/*!
+ * \file binary.cc
+ * \brief binary broadcast operators.
+ */
+
 #include <tvm/arith/analyzer.h>
+#include <tvm/relax/expr.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
-#include <tvm/relay/op.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op.h>
+
+#include "../op_common.h"
 
 namespace tvm {
 namespace relax {
 
-using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(relay::Call call)>;
-
-using FInferType = runtime::TypedPackedFunc<Type(Array<Type>)>;
+using Expr = tvm::RelayExpr;
+using relay::Call;
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
@@ -71,11 +78,11 @@ void BinaryBroadcast(TVMArgs args, TVMRetValue* rv) {
     for (; i <= max_ndim; ++i) {
       output_shape.push_back(longer_shape[max_ndim - i]);
     }
-    *rv = ShapeTuple(output_shape);
+    *rv = ShapeTuple(output_shape.rbegin(), output_shape.rend());
   }
 }
 
-Optional<RelayExpr> InferShapeBinaryBroadcast(relay::Call call) {
+Optional<Expr> InferShapeBinaryBroadcast(Call call) {
   ICHECK_EQ(call->args.size(), 2);
   auto lhs_shape = call->args[0]->shape_;
   auto rhs_shape = call->args[1]->shape_;
@@ -95,12 +102,9 @@ Optional<RelayExpr> InferShapeBinaryBroadcast(relay::Call call) {
         output_shape.push_back(s1);
       } else {
         // defer the computation of output shapes to runtime
-        // e.g., [m, n]  [l, k] -> defer to runtime
+        // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
         return PackedFunc(BinaryBroadcast)(lhs_shape, rhs_shape);
-
-        // [m+5]  [m] definitely cannot be match the rule -> FATAL
-        // LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
-        //            << " for broadcasting";
+        // return Call()
       }
     }
     size_t max_ndim = std::max(ndim0, ndim1);
@@ -114,9 +118,10 @@ Optional<RelayExpr> InferShapeBinaryBroadcast(relay::Call call) {
   }
 }
 
-Type InferTypeBinaryBroadcast(Array<Type> args) {
-  Type lhs_type = args[0];
-  Type rhs_type = args[1];
+Type InferTypeBinaryBroadcast(Call call) {
+  ICHECK_EQ(call->args.size(), 2);
+  Type lhs_type = call->args[0]->checked_type_;
+  Type rhs_type = call->args[1]->checked_type_;
   if (auto* t0 = lhs_type.as<DynTensorTypeNode>()) {
     if (auto* t1 = rhs_type.as<DynTensorTypeNode>()) {
       DataType outout_dtype;
@@ -142,36 +147,11 @@ Type InferTypeBinaryBroadcast(Array<Type> args) {
   return VoidType();
 }
 
-Expr Add(Expr lhs, Expr rhs) {
-  static const Op& op = Op::Get("relax.add");
-  return relay::Call(op, {lhs, rhs}, {}, {});
-}
+RELAX_REGISTER_BINARY_OP("add").describe("Elementwise add with broadcasting").set_support_level(1);
 
-Expr Multiply(Expr lhs, Expr rhs) {
-  static const Op& op = Op::Get("relax.multiply");
-  return relay::Call(op, {lhs, rhs}, {}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op._make.add").set_body_typed(Add);
-TVM_REGISTER_GLOBAL("relax.op._make.multiply").set_body_typed(Multiply);
-
-TVM_REGISTER_OP("relax.add")
+RELAX_REGISTER_BINARY_OP("multiply")
     .describe("Elementwise add with broadcasting")
-    .set_num_inputs(2)
-    .add_argument("lhs", "Tensor", "The left hand side tensor.")
-    .add_argument("rhs", "Tensor", "The right hand side tensor.")
-    .set_support_level(1)
-    .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)
-    .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast);
-
-TVM_REGISTER_OP("relax.multiply")
-    .describe("Elementwise multiply with broadcasting")
-    .set_num_inputs(2)
-    .add_argument("lhs", "Tensor", "The left hand side tensor.")
-    .add_argument("rhs", "Tensor", "The right hand side tensor.")
-    .set_support_level(1)
-    .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)
-    .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast);
+    .set_support_level(1);
 
 }  // namespace relax
 }  // namespace tvm

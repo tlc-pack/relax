@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Developer API of constructing Relax AST."""
-
+from typing import List, Optional, Union, Dict
 from tvm.relay.expr import Tuple
 from tvm.runtime import Object
 from .expr import *
@@ -43,17 +43,17 @@ class FunctionScope(object):
 class DataflowScope(object):
     """Auxiliary scope for Dataflow block"""
 
-    def __init__(self, build_block, flip_state):
+    def __init__(self, build_block, switch_block):
         self.build_block = build_block
-        self.flip_state = flip_state
+        self.switch_block = switch_block
 
     def __enter__(self):
         self.build_block()
-        self.flip_state()
+        self.switch_block()
 
     def __exit__(self, ptype, value, trace):
         self.build_block()
-        self.flip_state()
+        self.switch_block()
 
 
 @tvm._ffi.register_object("relax.IRBuilder")
@@ -73,8 +73,8 @@ class IRBuilder(Object):
         ib = rx.IRBuilder()
         with ib.function("func", [x, y]):
             with ib.dataflow() as df:
-                lv0 = ib.emit(rx.op.add(x, y))
-                lv1 = ib.emit(rx.op.multiply(lv0, y))
+                lv0 = ib.emit(rx.add(x, y))
+                lv1 = ib.emit(rx.multiply(lv0, y))
                 gv0 = ib.emit_df_output(lv1)
             ib.emit_output(gv0)
         func = ib.get()
@@ -83,7 +83,7 @@ class IRBuilder(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.IRBuilderCreate)
 
-    def function(self, name, params):
+    def function(self, name: str, params: Union[Var, List[Var]]) -> FunctionScope:
         """Annotate a Relax function.
 
         Parameters
@@ -91,7 +91,7 @@ class IRBuilder(Object):
         name : str
             The name of the function
 
-        params : List[tvm.relax.Var]
+        params : tvm.relax.Var or List[tvm.relax.Var]
             The parameters of the function
         """
         if not isinstance(params, (list, tuple)):
@@ -105,19 +105,19 @@ class IRBuilder(Object):
 
         return FunctionScope(name, params, build_block, build_function)
 
-    def dataflow(self):
+    def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block."""
 
         def build_block():
             return _ffi_api.IRBuilderBuildBlock(self)
 
-        def flip_state():
-            return _ffi_api.IRBuilderFlipState(self)
+        def switch_block():
+            return _ffi_api.IRBuilderSwitchBlock(self)
 
-        return DataflowScope(build_block, flip_state)
+        return DataflowScope(build_block, switch_block)
 
-    def emit(self, call):
-        """Emit a call.
+    def emit(self, call: relay.Call) -> Var:
+        """Emit a call node.
         This infers the shape and type of the CallNode, create a variable,
         and bind the CallNode to the variable.
 
@@ -133,7 +133,7 @@ class IRBuilder(Object):
         """
         return _ffi_api.IRBuilderEmit(self, call)
 
-    def emit_df_output(self, var):
+    def emit_df_output(self, var: Var) -> Var:
         """Emit a dataflow block's output variable, and it can be used outside the dataflow block.
 
         Parameters
@@ -148,18 +148,18 @@ class IRBuilder(Object):
         """
         return _ffi_api.IRBuilderEmitDataflowOutput(self, var)
 
-    def emit_output(self, output):
+    def emit_output(self, output: Union[Expr, List[Expr]]) -> None:
         """Emit function outputs.
 
         Parameters
         ----------
-        output : Expr | List[Expr] | Tuple[Expr]
+        output : Expr | List[Expr]
             The output variable(s) of the current function
         """
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
         _ffi_api.IRBuilderEmitOutput(self, output)
 
-    def get(self):
+    def get(self) -> Function:
         """Return the function being built."""
         return _ffi_api.IRBuilderGet(self)

@@ -65,8 +65,8 @@ class IRBuilderNode : public Object {
    */
   void BuildBlock();
   /*!
-   * \brief Emit a call.
-   * \param call The Call to be emitted.
+   * \brief Emit a call node.
+   * \param call The CallNode to be emitted.
    * \return The variable being binded to \p call.
    */
   Var Emit(relay::Call call);
@@ -86,9 +86,10 @@ class IRBuilderNode : public Object {
    */
   Function Get();
   /*!
-   * \brief Flip the is_dataflow boolean variable.
+   * \brief Flip \p is_dataflow to indicate switching from DataflowBlock to BindingBlock or the
+   * other way around.
    */
-  inline void FlipState();
+  inline void SwitchBlock();
   /*!
    * \brief Create a IRBuilder.
    * \return The IRBuilder.

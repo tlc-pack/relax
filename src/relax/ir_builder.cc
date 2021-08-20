@@ -22,9 +22,8 @@
  */
 
 #include <tvm/relax/ir_builder.h>
+#include <tvm/relax/op_attr.h>
 #include <tvm/relay/op.h>
-
-#include "./broadcast_op.h"
 
 namespace tvm {
 namespace relax {
@@ -58,9 +57,9 @@ void IRBuilderNode::BuildBlock() {
   }
 }
 
-Optional<RelayExpr> InferShape(const Call& call) {
+Optional<RelayExpr> InferShape(Call call) {
   auto op_map = Op::GetAttrMap<relax::FInferShape>("FInferShape");
-  if (const auto* op_node = call->op.as<relay::OpNode>()) {
+  if (const auto* op_node = call->op.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
     if (op_map.count(op)) {
       return op_map[op](call);
@@ -69,12 +68,12 @@ Optional<RelayExpr> InferShape(const Call& call) {
   return NullOpt;
 }
 
-Type InferType(const Call& call, const Array<Type>& args) {
+Type InferType(Call call) {
   auto op_map = Op::GetAttrMap<relax::FInferType>("FInferType");
-  if (const auto* op_node = call->op.as<relay::OpNode>()) {
+  if (const auto* op_node = call->op.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
     if (op_map.count(op)) {
-      return op_map[op](args);
+      return op_map[op](call);
     }
   }
   return VoidType();
@@ -87,7 +86,7 @@ Var IRBuilderNode::Emit(Call call) {
   } else {
     var = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
   }
-
+  // Shape inference
   auto inferred_shape = InferShape(call);
   if (inferred_shape) {
     if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
@@ -95,9 +94,8 @@ Var IRBuilderNode::Emit(Call call) {
       var->shape_ = shape_expr->values;
     }
   }
-
-  Array<Type> arg_types = Array<Type>({call->args[0]->checked_type_, call->args[1]->checked_type_});
-  auto inferred_type = InferType(call, arg_types);
+  // Type inference
+  auto inferred_type = InferType(call);
   call->checked_type_ = inferred_type;
   var->checked_type_ = inferred_type;
 
@@ -120,7 +118,7 @@ Var IRBuilderNode::EmitDataflowOutput(Var var) {
 
 void IRBuilderNode::EmitOutput(Expr output) { this->func.ret = output; }
 
-inline void IRBuilderNode::FlipState() { is_dataflow = !is_dataflow; }
+inline void IRBuilderNode::SwitchBlock() { is_dataflow = !is_dataflow; }
 
 Function IRBuilderNode::Get() { return this->func.func; }
 
@@ -150,8 +148,8 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderGet").set_body_typed([](IRBuilder builder) {
   return builder->Get();
 });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderFlipState").set_body_typed([](IRBuilder builder) {
-  return builder->FlipState();
+TVM_REGISTER_GLOBAL("relax.IRBuilderSwitchBlock").set_body_typed([](IRBuilder builder) {
+  return builder->SwitchBlock();
 });
 
 }  // namespace relax
