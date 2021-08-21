@@ -16,15 +16,17 @@
 # under the License.
 from typing import List, Optional, Union, Dict
 import tvm._ffi
-from ..ir.base import Node, Span, SourceName
-from ..relay.base import Id
+from ..ir import Node, Span, SourceName, BaseFunc
+from ..runtime import String
+from ..relay import Id, Tuple, TupleGetItem
 from ..tir import PrimExpr
 from . import _ffi_api
 from .. import relay
 
-GlobalVar = relay.GlobalVar
 Expr = relay.Expr
 Type = relay.Type
+GlobalVar = relay.GlobalVar
+Call = relay.Call
 const = relay.const
 
 
@@ -106,7 +108,7 @@ class SeqExpr(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.Function")
-class Function(Expr):
+class Function(BaseFunc):
     name: Optional[GlobalVar]
     params: List[Var]
     body: Expr
@@ -116,3 +118,14 @@ class Function(Expr):
                  ret_type: Type, name: Optional[GlobalVar] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Function, name, params,
                                             body, ret_type)
+
+
+@tvm._ffi.register_object("relax.expr.ExternFunc")
+class ExternFunc(BaseFunc):
+    global_symbol: String
+
+    def __init__(self, global_symbol: String) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol)
+
+def extern(name):
+    return ExternFunc(name)
