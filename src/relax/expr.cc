@@ -16,7 +16,6 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -155,6 +154,8 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 });
 
 
+TVM_REGISTER_NODE_TYPE(FunctionNode);
+
 Function::Function(runtime::Optional<GlobalVar> name,
                    Array<Var> params,
                    Expr body,
@@ -167,14 +168,25 @@ Function::Function(runtime::Optional<GlobalVar> name,
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(FunctionNode);
-
 TVM_REGISTER_GLOBAL("relax.Function")
 .set_body_typed([](runtime::Optional<GlobalVar> name,
                    Array<Var> params,
                    Expr body,
                    Type ret_type) {
   return Function(name, params, body, ret_type);
+});
+
+TVM_REGISTER_NODE_TYPE(ExternFuncNode);
+
+ExternFunc::ExternFunc(String global_symbol) {
+  ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
+  n->global_symbol = std::move(global_symbol);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.ExternFunc")
+.set_body_typed([](String global_symbol) {
+  return ExternFunc(global_symbol);
 });
 
 } // namespace relax
