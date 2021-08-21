@@ -91,7 +91,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
       return tensor;
     });
 
-TVM_REGISTER_GLOBAL("vm.builtin.binary_broadcast")
+TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
     .set_body_typed([](ShapeTuple lhs_shape, ShapeTuple rhs_shape) {
       std::vector<int64_t> output_shape;
       size_t ndim0 = lhs_shape.size();
@@ -112,7 +112,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.binary_broadcast")
           output_shape.push_back(longer_shape[max_ndim - i]);
         }
       }
-      return ShapeTuple(output_shape);
+      return ShapeTuple(output_shape.rbegin(), output_shape.rend());
     });
 
 }  // namespace relax_vm

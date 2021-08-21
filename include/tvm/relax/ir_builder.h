@@ -33,6 +33,8 @@
 namespace tvm {
 namespace relax {
 
+using relay::Call;
+
 class IRBuilder;
 
 /*!
@@ -45,7 +47,7 @@ struct RelaxFunction {
   std::vector<BindingBlock> binding_blocks;
   /*! \brief The return of the function. */
   Expr ret;
-  /*! \brief The Function gets built. */
+  /*! \brief The FunctionNode being built. */
   relax::Function func;
 };
 
@@ -55,13 +57,13 @@ struct RelaxFunction {
 class IRBuilderNode : public Object {
  public:
   /*!
-   * \brief Build a Relax function.
+   * \brief Build a function node.
    * \param name The function name.
    * \param params The function parameters.
    */
-  void BuildFunction(std::string name, Array<Var> params);
+  void BuildFunction(const std::string& name, const Array<Var>& params);
   /*!
-   * \brief Build a Relax binding block.
+   * \brief Build a binding block.
    */
   void BuildBlock();
   /*!
@@ -69,18 +71,18 @@ class IRBuilderNode : public Object {
    * \param call The CallNode to be emitted.
    * \return The variable being binded to \p call.
    */
-  Var Emit(relay::Call call);
+  Var Emit(const Call& call);
   /*!
    * \brief Emit a dataflow block's output variable.
    * \param var The output variable inside the dataflow block.
    * \return The variable being binded to the ouput \p var.
    */
-  Var EmitDataflowOutput(Var var);
+  Var EmitDataflowOutput(const Var& var);
   /*!
    * \brief Emit a function's output variable.
    * \param output The output variable(s) of the function.
    */
-  void EmitOutput(Expr output);
+  void EmitOutput(const Expr& output);
   /*!
    * \brief Get the function being built.
    */
@@ -103,7 +105,7 @@ class IRBuilderNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(IRBuilderNode, Object);
 
  private:
-  /*! \brief A representation of a Relax function that stores states during the IR build. */
+  /*! \brief A representation of a function that stores states. */
   RelaxFunction func;
   /*! \brief A flag denoting inside a dataflow block or not. */
   bool is_dataflow = false;

@@ -17,4 +17,4 @@
 """Constructor APIs"""
 import tvm._ffi
 
-tvm._ffi._init_api("relax.op._make", __name__)
+tvm._ffi._init_api("relax.op._make.relax", __name__)

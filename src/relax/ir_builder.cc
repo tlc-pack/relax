@@ -28,8 +28,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::Call;
-
 TVM_REGISTER_NODE_TYPE(IRBuilderNode);
 
 IRBuilder IRBuilderNode::Create() {
@@ -37,7 +35,7 @@ IRBuilder IRBuilderNode::Create() {
   return ret;
 }
 
-void IRBuilderNode::BuildFunction(std::string func_name, Array<Var> params) {
+void IRBuilderNode::BuildFunction(const std::string& func_name, const Array<Var>& params) {
   SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
   if (func.ret.defined()) {
     this->func.func = Function(GlobalVar(func_name), params, seq, this->func.ret->checked_type_);
@@ -57,7 +55,7 @@ void IRBuilderNode::BuildBlock() {
   }
 }
 
-Optional<RelayExpr> InferShape(Call call) {
+Optional<RelayExpr> InferShape(const Call& call) {
   auto op_map = Op::GetAttrMap<relax::FInferShape>("FInferShape");
   if (const auto* op_node = call->op.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
@@ -68,7 +66,7 @@ Optional<RelayExpr> InferShape(Call call) {
   return NullOpt;
 }
 
-Type InferType(Call call) {
+Type InferType(const Call& call) {
   auto op_map = Op::GetAttrMap<relax::FInferType>("FInferType");
   if (const auto* op_node = call->op.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
@@ -79,7 +77,7 @@ Type InferType(Call call) {
   return VoidType();
 }
 
-Var IRBuilderNode::Emit(Call call) {
+Var IRBuilderNode::Emit(const Call& call) {
   Var var;
   if (is_dataflow) {
     var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter++)), NullOpt, NullOpt);
@@ -103,7 +101,7 @@ Var IRBuilderNode::Emit(Call call) {
   return var;
 }
 
-Var IRBuilderNode::EmitDataflowOutput(Var var) {
+Var IRBuilderNode::EmitDataflowOutput(const Var& var) {
   Var ret;
   if (is_dataflow) {
     ret = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
@@ -116,7 +114,7 @@ Var IRBuilderNode::EmitDataflowOutput(Var var) {
   return ret;
 }
 
-void IRBuilderNode::EmitOutput(Expr output) { this->func.ret = output; }
+void IRBuilderNode::EmitOutput(const Expr& output) { this->func.ret = output; }
 
 inline void IRBuilderNode::SwitchBlock() { is_dataflow = !is_dataflow; }
 
@@ -124,25 +122,26 @@ Function IRBuilderNode::Get() { return this->func.func; }
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderCreate").set_body_typed(IRBuilderNode::Create);
 
+TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction")
+    .set_body_typed([](IRBuilder builder, const std::string& func_name, const Array<Var>& params) {
+      return builder->BuildFunction(func_name, params);
+    });
+
 TVM_REGISTER_GLOBAL("relax.IRBuilderBuildBlock").set_body_typed([](IRBuilder builder) {
   return builder->BuildBlock();
 });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction")
-    .set_body_typed([](IRBuilder builder, std::string func_name, Array<Var> params) {
-      return builder->BuildFunction(func_name, params);
-    });
-
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, Call call) {
+TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, const Call& call) {
   return builder->Emit(call);
 });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmitDataflowOutput")
-    .set_body_typed([](IRBuilder builder, Var var) { return builder->EmitDataflowOutput(var); });
+    .set_body_typed([](IRBuilder builder, const Var& var) {
+      return builder->EmitDataflowOutput(var);
+    });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput").set_body_typed([](IRBuilder builder, Expr output) {
-  builder->EmitOutput(output);
-});
+TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")
+    .set_body_typed([](IRBuilder builder, const Expr& output) { builder->EmitOutput(output); });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderGet").set_body_typed([](IRBuilder builder) {
   return builder->Get();

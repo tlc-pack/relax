@@ -26,6 +26,8 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/tensor.h>
 
 #include <string>
 
@@ -38,7 +40,7 @@ using relay::Call;
  * \brief Infer the output shape for operators. This function will
  * be invoked to fill the \p shape_ field of expressions.
  * \param call The call node.
- * \return shape_expr The ouput shape expression.
+ * \return shape_expr The inferred ouput shape expression.
  */
 using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(Call call)>;
 
@@ -46,9 +48,30 @@ using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(Call call)>;
  * \brief Infer the output type for operators. This function will
  * be invoked to fill the \p checked_type_ field of expressions.
  * \param call The call node.
- * \return type The ouput type.
+ * \return type The inferred ouput type.
  */
 using FInferType = runtime::TypedPackedFunc<Type(Call call)>;
+
+/*!
+ * \brief Computation description interface.
+ *
+ * \note This function have a special convention
+ *  for functions with tuple input/output.
+ *
+ *  So far we restrict tuple support to the following case:
+ *  - Function which takes a single tuple as input.
+ *  - Function which outputs a single tuple.
+ *
+ *  In both cases, the tuple is flattened as array.
+ *
+ * \param attrs The attribute of the primitive
+ * \param inputs The input tensors.
+ * \param out_type The output type information
+ &                 these are always placeholders.
+ * \return The output compute description of the operator.
+ */
+using FTVMCompute = runtime::TypedPackedFunc<Array<te::Tensor>(
+    const Attrs& attrs, const Array<te::Tensor>& inputs, const Type& out_type)>;
 
 }  // namespace relax
 }  // namespace tvm

@@ -26,8 +26,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op.h>
+#include <tvm/topi/broadcast.h>
 
 #include "../op_common.h"
 
@@ -36,6 +36,13 @@ namespace relax {
 
 using Expr = tvm::RelayExpr;
 using relay::Call;
+
+#define RELAX_BINARY_COMPUTE(FTOPI)                       \
+  [](const Attrs& attrs, const Array<te::Tensor>& inputs, \
+     const Type& out_type) -> Array<te::Tensor> {         \
+    ICHECK_EQ(inputs.size(), 2U);                         \
+    return {FTOPI(inputs[0], inputs[1])};                 \
+  }
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
@@ -55,31 +62,6 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
     return pdiff[0] == 0;
   }
   return false;
-}
-
-void BinaryBroadcast(TVMArgs args, TVMRetValue* rv) {
-  ShapeTuple lhs_shape = args[0];
-  ShapeTuple rhs_shape = args[0];
-  std::vector<int64_t> output_shape;
-  size_t ndim0 = lhs_shape.size();
-  size_t ndim1 = rhs_shape.size();
-  size_t i = 1;
-  for (; i <= std::min(ndim0, ndim1); ++i) {
-    int64_t lhs_dim = lhs_shape[ndim0 - i];
-    int64_t rhs_dim = rhs_shape[ndim1 - i];
-    if (lhs_dim == 1 || rhs_dim == 1 || lhs_dim == rhs_dim) {
-      output_shape.push_back(std::max(lhs_dim, rhs_dim));
-    } else {
-      LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
-                 << " for broadcasting";
-    }
-    size_t max_ndim = std::max(ndim0, ndim1);
-    ShapeTuple& longer_shape = (ndim0 > ndim1) ? lhs_shape : rhs_shape;
-    for (; i <= max_ndim; ++i) {
-      output_shape.push_back(longer_shape[max_ndim - i]);
-    }
-    *rv = ShapeTuple(output_shape.rbegin(), output_shape.rend());
-  }
 }
 
 Optional<Expr> InferShapeBinaryBroadcast(Call call) {
@@ -103,8 +85,9 @@ Optional<Expr> InferShapeBinaryBroadcast(Call call) {
       } else {
         // defer the computation of output shapes to runtime
         // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        return PackedFunc(BinaryBroadcast)(lhs_shape, rhs_shape);
-        // return Call()
+        // CallDPS("vm.binary_broadcast_shape_infer", {lhs_shape, rhs_shape});
+        // wait for calldps pr to be merged
+        return NullOpt;
       }
     }
     size_t max_ndim = std::max(ndim0, ndim1);
@@ -147,11 +130,15 @@ Type InferTypeBinaryBroadcast(Call call) {
   return VoidType();
 }
 
-RELAX_REGISTER_BINARY_OP("add").describe("Elementwise add with broadcasting").set_support_level(1);
-
-RELAX_REGISTER_BINARY_OP("multiply")
+RELAX_REGISTER_BINARY_OP("relax.add")
     .describe("Elementwise add with broadcasting")
-    .set_support_level(1);
+    .set_support_level(1)
+    .set_attr<FTVMCompute>("FTVMCompute", RELAX_BINARY_COMPUTE(topi::add));
+
+RELAX_REGISTER_BINARY_OP("relax.multiply")
+    .describe("Elementwise add with broadcasting")
+    .set_support_level(1)
+    .set_attr<FTVMCompute>("FTVMCompute", RELAX_BINARY_COMPUTE(topi::multiply));
 
 }  // namespace relax
 }  // namespace tvm
