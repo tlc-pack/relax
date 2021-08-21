@@ -32,6 +32,9 @@ namespace tvm {
 namespace relax {
 
 using relay::Id;
+using relay::Call;
+using relay::Tuple;
+using relay::TupleGetItem;
 using ExprNode = RelayExprNode;
 using Expr = RelayExpr;
 
@@ -388,7 +391,7 @@ class FunctionNode : public BaseFuncNode {
   static constexpr const char* _type_key = "relax.expr.Function";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
 class Function : public Expr {
@@ -396,6 +399,37 @@ class Function : public Expr {
   TVM_DLL Function(runtime::Optional<GlobalVar> name, Array<Var> params,
                    Expr body, Type ret_type);
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
+};
+
+
+/*! \brief The extern function, which can represent packed function. */
+class ExternFuncNode : public BaseFuncNode {
+ public:
+  /*! \brief The name of global symbol. */
+  String global_symbol;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("global_symbol", &global_symbol);
+  }
+
+  bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
+    return equal(global_symbol, other->global_symbol);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(global_symbol);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.ExternFunc";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncNode, BaseFuncNode);
+};
+
+class ExternFunc : public Expr {
+ public:
+  TVM_DLL ExternFunc(String global_symbol);
+  TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, Expr, ExternFuncNode);
 };
 
 }  // namespace relax

@@ -74,6 +74,7 @@ setrecursionlimit(10000)
 # Span
 Span = base.Span
 SourceName = base.SourceName
+Id = base.Id
 
 # Type
 Type = ty.Type
