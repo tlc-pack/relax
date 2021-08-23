@@ -169,7 +169,7 @@ class RelayExprNode : public BaseExprNode {
    *
    * Only valid when the expression's type is a Tensor.
    */
-  inline RelayExpr shape() const;
+  RelayExpr shape() const;
 
   /*!
    * \brief Check if the inferred(checked) type of the Expr
@@ -496,13 +496,6 @@ inline const Type& RelayExprNode::checked_type() const {
                                   << "field for " << GetRef<RelayExpr>(this);
   return this->checked_type_;
 }
-
-// inline const RelayExpr RelayExprNode::shape() const {
-//   if (this->shape_.defined()) {
-//     return Downcast<RelayExpr>(this->shape_);
-//   }
-//   return 
-// }
 
 template <typename TTypeNode>
 inline const TTypeNode* RelayExprNode::type_as() const {
