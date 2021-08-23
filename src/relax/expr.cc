@@ -23,7 +23,6 @@ namespace relax {
 
 using tvm::runtime::Optional;
 
-
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
 ShapeExpr::ShapeExpr(Array<PrimExpr> values) {
@@ -41,7 +40,7 @@ TVM_REGISTER_GLOBAL("relax.ShapeExpr")
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 Var::Var(Id vid,
-         Optional<Array<PrimExpr>> shape_annotation,
+         Optional<Expr> shape_annotation,
          Optional<Type> type_annotation,
          Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
@@ -54,7 +53,7 @@ Var::Var(Id vid,
 
 TVM_REGISTER_GLOBAL("relax.Var")
 .set_body_typed([](String name_hint,
-                   Optional<Array<PrimExpr>> shape_annotation,
+                   Optional<Expr> shape_annotation,
                    Optional<Type> type_annotation) {
   return Var(name_hint, shape_annotation, type_annotation);
 });
@@ -64,7 +63,7 @@ TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
 TVM_REGISTER_GLOBAL("relax.DataflowVar")
 .set_body_typed([](String name_hint,
-                   Optional<Array<PrimExpr>> shape_annotation,
+                   Optional<Expr> shape_annotation,
                    Optional<Type> type_annotation) {
   return DataflowVar(name_hint, shape_annotation, type_annotation);
 });

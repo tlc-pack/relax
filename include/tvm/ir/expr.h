@@ -151,12 +151,13 @@ class RelayExprNode : public BaseExprNode {
   mutable Type checked_type_ = Type(nullptr);
 
   /*!
-  * \brief Stores the result of static shape analysis.
+  * \brief Stores the result of static shape analysis. It must be a RelayExpr
+  * and ObjectRef is used here to avoid cyclic typing.
   *
   * \note The value will be optional if a static shape can not be inferred.
   * use .shape() instead to acesss an always defined shape expression.
   */
-  Optional<Array<PrimExpr>> shape_ = Optional<Array<PrimExpr>>();
+  mutable Optional<ObjectRef> shape_ = Optional<ObjectRef>();
 
   /*!
    * \return The checked_type
@@ -495,6 +496,13 @@ inline const Type& RelayExprNode::checked_type() const {
                                   << "field for " << GetRef<RelayExpr>(this);
   return this->checked_type_;
 }
+
+// inline const RelayExpr RelayExprNode::shape() const {
+//   if (this->shape_.defined()) {
+//     return Downcast<RelayExpr>(this->shape_);
+//   }
+//   return 
+// }
 
 template <typename TTypeNode>
 inline const TTypeNode* RelayExprNode::type_as() const {
