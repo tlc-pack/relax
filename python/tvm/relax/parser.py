@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import TypeVar, Generic, Union, Dict, List, Tuple
+from typing import TypeVar, Generic, Union, Dict, List, Tuple, Optional
 from io import StringIO
 
 import tvm
@@ -17,37 +17,9 @@ from synr import ast, Transformer
 from synr.diagnostic_context import DiagnosticContext
 from tvm.relay.op.strategy.generic import conv1d_strategy
 
-from tvm.relax.expr import *
-from tvm.relax.ty import *
+import tvm.relay as relay
+import tvm.relax as rx
 
-
-# TODO: make this better
-# relax_scope = [] # A stack of dictionaries representing the scope
-# var_table = {}
-
-# A node that will desugar into a different AST node in a subsequent pass
-# class rxFrontendNode:
-#     def __init__(self, span):
-#         self.span = span
-
-
-# Allows arbitrary exprs on the left and the right
-# Desugars into two rxMatchShapeBinding
-# TODO: might be worth not parsing this into its own node..
-# class rxFrontendMatchShapeExprs(rxFrontendNode):
-#     def __init__(self, lhs, rhs, span):
-#         self.lhs = lhs
-#         self.rhs = rhs
-#         super().__init__(span)
-
-# class rxShapeTuple(rxExpr):
-#     def __init__(self, dims, span):
-#         self.dims = dims
-#         super().__init__(span)
-
-
-# TODO: What is this doing?
-# expr.Function.__str__ = print_fn # type: ignore
 
 # TODO: Replace with a real pretty print method once we have the real AST
 def pretty_print(f):
@@ -102,10 +74,10 @@ class RelaxTransformer(Transformer):
     def decl_var(
         self,
         name: str,
-        type_annotation: Optional[rxType],
-        shape: Optional[rxExpr],
+        type_annotation: Optional[rx.Type],
+        shape: Optional[rx.Expr],
         span: tvm.ir.Span,
-    ) -> rxVar:
+    ) -> Var:
         """Introduces a variable with the given name and annotations to the current scope.
 
         Parameters
@@ -129,11 +101,11 @@ class RelaxTransformer(Transformer):
                 "error", "variable has already been declared in the current scope", span
             )
             self._diagnostic_context.render()
-        var = rxVar(name, type_annotation, shape, span)
+        var = rx.Var(name, type_annotation, shape, span)
         self.scope[name] = var
         return var
 
-    def transform_type(self, ty: ast.Type, allow_intro: bool) -> Tuple[rxType, rxShape]:
+    def transform_type(self, ty: ast.Type, allow_intro: bool) -> Tuple[rx.Type, rx.Expr]:
         """Transforms the given synr type annotation to a Relax type and shape expression.
 
         Parameters
@@ -156,11 +128,11 @@ class RelaxTransformer(Transformer):
         # simple annotation with no type arguments
         if isinstance(ty, ast.TypeVar):
             if ty.id.name == "Tensor":
-                return (rxTensor(None, span), None)
+                return (rx.DynTensorType(rank=-1, dtype=None, span=span), None)
             elif ty.id.name == "Shape":
-                return (rxShape(span), None)
+                return (rx.ShapeType(span), None)
             elif ty.id.name == "Dim":
-                return (rxDim(span), None)
+                return (rx.DimType(span), None)
             else:
                 self._diagnostic_context.emit("error", "unknown type in annotation", span)
                 self._diagnostic_context.render()
@@ -215,7 +187,8 @@ class RelaxTransformer(Transformer):
                     )
                     self._diagnostic_context.render()
 
-                return (rxTensor(dtype, span), shape)
+                rank = len(shape) if shape is not None else -1
+                return (rx.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
             elif ty.id.name == "Tuple":
                 field_types = []
                 field_shapes = []
@@ -223,7 +196,7 @@ class RelaxTransformer(Transformer):
                     fty, fsh = self.transform_type(field, allow_intro=False)
                     field_types.append(fty)
                     field_shapes.append(fsh)
-                return rxTupleType(field_types, self.tvm_span(ty.span)), field_shapes
+                return relay.TupleType(field_types, self.tvm_span(ty.span)), field_shapes
             # TODO: other types with args, e.g. Ref[T], func types
         self._diagnostic_context.emit("error", "invalid type", span)
         self._diagnostic_context.render()
@@ -346,7 +319,7 @@ class RelaxTransformer(Transformer):
             self.module[func_name] = self.transform_function(func)
         return self.module
 
-    def transform_function(self, func: ast.Function) -> rxFunction:
+    def transform_function(self, func: ast.Function) -> rx.Function:
         with self.new_scope():
             params = []
             for param in func.params:
@@ -355,7 +328,7 @@ class RelaxTransformer(Transformer):
                 params.append(param)
             new_body = self.transform_block(func.body)
             ret_type, _ = self.transform_type(func.ret_type, allow_intro=False)
-        return rxFunction(func.name, params, new_body, ret_type, self.tvm_span(func.span))
+        return rx.Function(func.name, params, new_body, ret_type, self.tvm_span(func.span))
 
     # Stmts:
     # - Assert: probably unsupported for now
@@ -365,7 +338,7 @@ class RelaxTransformer(Transformer):
     # - Return: just the returned expression, must terminate blocks? (special case if-else)
     # - UnassignedCall: match_shape
     # - With: rx.dataflow
-    def transform_stmt(self, stmt: ast.Stmt) -> rxExpr:
+    def transform_stmt(self, stmt: ast.Stmt) -> rx.Expr:
         if isinstance(stmt, ast.Assign):
             if not isinstance(stmt.lhs, ast.Var):
                 self._diagnostic_context.emit(
@@ -376,13 +349,13 @@ class RelaxTransformer(Transformer):
                 self._diagnostic_context.render()
             # TODO: figure out proper way of doing this
             rhs = self.transform_expr(stmt.rhs)
-            if isinstance(rhs, rxCall) and rhs.op == "rx.call_packed":
+            if isinstance(rhs, relay.Call) and rhs.op == tvm.ir.Op.get("rx.call_packed"):
                 allow_intro = True
             else:
                 allow_intro = False
             ty, shape = self.transform_type(stmt.ty, allow_intro)
             lhs = self.decl_var(stmt.lhs.id.name, ty, shape, self.tvm_span(stmt.lhs.span))
-            return rxVarBinding(lhs, rhs, self.tvm_span(stmt.span))
+            return rx.VarBinding(lhs, rhs, self.tvm_span(stmt.span))
 
         elif isinstance(stmt, ast.If):
             # TODO: proper diagnostics
@@ -418,9 +391,9 @@ class RelaxTransformer(Transformer):
             with self.new_scope():
                 false_branch = self.transform_block(false_block)
             # TODO: the spans here are all sorts of messed up, not sure how to fix
-            ite_expr = rxIfThenElse(cond, true_branch, false_branch, self.tvm_span(stmt.span))
+            ite_expr = relay.If(cond, true_branch, false_branch, self.tvm_span(stmt.span))
             var = self.decl_var(var_name, None, None, self.tvm_span(false_assign.span))
-            return rxVarBinding(var, ite_expr, self.tvm_span(stmt.span))
+            return rx.VarBinding(var, ite_expr, self.tvm_span(stmt.span))
 
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
@@ -431,9 +404,9 @@ class RelaxTransformer(Transformer):
             op = self.transform_expr(call.func_name)
             # FIXME: this check is unreachable since transform_expr tries looking up func_name as a
             #        variable and fails
-            if op != "rx.match_shape":
+            if op != tvm.ir.Op.get("rx.match_shape"):
                 self._diagnostic_context.emit(
-                    "error", "the results of operator calls must be bound", self.tvm_span(stmt.span)
+                    "error", "the results of calls must be bound or used", self.tvm_span(stmt.span)
                 )
                 self._diagnostic_context.render()
             if len(stmt.call.params) != 2:
@@ -454,7 +427,7 @@ class RelaxTransformer(Transformer):
                 )
                 self._diagnostic_context.render()
             lhs_expr = self.parse_shape(lhs, allow_intro=True)
-            return rxMatchShape(lhs_expr, rhs_expr, self.tvm_span(stmt.span))
+            return rx.MatchShape(lhs_expr, rhs_expr, self.tvm_span(stmt.span))
 
         elif isinstance(stmt, ast.With):
             if not isinstance(stmt.rhs, ast.Call):

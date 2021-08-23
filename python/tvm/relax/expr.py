@@ -34,8 +34,8 @@ const = relay.const
 class ShapeExpr(Expr):
     values: List[PrimExpr]
 
-    def __init__(self, values: List[PrimExpr]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values)
+    def __init__(self, values: List[PrimExpr], span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -57,14 +57,16 @@ class Var(Expr):
     id: Id
     type_annotation: Optional[Type]
 
-    def __init__(self, name_hint: str,
-                 shape_annotation: Optional[Expr] = None,
-                 type_annotation: Optional[Type] = None) -> None:
-        if shape_annotation is not None:
-            shape_annotation = make_shape(shape_annotation)
-        self.__init_handle_by_constructor__(_ffi_api.Var, name_hint,
-                                            shape_annotation,
-                                            type_annotation)
+    def __init__(
+        self,
+        name_hint: str,
+        shape_annotation: Optional[List[Type]] = None,
+        type_annotation: Optional[Type] = None,
+        span: Span = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.Var, name_hint, shape_annotation, type_annotation, span
+        )
 
     @property
     def name_hint(self):
@@ -80,7 +82,8 @@ class DataflowVar(Var):
 
 @tvm._ffi.register_object("relax.expr.Binding")
 class Binding(Node):
-    pass
+    def __init__(self, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Binding, span)
 
 
 @tvm._ffi.register_object("relax.expr.MatchShape")
@@ -88,8 +91,8 @@ class MatchShape(Binding):
     pattern: List[PrimExpr]
     value: Expr
 
-    def __init__(self, pattern: List[PrimExpr], value: Expr) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value)
+    def __init__(self, pattern: List[PrimExpr], value: Expr, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value, span)
 
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
@@ -97,16 +100,16 @@ class VarBinding(Binding):
     var: Var
     value: Expr
 
-    def __init__(self, var: Var, value: Expr) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value)
+    def __init__(self, var: Var, value: Expr, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)
 
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
 class BindingBlock(Node):
     bindings: List[Binding]
 
-    def __init__(self, bindings: List[Binding]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings)
+    def __init__(self, bindings: List[Binding], span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)
 
 
 @tvm._ffi.register_object("relax.expr.DataflowBlock")
@@ -119,8 +122,8 @@ class SeqExpr(Expr):
     blocks: List[BindingBlock]
     body: Expr
 
-    def __init__(self, blocks: List[BindingBlock], body: Expr) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body)
+    def __init__(self, blocks: List[BindingBlock], body: Expr, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)
 
 
 @tvm._ffi.register_object("relax.expr.Function")
@@ -130,10 +133,15 @@ class Function(BaseFunc):
     body: Expr
     ret_type: Type
 
-    def __init__(self, params: List[Var], body: Expr,
-                 ret_type: Type, name: Optional[GlobalVar] = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Function, name, params,
-                                            body, ret_type)
+    def __init__(
+        self,
+        params: List[Var],
+        body: Expr,
+        ret_type: Type,
+        name: Optional[GlobalVar] = None,
+        span: Span = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Function, name, params, body, ret_type, span)
 
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
@@ -142,6 +150,7 @@ class ExternFunc(BaseFunc):
 
     def __init__(self, global_symbol: String) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol)
+
 
 def extern(name):
     return ExternFunc(name)
