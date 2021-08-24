@@ -27,6 +27,7 @@ Expr = relay.Expr
 Type = relay.Type
 GlobalVar = relay.GlobalVar
 Call = relay.Call
+If = relay.If
 const = relay.const
 
 
@@ -45,6 +46,7 @@ class ShapeExpr(Expr):
     def __len__(self):
         return len(self.values)
 
+
 def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
@@ -54,13 +56,13 @@ def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
 
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
-    id: Id
+    vid: Id
     type_annotation: Optional[Type]
 
     def __init__(
         self,
         name_hint: str,
-        shape_annotation: Optional[List[Type]] = None,
+        shape_annotation: Optional[Expr] = None,
         type_annotation: Optional[Type] = None,
         span: Span = None,
     ) -> None:
@@ -148,9 +150,9 @@ class Function(BaseFunc):
 class ExternFunc(BaseFunc):
     global_symbol: String
 
-    def __init__(self, global_symbol: String) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol)
+    def __init__(self, global_symbol: String, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol, span)
 
 
-def extern(name):
-    return ExternFunc(name)
+def extern(name, span: Span = None):
+    return ExternFunc(name, span)

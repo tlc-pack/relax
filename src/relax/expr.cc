@@ -178,14 +178,15 @@ TVM_REGISTER_GLOBAL("relax.Function")
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
-ExternFunc::ExternFunc(String global_symbol) {
+ExternFunc::ExternFunc(String global_symbol, Span span) {
   ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
+  n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol) {
-  return ExternFunc(global_symbol);
+TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
+  return ExternFunc(global_symbol, span);
 });
 
 }  // namespace relax

@@ -2,8 +2,8 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import pytest
 import tvm
 from tvm import relax as rx
-from tvm import tir
-
+from tvm import tir, relay
+from tvm.ir import structural_equal
 
 # TODO: replace xfails with proper diagnostics checking.
 #       c.f. tests/python/unittest/test_tvmscript_error_report.py
@@ -14,14 +14,13 @@ def rx_func(func):
 
 
 def check_shape(e, s):
-    if not isinstance(e, (list, tuple)) and e is not None:
-        e = e._shape
+    if isinstance(e, rx.Expr):
+        e = e.shape_
 
     if s is None:
         assert e is None
         return
 
-    assert isinstance(e, (list, tuple))
     assert len(e) == len(s)
 
     for edim, sdim in zip(e, s):
@@ -34,23 +33,33 @@ def check_shape(e, s):
 
 
 def check_tensor_var(v, s, d):
-    assert isinstance(v.type_annotation, rx.ty.rxTensor)
+    assert isinstance(v.type_annotation, rx.ty.DynTensorType)
     assert v.type_annotation.dtype == d
+    if isinstance(s, (list, tuple)):
+        assert v.type_annotation.rank == len(s)
     check_shape(v, s)
+
+
+def check_call(call, op, args):
+    assert isinstance(call, rx.Call)
+    if isinstance(op, str):
+        op = relay.op.get(op)
+    assert call.op == op
+    assert structural_equal(call.args, args)
 
 
 def test_annotations():
     @rx.script
     def foo(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
-        z: Tensor[(32, k), "float32"] = matmul(x, y)
-        w: Tensor[_, _] = mul(z, z)
-        t = sub(w, z)
+        z: Tensor[(32, k), "float32"] = nn.matmul(x, y)
+        w: Tensor[_, _] = multiply(z, z)
+        t = subtract(w, z)
         sh: Shape = t.shape
         return t
 
     f = rx_func(foo)
     x, y = f.params
-    z_bind, w_bind, t_bind, sh_bind = f.body.blocks[0]
+    z_bind, w_bind, t_bind, sh_bind = f.body.blocks[0].bindings
     z, mm = z_bind.var, z_bind.value
     w, mul = w_bind.var, w_bind.value
     t, sub = t_bind.var, t_bind.value
@@ -59,42 +68,33 @@ def test_annotations():
     check_tensor_var(x, (32, "m"), "float32")
     check_tensor_var(y, ("m", "k"), "float32")
     check_tensor_var(z, (32, "k"), "float32")
-    check_tensor_var(w, None, None)
+    check_tensor_var(w, None, "")
     assert t.type_annotation is None
-    assert isinstance(sh.type_annotation, rx.ty.rxShape)
+    assert isinstance(sh.type_annotation, rx.ty.ShapeType)
 
-    assert mm.op == "matmul"
-    assert mm.args == [x, y]
-
-    assert mul.op == "mul"
-    assert mul.args == [z, z]
-
-    assert sub.op == "sub"
-    assert sub.args == [w, z]
-
-    assert shape_of.op == "rx.shape_of"
-    assert shape_of.args == [t]
+    check_call(mm, "nn.matmul", [x, y])
+    check_call(mul, "multiply", [z, z])
+    check_call(sub, "subtract", [w, z])
+    check_call(shape_of, "shape_of", [t])
 
     assert f.body.body == t
 
-    assert isinstance(f.ret_type, rx.ty.rxTensor)
+    assert isinstance(f.ret_type, rx.ty.DynTensorType)
 
 
 def test_match_shape():
     @rx.script
     def foo(x: Tensor[_, "float32"]):
         rx.match_shape((n, m), x.shape)
-        y: Tensor[(n, m), "float32"] = refine(x)
+        y: Tensor[(n, m), "float32"] = add(x, x)
         return x
 
     f = rx_func(foo)
-    match_sh = f.body.blocks[0][0]
+    match_sh = f.body.blocks[0].bindings[0]
     pattern, value = match_sh.pattern, match_sh.value
 
     check_shape(pattern, ("n", "m"))
-    assert isinstance(value, rx.expr.rxCall)
-    assert value.op == "rx.shape_of"
-    assert value.args == [f.params[0]]
+    check_call(value, "shape_of", [f.params[0]])
 
 
 @pytest.mark.xfail
@@ -110,42 +110,38 @@ def test_if():
     def foo(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         if cond:
             w = add(x, x)
-            y = mul(w, w)
+            y = multiply(w, w)
         else:
-            w = mul(x, x)
+            w = multiply(x, x)
             y = add(w, w)
         return y
 
     f = rx_func(foo)
     cond, x = f.params
-    y_bind = f.body.blocks[0][0]
+    y_bind = f.body.blocks[0].bindings[0]
     y, ite = y_bind.var, y_bind.value
 
     check_tensor_var(cond, tuple(), "bool")
     check_tensor_var(x, (1,), "float32")
 
-    assert isinstance(y, rx.expr.rxVar)
-    assert y.id == "y"
+    assert isinstance(y, rx.Var)
+    assert y.name_hint == "y"
 
-    assert isinstance(ite, rx.expr.rxIfThenElse)
-    assert isinstance(ite.true_branch, rx.expr.rxSeqExpr)
-    assert isinstance(ite.false_branch, rx.expr.rxSeqExpr)
+    assert isinstance(ite, rx.If)
+    assert isinstance(ite.true_branch, rx.SeqExpr)
+    assert isinstance(ite.false_branch, rx.SeqExpr)
 
-    w_bind = ite.true_branch.blocks[0][0]
+    w_bind = ite.true_branch.blocks[0].bindings[0]
     body = ite.true_branch.body
-    assert w_bind.var.id == "w"
-    assert isinstance(w_bind.value, rx.expr.rxCall)
-    assert w_bind.value.op == "add" and w_bind.value.args == [x, x]
-    assert isinstance(body, rx.expr.rxCall)
-    assert body.op == "mul" and body.args == [w_bind.var, w_bind.var]
+    assert w_bind.var.name_hint == "w"
+    check_call(w_bind.value, "add", [x, x])
+    check_call(body, "multiply", [w_bind.var, w_bind.var])
 
-    w_bind = ite.false_branch.blocks[0][0]
+    w_bind = ite.false_branch.blocks[0].bindings[0]
     body = ite.false_branch.body
-    assert w_bind.var.id == "w"
-    assert isinstance(w_bind.value, rx.expr.rxCall)
-    assert w_bind.value.op == "mul" and w_bind.value.args == [x, x]
-    assert isinstance(body, rx.expr.rxCall)
-    assert body.op == "add" and body.args == [w_bind.var, w_bind.var]
+    assert w_bind.var.name_hint == "w"
+    check_call(w_bind.value, "multiply", [x, x])
+    check_call(body, "add", [w_bind.var, w_bind.var])
 
 
 # TODO: figure out if-else binding type and shape
@@ -167,9 +163,9 @@ def test_var_redefine_fail_if():
         y = x
         if cond:
             w = add(x, x)
-            y = mul(w, w)
+            y = multiply(w, w)
         else:
-            w = mul(x, x)
+            w = multiply(x, x)
             y = add(w, w)
         return y
 
@@ -180,11 +176,24 @@ def test_var_if_scoping_fail():
     def foo(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         if cond:
             w = add(x, x)
-            y = mul(w, w)
+            y = multiply(w, w)
         else:
-            w = mul(x, x)
+            w = multiply(x, x)
             y = add(w, w)
         return w
+
+
+@pytest.mark.xfail
+def test_if_mismatch_var_fail():
+    @rx.script
+    def foo(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
+        if cond:
+            w = add(x, x)
+            y = multiply(w, w)
+        else:
+            w = multiply(x, x)
+            z = add(w, w)
+        return z
 
 
 @pytest.mark.xfail
@@ -203,23 +212,21 @@ def test_tuple():
 
     f = rx_func(foo)
     x, y = f.params
-    t_bind = f.body.blocks[0][0]
+    t_bind = f.body.blocks[0].bindings[0]
     t, tup = t_bind.var, t_bind.value
 
-    assert isinstance(t.type_annotation, rx.ty.rxTupleType)
+    assert isinstance(t.type_annotation, relay.TupleType)
     annot = t.type_annotation
-    assert isinstance(annot.fields[0], rx.ty.rxTensor) and annot.fields[0].dtype is None
-    assert isinstance(annot.fields[1], rx.ty.rxTensor) and annot.fields[1].dtype == "float32"
+    assert isinstance(annot.fields[0], rx.ty.DynTensorType) and annot.fields[0].dtype == ""
+    assert isinstance(annot.fields[1], rx.ty.DynTensorType) and annot.fields[1].dtype == "float32"
 
-    assert isinstance(t._shape, list) and len(t._shape) == 2
-    check_shape(t._shape[0], None)
-    check_shape(t._shape[1], (32,))
+    assert t.shape_ is None
 
-    assert isinstance(tup, rx.expr.rxTuple)
-    assert tup.fields == [x, y]
-    assert isinstance(tup._shape, list) and len(tup._shape) == 2
-    check_shape(tup._shape[0], None)
-    check_shape(tup._shape[1], (32,))
+    assert isinstance(tup, rx.Tuple)
+    assert structural_equal(tup.fields, [x, y])
+    assert tup.shape_ is None
+    check_shape(tup.fields[0], None)
+    check_shape(tup.fields[1], (32,))
 
 
 # NOTE: this test requires patching synr to support local function definitions.
@@ -234,11 +241,11 @@ def test_local_func():
         return z
 
     f = rx_func(foo)
-    bar_bind, z_bind = f.body.blocks[0]
+    bar_bind, z_bind = f.body.blocks[0].bindings
     bar, bar_fn = bar_bind.var, bar_bind.value
     bar_x = z_bind.value
 
-    assert isinstance(bar_fn, rx.expr.rxFunction)
+    assert isinstance(bar_fn, rx.Function)
     assert bar_fn.body.body == bar_fn.params[0]
 
     assert bar_x.op == bar
@@ -249,10 +256,10 @@ def test_dataflow():
     def foo(x: Tensor[_, _]):
         with rx.dataflow():
             y = add(x, x)
-            z = mul(y, x)
-            w = sub(z, x)
+            z = multiply(y, x)
+            w = subtract(z, x)
             return y, w
-        t = div(y, w)
+        t = divide(y, w)
         return t
 
     f = rx_func(foo)
@@ -267,10 +274,10 @@ def test_dataflow_scope_fail():
     def foo(x: Tensor[_, _]):
         with rx.dataflow():
             y = add(x, x)
-            z = mul(y, x)
-            w = sub(z, x)
+            z = multiply(y, x)
+            w = subtract(z, x)
             return y, w
-        t = div(y, z)
+        t = divide(y, z)
         return t
 
 
@@ -280,10 +287,10 @@ def test_dataflow_syntax_fail_pattern():
     def foo(x: Tensor[_, _]):
         with rx.dataflow() as df:
             y = add(x, x)
-            z = mul(y, x)
-            w = sub(z, x)
+            z = multiply(y, x)
+            w = subtract(z, x)
             return y, w
-        t = div(y, z)
+        t = divide(y, z)
         return t
 
 
@@ -293,8 +300,8 @@ def test_dataflow_syntax_fail_params():
     def foo(x: Tensor[_, _]):
         with rx.dataflow(x) as df:
             y = add(x, x)
-            z = mul(y, x)
-            w = sub(z, x)
+            z = multiply(y, x)
+            w = subtract(z, x)
             return y, w
-        t = div(y, z)
+        t = divide(y, z)
         return t

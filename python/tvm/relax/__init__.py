@@ -42,6 +42,8 @@ ShapeExpr = expr.ShapeExpr
 Tuple = expr.Tuple
 Function = expr.Function
 ExternFunc = expr.ExternFunc
+Call = expr.Call
+If = expr.If
 
 # helper functions
 const = expr.const
@@ -63,3 +65,6 @@ from .op.base import call_dps
 
 # IRBuilder
 IRBuilder = ir_builder.IRBuilder
+
+# Parser
+from .parser import script

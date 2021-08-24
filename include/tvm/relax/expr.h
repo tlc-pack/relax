@@ -33,8 +33,8 @@ namespace relax {
 
 using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
-using relay::Id;
 using relay::Call;
+using relay::Id;
 using relay::Tuple;
 using relay::TupleGetItem;
 
@@ -117,12 +117,12 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
-  TVM_DLL explicit Var(String name_hint, runtime::Optional<Array<PrimExpr>> shape_annotation,
-              runtime::Optional<Type> type_annotation, Span span = Span())
+  TVM_DLL explicit Var(String name_hint, runtime::Optional<Expr> shape_annotation,
+                       runtime::Optional<Type> type_annotation, Span span = Span())
       : Var(Id(name_hint), shape_annotation, type_annotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, runtime::Optional<Array<PrimExpr>> shape_annotation,
-              runtime::Optional<Type> type_annotation, Span span = Span());
+  TVM_DLL explicit Var(Id vid, runtime::Optional<Expr> shape_annotation,
+                       runtime::Optional<Type> type_annotation, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
 };
 
@@ -389,10 +389,10 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public Expr {
  public:
-  TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body, Type ret_type, Span span = Span());
+  TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
+                            Type ret_type, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
 };
-
 
 /*! \brief The extern function, which can represent packed function. */
 class ExternFuncNode : public BaseFuncNode {
@@ -402,15 +402,14 @@ class ExternFuncNode : public BaseFuncNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
     return equal(global_symbol, other->global_symbol);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(global_symbol);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(global_symbol); }
 
   static constexpr const char* _type_key = "relax.expr.ExternFunc";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -420,7 +419,7 @@ class ExternFuncNode : public BaseFuncNode {
 
 class ExternFunc : public Expr {
  public:
-  TVM_DLL ExternFunc(String global_symbol);
+  TVM_DLL ExternFunc(String global_symbol, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, Expr, ExternFuncNode);
 };
 
