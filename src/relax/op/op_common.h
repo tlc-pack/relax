@@ -68,7 +68,7 @@ RELAY_REGISTER_OP("call_dps")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.");
 
-/*! \brief The external call with no shape annotation. */
+/*! \brief The external function call with no shape annotation. */
 Expr MakeCall(Expr func, Tuple args) {
   static const Op& op = Op::Get("call");
   return Call(op, {func, args}, {}, {});

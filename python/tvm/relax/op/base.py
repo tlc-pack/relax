@@ -62,7 +62,7 @@ def call(func: Expr,
     Returns
     -------
     ret: Call
-        A call node for the call_dps operator.
+        A call node for the call operator.
     """
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
