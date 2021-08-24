@@ -83,7 +83,9 @@ class IRBuilder(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.IRBuilderCreate)
 
-    def function(self, name: str, params: Union[Var, List[Var]]) -> FunctionScope:
+    def function(self,
+                 name: str,
+                 params: Union[Var, Tuple, List[Var]]) -> FunctionScope:
         """Annotate a Relax function.
 
         Parameters
@@ -116,7 +118,8 @@ class IRBuilder(Object):
 
         return DataflowScope(build_block, switch_block)
 
-    def emit(self, call: relay.Call) -> Var:
+    def emit(self, 
+             call: relay.Call) -> Var:
         """Emit a call node.
         This infers the shape and type of the CallNode, create a variable,
         and bind the CallNode to the variable.
@@ -133,7 +136,8 @@ class IRBuilder(Object):
         """
         return _ffi_api.IRBuilderEmit(self, call)
 
-    def emit_df_output(self, var: Var) -> Var:
+    def emit_df_output(self,
+                       var: Var) -> Var:
         """Emit a dataflow block's output variable, and it can be used outside the dataflow block.
 
         Parameters
@@ -148,7 +152,8 @@ class IRBuilder(Object):
         """
         return _ffi_api.IRBuilderEmitDataflowOutput(self, var)
 
-    def emit_output(self, output: Union[Expr, List[Expr]]) -> None:
+    def emit_output(self,
+                    output: Union[Expr, Tuple, List[Expr]]) -> None:
         """Emit function outputs.
 
         Parameters

@@ -68,7 +68,7 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
   ICHECK_EQ(call->args.size(), 2);
   auto lhs_shape = call->args[0]->shape_;
   auto rhs_shape = call->args[1]->shape_;
-  if (lhs_shape && rhs_shape) {
+  if (lhs_shape.defined() && rhs_shape.defined()) {
     std::vector<PrimExpr> output_shape;
     size_t ndim0 = lhs_shape.value().size();
     size_t ndim1 = rhs_shape.value().size();
@@ -85,9 +85,8 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
       } else {
         // defer the computation of output shapes to runtime
         // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        // Question: do we want a non-dps style call_packed intrinsic?
-        return MakeCallDPS(ShapeExpr(), ExternFunc(String("vm.binary_broadcast_shape_infer")),
-                           Tuple({call->args[0], call->args[1]}));
+        return MakeCall(ExternFunc(String("vm.binary_broadcast_shape_infer")),
+                        Tuple({call->args[0], call->args[1]}));
       }
     }
     size_t max_ndim = std::max(ndim0, ndim1);

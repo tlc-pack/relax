@@ -57,7 +57,7 @@ VirtualMachine = vm.VirtualMachine
 load_exec_from_file = vm.load_exec_from_file
 
 # Operator
-from .op.base import call_dps
+from .op.base import call_dps, call
 
 # IRBuilder
 IRBuilder = ir_builder.IRBuilder
