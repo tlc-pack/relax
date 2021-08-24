@@ -48,7 +48,7 @@ struct RelaxFunction {
   /*! \brief The return of the function. */
   Expr ret;
   /*! \brief The FunctionNode being built. */
-  relax::Function func;
+  Function func;
 };
 
 /*!

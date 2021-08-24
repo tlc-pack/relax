@@ -42,17 +42,30 @@ namespace relax {
  *
  * \param OpName the name of registry.
  */
-#define RELAX_REGISTER_BINARY_OP(OpName)                                                \
-  TVM_REGISTER_GLOBAL("relax.op._make." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
-    static const Op& op = Op::Get(OpName);                                              \
-    return Call(op, {lhs, rhs}, Attrs(), {});                                           \
-  });                                                                                   \
-  RELAY_REGISTER_OP(OpName)                                                             \
-      .set_num_inputs(2)                                                                \
-      .add_argument("lhs", "Tensor", "The left hand side tensor.")                      \
-      .add_argument("rhs", "Tensor", "The right hand side tensor.")                     \
-      .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)                  \
+#define RELAX_REGISTER_BINARY_OP(OpName)                                          \
+  TVM_REGISTER_GLOBAL("relax.op." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
+    static const Op& op = Op::Get(OpName);                                        \
+    return Call(op, {lhs, rhs}, Attrs(), {});                                     \
+  });                                                                             \
+  RELAY_REGISTER_OP(OpName)                                                       \
+      .set_num_inputs(2)                                                          \
+      .add_argument("lhs", "Tensor", "The left hand side tensor.")                \
+      .add_argument("rhs", "Tensor", "The right hand side tensor.")               \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)            \
       .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast)
+
+Expr MakeCallDPS(ShapeExpr shape, Expr func, Tuple args) {
+  static const Op& op = Op::Get("call_dps");
+  return Call(op, {shape, func, args}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_dps").set_body_typed(MakeCallDPS);
+
+RELAY_REGISTER_OP("call_dps")
+    .set_num_inputs(3)
+    .add_argument("shape", "ShapeExpr", "The output shape.")
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.");
 
 }  // namespace relax
 }  // namespace tvm

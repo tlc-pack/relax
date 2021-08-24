@@ -64,7 +64,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Optional<Expr> InferShapeBinaryBroadcast(Call call) {
+Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
   ICHECK_EQ(call->args.size(), 2);
   auto lhs_shape = call->args[0]->shape_;
   auto rhs_shape = call->args[1]->shape_;
@@ -85,9 +85,9 @@ Optional<Expr> InferShapeBinaryBroadcast(Call call) {
       } else {
         // defer the computation of output shapes to runtime
         // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        // CallDPS("vm.binary_broadcast_shape_infer", {lhs_shape, rhs_shape});
-        // wait for calldps pr to be merged
-        return NullOpt;
+        // Question: do we want a non-dps style call_packed intrinsic?
+        return MakeCallDPS(ShapeExpr(), ExternFunc(String("vm.binary_broadcast_shape_infer")),
+                           Tuple({call->args[0], call->args[1]}));
       }
     }
     size_t max_ndim = std::max(ndim0, ndim1);
@@ -101,42 +101,42 @@ Optional<Expr> InferShapeBinaryBroadcast(Call call) {
   }
 }
 
-Type InferTypeBinaryBroadcast(Call call) {
+Type InferTypeBinaryBroadcast(const Call& call) {
   ICHECK_EQ(call->args.size(), 2);
   Type lhs_type = call->args[0]->checked_type_;
   Type rhs_type = call->args[1]->checked_type_;
-  if (auto* t0 = lhs_type.as<DynTensorTypeNode>()) {
-    if (auto* t1 = rhs_type.as<DynTensorTypeNode>()) {
-      DataType outout_dtype;
-      if (t0->IsUnknownDtype() || t1->IsUnknownDtype()) {
-        outout_dtype = DataType::Void();
-      } else if (t0->dtype != t1->dtype) {
-        LOG(FATAL) << "Data types " << t0->dtype << " and " << t1->dtype
-                   << " do not match broadcasting rule";
-      } else {
-        outout_dtype = t0->dtype;
-      }
-
-      int output_rank;
-      if (t0->IsUnknownRank() || t1->IsUnknownRank()) {
-        output_rank = -1;
-      } else {
-        output_rank = std::max(t0->rank, t1->rank);
-      }
-      return DynTensorType(output_rank, outout_dtype);
-    }
+  auto* t0 = lhs_type.as<DynTensorTypeNode>();
+  auto* t1 = rhs_type.as<DynTensorTypeNode>();
+  if (!t0 || !t1) {
+    LOG(FATAL) << "Both lhs and rhs should be DynTensor for broadcasting";
   }
-  LOG(FATAL) << "Both lhs and rhs should be DynTensor for broadcasting";
-  return VoidType();
+
+  DataType output_dtype;
+  if (t0->IsUnknownDtype() || t1->IsUnknownDtype()) {
+    output_dtype = DataType::Void();
+  } else if (t0->dtype != t1->dtype) {
+    LOG(FATAL) << "Data types " << t0->dtype << " and " << t1->dtype
+               << " do not match broadcasting rule";
+  } else {
+    output_dtype = t0->dtype;
+  }
+
+  int output_rank;
+  if (t0->IsUnknownRank() || t1->IsUnknownRank()) {
+    output_rank = -1;
+  } else {
+    output_rank = std::max(t0->rank, t1->rank);
+  }
+  return DynTensorType(output_rank, output_dtype);
 }
 
-RELAX_REGISTER_BINARY_OP("relax.add")
+RELAX_REGISTER_BINARY_OP("relax_add")
     .describe("Elementwise add with broadcasting")
     .set_support_level(1)
     .set_attr<FTVMCompute>("FTVMCompute", RELAX_BINARY_COMPUTE(topi::add));
 
-RELAX_REGISTER_BINARY_OP("relax.multiply")
-    .describe("Elementwise add with broadcasting")
+RELAX_REGISTER_BINARY_OP("relax_multiply")
+    .describe("Elementwise multiply with broadcasting")
     .set_support_level(1)
     .set_attr<FTVMCompute>("FTVMCompute", RELAX_BINARY_COMPUTE(topi::multiply));
 
