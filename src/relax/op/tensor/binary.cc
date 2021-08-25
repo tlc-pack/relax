@@ -85,8 +85,8 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
       } else {
         // defer the computation of output shapes to runtime
         // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        return MakeCall(ExternFunc(String("vm.binary_broadcast_shape_infer")),
-                        Tuple({call->args[0], call->args[1]}));
+        return Call(ExternFunc(String("vm.binary_broadcast_shape_infer")),
+                    {call->args[0], call->args[1]}, {}, {});
       }
     }
     size_t max_ndim = std::max(ndim0, ndim1);

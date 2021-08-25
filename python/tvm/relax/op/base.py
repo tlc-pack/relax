@@ -45,25 +45,3 @@ def call_dps(shape: Union[ShapeExpr, List[int]],
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
     return _ffi_api.call_dps(shape, func, args)
-
-def call(func: Expr,
-         args: Union[Tuple, List[Expr]]) -> Call:
-    """
-    Call a function and return the output.
-
-    Parameters
-    ----------
-    func : ExternFunc or PrimFunc
-        The function to be called.
-
-    args : Tuple[Expr]
-        The input arguments.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call operator.
-    """
-    if isinstance(args, (list, tuple)):
-        args = Tuple(args)
-    return _ffi_api.call(func, args)
