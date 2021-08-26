@@ -19,6 +19,21 @@
 #include <tvm/relax/expr.h>
 
 namespace tvm {
+
+RelayExpr RelayExprNode::shape() const {
+  if (this->shape_.defined()) {
+    return Downcast<RelayExpr>(this->shape_);
+  }
+  static const Op& op = Op::Get("relax.shape_of");
+  RelayExpr self = GetRef<RelayExpr>(this);
+  return relay::Call(op, {self}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("ir.RelayExprShape")
+.set_body_typed([](RelayExpr expr) {
+  return expr->shape();
+});
+
 namespace relax {
 
 using tvm::runtime::Optional;

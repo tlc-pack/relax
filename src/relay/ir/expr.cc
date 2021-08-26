@@ -25,16 +25,6 @@
 #include <tvm/relay/expr.h>
 
 namespace tvm {
-
-RelayExpr RelayExprNode::shape() const {
-  if (this->shape_.defined()) {
-    return Downcast<RelayExpr>(this->shape_);
-  }
-  static const Op& op = Op::Get("shape_of");
-  RelayExpr self = GetRef<RelayExpr>(this);
-  return relay::Call(op, {self}, {}, {});
-}
-
 namespace relay {
 
 using tvm::ReprPrinter;
