@@ -23,37 +23,32 @@ from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
 
-class FunctionScope(object):
+@tvm._ffi.register_object("relax.FunctionScope")
+class FunctionScope(Object):
     """Auxiliary scope for function"""
 
-    def __init__(self, name, params, build_block, build_function):
-        self.name = name
-        self.params = params
-        self.build_block = build_block
-        self.build_function = build_function
+    def __init__(self, irbuilder):
+        self.__init_handle_by_constructor__(_ffi_api.CreateFunctionScope, irbuilder)
 
     def __enter__(self):
         return self
 
     def __exit__(self, ptype, value, trace):
-        self.build_block()
-        self.build_function(self.name, self.params)
+        _ffi_api.ExitFunctionScope(self)
 
 
-class DataflowScope(object):
+@tvm._ffi.register_object("relax.DataflowScope")
+class DataflowScope(Object):
     """Auxiliary scope for Dataflow block"""
 
-    def __init__(self, build_block, switch_block):
-        self.build_block = build_block
-        self.switch_block = switch_block
+    def __init__(self, irbuilder):
+        self.__init_handle_by_constructor__(_ffi_api.CreateDataflowScope, irbuilder)
 
     def __enter__(self):
-        self.build_block()
-        self.switch_block()
+        _ffi_api.EnterDataflowScope(self)
 
     def __exit__(self, ptype, value, trace):
-        self.build_block()
-        self.switch_block()
+        _ffi_api.ExitDataflowScope(self)
 
 
 @tvm._ffi.register_object("relax.IRBuilder")
@@ -99,26 +94,14 @@ class IRBuilder(Object):
         if not isinstance(params, (list, tuple)):
             params = [params]
 
-        def build_block():
-            return _ffi_api.IRBuilderBuildBlock(self)
-
-        def build_function(name, params):
-            return _ffi_api.IRBuilderBuildFunction(self, name, params)
-
-        return FunctionScope(name, params, build_block, build_function)
+        _ffi_api.IRBuilderFillFuncNameParam(self, name, params)
+        return FunctionScope(self)
 
     def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block."""
+        return DataflowScope(self)
 
-        def build_block():
-            return _ffi_api.IRBuilderBuildBlock(self)
-
-        def switch_block():
-            return _ffi_api.IRBuilderSwitchBlock(self)
-
-        return DataflowScope(build_block, switch_block)
-
-    def emit(self, 
+    def emit(self,
              call: relay.Call) -> Var:
         """Emit a call node.
         This infers the shape and type of the CallNode, create a variable,

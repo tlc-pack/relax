@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/relax/ir_builder.h
- * \brief
+ * \brief The utility for constructing Relax AST.
  */
 #ifndef TVM_RELAX_IR_BUILDER_H_
 #define TVM_RELAX_IR_BUILDER_H_
@@ -29,6 +29,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/with.h>
 
 namespace tvm {
 namespace relax {
@@ -41,6 +42,10 @@ class IRBuilder;
  * \brief A representation of a Relax function.
  */
 struct RelaxFunction {
+  /*! \brief The function name. */
+  std::string func_name;
+  /*! \brief The function parameters. */
+  Array<Var> params;
   /*! \brief The bindings in the function. */
   std::vector<Binding> bindings;
   /*! \brief The binding blocks in the function. */
@@ -57,11 +62,13 @@ struct RelaxFunction {
 class IRBuilderNode : public Object {
  public:
   /*!
-   * \brief Build a function node.
-   * \param name The function name.
-   * \param params The function parameters.
+   * \brief Fill the function name and parameters.
    */
-  void BuildFunction(const std::string& name, const Array<Var>& params);
+  void FillFuncNameParam(const std::string& func_name, const Array<Var>& params);
+  /*!
+   * \brief Build a function node.
+   */
+  void BuildFunction();
   /*!
    * \brief Build a binding block.
    */
@@ -118,6 +125,68 @@ class IRBuilderNode : public Object {
 class IRBuilder : public ObjectRef {
  public:
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(IRBuilder, ObjectRef, IRBuilderNode);
+};
+
+/*! \brief Auxiliary scope for building function,
+ * similar to python's with syntax.
+ */
+class FunctionScopeNode : public Object {
+ public:
+  IRBuilder ir_builder;
+  void VisitAttrs(AttrVisitor* v) { v->Visit("ir_builder", &ir_builder); }
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.FunctionScope";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionScopeNode, Object);
+};
+
+class FunctionScope : public ObjectRef {
+ public:
+  /*!
+   * \brief construct from IRBuilder
+   * \param ib The clauses in the specialized condition.
+   */
+  TVM_DLL FunctionScope(IRBuilder ib);
+  TVM_DEFINE_OBJECT_REF_METHODS(FunctionScope, ObjectRef, FunctionScopeNode);
+  class Internal;
+
+ private:
+  // Classes to get the Python `with` like syntax.
+  friend class Internal;
+  friend class With<FunctionScope>;
+  // The entry of a function scope.
+  TVM_DLL void EnterWithScope();
+  // The exit of a function scope.
+  TVM_DLL void ExitWithScope();
+};
+
+/*! \brief Auxiliary scope for building dataflow block,
+ * similar to python's with syntax.
+ */
+class DataflowScopeNode : public Object {
+ public:
+  IRBuilder ir_builder;
+  void VisitAttrs(AttrVisitor* v) { v->Visit("ir_builder", &ir_builder); }
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.DataflowScope";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowScopeNode, Object);
+};
+
+class DataflowScope : public ObjectRef {
+ public:
+  TVM_DLL DataflowScope(IRBuilder ib);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowScope, ObjectRef, DataflowScopeNode);
+  class Internal;
+
+ private:
+  // Classes to get the Python `with` like syntax.
+  friend class Internal;
+  friend class With<DataflowScope>;
+  // The entry of a dataflow scope.
+  TVM_DLL void EnterWithScope();
+  // The exit of a dataflow scope.
+  TVM_DLL void ExitWithScope();
 };
 
 }  // namespace relax

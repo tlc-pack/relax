@@ -29,18 +29,26 @@ namespace tvm {
 namespace relax {
 
 TVM_REGISTER_NODE_TYPE(IRBuilderNode);
+TVM_REGISTER_NODE_TYPE(FunctionScopeNode);
+TVM_REGISTER_NODE_TYPE(DataflowScopeNode);
 
 IRBuilder IRBuilderNode::Create() {
   IRBuilder ret(make_object<IRBuilderNode>());
   return ret;
 }
 
-void IRBuilderNode::BuildFunction(const std::string& func_name, const Array<Var>& params) {
+void IRBuilderNode::FillFuncNameParam(const std::string& func_name, const Array<Var>& params) {
+  this->func.func_name = func_name;
+  this->func.params = params;
+}
+
+void IRBuilderNode::BuildFunction() {
   SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
   if (func.ret.defined()) {
-    this->func.func = Function(GlobalVar(func_name), params, seq, this->func.ret->checked_type_);
+    this->func.func = Function(GlobalVar(this->func.func_name), this->func.params, seq,
+                               this->func.ret->checked_type_);
   } else {
-    this->func.func = Function(GlobalVar(func_name), params, seq, {});
+    this->func.func = Function(GlobalVar(this->func.func_name), this->func.params, seq, {});
   }
 }
 
@@ -120,15 +128,54 @@ inline void IRBuilderNode::SwitchBlock() { is_dataflow = !is_dataflow; }
 
 Function IRBuilderNode::Get() { return this->func.func; }
 
+class FunctionScope::Internal {
+ public:
+  static void ExitScope(FunctionScope scope) { scope.ExitWithScope(); }
+};
+
+FunctionScope::FunctionScope(IRBuilder ib) {
+  ObjectPtr<FunctionScopeNode> n = make_object<FunctionScopeNode>();
+  n->ir_builder = std::move(ib);
+  data_ = std::move(n);
+}
+
+void FunctionScope::ExitWithScope() {
+  this->get()->ir_builder->BuildBlock();
+  this->get()->ir_builder->BuildFunction();
+}
+
+class DataflowScope::Internal {
+ public:
+  static void EnterScope(DataflowScope scope) { scope.EnterWithScope(); }
+
+  static void ExitScope(DataflowScope scope) { scope.ExitWithScope(); }
+};
+
+DataflowScope::DataflowScope(IRBuilder ib) {
+  ObjectPtr<DataflowScopeNode> n = make_object<DataflowScopeNode>();
+  n->ir_builder = std::move(ib);
+  data_ = std::move(n);
+}
+
+void DataflowScope::EnterWithScope() {
+  this->get()->ir_builder->BuildBlock();
+  this->get()->ir_builder->SwitchBlock();
+}
+
+void DataflowScope::ExitWithScope() {
+  this->get()->ir_builder->BuildBlock();
+  this->get()->ir_builder->SwitchBlock();
+}
+
 TVM_REGISTER_GLOBAL("relax.IRBuilderCreate").set_body_typed(IRBuilderNode::Create);
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction")
+TVM_REGISTER_GLOBAL("relax.IRBuilderFillFuncNameParam")
     .set_body_typed([](IRBuilder builder, const std::string& func_name, const Array<Var>& params) {
-      return builder->BuildFunction(func_name, params);
+      return builder->FillFuncNameParam(func_name, params);
     });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderBuildBlock").set_body_typed([](IRBuilder builder) {
-  return builder->BuildBlock();
+TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction").set_body_typed([](IRBuilder builder) {
+  return builder->BuildFunction();
 });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, const Call& call) {
@@ -147,9 +194,19 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderGet").set_body_typed([](IRBuilder builder) {
   return builder->Get();
 });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderSwitchBlock").set_body_typed([](IRBuilder builder) {
-  return builder->SwitchBlock();
+TVM_REGISTER_GLOBAL("relax.CreateFunctionScope").set_body_typed([](IRBuilder ib) {
+  return FunctionScope(ib);
 });
+
+TVM_REGISTER_GLOBAL("relax.ExitFunctionScope").set_body_typed(FunctionScope::Internal::ExitScope);
+
+TVM_REGISTER_GLOBAL("relax.CreateDataflowScope").set_body_typed([](IRBuilder ib) {
+  return DataflowScope(ib);
+});
+
+TVM_REGISTER_GLOBAL("relax.EnterDataflowScope").set_body_typed(DataflowScope::Internal::EnterScope);
+
+TVM_REGISTER_GLOBAL("relax.ExitDataflowScope").set_body_typed(DataflowScope::Internal::ExitScope);
 
 }  // namespace relax
 }  // namespace tvm
