@@ -129,15 +129,13 @@ Type InferTypeBinaryBroadcast(const Call& call) {
   return DynTensorType(output_rank, output_dtype);
 }
 
-RELAX_REGISTER_BINARY_OP("relax_add")
+RELAX_REGISTER_BINARY_OP("add")
     .describe("Elementwise add with broadcasting")
-    .set_support_level(1)
-    .set_attr<FTVMCompute>("FTVMCompute", RELAX_BINARY_COMPUTE(topi::add));
+    .set_support_level(1);
 
-RELAX_REGISTER_BINARY_OP("relax_multiply")
+RELAX_REGISTER_BINARY_OP("multiply")
     .describe("Elementwise multiply with broadcasting")
-    .set_support_level(1)
-    .set_attr<FTVMCompute>("FTVMCompute", RELAX_BINARY_COMPUTE(topi::multiply));
+    .set_support_level(1);
 
 }  // namespace relax
 }  // namespace tvm

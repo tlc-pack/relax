@@ -4,9 +4,9 @@ from ..expr import Expr
 
 def add(lhs: Expr,
         rhs: Expr) -> Expr:
-    return _ffi_api.relax_add(lhs, rhs)
+    return _ffi_api.add(lhs, rhs)
 
 
 def multiply(lhs: Expr,
              rhs: Expr) -> Expr:
-    return _ffi_api.relax_multiply(lhs, rhs)
+    return _ffi_api.multiply(lhs, rhs)

@@ -54,20 +54,6 @@ namespace relax {
       .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)            \
       .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast)
 
-/*! \brief The destination-passing-style call with output shape specified. */
-Expr MakeCallDPS(ShapeExpr shape, Expr func, Tuple args) {
-  static const Op& op = Op::Get("call_dps");
-  return Call(op, {shape, func, args}, {}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.call_dps").set_body_typed(MakeCallDPS);
-
-RELAY_REGISTER_OP("call_dps")
-    .set_num_inputs(3)
-    .add_argument("shape", "ShapeExpr", "The output shape.")
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.");
-
 }  // namespace relax
 }  // namespace tvm
 
