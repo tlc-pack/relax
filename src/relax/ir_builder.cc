@@ -128,6 +128,8 @@ inline void IRBuilderNode::SwitchBlock() { is_dataflow = !is_dataflow; }
 
 Function IRBuilderNode::Get() { return this->func.func; }
 
+std::vector<BindingBlock> IRBuilderNode::GetBlocks() { return this->func.binding_blocks; }
+
 class FunctionScope::Internal {
  public:
   static void ExitScope(FunctionScope scope) { scope.ExitWithScope(); }
@@ -192,6 +194,10 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderGet").set_body_typed([](IRBuilder builder) {
   return builder->Get();
+});
+
+TVM_REGISTER_GLOBAL("relax.IRBuilderGetBlocks").set_body_typed([](IRBuilder builder) {
+  return Array<BindingBlock>(builder->GetBlocks());
 });
 
 TVM_REGISTER_GLOBAL("relax.CreateFunctionScope").set_body_typed([](IRBuilder ib) {

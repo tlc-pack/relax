@@ -95,6 +95,10 @@ class IRBuilderNode : public Object {
    */
   Function Get();
   /*!
+   * \brief Get binding blocks being built.
+   */
+  std::vector<BindingBlock> GetBlocks();
+  /*!
    * \brief Flip \p is_dataflow to indicate switching from DataflowBlock to BindingBlock or the
    * other way around.
    */

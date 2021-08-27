@@ -151,3 +151,7 @@ class IRBuilder(Object):
     def get(self) -> Function:
         """Return the function being built."""
         return _ffi_api.IRBuilderGet(self)
+
+    def get_blocks(self) -> List[BindingBlock]:
+        """Return the binding blocks being built."""
+        return _ffi_api.IRBuilderGetBlocks(self)

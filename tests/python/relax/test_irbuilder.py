@@ -16,10 +16,31 @@
 # under the License.
 
 from tvm import tir
+from tvm.ir import TensorType
 from tvm import relax as rx
 
 
-def test_irbuilder():
+def test_dataflow_block():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    ib = rx.IRBuilder()
+    with ib.dataflow() as df:
+        lv0 = ib.emit(rx.op.add(x, y))
+        assert lv0.name_hint == "lv0"
+        lv1 = ib.emit(rx.op.multiply(lv0, y))
+        assert lv1.name_hint == "lv1"
+        gv0 = ib.emit_df_output(lv1)
+        assert gv0.name_hint == "gv0"
+    blocks = ib.get_blocks()
+    assert len(blocks) == 1
+    assert len(blocks[-1].bindings) == 3
+
+
+def test_function():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
     dtype0 = rx.DynTensorType(rank=2, dtype="float16")
@@ -52,4 +73,5 @@ def test_irbuilder():
 
 
 if __name__ == "__main__":
-    test_irbuilder()
+    test_dataflow_block()
+    test_function()
