@@ -61,6 +61,7 @@ void IRBuilderNode::BuildBlock() {
     }
     this->func.bindings.clear();
   }
+  this->SwitchBlock();
 }
 
 Optional<RelayExpr> InferShape(const Call& call) {
@@ -109,20 +110,18 @@ Var IRBuilderNode::Emit(const Call& call) {
   return var;
 }
 
-Var IRBuilderNode::EmitDataflowOutput(const Var& var) {
+Var IRBuilderNode::EmitOutput(const Expr& output) {
   Var ret;
   if (is_dataflow) {
     ret = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
-    ret->shape_ = var->shape_;
-    ret->checked_type_ = var->checked_type_;
-    this->func.bindings.emplace_back(VarBinding(ret, var));
+    ret->shape_ = output->shape_;
+    ret->checked_type_ = output->checked_type_;
+    this->func.bindings.emplace_back(VarBinding(ret, output));
   } else {
-    LOG(FATAL) << "EmitDataflowOutput must be called inside a dataflow block";
+    this->func.ret = output;
   }
   return ret;
 }
-
-void IRBuilderNode::EmitOutput(const Expr& output) { this->func.ret = output; }
 
 inline void IRBuilderNode::SwitchBlock() { is_dataflow = !is_dataflow; }
 
@@ -161,20 +160,18 @@ DataflowScope::DataflowScope(IRBuilder ib) {
 
 void DataflowScope::EnterWithScope() {
   this->get()->ir_builder->BuildBlock();
-  this->get()->ir_builder->SwitchBlock();
 }
 
 void DataflowScope::ExitWithScope() {
   this->get()->ir_builder->BuildBlock();
-  this->get()->ir_builder->SwitchBlock();
 }
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderCreate").set_body_typed(IRBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderFillFuncNameParam")
-    .set_body_typed([](IRBuilder builder, const std::string& func_name, const Array<Var>& params) {
-      return builder->FillFuncNameParam(func_name, params);
-    });
+.set_body_typed([](IRBuilder builder, const std::string& func_name, const Array<Var>& params) {
+  return builder->FillFuncNameParam(func_name, params);
+});
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction").set_body_typed([](IRBuilder builder) {
   return builder->BuildFunction();
@@ -184,13 +181,10 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, 
   return builder->Emit(call);
 });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmitDataflowOutput")
-    .set_body_typed([](IRBuilder builder, const Var& var) {
-      return builder->EmitDataflowOutput(var);
-    });
-
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")
-    .set_body_typed([](IRBuilder builder, const Expr& output) { builder->EmitOutput(output); });
+.set_body_typed([](IRBuilder builder, const Expr& output) {
+  return builder->EmitOutput(output);
+});
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderGet").set_body_typed([](IRBuilder builder) {
   return builder->Get();

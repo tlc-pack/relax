@@ -39,7 +39,7 @@ using relay::Call;
 class IRBuilder;
 
 /*!
- * \brief A representation of a Relax function.
+ * \brief The state of Relax function node being built.
  */
 struct RelaxFunction {
   /*! \brief The function name. */
@@ -57,7 +57,7 @@ struct RelaxFunction {
 };
 
 /*!
- * \brief A builder that provides API to build Relax AST.
+ * \brief A builder that provides APIs to build Relax AST.
  */
 class IRBuilderNode : public Object {
  public:
@@ -76,20 +76,15 @@ class IRBuilderNode : public Object {
   /*!
    * \brief Emit a call node.
    * \param call The CallNode to be emitted.
-   * \return The variable being binded to \p call.
+   * \return The variable being created and binded to \p call.
    */
   Var Emit(const Call& call);
   /*!
-   * \brief Emit a dataflow block's output variable.
-   * \param var The output variable inside the dataflow block.
-   * \return The variable being binded to the ouput \p var.
+   * \brief Generate an output for the current dataflow block or function.
+   * \param output The output variable of the block/function.
+   * \return The variable being binded to \p ouput.
    */
-  Var EmitDataflowOutput(const Var& var);
-  /*!
-   * \brief Emit a function's output variable.
-   * \param output The output variable(s) of the function.
-   */
-  void EmitOutput(const Expr& output);
+  Var EmitOutput(const Expr& output);
   /*!
    * \brief Get the function being built.
    */
@@ -99,13 +94,8 @@ class IRBuilderNode : public Object {
    */
   std::vector<BindingBlock> GetBlocks();
   /*!
-   * \brief Flip \p is_dataflow to indicate switching from DataflowBlock to BindingBlock or the
-   * other way around.
-   */
-  inline void SwitchBlock();
-  /*!
    * \brief Create a IRBuilder.
-   * \return The IRBuilder.
+   * \return The created IRBuilder.
    */
   TVM_DLL static IRBuilder Create();
 
@@ -118,12 +108,17 @@ class IRBuilderNode : public Object {
  private:
   /*! \brief A representation of a function that stores states. */
   RelaxFunction func;
-  /*! \brief A flag denoting inside a dataflow block or not. */
+  /*! \brief A flag tracking if currently inside a dataflow block or not. */
   bool is_dataflow = false;
-  /*! \brief The global variable counter. */
+  /*! \brief A global variable counter for naming global variables. */
   int global_var_counter = 0;
-  /*! \brief The dataflow variable counter. */
+  /*! \brief A dataflow variable counter for naming dataflow variables. */
   int dataflow_var_counter = 0;
+  /*!
+   * \brief Flip \p is_dataflow to indicate switching from a DataflowBlock to a BindingBlock
+   * or the other way around.
+   */
+  inline void SwitchBlock();
 };
 
 class IRBuilder : public ObjectRef {
@@ -131,8 +126,14 @@ class IRBuilder : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(IRBuilder, ObjectRef, IRBuilderNode);
 };
 
-/*! \brief Auxiliary scope for building function,
+/*! \brief Auxiliary scope for building Relax function node,
  * similar to python's with syntax.
+ *
+ * \code
+ * {
+ *   With<FunctionScope> scope(ir_builder);
+ *   // build function node.
+ * }
  */
 class FunctionScopeNode : public Object {
  public:
@@ -146,10 +147,6 @@ class FunctionScopeNode : public Object {
 
 class FunctionScope : public ObjectRef {
  public:
-  /*!
-   * \brief construct from IRBuilder
-   * \param ib The clauses in the specialized condition.
-   */
   TVM_DLL FunctionScope(IRBuilder ib);
   TVM_DEFINE_OBJECT_REF_METHODS(FunctionScope, ObjectRef, FunctionScopeNode);
   class Internal;
@@ -164,8 +161,14 @@ class FunctionScope : public ObjectRef {
   TVM_DLL void ExitWithScope();
 };
 
-/*! \brief Auxiliary scope for building dataflow block,
+/*! \brief Auxiliary scope for building Relax dataflow block,
  * similar to python's with syntax.
+ *
+ * \code
+ * {
+ *   With<DataflowScope> scope(ir_builder);
+ *   // build dataflow block.
+ * }
  */
 class DataflowScopeNode : public Object {
  public:

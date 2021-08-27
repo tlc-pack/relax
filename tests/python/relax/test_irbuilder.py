@@ -16,7 +16,6 @@
 # under the License.
 
 from tvm import tir
-from tvm.ir import TensorType
 from tvm import relax as rx
 
 
@@ -33,7 +32,7 @@ def test_dataflow_block():
         assert lv0.name_hint == "lv0"
         lv1 = ib.emit(rx.op.multiply(lv0, y))
         assert lv1.name_hint == "lv1"
-        gv0 = ib.emit_df_output(lv1)
+        gv0 = ib.emit_output(lv1)
         assert gv0.name_hint == "gv0"
     blocks = ib.get_blocks()
     assert len(blocks) == 1
@@ -57,7 +56,7 @@ def test_function():
             assert lv0.checked_type_.dtype == "float16"
             lv1 = ib.emit(rx.op.multiply(lv0, y))
             assert lv1.name_hint == "lv1"
-            gv0 = ib.emit_df_output(lv1)
+            gv0 = ib.emit_output(lv1)
         assert gv0.name_hint == "gv0"
         assert gv0.shape_[0] == m
         assert gv0.shape_[1] == n

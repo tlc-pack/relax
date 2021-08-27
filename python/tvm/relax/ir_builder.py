@@ -70,7 +70,7 @@ class IRBuilder(Object):
             with ib.dataflow() as df:
                 lv0 = ib.emit(rx.add(x, y))
                 lv1 = ib.emit(rx.multiply(lv0, y))
-                gv0 = ib.emit_df_output(lv1)
+                gv0 = ib.emit_output(lv1)
             ib.emit_output(gv0)
         func = ib.get()
     """
@@ -86,10 +86,15 @@ class IRBuilder(Object):
         Parameters
         ----------
         name : str
-            The name of the function
+            The name of the function.
 
-        params : tvm.relax.Var or List[tvm.relax.Var]
-            The parameters of the function
+        params : tvm.relax.Var | Tuple | List[tvm.relax.Var]
+            The parameters of the function.
+        
+        Returns
+        -------
+        ret: FunctionScope
+            A FunctionScope for building a Relax function node.
         """
         if not isinstance(params, (list, tuple)):
             params = [params]
@@ -98,7 +103,13 @@ class IRBuilder(Object):
         return FunctionScope(self)
 
     def dataflow(self) -> DataflowScope:
-        """Annotate a Relax dataflow block."""
+        """Annotate a Relax dataflow block.
+        
+        Returns
+        -------
+        ret: DataflowScope
+            A DataflowScope for building a Relax dataflow block.
+        """
         return DataflowScope(self)
 
     def emit(self,
@@ -110,48 +121,49 @@ class IRBuilder(Object):
         Parameters
         ----------
         call : tvm.relay.Call
-            The Call to be emitted
+            The call node to be emitted.
 
         Returns
         -------
         ret : tvm.relax.Var
-            The return variable which gets binded to the call
+            A newly created variable that gets binded to the call code.
         """
         return _ffi_api.IRBuilderEmit(self, call)
 
-    def emit_df_output(self,
-                       var: Var) -> Var:
-        """Emit a dataflow block's output variable, and it can be used outside the dataflow block.
+    def emit_output(self,
+                    output: Union[Expr, Tuple, List[Expr]]) -> None:
+        """Emit output for the current dataflow block or function.
 
         Parameters
         ----------
-        var : tvm.relax.Var
-            The output variable of the current dataflow block
-
+        output : Expr | Tuple | List[Expr]
+            The output of the current block/function.
+        
         Returns
         -------
         ret : tvm.relax.Var
-            The return variable which gets binded to the output var
-        """
-        return _ffi_api.IRBuilderEmitDataflowOutput(self, var)
-
-    def emit_output(self,
-                    output: Union[Expr, Tuple, List[Expr]]) -> None:
-        """Emit function outputs.
-
-        Parameters
-        ----------
-        output : Expr | List[Expr]
-            The output variable(s) of the current function
+            The return variable which gets binded to the output.
         """
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
-        _ffi_api.IRBuilderEmitOutput(self, output)
+        return _ffi_api.IRBuilderEmitOutput(self, output)
 
     def get(self) -> Function:
-        """Return the function being built."""
+        """Return the function being built.
+        
+        Returns
+        -------
+        ret : tvm.relax.Function
+            A Relax function node being built.
+        """
         return _ffi_api.IRBuilderGet(self)
 
     def get_blocks(self) -> List[BindingBlock]:
-        """Return the binding blocks being built."""
+        """Return the binding blocks being built.
+
+        Returns
+        -------
+        ret : List[tvm.relax.BindingBlock]
+            A list of binding blocks being built.
+        """
         return _ffi_api.IRBuilderGetBlocks(self)
