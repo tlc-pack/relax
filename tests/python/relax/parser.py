@@ -229,21 +229,18 @@ def test_tuple():
     check_shape(tup.fields[1], (32,))
 
 
-# NOTE: this test requires patching synr to support local function definitions.
-#       it's an easy change (just two lines), but may break other users of synr
-#       (e.g. tvmscript). should investigate.
 def test_local_func():
     @rx.script
     def foo(x: Tensor[_, _]):
         def bar(y: Tensor[_, _]):
             return y
-        z = bar(x)
-        return z
+        y = bar(x)  # tests local function variable scoping
+        return y
 
     f = rx_func(foo)
-    bar_bind, z_bind = f.body.blocks[0].bindings
+    bar_bind, y_bind = f.body.blocks[0].bindings
     bar, bar_fn = bar_bind.var, bar_bind.value
-    bar_x = z_bind.value
+    bar_x = y_bind.value
 
     assert isinstance(bar_fn, rx.Function)
     assert bar_fn.body.body == bar_fn.params[0]
@@ -263,16 +260,36 @@ def test_dataflow():
         return t
 
     f = rx_func(foo)
+    assert len(f.body.blocks) == 2
     df_block = f.body.blocks[0]
     y_bind, z_bind, w_bind = df_block.bindings
+    (t_bind,) = f.body.blocks[1].bindings
+    x = f.params[0]
+    y, z, w, t = map(lambda b: b.var, [y_bind, z_bind, w_bind, t_bind])
 
-    assert isinstance(y_bind.var, rx.Var)
-    assert isinstance(z_bind.var, rx.DataflowVar)
-    assert isinstance(w_bind.var, rx.Var)
+    assert isinstance(y, rx.Var)
+    assert isinstance(z, rx.DataflowVar)
+    assert isinstance(w, rx.Var)
 
-    # TODO: check correctness
+    check_call(y_bind.value, "add", [x, x])
+    check_call(z_bind.value, "multiply", [y, x])
+    check_call(w_bind.value, "subtract", [z, x])
+    check_call(t_bind.value, "divide", [y, w])
 
-    # import pdb; pdb.set_trace()
+    assert f.body.body == t
+
+
+def test_dataflow_match_shape():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        with relax.dataflow():
+            y = add(x, x)
+            z = multiply(y, x)
+            relax.match_shape((n, m), z.shape)
+            w: Tensor[(n, m), _] = subtract(z, x)
+            return y, w
+        t: Tensor[(n, m), _] = divide(y, w)
+        return t
 
 
 @pytest.mark.xfail

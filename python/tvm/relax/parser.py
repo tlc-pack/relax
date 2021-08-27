@@ -49,6 +49,10 @@ class RelaxTransformer(Transformer):
     def to_tvm_span(self, span: ast.Span) -> tvm.ir.Span:
         return self._diagnostic_context.to_tvm_span(self._diagnostic_context.source_name, span)
 
+    def report_error(self, msg: str, span: ast.Span):
+        self._diagnostic_context.emit("error", msg, span)
+        self._diagnostic_context.render()
+
     def new_scope(self):
         class _Scope:
             def __init__(self, transformer: "RelaxTransformer"):
@@ -72,7 +76,7 @@ class RelaxTransformer(Transformer):
         name: str,
         type_annotation: Optional[rx.Type],
         shape: Optional[rx.Expr],
-        span: tvm.ir.Span,
+        span: ast.Span,
         is_dataflow: bool = False,
     ) -> rx.Var:
         """Introduces a variable with the given name and annotations to the current scope.
@@ -85,7 +89,7 @@ class RelaxTransformer(Transformer):
             The type annotation
         shape : Optional[rxExpr]
             The shape annotation
-        span : tvm.ir.Span
+        span : ast.Span
             The span where the variable is declared
 
         Returns
@@ -94,14 +98,11 @@ class RelaxTransformer(Transformer):
             The declared variable
         """
         if name in self.scope:
-            self._diagnostic_context.emit(
-                "error", "variable has already been declared in the current scope", span
-            )
-            self._diagnostic_context.render()
+            self.report_error("variable has already been declared in the current scope", span)
         if is_dataflow:
-            var = rx.DataflowVar(name, shape, type_annotation, span)
+            var = rx.DataflowVar(name, shape, type_annotation, self.to_tvm_span(span))
         else:
-            var = rx.Var(name, shape, type_annotation, span)
+            var = rx.Var(name, shape, type_annotation, self.to_tvm_span(span))
         self.scope[name] = var
         return var
 
@@ -134,19 +135,16 @@ class RelaxTransformer(Transformer):
             elif ty.id.name == "Dim":
                 return (rx.DimType(span), None)
             else:
-                self._diagnostic_context.emit("error", "unknown type in annotation", span)
-                self._diagnostic_context.render()
+                self.report_error("unknown type in annotation", span)
 
         # annotation with type arguments/shape annotation
         if isinstance(ty, ast.TypeApply):
             if ty.id.name == "Tensor":
                 if len(ty.params) != 2:
-                    self._diagnostic_context.emit(
-                        "error",
+                    self.report_error(
                         "Tensor type annotations must have 2 fields (shape and dtype)",
                         span,
                     )
-                    self._diagnostic_context.render()
 
                 shape_annotation, dtype_annotation = ty.params
                 shape, dtype = None, None
@@ -155,12 +153,10 @@ class RelaxTransformer(Transformer):
                 if isinstance(shape_annotation, ast.TypeVar):
                     if shape_annotation.id.name != "_":
                         # TODO: handle variable annotations, e.g. x: Tensor[my_shape, _]
-                        self._diagnostic_context.emit(
-                            "error",
+                        self.report_error(
                             "variable Tensor shape annotations not yet supported",
                             shape_annotation.span,
                         )
-                        self._diagnostic_context.render()
                     else:
                         # FIXME: use a special node for unknown shape vs no shape?
                         pass  # shape = None
@@ -170,12 +166,10 @@ class RelaxTransformer(Transformer):
                         span=self.to_tvm_span(shape_annotation.span),
                     )
                 else:
-                    self._diagnostic_context.emit(
-                        "error",
+                    self.report_error(
                         "unsupported shape annotation",
                         shape_annotation.span,
                     )
-                    self._diagnostic_context.render()
 
                 # parse the dtype annotation
                 if isinstance(dtype_annotation, ast.TypeVar) and dtype_annotation.id.name == "_":
@@ -183,12 +177,10 @@ class RelaxTransformer(Transformer):
                 elif isinstance(dtype_annotation, ast.TypeConstant):
                     dtype = dtype_annotation.value  # TODO: parse to TVM DType?
                 else:
-                    self._diagnostic_context.emit(
-                        "error",
+                    self.report_error(
                         "Tensor dtype annotations must be concrete or erased",
                         dtype_annotation.span,
                     )
-                    self._diagnostic_context.render()
 
                 rank = len(shape) if shape is not None else -1
                 return (rx.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
@@ -201,8 +193,7 @@ class RelaxTransformer(Transformer):
                     field_shapes.append(fsh)
                 return (relay.TupleType(field_types, span), None)
             # TODO: other types with args, e.g. Ref[T], func types
-        self._diagnostic_context.emit("error", "invalid type", span)
-        self._diagnostic_context.render()
+        self.report_error("invalid type", span)
 
     def parse_shape(
         self,
@@ -245,12 +236,10 @@ class RelaxTransformer(Transformer):
             if var_name in self.scope:
                 var = self.scope[var_name]
                 if not isinstance(var, tir.Var):
-                    self._diagnostic_context.emit(
-                        "error",
+                    self.report_error(
                         "non-dimension variables cannot appear in dimension expressions",
                         expr.span,
                     )
-                    self._diagnostic_context.render()
                 return var
             elif allow_intro:
                 # introduce TIR variable to scope, e.g. for func params or rx.call_packed
@@ -258,65 +247,20 @@ class RelaxTransformer(Transformer):
                 self.scope[var_name] = var
                 return var
             else:
-                self._diagnostic_context.emit(
-                    "error",
+                self.report_error(
                     "cannot introduce new dimension variables in this expression",
                     expr.span,
                 )
-                self._diagnostic_context.render()
         elif isinstance(expr, ast.Constant):
             if not isinstance(expr.value, int):
-                self._diagnostic_context.emit(
-                    "error", "only integer constants are supported", expr.span
-                )
-                self._diagnostic_context.render()
+                self.report_error("only integer constants are supported", expr.span)
             return tir.const(expr.value, "int32", self.to_tvm_span(expr.span))
         else:
             # TODO: parse (simple) PrimExprs
-            self._diagnostic_context.emit(
-                "error",
+            self.report_error(
                 "only dimension variable expressions are currently supported",
                 expr.span,
             )
-            self._diagnostic_context.render()
-
-    # Turns a tuple into an array of PrimExprs
-    # Allow arithmetic indicates whether we are letting there be
-    # def expr_to_primexpr(self, expr: ast.Expr, allow_arithmetic=False) -> PrimExpr:
-    #     if not allow_arithmetic and not isinstance(expr, ast.Var):
-    #         # TODO: improve error message
-    #         self._diagnostic_context.emit(
-    #             "error",
-    #             "You can only use single variables here, not an expression",
-    #             self.span_to_span(expr.span),
-    #         )
-    #         self._diagnostic_context.render()
-    #     else:
-    #         if isinstance(expr, ast.Var):
-    #             return tir.Var(expr.id.name, "int32")
-
-    #         # TODO: do all the ops here
-    #         elif isinstance(expr, ast.Constant) and isinstance(expr.value, int):
-    #             return tir.IntImm("int32", expr.value)
-    #         elif isinstance(expr, ast.Call):
-    #             if exp.func_name.name == ast.BuiltinOp.Add:
-    #                 # TODO: call this fn on args and return primexpr containing result
-    #                 assert False
-    #             if exp.func_name.name == ast.BuiltinOp.Sub:
-    #                 assert False
-    #             if exp.func_name.name == ast.BuiltinOp.Mul:
-    #                 assert False
-    #             if exp.func_name.name == ast.BuiltinOp.Div:
-    #                 assert False
-    #             if exp.func_name.name == ast.BuiltinOp.Mod:
-    #                 assert False
-    #         else:
-    #             self._diagnostic_context.emit(
-    #                 "error",
-    #                 "The shape expression can only contain arithmetic operators, integer constants and variables",
-    #                 (expr.span),
-    #             )
-    #             self._diagnostic_context.render()
 
     def transform_module(self, mod: ast.Module) -> IRModule:
         for func_name in mod.funcs:
@@ -336,7 +280,7 @@ class RelaxTransformer(Transformer):
             params = []
             for param in func.params:
                 ty, shape = self.transform_type(param.ty, allow_intro=True)
-                param = self.decl_var(param.name, ty, shape, self.to_tvm_span(param.span))
+                param = self.decl_var(param.name, ty, shape, param.span)
                 params.append(param)
             new_body = self.transform_block(func.body)
             ret_type, _ = self.transform_type(func.ret_type, allow_intro=False)
@@ -346,14 +290,39 @@ class RelaxTransformer(Transformer):
             params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
         )
 
-    def parse_binding(self, stmt: ast.Assign, is_dataflow=False):
+    def parse_binding(self, stmt: ast.Stmt, is_dataflow=False):
+        assert isinstance(stmt, (ast.Assign, ast.UnassignedCall))
+        if isinstance(stmt, ast.Assign):
+            return self.parse_var_binding(stmt, is_dataflow=is_dataflow)
+        else:
+            return self.parse_shape_binding(stmt)
+
+    def parse_shape_binding(self, stmt: ast.UnassignedCall):
+        call: synr.ast.Call = stmt.call
+        op = self.transform_expr(call.func_name)
+        if op != relay.op.get("relax.match_shape"):
+            self.report_error("the results of calls must be bound or used", stmt.span)
+        if len(stmt.call.params) != 2:
+            self.report_error("relax.match_shape takes exactly two arguments", stmt.span)
+
+        lhs = stmt.call.params[0]
+        rhs = stmt.call.params[1]
+
+        rhs_expr = self.transform_expr(rhs)
+        if not isinstance(lhs, ast.Tuple):
+            self.report_error(
+                "the pattern (lhs) of relax.match_shape must be a tuple",
+                lhs.span,
+            )
+        lhs_expr = self.parse_shape(lhs, allow_intro=True)
+        return rx.MatchShape(lhs_expr, rhs_expr, self.to_tvm_span(stmt.span))
+
+    def parse_var_binding(self, stmt: ast.Assign, is_dataflow=False):
         if not isinstance(stmt.lhs, ast.Var):
-            self._diagnostic_context.emit(
-                "error",
+            self.report_error(
                 "the left hand side of a binding must be a variable",
                 stmt.lhs.span,
             )
-            self._diagnostic_context.render()
         # TODO: figure out proper way of doing this
         rhs = self.transform_expr(stmt.rhs)
         if isinstance(rhs, relay.Call) and rhs.op == relay.op.get("relax.call_packed"):
@@ -361,9 +330,7 @@ class RelaxTransformer(Transformer):
         else:
             allow_intro = False
         ty, shape = self.transform_type(stmt.ty, allow_intro)
-        lhs = self.decl_var(
-            stmt.lhs.id.name, ty, shape, self.to_tvm_span(stmt.lhs.span), is_dataflow=is_dataflow
-        )
+        lhs = self.decl_var(stmt.lhs.id.name, ty, shape, stmt.lhs.span, is_dataflow=is_dataflow)
         return rx.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
 
     # Stmts:
@@ -380,18 +347,32 @@ class RelaxTransformer(Transformer):
             return self.parse_binding(stmt)
 
         elif isinstance(stmt, ast.If):
-            # TODO: proper diagnostics
-
             # check branches are non-empty
-            assert stmt.true.stmts
-            assert stmt.false.stmts
+            if len(stmt.true.stmts) == 0 or len(stmt.false.stmts) == 0:
+                self.report_error("both branches of an if-else block must be non-empty", stmt.span)
             true_assign = stmt.true.stmts[-1]
             false_assign = stmt.false.stmts[-1]
 
             # check last statement in each branch lines up
-            assert isinstance(true_assign, ast.Assign) and isinstance(true_assign.lhs, ast.Var)
-            assert isinstance(false_assign, ast.Assign) and isinstance(false_assign.lhs, ast.Var)
-            assert true_assign.lhs.id.name == false_assign.lhs.id.name
+            if not isinstance(true_assign, ast.Assign) or not isinstance(true_assign.lhs, ast.Var):
+                self.report_error(
+                    "each branch of an if-else statement must end in a variable assignment",
+                    true_assign.span,
+                )
+            if not isinstance(false_assign, ast.Assign) or not isinstance(
+                false_assign.lhs, ast.Var
+            ):
+                self.report_error(
+                    "each branch of an if-else statement must end in a variable assignment",
+                    false_assign.span,
+                )
+            union_span = ast.Span.union([true_assign.span, false_assign.span])
+            if true_assign.lhs.id.name != false_assign.lhs.id.name:
+                self.report_error(
+                    "the final assignment of both branches must have the same variable",
+                    union_span,
+                )
+
             var_name = true_assign.lhs.id.name
 
             # rewrite branches to have a return statement so the blocks properly parse to SeqExprs
@@ -414,45 +395,20 @@ class RelaxTransformer(Transformer):
                 false_branch = self.transform_block(false_block)
             # TODO: the spans here are all sorts of messed up, not sure how to fix
             ite_expr = relay.If(cond, true_branch, false_branch, self.to_tvm_span(stmt.span))
-            var = self.decl_var(var_name, None, None, self.to_tvm_span(false_assign.span))
-            return rx.VarBinding(var, ite_expr, self.to_tvm_span(stmt.span))
+            # TODO: type and shape of return var
+            var = self.decl_var(var_name, None, None, union_span)
+            return rx.VarBinding(var, ite_expr, self.to_tvm_span(union_span))
 
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
 
-        # match_shape is the ONLY node that doesn't have to be bound to an LHS variable!
         elif isinstance(stmt, ast.UnassignedCall):
-            call: synr.ast.Call = stmt.call
-            op = self.transform_expr(call.func_name)
-            if op != relay.op.get("relax.match_shape"):
-                self._diagnostic_context.emit(
-                    "error", "the results of calls must be bound or used", stmt.span
-                )
-                self._diagnostic_context.render()
-            if len(stmt.call.params) != 2:
-                self._diagnostic_context.emit(
-                    "error", "relax.match_shape takes exactly two arguments", stmt.span
-                )
-                self._diagnostic_context.render()
-
-            lhs = stmt.call.params[0]
-            rhs = stmt.call.params[1]
-
-            rhs_expr = self.transform_expr(rhs)
-            if not isinstance(lhs, ast.Tuple):
-                self._diagnostic_context.emit(
-                    "error",
-                    "the pattern (lhs) of relax.match_shape must be a tuple",
-                    lhs.span,
-                )
-                self._diagnostic_context.render()
-            lhs_expr = self.parse_shape(lhs, allow_intro=True)
-            return rx.MatchShape(lhs_expr, rhs_expr, self.to_tvm_span(stmt.span))
+            # FIXME: when we add ref support, ref_write can be unassigned
+            return self.parse_shape_binding(stmt)
 
         elif isinstance(stmt, ast.With):
             if not isinstance(stmt.rhs, ast.Call):
-                self._diagnostic_context.emit("error", "unsupported with block", stmt.span)
-                self._diagnostic_context.render()
+                self.report_error("unsupported with block", stmt.span)
 
             call = stmt.rhs
             op = self.transform_expr(call.func_name)
@@ -460,37 +416,30 @@ class RelaxTransformer(Transformer):
             # TODO: perhaps this ought to be more general
 
             if op != relay.op.get("relax.dataflow"):
-                self._diagnostic_context.emit("error", "unsupported with block type", call.span)
-                self._diagnostic_context.render()
+                self.report_error("unsupported with block type", call.span)
             if len(call.params) > 0:
-                self._diagnostic_context.emit(
-                    "error",
+                self.report_error(
                     "dataflow block constructor takes no arguments",
                     call.params[0].span,
                 )
-                self._diagnostic_context.render()
             if len(stmt.lhs) > 0:
-                self._diagnostic_context.emit(
-                    "error",
+                self.report_error(
                     "dataflow blocks don't bind any patterns",
                     stmt.lhs[0].span,
                 )
-                self._diagnostic_context.render()
 
             return self.parse_dataflow(stmt.body)
 
         elif isinstance(stmt, ast.Function):
             func = self.transform_function(stmt)
-            func_var = self.decl_var(stmt.name, None, None, self.to_tvm_span(stmt.span))
+            func_var = self.decl_var(stmt.name, None, None, stmt.span)
             return rx.VarBinding(func_var, func, self.to_tvm_span(stmt.span))
 
         else:
-            self._diagnostic_context.emit(
-                "error",
+            self.report_error(
                 "unsupported statement",
                 stmt.span,
             )
-            self._diagnostic_context.render()
 
     def parse_dataflow(self, block: ast.Block) -> rx.DataflowBlock:
         assert len(block.stmts) > 0, "should never have an empty dataflow block"
@@ -501,12 +450,10 @@ class RelaxTransformer(Transformer):
             # parse the return statement first to figure out which bindings assign normal Vars
             output_stmt = block.stmts[-1]
             if not isinstance(output_stmt, ast.Return):
-                self._diagnostic_context.emit(
-                    "error",
+                self.report_error(
                     "dataflow blocks must end with returning the output variables",
                     output_stmt.span,
                 )
-                self._diagnostic_context.render()
 
             ret_val = output_stmt.value
             if isinstance(ret_val, ast.Var):
@@ -515,8 +462,7 @@ class RelaxTransformer(Transformer):
             if not isinstance(ret_val, ast.Tuple) or any(
                 [not isinstance(f, ast.Var) for f in ret_val.values]
             ):
-                self._diagnostic_context.emit(
-                    "error",
+                self.report_error(
                     "the returned values must be variables",
                     ret_val.span,
                 )
@@ -525,22 +471,30 @@ class RelaxTransformer(Transformer):
             output_var_names = {var.id.name for var in ret_val.values}
 
             for binding_stmt in block.stmts[:-1]:
-                if not isinstance(binding_stmt, ast.Assign):
-                    self._diagnostic_context.emit(
-                        "error",
+                if not isinstance(binding_stmt, (ast.Assign, ast.UnassignedCall)):
+                    self.report_error(
                         "only bindings are supported in dataflow blocks",
                         binding_stmt.span,
                     )
-                    self._diagnostic_context.render()
-                is_dataflow = binding_stmt.lhs.id.name not in output_var_names
+                is_match_shape = isinstance(binding_stmt, ast.UnassignedCall)
+                is_dataflow = (
+                    False if is_match_shape else (binding_stmt.lhs.id.name not in output_var_names)
+                )
                 binding = self.parse_binding(binding_stmt, is_dataflow=is_dataflow)
                 bindings.append(binding)
                 if not is_dataflow:
-                    output_vars.append(binding.var)
+                    if is_match_shape:
+                        for var in binding.pattern:
+                            output_vars.append(var)
+                    else:
+                        output_vars.append(binding.var)
 
         # make output variables visible in parent scope
         for v in output_vars:
-            self.scope[v.name_hint] = v
+            # v could already be in scope if it was a previously bound dimension variable
+            v_name = v.name if isinstance(v, tir.Var) else v.name_hint
+            if v not in self.scope:
+                self.scope[v_name] = v
 
         return rx.DataflowBlock(bindings, self.to_tvm_span(block.span))
 
@@ -566,8 +520,7 @@ class RelaxTransformer(Transformer):
                     op_name.append(expr.field.name)
                     attr = attr.object
                 if not isinstance(attr, ast.Var):
-                    self._diagnostic_context.emit("error", "unsupported field access", expr.span)
-                    self._diagnostic_context.render()
+                    self.report_error("unsupported field access", expr.span)
                 op_name.append(attr.id.name)
                 op_name = ".".join(reversed(op_name))
                 return relay.op.get(op_name)  # TODO: maybe diagnostics here in case this fails?
@@ -586,13 +539,11 @@ class RelaxTransformer(Transformer):
             if is_registered(var_name, op_set=self._registered_ops):
                 return relay.op.get(var_name)
             if var_name not in self.scope:
-                self._diagnostic_context.emit("error", "undefined variable", expr.span)
-                self._diagnostic_context.render()
+                self.report_error("undefined variable", expr.span)
             return self.scope[var_name]
 
         else:
-            self._diagnostic_context.emit("error", "unsupported expression", expr.span)
-            self._diagnostic_context.render()
+            self.report_error("unsupported expression", expr.span)
 
     def transform_block(self, block: ast.Block) -> rx.SeqExpr:
         # a block of statements needs to be converted to a SeqExpr of binding blocks
@@ -614,12 +565,10 @@ class RelaxTransformer(Transformer):
 
         ret_stmt = block.stmts[-1]
         if not isinstance(ret_stmt, ast.Return):
-            self._diagnostic_context.emit(
-                "error",
+            self.report_error(
                 "block must end with a returned expression",
                 ret_stmt.span,
             )
-            self._diagnostic_context.render()
         ret_expr = self.transform_stmt(ret_stmt)
 
         return rx.SeqExpr(blocks, ret_expr, self.to_tvm_span(block.span))
