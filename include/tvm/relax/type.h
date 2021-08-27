@@ -41,7 +41,9 @@ class ShapeTypeNode : public TypeNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const { return true; }
+  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
+    return true;
+  }
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
 
@@ -54,8 +56,12 @@ class ShapeType : public Type {
   explicit ShapeType();
   explicit ShapeType(runtime::ObjectPtr<runtime::Object> n) : Type(n) {}
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(ShapeType);
-  const ShapeTypeNode* operator->() const { return static_cast<const ShapeTypeNode*>(data_.get()); }
-  const ShapeTypeNode* get() const { return operator->(); }
+  const ShapeTypeNode* operator->() const {
+    return static_cast<const ShapeTypeNode*>(data_.get());
+  }
+  const ShapeTypeNode* get() const {
+    return operator->();
+  }
   using ContainerType = ShapeTypeNode;
 };
 

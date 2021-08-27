@@ -24,7 +24,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/op_attr.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 #include <tvm/topi/broadcast.h>

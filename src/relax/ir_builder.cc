@@ -22,7 +22,6 @@
  */
 
 #include <tvm/relax/ir_builder.h>
-#include <tvm/relax/op_attr.h>
 #include <tvm/relay/op.h>
 
 namespace tvm {
