@@ -159,7 +159,13 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  using Var::Var;  // inherit constructors from Var
+  TVM_DLL explicit DataflowVar(String name_hint, runtime::Optional<Expr> shape_annotation,
+                               runtime::Optional<Type> type_annotation, Span span = Span())
+      : DataflowVar(Id(name_hint), shape_annotation, type_annotation, span) {}
+
+  TVM_DLL explicit DataflowVar(Id vid, runtime::Optional<Expr> shape_annotation,
+                               runtime::Optional<Type> type_annotation, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
 };
 

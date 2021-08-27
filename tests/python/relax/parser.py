@@ -85,7 +85,7 @@ def test_annotations():
 def test_match_shape():
     @rx.script
     def foo(x: Tensor[_, "float32"]):
-        rx.match_shape((n, m), x.shape)
+        relax.match_shape((n, m), x.shape)
         y: Tensor[(n, m), "float32"] = add(x, x)
         return x
 
@@ -254,7 +254,7 @@ def test_local_func():
 def test_dataflow():
     @rx.script
     def foo(x: Tensor[_, _]):
-        with rx.dataflow():
+        with relax.dataflow():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
@@ -264,15 +264,22 @@ def test_dataflow():
 
     f = rx_func(foo)
     df_block = f.body.blocks[0]
+    y_bind, z_bind, w_bind = df_block.bindings
+
+    assert isinstance(y_bind.var, rx.Var)
+    assert isinstance(z_bind.var, rx.DataflowVar)
+    assert isinstance(w_bind.var, rx.Var)
 
     # TODO: check correctness
+
+    # import pdb; pdb.set_trace()
 
 
 @pytest.mark.xfail
 def test_dataflow_scope_fail():
     @rx.script
     def foo(x: Tensor[_, _]):
-        with rx.dataflow():
+        with relax.dataflow():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
@@ -285,7 +292,7 @@ def test_dataflow_scope_fail():
 def test_dataflow_syntax_fail_pattern():
     @rx.script
     def foo(x: Tensor[_, _]):
-        with rx.dataflow() as df:
+        with relax.dataflow() as df:
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
@@ -298,10 +305,35 @@ def test_dataflow_syntax_fail_pattern():
 def test_dataflow_syntax_fail_params():
     @rx.script
     def foo(x: Tensor[_, _]):
-        with rx.dataflow(x) as df:
+        with relax.dataflow(x) as df:
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
             return y, w
         t = divide(y, z)
         return t
+
+
+@pytest.mark.xfail
+def test_func_no_return_fail():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        y = add(x, x)
+
+
+def test_inline_tir():
+    @rx.script
+    def foo(x: Tensor[(128, 128), "float32"], y: Tensor[(128, 128), "float32"]):
+        @tir
+        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+            A = tir.match_buffer(a, [128, 128])
+            B = tir.match_buffer(b, [128, 128])
+            C = tir.match_buffer(c, [128, 128])
+
+            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+                with tir.init():
+                    C[vi, vj] = tir.float32(0)
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        z = relax.call_dps(my_matmul, x, y)
+        return z

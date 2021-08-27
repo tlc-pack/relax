@@ -72,6 +72,16 @@ TVM_REGISTER_GLOBAL("relax.Var")
 
 TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
+DataflowVar::DataflowVar(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
+                         Span span) {
+  ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
+  n->vid = std::move(vid);
+  n->shape_ = std::move(shape_annotation);
+  n->type_annotation = std::move(type_annotation);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
 TVM_REGISTER_GLOBAL("relax.DataflowVar")
     .set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
                        Optional<Type> type_annotation, Span span) {

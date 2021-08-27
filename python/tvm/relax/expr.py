@@ -79,7 +79,16 @@ class Var(Expr):
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
-    pass
+    def __init__(
+        self,
+        name_hint: str,
+        shape_annotation: Optional[Expr] = None,
+        type_annotation: Optional[Type] = None,
+        span: Span = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.DataflowVar, name_hint, shape_annotation, type_annotation, span
+        )
 
 
 @tvm._ffi.register_object("relax.expr.Binding")

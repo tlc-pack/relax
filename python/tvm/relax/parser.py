@@ -5,6 +5,7 @@ from typing import TypeVar, Generic, Union, Dict, List, Tuple, Optional
 from io import StringIO
 
 import tvm
+import tvm.script
 from tvm.ir.module import IRModule
 from tvm.relay.base import Id
 from tvm.ir import diagnostics
@@ -32,14 +33,21 @@ def is_registered(op_name, op_set=None):
     return op_name in op_set
 
 
+def _tir_from_synr(synr_ast: ast.Node, diag_ctx: tvm.script.diagnostics.TVMDiagnosticCtx):
+    parser = tvm.script.parser.TVMScriptParser(synr_ast.span.start_line)
+    return parser.do_transform(synr_ast, diag_ctx)
+
+
 class RelaxTransformer(Transformer):
-    def __init__(self, definition_scope, diag_ctx):
+    def __init__(self, definition_scope):
         super().__init__()
         self.definition_scope = definition_scope
-        self.diag_ctx = diag_ctx
         self.module = {}
         self._scopes = [{}]  # str -> Var
         self._registered_ops = set(tvm.ir._ffi_api.ListOpNames())  # cached
+
+    def to_tvm_span(self, span: ast.Span) -> tvm.ir.Span:
+        return self._diagnostic_context.to_tvm_span(self._diagnostic_context.source_name, span)
 
     def new_scope(self):
         class _Scope:
@@ -58,25 +66,6 @@ class RelaxTransformer(Transformer):
     @property
     def scope(self):
         return self._scopes[-1]
-
-    def tvm_span(self, span: ast.Span) -> tvm.ir.Span:
-        """Converts the synr span to a TVM span
-
-        Parameters
-        ----------
-        span : synr.Span
-            The synr span
-
-        Returns
-        -------
-        tvm.ir.Span
-            The corresponding TVM span
-        """
-        src_name = self.diag_ctx.str_to_source_name[span.filename]
-        tvm_span = tvm.ir.Span(
-            src_name, span.start_line, span.end_line, span.start_column, span.end_column
-        )
-        return tvm_span
 
     def decl_var(
         self,
@@ -134,7 +123,7 @@ class RelaxTransformer(Transformer):
         if ty is None:
             return (None, None)
 
-        span = self.tvm_span(ty.span)
+        span = self.to_tvm_span(ty.span)
 
         # simple annotation with no type arguments
         if isinstance(ty, ast.TypeVar):
@@ -169,7 +158,7 @@ class RelaxTransformer(Transformer):
                         self._diagnostic_context.emit(
                             "error",
                             "variable Tensor shape annotations not yet supported",
-                            self.tvm_span(shape_annotation.span),
+                            shape_annotation.span,
                         )
                         self._diagnostic_context.render()
                     else:
@@ -178,13 +167,13 @@ class RelaxTransformer(Transformer):
                 elif isinstance(shape_annotation, ast.TypeTuple):
                     shape = rx.ShapeExpr(
                         self.parse_shape(shape_annotation, allow_intro),
-                        span=self.tvm_span(shape_annotation.span),
+                        span=self.to_tvm_span(shape_annotation.span),
                     )
                 else:
                     self._diagnostic_context.emit(
                         "error",
                         "unsupported shape annotation",
-                        self.tvm_span(shape_annotation.span),
+                        shape_annotation.span,
                     )
                     self._diagnostic_context.render()
 
@@ -197,7 +186,7 @@ class RelaxTransformer(Transformer):
                     self._diagnostic_context.emit(
                         "error",
                         "Tensor dtype annotations must be concrete or erased",
-                        self.tvm_span(dtype_annotation.span),
+                        dtype_annotation.span,
                     )
                     self._diagnostic_context.render()
 
@@ -210,7 +199,7 @@ class RelaxTransformer(Transformer):
                     fty, fsh = self.transform_type(field, allow_intro=False)
                     field_types.append(fty)
                     field_shapes.append(fsh)
-                return (relay.TupleType(field_types, self.tvm_span(ty.span)), None)
+                return (relay.TupleType(field_types, span), None)
             # TODO: other types with args, e.g. Ref[T], func types
         self._diagnostic_context.emit("error", "invalid type", span)
         self._diagnostic_context.render()
@@ -259,35 +248,35 @@ class RelaxTransformer(Transformer):
                     self._diagnostic_context.emit(
                         "error",
                         "non-dimension variables cannot appear in dimension expressions",
-                        self.tvm_span(expr.span),
+                        expr.span,
                     )
                     self._diagnostic_context.render()
                 return var
             elif allow_intro:
                 # introduce TIR variable to scope, e.g. for func params or rx.call_packed
-                var = tir.Var(var_name, "int32", self.tvm_span(expr.span))
+                var = tir.Var(var_name, "int32", self.to_tvm_span(expr.span))
                 self.scope[var_name] = var
                 return var
             else:
                 self._diagnostic_context.emit(
                     "error",
                     "cannot introduce new dimension variables in this expression",
-                    self.tvm_span(expr.span),
+                    expr.span,
                 )
                 self._diagnostic_context.render()
         elif isinstance(expr, ast.Constant):
             if not isinstance(expr.value, int):
                 self._diagnostic_context.emit(
-                    "error", "only integer constants are supported", self.tvm_span(expr.span)
+                    "error", "only integer constants are supported", expr.span
                 )
                 self._diagnostic_context.render()
-            return tir.const(expr.value, "int32", self.tvm_span(expr.span))
+            return tir.const(expr.value, "int32", self.to_tvm_span(expr.span))
         else:
             # TODO: parse (simple) PrimExprs
             self._diagnostic_context.emit(
                 "error",
                 "only dimension variable expressions are currently supported",
-                self.tvm_span(expr.span),
+                expr.span,
             )
             self._diagnostic_context.render()
 
@@ -325,7 +314,7 @@ class RelaxTransformer(Transformer):
     #             self._diagnostic_context.emit(
     #                 "error",
     #                 "The shape expression can only contain arithmetic operators, integer constants and variables",
-    #                 self.tvm_span(expr.span),
+    #                 (expr.span),
     #             )
     #             self._diagnostic_context.render()
 
@@ -336,18 +325,25 @@ class RelaxTransformer(Transformer):
         return self.module
 
     def transform_function(self, func: ast.Function, is_global=False) -> rx.Function:
+        if (
+            len(func.decorators) == 1
+            and isinstance(func.decorators[0], ast.Var)
+            and func.decorators[0].id.name == "tir"
+        ):
+            return _tir_from_synr(func, self._diagnostic_context)
+
         with self.new_scope():
             params = []
             for param in func.params:
                 ty, shape = self.transform_type(param.ty, allow_intro=True)
-                param = self.decl_var(param.name, ty, shape, self.tvm_span(param.span))
+                param = self.decl_var(param.name, ty, shape, self.to_tvm_span(param.span))
                 params.append(param)
             new_body = self.transform_block(func.body)
             ret_type, _ = self.transform_type(func.ret_type, allow_intro=False)
 
         func_name = rx.GlobalVar(func.name) if is_global else None
         return rx.Function(
-            params, new_body, ret_type, name=func_name, span=self.tvm_span(func.span)
+            params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
         )
 
     def parse_binding(self, stmt: ast.Assign, is_dataflow=False):
@@ -355,20 +351,20 @@ class RelaxTransformer(Transformer):
             self._diagnostic_context.emit(
                 "error",
                 "the left hand side of a binding must be a variable",
-                self.tvm_span(stmt.lhs.span),
+                stmt.lhs.span,
             )
             self._diagnostic_context.render()
         # TODO: figure out proper way of doing this
         rhs = self.transform_expr(stmt.rhs)
-        if isinstance(rhs, relay.Call) and rhs.op == relay.op.get("rx.call_packed"):
+        if isinstance(rhs, relay.Call) and rhs.op == relay.op.get("relax.call_packed"):
             allow_intro = True
         else:
             allow_intro = False
         ty, shape = self.transform_type(stmt.ty, allow_intro)
         lhs = self.decl_var(
-            stmt.lhs.id.name, ty, shape, self.tvm_span(stmt.lhs.span), is_dataflow=is_dataflow
+            stmt.lhs.id.name, ty, shape, self.to_tvm_span(stmt.lhs.span), is_dataflow=is_dataflow
         )
-        return rx.VarBinding(lhs, rhs, self.tvm_span(stmt.span))
+        return rx.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
 
     # Stmts:
     # - Assert: probably unsupported for now
@@ -417,9 +413,9 @@ class RelaxTransformer(Transformer):
             with self.new_scope():
                 false_branch = self.transform_block(false_block)
             # TODO: the spans here are all sorts of messed up, not sure how to fix
-            ite_expr = relay.If(cond, true_branch, false_branch, self.tvm_span(stmt.span))
-            var = self.decl_var(var_name, None, None, self.tvm_span(false_assign.span))
-            return rx.VarBinding(var, ite_expr, self.tvm_span(stmt.span))
+            ite_expr = relay.If(cond, true_branch, false_branch, self.to_tvm_span(stmt.span))
+            var = self.decl_var(var_name, None, None, self.to_tvm_span(false_assign.span))
+            return rx.VarBinding(var, ite_expr, self.to_tvm_span(stmt.span))
 
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
@@ -428,16 +424,14 @@ class RelaxTransformer(Transformer):
         elif isinstance(stmt, ast.UnassignedCall):
             call: synr.ast.Call = stmt.call
             op = self.transform_expr(call.func_name)
-            # FIXME: this check is unreachable since transform_expr tries looking up func_name as a
-            #        variable and fails
-            if op != relay.op.get("rx.match_shape"):
+            if op != relay.op.get("relax.match_shape"):
                 self._diagnostic_context.emit(
-                    "error", "the results of calls must be bound or used", self.tvm_span(stmt.span)
+                    "error", "the results of calls must be bound or used", stmt.span
                 )
                 self._diagnostic_context.render()
             if len(stmt.call.params) != 2:
                 self._diagnostic_context.emit(
-                    "error", "rx.match_shape takes exactly two arguments", self.tvm_span(stmt.span)
+                    "error", "relax.match_shape takes exactly two arguments", stmt.span
                 )
                 self._diagnostic_context.render()
 
@@ -448,18 +442,16 @@ class RelaxTransformer(Transformer):
             if not isinstance(lhs, ast.Tuple):
                 self._diagnostic_context.emit(
                     "error",
-                    "the pattern (lhs) of rx.match_shape must be a tuple",
-                    self.tvm_span(lhs.span),
+                    "the pattern (lhs) of relax.match_shape must be a tuple",
+                    lhs.span,
                 )
                 self._diagnostic_context.render()
             lhs_expr = self.parse_shape(lhs, allow_intro=True)
-            return rx.MatchShape(lhs_expr, rhs_expr, self.tvm_span(stmt.span))
+            return rx.MatchShape(lhs_expr, rhs_expr, self.to_tvm_span(stmt.span))
 
         elif isinstance(stmt, ast.With):
             if not isinstance(stmt.rhs, ast.Call):
-                self._diagnostic_context.emit(
-                    "error", "unsupported with block", self.tvm_span(stmt.span)
-                )
+                self._diagnostic_context.emit("error", "unsupported with block", stmt.span)
                 self._diagnostic_context.render()
 
             call = stmt.rhs
@@ -467,23 +459,21 @@ class RelaxTransformer(Transformer):
 
             # TODO: perhaps this ought to be more general
 
-            if op != relay.op.get("rx.dataflow"):
-                self._diagnostic_context.emit(
-                    "error", "unsupported with block type", self.tvm_span(call.span)
-                )
+            if op != relay.op.get("relax.dataflow"):
+                self._diagnostic_context.emit("error", "unsupported with block type", call.span)
                 self._diagnostic_context.render()
             if len(call.params) > 0:
                 self._diagnostic_context.emit(
                     "error",
                     "dataflow block constructor takes no arguments",
-                    self.tvm_span(call.params[0].span),
+                    call.params[0].span,
                 )
                 self._diagnostic_context.render()
             if len(stmt.lhs) > 0:
                 self._diagnostic_context.emit(
                     "error",
                     "dataflow blocks don't bind any patterns",
-                    self.tvm_span(stmt.lhs[0].span),
+                    stmt.lhs[0].span,
                 )
                 self._diagnostic_context.render()
 
@@ -491,14 +481,14 @@ class RelaxTransformer(Transformer):
 
         elif isinstance(stmt, ast.Function):
             func = self.transform_function(stmt)
-            func_var = self.decl_var(stmt.name, None, None, self.tvm_span(stmt.span))
-            return rx.VarBinding(func_var, func, self.tvm_span(stmt.span))
+            func_var = self.decl_var(stmt.name, None, None, self.to_tvm_span(stmt.span))
+            return rx.VarBinding(func_var, func, self.to_tvm_span(stmt.span))
 
         else:
             self._diagnostic_context.emit(
                 "error",
                 "unsupported statement",
-                self.tvm_span(stmt.span),
+                stmt.span,
             )
             self._diagnostic_context.render()
 
@@ -514,7 +504,7 @@ class RelaxTransformer(Transformer):
                 self._diagnostic_context.emit(
                     "error",
                     "dataflow blocks must end with returning the output variables",
-                    self.tvm_span(output_stmt.span),
+                    output_stmt.span,
                 )
                 self._diagnostic_context.render()
 
@@ -528,7 +518,7 @@ class RelaxTransformer(Transformer):
                 self._diagnostic_context.emit(
                     "error",
                     "the returned values must be variables",
-                    self.tvm_span(ret_val.span),
+                    ret_val.span,
                 )
 
             # output variables are bound to normal (not data flow) Vars
@@ -539,7 +529,7 @@ class RelaxTransformer(Transformer):
                     self._diagnostic_context.emit(
                         "error",
                         "only bindings are supported in dataflow blocks",
-                        self.tvm_span(binding_stmt.span),
+                        binding_stmt.span,
                     )
                     self._diagnostic_context.render()
                 is_dataflow = binding_stmt.lhs.id.name not in output_var_names
@@ -552,7 +542,7 @@ class RelaxTransformer(Transformer):
         for v in output_vars:
             self.scope[v.name_hint] = v
 
-        return rx.DataflowBlock(bindings, self.tvm_span(block.span))
+        return rx.DataflowBlock(bindings, self.to_tvm_span(block.span))
 
     # Exprs:
     # - ArrayLiteral: unsupported for now?
@@ -576,9 +566,7 @@ class RelaxTransformer(Transformer):
                     op_name.append(expr.field.name)
                     attr = attr.object
                 if not isinstance(attr, ast.Var):
-                    self._diagnostic_context.emit(
-                        "error", "unsupported field access", self.tvm_span(expr)
-                    )
+                    self._diagnostic_context.emit("error", "unsupported field access", expr.span)
                     self._diagnostic_context.render()
                 op_name.append(attr.id.name)
                 op_name = ".".join(reversed(op_name))
@@ -587,27 +575,23 @@ class RelaxTransformer(Transformer):
         if isinstance(expr, ast.Call):
             op = self.transform_expr(expr.func_name)
             args = [self.transform_expr(arg) for arg in expr.params]
-            return relay.Call(op, args, span=self.tvm_span(expr.span))
+            return relay.Call(op, args, span=self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Tuple):
             fields = [self.transform_expr(field) for field in expr.values]
-            return relay.Tuple(fields, span=self.tvm_span(expr.span))
+            return relay.Tuple(fields, span=self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Var):
             var_name = expr.id.name
             if is_registered(var_name, op_set=self._registered_ops):
                 return relay.op.get(var_name)
             if var_name not in self.scope:
-                self._diagnostic_context.emit(
-                    "error", "undefined variable", self.tvm_span(expr.span)
-                )
+                self._diagnostic_context.emit("error", "undefined variable", expr.span)
                 self._diagnostic_context.render()
             return self.scope[var_name]
 
         else:
-            self._diagnostic_context.emit(
-                "error", "unsupported expression", self.tvm_span(expr.span)
-            )
+            self._diagnostic_context.emit("error", "unsupported expression", expr.span)
             self._diagnostic_context.render()
 
     def transform_block(self, block: ast.Block) -> rx.SeqExpr:
@@ -619,65 +603,65 @@ class RelaxTransformer(Transformer):
             if isinstance(parsed_stmt, rx.DataflowBlock):
                 if current_block:
                     # FIXME: span
-                    blocks.append(rx.BindingBlock(current_block, self.tvm_span(stmt.span)))
+                    blocks.append(rx.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
                     current_block = []
                 blocks.append(parsed_stmt)
             else:
                 assert isinstance(parsed_stmt, rx.Binding)
                 current_block.append(parsed_stmt)
         if len(current_block) > 0:
-            blocks.append(rx.BindingBlock(current_block, self.tvm_span(stmt.span)))
+            blocks.append(rx.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
 
         ret_stmt = block.stmts[-1]
         if not isinstance(ret_stmt, ast.Return):
             self._diagnostic_context.emit(
                 "error",
                 "block must end with a returned expression",
-                self.tvm_span(ret_stmt.span),
+                ret_stmt.span,
             )
             self._diagnostic_context.render()
         ret_expr = self.transform_stmt(ret_stmt)
 
-        return rx.SeqExpr(blocks, ret_expr, self.tvm_span(block.span))
+        return rx.SeqExpr(blocks, ret_expr, self.to_tvm_span(block.span))
 
 
-class TVMDiagnosticContext(synr.DiagnosticContext):
-    def __init__(self, tvm_diag_ctx):
-        self.tvm_diag_ctx = tvm_diag_ctx
-        self.str_to_source_name = {}
+# class TVMDiagnosticContext(synr.DiagnosticContext):
+#     def __init__(self, tvm_diag_ctx):
+#         self.tvm_diag_ctx = tvm_diag_ctx
+#         self.str_to_source_name = {}
 
-    def add_source(self, name: str, source: str) -> None:
-        """Add a file with source code to the context. This will be called
-        before any call to :py:func:`emit` that contains a span in this
-        file.
-        """
-        src_name = self.tvm_diag_ctx.module.source_map.add(name, source)
-        self.str_to_source_name[name] = src_name
+#     def add_source(self, name: str, source: str) -> None:
+#         """Add a file with source code to the context. This will be called
+#         before any call to :py:func:`emit` that contains a span in this
+#         file.
+#         """
+#         src_name = self.tvm_diag_ctx.module.source_map.add(name, source)
+#         self.str_to_source_name[name] = src_name
 
-    def emit(self, level: str, message: str, span: tvm.ir.Span) -> None:
-        """Called when an error has occured."""
+#     def emit(self, level: str, message: str, span: tvm.ir.Span) -> None:
+#         """Called when an error has occured."""
 
-        if level == "error":
-            level = diagnostics.DiagnosticLevel.ERROR
-        elif level == "bug":
-            level = diagnostics.DiagnosticLevel.BUG
-        elif level == "warning":
-            level = diagnostics.DiagnosticLevel.WARNING
-        else:
-            level = "error"
+#         if level == "error":
+#             level = diagnostics.DiagnosticLevel.ERROR
+#         elif level == "bug":
+#             level = diagnostics.DiagnosticLevel.BUG
+#         elif level == "warning":
+#             level = diagnostics.DiagnosticLevel.WARNING
+#         else:
+#             level = "error"
 
-        assert span, "Span must not be null"
-        assert isinstance(span, tvm.ir.Span), "Expected tvm.ir.Span, but got " + str(type(span))
+#         assert span, "Span must not be null"
+#         assert isinstance(span, tvm.ir.Span), "Expected tvm.ir.Span, but got " + str(type(span))
 
-        diag = diagnostics.Diagnostic(level, span, message)
+#         diag = diagnostics.Diagnostic(level, span, message)
 
-        self.tvm_diag_ctx.emit(diag)
+#         self.tvm_diag_ctx.emit(diag)
 
-    def render(self) -> Optional[Any]:
-        """Render out all error messages. Can either return a value or raise
-        and execption.
-        """
-        self.tvm_diag_ctx.render()
+#     def render(self) -> Optional[Any]:
+#         """Render out all error messages. Can either return a value or raise
+#         and execption.
+#         """
+#         self.tvm_diag_ctx.render()
 
 
 class RelaxDecoratedFn:
@@ -697,10 +681,10 @@ class RelaxDecoratedFn:
 
 
 def script(f):
-    ir_module = tvm.IRModule({})
-    diag_ctx = diagnostics.DiagnosticContext(ir_module, diagnostics.get_renderer())
-    diag_ctx = TVMDiagnosticContext(diag_ctx)
+    # ir_module = tvm.IRModule({})
+    # diag_ctx = diagnostics.DiagnosticContext(ir_module, diagnostics.get_renderer())
+    diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
     ast = synr.to_ast(f, diag_ctx)
     definition_scope = inspect.getmodule(f)
-    module = RelaxTransformer(definition_scope, diag_ctx).do_transform(ast, diag_ctx)
+    module = RelaxTransformer(definition_scope).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
