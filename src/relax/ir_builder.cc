@@ -64,28 +64,6 @@ void IRBuilderNode::BuildBlock() {
   this->SwitchBlock();
 }
 
-Optional<RelayExpr> InferShape(const Call& call) {
-  auto op_map = Op::GetAttrMap<relax::FInferShape>("FInferShape");
-  if (const auto* op_node = call->op.as<OpNode>()) {
-    Op op = GetRef<Op>(op_node);
-    if (op_map.count(op)) {
-      return op_map[op](call);
-    }
-  }
-  return NullOpt;
-}
-
-Type InferType(const Call& call) {
-  auto op_map = Op::GetAttrMap<relax::FInferType>("FInferType");
-  if (const auto* op_node = call->op.as<OpNode>()) {
-    Op op = GetRef<Op>(op_node);
-    if (op_map.count(op)) {
-      return op_map[op](call);
-    }
-  }
-  return VoidType();
-}
-
 Var IRBuilderNode::Emit(const Call& call) {
   Var var;
   if (is_dataflow) {
@@ -93,18 +71,6 @@ Var IRBuilderNode::Emit(const Call& call) {
   } else {
     var = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
   }
-  // Shape inference
-  auto inferred_shape = InferShape(call);
-  if (inferred_shape) {
-    if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
-      call->shape_ = shape_expr->values;
-      var->shape_ = shape_expr->values;
-    }
-  }
-  // Type inference
-  auto inferred_type = InferType(call);
-  call->checked_type_ = inferred_type;
-  var->checked_type_ = inferred_type;
 
   this->func.bindings.emplace_back(VarBinding(var, call));
   return var;

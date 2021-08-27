@@ -50,9 +50,7 @@ namespace relax {
   RELAY_REGISTER_OP(OpName)                                                       \
       .set_num_inputs(2)                                                          \
       .add_argument("lhs", "Tensor", "The left hand side tensor.")                \
-      .add_argument("rhs", "Tensor", "The right hand side tensor.")               \
-      .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)            \
-      .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast)
+      .add_argument("rhs", "Tensor", "The right hand side tensor.")
 
 }  // namespace relax
 }  // namespace tvm
