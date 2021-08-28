@@ -106,7 +106,7 @@ class IRBuilderNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(IRBuilderNode, Object);
 
  private:
-  /*! \brief A representation of a function that stores states. */
+  /*! \brief The state of the function currently being built. */
   RelaxFunction func;
   /*! \brief A flag tracking if currently inside a dataflow block or not. */
   bool is_dataflow = false;
@@ -114,11 +114,6 @@ class IRBuilderNode : public Object {
   int global_var_counter = 0;
   /*! \brief A dataflow variable counter for naming dataflow variables. */
   int dataflow_var_counter = 0;
-  /*!
-   * \brief Flip \p is_dataflow to indicate switching from a DataflowBlock to a BindingBlock
-   * or the other way around.
-   */
-  inline void SwitchBlock();
 };
 
 class IRBuilder : public ObjectRef {

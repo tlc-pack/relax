@@ -47,7 +47,7 @@ namespace relax {
     static const Op& op = Op::Get(OpName);                                        \
     return Call(op, {lhs, rhs}, Attrs(), {});                                     \
   });                                                                             \
-  RELAY_REGISTER_OP(OpName)                                                       \
+  RELAY_REGISTER_OP("relax." OpName)                                              \
       .set_num_inputs(2)                                                          \
       .add_argument("lhs", "Tensor", "The left hand side tensor.")                \
       .add_argument("rhs", "Tensor", "The right hand side tensor.")

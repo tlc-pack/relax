@@ -60,7 +60,7 @@ void IRBuilderNode::BuildBlock() {
     }
     this->func.bindings.clear();
   }
-  this->SwitchBlock();
+  this->is_dataflow = !this->is_dataflow;
 }
 
 Var IRBuilderNode::Emit(const Call& call) {
@@ -87,8 +87,6 @@ Var IRBuilderNode::EmitOutput(const Expr& output) {
   }
   return ret;
 }
-
-inline void IRBuilderNode::SwitchBlock() { is_dataflow = !is_dataflow; }
 
 Function IRBuilderNode::Get() { return this->func.func; }
 
