@@ -66,7 +66,7 @@ class IRBuilder(Object):
         x = rx.Var("x", [m, n], dtype0)
         y = rx.Var("y", [n], dtype1)
         ib = rx.IRBuilder()
-        with ib.function("func", [x, y]):
+        with ib.function([x, y], "func"):
             with ib.dataflow() as df:
                 lv0 = ib.emit(rx.add(x, y))
                 lv1 = ib.emit(rx.multiply(lv0, y))
@@ -79,27 +79,29 @@ class IRBuilder(Object):
         self.__init_handle_by_constructor__(_ffi_api.IRBuilderCreate)
 
     def function(self,
-                 name: str,
-                 params: Union[Var, Tuple, List[Var]]) -> FunctionScope:
+                 params: Optional[Union[Var, Tuple, List[Var]]] = None,
+                 name: Optional[str] = "") -> FunctionScope:
         """Annotate a Relax function.
 
         Parameters
         ----------
-        name : str
-            The name of the function.
-
-        params : tvm.relax.Var | Tuple | List[tvm.relax.Var]
+        params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function.
+        
+        name : str, optional
+            The name of the function. If provided, the function is global, otherwise local.
         
         Returns
         -------
         ret: FunctionScope
             A FunctionScope for building a Relax function node.
         """
+        if not params:
+            params = []
         if not isinstance(params, (list, tuple)):
             params = [params]
 
-        _ffi_api.IRBuilderFillFuncNameParam(self, name, params)
+        _ffi_api.IRBuilderFillFuncNameParam(self, params, name)
         return FunctionScope(self)
 
     def dataflow(self) -> DataflowScope:

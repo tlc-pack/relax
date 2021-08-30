@@ -43,7 +43,7 @@ class IRBuilder;
  */
 struct RelaxFunction {
   /*! \brief The function name. */
-  std::string func_name;
+  Optional<GlobalVar> func_name = NullOpt;
   /*! \brief The function parameters. */
   Array<Var> params;
   /*! \brief The bindings in the function. */
@@ -64,7 +64,7 @@ class IRBuilderNode : public Object {
   /*!
    * \brief Fill the function name and parameters.
    */
-  void FillFuncNameParam(const std::string& func_name, const Array<Var>& params);
+  void FillFuncNameParam(const Array<Var>& params, const std::string& func_name);
   /*!
    * \brief Build a function node.
    */

@@ -36,18 +36,21 @@ IRBuilder IRBuilderNode::Create() {
   return ret;
 }
 
-void IRBuilderNode::FillFuncNameParam(const std::string& func_name, const Array<Var>& params) {
-  this->func.func_name = func_name;
+void IRBuilderNode::FillFuncNameParam(const Array<Var>& params, const std::string& func_name) {
+  if (!func_name.empty()) {
+    this->func.func_name = GlobalVar(func_name);
+  }
+  
   this->func.params = params;
 }
 
 void IRBuilderNode::BuildFunction() {
   SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
   if (func.ret.defined()) {
-    this->func.func = Function(GlobalVar(this->func.func_name), this->func.params, seq,
+    this->func.func = Function(this->func.func_name, this->func.params, seq,
                                this->func.ret->checked_type_);
   } else {
-    this->func.func = Function(GlobalVar(this->func.func_name), this->func.params, seq, {});
+    this->func.func = Function(this->func.func_name, this->func.params, seq, {});
   }
 }
 
@@ -132,8 +135,8 @@ void DataflowScope::ExitWithScope() {
 TVM_REGISTER_GLOBAL("relax.IRBuilderCreate").set_body_typed(IRBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderFillFuncNameParam")
-.set_body_typed([](IRBuilder builder, const std::string& func_name, const Array<Var>& params) {
-  return builder->FillFuncNameParam(func_name, params);
+.set_body_typed([](IRBuilder builder, const Array<Var>& params, const std::string& func_name) {
+  return builder->FillFuncNameParam(params, func_name);
 });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction").set_body_typed([](IRBuilder builder) {

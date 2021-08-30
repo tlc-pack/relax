@@ -47,7 +47,7 @@ def test_function_single_block():
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
     ib = rx.IRBuilder()
-    with ib.function("func", [x, y]):
+    with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv0"
@@ -59,7 +59,6 @@ def test_function_single_block():
     func = ib.get()
     assert func.params[0] == x
     assert func.params[1] == y
-    assert func.name.name_hint == "func"
     assert func.body.body == gv0
     assert len(func.body.blocks) == 1
     assert len(func.body.blocks[0].bindings) == 3
@@ -73,7 +72,7 @@ def test_function_multi_blocks():
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
     ib = rx.IRBuilder()
-    with ib.function("func", [x, y]):
+    with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv0"
