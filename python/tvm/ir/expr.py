@@ -51,6 +51,18 @@ class RelayExpr(BaseExpr):
             raise ValueError("The type checker has not populated" " the checked_type for this node")
         return ret
 
+    @property
+    def shape(self):
+        """Get the shape of tvm.relay.Expr.
+
+        Returns
+        -------
+        shape : tvm.ir.RelayExpr
+            The expression that represents the shape.
+        """
+        return _ffi_api.RelayExprShape(self) 
+
+
 
 @tvm._ffi.register_object("GlobalVar")
 class GlobalVar(RelayExpr):
