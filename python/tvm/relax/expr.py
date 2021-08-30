@@ -45,9 +45,11 @@ class ShapeExpr(Expr):
     def __len__(self):
         return len(self.values)
 
-def make_shape(shape: List[PrimExpr]):
+def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
+    else:
+        raise ValueError
 
 
 @tvm._ffi.register_object("relax.expr.Var")

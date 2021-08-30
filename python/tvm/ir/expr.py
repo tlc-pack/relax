@@ -50,6 +50,7 @@ class RelayExpr(BaseExpr):
             raise ValueError("The type checker has not populated" " the checked_type for this node")
         return ret
 
+    @property
     def shape(self):
         """Get the shape of tvm.relay.Expr.
 
