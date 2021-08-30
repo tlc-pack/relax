@@ -22,19 +22,34 @@
 namespace tvm {
 namespace relax {
 
+// call_dps
+
+RELAY_REGISTER_OP("relax.call_dps")
+.set_num_inputs(3)
+.add_argument("shape", "ShapeExpr", "The output shape.")
+.add_argument("func", "Expr", "The destination-passing-style function.")
+.add_argument("args", "Tuple", "The input arguments.");
+
 Expr MakeCallDPS(ShapeExpr shape, Expr func, Tuple args) {
-  static const Op& op = Op::Get("call_dps");
+  static const Op& op = Op::Get("relax.call_dps");
   return Call(op, {shape, func, args}, {}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_dps")
 .set_body_typed(MakeCallDPS);
 
-RELAY_REGISTER_OP("call_dps")
-.set_num_inputs(3)
-.add_argument("shape", "ShapeExpr", "The output shape.")
-.add_argument("func", "Expr", "The destination-passing-style function.")
-.add_argument("args", "Tuple", "The input arguments.");
+// shape_of
 
+RELAY_REGISTER_OP("relax.shape_of")
+.set_num_inputs(1)
+.add_argument("input", "Expr", "The input expression");
+
+Expr MakeShapeOf(Expr expr) {
+  static const Op& op = Op::Get("relax.shape_of");
+  return Call(op, {expr}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.shape_of")
+.set_body_typed(MakeShapeOf);
 } // namespace relax
 } // namespace tvm
