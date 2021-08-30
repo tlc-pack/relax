@@ -19,10 +19,24 @@
 #include <tvm/relax/expr.h>
 
 namespace tvm {
+
+RelayExpr RelayExprNode::shape() const {
+  if (this->shape_.defined()) {
+    return Downcast<RelayExpr>(this->shape_);
+  }
+  static const Op& op = Op::Get("relax.shape_of");
+  RelayExpr self = GetRef<RelayExpr>(this);
+  return relay::Call(op, {self}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("ir.RelayExprShape")
+.set_body_typed([](RelayExpr expr) {
+  return expr->shape();
+});
+
 namespace relax {
 
 using tvm::runtime::Optional;
-
 
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
@@ -41,7 +55,7 @@ TVM_REGISTER_GLOBAL("relax.ShapeExpr")
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 Var::Var(Id vid,
-         Optional<Array<PrimExpr>> shape_annotation,
+         Optional<Expr> shape_annotation,
          Optional<Type> type_annotation,
          Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
@@ -54,7 +68,7 @@ Var::Var(Id vid,
 
 TVM_REGISTER_GLOBAL("relax.Var")
 .set_body_typed([](String name_hint,
-                   Optional<Array<PrimExpr>> shape_annotation,
+                   Optional<Expr> shape_annotation,
                    Optional<Type> type_annotation) {
   return Var(name_hint, shape_annotation, type_annotation);
 });
@@ -64,7 +78,7 @@ TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
 TVM_REGISTER_GLOBAL("relax.DataflowVar")
 .set_body_typed([](String name_hint,
-                   Optional<Array<PrimExpr>> shape_annotation,
+                   Optional<Expr> shape_annotation,
                    Optional<Type> type_annotation) {
   return DataflowVar(name_hint, shape_annotation, type_annotation);
 });
