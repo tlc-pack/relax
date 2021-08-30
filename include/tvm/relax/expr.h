@@ -31,12 +31,12 @@
 namespace tvm {
 namespace relax {
 
+using Expr = RelayExpr;
+using ExprNode = RelayExprNode;
 using relay::Id;
 using relay::Call;
 using relay::Tuple;
 using relay::TupleGetItem;
-using ExprNode = RelayExprNode;
-using Expr = RelayExpr;
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
@@ -121,13 +121,13 @@ class VarNode : public ExprNode {
 class Var : public Expr {
  public:
   TVM_DLL Var(String name_hint,
-              runtime::Optional<Array<PrimExpr>> shape_annotation,
+              runtime::Optional<Expr> shape_annotation,
               runtime::Optional<Type> type_annotation,
               Span span = Span())
     : Var(Id(name_hint), shape_annotation, type_annotation, span) {}
 
   TVM_DLL Var(Id vid,
-              runtime::Optional<Array<PrimExpr>> shape_annotation,
+              runtime::Optional<Expr> shape_annotation,
               runtime::Optional<Type> type_annotation,
               Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
