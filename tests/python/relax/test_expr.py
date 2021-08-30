@@ -113,6 +113,19 @@ def test_func():
     assert func.name.name_hint == "func"
 
 
+def test_shape_of():
+    v0 = rx.Var("v0")
+    s0 = v0.shape
+    assert isinstance(s0, tvm.relay.Call)
+    assert s0.op.name == "relax.shape_of"
+
+    shape_anno = [96, 54]
+    v1 = rx.Var("v1", shape_anno)
+    s1 = v1.shape
+    for x, y in zip(shape_anno, s1):
+        assert x == y
+
+
 if __name__ == "__main__":
     test_var()
     test_dataflow_var()
@@ -123,3 +136,4 @@ if __name__ == "__main__":
     test_seq_expr()
     test_shape_expr()
     test_func()
+    test_shape_of()
