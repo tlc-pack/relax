@@ -37,6 +37,20 @@ class ShapeExpr(Expr):
     def __init__(self, values: List[PrimExpr]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values)
 
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return self.values[index]
+
+    def __len__(self):
+        return len(self.values)
+
+def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
+    if isinstance(shape, (list, tuple)):
+        return ShapeExpr(shape)
+    else:
+        raise ValueError
+
 
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
@@ -44,8 +58,10 @@ class Var(Expr):
     type_annotation: Optional[Type]
 
     def __init__(self, name_hint: str,
-                 shape_annotation: Optional[List[Type]] = None,
+                 shape_annotation: Optional[Expr] = None,
                  type_annotation: Optional[Type] = None) -> None:
+        if shape_annotation is not None:
+            shape_annotation = make_shape(shape_annotation)
         self.__init_handle_by_constructor__(_ffi_api.Var, name_hint,
                                             shape_annotation,
                                             type_annotation)
