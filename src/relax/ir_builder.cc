@@ -52,6 +52,7 @@ void IRBuilderNode::BuildFunction() {
   } else {
     this->func.func = Function(this->func.func_name, this->func.params, seq, {});
   }
+  this->global_var_counter = 0;
 }
 
 void IRBuilderNode::BuildBlock() {
@@ -63,6 +64,7 @@ void IRBuilderNode::BuildBlock() {
     }
     this->func.bindings.clear();
   }
+  this->dataflow_var_counter = 0;
   this->is_dataflow = !this->is_dataflow;
 }
 

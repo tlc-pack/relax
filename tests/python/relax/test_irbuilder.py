@@ -82,7 +82,7 @@ def test_function_multi_blocks():
         assert gv1.name_hint == "gv1"
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(gv1, gv1))
-            assert lv0.name_hint == "lv1"
+            assert lv0.name_hint == "lv0"
             gv2 = ib.emit_output(gv1)
         ib.emit_output(gv2)
     func = ib.get()
