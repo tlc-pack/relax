@@ -20,6 +20,8 @@ from . import expr
 from . import ty
 from . import vm
 from . import op
+from . import ir_builder
+from . import op
 
 
 # Expr
@@ -56,3 +58,6 @@ load_exec_from_file = vm.load_exec_from_file
 
 # Operator
 from .op.base import call_dps
+
+# IRBuilder
+IRBuilder = ir_builder.IRBuilder

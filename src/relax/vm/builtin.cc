@@ -69,11 +69,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape")
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
 .set_body_typed([](void* vm_state_ptr, Index size, Index alignment, Index device_type,
-                   DLDataType dtype_hint) {
+                    DLDataType dtype_hint) {
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
   DLOG(INFO) << "AllocStorage: allocation_size=" << size << ", alignment=" << alignment
-             << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
-             << ", device_type=" << device_type;
+              << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
+              << ", device_type=" << device_type;
 
   auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
   ICHECK_LT(static_cast<size_t>(device_type), vm_state->allocators.size())
