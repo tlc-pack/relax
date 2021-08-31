@@ -39,9 +39,7 @@ namespace relax {
 
 class ShapeTypeNode : public TypeNode {
  public:
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
     return true;
@@ -64,9 +62,8 @@ class ShapeType : public Type {
   const ShapeTypeNode* get() const {
     return operator->();
   }
-  using ContainerType = ShapeTypeNode; 
+  using ContainerType = ShapeTypeNode;
 };
-
 
 class DynTensorTypeNode : public BaseTensorTypeNode {
  public:
@@ -91,6 +88,10 @@ class DynTensorTypeNode : public BaseTensorTypeNode {
     hash_reduce(rank);
     hash_reduce(dtype);
   }
+
+  inline bool IsUnknownRank() const { return rank == -1; }
+
+  inline bool IsUnknownDtype() const { return dtype.is_void(); }
 
   static constexpr const char* _type_key = "relax.DynTensorType";
   TVM_DECLARE_FINAL_OBJECT_INFO(DynTensorTypeNode, BaseTensorTypeNode);
