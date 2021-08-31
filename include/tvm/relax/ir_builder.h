@@ -51,7 +51,7 @@ struct RelaxFunction {
   /*! \brief The binding blocks in the function. */
   std::vector<BindingBlock> binding_blocks;
   /*! \brief The return of the function. */
-  Expr ret;
+  Expr ret = Tuple();
   /*! \brief The FunctionNode being built. */
   Function func;
 };

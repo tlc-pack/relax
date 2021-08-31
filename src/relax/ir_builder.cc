@@ -46,12 +46,7 @@ void IRBuilderNode::FillFuncNameParam(const Array<Var>& params, const std::strin
 
 void IRBuilderNode::BuildFunction() {
   SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
-  if (func.ret.defined()) {
-    this->func.func = Function(this->func.func_name, this->func.params, seq,
-                               this->func.ret->checked_type_);
-  } else {
-    this->func.func = Function(this->func.func_name, this->func.params, seq, {});
-  }
+  this->func.func = Function(this->func.func_name, this->func.params, seq, {});
   this->global_var_counter = 0;
 }
 
