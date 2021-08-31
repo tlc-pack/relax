@@ -62,6 +62,9 @@ Var::Var(Id vid,
   n->vid = std::move(vid);
   n->shape_ = std::move(shape_annotation);
   n->type_annotation = std::move(type_annotation);
+  if (n->type_annotation) {
+    n->checked_type_ = n->type_annotation.value();
+  }
   n->span = std::move(span);
   data_ = std::move(n);
 }
