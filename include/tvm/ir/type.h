@@ -377,7 +377,7 @@ class TupleType : public Type {
 inline Type VoidType() { return TupleType::Empty(); }
 
 /*!
- * \brief Check whether the tyep represents void.
+ * \brief Check whether the type represents void.
  * \return The check result.
  */
 inline bool IsVoidType(const Type& type) {
