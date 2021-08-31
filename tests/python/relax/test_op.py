@@ -18,8 +18,6 @@ import tvm
 from tvm import tir
 from tvm import relax as rx
 from tvm.script import ty
-from tvm.ir import TensorType
-import numpy as np
 
 @tvm.register_func("test.op.identity")
 def identity_packed(a):
