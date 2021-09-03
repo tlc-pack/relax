@@ -25,9 +25,9 @@
 #ifndef TVM_RELAX_OP_OP_COMMON_H_
 #define TVM_RELAX_OP_OP_COMMON_H_
 
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
-#include <tvm/relay/op_attr_types.h>
 
 namespace tvm {
 namespace relax {
@@ -44,7 +44,7 @@ namespace relax {
  */
 #define RELAX_REGISTER_BINARY_OP(OpName)                                          \
   TVM_REGISTER_GLOBAL("relax.op." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
-    static const Op& op = Op::Get("relax." OpName);                                        \
+    static const Op& op = Op::Get("relax." OpName);                               \
     return Call(op, {lhs, rhs}, Attrs(), {});                                     \
   });                                                                             \
   RELAY_REGISTER_OP("relax." OpName)                                              \
