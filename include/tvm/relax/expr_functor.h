@@ -161,12 +161,14 @@ class ExprVisitor : public ExprFunctor<void(const Expr& n)> {
 
   virtual void VisitType(const Type& t);
   virtual void VisitSpan(const Span& span);
-  virtual void VisitBinding(const VarBinding& b);
-
- protected:
-  // Internal visiting counter
-  std::unordered_map<const Object*, size_t> visit_counter_;
+  virtual void VisitBinding(const Binding& binding);
+  virtual void VisitVarBinding(const VarBinding& binding);
+  virtual void VisitMatchShape(const MatchShape& binding);
+  virtual void VisitBindingBlock(const BindingBlock& block);
+  virtual void VisitDataflowBlock(const DataflowBlock& block);
 };
+
+void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 
 /*!
  * \brief A wrapper around ExprFunctor which functionally updates the AST.

@@ -34,9 +34,13 @@
 namespace tvm {
 namespace relax {
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const ConstantNode* op) {
+  this->VisitSpan(op->span);
+}
 
-void ExprVisitor::VisitExpr_(const GlobalVarNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
+  this->VisitSpan(op->span);
+}
 
 void ExprVisitor::VisitExpr_(const TupleNode* op) {
   this->VisitSpan(op->span);
@@ -46,6 +50,13 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const VarNode* op) {
+  this->VisitSpan(op->span);
+  if (op->type_annotation.defined()) {
+    this->VisitType(op->type_annotation.value());
+  }
+}
+
+void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
   this->VisitSpan(op->span);
   if (op->type_annotation.defined()) {
     this->VisitType(op->type_annotation.value());
@@ -81,52 +92,80 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitExpr(op->false_branch);
 }
 
-void ExprVisitor::VisitExpr_(const OpNode* op) { return; }
+void ExprVisitor::VisitExpr_(const OpNode* op) {
+  return;
+}
 
 void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->tuple);
 }
 
-void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
+void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
   this->VisitSpan(op->span);
-  if (op->type_annotation.defined()) {
-    this->VisitType(op->type_annotation.value());
-  }
 }
 
-void ExprVisitor::VisitExpr_(const ShapeExprNode* op) { this->VisitSpan(op->span); }
-
-void ExprVisitor::VisitExpr_(const ExternFuncNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const ExternFuncNode* op) {
+  this->VisitSpan(op->span);
+}
 
 void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   this->VisitSpan(op->span);
   for (auto block : op->blocks) {
-    for (auto binding : block->bindings) {
-      if (const auto* b = binding.as<VarBindingNode>()) {
-        this->VisitBinding(GetRef<VarBinding>(b));
-      }
-    }
+    this->VisitBindingBlock(block);
   }
   this->VisitExpr(op->body);
 }
 
-void ExprVisitor::VisitType(const Type& t) { return; }
+void ExprVisitor::VisitType(const Type& t) {
+  return;
+}
 
-void ExprVisitor::VisitSpan(const Span& span) { return; }
+void ExprVisitor::VisitSpan(const Span& span) {
+  return;
+}
 
-void ExprVisitor::VisitBinding(const VarBinding& binding) { this->VisitExpr(binding->value); }
-
-void ExprVisitor::VisitExpr(const Expr& expr) {
-  auto it = visit_counter_.find(expr.get());
-  if (it != visit_counter_.end()) {
-    ++it->second;
+void ExprVisitor::VisitBinding(const Binding& binding) {
+  if (binding.as<VarBindingNode>()) {
+    this->VisitVarBinding(Downcast<VarBinding>(binding));
+  } else if (binding.as<MatchShapeNode>()) {
+    this->VisitMatchShape(Downcast<MatchShape>(binding));
   } else {
-    using TParent = ExprFunctor<void(const Expr&)>;
-    TParent::VisitExpr(expr);
-    visit_counter_.insert({expr.get(), 1});
+    LOG(FATAL) << "Wrong type.";
   }
 }
+
+void ExprVisitor::VisitVarBinding(const VarBinding& binding) {
+  this->VisitExpr(binding->var);
+  this->VisitExpr(binding->value);
+}
+
+void ExprVisitor::VisitMatchShape(const MatchShape& binding) {
+  this->VisitExpr(binding->value);
+}
+
+void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
+  for (auto binding : block->bindings) {
+    this->VisitBinding(binding);
+  }
+}
+
+void ExprVisitor::VisitDataflowBlock(const DataflowBlock& block) {
+  for (auto binding : block->bindings) {
+    this->VisitBinding(binding);
+  }
+}
+
+void ExprVisitor::VisitExpr(const Expr& expr) {
+  using TParent = ExprFunctor<void(const Expr&)>;
+  TParent::VisitExpr(expr);
+}
+
+
+
+
+// ==================
+// ExprMutator
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   auto it = this->memo_.find(expr);
@@ -281,6 +320,29 @@ Type ExprMutator::VisitType(const Type& t) { return t; }
 VarBinding ExprMutator::VisitBinding(const VarBinding& binding) {
   return VarBinding(binding->var, VisitExpr(binding->value));
 }
+
+class ExprApplyVisit : public ExprVisitor {
+ public:
+  explicit ExprApplyVisit(std::function<void(const Expr&)> f) : f_(f) {}
+
+  void VisitExpr(const Expr& e) final {
+    ExprVisitor::VisitExpr(e);
+    f_(e);
+  }
+
+ private:
+  std::function<void(const Expr&)> f_;
+};
+
+void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
+  ExprApplyVisit(fvisit).VisitExpr(e);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit")
+.set_body_typed([](Expr expr, PackedFunc f) {
+  PostOrderVisit(expr, [f](const Expr& n) { f(n); });
+});
+
 
 }  // namespace relax
 }  // namespace tvm
