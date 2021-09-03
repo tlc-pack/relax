@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 from typing import TypeVar, Generic, Union, Dict, List, Tuple, Optional
 from io import StringIO
+from enum import Enum
 
 import tvm
 import tvm.script
@@ -36,6 +37,13 @@ def is_registered(op_name, op_set=None):
 def _tir_from_synr(synr_ast: ast.Node, diag_ctx: tvm.script.diagnostics.TVMDiagnosticCtx):
     parser = tvm.script.parser.TVMScriptParser(synr_ast.span.start_line)
     return parser.do_transform(synr_ast, diag_ctx)
+
+
+# NOTE: call_dps is an actual registered operator
+class SpecialOp(Enum):
+    MATCH_SHAPE = "relax.match_shape"
+    CALL_PACKED = "relax.call_packed"
+    DATAFLOW = "relax.dataflow"
 
 
 class RelaxTransformer(Transformer):
@@ -300,10 +308,10 @@ class RelaxTransformer(Transformer):
     def parse_shape_binding(self, stmt: ast.UnassignedCall):
         call: synr.ast.Call = stmt.call
         op = self.transform_expr(call.func_name)
-        if op != relay.op.get("relax.match_shape"):
+        if op != SpecialOp.MATCH_SHAPE:
             self.report_error("the results of calls must be bound or used", stmt.span)
         if len(stmt.call.params) != 2:
-            self.report_error("relax.match_shape takes exactly two arguments", stmt.span)
+            self.report_error(op.value + " takes exactly two arguments", stmt.span)
 
         lhs = stmt.call.params[0]
         rhs = stmt.call.params[1]
@@ -311,7 +319,7 @@ class RelaxTransformer(Transformer):
         rhs_expr = self.transform_expr(rhs)
         if not isinstance(lhs, ast.Tuple):
             self.report_error(
-                "the pattern (lhs) of relax.match_shape must be a tuple",
+                "the pattern (lhs) of " + op.value + " must be a tuple",
                 lhs.span,
             )
         lhs_expr = self.parse_shape(lhs, allow_intro=True)
@@ -323,9 +331,9 @@ class RelaxTransformer(Transformer):
                 "the left hand side of a binding must be a variable",
                 stmt.lhs.span,
             )
-        # TODO: figure out proper way of doing this
         rhs = self.transform_expr(stmt.rhs)
-        if isinstance(rhs, relay.Call) and rhs.op == relay.op.get("relax.call_packed"):
+        # an ExternFunc call comes from call_packed
+        if isinstance(rhs, relay.Call) and isinstance(rhs.op, rx.ExternFunc):
             allow_intro = True
         else:
             allow_intro = False
@@ -415,20 +423,20 @@ class RelaxTransformer(Transformer):
 
             # TODO: perhaps this ought to be more general
 
-            if op != relay.op.get("relax.dataflow"):
+            if op == SpecialOp.DATAFLOW:
+                if len(call.params) > 0:
+                    self.report_error(
+                        "dataflow block constructor takes no arguments",
+                        call.params[0].span,
+                    )
+                if len(stmt.lhs) > 0:
+                    self.report_error(
+                        "dataflow blocks don't bind any patterns",
+                        stmt.lhs[0].span,
+                    )
+                return self.parse_dataflow(stmt.body)
+            else:
                 self.report_error("unsupported with block type", call.span)
-            if len(call.params) > 0:
-                self.report_error(
-                    "dataflow block constructor takes no arguments",
-                    call.params[0].span,
-                )
-            if len(stmt.lhs) > 0:
-                self.report_error(
-                    "dataflow blocks don't bind any patterns",
-                    stmt.lhs[0].span,
-                )
-
-            return self.parse_dataflow(stmt.body)
 
         elif isinstance(stmt, ast.Function):
             func = self.transform_function(stmt)
@@ -523,11 +531,32 @@ class RelaxTransformer(Transformer):
                     self.report_error("unsupported field access", expr.span)
                 op_name.append(attr.id.name)
                 op_name = ".".join(reversed(op_name))
-                return relay.op.get(op_name)  # TODO: maybe diagnostics here in case this fails?
+                # NOTE: at least for now, all special operators are namespaced
+                try:
+                    return SpecialOp(op_name)
+                except ValueError:
+                    return relay.op.get(op_name)  # TODO: maybe diagnostics here in case this fails?
 
         if isinstance(expr, ast.Call):
             op = self.transform_expr(expr.func_name)
-            args = [self.transform_expr(arg) for arg in expr.params]
+            if op == SpecialOp.CALL_PACKED:
+                if len(expr.params) != 2:
+                    self.report_error(
+                        op.value + " takes an extern function name and a tuple of arguments",
+                        expr.span,
+                    )
+                extern_func = expr.params[0]
+                if not (
+                    isinstance(extern_func, ast.Constant) and isinstance(extern_func.value, str)
+                ):
+                    self.report_error(
+                        "the first argument of " + op.value + " must be the extern function name",
+                        extern_func.span,
+                    )
+                op = rx.ExternFunc(extern_func.value, self.to_tvm_span(extern_func.span))
+                args = [self.transform_expr(expr.params[1])]
+            else:
+                args = [self.transform_expr(arg) for arg in expr.params]
             return relay.Call(op, args, span=self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Tuple):

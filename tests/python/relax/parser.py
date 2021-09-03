@@ -252,6 +252,8 @@ def test_dataflow():
     @rx.script
     def foo(x: Tensor[_, _]):
         with relax.dataflow():
+            # TODO: parse this
+            # nonlocal y, w
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
@@ -354,3 +356,20 @@ def test_inline_tir():
 
         z = relax.call_dps(my_matmul, x, y)
         return z
+
+
+def test_call_packed():
+    @rx.script
+    def foo(x: Tensor[(3, 4), "float32"]):
+        # test that we can intro dim vars
+        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", (x, x))
+        return z
+
+    f = rx_func(foo)
+    x = f.params[0]
+    (z_bind,) = f.body.blocks[0].bindings
+    check_tensor_var(z_bind.var, ("n", "m"), "float32")
+
+    assert isinstance(z_bind.value.op, rx.ExternFunc)
+    assert z_bind.value.op.global_symbol == "contrib.my_matmul"
+    assert structural_equal(z_bind.value.args, [rx.Tuple([x, x])])
