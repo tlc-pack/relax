@@ -51,17 +51,5 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
-RELAY_REGISTER_OP("relax.call_packed")
-    .set_num_inputs(2)
-    .add_argument("func", "Expr", "The extern packed function.")
-    .add_argument("args", "Tuple", "The input arguments.");
-
-RELAY_REGISTER_OP("relax.match_shape")
-    .set_num_inputs(2)
-    .add_argument("pattern", "Array<PrimExpr>", "The matched shape pattern.")
-    .add_argument("value", "Expr", "The shape expression to match on.");
-
-RELAY_REGISTER_OP("relax.dataflow").set_num_inputs(0);
-
 }  // namespace relax
 }  // namespace tvm
