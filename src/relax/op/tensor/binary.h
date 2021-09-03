@@ -54,7 +54,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
+Optional<Expr> InferShapeBinaryBroadcast(const Attrs& attrs, const Call& call) {
   ICHECK_EQ(call->args.size(), 2);
   Expr lhs_shape = call->args[0]->shape();
   Expr rhs_shape = call->args[1]->shape();
@@ -92,7 +92,7 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
   }
 }
 
-Type InferTypeBinaryBroadcast(const Call& call) {
+Type InferTypeBinaryBroadcast(const Attrs& attrs, const Call& call) {
   ICHECK_EQ(call->args.size(), 2);
   Type lhs_type = call->args[0]->checked_type();
   Type rhs_type = call->args[1]->checked_type();
