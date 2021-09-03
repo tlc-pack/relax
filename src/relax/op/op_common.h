@@ -44,13 +44,15 @@ namespace relax {
  */
 #define RELAX_REGISTER_BINARY_OP(OpName)                                          \
   TVM_REGISTER_GLOBAL("relax.op." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
-    static const Op& op = Op::Get(OpName);                                        \
+    static const Op& op = Op::Get("relax." OpName);                                        \
     return Call(op, {lhs, rhs}, Attrs(), {});                                     \
   });                                                                             \
   RELAY_REGISTER_OP("relax." OpName)                                              \
       .set_num_inputs(2)                                                          \
       .add_argument("lhs", "Tensor", "The left hand side tensor.")                \
-      .add_argument("rhs", "Tensor", "The right hand side tensor.")
+      .add_argument("rhs", "Tensor", "The right hand side tensor.")               \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast)
 
 }  // namespace relax
 }  // namespace tvm

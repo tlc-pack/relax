@@ -22,6 +22,7 @@
  */
 
 #include <tvm/relax/ir_builder.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relay/op.h>
 
 namespace tvm {
@@ -63,6 +64,18 @@ void IRBuilderNode::BuildBlock() {
   this->is_dataflow = !this->is_dataflow;
 }
 
+Optional<RelayExpr> InferShape(const Call& call) {
+  auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
+  Op op = Downcast<Op>(call->op);
+  return op_map[op](call);
+}
+
+Type InferType(const Call& call) {
+  auto op_map = Op::GetAttrMap<FInferType>("FInferType");
+  Op op = Downcast<Op>(call->op);
+  return op_map[op](call);
+}
+
 Var IRBuilderNode::Emit(const Call& call) {
   Var var;
   if (is_dataflow) {
@@ -70,6 +83,19 @@ Var IRBuilderNode::Emit(const Call& call) {
   } else {
     var = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
   }
+
+  // Shape inference
+  auto inferred_shape = InferShape(call);
+  if (inferred_shape.defined()) {
+    if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
+      call->shape_ = GetRef<Expr>(shape_expr);
+      var->shape_ = call->shape_;
+    }
+  }
+  // Type inference
+  auto inferred_type = InferType(call);
+  call->checked_type_ = inferred_type;
+  var->checked_type_ = inferred_type;
 
   this->func.bindings.emplace_back(VarBinding(var, call));
   return var;

@@ -27,13 +27,26 @@ def test_dataflow_block():
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
     ib = rx.IRBuilder()
+
     with ib.dataflow() as df:
         lv0 = ib.emit(rx.op.add(x, y))
+
         assert lv0.name_hint == "lv0"
+        assert lv0.shape[0] == m
+        assert lv0.shape[1] == n
+        assert lv0.checked_type.rank == 2
+        assert lv0.checked_type.dtype == "float16"
+
         lv1 = ib.emit(rx.op.multiply(lv0, y))
         assert lv1.name_hint == "lv1"
         gv0 = ib.emit_output(lv1)
+
         assert gv0.name_hint == "gv0"
+        assert gv0.shape[0] == m
+        assert gv0.shape[1] == n
+        assert gv0.checked_type.rank == 2
+        assert gv0.checked_type.dtype == "float16"
+
     blocks = ib.get_blocks()
     assert len(blocks) == 1
     assert len(blocks[-1].bindings) == 3
@@ -47,6 +60,7 @@ def test_function_single_block():
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
     ib = rx.IRBuilder()
+
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
@@ -56,10 +70,15 @@ def test_function_single_block():
             gv0 = ib.emit_output(lv1)
         assert gv0.name_hint == "gv0"
         ib.emit_output(gv0)
+
     func = ib.get()
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
+    assert gv0.shape[0] == m
+    assert gv0.shape[1] == n
+    assert gv0.checked_type.rank == 2
+    assert gv0.checked_type.dtype == "float16"
     assert len(func.body.blocks) == 1
     assert len(func.body.blocks[0].bindings) == 3
 
@@ -72,6 +91,7 @@ def test_function_multi_blocks():
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
     ib = rx.IRBuilder()
+
     with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
@@ -85,7 +105,12 @@ def test_function_multi_blocks():
             assert lv0.name_hint == "lv0"
             gv2 = ib.emit_output(gv1)
         ib.emit_output(gv2)
+
     func = ib.get()
+    assert gv2.shape[0] == m
+    assert gv2.shape[1] == n
+    assert gv2.checked_type.rank == 2
+    assert gv2.checked_type.dtype == "float16"
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.name.name_hint == "func"

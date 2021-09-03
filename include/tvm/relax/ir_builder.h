@@ -82,7 +82,7 @@ class IRBuilderNode : public Object {
   /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
-   * \return The variable being binded to \p ouput.
+   * \return The variable being binded to \p output.
    */
   Var EmitOutput(const Expr& output);
   /*!
