@@ -374,5 +374,29 @@ DataflowBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
   }
 }
 
+Expr ExprMutator::VisitExpr(const Expr& expr) {
+  Expr new_expr = ExprFunctor::VisitExpr(expr);
+  return new_expr;
+}
+
+
+// ==================
+// DataflowMutator
+
+VarBinding DataflowMutator::VisitVarBinding(const VarBinding& binding) {
+  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  Expr new_value = this->Mutate(binding->value);
+
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    this->binding_table[binding->var] = binding->value;
+    return binding;
+  } else {
+    // TODO: If shape and type are unchanged, reuse the original var
+    this->binding_table[new_var] = new_value;
+    return VarBinding(new_var, new_value);
+  }
+}
+
+
 }  // namespace relax
 }  // namespace tvm

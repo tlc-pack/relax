@@ -214,6 +214,20 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
 };
 
+/*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes
+ */
+class DataflowMutator : public ExprMutator {
+ public:
+  virtual VarBinding VisitVarBinding(const VarBinding& binding);
+
+ private:
+  // A lookup table for visited bindings
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table;
+
+  // A remapping table: pre var -> post var
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> translation_table;
+};
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_EXPR_FUNCTOR_H_
