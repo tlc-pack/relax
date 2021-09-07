@@ -78,7 +78,7 @@ class ShapeExpr : public Expr {
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:
-  /*! \brief The identifier of the variable, is used for comparing stable equality across
+  /*! \brief The identifier of the variable, which is used for comparing stable equality across
    * transformations. */
   Id vid;
   /*! \brief The type annotation, used by binding sites and parameter declarations. */

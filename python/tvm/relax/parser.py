@@ -140,7 +140,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.Var
+        Union[rx.Var, rx.DataflowVar]
             The declared variable
         """
         if name in self.scope:
@@ -153,14 +153,14 @@ class RelaxTransformer(Transformer):
         self.scope[name] = var
         return var
 
-    def transform_type(self, ty: ast.Type, allow_intro: bool) -> Tuple[rx.Type, rx.Expr]:
+    def transform_type(self, ty: ast.Type, bind_free_vars: bool) -> Tuple[rx.Type, rx.Expr]:
         """Transforms the given synr type annotation to a Relax type and shape expression.
 
         Parameters
         ----------
         ty : ast.Type
             The synr type
-        allow_intro : bool
+        bind_free_vars : bool
             Whether or not the shape annotation can introduce new dimension variables
 
         Returns
@@ -211,7 +211,7 @@ class RelaxTransformer(Transformer):
                         pass  # shape = None
                 elif isinstance(shape_annotation, ast.TypeTuple):
                     shape = rx.ShapeExpr(
-                        self.parse_shape(shape_annotation, allow_intro),
+                        self.parse_shape(shape_annotation, bind_free_vars),
                         span=self.to_tvm_span(shape_annotation.span),
                     )
                 else:
@@ -237,7 +237,7 @@ class RelaxTransformer(Transformer):
                 field_types = []
                 field_shapes = []
                 for field in ty.params:
-                    fty, fsh = self.transform_type(field, allow_intro=False)
+                    fty, fsh = self.transform_type(field, bind_free_vars=False)
                     field_types.append(fty)
                     field_shapes.append(fsh)
                 return (relay.TupleType(field_types, span), None)
@@ -247,7 +247,7 @@ class RelaxTransformer(Transformer):
     def parse_shape(
         self,
         shape_annotation: Union[ast.TypeTuple, ast.Tuple],
-        allow_intro: bool,
+        bind_free_vars: bool,
     ) -> List[tir.PrimExpr]:
         """Parses the given shape annotation to a list of PrimExprs.
 
@@ -255,7 +255,7 @@ class RelaxTransformer(Transformer):
         ----------
         shape_annotation : Union[ast.TypeTuple, ast.Tuple]
             The shape annotation in synr
-        allow_intro : bool
+        bind_free_vars : bool
             Whether or not the annotation can bind previously free variables
 
         Returns
@@ -263,16 +263,16 @@ class RelaxTransformer(Transformer):
         List[tir.PrimExpr]
             The parsed shape as a list of PrimExprs
         """
-        return [self.parse_primexpr(field, allow_intro) for field in shape_annotation.values]
+        return [self.parse_primexpr(field, bind_free_vars) for field in shape_annotation.values]
 
-    def parse_primexpr(self, expr: ast.Expr, allow_intro: bool) -> tir.PrimExpr:
+    def parse_primexpr(self, expr: ast.Expr, bind_free_vars: bool) -> tir.PrimExpr:
         """Parses the given expression to a PrimExpr.
 
         Parameters
         ----------
         expr : ast.Expr
             The input expression
-        allow_intro : bool
+        bind_free_vars : bool
             Whether or not the expression can bind previously free variables
 
         Returns
@@ -285,12 +285,14 @@ class RelaxTransformer(Transformer):
             if var_name in self.scope:
                 var = self.scope[var_name]
                 if not isinstance(var, tir.Var):
+                    # TODO(@altanh): we may wish to relax this in the future to support constructing
+                    #                shapes from Dim-typed Relax expressions
                     self.report_error(
                         "non-dimension variables cannot appear in dimension expressions",
                         expr.span,
                     )
                 return var
-            elif allow_intro:
+            elif bind_free_vars:
                 # introduce TIR variable to scope, e.g. for func params or rx.call_packed
                 var = tir.Var(var_name, "int32", self.to_tvm_span(expr.span))
                 self.scope[var_name] = var
@@ -354,11 +356,11 @@ class RelaxTransformer(Transformer):
         with self.new_scope():
             params = []
             for param in func.params:
-                ty, shape = self.transform_type(param.ty, allow_intro=True)
+                ty, shape = self.transform_type(param.ty, bind_free_vars=True)
                 param = self.decl_var(param.name, ty, shape, param.span)
                 params.append(param)
             new_body = self.transform_block(func.body)
-            ret_type, _ = self.transform_type(func.ret_type, allow_intro=False)
+            ret_type, _ = self.transform_type(func.ret_type, bind_free_vars=False)
 
         func_name = rx.GlobalVar(func.name) if is_global else None
         return rx.Function(
@@ -415,7 +417,7 @@ class RelaxTransformer(Transformer):
                 "the pattern (lhs) of " + op.value + " must be a tuple",
                 lhs.span,
             )
-        lhs_expr = self.parse_shape(lhs, allow_intro=True)
+        lhs_expr = self.parse_shape(lhs, bind_free_vars=True)
         return rx.MatchShape(lhs_expr, rhs_expr, self.to_tvm_span(stmt.span))
 
     def parse_var_binding(self, stmt: ast.Assign, is_dataflow=False) -> rx.VarBinding:
@@ -441,10 +443,10 @@ class RelaxTransformer(Transformer):
         rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
         if isinstance(rhs, relay.Call) and isinstance(rhs.op, rx.ExternFunc):
-            allow_intro = True
+            bind_free_vars = True
         else:
-            allow_intro = False
-        ty, shape = self.transform_type(stmt.ty, allow_intro)
+            bind_free_vars = False
+        ty, shape = self.transform_type(stmt.ty, bind_free_vars)
         lhs = self.decl_var(stmt.lhs.id.name, ty, shape, stmt.lhs.span, is_dataflow=is_dataflow)
         return rx.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
 
