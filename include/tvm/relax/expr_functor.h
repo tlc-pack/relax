@@ -207,11 +207,11 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
-  virtual VarBinding VisitBinding(const VarBinding& b);
-
- protected:
-  /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo_;
+  virtual Binding VisitBinding(const Binding& binding);
+  virtual VarBinding VisitVarBinding(const VarBinding& binding);
+  virtual MatchShape VisitMatchShape(const MatchShape& binding);
+  virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
+  virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
 };
 
 }  // namespace relax

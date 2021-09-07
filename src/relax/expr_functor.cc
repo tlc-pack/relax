@@ -161,39 +161,35 @@ void ExprVisitor::VisitExpr(const Expr& expr) {
   TParent::VisitExpr(expr);
 }
 
+class ExprApplyVisit : public ExprVisitor {
+ public:
+  explicit ExprApplyVisit(std::function<void(const Expr&)> f) : f_(f) {}
 
+  void VisitExpr(const Expr& e) final {
+    ExprVisitor::VisitExpr(e);
+    f_(e);
+  }
+
+ private:
+  std::function<void(const Expr&)> f_;
+};
+
+void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
+  ExprApplyVisit(fvisit).VisitExpr(e);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit")
+.set_body_typed([](Expr expr, PackedFunc f) {
+  PostOrderVisit(expr, [f](const Expr& n) { f(n); });
+});
 
 
 // ==================
 // ExprMutator
 
-Expr ExprMutator::VisitExpr(const Expr& expr) {
-  auto it = this->memo_.find(expr);
-  if (it != this->memo_.end()) {
-    return it->second;
-  } else {
-    Expr new_expr = ExprFunctor::VisitExpr(expr);
-    memo_[expr] = new_expr;
-    return new_expr;
-  }
-}
-
-Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  if (op->type_annotation.defined()) {
-    auto type = this->VisitType(op->type_annotation.value());
-    if (!op->type_annotation.same_as(type)) {
-      return Var(op->vid, Downcast<Expr>(op->shape_), type, op->span);
-    }
-  }
-  // default case return self.
-  return GetRef<Expr>(op);
-}
-
 Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
-
-Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
@@ -209,6 +205,28 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   } else {
     return Tuple(fields, op->span);
   }
+}
+
+Expr ExprMutator::VisitExpr_(const VarNode* op) {
+  if (op->type_annotation.defined()) {
+    auto type = this->VisitType(op->type_annotation.value());
+    if (!op->type_annotation.same_as(type)) {
+      return Var(op->vid, Downcast<Expr>(op->shape_), type, op->span);
+    }
+  }
+  // default case return self.
+  return GetRef<Expr>(op);
+}
+
+Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
+  if (op->type_annotation.defined()) {
+    auto type = this->VisitType(op->type_annotation.value());
+    if (!op->type_annotation.same_as(type)) {
+      return DataflowVar(op->vid, Downcast<Expr>(op->shape_), type, op->span);
+    }
+  }
+  // default case return self.
+  return GetRef<Expr>(op);
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
@@ -267,6 +285,8 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
   }
 }
 
+Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
+
 Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
   auto t = this->Mutate(get_item->tuple);
   if (get_item->tuple == t) {
@@ -274,17 +294,6 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
   } else {
     return TupleGetItem(t, get_item->index, get_item->span);
   }
-}
-
-Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
-  if (op->type_annotation.defined()) {
-    auto type = this->VisitType(op->type_annotation.value());
-    if (!op->type_annotation.same_as(type)) {
-      return DataflowVar(op->vid, Downcast<Expr>(op->shape_), type, op->span);
-    }
-  }
-  // default case return self.
-  return GetRef<Expr>(op);
 }
 
 Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
@@ -295,14 +304,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   bool all_blocks_unchanged = true;
   Array<BindingBlock> blocks;
   for (auto block : op->blocks) {
-    Array<Binding> bindings;
-    for (auto binding : block->bindings) {
-      if (const auto* b = binding.as<VarBindingNode>()) {
-        auto new_binding = this->VisitBinding(GetRef<VarBinding>(b));
-        bindings.push_back(new_binding);
-      }
-    }
-    BindingBlock new_block = BindingBlock(bindings);
+    BindingBlock new_block = this->VisitBindingBlock(block);
     blocks.push_back(new_block);
     all_blocks_unchanged &= block.same_as(new_block);
   }
@@ -317,32 +319,60 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
-VarBinding ExprMutator::VisitBinding(const VarBinding& binding) {
-  return VarBinding(binding->var, VisitExpr(binding->value));
-}
-
-class ExprApplyVisit : public ExprVisitor {
- public:
-  explicit ExprApplyVisit(std::function<void(const Expr&)> f) : f_(f) {}
-
-  void VisitExpr(const Expr& e) final {
-    ExprVisitor::VisitExpr(e);
-    f_(e);
+Binding ExprMutator::VisitBinding(const Binding& binding) {
+  Binding new_binding;
+  if (binding.as<VarBindingNode>()) {
+    new_binding = this->VisitVarBinding(Downcast<VarBinding>(binding));
+  } else if (binding.as<MatchShapeNode>()) {
+    new_binding = this->VisitMatchShape(Downcast<MatchShape>(binding));
+  } else {
+    LOG(FATAL) << "Wrong type.";
   }
-
- private:
-  std::function<void(const Expr&)> f_;
-};
-
-void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
-  ExprApplyVisit(fvisit).VisitExpr(e);
+  return new_binding;
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit")
-.set_body_typed([](Expr expr, PackedFunc f) {
-  PostOrderVisit(expr, [f](const Expr& n) { f(n); });
-});
+VarBinding ExprMutator::VisitVarBinding(const VarBinding& binding) {
+  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  Expr new_value = this->Mutate(binding->value);
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    return binding;
+  } else {
+    return VarBinding(new_var, new_value);
+  }
+}
 
+MatchShape ExprMutator::VisitMatchShape(const MatchShape& binding) {
+  Expr new_value = this->Mutate(binding->value);
+  if (new_value.same_as(binding->value)) {
+    return binding;
+  } else {
+    return MatchShape(binding->pattern, new_value);
+  }
+}
+
+BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
+  Array<Binding> bindings;
+  for (auto binding : block->bindings) {
+    bindings.push_back(this->VisitBinding(binding));
+  }
+  if (bindings.same_as(block->bindings)) {
+    return block;
+  } else {
+    return BindingBlock(bindings);
+  }
+}
+
+DataflowBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
+  Array<Binding> bindings;
+  for (auto binding : block->bindings) {
+    bindings.push_back(this->VisitBinding(binding));
+  }
+  if (bindings.same_as(block->bindings)) {
+    return block;
+  } else {
+    return DataflowBlock(bindings);
+  }
+}
 
 }  // namespace relax
 }  // namespace tvm
