@@ -37,3 +37,6 @@ def post_order_visit(expr, fvisit):
         The visitor function to be applied.
     """
     return _ffi_api.post_order_visit(expr, fvisit)
+
+def fma_rewrite(expr):
+    return _ffi_api.fma_rewrite(expr)

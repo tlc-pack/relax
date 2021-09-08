@@ -404,33 +404,47 @@ class EwiseFMARewriter : public DataflowMutator {
 	VarBinding VisitVarBinding(const VarBinding& binding) override {
     const CallNode* op1 = binding->value.as<CallNode>();
     if (op1){
-      if (Downcast<Op>(op1->op)->name == "relax.add") {
-        if(op1->shape() != op1->args[0]->shape() || op1->args[0]->shape() != op1->args[1]->shape()){
-          binding_table[binding->var] = binding->value;
-				  return binding;
-			  }
+      if (Downcast<Op>(op1->op)->name == "add") {
+        // Will add the following shape check once the shape/type inference pr gets merged
+        // if(op1->shape() != op1->args[0]->shape() || op1->args[0]->shape() != op1->args[1]->shape()){
+        //   binding_table[binding->var] = binding->value;
+				//   return binding;
+			  // }
+      }
+    
+    
+      // lookup binding in the post visit bindings
+      Expr expr = binding_table[Downcast<Var>(op1->args[0])];
+      if (const CallNode* op2 = expr.as<CallNode>()){
+        if (Downcast<Op>(op2->op)->name == "multiply") {
+          // Will add the following shape check once the shape/type inference pr gets merged
+          // if (op2->shape() != op2->args[0]->shape() || op2->args[0]->shape() != op2->args[1]->shape()){
+          //   binding_table[binding->var] = binding->value;
+          //   return binding;
+          // }
+          static const Op& op = Op::Get("relax.ewise_fma");
+          auto call = Call(op, {op2->args[0], op2->args[1], op1->args[0]}, {}, {});
+
+          // Maybe here we should use IRBuilder to emit binding, so that shape and type are auto filled
+          binding_table[binding->var] = call;
+          return VarBinding(binding->var, call);
+        }
       }
     }
 
-    // lookup binding in the post visit bindings
-    Expr expr = binding_table[Downcast<Var>(op1->args[0])];
-    if (const CallNode* op2 = expr.as<CallNode>()){
-      if (Downcast<Op>(op2->op)->name == "relax.multiple") {
-        if (op2->shape() != op2->args[0]->shape() || op2->args[0]->shape() != op2->args[1]->shape()){
-          binding_table[binding->var] = binding->value;
-          return binding;
-        }
-        static const Op& op = Op::Get("relax.ewise_fma");
-        auto call = Call(op, {op2->args[0], op2->args[1], op1->args[0]}, {}, {});
-        // Maybe here we should use IRBuilder to emit binding, so that shape and type are auto filled
-        binding_table[binding->var] = call;
-        return VarBinding(binding->var, call);
-      }
-    }
     binding_table[binding->var] = binding->value;
     return binding;
   }
 };
+
+Expr FMARewrite(const Expr& e) {
+  return EwiseFMARewriter().Mutate(e);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.fma_rewrite")
+.set_body_typed([](Expr expr) {
+  return FMARewrite(expr);
+});
 
 
 }  // namespace relax
