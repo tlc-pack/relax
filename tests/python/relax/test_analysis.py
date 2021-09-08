@@ -51,9 +51,14 @@ def test_post_order_visit():
         ib.emit_output(gv0)
     expr = ib.get()
 
+    names = []
     def fvisit(e):
-        print(type(e))
+        nonlocal names
+        if isinstance(e, tvm.ir.op.Op):
+            names.append(e.name)
     rx.analysis.post_order_visit(expr, fvisit)
+    assert names == ["add", "multiply"]
+
 
 def test_fma_rewrite():
     m = tir.Var("m", "int32")
