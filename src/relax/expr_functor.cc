@@ -145,8 +145,12 @@ void ExprVisitor::VisitMatchShape(const MatchShape& binding) {
 }
 
 void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
-  for (auto binding : block->bindings) {
-    this->VisitBinding(binding);
+  if (block.as<DataflowBlockNode>()) {
+    this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
+  } else {
+    for (auto binding : block->bindings) {
+      this->VisitBinding(binding);
+    }
   }
 }
 
@@ -351,14 +355,18 @@ MatchShape ExprMutator::VisitMatchShape(const MatchShape& binding) {
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
-  Array<Binding> bindings;
-  for (auto binding : block->bindings) {
-    bindings.push_back(this->VisitBinding(binding));
-  }
-  if (bindings.same_as(block->bindings)) {
-    return block;
-  } else {
-    return BindingBlock(bindings);
+  if (block.as<DataflowBlockNode>()) {
+    return this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
+  } else{
+    Array<Binding> bindings;
+    for (auto binding : block->bindings) {
+      bindings.push_back(this->VisitBinding(binding));
+    }
+    if (bindings.same_as(block->bindings)) {
+      return block;
+    } else {
+      return BindingBlock(bindings);
+    }
   }
 }
 

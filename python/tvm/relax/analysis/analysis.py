@@ -39,4 +39,11 @@ def post_order_visit(expr, fvisit):
     return _ffi_api.post_order_visit(expr, fvisit)
 
 def fma_rewrite(expr):
+    """Perform fused multiply add rewriting in dataflow blocks.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+    """
     return _ffi_api.fma_rewrite(expr)

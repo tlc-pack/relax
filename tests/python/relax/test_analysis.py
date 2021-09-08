@@ -73,10 +73,11 @@ def test_fma_rewrite():
             lv0 = ib.emit(rx.op.multiply(x, y))
             lv1 = ib.emit(rx.op.add(lv0, y))
             gv0 = ib.emit_output(lv1)
-        ib.emit_output(lv1)
+        ib.emit_output(gv0)
     expr = ib.get()
 
     # before rewrite
+    v0 = expr.body.blocks[0].bindings[1].var
     s0 = expr.body.blocks[0].bindings[1].value
     assert isinstance(s0, tvm.relay.Call)
     assert s0.op.name == "add"
@@ -84,7 +85,9 @@ def test_fma_rewrite():
     # after rewrite
     func = rx.analysis.fma_rewrite(expr)
 
+    v1 = expr.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
+    assert v0 == v1
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
 
