@@ -220,13 +220,14 @@ class DataflowMutator : public ExprMutator {
  public:
   virtual VarBinding VisitVarBinding(const VarBinding& binding);
 
- private:
+ protected:
   // A lookup table for visited bindings
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table;
 
   // A remapping table: pre var -> post var
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> translation_table;
 };
+
 
 }  // namespace relax
 }  // namespace tvm
