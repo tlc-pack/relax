@@ -618,8 +618,8 @@ class RelaxTransformer(Transformer):
                         binding_stmt.span,
                     )
                 is_match_shape = isinstance(binding_stmt, ast.UnassignedCall)
-                is_dataflow = (
-                    False if is_match_shape else (binding_stmt.lhs.id.name not in output_var_names)
+                is_dataflow = not is_match_shape and (
+                    binding_stmt.lhs.id.name not in output_var_names
                 )
                 binding = self.parse_binding(binding_stmt, is_dataflow=is_dataflow)
                 bindings.append(binding)
@@ -666,7 +666,7 @@ class RelaxTransformer(Transformer):
                 obj = self.transform_expr(expr.object)
                 return relay.op.shape_of(obj)
             else:
-                # assume it's a hierarchical op identifier (e.g. nn.softmax, rx.call_dps)
+                # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_dps)
                 op_name = []
                 attr = expr
                 while isinstance(attr, ast.Attr):
@@ -703,10 +703,18 @@ class RelaxTransformer(Transformer):
                 args = [self.transform_expr(expr.params[1])]
             else:
                 args = [self.transform_expr(arg) for arg in expr.params]
+            # TODO(@altanh): should we check for correct arity here eagerly, or defer to a pass?
             return relay.Call(op, args, span=self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Tuple):
             fields = [self.transform_expr(field) for field in expr.values]
+
+            # TODO(@altanh): this check might be too weak; we really only accept integral PrimExprs
+            #                (e.g. int constants, dim vars, and integer operations on these)
+
+            # coerce to ShapeExpr when fields are all PrimExprs
+            if all([isinstance(f, tir.PrimExpr) for f in fields]):
+                return rx.ShapeExpr(fields, span=self.to_tvm_span(expr.span))
             return relay.Tuple(fields, span=self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Var):
@@ -716,6 +724,18 @@ class RelaxTransformer(Transformer):
             if var_name not in self.scope:
                 self.report_error("undefined variable", expr.span)
             return self.scope[var_name]
+
+        elif isinstance(expr, ast.Constant):
+            # FIXME(@altanh): use internal representation that doesn't have precision limits here
+            if isinstance(expr.value, int):
+                return tir.IntImm("int32", expr.value, self.to_tvm_span(expr.span))
+            elif isinstance(expr.value, float):
+                return tir.FloatImm("float32", expr.value, self.to_tvm_span(expr.span))
+            else:
+                self.report_error(
+                    "unsupported constant expression (we currently only support int and float)",
+                    expr.span,
+                )
 
         else:
             self.report_error("unsupported expression", expr.span)

@@ -234,6 +234,7 @@ def test_local_func():
     def foo(x: Tensor[_, _]):
         def bar(y: Tensor[_, _]):
             return y
+
         y = bar(x)  # tests local function variable scoping
         return y
 
@@ -342,7 +343,7 @@ def test_func_no_return_fail():
 
 def test_inline_tir():
     @rx.script
-    def foo(x: Tensor[(128, 128), "float32"], y: Tensor[(128, 128), "float32"]):
+    def foo(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
         @tir
         def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
             A = tir.match_buffer(a, [128, 128])
@@ -354,8 +355,22 @@ def test_inline_tir():
                     C[vi, vj] = tir.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-        z = relax.call_dps(my_matmul, x, y)
+        z = relax.call_dps((B, 128), my_matmul, (x, y))
         return z
+
+    f = rx_func(foo)
+    x, y = f.params
+    B = x.shape_[0]
+    mm_bind, z_bind = f.body.blocks[0].bindings
+
+    assert mm_bind.var.name_hint == "my_matmul"
+    assert isinstance(mm_bind.value, tir.PrimFunc)
+
+    check_call(
+        z_bind.value,
+        "relax.call_dps",
+        [rx.ShapeExpr([B, tir.IntImm("int32", 128)]), mm_bind.var, rx.Tuple([x, y])],
+    )
 
 
 def test_call_packed():
