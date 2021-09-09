@@ -90,6 +90,9 @@ def test_fma_rewrite():
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
 
+    assert type(func.body.blocks[0].bindings[2].var) == rx.Var
+    assert type(func.body.blocks[0].bindings[2].value) == rx.DataflowVar
+
 
 if __name__ == "__main__":
     test_dispatch_var()

@@ -335,10 +335,12 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 
 void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = this->Mutate(binding->value);
+
   if (new_value.as<CallNode>()) {
-    Var new_var = this->irbuilder_->Emit(Downcast<Call>(new_value));
-  } else {
-    Var new_var = this->irbuilder_->EmitOutput(new_value);
+    new_value = this->irbuilder_->Emit(Downcast<Call>(new_value));
+  }
+  if (!binding->var.as<DataflowVarNode>()) {
+    this->irbuilder_->EmitOutput(new_value);
   }
 }
 
@@ -386,7 +388,8 @@ void DataflowMutator::VisitVarBinding(const VarBinding& binding) {
   Var new_var;
   if (new_value.as<CallNode>()) {
     new_var = this->irbuilder_->Emit(Downcast<Call>(new_value));
-  } else {
+  }
+  if (!binding->var.as<DataflowVarNode>()) {
     new_var = this->irbuilder_->EmitOutput(new_value);
   }
   post_binding_table_[new_var] = new_value;
