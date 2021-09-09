@@ -32,6 +32,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
+#include <tvm/relax/ir_builder.h>
 
 #include <deque>
 #include <string>
@@ -218,14 +219,17 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  */
 class DataflowMutator : public ExprMutator {
  public:
+  virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
   virtual VarBinding VisitVarBinding(const VarBinding& binding);
 
  protected:
-  // A lookup table for visited bindings
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table;
+  // A lookup table for bindings after the rewriting
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> post_binding_table_;
 
   // A remapping table: pre var -> post var
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> translation_table;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> pre_post_var_map_;
+
+  IRBuilder irbuilder_;
 };
 
 

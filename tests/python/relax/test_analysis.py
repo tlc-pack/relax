@@ -85,9 +85,8 @@ def test_fma_rewrite():
     # after rewrite
     func = rx.analysis.fma_rewrite(expr)
 
-    v1 = expr.body.blocks[0].bindings[1].var
+    v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
-    assert v0 == v1
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
 

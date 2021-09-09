@@ -391,17 +391,50 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 // ==================
 // DataflowMutator
 
-VarBinding DataflowMutator::VisitVarBinding(const VarBinding& binding) {
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
-  Expr new_value = this->Mutate(binding->value);
+DataflowBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
+  bool block_changed = false;
+  this->irbuilder_ = IRBuilderNode::Create();
+  this->irbuilder_->BuildBlock();
 
-  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-    this->binding_table[binding->var] = binding->value;
+  for (auto binding : block->bindings) {
+    if (binding.as<VarBindingNode>()) {
+      VarBinding pre_binding = Downcast<VarBinding>(binding);
+      VarBinding post_binding = this->VisitVarBinding(pre_binding);
+
+      if (!pre_binding.same_as(post_binding)) {
+        block_changed = true;
+      }
+
+      this->post_binding_table_[post_binding->var] = post_binding->value;
+      this->pre_post_var_map_[pre_binding->var] = post_binding->var;
+
+      // TODO: copy-on-write (no-op)
+
+      if (post_binding->value.as<CallNode>()) {
+        Var new_var = this->irbuilder_->Emit(Downcast<Call>(post_binding->value));
+      } else {
+        Var new_var = this->irbuilder_->EmitOutput(post_binding->value);
+      }
+    }
+  }
+  
+  if (block_changed) {
+    this->irbuilder_->BuildBlock();
+    return Downcast<DataflowBlock>(this->irbuilder_->GetBlocks().back());
+  } else {
+    return block;
+  }
+}
+
+VarBinding DataflowMutator::VisitVarBinding(const VarBinding& binding) {
+  Var post_var = Downcast<Var>(this->Mutate(binding->var));
+  Expr post_value = this->Mutate(binding->value);
+
+  if (post_var.same_as(binding->var) && post_value.same_as(binding->value)) {
     return binding;
   } else {
     // TODO: If shape and type are unchanged, reuse the original var
-    this->binding_table[new_var] = new_value;
-    return VarBinding(new_var, new_value);
+    return VarBinding(post_var, post_value);
   }
 }
 
@@ -410,37 +443,33 @@ VarBinding DataflowMutator::VisitVarBinding(const VarBinding& binding) {
 
 class EwiseFMARewriter : public DataflowMutator {
 	VarBinding VisitVarBinding(const VarBinding& binding) override {
+    static const Op& add_op = Op::Get("add");
+    static const Op& multiply_op = Op::Get("multiply");
+    static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
+
     const CallNode* op1 = binding->value.as<CallNode>();
     if (op1){
-      if (Downcast<Op>(op1->op)->name == "add") {
+      if (op1->op == add_op) {
         // Will add the following shape check once the shape/type inference pr gets merged
         // if(op1->shape() != op1->args[0]->shape() || op1->args[0]->shape() != op1->args[1]->shape()){
-        //   binding_table[binding->var] = binding->value;
 				//   return binding;
 			  // }
       }
     
-    
       // lookup binding in the post visit bindings
-      Expr expr = binding_table[Downcast<Var>(op1->args[0])];
+      Expr expr = post_binding_table_[Downcast<Var>(op1->args[0])];
       if (const CallNode* op2 = expr.as<CallNode>()){
-        if (Downcast<Op>(op2->op)->name == "multiply") {
+        if (op2->op == multiply_op) {
           // Will add the following shape check once the shape/type inference pr gets merged
           // if (op2->shape() != op2->args[0]->shape() || op2->args[0]->shape() != op2->args[1]->shape()){
-          //   binding_table[binding->var] = binding->value;
+          //   post_binding_table_[binding->var] = binding->value;
           //   return binding;
           // }
-          static const Op& op = Op::Get("relax.ewise_fma");
-          auto call = Call(op, {op2->args[0], op2->args[1], op1->args[0]}, {}, {});
-
-          // Maybe here we should use IRBuilder to emit binding, so that shape and type are auto filled
-          binding_table[binding->var] = call;
+          auto call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[0]}, {}, {});
           return VarBinding(binding->var, call);
         }
       }
     }
-
-    binding_table[binding->var] = binding->value;
     return binding;
   }
 };
