@@ -323,63 +323,50 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
-Binding ExprMutator::VisitBinding(const Binding& binding) {
+void ExprMutator::VisitBinding(const Binding& binding) {
   Binding new_binding;
   if (binding.as<VarBindingNode>()) {
-    new_binding = this->VisitVarBinding(Downcast<VarBinding>(binding));
+    this->VisitVarBinding(Downcast<VarBinding>(binding));
   } else if (binding.as<MatchShapeNode>()) {
-    new_binding = this->VisitMatchShape(Downcast<MatchShape>(binding));
+    this->VisitMatchShape(Downcast<MatchShape>(binding));
   } else {
     LOG(FATAL) << "Wrong type.";
   }
-  return new_binding;
 }
 
-VarBinding ExprMutator::VisitVarBinding(const VarBinding& binding) {
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = this->Mutate(binding->value);
-  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-    return binding;
+  if (new_value.as<CallNode>()) {
+    Var new_var = this->irbuilder_->Emit(Downcast<Call>(new_value));
   } else {
-    return VarBinding(new_var, new_value);
+    Var new_var = this->irbuilder_->EmitOutput(new_value);
   }
 }
 
-MatchShape ExprMutator::VisitMatchShape(const MatchShape& binding) {
-  Expr new_value = this->Mutate(binding->value);
-  if (new_value.same_as(binding->value)) {
-    return binding;
-  } else {
-    return MatchShape(binding->pattern, new_value);
-  }
+void ExprMutator::VisitMatchShape(const MatchShape& binding) {
+  this->Mutate(binding->value);
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
   if (block.as<DataflowBlockNode>()) {
     return this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
   } else{
-    Array<Binding> bindings;
-    for (auto binding : block->bindings) {
-      bindings.push_back(this->VisitBinding(binding));
-    }
-    if (bindings.same_as(block->bindings)) {
-      return block;
-    } else {
-      return BindingBlock(bindings);
-    }
+    // TODO
+    return block;
   }
 }
 
 DataflowBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  Array<Binding> bindings;
+  this->irbuilder_ = IRBuilderNode::Create();
+  this->irbuilder_->BuildBlock();
+
   for (auto binding : block->bindings) {
-    bindings.push_back(this->VisitBinding(binding));
+    if (binding.as<VarBindingNode>()) {
+      this->VisitVarBinding(Downcast<VarBinding>(binding));
+    }
   }
-  if (bindings.same_as(block->bindings)) {
-    return block;
-  } else {
-    return DataflowBlock(bindings);
-  }
+  this->irbuilder_->BuildBlock();
+  return Downcast<DataflowBlock>(this->irbuilder_->GetBlocks().back());
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
@@ -392,57 +379,31 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 // DataflowMutator
 
 DataflowBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  bool block_changed = false;
-  this->irbuilder_ = IRBuilderNode::Create();
-  this->irbuilder_->BuildBlock();
-
-  for (auto binding : block->bindings) {
-    if (binding.as<VarBindingNode>()) {
-      VarBinding pre_binding = Downcast<VarBinding>(binding);
-      VarBinding post_binding = this->VisitVarBinding(pre_binding);
-
-      if (!pre_binding.same_as(post_binding)) {
-        block_changed = true;
-      }
-
-      this->post_binding_table_[post_binding->var] = post_binding->value;
-      this->pre_post_var_map_[pre_binding->var] = post_binding->var;
-
-      // TODO: copy-on-write (no-op)
-
-      if (post_binding->value.as<CallNode>()) {
-        Var new_var = this->irbuilder_->Emit(Downcast<Call>(post_binding->value));
-      } else {
-        Var new_var = this->irbuilder_->EmitOutput(post_binding->value);
-      }
-    }
-  }
-  
-  if (block_changed) {
-    this->irbuilder_->BuildBlock();
-    return Downcast<DataflowBlock>(this->irbuilder_->GetBlocks().back());
-  } else {
-    return block;
-  }
+  return ExprMutator::VisitDataflowBlock(block);
 }
 
-VarBinding DataflowMutator::VisitVarBinding(const VarBinding& binding) {
-  Var post_var = Downcast<Var>(this->Mutate(binding->var));
-  Expr post_value = this->Mutate(binding->value);
-
-  if (post_var.same_as(binding->var) && post_value.same_as(binding->value)) {
-    return binding;
+void DataflowMutator::VisitVarBinding(const VarBinding& binding) {
+  Expr new_value = this->Mutate(binding->value);
+  Var new_var;
+  if (new_value.as<CallNode>()) {
+    new_var = this->irbuilder_->Emit(Downcast<Call>(new_value));
   } else {
-    // TODO: If shape and type are unchanged, reuse the original var
-    return VarBinding(post_var, post_value);
+    new_var = this->irbuilder_->EmitOutput(new_value);
   }
+  post_binding_table_[new_var] = new_value;
+  pre_post_var_map_[binding->var] = new_var;
 }
 
 // ==================
 // EwiseFMARewriter
+// Example:
+// x0 = mul(a, b)
+// z0 = add(x0, c)
+// -->
+// z0 = ewise_fma(a, b, c)
 
 class EwiseFMARewriter : public DataflowMutator {
-	VarBinding VisitVarBinding(const VarBinding& binding) override {
+	void VisitVarBinding(const VarBinding& binding) override {
     static const Op& add_op = Op::Get("add");
     static const Op& multiply_op = Op::Get("multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
@@ -454,23 +415,39 @@ class EwiseFMARewriter : public DataflowMutator {
         // if(op1->shape() != op1->args[0]->shape() || op1->args[0]->shape() != op1->args[1]->shape()){
 				//   return binding;
 			  // }
-      }
-    
-      // lookup binding in the post visit bindings
-      Expr expr = post_binding_table_[Downcast<Var>(op1->args[0])];
-      if (const CallNode* op2 = expr.as<CallNode>()){
-        if (op2->op == multiply_op) {
-          // Will add the following shape check once the shape/type inference pr gets merged
-          // if (op2->shape() != op2->args[0]->shape() || op2->args[0]->shape() != op2->args[1]->shape()){
-          //   post_binding_table_[binding->var] = binding->value;
-          //   return binding;
-          // }
-          auto call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[0]}, {}, {});
-          return VarBinding(binding->var, call);
+
+        // lookup binding in the post visit bindings
+        auto it = pre_post_var_map_.find(Downcast<Var>(op1->args[0]));
+        if (it != pre_post_var_map_.end()) {
+          if (post_binding_table_.find(it->second) != post_binding_table_.end()) {
+            Expr expr = post_binding_table_[it->second];
+            if (const CallNode* op2 = expr.as<CallNode>()){
+              if (op2->op == multiply_op) {
+                
+                // Will add the following shape check once the shape/type inference pr gets merged
+                // if (op2->shape() != op2->args[0]->shape() || op2->args[0]->shape() != op2->args[1]->shape()){
+                //   post_binding_table_[binding->var] = binding->value;
+                //   return binding;
+                // }
+                Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
+                Var new_var = this->irbuilder_->Emit(fma_call);
+                post_binding_table_[new_var] = fma_call;
+                pre_post_var_map_[binding->var] = new_var;
+                return;
+              }
+            }
+          }
         }
       }
     }
-    return binding;
+    Var new_var;
+    if (binding->value.as<CallNode>()) {
+      new_var = this->irbuilder_->Emit(Downcast<Call>(binding->value));
+    } else {
+      new_var = this->irbuilder_->EmitOutput(binding->value);
+    }
+    post_binding_table_[new_var] = binding->value;
+    pre_post_var_map_[binding->var] = new_var;
   }
 };
 
