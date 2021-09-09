@@ -56,7 +56,7 @@ def test_post_order_visit():
         nonlocal names
         if isinstance(e, tvm.ir.op.Op):
             names.append(e.name)
-    rx.analysis.post_order_visit(expr, fvisit)
+    rx.analysis.post_order_visit(expr.body, fvisit)
     assert names == ["add", "multiply"]
 
 

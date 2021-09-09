@@ -136,7 +136,6 @@ void ExprVisitor::VisitBinding(const Binding& binding) {
 }
 
 void ExprVisitor::VisitVarBinding(const VarBinding& binding) {
-  this->VisitExpr(binding->var);
   this->VisitExpr(binding->value);
 }
 
@@ -394,6 +393,25 @@ void DataflowMutator::VisitVarBinding(const VarBinding& binding) {
   pre_post_var_map_[binding->var] = new_var;
 }
 
+Var DataflowMutator::UpdateBindingTable(Var var, Call value) {
+  Var new_var = this->irbuilder_->Emit(value);
+  post_binding_table_[new_var] = value;
+  pre_post_var_map_[var] = new_var;
+  return new_var;
+}
+
+Var DataflowMutator::OldVar2NewVar(Var v) const {
+  auto it = pre_post_var_map_.find(v);
+  ICHECK(it != pre_post_var_map_.end());
+  return it->second;
+}
+
+Expr DataflowMutator::NewVar2Value(Var v) const {
+  auto it = post_binding_table_.find(v);
+  ICHECK(it != post_binding_table_.end());
+  return it->second;
+}
+
 // ==================
 // EwiseFMARewriter
 // Example:
@@ -408,46 +426,18 @@ class EwiseFMARewriter : public DataflowMutator {
     static const Op& multiply_op = Op::Get("multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
 
+    // TODO: shape & dtype check
     const CallNode* op1 = binding->value.as<CallNode>();
-    if (op1){
-      if (op1->op == add_op) {
-        // Will add the following shape check once the shape/type inference pr gets merged
-        // if(op1->shape() != op1->args[0]->shape() || op1->args[0]->shape() != op1->args[1]->shape()){
-				//   return binding;
-			  // }
-
-        // lookup binding in the post visit bindings
-        auto it = pre_post_var_map_.find(Downcast<Var>(op1->args[0]));
-        if (it != pre_post_var_map_.end()) {
-          if (post_binding_table_.find(it->second) != post_binding_table_.end()) {
-            Expr expr = post_binding_table_[it->second];
-            if (const CallNode* op2 = expr.as<CallNode>()){
-              if (op2->op == multiply_op) {
-                
-                // Will add the following shape check once the shape/type inference pr gets merged
-                // if (op2->shape() != op2->args[0]->shape() || op2->args[0]->shape() != op2->args[1]->shape()){
-                //   post_binding_table_[binding->var] = binding->value;
-                //   return binding;
-                // }
-                Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
-                Var new_var = this->irbuilder_->Emit(fma_call);
-                post_binding_table_[new_var] = fma_call;
-                pre_post_var_map_[binding->var] = new_var;
-                return;
-              }
-            }
-          }
-        }
+    if (op1 && (op1->op == add_op)) {
+      Expr value = NewVar2Value(OldVar2NewVar(Downcast<Var>(op1->args[0])));
+      const CallNode* op2 = value.as<CallNode>();
+      if (op2 && op2->op == multiply_op) {
+        Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
+        UpdateBindingTable(binding->var, fma_call);
+        return;
       }
     }
-    Var new_var;
-    if (binding->value.as<CallNode>()) {
-      new_var = this->irbuilder_->Emit(Downcast<Call>(binding->value));
-    } else {
-      new_var = this->irbuilder_->EmitOutput(binding->value);
-    }
-    post_binding_table_[new_var] = binding->value;
-    pre_post_var_map_[binding->var] = new_var;
+    DataflowMutator::VisitVarBinding(binding);
   }
 };
 

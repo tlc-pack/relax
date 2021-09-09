@@ -224,6 +224,9 @@ class DataflowMutator : public ExprMutator {
  public:
   virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
   virtual void VisitVarBinding(const VarBinding& binding);
+  Var UpdateBindingTable(Var var, Call value);
+  Var OldVar2NewVar(Var v) const;
+  Expr NewVar2Value(Var v) const;
 
  protected:
   // A lookup table for bindings after the rewriting
