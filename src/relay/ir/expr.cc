@@ -367,8 +367,8 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
 TVM_REGISTER_NODE_TYPE(IfNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.If")
-    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch) {
-      return If(cond, true_branch, false_branch);
+    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch, Span span) {
+      return If(cond, true_branch, false_branch, span);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
