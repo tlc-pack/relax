@@ -33,8 +33,8 @@ namespace relax {
 
 using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
-using relay::Id;
 using relay::Call;
+using relay::Id;
 using relay::Tuple;
 using relay::TupleGetItem;
 
@@ -53,8 +53,7 @@ class ShapeExprNode : public ExprNode {
   }
 
   bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) &&
-           equal(checked_type_, other->checked_type_) &&
+    return equal(values, other->values) && equal(checked_type_, other->checked_type_) &&
            equal(shape_, other->shape_);
   }
 
@@ -72,15 +71,15 @@ class ShapeExprNode : public ExprNode {
 
 class ShapeExpr : public Expr {
  public:
-  TVM_DLL ShapeExpr(Array<PrimExpr> values);
+  TVM_DLL explicit ShapeExpr(Array<PrimExpr> values, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
 };
-
 
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:
-  /*! \brief The identifier of the variable, is used for comparing stable equality across transformations. */
+  /*! \brief The identifier of the variable, which is used for comparing stable equality across
+   * transformations. */
   Id vid;
   /*! \brief The type annotation, used by binding sites and parameter declarations. */
   runtime::Optional<Type> type_annotation;
@@ -97,11 +96,9 @@ class VarNode : public ExprNode {
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    return equal(vid, other->vid) &&
-           equal(type_annotation, other->type_annotation) &&
+    return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
            // Do we use the analysis information in equality?
-           equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
+           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -120,16 +117,12 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
-  TVM_DLL Var(String name_hint,
-              runtime::Optional<Expr> shape_annotation,
-              runtime::Optional<Type> type_annotation,
-              Span span = Span())
-    : Var(Id(name_hint), shape_annotation, type_annotation, span) {}
+  TVM_DLL explicit Var(String name_hint, runtime::Optional<Expr> shape_annotation,
+                       runtime::Optional<Type> type_annotation, Span span = Span())
+      : Var(Id(name_hint), shape_annotation, type_annotation, span) {}
 
-  TVM_DLL Var(Id vid,
-              runtime::Optional<Expr> shape_annotation,
-              runtime::Optional<Type> type_annotation,
-              Span span = Span());
+  TVM_DLL explicit Var(Id vid, runtime::Optional<Expr> shape_annotation,
+                       runtime::Optional<Type> type_annotation, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
 };
 
@@ -147,10 +140,8 @@ class DataflowVarNode : public VarNode {
   }
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
-    return equal(vid, other->vid)  &&
-           equal(type_annotation, other->type_annotation) &&
-           equal(shape_, other->shape_) &&
-           equal(checked_type_, other->checked_type_);
+    return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
+           equal(shape_, other->shape_) && equal(checked_type_, other->checked_type_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -168,15 +159,22 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  using Var::Var; // inherit constructors from Var
+  TVM_DLL explicit DataflowVar(String name_hint, runtime::Optional<Expr> shape_annotation,
+                               runtime::Optional<Type> type_annotation, Span span = Span())
+      : DataflowVar(Id(name_hint), shape_annotation, type_annotation, span) {}
+
+  TVM_DLL explicit DataflowVar(Id vid, runtime::Optional<Expr> shape_annotation,
+                               runtime::Optional<Type> type_annotation, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
 };
-
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public Object {
  public:
-  void VisitAttrs(AttrVisitor* v) {}
+  mutable Span span;
+
+  void VisitAttrs(AttrVisitor* v) { v->Visit("span", &span); }
   bool SEqualReduce(const BindingNode* other, SEqualReducer equal) const { return true; }
   void SHashReduce(SHashReducer hash_reduce) const {}
 
@@ -188,9 +186,9 @@ class BindingNode : public Object {
 
 class Binding : public ObjectRef {
  public:
+  TVM_DLL explicit Binding(Span span);
   TVM_DEFINE_OBJECT_REF_METHODS(Binding, ObjectRef, BindingNode);
 };
-
 
 /*! \brief Symbolic shape match, binds the variables of the LHS with the rhs. */
 class MatchShape;
@@ -202,6 +200,7 @@ class MatchShapeNode : public BindingNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("pattern", &pattern);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
@@ -221,7 +220,7 @@ class MatchShapeNode : public BindingNode {
 
 class MatchShape : public Binding {
  public:
-  TVM_DLL MatchShape(Array<PrimExpr> pattern, Expr value);
+  TVM_DLL explicit MatchShape(Array<PrimExpr> pattern, Expr value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(MatchShape, Binding, MatchShapeNode);
 };
 
@@ -234,6 +233,7 @@ class VarBindingNode : public BindingNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
@@ -251,23 +251,28 @@ class VarBindingNode : public BindingNode {
 
 class VarBinding : public Binding {
  public:
-  TVM_DLL VarBinding(Var var, Expr value);
+  TVM_DLL explicit VarBinding(Var var, Expr value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
 };
-
 
 class BindingBlock;
 
 class BindingBlockNode : public Object {
  public:
+  mutable Span span;
   Array<Binding> bindings;
+
   void VisitAttrs(AttrVisitor* v) {
+    v->Visit("span", &span);
     v->Visit("bindings", &bindings);
   }
+
   bool SEqualReduce(const BindingBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
+
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
+
   static constexpr const char* _type_key = "relax.expr.BindingBlock";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -276,21 +281,17 @@ class BindingBlockNode : public Object {
 
 class BindingBlock : public ObjectRef {
  public:
-  TVM_DLL BindingBlock(Array<Binding> bindings);
+  TVM_DLL explicit BindingBlock(Array<Binding> bindings, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
 };
-
 
 class DataflowBlock;
 class DataflowBlockNode : public BindingBlockNode {
  public:
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("bindings", &bindings);
-  }
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
+
   static constexpr const char* _type_key = "relax.expr.DataflowBlock";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -299,7 +300,7 @@ class DataflowBlockNode : public BindingBlockNode {
 
 class DataflowBlock : public BindingBlock {
  public:
-  TVM_DLL DataflowBlock(Array<Binding> bindings);
+  TVM_DLL explicit DataflowBlock(Array<Binding> bindings, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlock, BindingBlock, DataflowBlockNode);
 };
 
@@ -340,10 +341,9 @@ class SeqExprNode : public ExprNode {
 
 class SeqExpr : public Expr {
  public:
-  TVM_DLL SeqExpr(Array<BindingBlock> blocks, Expr body);
+  TVM_DLL explicit SeqExpr(Array<BindingBlock> blocks, Expr body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
 };
-
 
 /*! \brief A Relax function, eventually to replace the current Relay function definition. */
 class FunctionNode : public BaseFuncNode {
@@ -372,8 +372,7 @@ class FunctionNode : public BaseFuncNode {
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal.DefEqual(params, other->params) &&
-           equal(body, other->body) &&
+    return equal.DefEqual(params, other->params) && equal(body, other->body) &&
            equal(ret_type, other->ret_type) && equal(checked_type_, other->checked_type_) &&
            equal(shape_, other->shape_);
   }
@@ -396,11 +395,10 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public Expr {
  public:
-  TVM_DLL Function(runtime::Optional<GlobalVar> name, Array<Var> params,
-                   Expr body, Type ret_type);
+  TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
+                            Type ret_type, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
 };
-
 
 /*! \brief The extern function, which can represent packed function. */
 class ExternFuncNode : public BaseFuncNode {
@@ -410,15 +408,14 @@ class ExternFuncNode : public BaseFuncNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
     return equal(global_symbol, other->global_symbol);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(global_symbol);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(global_symbol); }
 
   static constexpr const char* _type_key = "relax.expr.ExternFunc";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -428,7 +425,7 @@ class ExternFuncNode : public BaseFuncNode {
 
 class ExternFunc : public Expr {
  public:
-  TVM_DLL ExternFunc(String global_symbol);
+  TVM_DLL ExternFunc(String global_symbol, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, Expr, ExternFuncNode);
 };
 

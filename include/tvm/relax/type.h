@@ -39,7 +39,10 @@ namespace relax {
 
 class ShapeTypeNode : public TypeNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
     return true;
@@ -53,16 +56,9 @@ class ShapeTypeNode : public TypeNode {
 
 class ShapeType : public Type {
  public:
-  explicit ShapeType();
-  explicit ShapeType(runtime::ObjectPtr<runtime::Object> n) : Type(n) {}
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(ShapeType);
-  const ShapeTypeNode* operator->() const {
-    return static_cast<const ShapeTypeNode*>(data_.get());
-  }
-  const ShapeTypeNode* get() const {
-    return operator->();
-  }
-  using ContainerType = ShapeTypeNode;
+  TVM_DLL ShapeType(Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapeType, Type, ShapeTypeNode);
 };
 
 class DynTensorTypeNode : public BaseTensorTypeNode {
@@ -108,9 +104,32 @@ class DynTensorType : public Type {
    * \param shape The shape of the tensor.
    * \param dtype The runtime dtype of the tensor's elements.
    */
-  TVM_DLL DynTensorType(int rank, DataType dtype);
+  TVM_DLL DynTensorType(int rank, DataType dtype, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(DynTensorType, Type, DynTensorTypeNode);
+};
+
+class DimTypeNode : public TypeNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const DimTypeNode* other, SEqualReducer equal) const {
+    return true;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
+
+  static constexpr const char* _type_key = "relax.DimType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DimTypeNode, TypeNode);
+};
+
+class DimType : public Type {
+ public:
+  TVM_DLL DimType(Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
 }  // namespace relax

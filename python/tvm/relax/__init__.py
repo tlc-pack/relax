@@ -19,9 +19,9 @@ from . import exec_builder
 from . import expr
 from . import ty
 from . import vm
-from . import op
 from . import ir_builder
 from . import op
+from . import parser
 
 
 # Expr
@@ -42,14 +42,18 @@ ShapeExpr = expr.ShapeExpr
 Tuple = expr.Tuple
 Function = expr.Function
 ExternFunc = expr.ExternFunc
+Call = expr.Call
+If = expr.If
 
 # helper functions
 const = expr.const
 extern = expr.extern
 
 # Type
+Type = ty.Type
 ShapeType = ty.ShapeType
 DynTensorType = ty.DynTensorType
+DimType = ty.DimType
 
 # VM
 ExecBuilder = exec_builder.ExecBuilder
@@ -61,3 +65,6 @@ from .op.base import call_dps
 
 # IRBuilder
 IRBuilder = ir_builder.IRBuilder
+
+# Parser
+from .parser import script
