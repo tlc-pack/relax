@@ -23,7 +23,7 @@ import numpy as _np
 import tvm._ffi
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar, Node
+from tvm.ir import RelayExpr, GlobalVar, Node, Span
 
 from .base import RelayNode
 from . import _ffi_api
