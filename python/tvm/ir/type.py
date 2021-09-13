@@ -19,6 +19,7 @@ from enum import IntEnum
 import tvm
 import tvm._ffi
 
+from . import Span
 from .base import Node
 from . import _ffi_api
 
@@ -166,8 +167,8 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields):
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
+    def __init__(self, fields, span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)
 
 
 @tvm._ffi.register_object("TypeConstraint")
