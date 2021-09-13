@@ -130,6 +130,7 @@ class TupleNode : public ExprNode {
     v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {

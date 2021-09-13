@@ -24,7 +24,7 @@ import numpy as _np
 
 import tvm._ffi
 from tvm._ffi import base as _base
-from tvm.ir import GlobalVar, Node, RelayExpr
+from tvm.ir import GlobalVar, Node, RelayExpr, Span
 from tvm.runtime import NDArray
 from tvm.runtime import ndarray as _nd
 
