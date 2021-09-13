@@ -17,15 +17,15 @@
 # pylint: disable=invalid-name, unused-import
 """The type nodes of the Relax language."""
 import tvm._ffi
-from tvm.ir import Type, TensorType
+from tvm.ir import Type, TensorType, Span
 
 from . import _ffi_api
 
 
 @tvm._ffi.register_object("relax.ShapeType")
 class ShapeType(Type):
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.ShapeType)
+    def __init__(self, span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.ShapeType, span)
 
 
 @tvm._ffi.register_object("relax.DynTensorType")
@@ -43,5 +43,12 @@ class DynTensorType(TensorType):
         The content data type.
     """
 
-    def __init__(self, rank=-1, dtype="float32"):
-        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, rank, dtype)
+    def __init__(self, rank=-1, dtype="float32", span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, rank, dtype, span)
+
+
+@tvm._ffi.register_object("relax.DimType")
+class DimType(Type):
+    """The type of indices/shape dimensions in Relax."""
+    def __init__(self, span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.DimType, span)
