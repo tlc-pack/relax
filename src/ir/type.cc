@@ -144,8 +144,8 @@ TupleType TupleType::Empty() { return TupleType(Array<Type>()); }
 
 TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.TupleType").set_body_typed([](Array<Type> fields) {
-  return TupleType(fields);
+TVM_REGISTER_GLOBAL("ir.TupleType").set_body_typed([](Array<Type> fields, Span span) {
+  return TupleType(fields, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
