@@ -23,7 +23,7 @@ import numpy as _np
 import tvm._ffi
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar, Node
+from tvm.ir import RelayExpr, GlobalVar, Node, Span
 
 from .base import RelayNode
 from . import _ffi_api
@@ -301,8 +301,8 @@ class If(ExprWithOp):
         The expression evaluated when condition is false.
     """
 
-    def __init__(self, cond, true_branch, false_branch):
-        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch)
+    def __init__(self, cond, true_branch, false_branch, span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)
 
 
 @tvm._ffi.register_object("relay.TupleGetItem")
