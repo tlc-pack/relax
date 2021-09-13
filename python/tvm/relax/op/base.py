@@ -18,9 +18,10 @@ from ..expr import Expr, ShapeExpr, Tuple, Call
 from . import _ffi_api
 from typing import Union, List
 
-def call_dps(shape: Union[ShapeExpr, List[int]],
-             func: Expr,
-             args: Union[Tuple, List[Expr]]) -> Call:
+
+def call_dps(
+    shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]]
+) -> Call:
     """
     Call a destination-passing-style function and return the output.
 
