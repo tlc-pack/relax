@@ -29,30 +29,37 @@ namespace relax {
 
 TVM_REGISTER_NODE_TYPE(ShapeTypeNode);
 
-ShapeType::ShapeType() {
+ShapeType::ShapeType(Span span) {
   ObjectPtr<ShapeTypeNode> n = make_object<ShapeTypeNode>();
+  n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.ShapeType")
-.set_body_typed([]() {
-  return ShapeType();
-});
+TVM_REGISTER_GLOBAL("relax.ShapeType").set_body_typed([](Span span) { return ShapeType(span); });
 
-DynTensorType::DynTensorType(int rank, DataType dtype) {
+DynTensorType::DynTensorType(int rank, DataType dtype, Span span) {
   ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
   n->rank = std::move(rank);
   n->dtype = std::move(dtype);
+  n->span = span;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(DynTensorTypeNode);
 
-TVM_REGISTER_GLOBAL("relax.DynTensorType")
-.set_body_typed([](int rank, DataType dtype) {
-  return DynTensorType(rank, dtype);
+TVM_REGISTER_GLOBAL("relax.DynTensorType").set_body_typed([](int rank, DataType dtype, Span span) {
+  return DynTensorType(rank, dtype, span);
 });
 
+DimType::DimType(Span span) {
+  ObjectPtr<DimTypeNode> n = make_object<DimTypeNode>();
+  n->span = span;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DimTypeNode);
+
+TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimType(span); });
 
 }  // namespace relax
 }  // namespace tvm
