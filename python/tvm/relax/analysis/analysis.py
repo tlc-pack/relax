@@ -47,3 +47,13 @@ def fma_rewrite(expr):
         The input expression.
     """
     return _ffi_api.fma_rewrite(expr)
+
+def explicit_memory_rewrite(expr):
+    """Perform explicit memory allocation for call_dps in dataflow blocks.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+    """
+    return _ffi_api.explicit_memory_rewrite(expr)

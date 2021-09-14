@@ -94,7 +94,39 @@ def test_fma_rewrite():
     assert type(func.body.blocks[0].bindings[2].value) == rx.DataflowVar
 
 
+def test_explicit_memory_rewrite():
+    shape_anno = [54, 96]
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", shape_anno, type_anno)
+    ib = rx.IRBuilder()
+    with ib.function(x):
+        with ib.dataflow() as df:
+            lv0 = rx.call_dps([54, 96], rx.extern("test.op.identity"), [x])
+            gv0 = ib.emit_output(lv0)
+        ib.emit_output(gv0)
+    expr = ib.get()
+
+    # before rewrite
+    v0 = expr.body.blocks[0].bindings[0].var
+    s0 = expr.body.blocks[0].bindings[0].value
+    assert isinstance(s0, tvm.relay.Call)
+    assert s0.op.name == "relax.call_dps"
+
+    # after rewrite
+    func = rx.analysis.explicit_memory_rewrite(expr)
+
+    v1 = func.body.blocks[0].bindings[0].var
+    s1 = func.body.blocks[0].bindings[0].value
+    assert isinstance(s1, tvm.relay.Call)
+    assert s1.op.global_symbol == "vm.builtin.alloc_storage"
+    s2 = func.body.blocks[0].bindings[1].value
+    assert s2.op.global_symbol == "vm.builtin.alloc_tensor"
+    s3 = func.body.blocks[0].bindings[2].value
+    assert s3.op.global_symbol == "test.op.identity"
+
+
 if __name__ == "__main__":
     test_dispatch_var()
     test_post_order_visit()
     test_fma_rewrite()
+    test_explicit_memory_rewrite()

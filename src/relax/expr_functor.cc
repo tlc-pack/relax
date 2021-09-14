@@ -396,6 +396,12 @@ void DataflowMutator::VisitVarBinding(const VarBinding& binding) {
   pre_post_var_map_[binding->var] = new_var;
 }
 
+Var DataflowMutator::Insert(Call value) {
+  Var var = this->irbuilder_->Emit(value);
+  post_binding_table_[var] = value;
+  return var;
+}
+
 Var DataflowMutator::UpdateBindingTable(Var var, Call value) {
   Var new_var = this->irbuilder_->Emit(value);
   post_binding_table_[new_var] = value;
@@ -451,6 +457,38 @@ Expr FMARewrite(const Expr& e) {
 TVM_REGISTER_GLOBAL("relax.analysis.fma_rewrite")
 .set_body_typed([](Expr expr) {
   return FMARewrite(expr);
+});
+
+// ==================
+// ExplicitMemMutator
+// Example:
+// lv1: Tensor[(m*n,)] = rx.call_dps((m*n,), extern_packed("flatten"), [lv0])
+// -->
+// storage0 = rx.call(extern_packed("alloc_storage"), size=[n*m], device=cpu)
+// lv1 = rx.call(extern_packed("alloc_tensor"), storage0, 0, [m*n,], f32)
+// rx.call(extern_packed("flatten"), lv0, lv1)
+
+class ExplicitMemMutator : public DataflowMutator {
+	void VisitVarBinding(const VarBinding& binding) override {
+    static const Op& call_dps_op = Op::Get("relax.call_dps");
+
+    const CallNode* op = binding->value.as<CallNode>();
+		if(op && op->op == call_dps_op) {
+      Var storage = Insert(Call(ExternFunc("vm.builtin.alloc_storage"), {op->args[0]}));
+      Var tensor = Insert(Call(ExternFunc("vm.builtin.alloc_tensor"), {storage, op->args[0]}));
+      UpdateBindingTable(binding->var, Call(op->args[1], {tensor, op->args[2]}));
+    }
+    DataflowMutator::VisitVarBinding(binding);
+  }
+};
+
+Expr ExplicitMemRewrite(const Expr& e) {
+  return ExplicitMemMutator().Mutate(e);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.explicit_memory_rewrite")
+.set_body_typed([](Expr expr) {
+  return ExplicitMemRewrite(expr);
 });
 
 
