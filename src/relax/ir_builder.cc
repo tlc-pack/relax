@@ -29,6 +29,7 @@ namespace tvm {
 namespace relax {
 
 TVM_REGISTER_NODE_TYPE(IRBuilderNode);
+TVM_REGISTER_NODE_TYPE(LazyIRBuilderNode);
 TVM_REGISTER_NODE_TYPE(FunctionScopeNode);
 TVM_REGISTER_NODE_TYPE(DataflowScopeNode);
 
@@ -41,7 +42,6 @@ void IRBuilderNode::FillFuncNameParam(const Array<Var>& params, const std::strin
   if (!func_name.empty()) {
     this->func_.func_name = GlobalVar(func_name);
   }
-
   this->func_.params = params;
 }
 
@@ -150,6 +150,51 @@ DataflowScope::DataflowScope(IRBuilder ib) {
 void DataflowScope::EnterWithScope() { this->get()->ir_builder->BuildBlock(); }
 
 void DataflowScope::ExitWithScope() { this->get()->ir_builder->BuildBlock(); }
+
+LazyIRBuilder LazyIRBuilderNode::Create(const DataflowBlock& block) {
+  LazyIRBuilder ret(make_object<LazyIRBuilderNode>());
+  ret->df_block_ = block;
+  return ret;
+}
+
+Var LazyIRBuilderNode::Emit(const Call& call) {
+  if (is_rewrite_) {
+    index_++;
+    return IRBuilderNode::Emit(call);
+  }
+  Expr expr = Downcast<VarBinding>(this->df_block_->bindings[index_])->value;
+  Call old_call = Downcast<Call>(expr);
+  if (call.same_as(old_call)) {
+    return Downcast<VarBinding>(this->df_block_->bindings[index_++])->var;
+  }
+  else {
+    is_rewrite_ = true;
+    for (int i = 0; i < index_; i++) {
+      Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
+      IRBuilderNode::Emit(Downcast<Call>(expr));
+    }
+    index_++;
+    return IRBuilderNode::Emit(call);
+  }
+}
+
+void LazyIRBuilderNode::BuildBlock() {
+  if (!this->func_.bindings.empty()) {
+    if (is_dataflow_) {
+      if (is_rewrite_) {
+        this->func_.binding_blocks.emplace_back(DataflowBlock(this->func_.bindings));
+      }
+      else {
+        this->func_.binding_blocks.emplace_back(this->df_block_);
+      }
+    } else {
+      this->func_.binding_blocks.emplace_back(BindingBlock(this->func_.bindings));
+    }
+    this->func_.bindings.clear();
+  }
+  this->dataflow_var_counter_ = 0;
+  this->is_dataflow_ = !this->is_dataflow_;
+}
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderCreate").set_body_typed(IRBuilderNode::Create);
 

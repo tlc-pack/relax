@@ -215,7 +215,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
   
  protected:
-  IRBuilder irbuilder_;
+  LazyIRBuilder irbuilder_;
 };
 
 /*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes

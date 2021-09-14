@@ -358,15 +358,15 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
 }
 
 DataflowBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  this->irbuilder_ = IRBuilderNode::Create();
-  this->irbuilder_->BuildBlock();
-
-  for (auto binding : block->bindings) {
-    if (binding.as<VarBindingNode>()) {
-      this->VisitVarBinding(Downcast<VarBinding>(binding));
+  this->irbuilder_ = LazyIRBuilderNode::Create(block);
+  {
+    With<DataflowScope> scope(this->irbuilder_);
+    for (auto binding : block->bindings) {
+      if (binding.as<VarBindingNode>()) {
+        this->VisitVarBinding(Downcast<VarBinding>(binding));
+      }
     }
   }
-  this->irbuilder_->BuildBlock();
   return Downcast<DataflowBlock>(this->irbuilder_->GetBlocks().back());
 }
 

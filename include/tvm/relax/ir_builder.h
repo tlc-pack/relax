@@ -37,6 +37,7 @@ namespace relax {
 using relay::Call;
 
 class IRBuilder;
+class LazyIRBuilder;
 
 /*!
  * \brief The state of Relax function node being built.
@@ -72,13 +73,13 @@ class IRBuilderNode : public Object {
   /*!
    * \brief Build a binding block.
    */
-  void BuildBlock();
+  virtual void BuildBlock();
   /*!
    * \brief Emit a call node.
    * \param call The CallNode to be emitted.
    * \return The variable being created and binded to \p call.
    */
-  Var Emit(const Call& call);
+  virtual Var Emit(const Call& call);
   /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
@@ -103,9 +104,9 @@ class IRBuilderNode : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.IRBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRBuilderNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(IRBuilderNode, Object);
 
- private:
+ protected:
   /*! \brief The state of the function currently being built. */
   RelaxFunction func_;
   /*! \brief A flag tracking if currently inside a dataflow block or not. */
@@ -192,6 +193,51 @@ class DataflowScope : public ObjectRef {
   // The exit of a dataflow scope.
   TVM_DLL void ExitWithScope();
 };
+
+/*!
+ * \brief A lazy builder to construct dataflow block in a copy-on-write fashion.
+ */
+class LazyIRBuilderNode : public IRBuilderNode {
+ public:
+  /*!
+   * \brief Emit a call node in a copy-on-write way.
+   * If no bindings in a dataflow block need to be rewritten, reuse the original variable instead of
+   * emiting one. If any binding in the block needs to be rewritten, reconstruct the whole block
+   * from scratch by emiting all previous bindings. 
+   * \param call The CallNode to be emitted. 
+   * \return The variable being created and binded to \p call.
+   */
+  virtual Var Emit(const Call& call);
+  /*!
+   * \brief Build a binding block.
+   */
+  virtual void BuildBlock();
+  /*!
+   * \brief Create a LazyIRBuilder.
+   * \return The created LazyIRBuilder.
+   */
+  TVM_DLL static LazyIRBuilder Create(const DataflowBlock& block);
+
+  void VisitAttrs(AttrVisitor* v) {}
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.LazyIRBuilder";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LazyIRBuilderNode, IRBuilderNode);
+
+ private:
+  /*! \brief Original DataflowBlock before rewriting. */
+  DataflowBlock df_block_;
+  /*! \brief index in the \p bindings. */
+  int64_t index_ = 0;
+  /*! \brief A flag tracking if current dataflow block needs to be rewritten or not. */
+  bool is_rewrite_ = false;
+};
+
+class LazyIRBuilder : public IRBuilder {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LazyIRBuilder, IRBuilder, LazyIRBuilderNode);
+};
+
 
 }  // namespace relax
 }  // namespace tvm
