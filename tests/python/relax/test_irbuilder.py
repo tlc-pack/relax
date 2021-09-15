@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm
 from tvm import tir
 from tvm import relax as rx
 
@@ -121,7 +122,40 @@ def test_function_multi_blocks():
     assert len(func.body.blocks[2].bindings) == 2
 
 
+def test_binary_shape_deduction():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    k = tir.Var("k", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, 1], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    z = rx.Var("z", [5], dtype0)
+    w = rx.Var("w", [k], dtype1)
+    ib = rx.IRBuilder()
+
+    with ib.function([x, y, z, w]):
+        with ib.dataflow() as df:
+            lv0 = ib.emit(rx.op.add(x, y))
+            assert lv0.shape[0] == m
+            assert lv0.shape[1] == n
+
+            lv1 = ib.emit(rx.op.multiply(x, z))
+            assert lv1.shape[0] == m
+            assert lv1.shape[1] == 5
+
+            lv2 = ib.emit(rx.op.multiply(z, w))
+            assert isinstance(lv2.shape, tvm.relay.Call)
+
+            lv3 = ib.emit(rx.op.multiply(y, w))
+            assert isinstance(lv3.shape, tvm.relay.Call)
+            gv0 = ib.emit_output(lv3)
+        ib.emit_output(gv0)
+        assert isinstance(gv0.shape, tvm.relay.Call)
+
+
 if __name__ == "__main__":
     test_dataflow_block()
     test_function_single_block()
     test_function_multi_blocks()
+    test_binary_shape_deduction()

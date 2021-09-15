@@ -67,13 +67,13 @@ void IRBuilderNode::BuildBlock() {
 Optional<RelayExpr> InferShape(const Call& call) {
   auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
   Op op = Downcast<Op>(call->op);
-  return op_map[op](call->attrs, call);
+  return op_map[op](call);
 }
 
 Type InferType(const Call& call) {
   auto op_map = Op::GetAttrMap<FInferType>("FInferType");
   Op op = Downcast<Op>(call->op);
-  return op_map[op](call->attrs, call);
+  return op_map[op](call);
 }
 
 Var IRBuilderNode::Emit(const Call& call) {

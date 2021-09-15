@@ -30,11 +30,12 @@ namespace tvm {
 namespace relax {
 
 RELAX_REGISTER_BINARY_OP("add")
-    .describe("Elementwise add with broadcasting");
+    .describe("Elementwise add with broadcasting")
+    .set_support_level(1);
 
 RELAX_REGISTER_BINARY_OP("multiply")
-    .describe("Elementwise multiply with broadcasting");
-
+    .describe("Elementwise multiply with broadcasting")
+    .set_support_level(1);
 
 }  // namespace relax
 }  // namespace tvm

@@ -39,21 +39,18 @@ using relay::Call;
 /*!
  * \brief Infer the output shape for operators. This function will
  * be invoked to fill the \p shape_ field of expressions.
- * \param attrs The attribute of the call node.
  * \param call The call node.
  * \return The inferred output shape expression.
  */
-using FInferShape =
-    runtime::TypedPackedFunc<Optional<RelayExpr>(const Attrs& attrs, const Call& call)>;
+using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call)>;
 
 /*!
  * \brief Infer the output type for operators. This function will
  * be invoked to fill the \p checked_type_ field of expressions.
- * \param attrs The attribute of the call node.
  * \param call The call node.
  * \return The inferred output type.
  */
-using FInferType = runtime::TypedPackedFunc<Type(const Attrs& attrs, const Call& call)>;
+using FInferType = runtime::TypedPackedFunc<Type(const Call& call)>;
 
 }  // namespace relax
 }  // namespace tvm

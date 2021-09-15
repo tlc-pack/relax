@@ -54,8 +54,13 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Optional<Expr> InferShapeBinaryBroadcast(const Attrs& attrs, const Call& call) {
-  ICHECK_EQ(call->args.size(), 2);
+Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
+  IRModule module = IRModule({}, {});
+  DiagnosticContext diag_ctx = DiagnosticContext::Default(module);
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary broadcast op should have 2 arguments");
+  }
   Expr lhs_shape = call->args[0]->shape();
   Expr rhs_shape = call->args[1]->shape();
   auto* s0 = lhs_shape.as<ShapeExprNode>();
@@ -69,9 +74,9 @@ Optional<Expr> InferShapeBinaryBroadcast(const Attrs& attrs, const Call& call) {
       PrimExpr dim0 = s0->values[ndim0 - i];
       PrimExpr dim1 = s1->values[ndim1 - i];
       if (EqualConstInt(dim0, 1)) {
-        output_shape.push_back(dim0);
-      } else if (EqualConstInt(dim1, 1)) {
         output_shape.push_back(dim1);
+      } else if (EqualConstInt(dim1, 1)) {
+        output_shape.push_back(dim0);
       } else if (EqualCheck(dim0, dim1)) {
         output_shape.push_back(dim0);
       } else {
@@ -92,22 +97,29 @@ Optional<Expr> InferShapeBinaryBroadcast(const Attrs& attrs, const Call& call) {
   }
 }
 
-Type InferTypeBinaryBroadcast(const Attrs& attrs, const Call& call) {
-  ICHECK_EQ(call->args.size(), 2);
+Type InferTypeBinaryBroadcast(const Call& call) {
+  IRModule module = IRModule({}, {});
+  DiagnosticContext diag_ctx = DiagnosticContext::Default(module);
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary broadcast op should have 2 arguments");
+  }
   Type lhs_type = call->args[0]->checked_type();
   Type rhs_type = call->args[1]->checked_type();
   auto* t0 = lhs_type.as<DynTensorTypeNode>();
   auto* t1 = rhs_type.as<DynTensorTypeNode>();
   if (!t0 || !t1) {
-    LOG(FATAL) << "Both lhs and rhs should be DynTensor for broadcasting";
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Both lhs and rhs should be DynTensor for broadcasting");
   }
 
   DataType output_dtype;
   if (t0->IsUnknownDtype() || t1->IsUnknownDtype()) {
     output_dtype = DataType::Void();
   } else if (t0->dtype != t1->dtype) {
-    LOG(FATAL) << "Data types " << t0->dtype << " and " << t1->dtype
-               << " do not match broadcasting rule";
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Data types " << t0->dtype << " and " << t1->dtype
+                       << " do not match broadcasting rule");
   } else {
     output_dtype = t0->dtype;
   }
