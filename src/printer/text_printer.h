@@ -370,6 +370,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 };
 
 String AsTVMScript(const ObjectRef& mod, bool show_meta = false);
+Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta = false);
 
 }  // namespace tir
 }  // namespace tvm

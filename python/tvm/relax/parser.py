@@ -25,7 +25,11 @@ import tvm.relax as rx
 
 # TODO(@altanh): Replace with a real pretty print method once we have the real AST
 def pretty_print(f):
-    print(f)
+    print(tvm.script._ffi_api.AsRelaxScript(f))
+
+
+def astext(f):
+    return tvm.script._ffi_api.AsRelaxScript(f)
 
 
 def is_registered(op_name: str, op_set=None) -> bool:

@@ -113,6 +113,12 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::GlobalVarNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   Doc doc;
 
+  if (const relax::ExternFuncNode* ext = op->op.as<relax::ExternFuncNode>()) {
+    ICHECK_EQ(op->args.size(), 1) << "extern calls should only have one argument";
+    doc << "relax.call_packed(" << Print(op->op) << ", " << Print(op->args[0]) << ")";
+    return doc;
+  }
+
   // TODO(@altanh): how to support when func cannot be printed as Python expr?
   //                e.g. Function or If
   doc << Print(op->op);
@@ -190,6 +196,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
     return PrintIfStmt(op->var, GetRef<relay::If>(ite));
   } else if (const relax::FunctionNode* func = op->value.as<relax::FunctionNode>()) {
     return PrintFunctionDef(Print(op->var), GetRef<relax::Function>(func));
+  } else if (const tir::PrimFuncNode* tir_func = op->value.as<tir::PrimFuncNode>()) {
+    return tir::AsTVMScriptDoc(GetRef<tir::PrimFunc>(tir_func));
   } else {
     Doc doc;
     doc << Print(op->var);

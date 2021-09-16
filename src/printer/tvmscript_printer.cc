@@ -1132,6 +1132,12 @@ String AsTVMScript(const ObjectRef& mod, bool show_meta) {
   return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(mod).str() + "\n";
 }
 
+Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta) {
+  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
+  return Doc::Text("@tvm.script.tir")
+         << Doc::NewLine() << TVMScriptPrinter(show_meta).Print(mod) << Doc::NewLine();
+}
+
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 
 }  // namespace tir
