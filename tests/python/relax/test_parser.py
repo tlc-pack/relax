@@ -344,7 +344,7 @@ def test_func_no_return_fail():
 def test_inline_tir():
     @rx.script
     def foo(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
-        @tir
+        @tvm.script.tir
         def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
             A = tir.match_buffer(a, [128, 128])
             B = tir.match_buffer(b, [128, 128])

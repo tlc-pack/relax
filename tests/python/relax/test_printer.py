@@ -3,11 +3,17 @@ import pytest
 import tvm
 from tvm import relax as rx
 from tvm import tir, relay
-from tvm.ir import structural_equal
+from tvm.ir import structural_equal, assert_structural_equal
 
 
 def rx_func(func):
     return func.module[func.fn_name]
+
+
+def check_roundtrip(fn):
+    f_pre = rx_func(fn)
+    f_post = rx.parser.fromtext(rx.parser.astext(f_pre))[fn.fn_name]
+    assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
 def test_annotations():
@@ -19,8 +25,7 @@ def test_annotations():
         sh: Shape = t.shape
         return t
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_match_shape():
@@ -30,8 +35,7 @@ def test_match_shape():
         y: Tensor[(n, m), "float32"] = add(x, x)
         return x
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 
@@ -46,8 +50,7 @@ def test_if():
             y = add(w, w)
         return y
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_tuple():
@@ -56,8 +59,7 @@ def test_tuple():
         t: Tuple[Tensor[_, _], Tensor[(32,), "float32"]] = (x, y)
         return t
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_local_func():
@@ -69,8 +71,7 @@ def test_local_func():
         y = bar(x)  # tests local function variable scoping
         return y
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_dataflow():
@@ -86,8 +87,7 @@ def test_dataflow():
         t = divide(y, w)
         return t
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_dataflow_match_shape():
@@ -102,14 +102,13 @@ def test_dataflow_match_shape():
         t: Tensor[(n, m), _] = divide(y, w)
         return t
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_inline_tir():
     @rx.script
     def foo(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
-        @tir
+        @tvm.script.tir
         def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
             A = tir.match_buffer(a, [128, 128])
             B = tir.match_buffer(b, [128, 128])
@@ -123,8 +122,7 @@ def test_inline_tir():
         z = relax.call_dps((B, 128), my_matmul, (x, y))
         return z
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)
 
 
 def test_call_packed():
@@ -134,5 +132,4 @@ def test_call_packed():
         z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", (x, x))
         return z
 
-    f = rx_func(foo)
-    rx.parser.pretty_print(f)
+    check_roundtrip(foo)

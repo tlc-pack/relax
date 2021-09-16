@@ -200,7 +200,7 @@ class RelaxTransformer(Transformer):
                     )
 
                 shape_annotation, dtype_annotation = ty.params
-                shape, dtype = None, None
+                shape, dtype, rank = None, None, -1
 
                 # parse the shape annotation
                 if isinstance(shape_annotation, ast.TypeVar):
@@ -214,13 +214,23 @@ class RelaxTransformer(Transformer):
                         # FIXME(@altanh): use a special node for unknown shape vs no shape?
                         pass  # shape = None
                 elif isinstance(shape_annotation, ast.TypeTuple):
-                    shape = rx.ShapeExpr(
-                        self.parse_shape(shape_annotation, bind_free_vars),
-                        span=self.to_tvm_span(shape_annotation.span),
-                    )
+                    if len(shape_annotation.values) > 0 and all(
+                        [
+                            isinstance(v, ast.Var) and v.id.name == "_"
+                            for v in shape_annotation.values
+                        ]
+                    ):
+                        # e.g. rank 2 (without matched dimensions) could be Tensor[(_, _), _]
+                        rank = len(shape_annotation.values)
+                    else:
+                        shape = rx.ShapeExpr(
+                            self.parse_shape(shape_annotation, bind_free_vars),
+                            span=self.to_tvm_span(shape_annotation.span),
+                        )
+                        rank = len(shape)
                 else:
                     self.report_error(
-                        "unsupported shape annotation",
+                        "unsupported shape annotation " + str(shape_annotation),
                         shape_annotation.span,
                     )
 
@@ -235,7 +245,6 @@ class RelaxTransformer(Transformer):
                         dtype_annotation.span,
                     )
 
-                rank = len(shape) if shape is not None else -1
                 return (rx.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
             elif ty.id.name == "Tuple":
                 field_types = []
@@ -246,7 +255,7 @@ class RelaxTransformer(Transformer):
                     field_shapes.append(fsh)
                 return (relay.TupleType(field_types, span), None)
             # TODO(@altanh): other types with args, e.g. Ref[T], func types
-        self.report_error("invalid type", span)
+        self.report_error("invalid type", ty.span)
 
     def parse_shape(
         self,
@@ -335,6 +344,18 @@ class RelaxTransformer(Transformer):
             self.module[func_name] = self.transform_function(func, is_global=True)
         return self.module
 
+    def _parse_attrs_to_str(self, expr: ast.Attr) -> str:
+        strs = []
+        attr = expr
+        while isinstance(attr, ast.Attr):
+            strs.append(attr.field.name)
+            attr = attr.object
+        if not isinstance(attr, ast.Var):
+            self.report_error("unsupported attribute access", expr.span)
+        strs.append(attr.id.name)
+        result = ".".join(reversed(strs))
+        return result
+
     def transform_function(self, func: ast.Function, is_global: bool = False) -> rx.Function:
         """Transforms the given synr Function to a Relax Function.
 
@@ -352,8 +373,7 @@ class RelaxTransformer(Transformer):
         """
         if (
             len(func.decorators) == 1
-            and isinstance(func.decorators[0], ast.Var)
-            and func.decorators[0].id.name == "tir"
+            and self._parse_attrs_to_str(func.decorators[0]) == "tvm.script.tir"
         ):
             return _tir_from_synr(func, self._diagnostic_context)
 
@@ -668,18 +688,10 @@ class RelaxTransformer(Transformer):
         if isinstance(expr, ast.Attr):
             if expr.field.name == "shape":
                 obj = self.transform_expr(expr.object)
-                return relay.op.shape_of(obj)
+                return relay.Call(relay.op.get("shape_of"), [obj], span=self.to_tvm_span(expr.span))
             else:
                 # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_dps)
-                op_name = []
-                attr = expr
-                while isinstance(attr, ast.Attr):
-                    op_name.append(expr.field.name)
-                    attr = attr.object
-                if not isinstance(attr, ast.Var):
-                    self.report_error("unsupported field access", expr.span)
-                op_name.append(attr.id.name)
-                op_name = ".".join(reversed(op_name))
+                op_name = self._parse_attrs_to_str(expr)
                 # NOTE: at least for now, all special operators are namespaced
                 try:
                     return SpecialOp(op_name)
@@ -688,6 +700,7 @@ class RelaxTransformer(Transformer):
                     return relay.op.get(op_name)
 
         if isinstance(expr, ast.Call):
+            # TODO(@altanh): support parsing kwargs as attributes?
             op = self.transform_expr(expr.func_name)
             if op == SpecialOp.CALL_PACKED:
                 if len(expr.params) != 2:
@@ -862,3 +875,10 @@ def script(f) -> RelaxDecoratedFn:
     definition_scope = inspect.getmodule(f)
     module = RelaxTransformer(definition_scope).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
+
+
+def fromtext(source, source_name="from_string"):
+    diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
+    ast = synr.to_ast(source, diag_ctx)
+    module = RelaxTransformer(None).do_transform(ast, diag_ctx)
+    return module

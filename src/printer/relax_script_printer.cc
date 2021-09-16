@@ -87,22 +87,24 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
 }
 
 Doc RelaxScriptPrinter::VisitNode_(const relay::TupleNode* op) {
-  Doc doc;
   size_t num_fields = op->fields.size();
 
   if (num_fields == 0) {
-    doc << "tuple()";
-    return doc;
+    return Doc::Text("tuple()");
   }
 
-  doc << "(" << Print(op->fields[0]);
-  for (size_t i = 1; i < num_fields; ++i) {
-    doc << ", " << Print(op->fields[i]);
+  Doc doc;
+  std::vector<Doc> fields;
+
+  for (size_t i = 0; i < num_fields; ++i) {
+    fields.push_back(Print(op->fields[i]));
   }
+  doc << "(" << Doc::Concat(fields, Doc::Text(", "));
   if (num_fields == 1) {
     doc << ",";
   }
   doc << ")";
+
   return doc;
 }
 
@@ -127,11 +129,12 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
     return doc;
   }
 
-  doc << "(" << Print(op->args[0]);
-  for (size_t i = 1; i < op->args.size(); ++i) {
-    doc << ", " << Print(op->args[i]);
+  std::vector<Doc> args;
+  for (size_t i = 0; i < op->args.size(); ++i) {
+    args.push_back(Print(op->args[i]));
   }
-  doc << ")";
+  doc << "(" << Doc::Concat(args, Doc::Text(", ")) << ")";
+
   return doc;
 }
 
@@ -163,19 +166,21 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
   // TODO(@altanh): support more PrimExpr printing, and check that empty tuple
   //                is never ambiguously printed as "()"
   Doc doc;
-  doc << "(";
+
+  std::vector<Doc> fields;
   for (size_t i = 0; i < op->values.size(); ++i) {
-    if (i > 0) {
-      doc << ", ";
-    }
     auto val = op->values[i];
     if (const tir::VarNode* var = val.as<tir::VarNode>()) {
-      doc << PrintDimVar(GetRef<tir::Var>(var));
+      fields.push_back(PrintDimVar(GetRef<tir::Var>(var)));
     } else if (const tir::IntImmNode* num = val.as<tir::IntImmNode>()) {
-      doc << std::to_string(num->value);
+      fields.push_back(Doc::Text(std::to_string(num->value)));
     } else {
       LOG(FATAL) << "cannot print PrimExpr: " << val->GetTypeKey();
     }
+  }
+  doc << "(" << Doc::Concat(fields, Doc::Text(", "));
+  if (fields.size() == 1) {
+    doc << ",";
   }
   doc << ")";
   return doc;
@@ -196,8 +201,13 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
     return PrintIfStmt(op->var, GetRef<relay::If>(ite));
   } else if (const relax::FunctionNode* func = op->value.as<relax::FunctionNode>()) {
     return PrintFunctionDef(Print(op->var), GetRef<relax::Function>(func));
-  } else if (const tir::PrimFuncNode* tir_func = op->value.as<tir::PrimFuncNode>()) {
-    return tir::AsTVMScriptDoc(GetRef<tir::PrimFunc>(tir_func));
+  } else if (const tir::PrimFuncNode* prim_func = op->value.as<tir::PrimFuncNode>()) {
+    // we need the mod for TVMScriptPrinter to properly print the function name - maybe it's worth
+    // refactoring to avoid this?
+    tir::PrimFunc prim_func_ref = GetRef<tir::PrimFunc>(prim_func);
+    IRModule mod;
+    mod->Add(relay::GlobalVar(op->var->name_hint()), prim_func_ref);
+    return tir::AsTVMScriptDoc(mod, false, prim_func_ref);
   } else {
     Doc doc;
     doc << Print(op->var);
@@ -226,20 +236,17 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::BindingBlockNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
   Doc block;
   Doc body;
-  std::vector<relax::Var> return_vars;
+  std::vector<Doc> return_vars;
   for (size_t i = 0; i < op->bindings.size(); ++i) {
     body << Print(op->bindings[i]) << Doc::NewLine();
     if (const relax::VarBindingNode* binding = op->bindings[i].as<relax::VarBindingNode>()) {
       if (!binding->var.as<relax::DataflowVarNode>()) {
-        return_vars.push_back(binding->var);
+        return_vars.push_back(Print(binding->var));
       }
     }
   }
   ICHECK(!return_vars.empty()) << "dataflow blocks should have at least one output variable";
-  body << "return " << Print(return_vars[0]);
-  for (size_t i = 1; i < return_vars.size(); ++i) {
-    body << ", " << Print(return_vars[i]);
-  }
+  body << "return " << Doc::Concat(return_vars, Doc::Text(", "));
   block << "with relax.dataflow():" << Doc::NewLine(4);
   block << Doc::Indent(4, body) << Doc::NewLine();
   return block;
@@ -277,11 +284,13 @@ Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   }
 
   Doc doc;
-  doc << "Tuple[" << Print(node->fields[0]);
-  for (size_t i = 1; i < node->fields.size(); ++i) {
-    doc << ", " << Print(node->fields[i]);
+
+  std::vector<Doc> fields;
+  for (size_t i = 0; i < node->fields.size(); ++i) {
+    fields.push_back(Print(node->fields[i]));
   }
-  doc << "]";
+  doc << "Tuple[" << Doc::Concat(fields, Doc::Text(", ")) << "]";
+
   return doc;
 }
 
@@ -313,25 +322,33 @@ Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite)
 
 Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function& func) {
   Doc doc;
-  doc << "def " << name << "(";
-  // FIXME: refactor for correct comma formatting
+
+  std::vector<Doc> params;
   for (size_t i = 0; i < func->params.size(); ++i) {
     relax::Var var = func->params[i];
-    doc << Print(var);
+    Doc param;
+    param << Print(var);
     if (var->type_annotation.defined()) {
-      doc << ": ";
+      param << ": ";
       if (const relax::DynTensorTypeNode* tty =
               var->type_annotation.as<relax::DynTensorTypeNode>()) {
-        doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
+        param << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
       } else {
-        doc << Print(var->type_annotation);
+        param << Print(var->type_annotation);
       }
     }
-    doc << ", ";
+    params.push_back(param);
   }
-  doc << "):" << Doc::NewLine(4);
+
+  doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
+  if (func->ret_type.defined()) {
+    doc << " -> " << Print(func->ret_type);
+  }
+  doc << ":" << Doc::NewLine(4);
+
   const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>();
   ICHECK(body) << "in the Relax IR normal form, the body of a Function should be a SeqExpr";
+
   doc << Doc::Indent(4, Print(func->body));
   doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
   return doc;
@@ -340,8 +357,23 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
 Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
                                               const Optional<ObjectRef>& shape) {
   Doc doc;
-  doc << "Tensor["
-      << (shape.defined() ? Print(Downcast<relay::Expr>(shape.value())) : Doc::Text("_")) << ", ";
+  // doc << "Tensor["
+  //     << (shape.defined() ? Print(Downcast<relay::Expr>(shape.value())) : Doc::Text("_")) << ", ";
+  doc << "Tensor[";
+  if (shape.defined()) {
+    doc << Print(Downcast<relay::Expr>(shape.value()));
+  } else if (ty->rank != -1) {
+    ICHECK_GE(ty->rank, 0) << "DynTensor ranks must be -1 (unknown) or nonnegative";
+    std::vector<Doc> dims(ty->rank, Doc::Text("_"));
+    doc << "(" << Doc::Concat(dims, Doc::Text(", "));
+    if (ty->rank == 1) {
+      doc << ",";
+    }
+    doc << ")";
+  } else {
+    doc << "_";
+  }
+  doc << ", ";
   if (ty->dtype.is_void()) {
     doc << "_";
   } else {

@@ -246,6 +246,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     }
     return doc;
   }
+
+  friend Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta, const PrimFunc& func);
 };
 
 Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
@@ -1132,10 +1134,13 @@ String AsTVMScript(const ObjectRef& mod, bool show_meta) {
   return "@tvm.script.tir\n" + TVMScriptPrinter(show_meta).Print(mod).str() + "\n";
 }
 
-Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta) {
+Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta, const PrimFunc& func) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return Doc::Text("@tvm.script.tir")
-         << Doc::NewLine() << TVMScriptPrinter(show_meta).Print(mod) << Doc::NewLine();
+  TVMScriptPrinter printer = TVMScriptPrinter(show_meta);
+  Doc mod_doc = printer.Print(mod);
+  Doc doc = Doc::Text("@tvm.script.tir") << Doc::NewLine();
+  doc << (func.defined() ? printer.PrintPrimFunc(func) : mod_doc) << Doc::NewLine();
+  return doc;
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
