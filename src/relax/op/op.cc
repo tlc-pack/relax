@@ -26,11 +26,11 @@ namespace relax {
 
 RELAY_REGISTER_OP("relax.call_dps")
 .set_num_inputs(3)
-.add_argument("shape", "ShapeExpr", "The output shape.")
+.add_argument("shape", "Expr", "The output shape.")
 .add_argument("func", "Expr", "The destination-passing-style function.")
 .add_argument("args", "Tuple", "The input arguments.");
 
-Expr MakeCallDPS(ShapeExpr shape, Expr func, Tuple args) {
+Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.call_dps");
   return Call(op, {shape, func, args}, {}, {});
 }
@@ -51,7 +51,37 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
-// EwiseFma
+// alloc_storage
+
+RELAY_REGISTER_OP("relax.alloc_storage")
+.set_num_inputs(1)
+.add_argument("size", "Expr", "The size of the storage to allocate.");
+
+Expr MakeAllocStorage(Expr size) {
+  static const Op& op = Op::Get("relax.alloc_storage");
+  return Call(op, {size}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.alloc_storage")
+.set_body_typed(MakeAllocStorage);
+
+// alloc_tensor
+
+RELAY_REGISTER_OP("relax.alloc_tensor")
+.set_num_inputs(1)
+.add_argument("storage", "Var", "The storage to allocate from.")
+.add_argument("offset", "Expr", "The offset into the backing storage.")
+.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+
+Expr MakeAllocTensor(Var storage, Expr offset, Expr shape) {
+  static const Op& op = Op::Get("relax.alloc_tensor");
+  return Call(op, {storage, offset, shape}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.alloc_tensor")
+.set_body_typed(MakeAllocTensor);
+
+// ewise_fma
 
 RELAY_REGISTER_OP("relax.ewise_fma")
 .set_num_inputs(3)

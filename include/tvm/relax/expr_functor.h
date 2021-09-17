@@ -228,6 +228,8 @@ class DataflowMutator : public ExprMutator {
   Var UpdateBindingTable(Var var, Call value);
   Var OldVar2NewVar(Var v) const;
   Expr NewVar2Value(Var v) const;
+  /*! \brief Switch from building a DataflowBlock to building a BindingBlock. */
+  void EmitBindingBlock();
 
  protected:
   // A lookup table for bindings after the rewriting

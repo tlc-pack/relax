@@ -100,6 +100,9 @@ class IRBuilderNode : public Object {
    */
   TVM_DLL static IRBuilder Create();
 
+  /*! \brief A flag tracking if currently inside a dataflow block or not. */
+  bool is_dataflow_ = false;
+
   void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
@@ -109,8 +112,6 @@ class IRBuilderNode : public Object {
  protected:
   /*! \brief The state of the function currently being built. */
   RelaxFunction func_;
-  /*! \brief A flag tracking if currently inside a dataflow block or not. */
-  bool is_dataflow_ = false;
   /*! \brief A global variable counter for naming global variables. */
   int global_var_counter_ = 0;
   /*! \brief A dataflow variable counter for naming dataflow variables. */

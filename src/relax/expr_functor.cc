@@ -28,8 +28,11 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/pattern_functor.h>
-
+#include <tvm/relax/type.h>
 #include <stack>
+#include <tvm/tir/op.h>
+
+#include "../relay/transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relax {
@@ -214,7 +217,7 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
   if (op->type_annotation.defined()) {
     auto type = this->VisitType(op->type_annotation.value());
     if (!op->type_annotation.same_as(type)) {
-      return Var(op->vid, Downcast<Expr>(op->shape_), type, op->span);
+      return Var(op->vid, Downcast<Expr>(op->shape()), type, op->span);
     }
   }
   // default case return self.
@@ -225,7 +228,7 @@ Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
   if (op->type_annotation.defined()) {
     auto type = this->VisitType(op->type_annotation.value());
     if (!op->type_annotation.same_as(type)) {
-      return DataflowVar(op->vid, Downcast<Expr>(op->shape_), type, op->span);
+      return DataflowVar(op->vid, Downcast<Expr>(op->shape()), type, op->span);
     }
   }
   // default case return self.
@@ -421,6 +424,10 @@ Expr DataflowMutator::NewVar2Value(Var v) const {
   return it->second;
 }
 
+void DataflowMutator::EmitBindingBlock() {
+  this->irbuilder_->is_dataflow_ = false;
+}
+
 // ==================
 // EwiseFMARewriter
 // Example:
@@ -469,13 +476,45 @@ TVM_REGISTER_GLOBAL("relax.analysis.fma_rewrite")
 // rx.call(extern_packed("flatten"), lv0, lv1)
 
 class ExplicitMemMutator : public DataflowMutator {
+  Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
+    DynTensorType tensor_type = Downcast<DynTensorType>(type);
+    DataType dtype = DataType(tensor_type->dtype);
+    // Question: what if the dtype of tensor_type is unknown?
+    // Symbolic/static shape case
+    if (auto* shape_expr = shape.as<ShapeExprNode>()) {
+      PrimExpr num = PrimExpr(dtype.bits()) * PrimExpr(dtype.lanes());
+      PrimExpr add = num + 7;
+      PrimExpr ret = 1;
+      for (PrimExpr dim : shape_expr->values) {
+        ret = ret * dim;
+      }
+      ret = ret * (add / PrimExpr(8));
+      return ShapeExpr({ret});
+    }
+    // Fully dynamic shape case
+    // will need to dedup with ComputeStorageInRelay when we upstream
+    Expr prod = relay::Prod(shape, Array<Integer>(nullptr), false, false);
+    Expr num = relay::MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
+    Expr add = relay::Add(num, relay::MakeConstantScalar(DataType::Int(64), 7));
+    Expr div = relay::MakeConstantScalar(DataType::Int(64), 8);
+    Expr ret = relay::Multiply(prod, relay::Divide(add, div));
+    return ret;
+  }
+
 	void VisitVarBinding(const VarBinding& binding) override {
     static const Op& call_dps_op = Op::Get("relax.call_dps");
+    static const Op& alloc_storage_op = Op::Get("relax.alloc_storage");
+    static const Op& alloc_tensor_op = Op::Get("relax.alloc_tensor");
 
     const CallNode* op = binding->value.as<CallNode>();
 		if(op && op->op == call_dps_op) {
-      Var storage = Insert(Call(ExternFunc("vm.builtin.alloc_storage"), {op->args[0]}));
-      Var tensor = Insert(Call(ExternFunc("vm.builtin.alloc_tensor"), {storage, op->args[0]}));
+      // convert current DataflowBlock into an impure BindingBlock
+      this->EmitBindingBlock();
+
+      ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
+      Expr output_size = ComputeStorageSize(output_shape, op->args[1]->checked_type());
+      Var storage = Insert(Call(alloc_storage_op, {output_size}));
+      Var tensor = Insert(Call(alloc_tensor_op, {storage, relay::Constant(0), op->args[0]}));
       UpdateBindingTable(binding->var, Call(op->args[1], {tensor, op->args[2]}));
     }
     DataflowMutator::VisitVarBinding(binding);

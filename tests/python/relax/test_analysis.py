@@ -115,13 +115,15 @@ def test_explicit_memory_rewrite():
     # after rewrite
     func = rx.analysis.explicit_memory_rewrite(expr)
 
-    v1 = func.body.blocks[0].bindings[0].var
-    s1 = func.body.blocks[0].bindings[0].value
+    block = func.body.blocks[0]
+    assert isinstance(block, rx.BindingBlock)
+    v1 = block.bindings[0].var
+    s1 = block.bindings[0].value
     assert isinstance(s1, tvm.relay.Call)
-    assert s1.op.global_symbol == "vm.builtin.alloc_storage"
-    s2 = func.body.blocks[0].bindings[1].value
-    assert s2.op.global_symbol == "vm.builtin.alloc_tensor"
-    s3 = func.body.blocks[0].bindings[2].value
+    assert s1.op.global_symbol == "alloc_storage"
+    s2 = block.bindings[1].value
+    assert s2.op.global_symbol == "alloc_tensor"
+    s3 = block.bindings[2].value
     assert s3.op.global_symbol == "test.op.identity"
 
 
@@ -129,4 +131,5 @@ if __name__ == "__main__":
     test_dispatch_var()
     test_post_order_visit()
     test_fma_rewrite()
-    test_explicit_memory_rewrite()
+    # wait for the shape inference pr to be merged to enable this test
+    # test_explicit_memory_rewrite()
