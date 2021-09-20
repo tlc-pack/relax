@@ -42,7 +42,7 @@ namespace relax {
  *
  * \param OpName the name of registry.
  */
-#define RELAX_REGISTER_BINARY_OP(OpName)                                          \
+#define RELAX_REGISTER_BINARY_BROADCAST_OP(OpName)                                          \
   TVM_REGISTER_GLOBAL("relax.op." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
     static const Op& op = Op::Get("relax." OpName);                               \
     return Call(op, {lhs, rhs}, Attrs(), {});                                     \

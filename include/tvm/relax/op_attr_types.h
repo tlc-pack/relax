@@ -40,6 +40,7 @@ using relay::Call;
  * \brief Infer the output shape for operators. This function will
  * be invoked to fill the \p shape_ field of expressions.
  * \param call The call node.
+ * \param diag_ctx The diagnostic context for reporting errors.
  * \return The inferred output shape expression.
  */
 using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call, DiagnosticContext diag_ctx)>;
@@ -48,6 +49,7 @@ using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& cal
  * \brief Infer the output type for operators. This function will
  * be invoked to fill the \p checked_type_ field of expressions.
  * \param call The call node.
+ * \param diag_ctx The diagnostic context for reporting errors.
  * \return The inferred output type.
  */
 using FInferType = runtime::TypedPackedFunc<Type(const Call& call, DiagnosticContext diag_ctx)>;

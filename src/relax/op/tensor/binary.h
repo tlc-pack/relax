@@ -115,7 +115,7 @@ Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
   } else if (t0->dtype != t1->dtype) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
                        << "Data types " << t0->dtype << " and " << t1->dtype
-                       << " do not match broadcasting rule");
+                       << " must be equal for broadcasting operators");
   } else {
     output_dtype = t0->dtype;
   }

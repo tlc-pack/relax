@@ -29,11 +29,11 @@
 namespace tvm {
 namespace relax {
 
-RELAX_REGISTER_BINARY_OP("add")
+RELAX_REGISTER_BINARY_BROADCAST_OP("add")
     .describe("Elementwise add with broadcasting")
     .set_support_level(1);
 
-RELAX_REGISTER_BINARY_OP("multiply")
+RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
     .describe("Elementwise multiply with broadcasting")
     .set_support_level(1);
 
