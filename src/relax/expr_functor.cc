@@ -405,10 +405,24 @@ Var DataflowMutator::Insert(Call value) {
   return var;
 }
 
-Var DataflowMutator::UpdateBindingTable(Var var, Call value) {
+Var DataflowMutator::Emit(Var var, Call value) {
   Var new_var = this->irbuilder_->Emit(value);
   post_binding_table_[new_var] = value;
   pre_post_var_map_[var] = new_var;
+  return new_var;
+}
+
+Var DataflowMutator::Emit(VarBinding binding) {
+  Expr new_value = this->Mutate(binding->value);
+  Var new_var;
+  if (new_value.as<CallNode>()) {
+    new_var = this->irbuilder_->Emit(binding);
+  }
+  if (!binding->var.as<DataflowVarNode>()) {
+    new_var = this->irbuilder_->EmitOutput(new_value);
+  }
+  post_binding_table_[new_var] = new_value;
+  pre_post_var_map_[binding->var] = new_var;
   return new_var;
 }
 
@@ -436,6 +450,13 @@ void DataflowMutator::EmitBindingBlock() {
 // -->
 // z0 = ewise_fma(a, b, c)
 
+// Example 2: (composite call)
+// x0 = mul(a, add(k, b))
+// z0 = add(x0, c)
+// -->
+// lv0 = add(k, b)
+// z0 = ewise_fma(a, lv0, c)
+
 class EwiseFMARewriter : public DataflowMutator {
 	void VisitVarBinding(const VarBinding& binding) override {
     static const Op& add_op = Op::Get("add");
@@ -449,11 +470,11 @@ class EwiseFMARewriter : public DataflowMutator {
       const CallNode* op2 = value.as<CallNode>();
       if (op2 && op2->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
-        UpdateBindingTable(binding->var, fma_call);
+        Emit(binding->var, fma_call);
         return;
       }
     }
-    DataflowMutator::VisitVarBinding(binding);
+    Emit(binding);
   }
 };
 
@@ -515,9 +536,9 @@ class ExplicitMemMutator : public DataflowMutator {
       Expr output_size = ComputeStorageSize(output_shape, op->args[1]->checked_type());
       Var storage = Insert(Call(alloc_storage_op, {output_size}));
       Var tensor = Insert(Call(alloc_tensor_op, {storage, relay::Constant(0), op->args[0]}));
-      UpdateBindingTable(binding->var, Call(op->args[1], {tensor, op->args[2]}));
+      Emit(binding->var, Call(op->args[1], {tensor, op->args[2]}));
     }
-    DataflowMutator::VisitVarBinding(binding);
+    Emit(binding);
   }
 };
 

@@ -101,6 +101,16 @@ Var IRBuilderNode::Emit(const Call& call) {
   return var;
 }
 
+Var IRBuilderNode::Emit(const VarBinding& binding) {
+  this->func_.bindings.emplace_back(binding);
+  return binding->var;
+}
+
+Var IRBuilderNode::Emit(const Var& var, const Call& call) {
+  this->func_.bindings.emplace_back(VarBinding(var, call));
+  return var;
+}
+
 Var IRBuilderNode::EmitOutput(const Expr& output) {
   Var ret;
   if (is_dataflow_) {
@@ -175,6 +185,50 @@ Var LazyIRBuilderNode::Emit(const Call& call) {
     }
     index_++;
     return IRBuilderNode::Emit(call);
+  }
+}
+
+Var LazyIRBuilderNode::Emit(const VarBinding& binding) {
+  if (is_rewrite_) {
+    index_++;
+    return IRBuilderNode::Emit(binding);
+  }
+  Binding old_binding = this->df_block_->bindings[index_];
+  if (binding.same_as(old_binding)) {
+    index_++;
+    return binding->var;
+  }
+  else {
+    is_rewrite_ = true;
+    for (int i = 0; i < index_; i++) {
+      Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
+      IRBuilderNode::Emit(Downcast<Call>(expr));
+    }
+    index_++;
+    Call call = Downcast<Call>(binding->value);
+    return IRBuilderNode::Emit(call);
+  }
+}
+
+Var LazyIRBuilderNode::Emit(const Var& var, const Call& call) {
+  if (is_rewrite_) {
+    index_++;
+    return IRBuilderNode::Emit(var, call);
+  }
+  Expr expr = Downcast<VarBinding>(this->df_block_->bindings[index_])->value;
+  Call old_call = Downcast<Call>(expr);
+  if (call.same_as(old_call)) {
+    index_++;
+    return var;
+  }
+  else {
+    is_rewrite_ = true;
+    for (int i = 0; i < index_; i++) {
+      Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
+      IRBuilderNode::Emit(Downcast<Call>(expr));
+    }
+    index_++;
+    return IRBuilderNode::Emit(var, call);
   }
 }
 

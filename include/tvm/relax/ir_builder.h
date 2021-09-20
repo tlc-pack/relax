@@ -81,6 +81,19 @@ class IRBuilderNode : public Object {
    */
   virtual Var Emit(const Call& call);
   /*!
+   * \brief Emit a var binding.
+   * \param binding The VarBinding to be emitted.
+   * \return The VarNode of the VarBinding \p binding.
+   */
+  virtual Var Emit(const VarBinding& binding);
+  /*!
+   * \brief Emit a call node, and bind it to a Var.
+   * \param var The VarNode to be binded with. \p var is reused implicitly.
+   * \param call The CallNode to be emitted.
+   * \return The VarNode to be binded with \p var.
+   */
+  virtual Var Emit(const Var& var, const Call& call);
+  /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
    * \return The variable being binded to \p output.
@@ -209,6 +222,19 @@ class LazyIRBuilderNode : public IRBuilderNode {
    * \return The variable being created and binded to \p call.
    */
   virtual Var Emit(const Call& call);
+  /*!
+   * \brief Emit a var binding in a copy-on-write way.
+   * \param binding The VarBinding to be emitted.
+   * \return The VarNode of the VarBinding \p binding.
+   */
+  virtual Var Emit(const VarBinding& binding);
+  /*!
+   * \brief Emit a call node, and bind it to a Var in a copy-on-write way.
+   * \param var The VarNode to be binded with.
+   * \param call The CallNode to be emitted.
+   * \return The VarNode to be binded with \p var.
+   */
+  virtual Var Emit(const Var& var, const Call& call);
   /*!
    * \brief Build a binding block.
    */
