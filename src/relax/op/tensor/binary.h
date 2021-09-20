@@ -54,9 +54,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
-  IRModule module = IRModule({}, {});
-  DiagnosticContext diag_ctx = DiagnosticContext::Default(module);
+Optional<Expr> InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
                        << "Binary broadcast op should have 2 arguments");
@@ -97,9 +95,7 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call) {
   }
 }
 
-Type InferTypeBinaryBroadcast(const Call& call) {
-  IRModule module = IRModule({}, {});
-  DiagnosticContext diag_ctx = DiagnosticContext::Default(module);
+Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
                        << "Binary broadcast op should have 2 arguments");

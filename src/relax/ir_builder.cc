@@ -39,53 +39,53 @@ IRBuilder IRBuilderNode::Create() {
 
 void IRBuilderNode::FillFuncNameParam(const Array<Var>& params, const std::string& func_name) {
   if (!func_name.empty()) {
-    this->func.func_name = GlobalVar(func_name);
+    this->func_.func_name = GlobalVar(func_name);
   }
 
-  this->func.params = params;
+  this->func_.params = params;
 }
 
 void IRBuilderNode::BuildFunction() {
-  SeqExpr seq = SeqExpr(this->func.binding_blocks, this->func.ret);
-  this->func.func = Function(this->func.func_name, this->func.params, seq, {});
-  this->global_var_counter = 0;
+  SeqExpr seq = SeqExpr(this->func_.binding_blocks, this->func_.ret);
+  this->func_.func = Function(this->func_.func_name, this->func_.params, seq, {});
+  this->global_var_counter_ = 0;
 }
 
 void IRBuilderNode::BuildBlock() {
-  if (!this->func.bindings.empty()) {
-    if (is_dataflow) {
-      this->func.binding_blocks.emplace_back(DataflowBlock(this->func.bindings));
+  if (!this->func_.bindings.empty()) {
+    if (is_dataflow_) {
+      this->func_.binding_blocks.emplace_back(DataflowBlock(this->func_.bindings));
     } else {
-      this->func.binding_blocks.emplace_back(BindingBlock(this->func.bindings));
+      this->func_.binding_blocks.emplace_back(BindingBlock(this->func_.bindings));
     }
-    this->func.bindings.clear();
+    this->func_.bindings.clear();
   }
-  this->dataflow_var_counter = 0;
-  this->is_dataflow = !this->is_dataflow;
+  this->dataflow_var_counter_ = 0;
+  this->is_dataflow_ = !this->is_dataflow_;
 }
 
-Optional<RelayExpr> InferShape(const Call& call) {
+Optional<RelayExpr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
   auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
   Op op = Downcast<Op>(call->op);
-  return op_map[op](call);
+  return op_map[op](call, diag_ctx);
 }
 
-Type InferType(const Call& call) {
+Type InferType(const Call& call, DiagnosticContext diag_ctx) {
   auto op_map = Op::GetAttrMap<FInferType>("FInferType");
   Op op = Downcast<Op>(call->op);
-  return op_map[op](call);
+  return op_map[op](call, diag_ctx);
 }
 
 Var IRBuilderNode::Emit(const Call& call) {
   Var var;
-  if (is_dataflow) {
-    var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter++)), NullOpt, NullOpt);
+  if (is_dataflow_) {
+    var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter_++)), NullOpt, NullOpt);
   } else {
-    var = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
+    var = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
   }
 
   // Shape inference
-  auto inferred_shape = InferShape(call);
+  auto inferred_shape = InferShape(call, this->diag_ctx_);
   if (inferred_shape.defined()) {
     if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
       call->shape_ = GetRef<Expr>(shape_expr);
@@ -93,30 +93,30 @@ Var IRBuilderNode::Emit(const Call& call) {
     }
   }
   // Type inference
-  auto inferred_type = InferType(call);
+  auto inferred_type = InferType(call, this->diag_ctx_);
   call->checked_type_ = inferred_type;
   var->checked_type_ = inferred_type;
 
-  this->func.bindings.emplace_back(VarBinding(var, call));
+  this->func_.bindings.emplace_back(VarBinding(var, call));
   return var;
 }
 
 Var IRBuilderNode::EmitOutput(const Expr& output) {
   Var ret;
-  if (is_dataflow) {
-    ret = Var(Id("gv" + std::to_string(global_var_counter++)), NullOpt, NullOpt);
+  if (is_dataflow_) {
+    ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
     ret->shape_ = output->shape_;
     ret->checked_type_ = output->checked_type_;
-    this->func.bindings.emplace_back(VarBinding(ret, output));
+    this->func_.bindings.emplace_back(VarBinding(ret, output));
   } else {
-    this->func.ret = output;
+    this->func_.ret = output;
   }
   return ret;
 }
 
-Function IRBuilderNode::Get() { return this->func.func; }
+Function IRBuilderNode::Get() { return this->func_.func; }
 
-std::vector<BindingBlock> IRBuilderNode::GetBlocks() { return this->func.binding_blocks; }
+std::vector<BindingBlock> IRBuilderNode::GetBlocks() { return this->func_.binding_blocks; }
 
 class FunctionScope::Internal {
  public:

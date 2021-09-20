@@ -42,7 +42,7 @@ using relay::Call;
  * \param call The call node.
  * \return The inferred output shape expression.
  */
-using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call)>;
+using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call, DiagnosticContext diag_ctx)>;
 
 /*!
  * \brief Infer the output type for operators. This function will
@@ -50,7 +50,7 @@ using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& cal
  * \param call The call node.
  * \return The inferred output type.
  */
-using FInferType = runtime::TypedPackedFunc<Type(const Call& call)>;
+using FInferType = runtime::TypedPackedFunc<Type(const Call& call, DiagnosticContext diag_ctx)>;
 
 }  // namespace relax
 }  // namespace tvm
