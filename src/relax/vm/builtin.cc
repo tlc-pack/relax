@@ -91,6 +91,30 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
   return tensor;
 });
 
+TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
+.set_body_typed([](ShapeTuple lhs_shape, ShapeTuple rhs_shape) {
+  std::vector<int64_t> output_shape;
+  size_t ndim0 = lhs_shape.size();
+  size_t ndim1 = rhs_shape.size();
+  size_t i = 1;
+  for (; i <= std::min(ndim0, ndim1); ++i) {
+    int64_t lhs_dim = lhs_shape[ndim0 - i];
+    int64_t rhs_dim = rhs_shape[ndim1 - i];
+    if (lhs_dim == 1 || rhs_dim == 1 || lhs_dim == rhs_dim) {
+      output_shape.push_back(std::max(lhs_dim, rhs_dim));
+    } else {
+      LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
+                  << " for broadcasting";
+    }
+  }
+  size_t max_ndim = std::max(ndim0, ndim1);
+  ShapeTuple& longer_shape = (ndim0 > ndim1) ? lhs_shape : rhs_shape;
+  for (; i <= max_ndim; ++i) {
+    output_shape.push_back(longer_shape[max_ndim - i]);
+  }
+  return ShapeTuple(output_shape.rbegin(), output_shape.rend());
+});
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm
