@@ -100,6 +100,10 @@ class IRBuilderNode : public Object {
    */
   Var EmitOutput(const Expr& output);
   /*!
+   * \brief Lookup a var in the binding table \p var_map_.
+   */
+  Expr LookupVar(const Var& var);
+  /*!
    * \brief Get the function being built.
    */
   Function Get();
@@ -131,6 +135,8 @@ class IRBuilderNode : public Object {
   int dataflow_var_counter_ = 0;
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
+  /*! \brief A binding table that maps var to value. */
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 
 class IRBuilder : public ObjectRef {

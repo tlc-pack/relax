@@ -19,8 +19,30 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
 
+#include "op_common.h"
+
 namespace tvm {
 namespace relax {
+
+bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
+  if (const int64_t* pvalue = tir::as_const_int(lhs)) {
+    return pvalue[0] == value;
+  }
+  return false;
+}
+
+bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
+  PrimExpr diff = lhs - rhs;
+  if (const int64_t* pdiff = tir::as_const_int(diff)) {
+    return pdiff[0] == 0;
+  }
+  tvm::arith::Analyzer ana;
+  diff = ana.Simplify(diff);
+  if (const int64_t* pdiff = tir::as_const_int(diff)) {
+    return pdiff[0] == 0;
+  }
+  return false;
+}
 
 // call_dps
 
@@ -51,50 +73,5 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
-// alloc_storage
-
-RELAY_REGISTER_OP("relax.alloc_storage")
-.set_num_inputs(1)
-.add_argument("size", "Expr", "The size of the storage to allocate.");
-
-Expr MakeAllocStorage(Expr size) {
-  static const Op& op = Op::Get("relax.alloc_storage");
-  return Call(op, {size}, {}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.alloc_storage")
-.set_body_typed(MakeAllocStorage);
-
-// alloc_tensor
-
-RELAY_REGISTER_OP("relax.alloc_tensor")
-.set_num_inputs(1)
-.add_argument("storage", "Var", "The storage to allocate from.")
-.add_argument("offset", "Expr", "The offset into the backing storage.")
-.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
-
-Expr MakeAllocTensor(Var storage, Expr offset, Expr shape) {
-  static const Op& op = Op::Get("relax.alloc_tensor");
-  return Call(op, {storage, offset, shape}, {}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.alloc_tensor")
-.set_body_typed(MakeAllocTensor);
-
-// ewise_fma
-
-RELAY_REGISTER_OP("relax.ewise_fma")
-.set_num_inputs(3)
-.add_argument("e1", "Expr", "The input expression")
-.add_argument("e2", "Expr", "The input expression")
-.add_argument("e3", "Expr", "The input expression");
-
-Expr MakeEwiseFma(Expr expr1, Expr expr2, Expr expr3) {
-  static const Op& op = Op::Get("relax.ewise_fma");
-  return Call(op, {expr1, expr2, expr3}, {}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.ewise_fma")
-.set_body_typed(MakeEwiseFma);
 } // namespace relax
 } // namespace tvm

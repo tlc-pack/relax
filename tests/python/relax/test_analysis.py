@@ -57,16 +57,16 @@ def test_post_order_visit():
         if isinstance(e, tvm.ir.op.Op):
             names.append(e.name)
     rx.analysis.post_order_visit(expr.body, fvisit)
-    assert names == ["add", "multiply"]
+    assert names == ["relax.add", "relax.multiply"]
 
 
 def test_fma_rewrite():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
     dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=2, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    y = rx.Var("y", [m, n], dtype1)
     ib = rx.IRBuilder()
     with ib.function([x, y]):
         with ib.dataflow() as df:
@@ -80,7 +80,7 @@ def test_fma_rewrite():
     v0 = expr.body.blocks[0].bindings[1].var
     s0 = expr.body.blocks[0].bindings[1].value
     assert isinstance(s0, tvm.relay.Call)
-    assert s0.op.name == "add"
+    assert s0.op.name == "relax.add"
 
     # after rewrite
     func = rx.analysis.fma_rewrite(expr)
@@ -93,6 +93,39 @@ def test_fma_rewrite():
     assert type(func.body.blocks[0].bindings[2].var) == rx.Var
     assert type(func.body.blocks[0].bindings[2].value) == rx.DataflowVar
 
+def test_lazy_irbuilder():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=2, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [m, n], dtype1)
+    ib = rx.IRBuilder()
+    with ib.function([x, y]):
+        with ib.dataflow() as df:
+            lv0 = ib.emit(rx.op.multiply(x, y))
+            lv1 = ib.emit(rx.op.multiply(lv0, y))
+            gv0 = ib.emit_output(lv1)
+        ib.emit_output(gv0)
+    expr = ib.get()
+
+    # before rewrite
+    block0 = expr.body.blocks[0]
+    v0 = expr.body.blocks[0].bindings[1].var
+    s0 = expr.body.blocks[0].bindings[1].value
+    assert isinstance(s0, tvm.relay.Call)
+    assert s0.op.name == "relax.multiply"
+
+    # after rewrite (the bindings and the dataflow block are reused)
+    func = rx.analysis.fma_rewrite(expr)
+
+    block1 = func.body.blocks[0]
+    v1 = func.body.blocks[0].bindings[1].var
+    s1 = func.body.blocks[0].bindings[1].value
+   
+    assert block0 == block1
+    assert v1 == v0
+    assert s1 == s0
 
 def test_explicit_memory_rewrite():
     shape_anno = [54, 96]
@@ -120,9 +153,9 @@ def test_explicit_memory_rewrite():
     v1 = block.bindings[0].var
     s1 = block.bindings[0].value
     assert isinstance(s1, tvm.relay.Call)
-    assert s1.op.global_symbol == "alloc_storage"
+    assert s1.op.name == "relax.alloc_storage"
     s2 = block.bindings[1].value
-    assert s2.op.global_symbol == "alloc_tensor"
+    assert s2.op.name == "relax.alloc_tensor"
     s3 = block.bindings[2].value
     assert s3.op.global_symbol == "test.op.identity"
 
@@ -131,5 +164,5 @@ if __name__ == "__main__":
     test_dispatch_var()
     test_post_order_visit()
     test_fma_rewrite()
-    # wait for the shape inference pr to be merged to enable this test
-    # test_explicit_memory_rewrite()
+    test_lazy_irbuilder()
+    test_explicit_memory_rewrite()

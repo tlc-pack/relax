@@ -360,7 +360,7 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
   }
 }
 
-DataflowBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
+BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
   this->irbuilder_ = LazyIRBuilderNode::Create(block);
   {
     With<DataflowScope> scope(this->irbuilder_);
@@ -370,7 +370,7 @@ DataflowBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
       }
     }
   }
-  return Downcast<DataflowBlock>(this->irbuilder_->GetBlocks().back());
+  return this->irbuilder_->GetBlocks().back();
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
@@ -382,7 +382,7 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 // ==================
 // DataflowMutator
 
-DataflowBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
+BindingBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
   return ExprMutator::VisitDataflowBlock(block);
 }
 
@@ -395,19 +395,22 @@ void DataflowMutator::VisitVarBinding(const VarBinding& binding) {
   if (!binding->var.as<DataflowVarNode>()) {
     new_var = this->irbuilder_->EmitOutput(new_value);
   }
-  post_binding_table_[new_var] = new_value;
   pre_post_var_map_[binding->var] = new_var;
 }
 
 Var DataflowMutator::Insert(Call value) {
   Var var = this->irbuilder_->Emit(value);
-  post_binding_table_[var] = value;
   return var;
 }
 
 Var DataflowMutator::Emit(Var var, Call value) {
-  Var new_var = this->irbuilder_->Emit(value);
-  post_binding_table_[new_var] = value;
+  Var new_var;
+  // TODO: make shape and type check right
+  if (var->shape() == value->shape() && var->checked_type() == value->checked_type()) {
+    new_var = this->irbuilder_->Emit(var, value);
+  } else {
+    new_var = this->irbuilder_->Emit(value);
+  }
   pre_post_var_map_[var] = new_var;
   return new_var;
 }
@@ -421,21 +424,18 @@ Var DataflowMutator::Emit(VarBinding binding) {
   if (!binding->var.as<DataflowVarNode>()) {
     new_var = this->irbuilder_->EmitOutput(new_value);
   }
-  post_binding_table_[new_var] = new_value;
   pre_post_var_map_[binding->var] = new_var;
   return new_var;
 }
 
-Var DataflowMutator::OldVar2NewVar(Var v) const {
-  auto it = pre_post_var_map_.find(v);
-  ICHECK(it != pre_post_var_map_.end());
-  return it->second;
-}
-
-Expr DataflowMutator::NewVar2Value(Var v) const {
-  auto it = post_binding_table_.find(v);
-  ICHECK(it != post_binding_table_.end());
-  return it->second;
+Expr DataflowMutator::LookupVar(Var var) {
+  auto it = pre_post_var_map_.find(var);
+  if (it != pre_post_var_map_.end()) {
+    return irbuilder_->LookupVar(it->first);
+  }
+  else {
+    return irbuilder_->LookupVar(var);
+  }
 }
 
 void DataflowMutator::EmitBindingBlock() {
@@ -450,7 +450,8 @@ void DataflowMutator::EmitBindingBlock() {
 // -->
 // z0 = ewise_fma(a, b, c)
 
-// Example 2: (composite call)
+// Example 2: 
+// Question: do we want to support this?
 // x0 = mul(a, add(k, b))
 // z0 = add(x0, c)
 // -->
@@ -459,14 +460,14 @@ void DataflowMutator::EmitBindingBlock() {
 
 class EwiseFMARewriter : public DataflowMutator {
 	void VisitVarBinding(const VarBinding& binding) override {
-    static const Op& add_op = Op::Get("add");
-    static const Op& multiply_op = Op::Get("multiply");
+    static const Op& add_op = Op::Get("relax.add");
+    static const Op& multiply_op = Op::Get("relax.multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
 
     // TODO: shape & dtype check
     const CallNode* op1 = binding->value.as<CallNode>();
     if (op1 && (op1->op == add_op)) {
-      Expr value = NewVar2Value(OldVar2NewVar(Downcast<Var>(op1->args[0])));
+      Expr value = LookupVar(Downcast<Var>(op1->args[0]));
       const CallNode* op2 = value.as<CallNode>();
       if (op2 && op2->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
@@ -531,9 +532,10 @@ class ExplicitMemMutator : public DataflowMutator {
 		if(op && op->op == call_dps_op) {
       // convert current DataflowBlock into an impure BindingBlock
       this->EmitBindingBlock();
-
+  
       ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
-      Expr output_size = ComputeStorageSize(output_shape, op->args[1]->checked_type());
+      Type arg_type = Downcast<Tuple>(op->args[2])->fields[0]->checked_type();
+      Expr output_size = ComputeStorageSize(output_shape, arg_type);
       Var storage = Insert(Call(alloc_storage_op, {output_size}));
       Var tensor = Insert(Call(alloc_tensor_op, {storage, relay::Constant(0), op->args[0]}));
       Emit(binding->var, Call(op->args[1], {tensor, op->args[2]}));

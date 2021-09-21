@@ -28,11 +28,11 @@
 #include <tvm/ir/error.h>
 #include <tvm/node/functor.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/ir_builder.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
-#include <tvm/relax/ir_builder.h>
 
 #include <deque>
 #include <string>
@@ -212,8 +212,8 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual void VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
-  virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
-  
+  virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
+
  protected:
   LazyIRBuilder irbuilder_;
 };
@@ -222,24 +222,24 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  */
 class DataflowMutator : public ExprMutator {
  public:
-  virtual DataflowBlock VisitDataflowBlock(const DataflowBlock& block);
+  virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
   virtual void VisitVarBinding(const VarBinding& binding);
+  /*! \brief Insert a call node, a new binding will be created. */
   Var Insert(Call value);
+  /*! \brief Emit a call node, the var could be reused depending on if the shape/type of \p value is
+   * changed or not. */
   Var Emit(Var var, Call value);
+  /*! \brief Emit a binding. */
   Var Emit(VarBinding binding);
-  Var OldVar2NewVar(Var v) const;
-  Expr NewVar2Value(Var v) const;
+  /*! \brief Look up the value binded to a var. */
+  Expr LookupVar(Var var);
   /*! \brief Switch from building a DataflowBlock to building a BindingBlock. */
   void EmitBindingBlock();
 
  protected:
-  // A lookup table for bindings after the rewriting
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> post_binding_table_;
-
   // A remapping table: pre var -> post var
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> pre_post_var_map_;
 };
-
 
 }  // namespace relax
 }  // namespace tvm

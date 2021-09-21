@@ -42,6 +42,9 @@ void IRBuilderNode::FillFuncNameParam(const Array<Var>& params, const std::strin
   if (!func_name.empty()) {
     this->func_.func_name = GlobalVar(func_name);
   }
+  for (Var param : params) {
+    this->var_map_[param] = param;
+  }
   this->func_.params = params;
 }
 
@@ -66,14 +69,22 @@ void IRBuilderNode::BuildBlock() {
 
 Optional<RelayExpr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
   auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
-  Op op = Downcast<Op>(call->op);
-  return op_map[op](call, diag_ctx);
+  if (call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(call->op);
+    return op_map[op](call, diag_ctx);
+  } else {
+    return NullOpt;
+  } 
 }
 
 Type InferType(const Call& call, DiagnosticContext diag_ctx) {
   auto op_map = Op::GetAttrMap<FInferType>("FInferType");
-  Op op = Downcast<Op>(call->op);
-  return op_map[op](call, diag_ctx);
+  if (call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(call->op);
+    return op_map[op](call, diag_ctx);
+  } else {
+    return VoidType();
+  }
 }
 
 Var IRBuilderNode::Emit(const Call& call) {
@@ -98,16 +109,19 @@ Var IRBuilderNode::Emit(const Call& call) {
   var->checked_type_ = inferred_type;
 
   this->func_.bindings.emplace_back(VarBinding(var, call));
+  this->var_map_[var] = call;
   return var;
 }
 
 Var IRBuilderNode::Emit(const VarBinding& binding) {
   this->func_.bindings.emplace_back(binding);
+  this->var_map_[binding->var] = binding->value;
   return binding->var;
 }
 
 Var IRBuilderNode::Emit(const Var& var, const Call& call) {
   this->func_.bindings.emplace_back(VarBinding(var, call));
+  this->var_map_[var] = call;
   return var;
 }
 
@@ -118,10 +132,20 @@ Var IRBuilderNode::EmitOutput(const Expr& output) {
     ret->shape_ = output->shape_;
     ret->checked_type_ = output->checked_type_;
     this->func_.bindings.emplace_back(VarBinding(ret, output));
+    this->var_map_[ret] = output;
   } else {
     this->func_.ret = output;
   }
   return ret;
+}
+
+Expr IRBuilderNode::LookupVar(const Var& var) {
+  auto it = this->var_map_.find(var);
+  if (it == this->var_map_.end()) {
+    this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span) 
+                              << "The var to be looked up is not in the binding table.");
+  }
+  return it->second;
 }
 
 Function IRBuilderNode::Get() { return this->func_.func; }
@@ -175,7 +199,9 @@ Var LazyIRBuilderNode::Emit(const Call& call) {
   Expr expr = Downcast<VarBinding>(this->df_block_->bindings[index_])->value;
   Call old_call = Downcast<Call>(expr);
   if (call.same_as(old_call)) {
-    return Downcast<VarBinding>(this->df_block_->bindings[index_++])->var;
+    VarBinding binding = Downcast<VarBinding>(this->df_block_->bindings[index_++]);
+    this->var_map_[binding->var] = binding->value;
+    return binding->var;
   }
   else {
     is_rewrite_ = true;
@@ -196,6 +222,7 @@ Var LazyIRBuilderNode::Emit(const VarBinding& binding) {
   Binding old_binding = this->df_block_->bindings[index_];
   if (binding.same_as(old_binding)) {
     index_++;
+    this->var_map_[binding->var] = binding->value;
     return binding->var;
   }
   else {
@@ -219,6 +246,7 @@ Var LazyIRBuilderNode::Emit(const Var& var, const Call& call) {
   Call old_call = Downcast<Call>(expr);
   if (call.same_as(old_call)) {
     index_++;
+    this->var_map_[var] = call;
     return var;
   }
   else {
