@@ -82,7 +82,7 @@ class IRBuilderNode : public Object {
   /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
-   * \return The variable being binded to \p ouput.
+   * \return The variable being binded to \p output.
    */
   Var EmitOutput(const Expr& output);
   /*!
@@ -107,13 +107,15 @@ class IRBuilderNode : public Object {
 
  private:
   /*! \brief The state of the function currently being built. */
-  RelaxFunction func;
+  RelaxFunction func_;
   /*! \brief A flag tracking if currently inside a dataflow block or not. */
-  bool is_dataflow = false;
+  bool is_dataflow_ = false;
   /*! \brief A global variable counter for naming global variables. */
-  int global_var_counter = 0;
+  int global_var_counter_ = 0;
   /*! \brief A dataflow variable counter for naming dataflow variables. */
-  int dataflow_var_counter = 0;
+  int dataflow_var_counter_ = 0;
+  /*! \brief A diagnostic context for reporting errors. */
+  DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
 };
 
 class IRBuilder : public ObjectRef {

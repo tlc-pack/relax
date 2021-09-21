@@ -46,7 +46,7 @@ class RelayExpr(BaseExpr):
         checked_type : tvm.relay.Type
             The checked type.
         """
-        ret = self._checked_type_
+        ret = self.checked_type_
         if ret is None:
             raise ValueError("The type checker has not populated" " the checked_type for this node")
         return ret
