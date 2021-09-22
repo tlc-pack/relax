@@ -150,7 +150,7 @@ def test_explicit_memory_rewrite():
 
     block = func.body.blocks[0]
     assert isinstance(block, rx.BindingBlock)
-    v1 = block.bindings[0].var
+
     s1 = block.bindings[0].value
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.alloc_storage"

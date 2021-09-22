@@ -131,6 +131,17 @@ class IRBuilder(Object):
             A newly created variable that gets binded to the call code.
         """
         return _ffi_api.IRBuilderEmit(self, call)
+    
+    def emit_matchshape(self,
+                        match_shape: MatchShape):
+        """Emit a MatchShape.
+
+        Parameters
+        ----------
+        match_shape : tvm.relax.MatchShape
+            The MatchShape to be emitted.
+        """
+        return _ffi_api.IRBuilderEmitMatchShape(self, match_shape)
 
     def emit_output(self,
                     output: Union[Expr, Tuple, List[Expr]]) -> None:

@@ -432,8 +432,7 @@ Expr DataflowMutator::LookupVar(Var var) {
   auto it = pre_post_var_map_.find(var);
   if (it != pre_post_var_map_.end()) {
     return irbuilder_->LookupVar(it->first);
-  }
-  else {
+  } else {
     return irbuilder_->LookupVar(var);
   }
 }
@@ -471,6 +470,7 @@ class EwiseFMARewriter : public DataflowMutator {
       const CallNode* op2 = value.as<CallNode>();
       if (op2 && op2->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
+        // Complete(fma_call);
         Emit(binding->var, fma_call);
         return;
       }

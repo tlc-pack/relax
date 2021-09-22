@@ -113,6 +113,10 @@ Var IRBuilderNode::Emit(const Call& call) {
   return var;
 }
 
+void IRBuilderNode::Emit(const MatchShape& match_shape) {
+  this->func_.bindings.emplace_back(match_shape);
+}
+
 Var IRBuilderNode::Emit(const VarBinding& binding) {
   this->func_.bindings.emplace_back(binding);
   this->var_map_[binding->var] = binding->value;
@@ -291,6 +295,10 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderBuildFunction").set_body_typed([](IRBuilder 
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, const Call& call) {
   return builder->Emit(call);
+});
+
+TVM_REGISTER_GLOBAL("relax.IRBuilderEmitMatchShape").set_body_typed([](IRBuilder builder, const MatchShape& match_shape) {
+  builder->Emit(match_shape);
 });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")

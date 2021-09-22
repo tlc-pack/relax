@@ -81,6 +81,11 @@ class IRBuilderNode : public Object {
    */
   virtual Var Emit(const Call& call);
   /*!
+   * \brief Emit a MatchShape.
+   * \param match_shape The MatchShape to be emitted.
+   */
+  void Emit(const MatchShape& match_shape);
+  /*!
    * \brief Emit a var binding.
    * \param binding The VarBinding to be emitted.
    * \return The VarNode of the VarBinding \p binding.

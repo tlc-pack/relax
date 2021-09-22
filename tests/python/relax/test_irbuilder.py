@@ -40,17 +40,24 @@ def test_dataflow_block():
 
         lv1 = ib.emit(rx.op.multiply(lv0, y))
         assert lv1.name_hint == "lv1"
-        gv0 = ib.emit_output(lv1)
+        
+        b0 = rx.MatchShape([m, n], x.shape)
+        ib.emit_matchshape(b0)
 
+        gv0 = ib.emit_output(lv1)
         assert gv0.name_hint == "gv0"
         assert gv0.shape[0] == m
         assert gv0.shape[1] == n
         assert gv0.checked_type.rank == 2
         assert gv0.checked_type.dtype == "float16"
+        isinstance(gv0, rx.Var)
 
     blocks = ib.get_blocks()
     assert len(blocks) == 1
-    assert len(blocks[-1].bindings) == 3
+    assert len(blocks[-1].bindings) == 4
+    for i in [0, 1, 3]:
+        assert isinstance(blocks[-1].bindings[i], rx.VarBinding)   
+    assert isinstance(blocks[-1].bindings[2], rx.MatchShape)
 
 
 def test_function_single_block():
