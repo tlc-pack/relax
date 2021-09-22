@@ -263,7 +263,7 @@ def test_dataflow():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
-            return y, w
+            relax.output(y, w)
         t = divide(y, w)
         return t
 
@@ -295,7 +295,7 @@ def test_dataflow_match_shape():
             z = multiply(y, x)
             relax.match_shape((n, m), z.shape)
             w: Tensor[(n, m), _] = subtract(z, x)
-            return y, w
+            relax.output(y, w)
         t: Tensor[(n, m), _] = divide(y, w)
         return t
 
@@ -308,7 +308,7 @@ def test_dataflow_scope_fail():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
-            return y, w
+            relax.output(y, w)
         t = divide(y, z)
         return t
 
@@ -321,7 +321,7 @@ def test_dataflow_syntax_fail_pattern():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
-            return y, w
+            relax.output(y, z)
         t = divide(y, z)
         return t
 
@@ -334,9 +334,40 @@ def test_dataflow_syntax_fail_params():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
-            return y, w
+            relax.output(y, w)
         t = divide(y, z)
         return t
+
+
+@pytest.mark.xfail
+def test_dataflow_unbound_outputs():
+    @rx.script
+    def foo(x: Tensor[_, _]):
+        with relax.dataflow():
+            y = add(x, x)
+            z = multiply(y, x)
+            w = subtract(z, x)
+            relax.output(x, y, w, q)
+        t = divide(y, z)
+        return t
+
+
+@pytest.mark.xfail
+def test_invalid_special_op_dataflow():
+    @rx.script
+    def foo(x: Tensor):
+        y = add(x, x)
+        z = relax.dataflow()
+        return z
+
+
+@pytest.mark.xfail
+def test_invalid_special_op_output():
+    @rx.script
+    def foo(x: Tensor):
+        y = add(x, x)
+        z = relax.output(y)
+        return z
 
 
 @pytest.mark.xfail
