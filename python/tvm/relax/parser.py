@@ -47,7 +47,7 @@ def astext(node) -> str:
     str
         The text format representation of the given Relax IR node.
     """
-    return tvm.script._ffi_api.AsRelaxScript(f)
+    return tvm.script._ffi_api.AsRelaxScript(node)
 
 
 def _is_registered(op_name: str, op_set=None) -> bool:
