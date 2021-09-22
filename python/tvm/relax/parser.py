@@ -663,13 +663,8 @@ class RelaxTransformer(Transformer):
         bindings = []
 
         with self.new_scope():
-            # parse the return statement first to figure out which bindings assign normal Vars
+            # parse the output statement first to figure out which bindings assign normal Vars
             output_stmt = block.stmts[-1]
-            # if not isinstance(output_stmt, ast.Return):
-            #     self.report_error(
-            #         "dataflow blocks must end with returning the output variables",
-            #         output_stmt.span,
-            #     )
             output_var_names = set()
             unbound_output_vars = {}
             output_vars = []
@@ -689,21 +684,7 @@ class RelaxTransformer(Transformer):
                     output_stmt.span,
                 )
 
-            # ret_val = output_stmt.value
-            # if isinstance(ret_val, ast.Var):
-            #     ret_val = ast.Tuple(values=[ret_val], span=ret_val.span)
-
-            # if not isinstance(ret_val, ast.Tuple) or any(
-            #     [not isinstance(f, ast.Var) for f in ret_val.values]
-            # ):
-            #     self.report_error(
-            #         "the returned values must be variables",
-            #         ret_val.span,
-            #     )
-
-            # output variables are bound to normal (not data flow) Vars
-            # output_var_names = {var.id.name for var in ret_val.values}
-
+            # output variables are bound to normal (not dataflow) Vars
             for binding_stmt in block.stmts[:-1]:
                 if not isinstance(binding_stmt, (ast.Assign, ast.UnassignedCall)):
                     self.report_error(

@@ -258,8 +258,6 @@ def test_dataflow():
     @rx.script
     def foo(x: Tensor[_, _]):
         with relax.dataflow():
-            # TODO: parse this
-            # nonlocal y, w
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
