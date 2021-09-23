@@ -66,6 +66,8 @@ class Var(Expr):
         type_annotation: Optional[Type] = None,
         span: Span = None,
     ) -> None:
+        if shape_annotation is not None:
+            shape_annotation = make_shape(shape_annotation)
         self.__init_handle_by_constructor__(
             _ffi_api.Var, name_hint, shape_annotation, type_annotation, span
         )
@@ -86,6 +88,8 @@ class DataflowVar(Var):
         type_annotation: Optional[Type] = None,
         span: Span = None,
     ) -> None:
+        if shape_annotation is not None:
+            shape_annotation = make_shape(shape_annotation)
         self.__init_handle_by_constructor__(
             _ffi_api.DataflowVar, name_hint, shape_annotation, type_annotation, span
         )
