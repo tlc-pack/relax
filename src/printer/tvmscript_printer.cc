@@ -2000,6 +2000,15 @@ String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_met
   return doc.str() + "\n";
 }
 
+Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta, const PrimFunc& func) {
+  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
+  TVMScriptPrinter printer = TVMScriptPrinter(show_meta);
+  Doc mod_doc = printer.Print(mod);
+  Doc doc = Doc::Text("@tvm.script.tir") << Doc::NewLine();
+  doc << (func.defined() ? printer.PrintPrimFunc(func) : mod_doc) << Doc::NewLine();
+  return doc;
+}
+
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
