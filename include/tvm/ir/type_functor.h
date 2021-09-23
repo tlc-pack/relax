@@ -27,6 +27,7 @@
 #include <tvm/node/functor.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relax/type.h>
 
 #include <string>
 #include <utility>
@@ -89,6 +90,9 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TypeDataNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PointerTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const relax::ShapeTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const relax::DynTensorTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const relax::DimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
@@ -112,6 +116,9 @@ class TypeFunctor<R(const Type& n, Args...)> {
     TVM_TYPE_FUNCTOR_DISPATCH(TypeDataNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PointerTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(relax::ShapeTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(relax::DynTensorTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(relax::DimTypeNode);
     return vtable;
   }
 };
