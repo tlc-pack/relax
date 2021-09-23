@@ -129,7 +129,8 @@ class BindingBlock(Node):
 
 @tvm._ffi.register_object("relax.expr.DataflowBlock")
 class DataflowBlock(BindingBlock):
-    pass
+    def __init__(self, bindings: List[Binding], span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)
 
 
 @tvm._ffi.register_object("relax.expr.SeqExpr")
