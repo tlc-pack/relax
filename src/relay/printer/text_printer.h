@@ -405,6 +405,13 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate);
 
+Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta = false, const PrimFunc& func = PrimFunc());
+
+}  // namespace tir
+}  // namespace tvm
+
+namespace tvm {
+
 class TextPrinter {
  public:
   explicit TextPrinter(bool show_meta_data,
