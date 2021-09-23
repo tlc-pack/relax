@@ -32,11 +32,13 @@ def check_shape(e, s):
             assert edim.value == sdim
 
 
-def check_tensor_var(v, s, d):
+def check_tensor_var(v, s, d, rank=None):
     assert isinstance(v.type_annotation, rx.ty.DynTensorType)
     assert v.type_annotation.dtype == d
     if isinstance(s, (list, tuple)):
         assert v.type_annotation.rank == len(s)
+    if rank is not None:
+        assert v.type_annotation.rank == rank
     check_shape(v, s)
 
 
@@ -53,15 +55,17 @@ def test_annotations():
     def foo(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
         z: Tensor[(32, k), "float32"] = nn.matmul(x, y)
         w: Tensor[_, _] = multiply(z, z)
+        q: Tensor[(_, _), _] = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
         return t
 
     f = rx_func(foo)
     x, y = f.params
-    z_bind, w_bind, t_bind, sh_bind = f.body.blocks[0].bindings
+    z_bind, w_bind, q_bind, t_bind, sh_bind = f.body.blocks[0].bindings
     z, mm = z_bind.var, z_bind.value
     w, mul = w_bind.var, w_bind.value
+    q, add = q_bind.var, w_bind.value
     t, sub = t_bind.var, t_bind.value
     sh, shape_of = sh_bind.var, sh_bind.value
 
@@ -69,6 +73,7 @@ def test_annotations():
     check_tensor_var(y, ("m", "k"), "float32")
     check_tensor_var(z, (32, "k"), "float32")
     check_tensor_var(w, None, "")
+    check_tensor_var(q, None, "", rank=2)
     assert t.type_annotation is None
     assert isinstance(sh.type_annotation, rx.ty.ShapeType)
 
@@ -344,7 +349,7 @@ def test_func_no_return_fail():
 def test_inline_tir():
     @rx.script
     def foo(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
-        @tir
+        @tvm.script.tir
         def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
             A = tir.match_buffer(a, [128, 128])
             B = tir.match_buffer(b, [128, 128])
