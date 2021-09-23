@@ -96,6 +96,7 @@ class VarNode : public ExprNode {
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
            // Do we use the analysis information in equality?
            equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
@@ -140,6 +141,7 @@ class DataflowVarNode : public VarNode {
   }
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
            equal(shape_, other->shape_) && equal(checked_type_, other->checked_type_);
   }
