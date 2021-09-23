@@ -23,12 +23,49 @@ import tvm.relay as relay
 import tvm.relax as rx
 
 
-# TODO(@altanh): Replace with a real pretty print method once we have the real AST
-def pretty_print(f):
-    print(f)
+def pretty_print(node):
+    """Prints the given Relax IR node in the Relax text format.
+
+    Parameters
+    ----------
+    node : Union[rx.Type, rx.Expr, rx.Binding, rx.BindingBlock]
+        The Relax IR node to print.
+    """
+    print(tvm.script._ffi_api.AsRelaxScript(node))
 
 
-def is_registered(op_name: str, op_set=None) -> bool:
+def astext(node) -> str:
+    """Returns the Relax text format representation of the given Relax IR node.
+
+    Parameters
+    ----------
+    node : Union[rx.Type, rx.Expr, rx.Binding, rx.BindingBlock]
+        The Relax IR node to print.
+
+    Returns
+    -------
+    str
+        The text format representation of the given Relax IR node.
+    """
+    return tvm.script._ffi_api.AsRelaxScript(node)
+
+
+def _is_registered(op_name: str, op_set=None) -> bool:
+    """Returns whether or not the given operator is registered.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator.
+    op_set : Union[Container, Iterable], optional
+        The collection of registered operator names to check against. If None, the global TVM
+        operator registry is queried.
+
+    Returns
+    -------
+    bool
+        True if the specified operator is registered, else False.
+    """
     if op_set is None:
         op_set = tvm.ir._ffi_api.ListOpNames()
     return op_name in op_set
@@ -37,12 +74,28 @@ def is_registered(op_name: str, op_set=None) -> bool:
 def _tir_from_synr(
     synr_ast: ast.Node, diag_ctx: tvm.script.diagnostics.TVMDiagnosticCtx
 ) -> tir.PrimFunc:
+    """Parses the given synr AST using the TVMScript parser to a PrimFunc.
+
+    Parameters
+    ----------
+    synr_ast : ast.Node
+        The synr AST to be parsed.
+    diag_ctx : tvm.script.diagnostics.TVMDiagnosticCtx
+        The diagnostic context for TVMScript parser error reporting.
+
+    Returns
+    -------
+    tir.PrimFunc
+        The parsed TIR PrimFunc.
+    """
     parser = tvm.script.parser.TVMScriptParser(synr_ast.span.start_line)
     return parser.do_transform(synr_ast, diag_ctx)
 
 
 # NOTE: call_dps is an actual registered operator
 class SpecialOp(Enum):
+    """Relax operator calls that have special semantics handled by the parser."""
+
     MATCH_SHAPE = "relax.match_shape"
     CALL_PACKED = "relax.call_packed"
     DATAFLOW = "relax.dataflow"
@@ -196,7 +249,7 @@ class RelaxTransformer(Transformer):
                     )
 
                 shape_annotation, dtype_annotation = ty.params
-                shape, dtype = None, None
+                shape, dtype, rank = None, None, -1
 
                 # parse the shape annotation
                 if isinstance(shape_annotation, ast.TypeVar):
@@ -210,13 +263,25 @@ class RelaxTransformer(Transformer):
                         # FIXME(@altanh): use a special node for unknown shape vs no shape?
                         pass  # shape = None
                 elif isinstance(shape_annotation, ast.TypeTuple):
-                    shape = rx.ShapeExpr(
-                        self.parse_shape(shape_annotation, bind_free_vars),
-                        span=self.to_tvm_span(shape_annotation.span),
+                    # the syntax for fixed rank k but unknown/unmatched shape is a tuple of length
+                    # k, where each element is "_" (e.g. "(_, _)" for rank 2)
+                    is_unmatched = all(
+                        map(
+                            lambda v: isinstance(v, ast.Var) and v.id.name == "_",
+                            shape_annotation.values,
+                        )
                     )
+                    if len(shape_annotation.values) > 0 and is_unmatched:
+                        rank = len(shape_annotation.values)
+                    else:
+                        shape = rx.ShapeExpr(
+                            self.parse_shape(shape_annotation, bind_free_vars),
+                            span=self.to_tvm_span(shape_annotation.span),
+                        )
+                        rank = len(shape)
                 else:
                     self.report_error(
-                        "unsupported shape annotation",
+                        f"unsupported shape annotation {shape_annotation}",
                         shape_annotation.span,
                     )
 
@@ -231,7 +296,6 @@ class RelaxTransformer(Transformer):
                         dtype_annotation.span,
                     )
 
-                rank = len(shape) if shape is not None else -1
                 return (rx.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
             elif ty.id.name == "Tuple":
                 field_types = []
@@ -242,7 +306,7 @@ class RelaxTransformer(Transformer):
                     field_shapes.append(fsh)
                 return (relay.TupleType(field_types, span), None)
             # TODO(@altanh): other types with args, e.g. Ref[T], func types
-        self.report_error("invalid type", span)
+        self.report_error("invalid type", ty.span)
 
     def parse_shape(
         self,
@@ -331,6 +395,18 @@ class RelaxTransformer(Transformer):
             self.module[func_name] = self.transform_function(func, is_global=True)
         return self.module
 
+    def _parse_attrs_to_str(self, expr: ast.Attr) -> str:
+        strs = []
+        attr = expr
+        while isinstance(attr, ast.Attr):
+            strs.append(attr.field.name)
+            attr = attr.object
+        if not isinstance(attr, ast.Var):
+            self.report_error("unsupported attribute access", expr.span)
+        strs.append(attr.id.name)
+        result = ".".join(reversed(strs))
+        return result
+
     def transform_function(self, func: ast.Function, is_global: bool = False) -> rx.Function:
         """Transforms the given synr Function to a Relax Function.
 
@@ -348,8 +424,7 @@ class RelaxTransformer(Transformer):
         """
         if (
             len(func.decorators) == 1
-            and isinstance(func.decorators[0], ast.Var)
-            and func.decorators[0].id.name == "tir"
+            and self._parse_attrs_to_str(func.decorators[0]) == "tvm.script.tir"
         ):
             return _tir_from_synr(func, self._diagnostic_context)
 
@@ -664,18 +739,10 @@ class RelaxTransformer(Transformer):
         if isinstance(expr, ast.Attr):
             if expr.field.name == "shape":
                 obj = self.transform_expr(expr.object)
-                return relay.op.shape_of(obj)
+                return relay.Call(relay.op.get("shape_of"), [obj], span=self.to_tvm_span(expr.span))
             else:
                 # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_dps)
-                op_name = []
-                attr = expr
-                while isinstance(attr, ast.Attr):
-                    op_name.append(expr.field.name)
-                    attr = attr.object
-                if not isinstance(attr, ast.Var):
-                    self.report_error("unsupported field access", expr.span)
-                op_name.append(attr.id.name)
-                op_name = ".".join(reversed(op_name))
+                op_name = self._parse_attrs_to_str(expr)
                 # NOTE: at least for now, all special operators are namespaced
                 try:
                     return SpecialOp(op_name)
@@ -684,6 +751,7 @@ class RelaxTransformer(Transformer):
                     return relay.op.get(op_name)
 
         if isinstance(expr, ast.Call):
+            # TODO(@altanh): support parsing kwargs as attributes?
             op = self.transform_expr(expr.func_name)
             if op == SpecialOp.CALL_PACKED:
                 if len(expr.params) != 2:
@@ -719,7 +787,7 @@ class RelaxTransformer(Transformer):
 
         elif isinstance(expr, ast.Var):
             var_name = expr.id.name
-            if is_registered(var_name, op_set=self._registered_ops):
+            if _is_registered(var_name, op_set=self._registered_ops):
                 return relay.op.get(var_name)
             if var_name not in self.scope:
                 self.report_error("undefined variable", expr.span)
@@ -839,7 +907,7 @@ class RelaxDecoratedFn:
 
 
 def script(f) -> RelaxDecoratedFn:
-    """Parses the decorated Relax function (in Relax IR) to the Relax AST
+    """Parses the decorated Relax function (in Relax IR) to a Relax AST.
 
     Parameters
     ----------
@@ -858,3 +926,24 @@ def script(f) -> RelaxDecoratedFn:
     definition_scope = inspect.getmodule(f)
     module = RelaxTransformer(definition_scope).do_transform(ast, diag_ctx)
     return RelaxDecoratedFn(f.__name__, module, diag_ctx)
+
+
+def fromtext(source: str, source_name: str = "from_string"):
+    """Parses the given input string (in the Relax text format) to a Relax AST.
+
+    Parameters
+    ----------
+    source : str
+        The input source string.
+    source_name : str, optional
+        A descriptive name for error reporting, by default "from_string".
+
+    Returns
+    -------
+    Relax AST
+        The parsed Relax AST.
+    """
+    diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
+    ast = synr.to_ast(source, diag_ctx)
+    module = RelaxTransformer(None).do_transform(ast, diag_ctx)
+    return module
