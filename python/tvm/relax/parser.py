@@ -99,6 +99,7 @@ class SpecialOp(Enum):
     MATCH_SHAPE = "relax.match_shape"
     CALL_PACKED = "relax.call_packed"
     DATAFLOW = "relax.dataflow"
+    DATAFLOW_OUTPUT = "relax.output"
 
 
 class RelaxTransformer(Transformer):
@@ -660,32 +661,30 @@ class RelaxTransformer(Transformer):
         """
         assert len(block.stmts) > 0, "should never have an empty dataflow block"
         bindings = []
-        output_vars = []
 
         with self.new_scope():
-            # parse the return statement first to figure out which bindings assign normal Vars
+            # parse the output statement first to figure out which bindings assign normal Vars
             output_stmt = block.stmts[-1]
-            if not isinstance(output_stmt, ast.Return):
+            output_var_names = set()
+            unbound_output_vars = {}
+            output_vars = []
+
+            if (
+                isinstance(output_stmt, ast.UnassignedCall)
+                and self.transform_expr(output_stmt.call.func_name) == SpecialOp.DATAFLOW_OUTPUT
+            ):
+                for var in output_stmt.call.params:
+                    if not isinstance(var, ast.Var):
+                        self.report_error(f"dataflow block outputs must be variables", var.span)
+                    output_var_names.add(var.id.name)
+                    unbound_output_vars[var.id.name] = var
+            else:
                 self.report_error(
-                    "dataflow blocks must end with returning the output variables",
+                    f"dataflow blocks must end with a {SpecialOp.DATAFLOW_OUTPUT.value} statement",
                     output_stmt.span,
                 )
 
-            ret_val = output_stmt.value
-            if isinstance(ret_val, ast.Var):
-                ret_val = ast.Tuple(values=[ret_val], span=ret_val.span)
-
-            if not isinstance(ret_val, ast.Tuple) or any(
-                [not isinstance(f, ast.Var) for f in ret_val.values]
-            ):
-                self.report_error(
-                    "the returned values must be variables",
-                    ret_val.span,
-                )
-
-            # output variables are bound to normal (not data flow) Vars
-            output_var_names = {var.id.name for var in ret_val.values}
-
+            # output variables are bound to normal (not dataflow) Vars
             for binding_stmt in block.stmts[:-1]:
                 if not isinstance(binding_stmt, (ast.Assign, ast.UnassignedCall)):
                     self.report_error(
@@ -704,6 +703,18 @@ class RelaxTransformer(Transformer):
                             output_vars.append(var)
                     else:
                         output_vars.append(binding.var)
+                        unbound_output_vars.pop(binding_stmt.lhs.id.name)
+
+        # check that the output variables are all bound locally
+        for unbound_var in unbound_output_vars.values():
+            self._diagnostic_context.emit(
+                "error",
+                "dataflow output variables must be bound locally in the block",
+                unbound_var.span,
+            )
+        # FIXME(@altanh): TVMDiagnosticCtx has hard-coded `emit` to always be an error and raise
+        #                 an exception on the first call
+        self._diagnostic_context.render()
 
         # make output variables visible in parent scope
         for v in output_vars:
@@ -769,8 +780,10 @@ class RelaxTransformer(Transformer):
                     )
                 op = rx.ExternFunc(extern_func.value, self.to_tvm_span(extern_func.span))
                 args = [self.transform_expr(expr.params[1])]
-            else:
+            elif isinstance(op, (tvm.ir.Op, relay.Expr)):
                 args = [self.transform_expr(arg) for arg in expr.params]
+            else:
+                self.report_error(f"unsupported function in call: {op}", expr.func_name.span)
             # TODO(@altanh): should we check for correct arity here eagerly, or defer to a pass?
             return relay.Call(op, args, span=self.to_tvm_span(expr.span))
 
