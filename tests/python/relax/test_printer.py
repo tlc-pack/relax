@@ -83,7 +83,7 @@ def test_dataflow():
             y = add(x, x)
             z = multiply(y, x)
             w = subtract(z, x)
-            return y, w
+            relax.output(y, w)
         t = divide(y, w)
         return t
 
@@ -98,7 +98,7 @@ def test_dataflow_match_shape():
             z = multiply(y, x)
             relax.match_shape((n, m), z.shape)
             w: Tensor[(n, m), _] = subtract(z, x)
-            return y, w
+            relax.output(y, w)
         t: Tensor[(n, m), _] = divide(y, w)
         return t
 
