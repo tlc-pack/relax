@@ -246,7 +246,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
     }
   }
   ICHECK(!return_vars.empty()) << "dataflow blocks should have at least one output variable";
-  body << "return " << Doc::Concat(return_vars, Doc::Text(", "));
+  body << "relax.output(" << Doc::Concat(return_vars, Doc::Text(", ")) << ")";
   block << "with relax.dataflow():" << Doc::NewLine(4);
   block << Doc::Indent(4, body) << Doc::NewLine();
   return block;
