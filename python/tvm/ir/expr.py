@@ -48,7 +48,7 @@ class RelayExpr(BaseExpr):
         """
         ret = self.checked_type_
         if ret is None:
-            raise ValueError("The type checker has not populated" " the checked_type for this node")
+            raise ValueError("The type checker has not populated the checked_type for this node")
         return ret
 
     @property
