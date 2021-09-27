@@ -1,7 +1,6 @@
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.ir import TensorType
 import numpy as np
 
 
@@ -11,7 +10,7 @@ def test_var() -> None:
     assert v0.shape_ is None
     assert v0.type_annotation is None
     shape_anno = [54, 96]
-    type_anno = TensorType(shape_anno, "float32")
+    type_anno = rx.DynTensorType(2, "float32")
     v1 = rx.Var("v1", shape_anno, type_anno)
     assert v1.name_hint == "v1"
     for s0, s1 in zip(v1.shape_, shape_anno):
@@ -25,7 +24,7 @@ def test_dataflow_var() -> None:
     assert v0.shape_ is None
     assert v0.type_annotation is None
     shape_anno = [54, 96]
-    type_anno = TensorType(shape_anno, "float16")
+    type_anno = rx.DynTensorType(2, "float16")
     v1 = rx.DataflowVar("v1", shape_anno, type_anno)
     assert v1.name_hint == "v1"
     for s0, s1 in zip(v1.shape_, shape_anno):
@@ -53,14 +52,16 @@ def test_match_shape() -> None:
     value = rx.Var("value", type_annotation=type_anno0)
 
     shape_anno = [m, n]
-    type_anno = TensorType(shape_anno, "float32")
+    type_anno = rx.DynTensorType(2, "float32")
     var = rx.Var("v1", shape_anno, type_anno)
     b1 = rx.MatchShape(value, [m, n], var)
     assert b1.value == value
     assert b1.pattern[0] == m
     assert b1.pattern[1] == n
     assert b1.var is not None
-    assert b1.var.checked_type_ == TensorType([m, n], "float32")
+    for s0, s1 in zip(b1.var.shape, [m, n]):
+        assert s0 == s1
+    assert b1.var.checked_type_ == rx.DynTensorType(2, "float32")
 
 
 def test_var_binding() -> None:
@@ -124,7 +125,7 @@ def test_func():
     bindings = [rx.VarBinding(x, rx.const(1))]
     blocks = [rx.BindingBlock(bindings)]
     seqe = rx.SeqExpr(blocks, x)
-    ret_type = TensorType(None, "float32")
+    ret_type = rx.DynTensorType(-1, "float32")
     func = rx.Function([x], seqe, ret_type, rx.GlobalVar("func"))
     assert func.params[0] == x
     assert func.body == seqe
