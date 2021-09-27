@@ -19,18 +19,40 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
 
+#include "op_common.h"
+
 namespace tvm {
 namespace relax {
+
+bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
+  if (const int64_t* pvalue = tir::as_const_int(lhs)) {
+    return pvalue[0] == value;
+  }
+  return false;
+}
+
+bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
+  PrimExpr diff = lhs - rhs;
+  if (const int64_t* pdiff = tir::as_const_int(diff)) {
+    return pdiff[0] == 0;
+  }
+  tvm::arith::Analyzer ana;
+  diff = ana.Simplify(diff);
+  if (const int64_t* pdiff = tir::as_const_int(diff)) {
+    return pdiff[0] == 0;
+  }
+  return false;
+}
 
 // call_dps
 
 RELAY_REGISTER_OP("relax.call_dps")
 .set_num_inputs(3)
-.add_argument("shape", "ShapeExpr", "The output shape.")
+.add_argument("shape", "Expr", "The output shape.")
 .add_argument("func", "Expr", "The destination-passing-style function.")
 .add_argument("args", "Tuple", "The input arguments.");
 
-Expr MakeCallDPS(ShapeExpr shape, Expr func, Tuple args) {
+Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.call_dps");
   return Call(op, {shape, func, args}, {}, {});
 }
@@ -51,5 +73,19 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
-}  // namespace relax
-}  // namespace tvm
+// alloc_tensor
+
+RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+.set_num_inputs(1)
+.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+
+Expr MakeAllocTensor(Expr shape) {
+  static const Op& op = Op::Get("relax.builtin.alloc_tensor");
+  return Call(op, {shape}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
+.set_body_typed(MakeAllocTensor);
+
+} // namespace relax
+} // namespace tvm
