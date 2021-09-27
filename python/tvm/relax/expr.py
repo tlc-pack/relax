@@ -105,10 +105,9 @@ class Binding(Node):
 class MatchShape(Binding):
     value: Expr
     pattern: List[PrimExpr]
-    var: Optional[Var]
+    var: Var
 
-    def __init__(self, value: Expr, pattern: List[PrimExpr],
-                 var: Optional[Var] = None, span: Span = None) -> None:
+    def __init__(self, value: Expr, pattern: List[PrimExpr], var: Var, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.MatchShape, value, pattern, var, span)
 
 

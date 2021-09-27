@@ -39,31 +39,28 @@ def test_match_shape() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
     shape = rx.const([16, 8], "int32") 
-    b0 = rx.MatchShape(shape, [m, n])
+    var = rx.Var("v0", type_annotation=rx.ShapeType())
+    b0 = rx.MatchShape(shape, [m, n], var)
     assert b0.value == shape
     assert b0.pattern[0] == m
     assert b0.pattern[1] == n
-    assert b0.var is None
-
-    # var: Shape = match_shape([16, 8], [m, n])
-    shape_var = rx.Var("v0")
-    b1 = rx.MatchShape(shape, [m, n], shape_var)
-    assert b1.value == shape
-    assert b1.pattern[0] == m
-    assert b1.pattern[1] == n
-    assert b1.var == shape_var
+    assert b0.var is not None
+    assert b0.var.checked_type_ == rx.ShapeType()
 
     # var1: Tensor[(m, n), "float32"] =
     #   match_shape(var0: Tensor[_, "float32"], [m, n])
     type_anno0 = rx.DynTensorType(-1, "float32")
-    var0 = rx.Var("var0", type_annotation=type_anno0)
-    type_anno1 = rx.DynTensorType(2, "float32")
-    var1 = rx.Var("var1", [m, n], type_anno1) 
-    b2 = rx.MatchShape(var0, [m, n], var1)
-    assert b2.value == var0
-    assert b2.pattern[0] == m
-    assert b2.pattern[1] == n
-    assert b2.var == var1
+    value = rx.Var("value", type_annotation=type_anno0)
+
+    shape_anno = [m, n]
+    type_anno = TensorType(shape_anno, "float32")
+    var = rx.Var("v1", shape_anno, type_anno)
+    b1 = rx.MatchShape(value, [m, n], var)
+    assert b1.value == value
+    assert b1.pattern[0] == m
+    assert b1.pattern[1] == n
+    assert b1.var is not None
+    assert b1.var.checked_type_ == TensorType([m, n], "float32")
 
 
 def test_var_binding() -> None:
@@ -78,7 +75,7 @@ def test_binding_block() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
     shape = rx.const([16, 8], "int32") 
-    b0 = rx.MatchShape(shape, [m, n])
+    b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
 
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
@@ -93,7 +90,7 @@ def test_dataflow_block() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
     shape = rx.const([16, 8], "int32") 
-    b0 = rx.MatchShape(shape, [m, n])
+    b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
 
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))

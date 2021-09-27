@@ -198,7 +198,7 @@ class MatchShapeNode : public BindingNode {
  public:
   Expr value;
   Array<PrimExpr> pattern;
-  Optional<Var> var;
+  Var var;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
@@ -227,7 +227,7 @@ class MatchShapeNode : public BindingNode {
 class MatchShape : public Binding {
  public:
   TVM_DLL explicit MatchShape(Expr value, Array<PrimExpr> pattern,
-                              Optional<Var> var = NullOpt, Span span = Span());
+                              Var var, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(MatchShape, Binding, MatchShapeNode);
 };
 

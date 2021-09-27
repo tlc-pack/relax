@@ -102,7 +102,7 @@ TVM_REGISTER_GLOBAL("relax.Binding").set_body_typed([](Span span) {
 
 TVM_REGISTER_NODE_TYPE(MatchShapeNode);
 
-MatchShape::MatchShape(Expr value, Array<PrimExpr> pattern, Optional<Var> var, Span span) {
+MatchShape::MatchShape(Expr value, Array<PrimExpr> pattern, Var var, Span span) {
   ObjectPtr<MatchShapeNode> n = make_object<MatchShapeNode>();
   n->value = std::move(value);
   n->pattern = std::move(pattern);
@@ -112,7 +112,7 @@ MatchShape::MatchShape(Expr value, Array<PrimExpr> pattern, Optional<Var> var, S
 }
 
 TVM_REGISTER_GLOBAL("relax.MatchShape")
-.set_body_typed([](Expr value, Array<PrimExpr> pattern, Optional<Var> var, Span span) {
+.set_body_typed([](Expr value, Array<PrimExpr> pattern, Var var, Span span) {
   return MatchShape(value, pattern, var, span);
 });
 
