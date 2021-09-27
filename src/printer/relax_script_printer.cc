@@ -35,7 +35,9 @@ namespace tvm {
 namespace relax {
 
 class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
-                           public TypeFunctor<Doc(const Type&)> {
+                           public tir::ExprFunctor<Doc(const PrimExpr&)>,
+                           public TypeFunctor<Doc(const Type&)>,
+                           public AttrFunctor<Doc(const ObjectRef&)> {
  public:
   TVM_DLL Doc Print(const ObjectRef& node);
 
@@ -65,7 +67,15 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitNode_(const relax::FunctionNode* op) override;
   Doc VisitNode_(const relax::ExternFuncNode* op) override;
 
-  Doc PrintDimVar(const tir::Var& var);
+  // PrimExpr nodes allowed in Relax
+  Doc VisitExpr_(const tir::VarNode* op) override;
+  Doc VisitExpr_(const tir::IntImmNode* op) override;
+  Doc VisitExpr_(const tir::AddNode* op) override;
+  Doc VisitExpr_(const tir::SubNode* op) override;
+  Doc VisitExpr_(const tir::MulNode* op) override;
+  Doc VisitExpr_(const tir::DivNode* op) override;
+  Doc VisitExpr_(const tir::FloorDivNode* op) override;
+
   Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
   Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
 
@@ -75,12 +85,59 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitType_(const relax::DynTensorTypeNode* node) override;
   Doc VisitType_(const relay::TupleTypeNode* node) override;
 
+  Doc PrintAttr(const ObjectRef& attr);
+  std::vector<Doc> PrintAttrs(const Attrs& attrs);
+  Doc VisitAttrDefault_(const Object* op) override;
+  Doc VisitAttr_(const ArrayNode* op) override;
+  Doc VisitAttr_(const tir::IntImmNode* op) override;
+  Doc VisitAttr_(const tir::FloatImmNode* op) override;
+
   Doc GetUniqueName(std::string prefix, std::string fallback);
+
+  /*!
+   * \brief Attribute printer which prints the attributes as kwargs in a call.
+   */
+  class AttrPrinter : public AttrVisitor {
+   public:
+    AttrPrinter(std::vector<Doc>* docs, RelaxScriptPrinter* parent) : docs(docs), parent_(parent) {}
+
+    template <typename T>
+    void PrintKV(const char* key, const T& value) {
+      Doc doc;
+      doc << key << "=" << value;
+      docs->push_back(doc);
+    }
+
+    void Visit(const char* key, double* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, int64_t* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, uint64_t* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, int* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, bool* value) final { PrintKV(key, Doc::PyBoolLiteral(*value)); }
+    void Visit(const char* key, std::string* value) final { PrintKV(key, Doc::StrLiteral(*value)); }
+    void Visit(const char* key, void** value) final {
+      LOG(FATAL) << "do not allow void as argument";
+    }
+    void Visit(const char* key, DataType* value) final {
+      PrintKV(key, Doc::StrLiteral(runtime::DLDataType2String(*value)));
+    }
+    void Visit(const char* key, runtime::NDArray* value) final {
+      LOG(FATAL) << "do not allow NDarray as argument";
+    }
+    void Visit(const char* key, runtime::ObjectRef* obj) final {
+      PrintKV(key, parent_->PrintAttr(*obj));
+    }
+
+   private:
+    std::vector<Doc>* docs;
+    RelaxScriptPrinter* parent_;
+  };
 };
 
 Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   if (node->IsInstance<TypeNode>()) {
     return VisitType(Downcast<Type>(node));
+  } else if (node->IsInstance<PrimExprNode>()) {
+    return VisitExpr(Downcast<PrimExpr>(node));
   } else {
     return VisitNode(node);
   }
@@ -96,8 +153,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::TupleNode* op) {
   Doc doc;
   std::vector<Doc> fields;
 
-  for (size_t i = 0; i < num_fields; ++i) {
-    fields.push_back(Print(op->fields[i]));
+  for (const Expr& field : op->fields) {
+    fields.push_back(Print(field));
   }
   doc << "(" << Doc::Concat(fields, Doc::Text(", "));
   if (num_fields == 1) {
@@ -113,27 +170,27 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::GlobalVarNode* op) {
 }
 
 Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
-  Doc doc;
-
-  if (const relax::ExternFuncNode* ext = op->op.as<relax::ExternFuncNode>()) {
-    ICHECK_EQ(op->args.size(), 1) << "extern calls should only have one argument";
-    doc << "relax.call_packed(" << Print(op->op) << ", " << Print(op->args[0]) << ")";
-    return doc;
-  }
-
   // TODO(@altanh): how to support when func cannot be printed as Python expr?
   //                e.g. Function or If
-  doc << Print(op->op);
-  if (op->args.empty()) {
-    doc << "()";
-    return doc;
+  Doc doc;
+
+  if (op->op.as<relax::ExternFuncNode>()) {
+    ICHECK_EQ(op->args.size(), 1) << "extern calls should only have one argument";
+    doc << "relax.call_packed(" << Print(op->op) << ", " << Print(op->args[0]);
+  } else {
+    std::vector<Doc> args;
+    for (const Expr& arg : op->args) {
+      args.push_back(Print(arg));
+    }
+    doc << Print(op->op) << "(" << Doc::Concat(args, Doc::Text(", "));
   }
 
-  std::vector<Doc> args;
-  for (size_t i = 0; i < op->args.size(); ++i) {
-    args.push_back(Print(op->args[i]));
+  std::vector<Doc> attrs = PrintAttrs(op->attrs);
+  if (!attrs.empty()) {
+    doc << ", " << Doc::Concat(attrs);
   }
-  doc << "(" << Doc::Concat(args, Doc::Text(", ")) << ")";
+
+  doc << ")";
 
   return doc;
 }
@@ -168,15 +225,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
   Doc doc;
 
   std::vector<Doc> fields;
-  for (size_t i = 0; i < op->values.size(); ++i) {
-    auto val = op->values[i];
-    if (const tir::VarNode* var = val.as<tir::VarNode>()) {
-      fields.push_back(PrintDimVar(GetRef<tir::Var>(var)));
-    } else if (const tir::IntImmNode* num = val.as<tir::IntImmNode>()) {
-      fields.push_back(Doc::Text(std::to_string(num->value)));
-    } else {
-      LOG(FATAL) << "cannot print PrimExpr: " << val->GetTypeKey();
-    }
+  for (const PrimExpr& field : op->values) {
+    fields.push_back(Print(field));
   }
   doc << "(" << Doc::Concat(fields, Doc::Text(", "));
   if (fields.size() == 1) {
@@ -227,8 +277,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::BindingBlockNode* op) {
   Doc doc;
-  for (size_t i = 0; i < op->bindings.size(); ++i) {
-    doc << Print(op->bindings[i]) << Doc::NewLine();
+  for (const relax::Binding& binding : op->bindings) {
+    doc << Print(binding) << Doc::NewLine();
   }
   return doc;
 }
@@ -237,11 +287,11 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
   Doc block;
   Doc body;
   std::vector<Doc> return_vars;
-  for (size_t i = 0; i < op->bindings.size(); ++i) {
-    body << Print(op->bindings[i]) << Doc::NewLine();
-    if (const relax::VarBindingNode* binding = op->bindings[i].as<relax::VarBindingNode>()) {
-      if (!binding->var.as<relax::DataflowVarNode>()) {
-        return_vars.push_back(Print(binding->var));
+  for (const relax::Binding& binding : op->bindings) {
+    body << Print(binding) << Doc::NewLine();
+    if (const relax::VarBindingNode* var_binding = binding.as<relax::VarBindingNode>()) {
+      if (!var_binding->var.as<relax::DataflowVarNode>()) {
+        return_vars.push_back(Print(var_binding->var));
       }
     }
   }
@@ -254,8 +304,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::SeqExprNode* op) {
   Doc doc;
-  for (size_t i = 0; i < op->blocks.size(); ++i) {
-    doc << Print(op->blocks[i]);
+  for (const relax::BindingBlock& block : op->blocks) {
+    doc << Print(block);
   }
   // NOTE: the body expression is printed in the parent, since SeqExprs are used for both Function
   //       bodies and If expr bodies (which don't have a "return" statement but instead a binding)
@@ -270,6 +320,32 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::FunctionNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::ExternFuncNode* op) {
   return Doc::StrLiteral(op->global_symbol);
 }
+
+Doc RelaxScriptPrinter::VisitExpr_(const tir::VarNode* op) {
+  tir::Var var = GetRef<tir::Var>(op);
+  if (!dim_var_map_.count(var)) {
+    dim_var_map_[var] = GetUniqueName(var->name_hint, "dim");
+  }
+  return dim_var_map_[var];
+}
+
+Doc RelaxScriptPrinter::VisitExpr_(const tir::IntImmNode* op) {
+  return Doc::Text(std::to_string(op->value));
+}
+
+#define TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(OpName, OpString) \
+  Doc RelaxScriptPrinter::VisitExpr_(const OpName* op) {          \
+    Doc doc;                                                      \
+    doc << "(" << Print(op->a) << OpString;                       \
+    doc << Print(op->b) << ")";                                   \
+    return doc;                                                   \
+  }
+
+TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::AddNode, " + ")
+TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::SubNode, " - ")
+TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::MulNode, " * ")
+TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::DivNode, " / ")
+TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ");
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) { return Doc::Text("Shape"); }
 
@@ -286,20 +362,61 @@ Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   Doc doc;
 
   std::vector<Doc> fields;
-  for (size_t i = 0; i < node->fields.size(); ++i) {
-    fields.push_back(Print(node->fields[i]));
+  for (Type ty : node->fields) {
+    fields.push_back(Print(ty));
   }
-  doc << "Tuple[" << Doc::Concat(fields, Doc::Text(", ")) << "]";
+  doc << "Tuple[" << Doc::Concat(fields) << "]";
 
   return doc;
 }
 
-Doc RelaxScriptPrinter::PrintDimVar(const tir::Var& var) {
-  if (!dim_var_map_.count(var)) {
-    dim_var_map_[var] = GetUniqueName(var->name_hint, "dim");
+Doc RelaxScriptPrinter::PrintAttr(const ObjectRef& attr) {
+  if (attr.defined()) {
+    if (const StringObj* str = attr.as<StringObj>()) {
+      return Doc::StrLiteral(GetRef<String>(str));
+    } else {
+      return VisitAttr(attr);
+    }
+  } else {
+    return Doc::Text("None");
   }
+}
 
-  return dim_var_map_[var];
+std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
+  std::vector<Doc> kwargs;
+  if (!attrs.defined()) {
+    return kwargs;
+  } else if (const DictAttrsNode* dict_attrs = attrs.as<DictAttrsNode>()) {
+    for (const auto& k : dict_attrs->dict) {
+      kwargs.push_back(Doc::Text(k.first) << "=" << Print(k.second));
+    }
+  } else {
+    AttrPrinter attr_printer(&kwargs, this);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&attr_printer);
+  }
+  return kwargs;
+}
+
+Doc RelaxScriptPrinter::VisitAttrDefault_(const Object* op) {
+  return PrintAttr(GetRef<ObjectRef>(op));
+}
+
+Doc RelaxScriptPrinter::VisitAttr_(const ArrayNode* op) {
+  Doc doc;
+  std::vector<Doc> arr_vals;
+  for (ObjectRef val : *op) {
+    arr_vals.push_back(PrintAttr(val));
+  }
+  doc << "[" << Doc::Concat(arr_vals) << "]";
+  return doc;
+}
+
+Doc RelaxScriptPrinter::VisitAttr_(const tir::IntImmNode* op) {
+  return Doc::Text(std::to_string(op->value));
+}
+
+Doc RelaxScriptPrinter::VisitAttr_(const tir::FloatImmNode* op) {
+  return Doc::Text(std::to_string(op->value));
 }
 
 Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite) {
@@ -357,8 +474,6 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
 Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
                                               const Optional<ObjectRef>& shape) {
   Doc doc;
-  // doc << "Tensor["
-  //     << (shape.defined() ? Print(Downcast<relay::Expr>(shape.value())) : Doc::Text("_")) << ", ";
   doc << "Tensor[";
   if (shape.defined()) {
     doc << Print(Downcast<relay::Expr>(shape.value()));
