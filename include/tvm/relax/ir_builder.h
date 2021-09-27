@@ -75,16 +75,11 @@ class IRBuilderNode : public Object {
    */
   virtual void BuildBlock();
   /*!
-   * \brief Emit a call node.
-   * \param call The CallNode to be emitted.
+   * \brief Emit a Call, and return a newly created Var binded to the Call.
+   * \param call The Call to be emitted.
    * \return The variable being created and binded to \p call.
    */
   virtual Var Emit(const Call& call);
-  /*!
-   * \brief Emit a MatchShape.
-   * \param match_shape The MatchShape to be emitted.
-   */
-  void Emit(const MatchShape& match_shape);
   /*!
    * \brief Emit a var binding.
    * \param binding The VarBinding to be emitted.
@@ -92,12 +87,18 @@ class IRBuilderNode : public Object {
    */
   virtual Var Emit(const VarBinding& binding);
   /*!
-   * \brief Emit a call node, and bind it to a Var.
-   * \param var The VarNode to be binded with. \p var is reused implicitly.
-   * \param call The CallNode to be emitted.
-   * \return The VarNode to be binded with \p var.
+   * \brief Emit a Call, and bind it to a Var.
+   * \param var The Var to be binded with. \p var is reused implicitly if the shape 
+   * and type of \p call matches \p var. Otherwise a new Var is created.
+   * \param call The Call to be emitted.
+   * \return The Var to be binded with \p var.
    */
   virtual Var Emit(const Var& var, const Call& call);
+  /*!
+   * \brief Emit a MatchShape.
+   * \param match_shape The MatchShape to be emitted.
+   */
+  void Emit(const MatchShape& match_shape);
   /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
@@ -116,6 +117,19 @@ class IRBuilderNode : public Object {
    * \brief Get binding blocks being built.
    */
   std::vector<BindingBlock> GetBlocks();
+  /*!
+   * \brief Check if two shape expressions can be proven equal at compile time.
+   * \param lhs The input lhs shape.
+   * \param rhs The input rhs shape.
+   * \return Whether we can prove lhs shape == rhs shape.
+   */
+  bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
+  /*!
+   * \brief Normalize an Expr to complete its shape and type.
+   * \param expr The input expr.
+   * \return The expr with normalized shape and type.
+   */
+  Expr Normalize(const Expr& expr);
   /*!
    * \brief Create a IRBuilder.
    * \return The created IRBuilder.
@@ -225,27 +239,33 @@ class DataflowScope : public ObjectRef {
 class LazyIRBuilderNode : public IRBuilderNode {
  public:
   /*!
-   * \brief Emit a call node in a copy-on-write way.
+   * \brief Emit a Call in a copy-on-write way.
    * If no bindings in a dataflow block need to be rewritten, reuse the original variable instead of
    * emiting one. If any binding in the block needs to be rewritten, reconstruct the whole block
    * from scratch by emiting all previous bindings. 
-   * \param call The CallNode to be emitted. 
+   * \param call The Call to be emitted. 
    * \return The variable being created and binded to \p call.
    */
   virtual Var Emit(const Call& call);
   /*!
    * \brief Emit a var binding in a copy-on-write way.
    * \param binding The VarBinding to be emitted.
-   * \return The VarNode of the VarBinding \p binding.
+   * \return The Var of the \p binding.
    */
   virtual Var Emit(const VarBinding& binding);
   /*!
-   * \brief Emit a call node, and bind it to a Var in a copy-on-write way.
-   * \param var The VarNode to be binded with.
-   * \param call The CallNode to be emitted.
-   * \return The VarNode to be binded with \p var.
+   * \brief Emit a Call, and bind it to a Var in a copy-on-write way.
+   * \param var The Var to be binded with.
+   * \param call The Call to be emitted.
+   * \return The Var to be binded with \p var.
    */
   virtual Var Emit(const Var& var, const Call& call);
+  /*!
+   * \brief Emit an output for the current dataflow block or function in a copy-on-write way.
+   * \param binding The VarBinding to be emitted.
+   * \return The variable being binded to \p output.
+   */
+  virtual Var EmitOutput(const VarBinding& binding);
   /*!
    * \brief Build a binding block.
    */

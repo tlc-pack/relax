@@ -161,6 +161,22 @@ class IRBuilder(Object):
             output = Tuple(output)
         return _ffi_api.IRBuilderEmitOutput(self, output)
 
+    def normalize(self,
+                  expr: Expr) -> Expr:
+        """Normalize an Expr to complete its shape and type.
+
+        Parameters
+        ----------
+        expr : Expr
+            The input expr.
+        
+        Returns
+        -------
+        ret : Expr
+            The expr with normalized shape and type.
+        """
+        return _ffi_api.IRBuilderNormalize(self, expr)
+
     def get(self) -> Function:
         """Return the function being built.
         

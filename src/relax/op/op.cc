@@ -73,5 +73,19 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
+// alloc_tensor
+
+RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+.set_num_inputs(1)
+.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+
+Expr MakeAllocTensor(Expr shape) {
+  static const Op& op = Op::Get("relax.builtin.alloc_tensor");
+  return Call(op, {shape}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
+.set_body_typed(MakeAllocTensor);
+
 } // namespace relax
 } // namespace tvm

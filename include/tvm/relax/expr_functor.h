@@ -209,8 +209,8 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    */
   virtual Type VisitType(const Type& t);
   virtual void VisitBinding(const Binding& binding);
-  virtual void VisitVarBinding(const VarBinding& binding);
-  virtual void VisitMatchShape(const MatchShape& binding);
+  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder);
+  virtual void VisitMatchShape(const MatchShape& binding, IRBuilder& ir_builder);
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
@@ -223,20 +223,11 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
 class DataflowMutator : public ExprMutator {
  public:
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
-  virtual void VisitVarBinding(const VarBinding& binding);
-  /*! \brief Insert a call node, a new binding will be created. */
-  Var Insert(Call value);
-  /*! \brief Emit a call node, the var could be reused depending on if the shape/type of \p value is
-   * changed or not. */
-  Var Emit(Var var, Call value);
-  /*! \brief Emit a binding. */
-  Var Emit(VarBinding binding);
-  /*! \brief Look up the value binded to a var. */
-  Expr LookupVar(Var var);
-  /*! \brief Switch from building a DataflowBlock to building a BindingBlock. */
-  void EmitBindingBlock();
+  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder);
 
  protected:
+  /*! \brief Look up the value binded to a var. */
+  Expr LookupVar(Var var);
   // A remapping table: pre var -> post var
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> pre_post_var_map_;
 };

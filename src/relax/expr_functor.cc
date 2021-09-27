@@ -328,26 +328,24 @@ Type ExprMutator::VisitType(const Type& t) { return t; }
 void ExprMutator::VisitBinding(const Binding& binding) {
   Binding new_binding;
   if (binding.as<VarBindingNode>()) {
-    this->VisitVarBinding(Downcast<VarBinding>(binding));
+    this->VisitVarBinding(Downcast<VarBinding>(binding), this->irbuilder_);
   } else if (binding.as<MatchShapeNode>()) {
-    this->VisitMatchShape(Downcast<MatchShape>(binding));
+    this->VisitMatchShape(Downcast<MatchShape>(binding), this->irbuilder_);
   } else {
     LOG(FATAL) << "Wrong type.";
   }
 }
 
-void ExprMutator::VisitVarBinding(const VarBinding& binding) {
+Var ExprMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) {
   Expr new_value = this->Mutate(binding->value);
-
-  if (new_value.as<CallNode>()) {
-    new_value = this->irbuilder_->Emit(Downcast<Call>(new_value));
-  }
   if (!binding->var.as<DataflowVarNode>()) {
-    this->irbuilder_->EmitOutput(new_value);
+    return ir_builder->EmitOutput(new_value);
+  } else {
+    return ir_builder->Emit(Downcast<Call>(new_value));
   }
 }
 
-void ExprMutator::VisitMatchShape(const MatchShape& binding) {
+void ExprMutator::VisitMatchShape(const MatchShape& binding, IRBuilder& ir_builder) {
   this->Mutate(binding->value);
 }
 
@@ -366,7 +364,7 @@ BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
     With<DataflowScope> scope(this->irbuilder_);
     for (auto binding : block->bindings) {
       if (binding.as<VarBindingNode>()) {
-        this->VisitVarBinding(Downcast<VarBinding>(binding));
+        this->VisitVarBinding(Downcast<VarBinding>(binding), this->irbuilder_);
       }
     }
   }
@@ -383,46 +381,27 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 // DataflowMutator
 
 BindingBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  return ExprMutator::VisitDataflowBlock(block);
+  this->irbuilder_ = LazyIRBuilderNode::Create(block);
+  {
+    With<DataflowScope> scope(this->irbuilder_);
+    for (auto binding : block->bindings) {
+      if (auto* var_binding = binding.as<VarBindingNode>()) {
+        Var var = this->VisitVarBinding(Downcast<VarBinding>(binding), this->irbuilder_);
+        this->pre_post_var_map_[var_binding->var] = var;
+      }
+    }
+  }
+  return this->irbuilder_->GetBlocks().back();
 }
 
-void DataflowMutator::VisitVarBinding(const VarBinding& binding) {
+Var DataflowMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) {
   Expr new_value = this->Mutate(binding->value);
   Var new_var;
   if (new_value.as<CallNode>()) {
-    new_var = this->irbuilder_->Emit(Downcast<Call>(new_value));
+    new_var = ir_builder->Emit(Downcast<Call>(new_value));
   }
   if (!binding->var.as<DataflowVarNode>()) {
-    new_var = this->irbuilder_->EmitOutput(new_value);
-  }
-  pre_post_var_map_[binding->var] = new_var;
-}
-
-Var DataflowMutator::Insert(Call value) {
-  Var var = this->irbuilder_->Emit(value);
-  return var;
-}
-
-Var DataflowMutator::Emit(Var var, Call value) {
-  Var new_var;
-  // TODO: make shape and type check right
-  if (var->shape() == value->shape() && var->checked_type() == value->checked_type()) {
-    new_var = this->irbuilder_->Emit(var, value);
-  } else {
-    new_var = this->irbuilder_->Emit(value);
-  }
-  pre_post_var_map_[var] = new_var;
-  return new_var;
-}
-
-Var DataflowMutator::Emit(VarBinding binding) {
-  Expr new_value = this->Mutate(binding->value);
-  Var new_var;
-  if (new_value.as<CallNode>()) {
-    new_var = this->irbuilder_->Emit(binding);
-  }
-  if (!binding->var.as<DataflowVarNode>()) {
-    new_var = this->irbuilder_->EmitOutput(new_value);
+    new_var = ir_builder->EmitOutput(new_value);
   }
   pre_post_var_map_[binding->var] = new_var;
   return new_var;
@@ -437,9 +416,6 @@ Expr DataflowMutator::LookupVar(Var var) {
   }
 }
 
-void DataflowMutator::EmitBindingBlock() {
-  this->irbuilder_->is_dataflow_ = false;
-}
 
 // ==================
 // EwiseFMARewriter
@@ -458,7 +434,7 @@ void DataflowMutator::EmitBindingBlock() {
 // z0 = ewise_fma(a, lv0, c)
 
 class EwiseFMARewriter : public DataflowMutator {
-	void VisitVarBinding(const VarBinding& binding) override {
+	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
     static const Op& add_op = Op::Get("relax.add");
     static const Op& multiply_op = Op::Get("relax.multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
@@ -470,12 +446,10 @@ class EwiseFMARewriter : public DataflowMutator {
       const CallNode* op2 = value.as<CallNode>();
       if (op2 && op2->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
-        // Complete(fma_call);
-        Emit(binding->var, fma_call);
-        return;
+        return ir_builder->Emit(binding->var, fma_call);
       }
     }
-    Emit(binding);
+    return ir_builder->Emit(binding);
   }
 };
 
@@ -491,11 +465,10 @@ TVM_REGISTER_GLOBAL("relax.analysis.fma_rewrite")
 // ==================
 // ExplicitMemMutator
 // Example:
-// lv1: Tensor[(m*n,)] = rx.call_dps((m*n,), extern_packed("flatten"), [lv0])
+// y: Tensor[n, m] = rx.call_dps((n, m), op.identity, (x))
 // -->
-// storage0 = rx.call(extern_packed("alloc_storage"), size=[n*m], device=cpu)
-// lv1 = rx.call(extern_packed("alloc_tensor"), storage0, 0, [m*n,], f32)
-// rx.call(extern_packed("flatten"), lv0, lv1)
+// lv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
+// rx.call_packed(op.identity, x, lv0)
 
 class ExplicitMemMutator : public DataflowMutator {
   Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
@@ -523,24 +496,21 @@ class ExplicitMemMutator : public DataflowMutator {
     return ret;
   }
 
-	void VisitVarBinding(const VarBinding& binding) override {
+	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
     static const Op& call_dps_op = Op::Get("relax.call_dps");
-    static const Op& alloc_storage_op = Op::Get("relax.alloc_storage");
-    static const Op& alloc_tensor_op = Op::Get("relax.alloc_tensor");
+    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
 
     const CallNode* op = binding->value.as<CallNode>();
 		if(op && op->op == call_dps_op) {
-      // convert current DataflowBlock into an impure BindingBlock
-      this->EmitBindingBlock();
-  
+      // switch current DataflowBlock to an impure BindingBlock
+      ir_builder->is_dataflow_ = false;
       ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
       Type arg_type = Downcast<Tuple>(op->args[2])->fields[0]->checked_type();
       Expr output_size = ComputeStorageSize(output_shape, arg_type);
-      Var storage = Insert(Call(alloc_storage_op, {output_size}));
-      Var tensor = Insert(Call(alloc_tensor_op, {storage, relay::Constant(0), op->args[0]}));
-      Emit(binding->var, Call(op->args[1], {tensor, op->args[2]}));
+      Var tensor = ir_builder->Emit(Call(alloc_tensor_op, {op->args[0]}));
+      return ir_builder->Emit(binding->var, Call(op->args[1], {op->args[2], tensor}));
     }
-    Emit(binding);
+    return ir_builder->Emit(binding);
   }
 };
 

@@ -24,6 +24,7 @@
 #include <tvm/relax/ir_builder.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relay/op.h>
+#include <tvm/arith/analyzer.h>
 
 namespace tvm {
 namespace relax {
@@ -71,20 +72,22 @@ Optional<RelayExpr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
   auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
   if (call->op.as<OpNode>()) {
     Op op = Downcast<Op>(call->op);
-    return op_map[op](call, diag_ctx);
-  } else {
-    return NullOpt;
-  } 
+    if (op_map.count(op)) {
+      return op_map[op](call, diag_ctx);
+    }
+  }
+  return NullOpt;
 }
 
 Type InferType(const Call& call, DiagnosticContext diag_ctx) {
   auto op_map = Op::GetAttrMap<FInferType>("FInferType");
   if (call->op.as<OpNode>()) {
     Op op = Downcast<Op>(call->op);
-    return op_map[op](call, diag_ctx);
-  } else {
-    return VoidType();
+    if (op_map.count(op)) {
+      return op_map[op](call, diag_ctx);
+    }
   }
+  return VoidType();
 }
 
 Var IRBuilderNode::Emit(const Call& call) {
@@ -118,15 +121,31 @@ void IRBuilderNode::Emit(const MatchShape& match_shape) {
 }
 
 Var IRBuilderNode::Emit(const VarBinding& binding) {
-  this->func_.bindings.emplace_back(binding);
-  this->var_map_[binding->var] = binding->value;
-  return binding->var;
+  if (!binding->var.as<DataflowVarNode>()) {
+    return EmitOutput(binding->value);
+  } else {
+    this->func_.bindings.emplace_back(binding);
+    this->var_map_[binding->var] = binding->value;
+    return binding->var;
+  }
 }
 
 Var IRBuilderNode::Emit(const Var& var, const Call& call) {
-  this->func_.bindings.emplace_back(VarBinding(var, call));
-  this->var_map_[var] = call;
-  return var;
+  Expr normalized_call = Normalize(call);
+  // Reuse the input var if the shape and type of the call matches the var
+  if (CanProveShapeEqual(var->shape(), call->shape()) && StructuralEqual()(var->checked_type(), call->checked_type())) { 
+    this->func_.bindings.emplace_back(VarBinding(var, normalized_call));
+    this->var_map_[var] = normalized_call;
+    return var;
+  } else {
+    Var new_var;
+    if (normalized_call->shape_.defined()) {
+      new_var->shape_ = normalized_call->shape_;
+    }
+    this->func_.bindings.emplace_back(VarBinding(new_var, normalized_call));
+    this->var_map_[new_var] = normalized_call;
+    return new_var;
+  }
 }
 
 Var IRBuilderNode::EmitOutput(const Expr& output) {
@@ -155,6 +174,49 @@ Expr IRBuilderNode::LookupVar(const Var& var) {
 Function IRBuilderNode::Get() { return this->func_.func; }
 
 std::vector<BindingBlock> IRBuilderNode::GetBlocks() { return this->func_.binding_blocks; }
+
+bool IRBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
+  if (lhs == rhs) {
+    return true;
+  }
+  const auto* lhs_shape = lhs.as<ShapeExprNode>();
+  const auto* rhs_shape = rhs.as<ShapeExprNode>();
+  if (lhs_shape && rhs_shape) {
+    size_t lhs_ndim = lhs_shape->values.size();
+    size_t rhs_ndim = rhs_shape->values.size();
+    if (lhs_ndim != rhs_ndim) {
+      return false;
+    }
+    arith::Analyzer analyzer;
+    for (size_t i = 0; i < lhs_ndim; ++i) {
+      PrimExpr lhs_dim = lhs_shape->values[i];
+      PrimExpr rhs_dim = rhs_shape->values[i];
+      if (!analyzer.CanProveEqual(lhs_dim, rhs_dim)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+Expr IRBuilderNode::Normalize(const Expr& expr) {
+  if (expr.as<CallNode>()) {
+    Call call = Downcast<Call>(expr);
+    // Shape inference
+    auto inferred_shape = InferShape(call, this->diag_ctx_);
+    if (inferred_shape.defined()) {
+      if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
+        call->shape_ = GetRef<Expr>(shape_expr);
+      }
+    }
+    // Type inference
+    auto inferred_type = InferType(call, this->diag_ctx_);
+    call->checked_type_ = inferred_type;
+    return call;
+  }
+  return expr;
+}
 
 class FunctionScope::Internal {
  public:
@@ -219,6 +281,9 @@ Var LazyIRBuilderNode::Emit(const Call& call) {
 }
 
 Var LazyIRBuilderNode::Emit(const VarBinding& binding) {
+  if (!binding->var.as<DataflowVarNode>()) {
+    return IRBuilderNode::EmitOutput(binding->value);
+  }
   if (is_rewrite_) {
     index_++;
     return IRBuilderNode::Emit(binding);
@@ -232,8 +297,12 @@ Var LazyIRBuilderNode::Emit(const VarBinding& binding) {
   else {
     is_rewrite_ = true;
     for (int i = 0; i < index_; i++) {
-      Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
-      IRBuilderNode::Emit(Downcast<Call>(expr));
+      if (!binding->var.as<DataflowVarNode>()) {
+        IRBuilderNode::EmitOutput(binding->value);
+      } else {
+        Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
+        IRBuilderNode::Emit(Downcast<Call>(expr));
+      }
     }
     index_++;
     Call call = Downcast<Call>(binding->value);
@@ -256,11 +325,38 @@ Var LazyIRBuilderNode::Emit(const Var& var, const Call& call) {
   else {
     is_rewrite_ = true;
     for (int i = 0; i < index_; i++) {
-      Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
-      IRBuilderNode::Emit(Downcast<Call>(expr));
+      VarBinding old_binding = Downcast<VarBinding>(this->df_block_->bindings[i]);
+      // Reuse the old bindings
+      IRBuilderNode::Emit(old_binding);
     }
     index_++;
     return IRBuilderNode::Emit(var, call);
+  }
+}
+
+Var LazyIRBuilderNode::EmitOutput(const VarBinding& binding) {
+  if (is_rewrite_) {
+    index_++;
+    return IRBuilderNode::EmitOutput(binding->value);
+  }
+  Binding old_binding = this->df_block_->bindings[index_];
+  if (binding.same_as(old_binding)) {
+    index_++;
+    this->var_map_[binding->var] = binding->value;
+    return binding->var;
+  }
+  else {
+    is_rewrite_ = true;
+    for (int i = 0; i < index_; i++) {
+      if (!binding->var.as<DataflowVarNode>()) {
+        IRBuilderNode::EmitOutput(binding->value);
+      } else {
+        Expr expr = Downcast<VarBinding>(this->df_block_->bindings[i])->value;
+        IRBuilderNode::Emit(Downcast<Call>(expr));
+      }
+    }
+    index_++;
+    return IRBuilderNode::EmitOutput(binding->value);
   }
 }
 
@@ -304,6 +400,11 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderEmitMatchShape").set_body_typed([](IRBuilder
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")
     .set_body_typed([](IRBuilder builder, const Expr& output) {
       return builder->EmitOutput(output);
+    });
+
+TVM_REGISTER_GLOBAL("relax.IRBuilderNormalize")
+    .set_body_typed([](IRBuilder builder, const Expr& expr) {
+      return builder->Normalize(expr);
     });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderGet").set_body_typed([](IRBuilder builder) {
