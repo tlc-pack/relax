@@ -53,7 +53,7 @@ def check_call(call, op, args):
 def test_annotations():
     @rx.script
     def foo(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
-        z: Tensor[(32, k), "float32"] = nn.matmul(x, y)
+        z: Tensor[(32, k), "float32"] = nn.matmul(x, y, units=None)
         w: Tensor[_, _] = multiply(z, z)
         q: Tensor[(_, _), _] = add(w, w)
         t = subtract(w, z)
@@ -411,7 +411,7 @@ def test_call_packed():
     @rx.script
     def foo(x: Tensor[(3, 4), "float32"]):
         # test that we can intro dim vars
-        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", (x, x))
+        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", (x, x), mp=False)
         return z
 
     f = rx_func(foo)
@@ -421,4 +421,21 @@ def test_call_packed():
 
     assert isinstance(z_bind.value.op, rx.ExternFunc)
     assert z_bind.value.op.global_symbol == "contrib.my_matmul"
+    assert "mp" in z_bind.value.attrs and z_bind.value.attrs["mp"] == False
     assert structural_equal(z_bind.value.args, [rx.Tuple([x, x])])
+
+
+def test_primexpr_arithmetic():
+    @rx.script
+    def foo(x: Tensor[(n, m), "float32"]):
+        z: Tensor[(n * m,), "float32"] = relax.call_packed("my_flatten", (x,))
+        sh: Shape = (n + m, n // m)
+        return z
+
+    f = rx_func(foo)
+    x = f.params[0]
+    n, m = x.shape_
+    z_bind, sh_bind = f.body.blocks[0].bindings
+
+    assert structural_equal(z_bind.var.shape_.values, [tir.Mul(n, m)])
+    assert structural_equal(sh_bind.value.values, [tir.Add(n, m), tir.FloorDiv(n, m)])
