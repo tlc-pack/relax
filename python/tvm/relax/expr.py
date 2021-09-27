@@ -103,11 +103,12 @@ class Binding(Node):
 
 @tvm._ffi.register_object("relax.expr.MatchShape")
 class MatchShape(Binding):
-    pattern: List[PrimExpr]
     value: Expr
+    pattern: List[PrimExpr]
+    var: Var
 
-    def __init__(self, pattern: List[PrimExpr], value: Expr, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.MatchShape, pattern, value, span)
+    def __init__(self, value: Expr, pattern: List[PrimExpr], var: Var, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.MatchShape, value, pattern, var, span)
 
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
