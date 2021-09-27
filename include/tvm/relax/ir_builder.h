@@ -37,6 +37,7 @@ namespace relax {
 using relay::Call;
 
 class IRBuilder;
+class LazyIRBuilder;
 
 /*!
  * \brief The state of Relax function node being built.
@@ -72,19 +73,44 @@ class IRBuilderNode : public Object {
   /*!
    * \brief Build a binding block.
    */
-  void BuildBlock();
+  virtual void BuildBlock();
   /*!
-   * \brief Emit a call node.
-   * \param call The CallNode to be emitted.
+   * \brief Emit a Call, and return a newly created Var binded to the Call.
+   * \param call The Call to be emitted.
    * \return The variable being created and binded to \p call.
    */
-  Var Emit(const Call& call);
+  virtual Var Emit(const Call& call);
+  /*!
+   * \brief Emit a var binding.
+   * \param binding The VarBinding to be emitted.
+   * \return The VarNode of the VarBinding \p binding.
+   */
+  virtual Var Emit(const VarBinding& binding);
+  /*!
+   * \brief Emit a Call, and bind it to a Var.
+   * \param var The Var to be binded with. \p var is reused implicitly if the shape 
+   * and type of \p call matches \p var. Otherwise a new Var is created.
+   * \param call The Call to be emitted.
+   * \return The Var to be binded with \p var.
+   */
+  virtual Var Emit(const Var& var, const Call& call);
+  /*!
+   * \brief Emit a MatchShape.
+   * \param value The value of the MatchShape to be emitted.
+   * \param pattern The pattern of the MatchShape to be emitted.
+   * \return The variable being binded to the MatchShape.
+   */
+  Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern);
   /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
    * \return The variable being binded to \p output.
    */
   Var EmitOutput(const Expr& output);
+  /*!
+   * \brief Lookup a var in the binding table \p var_map_.
+   */
+  Expr LookupVar(const Var& var);
   /*!
    * \brief Get the function being built.
    */
@@ -94,28 +120,44 @@ class IRBuilderNode : public Object {
    */
   std::vector<BindingBlock> GetBlocks();
   /*!
+   * \brief Check if two shape expressions can be proven equal at compile time.
+   * \param lhs The input lhs shape.
+   * \param rhs The input rhs shape.
+   * \return Whether we can prove lhs shape == rhs shape.
+   */
+  bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
+  /*!
+   * \brief Normalize an Expr to complete its shape and type.
+   * \param expr The input expr.
+   * \return The expr with normalized shape and type.
+   */
+  Expr Normalize(const Expr& expr);
+  /*!
    * \brief Create a IRBuilder.
    * \return The created IRBuilder.
    */
   TVM_DLL static IRBuilder Create();
 
+  /*! \brief A flag tracking if currently inside a dataflow block or not. */
+  bool is_dataflow_ = false;
+
   void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.IRBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IRBuilderNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(IRBuilderNode, Object);
 
- private:
+ protected:
   /*! \brief The state of the function currently being built. */
   RelaxFunction func_;
-  /*! \brief A flag tracking if currently inside a dataflow block or not. */
-  bool is_dataflow_ = false;
   /*! \brief A global variable counter for naming global variables. */
   int global_var_counter_ = 0;
   /*! \brief A dataflow variable counter for naming dataflow variables. */
   int dataflow_var_counter_ = 0;
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
+  /*! \brief A binding table that maps var to value. */
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 
 class IRBuilder : public ObjectRef {
@@ -192,6 +234,70 @@ class DataflowScope : public ObjectRef {
   // The exit of a dataflow scope.
   TVM_DLL void ExitWithScope();
 };
+
+/*!
+ * \brief A lazy builder to construct dataflow block in a copy-on-write fashion.
+ */
+class LazyIRBuilderNode : public IRBuilderNode {
+ public:
+  /*!
+   * \brief Emit a Call in a copy-on-write way.
+   * If no bindings in a dataflow block need to be rewritten, reuse the original variable instead of
+   * emiting one. If any binding in the block needs to be rewritten, reconstruct the whole block
+   * from scratch by emiting all previous bindings. 
+   * \param call The Call to be emitted. 
+   * \return The variable being created and binded to \p call.
+   */
+  virtual Var Emit(const Call& call);
+  /*!
+   * \brief Emit a var binding in a copy-on-write way.
+   * \param binding The VarBinding to be emitted.
+   * \return The Var of the \p binding.
+   */
+  virtual Var Emit(const VarBinding& binding);
+  /*!
+   * \brief Emit a Call, and bind it to a Var in a copy-on-write way.
+   * \param var The Var to be binded with.
+   * \param call The Call to be emitted.
+   * \return The Var to be binded with \p var.
+   */
+  virtual Var Emit(const Var& var, const Call& call);
+  /*!
+   * \brief Emit an output for the current dataflow block or function in a copy-on-write way.
+   * \param binding The VarBinding to be emitted.
+   * \return The variable being binded to \p output.
+   */
+  virtual Var EmitOutput(const VarBinding& binding);
+  /*!
+   * \brief Build a binding block.
+   */
+  virtual void BuildBlock();
+  /*!
+   * \brief Create a LazyIRBuilder.
+   * \return The created LazyIRBuilder.
+   */
+  TVM_DLL static LazyIRBuilder Create(const DataflowBlock& block);
+
+  void VisitAttrs(AttrVisitor* v) {}
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.LazyIRBuilder";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LazyIRBuilderNode, IRBuilderNode);
+
+ private:
+  /*! \brief Original DataflowBlock before rewriting. */
+  DataflowBlock df_block_;
+  /*! \brief index in the \p bindings. */
+  int64_t index_ = 0;
+  /*! \brief A flag tracking if current dataflow block needs to be rewritten or not. */
+  bool is_rewrite_ = false;
+};
+
+class LazyIRBuilder : public IRBuilder {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LazyIRBuilder, IRBuilder, LazyIRBuilderNode);
+};
+
 
 }  // namespace relax
 }  // namespace tvm
