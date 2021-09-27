@@ -31,12 +31,11 @@ def test_annotations():
 def test_match_shape():
     @rx.script
     def foo(x: Tensor[_, "float32"]):
-        relax.match_shape((n, m), x.shape)
+        relax.match_shape(x.shape, (n, m))
         y: Tensor[(n, m), "float32"] = add(x, x)
         return x
 
     check_roundtrip(foo)
-
 
 
 def test_if():
@@ -94,13 +93,15 @@ def test_dataflow_match_shape():
     @rx.script
     def foo(x: Tensor[_, _]):
         with relax.dataflow():
-            y = add(x, x)
+            x2: Tensor[(n, m), _] = relax.match_shape(x, (n, m))
+            y = add(x2, x2)
             z = multiply(y, x)
-            relax.match_shape((n, m), z.shape)
+            relax.match_shape(z.shape, (n, m))
             w: Tensor[(n, m), _] = subtract(z, x)
-            relax.output(y, w)
+            relax.output(y, w, x2)
         t: Tensor[(n, m), _] = divide(y, w)
-        return t
+        q: Tensor[(n, m), _] = add(t, x2)
+        return q
 
     check_roundtrip(foo)
 
