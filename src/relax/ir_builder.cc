@@ -25,6 +25,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relay/op.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
@@ -116,8 +117,28 @@ Var IRBuilderNode::Emit(const Call& call) {
   return var;
 }
 
-void IRBuilderNode::Emit(const MatchShape& match_shape) {
+Var IRBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern) {
+  Var var;
+  if (is_dataflow_) {
+    var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter_++)), NullOpt, NullOpt);
+  } else {
+    var = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
+  }
+  if (value->checked_type().as<ShapeTypeNode>()) {
+    var->checked_type_ = ShapeType(Span());
+  } else if (value->checked_type().as<DynTensorTypeNode>()){
+    ShapeExpr shape = ShapeExpr(pattern);
+    var->shape_ = shape;
+    DataType dtype = (Downcast<DynTensorType>(value->checked_type()))->dtype;
+    var->checked_type_ = DynTensorType(pattern.size(), dtype);
+  } else {
+    this->diag_ctx_.EmitFatal(Diagnostic::Error(value->span) 
+                              << "The value passed to EmitMatchShape must be of DynTensorType or ShapeType.");
+  }
+
+  MatchShape match_shape = MatchShape(value, pattern, var);
   this->func_.bindings.emplace_back(match_shape);
+  return var;
 }
 
 Var IRBuilderNode::Emit(const VarBinding& binding) {
@@ -393,8 +414,8 @@ TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, 
   return builder->Emit(call);
 });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmitMatchShape").set_body_typed([](IRBuilder builder, const MatchShape& match_shape) {
-  builder->Emit(match_shape);
+TVM_REGISTER_GLOBAL("relax.IRBuilderEmitMatchShape").set_body_typed([](IRBuilder builder, const Expr& value, const Array<PrimExpr>& pattern) {
+  return builder->EmitMatchShape(value, pattern);
 });
 
 TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")

@@ -42,8 +42,7 @@ def test_dataflow_block():
         lv1 = ib.emit(rx.op.multiply(lv0, y))
         assert lv1.name_hint == "lv1"
         
-        b0 = rx.MatchShape([m, n], x.shape)
-        ib.emit_matchshape(b0)
+        b0 = ib.match_shape(x, [m, n])
 
         gv0 = ib.emit_output(lv1)
         assert gv0.name_hint == "gv0"
@@ -178,6 +177,50 @@ def test_binary_shape_type_deduction():
         assert gv0.checked_type.rank == 1
         assert gv0.checked_type.dtype == "float16"
 
+
+def test_emit_match_shape():
+    m = tir.Var("m", dtype="int32")
+    n = tir.Var("n", dtype="int32")
+    type_anno0 = rx.DynTensorType(-1, "float32")
+    x = rx.Var("tensor_value", type_annotation=type_anno0)
+    shape_anno = [16, 8]
+    y = rx.Var("shape_value", type_annotation=rx.ShapeType(), shape_annotation=shape_anno)
+    ib = rx.IRBuilder()
+
+    with ib.function([x, y]):
+        with ib.dataflow() as df:
+            # lv0: Tensor[(m, n), "float32"] =
+            #   match_shape(x: Tensor[_, "float32"], [m, n])
+            lv0 = ib.match_shape(x, [m, n])
+            assert isinstance(lv0, rx.DataflowVar)
+            assert lv0.shape[0] == m
+            assert lv0.shape[1] == n
+            assert lv0.checked_type.rank == 2
+            assert lv0.checked_type.dtype == "float32"
+
+            # lv1: Shape = match_shape(shape, [m, n])
+            lv1 = ib.match_shape(y, [m, n])
+            assert lv1.checked_type == rx.ShapeType()
+            gv0 = ib.emit_output(lv1)            
+
+        ib.emit_output(gv0)
+
+    block = ib.get_blocks()[-1]
+    b0, b1 = block.bindings[:2]
+    assert isinstance(b0, rx.MatchShape)
+    assert isinstance(b1, rx.MatchShape)
+
+    assert b0.value == x
+    assert b0.pattern[0] == m
+    assert b0.pattern[1] == n
+    assert b0.var == lv0
+
+    assert b1.value == y
+    assert b1.pattern[0] == m
+    assert b1.pattern[1] == n
+    assert b1.var == lv1
+
+
 def test_normalize():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
@@ -195,9 +238,11 @@ def test_normalize():
     assert add_call.shape[0] == m
     assert add_call.shape[1] == n
 
+
 if __name__ == "__main__":
     test_dataflow_block()
     test_function_single_block()
     test_function_multi_blocks()
     test_binary_shape_type_deduction()
+    test_emit_match_shape()
     test_normalize()

@@ -132,16 +132,25 @@ class IRBuilder(Object):
         """
         return _ffi_api.IRBuilderEmit(self, call)
     
-    def emit_matchshape(self,
-                        match_shape: MatchShape):
+    def match_shape(self,
+                        value: Expr,
+                        pattern: List[PrimExpr]):
         """Emit a MatchShape.
 
         Parameters
         ----------
-        match_shape : tvm.relax.MatchShape
-            The MatchShape to be emitted.
+        value : tvm.relay.Expr
+            The value of the MatchShape to be emitted.
+
+        pattern : List[PrimExpr]
+            The pattern of the MatchShape to be emitted.
+        
+        Returns
+        -------
+        ret : tvm.relax.Var
+            A newly created variable that gets binded to the call code.
         """
-        return _ffi_api.IRBuilderEmitMatchShape(self, match_shape)
+        return _ffi_api.IRBuilderEmitMatchShape(self, value, pattern)
 
     def emit_output(self,
                     output: Union[Expr, Tuple, List[Expr]]) -> None:

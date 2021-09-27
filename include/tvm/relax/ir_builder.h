@@ -96,9 +96,11 @@ class IRBuilderNode : public Object {
   virtual Var Emit(const Var& var, const Call& call);
   /*!
    * \brief Emit a MatchShape.
-   * \param match_shape The MatchShape to be emitted.
+   * \param value The value of the MatchShape to be emitted.
+   * \param pattern The pattern of the MatchShape to be emitted.
+   * \return The variable being binded to the MatchShape.
    */
-  void Emit(const MatchShape& match_shape);
+  Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern);
   /*!
    * \brief Generate an output for the current dataflow block or function.
    * \param output The output variable of the block/function.
