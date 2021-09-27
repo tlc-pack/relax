@@ -479,6 +479,26 @@ class RelaxTransformer(Transformer):
             params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
         )
 
+    def is_match_shape(self, stmt: ast.Stmt) -> bool:
+        """Returns whether or not the given statement is a MatchShape binding.
+
+        Parameters
+        ----------
+        stmt : ast.Stmt
+            The statement to be parsed.
+
+        Returns
+        -------
+        bool
+            Whether or not the statement is a MatchShape binding.
+        """
+        call_op = None
+        if isinstance(stmt, ast.UnassignedCall):
+            call_op = self.transform_expr(stmt.call.func_name)
+        elif isinstance(stmt, ast.Assign) and isinstance(stmt.rhs, ast.Call):
+            call_op = self.transform_expr(stmt.rhs.func_name)
+        return call_op == SpecialOp.MATCH_SHAPE
+
     def parse_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> rx.Binding:
         """Parses the input synr statement to the corresponding Relax binding.
 
@@ -495,42 +515,62 @@ class RelaxTransformer(Transformer):
             The parsed Relax binding
         """
         assert isinstance(stmt, (ast.Assign, ast.UnassignedCall))
-        if isinstance(stmt, ast.Assign):
-            return self.parse_var_binding(stmt, is_dataflow=is_dataflow)
+        if self.is_match_shape(stmt):
+            return self.parse_shape_binding(stmt, is_dataflow=is_dataflow)
         else:
-            return self.parse_shape_binding(stmt)
+            assert isinstance(stmt, ast.Assign)
+            return self.parse_var_binding(stmt, is_dataflow=is_dataflow)
 
-    def parse_shape_binding(self, stmt: ast.UnassignedCall) -> rx.MatchShape:
+    def parse_shape_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> rx.MatchShape:
         """Parses the input synr statement to a Relax shape binding.
 
         Parameters
         ----------
-        stmt : ast.UnassignedCall
+        stmt : ast.Stmt
             The input synr statement
+        is_dataflow : bool, optional
+            Whether or not the bound variable (if any) is a dataflow variable, by default False
 
         Returns
         -------
         rx.MatchShape
             The parsed Relax shape binding
         """
-        call: synr.ast.Call = stmt.call
+        var: ast.Var = None
+        call: ast.Call = None
+
+        if isinstance(stmt, ast.UnassignedCall):
+            # case where only dimension variables are bound, e.g. `match_shape(x.shape, (n, m))`
+            call = stmt.call
+        else:
+            # case where the statement also binds a Relax variable to the value being matched
+            assert isinstance(stmt, ast.Assign)
+            if not isinstance(stmt.lhs, ast.Var):
+                self.report_error(
+                    "the left hand side of a binding must be a variable", stmt.lhs.span
+                )
+            var = stmt.lhs
+            call = stmt.rhs
+
         op = self.transform_expr(call.func_name)
-        if op != SpecialOp.MATCH_SHAPE:
-            self.report_error("the results of calls must be bound or used", stmt.span)
-        if len(stmt.call.params) != 2:
-            self.report_error(op.value + " takes exactly two arguments", stmt.span)
 
-        lhs = stmt.call.params[0]
-        rhs = stmt.call.params[1]
+        assert op == SpecialOp.MATCH_SHAPE
+        if len(call.params) != 2:
+            self.report_error(op.value + " takes exactly two arguments", call.span)
 
-        rhs_expr = self.transform_expr(rhs)
-        if not isinstance(lhs, ast.Tuple):
-            self.report_error(
-                "the pattern (lhs) of " + op.value + " must be a tuple",
-                lhs.span,
-            )
-        lhs_expr = self.parse_shape(lhs, bind_free_vars=True)
-        return rx.MatchShape(lhs_expr, rhs_expr, self.to_tvm_span(stmt.span))
+        value, pattern = call.params
+
+        value = self.transform_expr(value)
+        if not isinstance(pattern, ast.Tuple):
+            self.report_error(f"the pattern of a {op.value} call must be a tuple", pattern.span)
+        pattern = self.parse_shape(pattern, bind_free_vars=True)
+
+        if var is not None:
+            # TODO(@altanh): keep or discard annotation?
+            ty, shape = self.transform_type(stmt.ty, bind_free_vars=False)
+            var = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
+
+        return rx.MatchShape(value, pattern, var, self.to_tvm_span(stmt.span))
 
     def parse_var_binding(self, stmt: ast.Assign, is_dataflow=False) -> rx.VarBinding:
         """Parses the input synr assignment to a Relax variable binding.
@@ -540,12 +580,12 @@ class RelaxTransformer(Transformer):
         stmt : ast.Assign
             The input synr assignment
         is_dataflow : bool, optional
-            Whether or not the binding is in a dataflow block, by default False
+            Whether or not the bound variable is a dataflow variable, by default False
 
         Returns
         -------
         rx.VarBinding
-            The prased Relax variable binding
+            The parsed Relax variable binding
         """
         if not isinstance(stmt.lhs, ast.Var):
             self.report_error(
@@ -644,8 +684,10 @@ class RelaxTransformer(Transformer):
             return self.transform_expr(stmt.value)
 
         elif isinstance(stmt, ast.UnassignedCall):
-            # FIXME: when we add ref support, ref_write can be unassigned
-            return self.parse_shape_binding(stmt)
+            if self.transform_expr(stmt.call.func_name) == SpecialOp.MATCH_SHAPE:
+                return self.parse_shape_binding(stmt)
+            else:
+                self.report_error("the results of normal function calls must be bound", stmt.span)
 
         elif isinstance(stmt, ast.With):
             if not isinstance(stmt.rhs, ast.Call):
@@ -727,9 +769,10 @@ class RelaxTransformer(Transformer):
                         "only bindings are supported in dataflow blocks",
                         binding_stmt.span,
                     )
-                is_match_shape = isinstance(binding_stmt, ast.UnassignedCall)
-                is_dataflow = not is_match_shape and (
-                    binding_stmt.lhs.id.name not in output_var_names
+                is_match_shape = self.is_match_shape(binding_stmt)
+                is_dataflow = (
+                    isinstance(binding_stmt, ast.Assign)
+                    and binding_stmt.lhs.id.name not in output_var_names
                 )
                 binding = self.parse_binding(binding_stmt, is_dataflow=is_dataflow)
                 bindings.append(binding)
@@ -737,9 +780,9 @@ class RelaxTransformer(Transformer):
                     if is_match_shape:
                         for var in binding.pattern:
                             output_vars.append(var)
-                    else:
+                    if binding.var is not None:
                         output_vars.append(binding.var)
-                        unbound_output_vars.pop(binding_stmt.lhs.id.name)
+                        unbound_output_vars.pop(binding.var.name_hint)
 
         # check that the output variables are all bound locally
         for unbound_var in unbound_output_vars.values():

@@ -79,6 +79,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
   Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
 
+  Doc PrintVarAnnotation(const relax::Var& var);
   Doc PrintTensorAnnotation(const relax::DynTensorType& ty, const Optional<ObjectRef>& shape);
 
   Doc VisitType_(const relax::ShapeTypeNode* node) override;
@@ -238,9 +239,12 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
   Doc doc;
+  if (op->var.defined()) {
+    doc << Print(op->var) << PrintVarAnnotation(op->var) << " = ";
+  }
   doc << "relax.match_shape(";
   // TODO(@altanh): maybe op->pattern should just be a ShapeExpr?
-  doc << Print(relax::ShapeExpr(op->pattern)) << ", " << Print(op->value);
+  doc << Print(op->value) << ", " << Print(relax::ShapeExpr(op->pattern));
   doc << ")";
   return doc;
 }
@@ -260,16 +264,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
     return tir::AsTVMScriptDoc(mod, false, prim_func_ref);
   } else {
     Doc doc;
-    doc << Print(op->var);
-    if (op->var->type_annotation.defined()) {
-      doc << ": ";
-      if (const relax::DynTensorTypeNode* tty =
-              op->var->type_annotation.as<relax::DynTensorTypeNode>()) {
-        doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), op->var->shape_);
-      } else {
-        doc << Print(op->var->type_annotation);
-      }
-    }
+    doc << Print(op->var) << PrintVarAnnotation(op->var);
     doc << " = " << Print(op->value);
     return doc;
   }
@@ -289,10 +284,14 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
   std::vector<Doc> return_vars;
   for (const relax::Binding& binding : op->bindings) {
     body << Print(binding) << Doc::NewLine();
+    Var var;
     if (const relax::VarBindingNode* var_binding = binding.as<relax::VarBindingNode>()) {
-      if (!var_binding->var.as<relax::DataflowVarNode>()) {
-        return_vars.push_back(Print(var_binding->var));
-      }
+      var = var_binding->var;
+    } else if (const relax::MatchShapeNode* shape_binding = binding.as<relax::MatchShapeNode>()) {
+      var = shape_binding->var;
+    }
+    if (var.defined() && !var.as<relax::DataflowVarNode>()) {
+      return_vars.push_back(Print(var));
     }
   }
   ICHECK(!return_vars.empty()) << "dataflow blocks should have at least one output variable";
@@ -444,16 +443,7 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   for (size_t i = 0; i < func->params.size(); ++i) {
     relax::Var var = func->params[i];
     Doc param;
-    param << Print(var);
-    if (var->type_annotation.defined()) {
-      param << ": ";
-      if (const relax::DynTensorTypeNode* tty =
-              var->type_annotation.as<relax::DynTensorTypeNode>()) {
-        param << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
-      } else {
-        param << Print(var->type_annotation);
-      }
-    }
+    param << Print(var) << PrintVarAnnotation(var);
     params.push_back(param);
   }
 
@@ -468,6 +458,19 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
 
   doc << Doc::Indent(4, Print(func->body));
   doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
+  return doc;
+}
+
+Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
+  Doc doc;
+  if (var->type_annotation.defined()) {
+    doc << ": ";
+    if (const relax::DynTensorTypeNode* tty = var->type_annotation.as<relax::DynTensorTypeNode>()) {
+      doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
+    } else {
+      doc << Print(var->type_annotation);
+    }
+  }
   return doc;
 }
 
