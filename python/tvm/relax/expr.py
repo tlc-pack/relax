@@ -51,7 +51,7 @@ def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
     else:
-        raise ValueError
+        raise ValueError("Wrong type")
 
 
 @tvm._ffi.register_object("relax.expr.Var")

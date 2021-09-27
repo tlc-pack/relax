@@ -26,11 +26,16 @@
 #define TVM_RELAX_OP_OP_COMMON_H_
 
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 
 namespace tvm {
 namespace relax {
+
+bool EqualConstInt(const PrimExpr& lhs, int64_t value);
+
+bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs);
 
 /*! Quick helper macro
  * - Expose a positional make function to construct the node.
