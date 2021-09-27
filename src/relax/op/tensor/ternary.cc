@@ -18,22 +18,30 @@
  */
 
 /*!
- * \file binary.cc
- * \brief binary broadcast operators.
+ * \file ternary.cc
+ * \brief ternary operators.
  */
 
-#include "binary.h"
+#include "ternary.h"
 
 namespace tvm {
 namespace relax {
 
-RELAX_REGISTER_BINARY_BROADCAST_OP("add")
-    .describe("Elementwise add with broadcasting")
-    .set_support_level(1);
+RELAY_REGISTER_OP("relax.ewise_fma")
+.set_num_inputs(3)
+.add_argument("e1", "Expr", "The input expression")
+.add_argument("e2", "Expr", "The input expression")
+.add_argument("e3", "Expr", "The input expression")
+.set_attr<FInferShape>("FInferShape", InferShapeEwiseFMA)
+.set_attr<FInferType>("FInferType", InferTypeEwiseFMA);
 
-RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
-    .describe("Elementwise multiply with broadcasting")
-    .set_support_level(1);
+Expr MakeEwiseFma(Expr expr1, Expr expr2, Expr expr3) {
+  static const Op& op = Op::Get("relax.ewise_fma");
+  return Call(op, {expr1, expr2, expr3}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.ewise_fma")
+.set_body_typed(MakeEwiseFma);
 
 }  // namespace relax
 }  // namespace tvm

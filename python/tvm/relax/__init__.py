@@ -22,6 +22,7 @@ from . import vm
 from . import ir_builder
 from . import op
 from . import parser
+from . import analysis
 
 
 # Expr
