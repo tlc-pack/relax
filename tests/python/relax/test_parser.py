@@ -90,7 +90,7 @@ def test_annotations():
 def test_match_shape():
     @rx.script
     def foo(x: Tensor[_, "float32"]):
-        relax.match_shape((n, m), x.shape)
+        relax.match_shape(x.shape, (n, m))
         y: Tensor[(n, m), "float32"] = add(x, x)
         return x
 
@@ -289,13 +289,31 @@ def test_dataflow_match_shape():
     @rx.script
     def foo(x: Tensor[_, _]):
         with relax.dataflow():
-            y = add(x, x)
+            x2: Tensor[(n, m), _] = relax.match_shape(x, (n, m))
+            y = add(x2, x2)
             z = multiply(y, x)
-            relax.match_shape((n, m), z.shape)
+            relax.match_shape(z.shape, (n, m))
             w: Tensor[(n, m), _] = subtract(z, x)
-            relax.output(y, w)
+            relax.output(y, w, x2)
         t: Tensor[(n, m), _] = divide(y, w)
-        return t
+        q: Tensor[(n, m), _] = add(t, x2)
+        return q
+
+    f = rx_func(foo)
+    x = f.params[0]
+    df_block = f.body.blocks[0]
+    x2_bind = df_block.bindings[0]
+    z_shape_bind = df_block.bindings[3]
+    q_bind = f.body.blocks[1].bindings[1]
+
+    assert x2_bind.var.name_hint == "x2"
+    check_tensor_var(x2_bind.var, ("n", "m"), "")
+    check_shape(x2_bind.pattern, ("n", "m"))
+    assert x2_bind.value == x
+
+    check_shape(z_shape_bind.pattern, ("n", "m"))
+
+    assert q_bind.value.args[1] == x2_bind.var
 
 
 @pytest.mark.xfail
