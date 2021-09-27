@@ -65,10 +65,10 @@ Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation
 }
 
 TVM_REGISTER_GLOBAL("relax.Var")
-    .set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
-                       Optional<Type> type_annotation, Span span) {
-      return Var(name_hint, shape_annotation, type_annotation, span);
-    });
+.set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
+                   Optional<Type> type_annotation, Span span) {
+  return Var(name_hint, shape_annotation, type_annotation, span);
+});
 
 TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
@@ -83,10 +83,10 @@ DataflowVar::DataflowVar(Id vid, Optional<Expr> shape_annotation, Optional<Type>
 }
 
 TVM_REGISTER_GLOBAL("relax.DataflowVar")
-    .set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
-                       Optional<Type> type_annotation, Span span) {
-      return DataflowVar(name_hint, shape_annotation, type_annotation, span);
-    });
+.set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
+                   Optional<Type> type_annotation, Span span) {
+  return DataflowVar(name_hint, shape_annotation, type_annotation, span);
+});
 
 Binding::Binding(Span span) {
   ObjectPtr<BindingNode> n = make_object<BindingNode>();
@@ -96,22 +96,25 @@ Binding::Binding(Span span) {
 
 TVM_REGISTER_NODE_TYPE(BindingNode);
 
-TVM_REGISTER_GLOBAL("relax.Binding").set_body_typed([](Span span) { return Binding(span); });
+TVM_REGISTER_GLOBAL("relax.Binding").set_body_typed([](Span span) {
+  return Binding(span);
+});
 
 TVM_REGISTER_NODE_TYPE(MatchShapeNode);
 
-MatchShape::MatchShape(Array<PrimExpr> pattern, Expr value, Span span) {
+MatchShape::MatchShape(Expr value, Array<PrimExpr> pattern, Var var, Span span) {
   ObjectPtr<MatchShapeNode> n = make_object<MatchShapeNode>();
-  n->pattern = std::move(pattern);
   n->value = std::move(value);
+  n->pattern = std::move(pattern);
+  n->var = std::move(var);
   n->span = span;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relax.MatchShape")
-    .set_body_typed([](Array<PrimExpr> pattern, Expr value, Span span) {
-      return MatchShape(pattern, value, span);
-    });
+.set_body_typed([](Expr value, Array<PrimExpr> pattern, Var var, Span span) {
+  return MatchShape(value, pattern, var, span);
+});
 
 TVM_REGISTER_NODE_TYPE(VarBindingNode);
 
@@ -182,9 +185,10 @@ Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr bo
 }
 
 TVM_REGISTER_GLOBAL("relax.Function")
-    .set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                       Type ret_type,
-                       Span span) { return Function(name, params, body, ret_type, span); });
+.set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params,
+                   Expr body, Type ret_type, Span span) {
+  return Function(name, params, body, ret_type, span);
+});
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
