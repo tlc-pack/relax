@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/expr_functor.cc
+ * \file src/relax/expr_functor.cc
  * \brief A wrapper around ExprFunctor which functionally updates the AST.
  *
  * ExprMutator uses memoization and self return in order to amortize
@@ -29,10 +29,6 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relax/type.h>
-#include <stack>
-#include <tvm/tir/op.h>
-
-#include "../relay/transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relax {
@@ -415,114 +411,5 @@ Expr DataflowMutator::LookupVar(Var var) {
     return irbuilder_->LookupVar(var);
   }
 }
-
-
-// ==================
-// EwiseFMARewriter
-// Example:
-// x0 = mul(a, b)
-// z0 = add(x0, c)
-// -->
-// z0 = ewise_fma(a, b, c)
-
-// Example 2: 
-// Question: do we want to support this?
-// x0 = mul(a, add(k, b))
-// z0 = add(x0, c)
-// -->
-// lv0 = add(k, b)
-// z0 = ewise_fma(a, lv0, c)
-
-class EwiseFMARewriter : public DataflowMutator {
-	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
-    static const Op& add_op = Op::Get("relax.add");
-    static const Op& multiply_op = Op::Get("relax.multiply");
-    static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
-
-    // TODO: shape & dtype check
-    const CallNode* op1 = binding->value.as<CallNode>();
-    if (op1 && (op1->op == add_op)) {
-      Expr value = LookupVar(Downcast<Var>(op1->args[0]));
-      const CallNode* op2 = value.as<CallNode>();
-      if (op2 && op2->op == multiply_op) {
-        Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
-        return ir_builder->Emit(binding->var, fma_call);
-      }
-    }
-    return ir_builder->Emit(binding);
-  }
-};
-
-Expr FMARewrite(const Expr& e) {
-  return EwiseFMARewriter().Mutate(e);
-}
-
-TVM_REGISTER_GLOBAL("relax.analysis.fma_rewrite")
-.set_body_typed([](Expr expr) {
-  return FMARewrite(expr);
-});
-
-// ==================
-// ExplicitMemMutator
-// Example:
-// y: Tensor[n, m] = rx.call_dps((n, m), op.identity, (x))
-// -->
-// lv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
-// rx.call_packed(op.identity, x, lv0)
-
-class ExplicitMemMutator : public DataflowMutator {
-  Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
-    DynTensorType tensor_type = Downcast<DynTensorType>(type);
-    DataType dtype = DataType(tensor_type->dtype);
-    // Question: what if the dtype of tensor_type is unknown?
-    // Symbolic/static shape case
-    if (auto* shape_expr = shape.as<ShapeExprNode>()) {
-      PrimExpr num = PrimExpr(dtype.bits()) * PrimExpr(dtype.lanes());
-      PrimExpr add = num + 7;
-      PrimExpr ret = 1;
-      for (PrimExpr dim : shape_expr->values) {
-        ret = ret * dim;
-      }
-      ret = ret * (add / PrimExpr(8));
-      return ShapeExpr({ret});
-    }
-    // Fully dynamic shape case
-    // will need to dedup with ComputeStorageInRelay when we upstream
-    Expr prod = relay::Prod(shape, Array<Integer>(nullptr), false, false);
-    Expr num = relay::MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
-    Expr add = relay::Add(num, relay::MakeConstantScalar(DataType::Int(64), 7));
-    Expr div = relay::MakeConstantScalar(DataType::Int(64), 8);
-    Expr ret = relay::Multiply(prod, relay::Divide(add, div));
-    return ret;
-  }
-
-	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
-    static const Op& call_dps_op = Op::Get("relax.call_dps");
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-
-    const CallNode* op = binding->value.as<CallNode>();
-		if(op && op->op == call_dps_op) {
-      // switch current DataflowBlock to an impure BindingBlock
-      ir_builder->is_dataflow_ = false;
-      ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
-      Type arg_type = Downcast<Tuple>(op->args[2])->fields[0]->checked_type();
-      Expr output_size = ComputeStorageSize(output_shape, arg_type);
-      Var tensor = ir_builder->Emit(Call(alloc_tensor_op, {op->args[0]}));
-      return ir_builder->Emit(binding->var, Call(op->args[1], {op->args[2], tensor}));
-    }
-    return ir_builder->Emit(binding);
-  }
-};
-
-Expr ExplicitMemRewrite(const Expr& e) {
-  return ExplicitMemMutator().Mutate(e);
-}
-
-TVM_REGISTER_GLOBAL("relax.analysis.explicit_memory_rewrite")
-.set_body_typed([](Expr expr) {
-  return ExplicitMemRewrite(expr);
-});
-
-
 }  // namespace relax
 }  // namespace tvm
