@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/builder.h
+ * \file tvm/relax/vm/exec_builder.h
  * \brief
  */
-#ifndef TVM_RELAX_BUILDER_H_
-#define TVM_RELAX_BUILDER_H_
+#ifndef TVM_RELAX_EXEC_BUILDER_H_
+#define TVM_RELAX_EXEC_BUILDER_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
@@ -30,8 +30,8 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
-#include "./vm/bytecode.h"
-#include "./vm/executable.h"
+#include "./bytecode.h"
+#include "./executable.h"
 
 namespace tvm {
 namespace relax {
@@ -102,4 +102,4 @@ class ExecBuilder : public ObjectRef {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_BUILDER_H_
+#endif  // TVM_RELAX_EXEC_BUILDER_H_
