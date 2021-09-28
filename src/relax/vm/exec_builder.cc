@@ -18,10 +18,9 @@
  */
 
 /*!
- * \file src/relax/builder.cc
+ * \file src/relax/vm/exec_builder.cc
  */
-
-#include <tvm/relax/builder.h>
+#include <tvm/relax/vm/exec_builder.h>
 
 #include <sstream>
 
@@ -178,43 +177,52 @@ void ExecBuilderNode::Formalize() {
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate")
+.set_body_typed(ExecBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitConstant")
-    .set_body_typed([](ExecBuilder builder, ObjectRef obj) { return builder->EmitConstant(obj); });
+.set_body_typed([](ExecBuilder builder, ObjectRef obj) {
+  return builder->EmitConstant(obj);
+});
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderFunction")
-    .set_body_typed([](ExecBuilder builder, String name, int64_t num_inputs) {
-      return builder->Function(name, num_inputs);
-    });
+.set_body_typed([](ExecBuilder builder, String name, int64_t num_inputs) {
+  return builder->Function(name, num_inputs);
+});
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
-    .set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
-      std::vector<Instruction::Arg> args_;
-      for (size_t i = 0; i < args.size(); ++i) {
-        args_.push_back(static_cast<Instruction::Arg>(args[i]->value));
-      }
-      Instruction::Arg dst_(dst);
-      CHECK_EQ(dst_.kind(), Instruction::ArgKind::kRegister);
-      builder->EmitCall(name, args_, dst_.value());
-    });
+.set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
+  std::vector<Instruction::Arg> args_;
+  for (size_t i = 0; i < args.size(); ++i) {
+    args_.push_back(static_cast<Instruction::Arg>(args[i]->value));
+  }
+  Instruction::Arg dst_(dst);
+  CHECK_EQ(dst_.kind(), Instruction::ArgKind::kRegister);
+  builder->EmitCall(name, args_, dst_.value());
+});
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
-    .set_body_typed([](ExecBuilder builder, int64_t result) { builder->EmitRet(result); });
+.set_body_typed([](ExecBuilder builder, int64_t result) {
+  builder->EmitRet(result);
+});
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderR").set_body_typed([](ExecBuilder builder, int64_t value) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderR")
+.set_body_typed([](ExecBuilder builder, int64_t value) {
   return Instruction::Arg(Instruction::kRegister, value).data;
 });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderImm").set_body_typed([](ExecBuilder builder, int64_t value) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderImm")
+.set_body_typed([](ExecBuilder builder, int64_t value) {
   return Instruction::Arg(Instruction::kImmediate, value).data;
 });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderC").set_body_typed([](ExecBuilder builder, int64_t value) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderC")
+.set_body_typed([](ExecBuilder builder, int64_t value) {
   return Instruction::Arg(Instruction::kConstIdx, value).data;
 });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
+TVM_REGISTER_GLOBAL("relax.ExecBuilderGet")
+.set_body_typed([](ExecBuilder builder) {
   return builder->Get();
 });
 
