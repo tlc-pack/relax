@@ -16,24 +16,24 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
-"""
-This file contains the set of passes for Relax, which exposes an interface for
-configuring the passes and scripting them in Python.
-"""
 from . import _ffi_api
 
-
-def post_order_visit(expr, fvisit):
-    """Recursively visit the ir in post DFS order node,
-    apply fvisit. Each node is guaranteed to be visited
-    only once.
+def fma_rewrite(expr):
+    """Perform fused multiply add rewriting in dataflow blocks.
 
     Parameters
     ----------
     expr : tvm.relay.Expr
         The input expression.
-
-    fvisit : function
-        The visitor function to be applied.
     """
-    return _ffi_api.post_order_visit(expr, fvisit)
+    return _ffi_api.fma_rewrite(expr)
+
+def explicit_memory_rewrite(expr):
+    """Perform explicit memory allocation for call_dps in dataflow blocks.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+    """
+    return _ffi_api.explicit_memory_rewrite(expr)
