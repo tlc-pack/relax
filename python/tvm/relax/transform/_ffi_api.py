@@ -13,27 +13,6 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-# pylint: disable=no-else-return
-# pylint: disable=unidiomatic-typecheck
-"""
-This file contains the set of passes for Relax, which exposes an interface for
-configuring the passes and scripting them in Python.
-"""
-from . import _ffi_api
+import tvm._ffi
 
-
-def post_order_visit(expr, fvisit):
-    """Recursively visit the ir in post DFS order node,
-    apply fvisit. Each node is guaranteed to be visited
-    only once.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    fvisit : function
-        The visitor function to be applied.
-    """
-    return _ffi_api.post_order_visit(expr, fvisit)
+tvm._ffi._init_api("relax.transform", __name__)
