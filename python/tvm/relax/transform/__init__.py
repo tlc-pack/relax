@@ -14,26 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
-# pylint: disable=unidiomatic-typecheck
-"""
-This file contains the set of passes for Relax, which exposes an interface for
-configuring the passes and scripting them in Python.
-"""
-from . import _ffi_api
+# pylint: disable=wildcard-import, redefined-builtin
+"""Relax IR analysis. """
 
-
-def post_order_visit(expr, fvisit):
-    """Recursively visit the ir in post DFS order node,
-    apply fvisit. Each node is guaranteed to be visited
-    only once.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    fvisit : function
-        The visitor function to be applied.
-    """
-    return _ffi_api.post_order_visit(expr, fvisit)
+from .transform import *
