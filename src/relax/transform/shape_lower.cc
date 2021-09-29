@@ -23,6 +23,8 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/function.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -53,6 +55,10 @@ class ShapeReplacer : public ExprMutator {
 
 class ShapeLowerMutator : public ExprMutator {
  public:
+  static DataType ShapeDType() {
+    return DataType::Int(32);
+  };
+
   explicit ShapeLowerMutator(IRModule mod) {
     mod_ = mod;
   }
@@ -63,7 +69,6 @@ class ShapeLowerMutator : public ExprMutator {
     shape_heap_ = Var("shape_heap", NullOpt, NullOpt);
     for (auto& p : mod_->functions) {
       GlobalVar var = p.first;
-      LOG(INFO) << "Mutate function: " << var;
       Expr new_func = this->Mutate(p.second);
       ret_mod_->Add(var, Downcast<BaseFunc>(new_func));
     }
@@ -76,7 +81,7 @@ class ShapeLowerMutator : public ExprMutator {
     Array<PrimExpr> pattern = binding->pattern;
     Array<PrimExpr> indexes;
     for (size_t i = 0; i < pattern.size(); ++i) {
-      IntImm idx(DataType::Int(64), heap_counter_++);
+      IntImm idx(ShapeDType(), heap_counter_++);
       expr2idx_.Set(pattern[i], idx);
       indexes.push_back(idx);
     }
@@ -85,19 +90,18 @@ class ShapeLowerMutator : public ExprMutator {
     builder->Emit(call);
   }
 
-  Var VisitVarBinding(const VarBinding& binding,
-                      IRBuilder& builder) override {
-    Array<ShapeExpr> shapes = CollectShapeExpr(binding->value);
-    LOG(INFO) << "shapes: " << shapes;
-    return ExprMutator::VisitVarBinding(binding, builder);
-    // map<ShapeExpr, Var> mapping;
-    // for (shape : shapes) {
-    //   vector<int> indexes = calculate_with_heap(shape);
-    //   Var var = Emit(Call("construct_shape", indexes));
-    //   mapping[shape] = var;
-    // }
-    // Replace(binding, shape, s);
-  }
+  // Var VisitVarBinding(const VarBinding& binding,
+  //                     IRBuilder& builder) override {
+  //   Array<ShapeExpr> shapes = CollectShapeExpr(binding->value);
+  //   return ExprMutator::VisitVarBinding(binding, builder);
+  //   // map<ShapeExpr, Var> mapping;
+  //   // for (shape : shapes) {
+  //   //   vector<int> indexes = calculate_with_heap(shape);
+  //   //   Var var = Emit(Call("construct_shape", indexes));
+  //   //   mapping[shape] = var;
+  //   // }
+  //   // Replace(binding, shape, s);
+  // }
 
   Expr VisitExpr_(const FunctionNode* node) override {
     Expr visited_func = ExprMutator::VisitExpr_(node);
@@ -105,10 +109,9 @@ class ShapeLowerMutator : public ExprMutator {
     ICHECK(visited);
     const auto* seq = visited->body.as<SeqExprNode>();
     ICHECK(seq);
-    LOG(INFO) << "SeqExpr body: " << seq->body;
 
     // prologue block: allocate shape heap
-    IntImm size(DataType::Int(64), 5);
+    IntImm size(ShapeDType(), heap_size_);
     ShapeExpr heap_size({size});
     Call alloc_heap_call(ExternFunc("relax.alloc_shape_heap"), {heap_size});
     VarBinding binding(shape_heap_, alloc_heap_call);
@@ -118,13 +121,13 @@ class ShapeLowerMutator : public ExprMutator {
     // process body
     IRBuilder ib = IRBuilderNode::Create();
     Array<ShapeExpr> shapes = CollectShapeExpr(seq->body);
-    LOG(INFO) << "shapes: " << shapes;
     Map<ShapeExpr, Var> mapping;
     for (ShapeExpr shape : shapes) {
       // call tir shape functions, result shape expr from heap
-      // PrimFunc func = CalculateShape(shape);
+      tir::PrimFunc func = CalculateShape(shape);
+      LOG(INFO) << "Generated TIR function: \n" << func;
       // ib->Emit(Call(func, {shape_heap_}));
-      // ib->Emit(Call(ExternFunc("shape_func"), {shape_heap_}));
+      // ret_mod_->Add(GlobalVar("shape_func" + std::to_string(shape_func_counter_++)), func);
       Array<PrimExpr> indexes;
       for (PrimExpr e : shape->values) {
         indexes.push_back(expr2idx_[e]);
@@ -135,7 +138,6 @@ class ShapeLowerMutator : public ExprMutator {
       mapping.Set(shape, shape_var);
     }
     Expr new_body = ShapeReplacer(mapping).Mutate(seq->body);
-    LOG(INFO) << "new body: " << new_body;
 
     // epilogue block: kill the shape heap
     Call free_heap_call(ExternFunc("relax.free_shape_heap"), {shape_heap_});
@@ -152,42 +154,50 @@ class ShapeLowerMutator : public ExprMutator {
     return Function(visited->name, visited->params, new_seq, visited->ret_type);
   }
 
-  // PrimFunc CalculateShape(ShapeExpr s) {
-  //   tir::Var buffer("H", DataType::Handle());
-  //   for (PrimExpr e : s) {
-  //     if (expr2idx_.count(e) == 0) {
-  //       // m -> H[0]
-  //       Map<PrimExpr, PrimExpr> mapping = BuildVarMapping(e, buffer);
-  //       PrimExpr value = Replace(e, var_mapping)
-  //       IntImm idx(DataType::Int(64), heap_counter_++);
-  //       expr2idx_.Set(e, idx);
-  //       Stmt stm = Store(buffer, value, idx);
-  //     }
-  //   }
-  //   Array<tir::Var> params;
-  //   Stmt body;
-  //   Type ret_type = VoidType();
-  //   Map<tir::Var, Buffer> buffer_map;
-  //   return PrimFunc(params, body, ret_type, buffer_map);
-  // }
+  tir::PrimFunc CalculateShape(ShapeExpr s) {
+    tir::Var heap("heap", DataType::Handle());
+    Array<PrimExpr> buffer_shape{IntImm(DataType::Int(64), heap_size_)};
+    tir::Buffer buffer = tir::decl_buffer(buffer_shape, ShapeDType(), "H");
+    Map<tir::Var, tir::Buffer> buffer_map;
+    buffer_map.Set(heap, buffer);
 
-  // Map<PrimExpr, PrimExpr> BuildVarMapping(tir::PrimExpr e, tir::Var buffer) {
-  //   Map<PrimExpr, PrimExpr> ret;
-  //   auto func = [&ret](const PrimExpr& e) {
-  //     if (e->IsInstance<tir::Var>()) {
-  //       ICHECK(expr2idx_.count(e) > 0);
-  //       ret.Set(e, Load(buffer, expr2idx_[e]));
-  //     }
-  //   };
-  //   PostOrderVisit(expr, func);
-  //   return ret;
-  // } 
+    Array<tir::Stmt> seq;
+    for (PrimExpr e : s->values) {
+      if (expr2idx_.count(e) == 0) {
+        Map<tir::Var, PrimExpr> var_mapping = BuildVarMapping(e, buffer);
+        PrimExpr value = tir::Substitute(e, var_mapping);
+        IntImm idx(ShapeDType(), heap_counter_++);
+        expr2idx_.Set(e, idx);
+        seq.push_back(tir::Store(buffer->data, value, idx, tir::const_true()));
+      }
+    }
+    tir::Stmt body = tir::SeqStmt(seq);
+    Array<tir::Var> params{heap};
+    Type ret_type = VoidType();
+    return tir::PrimFunc(params, body, ret_type, buffer_map);
+  }
+
+  Map<tir::Var, PrimExpr> BuildVarMapping(PrimExpr expr, tir::Buffer buffer) {
+    Map<tir::Var, PrimExpr> ret;
+    auto func = [&](const ObjectRef& e) {
+      if (e->IsInstance<tir::VarNode>()) {
+        PrimExpr prim_e = Downcast<PrimExpr>(e);
+        ICHECK(expr2idx_.count(prim_e) > 0);
+        tir::Load load(ShapeDType(), buffer->data, expr2idx_.at(prim_e), tir::const_true());
+        ret.Set(Downcast<tir::Var>(e), load);
+      }
+    };
+    tir::PostOrderVisit(expr, func);
+    return ret;
+  } 
 
  private:
   IRModule mod_;
   IRModule ret_mod_;
   Var shape_heap_;
+  int heap_size_{5};
   int heap_counter_;
+  int shape_func_counter_{0};
   Map<PrimExpr, IntImm> expr2idx_;
   Array<Function> funcs_; 
 };

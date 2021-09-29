@@ -232,7 +232,6 @@ Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
-  LOG(INFO) << "ExprMutator::VisitFunction";
   tvm::Array<Var> params;
   bool all_params_unchanged = true;
   for (auto param : op->params) {
@@ -304,7 +303,6 @@ Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op);
 Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
-  LOG(INFO) << "ExprMutator::VisitSeqExpr";
   bool all_blocks_unchanged = true;
   Array<BindingBlock> blocks;
   for (auto block : op->blocks) {
@@ -324,12 +322,10 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
 void ExprMutator::VisitBinding(const Binding& binding, IRBuilder& builder) {
-  LOG(INFO) << "ExprMutator::VisitBinding";
   Binding new_binding;
   if (binding.as<VarBindingNode>()) {
     this->VisitVarBinding(Downcast<VarBinding>(binding), builder);
   } else if (binding.as<MatchShapeNode>()) {
-    LOG(INFO) << "Before VisitMatchShape";
     this->VisitMatchShape(Downcast<MatchShape>(binding), builder);
   } else {
     LOG(FATAL) << "Wrong type.";
@@ -346,12 +342,10 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& builder) 
 }
 
 void ExprMutator::VisitMatchShape(const MatchShape& binding, IRBuilder& builder) {
-  LOG(INFO) << "VisitMatchShape";
   this->Mutate(binding->value);
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
-  LOG(INFO) << "ExprMutator::VisitBindingBlock";
   if (block.as<DataflowBlockNode>()) {
     return this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
   } else{
@@ -359,9 +353,7 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
     for (auto binding : block->bindings) {
       this->VisitBinding(binding, this->builder_);
     }
-    LOG(INFO) << "GetBlocks";
     auto blocks = this->builder_->GetBlocks();
-    LOG(INFO) << "size " << blocks.size();
     return blocks.back();
   }
 }
