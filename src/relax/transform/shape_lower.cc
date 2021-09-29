@@ -53,11 +53,22 @@ class ShapeReplacer : public ExprMutator {
 
 class ShapeLowerMutator : public ExprMutator {
  public:
-  Expr Mutate(const Expr& expr) {
+  explicit ShapeLowerMutator(IRModule mod) {
+    mod_ = mod;
+  }
+
+  IRModule Lower() {
+    ret_mod_ = IRModule();
     heap_counter_ = 0;
     shape_heap_ = Var("shape_heap", NullOpt, NullOpt);
-    return ExprMutator::Mutate(expr);
-  }
+    for (auto& p : mod_->functions) {
+      GlobalVar var = p.first;
+      LOG(INFO) << "Mutate function: " << var;
+      Expr new_func = this->Mutate(p.second);
+      ret_mod_->Add(var, Downcast<BaseFunc>(new_func));
+    }
+    return ret_mod_;
+  } 
 
   void VisitMatchShape(const MatchShape& binding,
                        IRBuilder& builder) override {
@@ -173,6 +184,8 @@ class ShapeLowerMutator : public ExprMutator {
   // } 
 
  private:
+  IRModule mod_;
+  IRModule ret_mod_;
   Var shape_heap_;
   int heap_counter_;
   Map<PrimExpr, IntImm> expr2idx_;
@@ -181,8 +194,8 @@ class ShapeLowerMutator : public ExprMutator {
 
 
 TVM_REGISTER_GLOBAL("relax.transform.shape_lower")
-.set_body_typed([](Expr expr) {
-  return ShapeLowerMutator().Mutate(expr);
+.set_body_typed([](IRModule mod) {
+  return ShapeLowerMutator(mod).Lower();
 });
 
 }  // namespace relax

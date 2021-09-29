@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
+from tvm import IRModule 
 from . import _ffi_api
 
 def fma_rewrite(expr):
@@ -38,7 +39,7 @@ def explicit_memory_rewrite(expr):
     """
     return _ffi_api.explicit_memory_rewrite(expr)
 
-def shape_lower(expr):
+def shape_lower(mod: IRModule) -> IRModule:
     """Perform explicit memory allocation for call_dps in dataflow blocks.
 
     Parameters
@@ -46,4 +47,4 @@ def shape_lower(expr):
     expr : tvm.relay.Expr
         The input expression.
     """
-    return _ffi_api.shape_lower(expr)
+    return _ffi_api.shape_lower(mod)

@@ -4,15 +4,16 @@ from tvm import relax as rx
 from tvm import tir, relay
 
 @rx.script
-def foo(x: Tensor[_, "float32"]) -> Shape:
-    relax.match_shape(x.shape, (n, m))
-    return (n, m)
+class Mod:
+    def foo(x: Tensor[_, "float32"]) -> Shape:
+        relax.match_shape(x.shape, (n, m))
+        return (n, m)
 
-mod = foo.module
-func = mod["foo"]
-print(rx.parser.astext(func))
-new_func = rx.transform.shape_lower(func)
-print(rx.parser.astext(new_func))
+mod = Mod
+print(rx.parser.astext(mod))
+
+new_mod = rx.transform.shape_lower(mod)
+print(rx.parser.astext(new_mod))
 
 # @rx.script
 # def foo(x: Tensor[_, "float32"]) -> Tensor:
