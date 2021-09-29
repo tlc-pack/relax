@@ -176,8 +176,12 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   Doc doc;
 
   if (op->op.as<relax::ExternFuncNode>()) {
-    ICHECK_EQ(op->args.size(), 1) << "extern calls should only have one argument";
-    doc << "relax.call_packed(" << Print(op->op) << ", " << Print(op->args[0]);
+    // ICHECK_EQ(op->args.size(), 1) << "extern calls should only have one argument";
+    // doc << "relax.call_packed(" << Print(op->op) << ", " << Print(op->args[0]);
+    doc << "relax.call_packed(" << Print(op->op);
+    for (auto arg : op->args) {
+      doc << ", " << Print(arg);
+    }
   } else {
     std::vector<Doc> args;
     for (const Expr& arg : op->args) {

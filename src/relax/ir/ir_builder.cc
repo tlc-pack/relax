@@ -192,9 +192,14 @@ Expr IRBuilderNode::LookupVar(const Var& var) {
   return it->second;
 }
 
-Function IRBuilderNode::Get() { return this->func_.func; }
+Function IRBuilderNode::Get() {
+  return this->func_.func;
+}
 
-std::vector<BindingBlock> IRBuilderNode::GetBlocks() { return this->func_.binding_blocks; }
+std::vector<BindingBlock> IRBuilderNode::GetBlocks() {
+  this->BuildBlock();
+  return this->func_.binding_blocks;
+}
 
 bool IRBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   if (lhs == rhs) {

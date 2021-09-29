@@ -37,3 +37,13 @@ def explicit_memory_rewrite(expr):
         The input expression.
     """
     return _ffi_api.explicit_memory_rewrite(expr)
+
+def shape_lower(expr):
+    """Perform explicit memory allocation for call_dps in dataflow blocks.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+    """
+    return _ffi_api.shape_lower(expr)
