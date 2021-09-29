@@ -63,7 +63,7 @@ class ShapeLowerMutator : public ExprMutator {
       }
       // prepare mapping and heap var
       expr2slot_ = PrepareExpr2Slot(Downcast<Function>(p.second));
-      LOG(INFO) << "mapping: " << expr2slot_;
+      // LOG(INFO) << "mapping: " << expr2slot_;
       heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
       DynTensorType heap_type(1, ShapeDType());
       shape_heap_ = Var("shape_heap", ShapeExpr({heap_size_}), heap_type);
