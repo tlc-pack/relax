@@ -23,13 +23,8 @@ from tvm import tir, relay
 from tvm.ir import structural_equal, assert_structural_equal
 
 
-def rx_func(func):
-    return func.module[func.fn_name]
-
-
-def check_roundtrip(fn):
-    f_pre = rx_func(fn)
-    f_post = rx.parser.fromtext(rx.parser.astext(f_pre))[fn.fn_name]
+def check_roundtrip(f_pre):
+    f_post = rx.parser.fromtext(rx.parser.astext(f_pre))
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
@@ -161,3 +156,24 @@ def test_primexpr_arithmetic():
         return z
 
     check_roundtrip(foo)
+
+
+def test_call_dps_extern():
+    @rx.script
+    def foo(x: Tensor):
+        z = relax.call_dps((10,), "my_extern", (x,))
+        return z
+
+    check_roundtrip(foo)
+
+
+def test_class_irmodule():
+    @rx.script
+    class my_module:
+        def f(x: Tensor[(n, m), _]) -> Tensor:
+            return g(x)
+
+        def g(y: Tensor[(n, m), _]) -> Tensor:
+            return y
+
+    check_roundtrip(my_module)
