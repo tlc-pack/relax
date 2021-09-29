@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import TypeVar, Generic, Union, Dict, List, Tuple, Optional
+from typing import TypeVar, Generic, Union, Dict, List, Tuple, Optional, Callable
 from io import StringIO
 from enum import Enum
 
@@ -837,11 +837,6 @@ class RelaxTransformer(Transformer):
         op = self.transform_expr(expr.func_name)
 
         if op == SpecialOp.CALL_PACKED:
-            if len(expr.params) != 2:
-                self.report_error(
-                    op.value + " takes an extern function name and a tuple of arguments",
-                    expr.span,
-                )
             extern_func = expr.params[0]
             if not (isinstance(extern_func, ast.Constant) and isinstance(extern_func.value, str)):
                 self.report_error(
@@ -849,7 +844,7 @@ class RelaxTransformer(Transformer):
                     extern_func.span,
                 )
             op = rx.ExternFunc(extern_func.value, self.to_tvm_span(extern_func.span))
-            args = [self.transform_expr(expr.params[1])]
+            args = [self.transform_expr(arg) for arg in expr.params[1:]]
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]
@@ -1045,7 +1040,7 @@ class RelaxTransformer(Transformer):
 #         self.tvm_diag_ctx.render()
 
 
-def script(f) -> Union[rx.Function, tvm.IRModule]:
+def script(f) -> Union[rx.Function, Callable[[], tvm.IRModule]]:
     """Parses the decorated Relax function or module (in Relax IR) to a Relax AST.
 
     Parameters
@@ -1056,15 +1051,19 @@ def script(f) -> Union[rx.Function, tvm.IRModule]:
     Returns
     -------
     Union[rx.Function, IRModule]
-        The parsed Relax function or IRModule.
+        The parsed Relax function or IRModule factory (which returns the parsed IRModule when
+        called).
     """
     diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
     ast = synr.to_ast(f, diag_ctx)
-    return RelaxTransformer().do_transform(ast, diag_ctx)
+    mod = RelaxTransformer().do_transform(ast, diag_ctx)
+    if isinstance(mod, tvm.IRModule):
+        return lambda: mod
+    return mod
 
 
 def fromtext(source: str, source_name: str = "from_string") -> Union[rx.Function, tvm.IRModule]:
-    """Parses the given input string (in the Relax text format) to a Relax function or IRModule.
+    """Parses the given input string (in the Relax text format) to a Relax AST.
 
     Parameters
     ----------
@@ -1076,12 +1075,16 @@ def fromtext(source: str, source_name: str = "from_string") -> Union[rx.Function
     Returns
     -------
     Union[rx.Function, IRModule]
-        The parsed Relax function or IRModule.
+        The parsed Relax function or IRModule factory (which returns the parsed IRModule when
+        called).
     """
     # TODO(@altanh): actually use source_name somewhere?
     diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
     ast = synr.to_ast(source, diag_ctx)
-    return RelaxTransformer().do_transform(ast, diag_ctx)
+    mod = RelaxTransformer().do_transform(ast, diag_ctx)
+    if isinstance(mod, tvm.IRModule):
+        return lambda: mod
+    return mod
 
 
 def pretty_print(node):

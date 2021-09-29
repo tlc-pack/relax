@@ -432,9 +432,9 @@ def test_inline_tir():
 
 def test_call_packed():
     @rx.script
-    def f(x: Tensor[(3, 4), "float32"]):
+    def f(x: Tensor[(3, 3), "float32"]):
         # test that we can intro dim vars
-        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", (x, x), mp=False)
+        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", x, x, mp=False)
         return z
 
     x = f.params[0]
@@ -444,7 +444,7 @@ def test_call_packed():
     assert isinstance(z_bind.value.op, rx.ExternFunc)
     assert z_bind.value.op.global_symbol == "contrib.my_matmul"
     assert "mp" in z_bind.value.attrs and z_bind.value.attrs["mp"] == False
-    assert structural_equal(z_bind.value.args, [rx.Tuple([x, x])])
+    assert structural_equal(z_bind.value.args, [x, x])
 
 
 def test_primexpr_arithmetic():
@@ -480,18 +480,36 @@ def test_call_dps_extern():
 
 def test_class_irmodule():
     @rx.script
-    class my_module:
-        def f(x: Tensor[(n, m), _]) -> Tensor:
+    class MyModule:
+        @tvm.script.tir
+        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+            A = tir.match_buffer(a, [128, 128])
+            B = tir.match_buffer(b, [128, 128])
+            C = tir.match_buffer(c, [128, 128])
+
+            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+                with tir.init():
+                    C[vi, vj] = tir.float32(0)
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        def f(x: Tensor[(n, n), _]) -> Tensor:
             return g(x)
 
-        def g(y: Tensor[(n, m), _]) -> Tensor:
-            return y
+        def g(y: Tensor[(n, n), _]) -> Tensor:
+            return relax.call_dps((n, n), my_matmul, (y, y))
 
+        def h(x, y, z):
+            _ = my_matmul(x, y, z)
+            return z
+
+    my_module = MyModule()
     assert isinstance(my_module, tvm.IRModule)
 
     var_f = my_module.get_global_var("f")
     var_g = my_module.get_global_var("g")
+    var_my_matmul = my_module.get_global_var("my_matmul")
     f = my_module[var_f]
     g = my_module[var_g]
 
     assert f.body.body.op == var_g
+    assert g.body.body.args[1] == var_my_matmul
