@@ -18,11 +18,15 @@
  */
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/relax/attrs/memory.h>
 
 #include "op_common.h"
 
 namespace tvm {
 namespace relax {
+
+TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
+TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {

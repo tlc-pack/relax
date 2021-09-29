@@ -69,7 +69,7 @@ class ExecBuilderNode : public Object {
    * \brief Emit a constant value to the constant pool.
    * \return The index that represents the constant.
    */
-  vm::Index EmitConstant(ObjectRef obj);
+  vm::Index EmitConstant(TVMRetValue obj);
   /*!
    * \brief Get the built executable.
    * \return The built executable.

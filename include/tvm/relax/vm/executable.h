@@ -103,7 +103,7 @@ class ExecutableNode : public Object {
   /*! \brief A map from globals (as strings) to their index in the function map. */
   std::unordered_map<std::string, Index> global_map;
   /*! \brief The global constant pool. */
-  std::vector<ObjectRef> constants;
+  std::vector<TVMRetValue> constants;
   /*! \brief The name of packed functions. */
   std::vector<std::string> func_names;
   /*! \brief A mapping from the packed function (as string) to the index that
@@ -129,7 +129,7 @@ class ExecutableNode : public Object {
    * \brief Save the constant pool.
    * \param strm The input stream.
    */
-  void SaveConstantSection(dmlc::Stream* strm);
+  // void SaveConstantSection(dmlc::Stream* strm);
   /*!
    * \brief Save the instructions.
    * \param strm The input stream.
@@ -149,7 +149,7 @@ class ExecutableNode : public Object {
    * \brief Load the constant pool.
    * \param strm The input stream.
    */
-  void LoadConstantSection(dmlc::Stream* strm);
+  // void LoadConstantSection(dmlc::Stream* strm);
   /*!
    * \brief Load the instructions.
    * \param strm The input stream.

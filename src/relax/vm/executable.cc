@@ -50,21 +50,21 @@ std::string ExecutableNode::Stats() const {
 
   // Get the number of constants and the shape of each of them.
   oss << "  Constant shapes (# " << constants.size() << "): [";
-  for (const auto& it : constants) {
-    const auto constant = Downcast<runtime::NDArray>(it);
-    const auto& shape = constant.Shape();
-    // Scalar
-    if (shape.empty()) {
-      oss << "scalar, ";
-      continue;
-    }
-    oss << "[";
-    for (auto s : shape) {
-      oss << s << ", ";
-    }
-    oss.seekp(-2, oss.cur);
-    oss << "], " << std::endl;
-  }
+  // for (const auto& it : constants) {
+  //   const auto constant = Downcast<runtime::NDArray>(it);
+  //   const auto& shape = constant.Shape();
+  //   // Scalar
+  //   if (shape.empty()) {
+  //     oss << "scalar, ";
+  //     continue;
+  //   }
+  //   oss << "[";
+  //   for (auto s : shape) {
+  //     oss << s << ", ";
+  //   }
+  //   oss.seekp(-2, oss.cur);
+  //   oss << "], " << std::endl;
+  // }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
   oss << "]" << std::endl;
 
@@ -142,7 +142,7 @@ void ExecutableNode::SaveToBinary(dmlc::Stream* stream) {
   SaveGlobalSection(&strm);
 
   // Constant section.
-  SaveConstantSection(&strm);
+  // SaveConstantSection(&strm);
 
   // Packedfunc names section.
   SavePackedFuncNames(&strm);
@@ -175,7 +175,7 @@ Executable ExecutableNode::LoadFromBinary(void* stream) {
   exec->LoadGlobalSection(&strm);
 
   // Constant section.
-  exec->LoadConstantSection(&strm);
+  // exec->LoadConstantSection(&strm);
 
   // Packedfunc names section.
   exec->LoadPackedFuncNames(&strm);
@@ -218,17 +218,17 @@ void ExecutableNode::SaveGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
-  std::vector<DLTensor*> arrays;
-  for (const auto& obj : this->constants) {
-    const auto cell = Downcast<runtime::NDArray>(obj);
-    arrays.push_back(const_cast<DLTensor*>(cell.operator->()));
-  }
-  strm->Write(static_cast<uint64_t>(this->constants.size()));
-  for (const auto& it : arrays) {
-    runtime::SaveDLTensor(strm, it);
-  }
-}
+// void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
+//   std::vector<DLTensor*> arrays;
+//   for (const auto& obj : this->constants) {
+//     const auto cell = Downcast<runtime::NDArray>(obj);
+//     arrays.push_back(const_cast<DLTensor*>(cell.operator->()));
+//   }
+//   strm->Write(static_cast<uint64_t>(this->constants.size()));
+//   for (const auto& it : arrays) {
+//     runtime::SaveDLTensor(strm, it);
+//   }
+// }
 
 void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
 
@@ -250,19 +250,19 @@ void ExecutableNode::LoadGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
-  uint64_t sz;
-  // Load the number of constants.
-  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
+// void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
+//   uint64_t sz;
+//   // Load the number of constants.
+//   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
 
-  size_t size = static_cast<size_t>(sz);
-  // Load each of the constants.
-  for (size_t i = 0; i < size; i++) {
-    runtime::NDArray constant;
-    STREAM_CHECK(constant.Load(strm), "constant");
-    this->constants.push_back(constant);
-  }
-}
+//   size_t size = static_cast<size_t>(sz);
+//   // Load each of the constants.
+//   for (size_t i = 0; i < size; i++) {
+//     runtime::NDArray constant;
+//     STREAM_CHECK(constant.Load(strm), "constant");
+//     this->constants.push_back(constant);
+//   }
+// }
 
 void ExecutableNode::LoadPackedFuncNames(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->func_names)), "packed func names");
