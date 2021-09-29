@@ -77,6 +77,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitExpr_(const tir::FloorDivNode* op) override;
 
   Doc PrintIRModule(const IRModule& mod);
+  Doc PrintPrimFunc(const String& name, const tir::PrimFunc& func);
 
   Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
   Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
@@ -178,17 +179,19 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   // TODO(@altanh): how to support when func cannot be printed as Python expr?
   //                e.g. Function or If
   Doc doc;
+  std::vector<Doc> args;
 
   if (op->op.as<relax::ExternFuncNode>()) {
-    ICHECK_EQ(op->args.size(), 1) << "extern calls should only have one argument";
-    doc << "relax.call_packed(" << Print(op->op) << ", " << Print(op->args[0]);
+    doc << "relax.call_packed";
+    args.push_back(Print(op->op));
   } else {
-    std::vector<Doc> args;
-    for (const Expr& arg : op->args) {
-      args.push_back(Print(arg));
-    }
-    doc << Print(op->op) << "(" << Doc::Concat(args, Doc::Text(", "));
+    doc << Print(op->op);
   }
+
+  for (const Expr& arg : op->args) {
+    args.push_back(Print(arg));
+  }
+  doc << "(" << Doc::Concat(args, Doc::Text(", "));
 
   std::vector<Doc> attrs = PrintAttrs(op->attrs);
   if (!attrs.empty()) {
@@ -260,12 +263,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
   } else if (const relax::FunctionNode* func = op->value.as<relax::FunctionNode>()) {
     return PrintFunctionDef(Print(op->var), GetRef<relax::Function>(func));
   } else if (const tir::PrimFuncNode* prim_func = op->value.as<tir::PrimFuncNode>()) {
-    // we need the mod for TVMScriptPrinter to properly print the function name - maybe it's worth
-    // refactoring to avoid this?
-    tir::PrimFunc prim_func_ref = GetRef<tir::PrimFunc>(prim_func);
-    IRModule mod;
-    mod->Add(relay::GlobalVar(op->var->name_hint()), prim_func_ref);
-    return tir::AsTVMScriptDoc(mod, false, prim_func_ref);
+    return PrintPrimFunc(op->var->name_hint(), GetRef<tir::PrimFunc>(prim_func));
   } else {
     Doc doc;
     doc << Print(op->var) << PrintVarAnnotation(op->var);
@@ -426,9 +424,23 @@ Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
   Doc doc;
   doc << "class Module:";
   for (const std::pair<GlobalVar, BaseFunc>& pr : mod->functions) {
-    doc << Doc::Indent(4, Doc::NewLine() << Print(pr.second));
+    Doc func;
+    if (pr.second.as<tir::PrimFuncNode>()) {
+      func = PrintPrimFunc(pr.first->name_hint, Downcast<tir::PrimFunc>(pr.second));
+    } else {
+      func = Print(pr.second);
+    }
+    doc << Doc::Indent(4, Doc::NewLine() << func);
   }
   return doc;
+}
+
+Doc RelaxScriptPrinter::PrintPrimFunc(const String& name, const tir::PrimFunc& func) {
+  // we need the mod for TVMScriptPrinter to properly print the function name - maybe it's worth
+  // refactoring to avoid this?
+  IRModule mod;
+  mod->Add(relay::GlobalVar(name), func);
+  return tir::AsTVMScriptDoc(mod, false, func);
 }
 
 Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite) {

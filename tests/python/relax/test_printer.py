@@ -25,6 +25,8 @@ from tvm.ir import structural_equal, assert_structural_equal
 
 def check_roundtrip(f_pre):
     f_post = rx.parser.fromtext(rx.parser.astext(f_pre))
+    if isinstance(f_pre, tvm.IRModule):
+        f_post = f_post()
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
@@ -140,9 +142,9 @@ def test_inline_tir():
 
 def test_call_packed():
     @rx.script
-    def foo(x: Tensor[(3, 4), "float32"]):
+    def foo(x: Tensor[(3, 3), "float32"]):
         # test that we can intro dim vars
-        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", (x, x), mp=False)
+        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", x, x, mp=False)
         return z
 
     check_roundtrip(foo)
@@ -169,11 +171,27 @@ def test_call_dps_extern():
 
 def test_class_irmodule():
     @rx.script
-    class my_module:
-        def f(x: Tensor[(n, m), _]) -> Tensor:
+    class MyModule:
+        @tvm.script.tir
+        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+            A = tir.match_buffer(a, [128, 128])
+            B = tir.match_buffer(b, [128, 128])
+            C = tir.match_buffer(c, [128, 128])
+
+            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+                with tir.init():
+                    C[vi, vj] = tir.float32(0)
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        def f(x: Tensor[(n, n), _]) -> Tensor:
             return g(x)
 
-        def g(y: Tensor[(n, m), _]) -> Tensor:
-            return y
+        def g(y: Tensor[(n, n), _]) -> Tensor:
+            return relax.call_dps((n, n), my_matmul, (y, y))
 
-    check_roundtrip(my_module)
+        def h(x, y, z):
+            _ = my_matmul(x, y, z)
+            return z
+
+    mod = MyModule()
+    check_roundtrip(mod)
