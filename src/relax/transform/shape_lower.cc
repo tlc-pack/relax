@@ -25,6 +25,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include "../../printer/text_printer.h"
 
 namespace tvm {
 namespace relax {
@@ -125,7 +126,7 @@ class ShapeLowerMutator : public ExprMutator {
     for (ShapeExpr shape : shapes) {
       // call tir shape functions, result shape expr from heap
       tir::PrimFunc func = CalculateShape(shape);
-      LOG(INFO) << "Generated TIR function: \n" << func;
+      LOG(INFO) << "Generated TIR function: \n" <<  tir::AsTVMScript(func, false);
       // ib->Emit(Call(func, {shape_heap_}));
       // ret_mod_->Add(GlobalVar("shape_func" + std::to_string(shape_func_counter_++)), func);
       Array<PrimExpr> indexes;

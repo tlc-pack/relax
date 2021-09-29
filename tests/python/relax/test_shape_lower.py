@@ -17,12 +17,12 @@ print(rx.parser.astext(mod))
 new_mod = rx.transform.shape_lower(mod)
 print(rx.parser.astext(new_mod))
 
-@tvm.script.tir
-def shape_func(heap: ty.handle) -> None:
-    H = tir.match_buffer(heap, (5, ), "int64")
-    H[2] = H[0] * tir.int64(2)
-    H[3] = H[1] * tir.int64(3)
-
+# @tvm.script.tir
+# def shape_func(heap: ty.handle) -> None:
+#     H = tir.match_buffer(heap, (5, ), "int64")
+#     H[2] = H[0] * tir.int64(2)
+#     H[3] = H[1] * tir.int64(3)
+# 
 # print(shape_func)
 
 
