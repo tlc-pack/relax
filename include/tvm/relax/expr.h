@@ -34,9 +34,15 @@ namespace relax {
 using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
 using relay::Call;
+using relay::CallNode;
+using relay::ConstantNode;
 using relay::Id;
+using relay::If;
+using relay::IfNode;
 using relay::Tuple;
 using relay::TupleGetItem;
+using relay::TupleGetItemNode;
+using relay::TupleNode;
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
