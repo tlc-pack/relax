@@ -40,11 +40,11 @@ def explicit_memory_rewrite(expr):
     return _ffi_api.explicit_memory_rewrite(expr)
 
 def shape_lower(mod: IRModule) -> IRModule:
-    """Perform explicit memory allocation for call_dps in dataflow blocks.
+    """Lower the shape expression in relax to shape heap and TIR functions.
 
     Parameters
     ----------
-    expr : tvm.relay.Expr
-        The input expression.
+    expr : tvm.IRModule
+        The input module.
     """
     return _ffi_api.shape_lower(mod)
