@@ -76,6 +76,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitExpr_(const tir::DivNode* op) override;
   Doc VisitExpr_(const tir::FloorDivNode* op) override;
 
+  Doc PrintIRModule(const IRModule& mod);
+
   Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
   Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
 
@@ -135,7 +137,9 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
 };
 
 Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
-  if (node->IsInstance<TypeNode>()) {
+  if (node->IsInstance<IRModuleNode>()) {
+    return PrintIRModule(Downcast<IRModule>(node));
+  } else if (node->IsInstance<TypeNode>()) {
     return VisitType(Downcast<Type>(node));
   } else if (node->IsInstance<PrimExprNode>()) {
     return VisitExpr(Downcast<PrimExpr>(node));
@@ -418,6 +422,15 @@ Doc RelaxScriptPrinter::VisitAttr_(const tir::FloatImmNode* op) {
   return Doc::Text(std::to_string(op->value));
 }
 
+Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
+  Doc doc;
+  doc << "class Module:";
+  for (const std::pair<GlobalVar, BaseFunc>& pr : mod->functions) {
+    doc << Doc::Indent(4, Doc::NewLine() << Print(pr.second));
+  }
+  return doc;
+}
+
 Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite) {
   const relax::SeqExprNode* true_branch = ite->true_branch.as<relax::SeqExprNode>();
   const relax::SeqExprNode* false_branch = ite->false_branch.as<relax::SeqExprNode>();
@@ -518,8 +531,8 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
 }
 
 String AsRelaxScript(const ObjectRef& mod) {
-  ICHECK(mod->IsInstance<relax::FunctionNode>());
-  return "@tvm.script.relax\n" + RelaxScriptPrinter().Print(mod).str() + "\n";
+  ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
+  return "@tvm.script.relax\n" + RelaxScriptPrinter().Print(mod).str();
 }
 
 TVM_REGISTER_GLOBAL("script.AsRelaxScript").set_body_typed(AsRelaxScript);
