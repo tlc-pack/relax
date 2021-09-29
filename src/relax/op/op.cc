@@ -60,21 +60,6 @@ Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
 TVM_REGISTER_GLOBAL("relax.op.call_dps")
 .set_body_typed(MakeCallDPS);
 
-
-// // call_packed
-// RELAY_REGISTER_OP("relax.call_packed")
-// .set_num_inputs(3)
-// .add_argument("func", "Expr", "The packed function.")
-// .add_argument("args", "Tuple", "The input arguments.")
-// 
-// Expr MakeCallPacked(Expr func, Tuple args) {
-//   static const Op& op = Op::Get("relax.call_packed");
-//   return Call(op, {func, args}, {}, {});
-// }
-// 
-// TVM_REGISTER_GLOBAL("relax.op.call_packed")
-// .set_body_typed(MakeCallPacked);
-
 // shape_of
 
 RELAY_REGISTER_OP("relax.shape_of")
