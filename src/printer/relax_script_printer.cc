@@ -195,6 +195,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
 
   std::vector<Doc> attrs = PrintAttrs(op->attrs);
   if (!attrs.empty()) {
+    attrs.push_back(Doc::Text("attrs_type_key=") << Doc::StrLiteral(op->attrs->GetTypeKey()));
     doc << ", " << Doc::Concat(attrs);
   }
 
