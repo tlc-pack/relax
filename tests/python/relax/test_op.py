@@ -21,7 +21,7 @@ from tvm.script import ty
 
 @tvm.register_func("test.op.identity")
 def identity_packed(a):
-    return tvm.nd.array(a.asnumpy)
+    return tvm.nd.array(a.asnumpy())
 
 @tvm.script.tir
 def identity_tir(a: ty.handle, b: ty.handle) -> None:
