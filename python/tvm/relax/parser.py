@@ -877,6 +877,7 @@ class RelaxTransformer(Transformer):
             # TODO(@altanh): might need separate attribute parsing eventually
             kwargs[key.value] = self.transform_expr(val)
 
+        is_default = False
         if "attrs_type_key" in kwargs:
             attrs_type_key = kwargs["attrs_type_key"]
             kwargs.pop("attrs_type_key")
@@ -884,8 +885,11 @@ class RelaxTransformer(Transformer):
             attrs_type_key = op.attrs_type_key
         else:
             attrs_type_key = "DictAttrs"
+            is_default = True
 
-        attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs) if kwargs else None
+        attrs = None
+        if kwargs or not is_default:
+            attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
         return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
 
