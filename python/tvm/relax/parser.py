@@ -871,16 +871,25 @@ class RelaxTransformer(Transformer):
             self.report_error(f"unsupported function in call: {op}", expr.func_name.span)
 
         # parse call attributes if applicable
-        if isinstance(op, rx.ExternFunc) or (isinstance(op, tvm.ir.Op) and op.attrs_type_key != ""):
-            attrs_type_key = "DictAttrs" if isinstance(op, rx.ExternFunc) else op.attrs_type_key
-            kwargs = {}
-            for key, val in expr.keyword_params.items():
-                assert isinstance(key, ast.Constant) and isinstance(key.value, str)
-                # TODO(@altanh): might need separate attribute parsing eventually
-                kwargs[key.value] = self.transform_expr(val)
-            attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
+        kwargs = {}
+        for key, val in expr.keyword_params.items():
+            assert isinstance(key, ast.Constant) and isinstance(key.value, str)
+            # TODO(@altanh): might need separate attribute parsing eventually
+            kwargs[key.value] = self.transform_expr(val)
+
+        is_default = False
+        if "attrs_type_key" in kwargs:
+            attrs_type_key = kwargs["attrs_type_key"]
+            kwargs.pop("attrs_type_key")
+        elif isinstance(op, tvm.ir.Op) and op.attrs_type_key != "":
+            attrs_type_key = op.attrs_type_key
         else:
-            attrs = None
+            attrs_type_key = "DictAttrs"
+            is_default = True
+
+        attrs = None
+        if kwargs or not is_default:
+            attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
         return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
 
