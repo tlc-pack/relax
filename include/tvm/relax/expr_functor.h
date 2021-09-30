@@ -208,14 +208,14 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
-  virtual void VisitBinding(const Binding& binding);
-  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder);
-  virtual void VisitMatchShape(const MatchShape& binding, IRBuilder& ir_builder);
+  virtual void VisitBinding(const Binding& binding, IRBuilder& builder);
+  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& builder);
+  virtual void VisitMatchShape(const MatchShape& binding, IRBuilder& builder);
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
  protected:
-  LazyIRBuilder irbuilder_;
+  IRBuilder builder_;
 };
 
 /*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes
@@ -223,7 +223,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
 class DataflowMutator : public ExprMutator {
  public:
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
-  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder);
+  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& builder);
 
  protected:
   /*! \brief Look up the value binded to a var. */
