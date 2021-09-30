@@ -388,7 +388,7 @@ String ExecutableNode::AsPython() const {
           os << "    ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
              << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr)
              << "]";
-          if (instr.dst != Instruction::kVoidArg) os << ", ret=ib.r(" << instr.dst << ")";
+          if (instr.dst != Instruction::kVoidArg) os << ", dst=ib.r(" << instr.dst << ")";
           os << ")\n";
           break;
         }

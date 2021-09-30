@@ -41,7 +41,12 @@ class VMFunctionCompiler : public ExprVisitor {
 
  protected:
   void VisitExpr_(const FunctionNode* func_node) {
-    builder_->Function("main", func_node->params.size());
+    if (func_node->name.defined()) {
+      builder_->Function(func_node->name.value()->name_hint, func_node->params.size());
+    } else {
+      builder_->Function("local_func", func_node->params.size());
+    }
+    
     size_t i = 0;
     for (auto param : func_node->params) {
       auto arg_register = NewRegister();
@@ -56,7 +61,7 @@ class VMFunctionCompiler : public ExprVisitor {
     for (auto block : op->blocks) {
       this->VisitBindingBlock(block);
     }
-    // find function return Var and emit
+    // find the function return value and emit
     auto ret_reg = this->var_register_map_.find(Downcast<Var>(op->body));
     ICHECK(ret_reg != this->var_register_map_.end());
     builder_->EmitRet(ret_reg->second);
@@ -69,7 +74,8 @@ class VMFunctionCompiler : public ExprVisitor {
       String name = extern_func->global_symbol;
       if (name == "vm.builtin.alloc_storage") {
         Attrs attrs = call_node->attrs;
-        // Get the dtype hint from the attributes.
+
+        // Get dtype and device_type from the attributes.
         auto alloc_attrs = attrs.as<AllocStorageAttrs>();
         ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
         DataType dtype = alloc_attrs->dtype;
@@ -127,7 +133,7 @@ class VMFunctionCompiler : public ExprVisitor {
         this->var_register_map_.insert({var, this->registers_num_});
         builder_->EmitCall(name, args, NewRegister());
       }
-      // Normal packed function
+      // Normal packed function without attributes
       else {
         std::vector<Instruction::Arg> args_;
         for (size_t i = 0; i < call_node->args.size(); ++i) {
@@ -138,6 +144,9 @@ class VMFunctionCompiler : public ExprVisitor {
           }
         }
         builder_->EmitCall(name, args_, Instruction::kVoidArg);
+        // this->var_register_map_.insert({var, this->registers_num_});
+        // builder_->EmitCall(name, args_, NewRegister());
+        // TODO(yuchen): what if the packed func has void return (no need to write to the dst register)?
       }
     }
   }
