@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
 from tvm import tir
 from tvm import relax as rx
@@ -99,6 +100,26 @@ def test_explicit_memory_rewrite():
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
+
+@rx.script
+class Mod:
+    def foo(x: Tensor[_, "float32"]) -> Shape:
+        relax.match_shape(x.shape, (n, m))
+        return (n*2, m*3)
+
+def test_shape_lowering():
+    mod = Mod()
+    new_mod = rx.transform.shape_lower(mod)
+    assert isinstance(new_mod, tvm.IRModule)
+    assert isinstance(new_mod["shape_func0"], tvm.tir.function.PrimFunc)
+    assert isinstance(new_mod["foo"], tvm.relax.expr.Function)
+    code = rx.parser.astext(new_mod)
+    assert "alloc_shape_heap" in code
+    assert "decode_shape" in code
+    assert "construct_shape" in code
+
+
 if __name__ == "__main__":
     test_fma_rewrite()
     test_explicit_memory_rewrite()
+    test_shape_lowering()
