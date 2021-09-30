@@ -140,6 +140,9 @@ void ExprVisitor::VisitVarBinding(const VarBinding& binding) {
 
 void ExprVisitor::VisitMatchShape(const MatchShape& binding) {
   this->VisitExpr(binding->value);
+  // TODO(ziheng): should we change pattern from
+  // Array<PrimExpr> to ShapeExpr?
+  this->VisitExpr(ShapeExpr(binding->pattern));
 }
 
 void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
@@ -321,50 +324,53 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
-void ExprMutator::VisitBinding(const Binding& binding) {
+void ExprMutator::VisitBinding(const Binding& binding, IRBuilder& builder) {
   Binding new_binding;
   if (binding.as<VarBindingNode>()) {
-    this->VisitVarBinding(Downcast<VarBinding>(binding), this->irbuilder_);
+    this->VisitVarBinding(Downcast<VarBinding>(binding), builder);
   } else if (binding.as<MatchShapeNode>()) {
-    this->VisitMatchShape(Downcast<MatchShape>(binding), this->irbuilder_);
+    this->VisitMatchShape(Downcast<MatchShape>(binding), builder);
   } else {
     LOG(FATAL) << "Wrong type.";
   }
 }
 
-Var ExprMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) {
+Var ExprMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& builder) {
   Expr new_value = this->Mutate(binding->value);
   if (!binding->var.as<DataflowVarNode>()) {
-    return ir_builder->EmitOutput(new_value);
+    return builder->EmitOutput(new_value);
   } else {
-    return ir_builder->Emit(Downcast<Call>(new_value));
+    return builder->Emit(Downcast<Call>(new_value));
   }
 }
 
-void ExprMutator::VisitMatchShape(const MatchShape& binding, IRBuilder& ir_builder) {
+void ExprMutator::VisitMatchShape(const MatchShape& binding, IRBuilder& builder) {
   this->Mutate(binding->value);
+  this->Mutate(ShapeExpr(binding->pattern));
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
   if (block.as<DataflowBlockNode>()) {
     return this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
   } else{
-    // TODO
-    return block;
+    this->builder_ = IRBuilderNode::Create();
+    for (auto binding : block->bindings) {
+      this->VisitBinding(binding, this->builder_);
+    }
+    auto blocks = this->builder_->GetBlocks();
+    return blocks.back();
   }
 }
 
 BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  this->irbuilder_ = LazyIRBuilderNode::Create(block);
+  this->builder_ = LazyIRBuilderNode::Create(block);
   {
-    With<DataflowScope> scope(this->irbuilder_);
+    With<DataflowScope> scope(this->builder_);
     for (auto binding : block->bindings) {
-      if (binding.as<VarBindingNode>()) {
-        this->VisitVarBinding(Downcast<VarBinding>(binding), this->irbuilder_);
-      }
+      this->VisitBinding(binding, this->builder_);
     }
   }
-  return this->irbuilder_->GetBlocks().back();
+  return this->builder_->GetBlocks().back();
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
@@ -377,27 +383,27 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 // DataflowMutator
 
 BindingBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  this->irbuilder_ = LazyIRBuilderNode::Create(block);
+  this->builder_ = LazyIRBuilderNode::Create(block);
   {
-    With<DataflowScope> scope(this->irbuilder_);
+    With<DataflowScope> scope(this->builder_);
     for (auto binding : block->bindings) {
       if (auto* var_binding = binding.as<VarBindingNode>()) {
-        Var var = this->VisitVarBinding(Downcast<VarBinding>(binding), this->irbuilder_);
+        Var var = this->VisitVarBinding(Downcast<VarBinding>(binding), this->builder_);
         this->pre_post_var_map_[var_binding->var] = var;
       }
     }
   }
-  return this->irbuilder_->GetBlocks().back();
+  return this->builder_->GetBlocks().back();
 }
 
-Var DataflowMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) {
+Var DataflowMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& builder) {
   Expr new_value = this->Mutate(binding->value);
   Var new_var;
   if (new_value.as<CallNode>()) {
-    new_var = ir_builder->Emit(Downcast<Call>(new_value));
+    new_var = builder->Emit(Downcast<Call>(new_value));
   }
   if (!binding->var.as<DataflowVarNode>()) {
-    new_var = ir_builder->EmitOutput(new_value);
+    new_var = builder->EmitOutput(new_value);
   }
   pre_post_var_map_[binding->var] = new_var;
   return new_var;
@@ -406,9 +412,9 @@ Var DataflowMutator::VisitVarBinding(const VarBinding& binding, IRBuilder& ir_bu
 Expr DataflowMutator::LookupVar(Var var) {
   auto it = pre_post_var_map_.find(var);
   if (it != pre_post_var_map_.end()) {
-    return irbuilder_->LookupVar(it->first);
+    return builder_->LookupVar(it->first);
   } else {
-    return irbuilder_->LookupVar(var);
+    return builder_->LookupVar(var);
   }
 }
 }  // namespace relax
