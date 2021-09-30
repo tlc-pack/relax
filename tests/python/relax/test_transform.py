@@ -120,6 +120,6 @@ def test_shape_lowering():
 
 
 if __name__ == "__main__":
-    # test_fma_rewrite()
-    # test_explicit_memory_rewrite()
+    test_fma_rewrite()
+    test_explicit_memory_rewrite()
     test_shape_lowering()
