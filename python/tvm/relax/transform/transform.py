@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
+from tvm import IRModule 
 from . import _ffi_api
 
 def fma_rewrite(expr):
@@ -37,3 +38,13 @@ def explicit_memory_rewrite(expr):
         The input expression.
     """
     return _ffi_api.explicit_memory_rewrite(expr)
+
+def shape_lower(mod: IRModule) -> IRModule:
+    """Lower the shape expression in relax to shape heap and TIR functions.
+
+    Parameters
+    ----------
+    expr : tvm.IRModule
+        The input module.
+    """
+    return _ffi_api.shape_lower(mod)
