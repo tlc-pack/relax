@@ -57,7 +57,8 @@ Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
   return Call(op, {shape, func, args}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_dps").set_body_typed(MakeCallDPS);
+TVM_REGISTER_GLOBAL("relax.op.call_dps")
+.set_body_typed(MakeCallDPS);
 
 // shape_of
 
