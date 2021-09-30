@@ -435,16 +435,21 @@ def test_call_packed():
     def f(x: Tensor[(3, 3), "float32"]):
         # test that we can intro dim vars
         z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", x, x, mp=False)
+        w = relax.call_packed(
+            "contrib.my_shape_of", x, dtype="int32", attrs_type_key="relay.attrs.ShapeOfAttrs"
+        )
         return z
 
     x = f.params[0]
-    (z_bind,) = f.body.blocks[0].bindings
+    (z_bind, w_bind) = f.body.blocks[0].bindings
     check_tensor_var(z_bind.var, ("n", "m"), "float32")
 
     assert isinstance(z_bind.value.op, rx.ExternFunc)
     assert z_bind.value.op.global_symbol == "contrib.my_matmul"
     assert "mp" in z_bind.value.attrs and z_bind.value.attrs["mp"] == False
     assert structural_equal(z_bind.value.args, [x, x])
+
+    assert isinstance(w_bind.value.attrs, relay.op.op_attrs.ShapeOfAttrs)
 
 
 def test_primexpr_arithmetic():
