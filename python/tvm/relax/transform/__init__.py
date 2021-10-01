@@ -18,4 +18,3 @@
 """Relax IR analysis. """
 
 from .transform import *
-from .compile import *

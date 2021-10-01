@@ -35,33 +35,28 @@ using namespace relax;
 
 class VMFunctionCompiler : public ExprVisitor {
  public:
-  VMFunctionCompiler() { builder_ = ExecBuilderNode::Create(); }
-
-  Executable Get() { return builder_->Get(); }
+  VMFunctionCompiler(ExecBuilder& builder) { builder_ = builder; }
 
  protected:
   void VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {
       builder_->Function(func_node->name.value()->name_hint, func_node->params.size());
-    } else {
-      builder_->Function("local_func", func_node->params.size());
+      size_t i = 0;
+      for (auto param : func_node->params) {
+        auto arg_register = NewRegister();
+        ICHECK_EQ(i, arg_register);
+        var_register_map_.insert({param, arg_register});
+        ++i;
+      }
+      ExprVisitor::VisitExpr_(func_node);
     }
-    
-    size_t i = 0;
-    for (auto param : func_node->params) {
-      auto arg_register = NewRegister();
-      ICHECK_EQ(i, arg_register);
-      var_register_map_.insert({param, arg_register});
-      ++i;
-    }
-    ExprVisitor::VisitExpr_(func_node);
   }
 
   void VisitExpr_(const SeqExprNode* op) {
     for (auto block : op->blocks) {
       this->VisitBindingBlock(block);
     }
-    // find the function return value and emit
+    // find the function return value and emit the output
     auto ret_reg = this->var_register_map_.find(Downcast<Var>(op->body));
     ICHECK(ret_reg != this->var_register_map_.end());
     builder_->EmitRet(ret_reg->second);
@@ -90,7 +85,7 @@ class VMFunctionCompiler : public ExprVisitor {
             Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(alignment)->value));
         args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
 
-        // store dtype in constant pool 
+        // store dtype in constant pool
         TVMRetValue data_type;
         data_type = dtype;
         Index index = builder_->EmitConstant(data_type);
@@ -112,13 +107,13 @@ class VMFunctionCompiler : public ExprVisitor {
         PrimExpr offset = Downcast<ShapeExpr>(call_node->args[1])->values[0];
         args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(offset)->value));
 
-        // store dtype in constant pool 
+        // store dtype in constant pool
         TVMRetValue data_type;
         data_type = dtype;
         Index index = builder_->EmitConstant(data_type);
         args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-        // store shape in constant pool 
+        // store shape in constant pool
         std::vector<int64_t> shape;
         auto shape_expr = Downcast<ShapeExpr>(call_node->args[2])->values;
         for (PrimExpr i : shape_expr) {
@@ -143,10 +138,10 @@ class VMFunctionCompiler : public ExprVisitor {
             args_.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
           }
         }
-        builder_->EmitCall(name, args_, Instruction::kVoidArg);
-        // this->var_register_map_.insert({var, this->registers_num_});
-        // builder_->EmitCall(name, args_, NewRegister());
-        // TODO(yuchen): what if the packed func has void return (no need to write to the dst register)?
+        // TODO(yuchen): what if the packed func has void return (no need to write to the dst
+        // register)?
+        this->var_register_map_.insert({var, this->registers_num_});
+        builder_->EmitCall(name, args_, NewRegister());
       }
     }
   }
@@ -161,15 +156,44 @@ class VMFunctionCompiler : public ExprVisitor {
   std::unordered_map<Var, RegName, ObjectPtrHash, ObjectPtrEqual> var_register_map_;
 };
 
-Executable Compile(const relay::Expr& e) {
-  auto compiler = VMFunctionCompiler();
-  compiler.VisitExpr(e);
-  return compiler.Get();
+PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  if (name == "compile") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_EQ(args.num_args, 1);
+      IRModule mod = args[0];
+      this->Compile(mod);
+    });
+  } else if (name == "get_executable") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = builder_->Get(); });
+  } else {
+    LOG(FATAL) << "Unknown packed function: " << name;
+    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+  }
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.compile").set_body_typed([](relay::Expr expr) {
-  return Compile(expr);
-});
+void VMCompiler::Compile(IRModule mod) {
+  for (auto& func : mod->functions) {
+    auto gvar = func.first;
+    if (!func.second->IsInstance<FunctionNode>()) {
+      continue;
+    }
+
+    VMFunctionCompiler func_compiler();
+    if (auto* n = func.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(n);
+      auto func_compiler = VMFunctionCompiler(builder_);
+      func_compiler.VisitExpr(func);
+    }
+  }
+}
+
+runtime::Module CreateVMCompiler() {
+  auto compiler = make_object<VMCompiler>();
+  return runtime::Module(compiler);
+}
+
+TVM_REGISTER_GLOBAL("relax.VMCompiler").set_body_typed([]() { return CreateVMCompiler(); });
 
 }  // namespace relax_vm
 }  // namespace runtime

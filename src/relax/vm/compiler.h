@@ -19,49 +19,35 @@
 
 /*!
  * \file src/relax/vm/compiler.h
- * \brief A compiler from relay::Module to the VM byte code.
+ * \brief A compiler to compile a relay::Module to the VM executable.
  */
 
 #ifndef TVM_RELAX_VM_COMPILER_H_
 #define TVM_RELAX_VM_COMPILER_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/relax/vm/exec_builder.h>
 #include <tvm/relax/vm/executable.h>
-#include <tvm/relax/vm/memory_manager.h>
-#include <tvm/relax/vm/vm.h>
 
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-struct VMCompilerContext {};
-
 class VMCompiler : public runtime::ModuleNode {
  public:
   virtual ~VMCompiler() {}
 
+  void Compile(IRModule mod);
+
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
-  const char* type_key() const { return "VMCompiler"; }
-
-  void SetParam(const std::string& name, runtime::NDArray data_in);
-
-  void Lower();
+  const char* type_key() const { return "relax.VMCompiler"; }
 
  protected:
-  /*!
-   * \brief Populate the global function names in a map where the value is used
-   *        as the index by the VMFunctions.
-   */
-  void PopulateGlobalMap();
-
- protected:
-  /*! \brief Global shared meta data */
-  VMCompilerContext context_;
-  /*! \brief Compiled executable. */
-  ObjectPtr<Executable> exec_;
-  /*! \brief parameters */
-  std::unordered_map<std::string, runtime::NDArray> params_;
+  // /*! \brief Compiled executable. */
+  // ObjectPtr<Executable> exec_;
+  /*! \brief Internal executable builder. */
+  relax::ExecBuilder builder_ = relax::ExecBuilderNode::Create();
 };
 
 }  // namespace relax_vm

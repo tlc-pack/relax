@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm.relay import Call
 from tvm import relax as rx
 from tvm.runtime import container
 
@@ -33,6 +34,10 @@ def add(a, b):
 def mul(a, b):
     ret = a.asnumpy() * b.asnumpy()
     return tvm.nd.array(ret)
+
+@tvm.register_func("test.vm.identity")
+def identity_packed(a, b):
+    b[:] = tvm.nd.array(a.asnumpy())
 
 def test_vm_execute():
     ib = rx.ExecBuilder()
@@ -177,6 +182,34 @@ def test_vm_storage():
     assert res.device == tvm.cpu()
     assert res.shape == shape
 
+def test_vm_compile():
+    shape_anno = [3, 4]
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", shape_anno, type_anno)
+    ib = rx.IRBuilder()
+    dtype = tvm.DataType('float32')
+    storage_attr = tvm.ir.attrs.make_node(
+        "relax.attrs.AllocStorageAttrs", device_id=0, device_type=1
+    )
+    tensor_attr = tvm.ir.attrs.make_node("relax.attrs.AllocTensorAttrs",)
+
+    # Construct the lowest-level Relax program
+    with ib.function(x, "foo"):
+        gv0 = ib.emit(Call(rx.ExternFunc("vm.builtin.alloc_storage"),[rx.ShapeExpr([12]), rx.ShapeExpr([64])], storage_attr))
+        gv1 = ib.emit(Call(rx.ExternFunc("vm.builtin.alloc_tensor"),[gv0, rx.ShapeExpr([0]), rx.ShapeExpr([3, 4])], tensor_attr))
+        ib.emit(Call(rx.ExternFunc("test.vm.identity"), [x, gv1]))
+        ib.emit_output(gv1)
+    expr = ib.get()
+    mod = tvm.IRModule.from_expr(expr)
+
+    # compile the module to VM executable
+    exec = rx.vm_compiler.compile(mod)  
+
+    input = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
+    vm = rx.VirtualMachine(exec, tvm.cpu())
+    res = vm["foo"](input)
+    np.testing.assert_allclose(input.asnumpy(), res.asnumpy())
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -187,3 +220,4 @@ if __name__ == "__main__":
     test_vm_shapeof()
     test_vm_heap()
     test_vm_storage()
+    test_vm_compile()
