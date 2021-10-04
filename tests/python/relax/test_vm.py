@@ -82,6 +82,26 @@ def test_vm_serialize():
     exec1 = rx.load_exec_from_file("exec.bin")
     assert exec0.astext() == exec1.astext()
 
+def test_vm_constant_serialize():
+    dtype = tvm.DataType('float32')
+    shape = (3, 4)
+    shape_tuple = container.ShapeTuple(shape)
+    input = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
+    ib = rx.ExecBuilder()
+    with ib.function("main", num_inputs=1):
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), ib.imm(24), ib.imm(64), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), dtype, ib.r(0)], dst=ib.r(2))
+        ib.emit_call("test.vm.identity", args=[input, ib.r(2)])
+        ib.emit_ret(ib.r(2))
+    exec0 = ib.get()
+    print(exec0.stats())
+    exec0.save_to_file("exec.bin")
+    exec1 = rx.load_exec_from_file("exec.bin")
+    assert exec0.astext() == exec1.astext()
+    vm = rx.VirtualMachine(exec1, tvm.cpu())
+    res = vm["main"](shape_tuple)
+    np.testing.assert_allclose(input.asnumpy(), res.asnumpy())
+
 def test_vm_checker():
     ib = rx.ExecBuilder()
     try:
@@ -187,7 +207,6 @@ def test_vm_compile():
     type_anno = rx.DynTensorType(2, "float32")
     x = rx.Var("x", shape_anno, type_anno)
     ib = rx.IRBuilder()
-    dtype = tvm.DataType('float32')
     storage_attr = tvm.ir.attrs.make_node(
         "relax.attrs.AllocStorageAttrs", device_id=0, device_type=1
     )
@@ -217,6 +236,7 @@ if __name__ == "__main__":
     test_vm_formalize()
     test_vm_operand()
     test_vm_serialize()
+    test_vm_constant_serialize()
     test_vm_shapeof()
     test_vm_heap()
     test_vm_storage()

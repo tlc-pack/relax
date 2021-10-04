@@ -38,6 +38,12 @@ namespace relax_vm {
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 
+/*! \brief Possible types in the constant pool */
+enum ConstantType : int {
+  kNDArray = 0,
+  kDLDataType = 1,
+};
+
 #define STREAM_CHECK(val, section)                                          \
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
@@ -48,23 +54,36 @@ std::string ExecutableNode::Stats() const {
   std::ostringstream oss;
   oss << "Relax VM executable statistics:" << std::endl;
 
-  // Get the number of constants and the shape of each of them.
-  oss << "  Constant shapes (# " << constants.size() << "): [";
-  // for (const auto& it : constants) {
-  //   const auto constant = Downcast<runtime::NDArray>(it);
-  //   const auto& shape = constant.Shape();
-  //   // Scalar
-  //   if (shape.empty()) {
-  //     oss << "scalar, ";
-  //     continue;
-  //   }
-  //   oss << "[";
-  //   for (auto s : shape) {
-  //     oss << s << ", ";
-  //   }
-  //   oss.seekp(-2, oss.cur);
-  //   oss << "], " << std::endl;
-  // }
+  // Get the number of constants.
+  // If the constant is an NDArray, get the shape of each of them.
+  // If the constant is an DLDataType, get the data type of each of them.
+  oss << "  Constant pool (# " << constants.size() << "): [";
+  for (const auto& it : constants) {
+    if (it.IsObjectRef<runtime::NDArray>()) {
+      const auto ndarray = it.operator tvm::runtime::NDArray();
+      const auto& shape = ndarray.Shape();
+      // Scalar
+      if (shape.empty()) {
+        oss << "scalar, ";
+        continue;
+      }
+      oss << "[";
+      for (auto s : shape) {
+        oss << s << ", ";
+      }
+      oss.seekp(-2, oss.cur);
+      oss << "], ";
+    } else {
+      try {
+        DLDataType dtype = it.operator DLDataType();
+        oss << dtype;
+        oss << ", ";
+      } catch (std::exception& exc) {
+        LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
+                   << ArgTypeCode2Str(it.type_code());
+      }
+    }
+  }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
   oss << "]" << std::endl;
 
@@ -142,7 +161,7 @@ void ExecutableNode::SaveToBinary(dmlc::Stream* stream) {
   SaveGlobalSection(&strm);
 
   // Constant section.
-  // SaveConstantSection(&strm);
+  SaveConstantSection(&strm);
 
   // Packedfunc names section.
   SavePackedFuncNames(&strm);
@@ -175,7 +194,7 @@ Executable ExecutableNode::LoadFromBinary(void* stream) {
   exec->LoadGlobalSection(&strm);
 
   // Constant section.
-  // exec->LoadConstantSection(&strm);
+  exec->LoadConstantSection(&strm);
 
   // Packedfunc names section.
   exec->LoadPackedFuncNames(&strm);
@@ -218,17 +237,24 @@ void ExecutableNode::SaveGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-// void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
-//   std::vector<DLTensor*> arrays;
-//   for (const auto& obj : this->constants) {
-//     const auto cell = Downcast<runtime::NDArray>(obj);
-//     arrays.push_back(const_cast<DLTensor*>(cell.operator->()));
-//   }
-//   strm->Write(static_cast<uint64_t>(this->constants.size()));
-//   for (const auto& it : arrays) {
-//     runtime::SaveDLTensor(strm, it);
-//   }
-// }
+void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
+  strm->Write(static_cast<uint64_t>(this->constants.size()));
+  std::vector<DLTensor*> arrays;
+  for (const auto& it : this->constants) {
+    if (it.IsObjectRef<runtime::NDArray>()) {
+      strm->Write(ConstantType::kNDArray);
+      runtime::SaveDLTensor(strm, it.operator DLTensor*());
+    } else {
+      try {
+        strm->Write(ConstantType::kDLDataType);
+        strm->Write(it.operator DLDataType());
+      } catch (std::exception& exc) {
+        LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
+                   << ArgTypeCode2Str(it.type_code());
+      }
+    }
+  }
+}
 
 void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
 
@@ -250,19 +276,34 @@ void ExecutableNode::LoadGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-// void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
-//   uint64_t sz;
-//   // Load the number of constants.
-//   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
+void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
+  uint64_t sz;
+  // Load the number of constants.
+  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
 
-//   size_t size = static_cast<size_t>(sz);
-//   // Load each of the constants.
-//   for (size_t i = 0; i < size; i++) {
-//     runtime::NDArray constant;
-//     STREAM_CHECK(constant.Load(strm), "constant");
-//     this->constants.push_back(constant);
-//   }
-// }
+  size_t size = static_cast<size_t>(sz);
+  runtime::NDArray ndarray;
+  DLDataType dtype;
+  // Load each of the constants.
+  for (size_t i = 0; i < size; i++) {
+    int constant_type;
+    STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
+    if (constant_type == ConstantType::kNDArray) {
+      ndarray.Load(strm);
+      TVMRetValue cell;
+      cell = ndarray;
+      this->constants.push_back(cell);
+    } else if (constant_type == ConstantType::kDLDataType) {
+      strm->Read(&dtype);
+      TVMRetValue cell;
+      cell = dtype;
+      this->constants.push_back(cell);
+    } else {
+      LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
+                 << ArgTypeCode2Str(constant_type) << " when loading the VM constant pool.";
+    }
+  }
+}
 
 void ExecutableNode::LoadPackedFuncNames(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->func_names)), "packed func names");

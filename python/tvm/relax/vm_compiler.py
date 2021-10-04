@@ -18,11 +18,11 @@
 """
 The Relax Virtual Machine compiler.
 """
-
+from typing import List, Optional, Union, Dict
 import tvm
-from . import _ffi_api
+from . import vm, _ffi_api
 
-def compile(mod):
+def compile(mod: tvm.IRModule) -> vm.Executable:
     """Compile the module to VM executable. A helper function for VMCompiler.
 
     Parameters
@@ -47,7 +47,7 @@ class VMCompiler(object):
         self._compile = self.mod["compile"]
         self._get_exec = self.mod["get_executable"]
 
-    def compile(self, mod):
+    def compile(self, mod: tvm.IRModule):
         """Compile the module to VM executable.
 
         Parameters
@@ -57,7 +57,7 @@ class VMCompiler(object):
         """
         self._compile(mod)
 
-    def get_exec(self):
+    def get_exec(self) -> vm.Executable:
         """Get the VM executable.
 
         Returns
