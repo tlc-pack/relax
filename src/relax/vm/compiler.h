@@ -35,8 +35,10 @@ namespace relax_vm {
 
 class VMCompiler : public runtime::ModuleNode {
  public:
-  virtual ~VMCompiler() {}
-
+  /*!
+   * \brief Compile the functions in a Module.
+   * \param mod Input IRModule to be compiled.
+   */
   void Compile(IRModule mod);
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
@@ -44,8 +46,6 @@ class VMCompiler : public runtime::ModuleNode {
   const char* type_key() const { return "relax.VMCompiler"; }
 
  protected:
-  // /*! \brief Compiled executable. */
-  // ObjectPtr<Executable> exec_;
   /*! \brief Internal executable builder. */
   relax::ExecBuilder builder_ = relax::ExecBuilderNode::Create();
 };

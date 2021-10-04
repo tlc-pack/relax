@@ -52,7 +52,7 @@ class ExecBuilderNode : public Object {
    * \param func The function name.
    * \param num_inputs The number of inputs.
    */
-  void Function(std::string func, int64_t num_inputs);
+  void EmitFunction(std::string func, int64_t num_inputs);
   /*!
    * \brief Emit a call instruction for a packed function.
    * \param func The packed function name.

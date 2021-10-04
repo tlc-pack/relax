@@ -94,7 +94,6 @@ def test_vm_constant_serialize():
         ib.emit_call("test.vm.identity", args=[input, ib.r(2)])
         ib.emit_ret(ib.r(2))
     exec0 = ib.get()
-    print(exec0.stats())
     exec0.save_to_file("exec.bin")
     exec1 = rx.load_exec_from_file("exec.bin")
     assert exec0.astext() == exec1.astext()
