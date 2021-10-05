@@ -40,7 +40,7 @@ using namespace relax;
 class VMFunctionCompiler : public ExprVisitor {
  public:
   explicit VMFunctionCompiler(ExecBuilderNode* builder) { builder_ = GetRef<ExecBuilder>(builder); }
-  // explicit VMFunctionCompiler(const ExecBuilder& builder) { builder_ = builder; }
+
  protected:
   /*! \brief A counter for naming local functions. */
   int local_func_counter_ = 0;
@@ -85,17 +85,17 @@ class VMFunctionCompiler : public ExprVisitor {
         EmitAllocTensor(call_node, var);
       } else {
         // Normal packed function without attributes
-        std::vector<Instruction::Arg> args_;
+        std::vector<Instruction::Arg> args;
         for (size_t i = 0; i < call_node->args.size(); ++i) {
           if (call_node->args[i].as<VarNode>()) {
             auto reg = this->var_register_map_.find(Downcast<Var>(call_node->args[i]));
             ICHECK(reg != this->var_register_map_.end());
-            args_.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
+            args.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
           }
         }
         // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
         // register)?
-        builder_->EmitCall(name, args_, NewRegister(var));
+        builder_->EmitCall(name, args, NewRegister(var));
       }
     } else {
       LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
