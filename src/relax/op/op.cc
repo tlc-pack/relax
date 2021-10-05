@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
-#include <tvm/relax/attrs/memory.h>
 
 #include "op_common.h"
 

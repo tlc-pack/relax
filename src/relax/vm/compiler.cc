@@ -27,6 +27,10 @@
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
@@ -35,27 +39,26 @@ using namespace relax;
 
 class VMFunctionCompiler : public ExprVisitor {
  public:
-  VMFunctionCompiler(ExecBuilder& builder) { builder_ = builder; }
-
+  explicit VMFunctionCompiler(ExecBuilderNode* builder) { builder_ = GetRef<ExecBuilder>(builder); }
+  // explicit VMFunctionCompiler(const ExecBuilder& builder) { builder_ = builder; }
  protected:
   /*! \brief A counter for naming local functions. */
   int local_func_counter_ = 0;
 
+  // TODO(@yuchen): support visiting other IR nodes
   void VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {
       builder_->EmitFunction(func_node->name.value()->name_hint, func_node->params.size());
     } else {
       // TODO(@yuchen): handle local functions that capture local vars outside the func
+      // TODO(@yuchen): a renaming pass to resolve name conflicts, e.g. the input module has a
+      // function named "local_funcN"
       // lift the local func to a global func and compile it normally
       builder_->EmitFunction("local_func" + std::to_string(local_func_counter_++),
                              func_node->params.size());
     }
-    size_t i = 0;
     for (auto param : func_node->params) {
-      auto arg_register = NewRegister();
-      ICHECK_EQ(i, arg_register);
-      var_register_map_.insert({param, arg_register});
-      ++i;
+      NewRegister(param);
     }
     ExprVisitor::VisitExpr_(func_node);
   }
@@ -80,9 +83,8 @@ class VMFunctionCompiler : public ExprVisitor {
         EmitAllocStorage(call_node, var);
       } else if (name == "vm.builtin.alloc_tensor") {
         EmitAllocTensor(call_node, var);
-      }
-      // Normal packed function without attributes
-      else {
+      } else {
+        // Normal packed function without attributes
         std::vector<Instruction::Arg> args_;
         for (size_t i = 0; i < call_node->args.size(); ++i) {
           if (call_node->args[i].as<VarNode>()) {
@@ -93,15 +95,17 @@ class VMFunctionCompiler : public ExprVisitor {
         }
         // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
         // register)?
-        this->var_register_map_.insert({var, this->registers_num_});
-        builder_->EmitCall(name, args_, NewRegister());
+        builder_->EmitCall(name, args_, NewRegister(var));
       }
+    } else {
+      LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
     }
   }
 
   void EmitAllocStorage(const Call& call_node, const Var& var) {
     Attrs attrs = call_node->attrs;
 
+    // TODO(@yuchen): a generic way to lower attributes for extern calls
     // Get dtype and device_type from the attributes.
     auto alloc_attrs = attrs.as<AllocStorageAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
@@ -122,8 +126,7 @@ class VMFunctionCompiler : public ExprVisitor {
     Index index = this->builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    this->var_register_map_.insert({var, this->registers_num_});
-    builder_->EmitCall("vm.builtin.alloc_storage", args, NewRegister());
+    builder_->EmitCall("vm.builtin.alloc_storage", args, NewRegister(var));
   }
 
   void EmitAllocTensor(const Call& call_node, const Var& var) {
@@ -148,6 +151,7 @@ class VMFunctionCompiler : public ExprVisitor {
     Index index = builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
+    // TODO(@yuchen, @ziheng): support symbolic shape when connecting with shape lowering
     // store shape in constant pool
     std::vector<int64_t> shape;
     auto shape_expr = Downcast<ShapeExpr>(call_node->args[2])->values;
@@ -160,11 +164,14 @@ class VMFunctionCompiler : public ExprVisitor {
     index = builder_->EmitConstant(shape_tuple_value);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    this->var_register_map_.insert({var, this->registers_num_});
-    builder_->EmitCall("vm.builtin.alloc_tensor", args, NewRegister());
+    builder_->EmitCall("vm.builtin.alloc_tensor", args, NewRegister(var));
   }
 
-  size_t NewRegister() { return registers_num_++; }
+  size_t NewRegister(Var var) {
+    size_t reg = this->registers_num_++;
+    this->var_register_map_.insert({var, reg});
+    return reg;
+  }
 
   /*! \brief Internal ExecBuilder. */
   relax::ExecBuilder builder_;
@@ -190,6 +197,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
 }
 
 void VMCompiler::Compile(IRModule mod) {
+  // TODO(@yuchen, @ziheng): support lowering PrimFuncs
   for (auto& func : mod->functions) {
     auto gvar = func.first;
     if (!func.second->IsInstance<FunctionNode>()) {
@@ -199,7 +207,7 @@ void VMCompiler::Compile(IRModule mod) {
     VMFunctionCompiler func_compiler();
     if (auto* n = func.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(n);
-      auto func_compiler = VMFunctionCompiler(builder_);
+      auto func_compiler = VMFunctionCompiler(builder_.operator->());
       func_compiler.VisitExpr(func);
     }
   }

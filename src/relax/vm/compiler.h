@@ -29,6 +29,8 @@
 #include <tvm/relax/vm/exec_builder.h>
 #include <tvm/relax/vm/executable.h>
 
+#include <string>
+
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
