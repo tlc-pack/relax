@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
 
@@ -23,6 +24,9 @@
 
 namespace tvm {
 namespace relax {
+
+TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
+TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {

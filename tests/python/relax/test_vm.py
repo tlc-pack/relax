@@ -14,8 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations  # must import to defer parsing of annotations
 import numpy as np
 import tvm
+from tvm.relay import Call
 from tvm import relax as rx
 from tvm.runtime import container
 
@@ -33,6 +35,10 @@ def add(a, b):
 def mul(a, b):
     ret = a.asnumpy() * b.asnumpy()
     return tvm.nd.array(ret)
+
+@tvm.register_func("test.vm.identity")
+def identity_packed(a, b):
+    b[:] = tvm.nd.array(a.asnumpy())
 
 def test_vm_execute():
     ib = rx.ExecBuilder()
@@ -76,6 +82,25 @@ def test_vm_serialize():
     exec0.save_to_file("exec.bin")
     exec1 = rx.load_exec_from_file("exec.bin")
     assert exec0.astext() == exec1.astext()
+
+def test_vm_constant_serialize():
+    dtype = tvm.DataType('float32')
+    shape = (3, 4)
+    shape_tuple = container.ShapeTuple(shape)
+    input = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
+    ib = rx.ExecBuilder()
+    with ib.function("main", num_inputs=1):
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), ib.imm(24), ib.imm(64), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), dtype, ib.r(0)], dst=ib.r(2))
+        ib.emit_call("test.vm.identity", args=[input, ib.r(2)])
+        ib.emit_ret(ib.r(2))
+    exec0 = ib.get()
+    exec0.save_to_file("exec.bin")
+    exec1 = rx.load_exec_from_file("exec.bin")
+    assert exec0.astext() == exec1.astext()
+    vm = rx.VirtualMachine(exec1, tvm.cpu())
+    res = vm["main"](shape_tuple)
+    np.testing.assert_allclose(input.asnumpy(), res.asnumpy())
 
 def test_vm_checker():
     ib = rx.ExecBuilder()
@@ -177,6 +202,22 @@ def test_vm_storage():
     assert res.device == tvm.cpu()
     assert res.shape == shape
 
+def test_vm_compile():
+    @rx.script
+    class Mod:
+        def foo(x: Tensor[(3, 4), "float32"]):
+            y = relax.call_packed("vm.builtin.alloc_storage", (12,), (64,), device_id=0, device_type=1, attrs_type_key="relax.attrs.AllocStorageAttrs")
+            z = relax.call_packed("vm.builtin.alloc_tensor", y, (0,), (3, 4), attrs_type_key="relax.attrs.AllocTensorAttrs")
+            w = relax.call_packed("test.vm.identity", x, z)
+            return z
+
+    mod = Mod()
+    exec = rx.vm_compiler.compile(mod)  
+    input = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
+    vm = rx.VirtualMachine(exec, tvm.cpu())
+    res = vm["foo"](input)
+    np.testing.assert_allclose(input.asnumpy(), res.asnumpy())
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -184,6 +225,8 @@ if __name__ == "__main__":
     test_vm_formalize()
     test_vm_operand()
     test_vm_serialize()
+    test_vm_constant_serialize()
     test_vm_shapeof()
     test_vm_heap()
     test_vm_storage()
+    test_vm_compile()

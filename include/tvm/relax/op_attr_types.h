@@ -43,7 +43,8 @@ using relay::Call;
  * \param diag_ctx The diagnostic context for reporting errors.
  * \return The inferred output shape expression.
  */
-using FInferShape = runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call, DiagnosticContext diag_ctx)>;
+using FInferShape =
+    runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call, DiagnosticContext diag_ctx)>;
 
 /*!
  * \brief Infer the output type for operators. This function will
