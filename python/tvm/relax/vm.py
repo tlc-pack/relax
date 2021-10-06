@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import List, Optional, Union, Dict
 import tvm
-from tvm.runtime import Object
+from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
@@ -25,35 +26,45 @@ from ..rpc.base import RPC_SESS_MASK
 @tvm._ffi.register_object("relax.Executable")
 class Executable(Object):
     """The executable object emitted by the VM compiler or the ExecBuilder."""
+
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Executable)
 
-    def stats(self):
+    def stats(self) -> str:
         """print the detailed statistics of the executable."""
         return _ffi_api.ExecutableStats(self)
 
-    def save_to_file(self, file_name):
+    def save_to_file(self, file_name: str) -> None:
         """serialize and write the executable to a file."""
-        return _ffi_api.ExecutableSaveToFile(self, file_name)
+        _ffi_api.ExecutableSaveToFile(self, file_name)
 
-    def astext(self):
+    def astext(self) -> str:
         """print the instructions as text format."""
         return _ffi_api.ExecutableAsText(self)
-    
-    def aspython(self):
+
+    def aspython(self) -> str:
         """print the instructions as python program."""
         return _ffi_api.ExecutableAsPython(self)
 
-def load_exec_from_file(file_name):
+
+def load_exec_from_file(file_name: str) -> Executable:
     return _ffi_api.ExecutableLoadFromFile(file_name)
+
 
 class VirtualMachine(object):
     """Relax VM runtime."""
 
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
-    
-    def __init__(self, exec, device, memory_cfg=None, mod=None):
+
+    def __init__(
+        self,
+        exec: Executable,
+        device: Union[Device, List[Device]],
+        memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
+        mod: Optional[Module] = None,
+    ) -> None:
+
         """
         Construct a VirtualMachine wrapper object.
 
@@ -73,6 +84,9 @@ class VirtualMachine(object):
             type specified in the dict, or pooled allocator if not specified in the
             dict.
 
+        mod : tvm.runtime.Module, optional
+            Optional runtime module to load to the VM.
+
         Returns
         -------
         vm: VirtualMachine
@@ -81,7 +95,7 @@ class VirtualMachine(object):
         self.module = _ffi_api.VirtualMachine(exec, mod)
         self._setup_device(device, memory_cfg)
 
-    def _setup_device(self, dev, memory_cfg):
+    def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
         """init devices and allocators."""
         devs = dev
         if not isinstance(dev, (list, tuple)):
@@ -117,5 +131,5 @@ class VirtualMachine(object):
             init_args.append(alloc_type)
         _ffi_api.VirtualMachineInit(self.module, *init_args)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> PackedFunc:
         return self.module[key]

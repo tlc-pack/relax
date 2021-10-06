@@ -462,7 +462,7 @@ TVM_REGISTER_GLOBAL("relax.ExecutableAsPython").set_body_typed([](Executable exe
 
 TVM_REGISTER_GLOBAL("relax.ExecutableSaveToFile")
     .set_body_typed([](Executable exec, std::string file_name) {
-      return exec->SaveToFile(file_name);
+      exec->SaveToFile(file_name);
     });
 
 TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed([](std::string file_name) {
