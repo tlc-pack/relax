@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations  # must import to defer parsing of annotations
 import numpy as np
 import tvm
 from tvm.relay import Call
@@ -202,27 +203,16 @@ def test_vm_storage():
     assert res.shape == shape
 
 def test_vm_compile():
-    shape_anno = [3, 4]
-    type_anno = rx.DynTensorType(2, "float32")
-    x = rx.Var("x", shape_anno, type_anno)
-    ib = rx.IRBuilder()
-    storage_attr = tvm.ir.attrs.make_node(
-        "relax.attrs.AllocStorageAttrs", device_id=0, device_type=1
-    )
-    tensor_attr = tvm.ir.attrs.make_node("relax.attrs.AllocTensorAttrs",)
+    @rx.script
+    class Mod:
+        def foo(x: Tensor[(3, 4), "float32"]):
+            y = relax.call_packed("vm.builtin.alloc_storage", (12,), (64,), device_id=0, device_type=1, attrs_type_key="relax.attrs.AllocStorageAttrs")
+            z = relax.call_packed("vm.builtin.alloc_tensor", y, (0,), (3, 4), attrs_type_key="relax.attrs.AllocTensorAttrs")
+            w = relax.call_packed("test.vm.identity", x, z)
+            return z
 
-    # Construct the lowest-level Relax program
-    with ib.function(x, "foo"):
-        gv0 = ib.emit(Call(rx.ExternFunc("vm.builtin.alloc_storage"),[rx.ShapeExpr([12]), rx.ShapeExpr([64])], storage_attr))
-        gv1 = ib.emit(Call(rx.ExternFunc("vm.builtin.alloc_tensor"),[gv0, rx.ShapeExpr([0]), rx.ShapeExpr([3, 4])], tensor_attr))
-        ib.emit(Call(rx.ExternFunc("test.vm.identity"), [x, gv1]))
-        ib.emit_output(gv1)
-    expr = ib.get()
-    mod = tvm.IRModule.from_expr(expr)
-
-    # compile the module to VM executable
+    mod = Mod()
     exec = rx.vm_compiler.compile(mod)  
-
     input = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     vm = rx.VirtualMachine(exec, tvm.cpu())
     res = vm["foo"](input)

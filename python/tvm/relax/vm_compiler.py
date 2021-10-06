@@ -22,6 +22,7 @@ from typing import List, Optional, Union, Dict
 import tvm
 from . import vm, _ffi_api
 
+
 def compile(mod: tvm.IRModule) -> vm.Executable:
     """Compile the module to VM executable. A helper function for VMCompiler.
 
@@ -39,6 +40,7 @@ def compile(mod: tvm.IRModule) -> vm.Executable:
     compiler.compile(mod)
     return compiler.get_exec()
 
+
 class VMCompiler(object):
     """Compiler that compiles module to VM executable."""
 
@@ -47,7 +49,7 @@ class VMCompiler(object):
         self._compile = self.mod["compile"]
         self._get_exec = self.mod["get_executable"]
 
-    def compile(self, mod: tvm.IRModule):
+    def compile(self, mod: tvm.IRModule) -> None:
         """Compile the module to VM executable.
 
         Parameters

@@ -42,6 +42,11 @@ class VMCompiler : public runtime::ModuleNode {
    * \param mod Input IRModule to be compiled.
    */
   void Compile(IRModule mod);
+  /*!
+   * \brief Get the compiled executable.
+   * \return The compiled executable.
+   */
+  Executable GetExec();
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 

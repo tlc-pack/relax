@@ -105,7 +105,6 @@ class VMFunctionCompiler : public ExprVisitor {
   void EmitAllocStorage(const Call& call_node, const Var& var) {
     Attrs attrs = call_node->attrs;
 
-    // TODO(@yuchen): a generic way to lower attributes for extern calls
     // Get dtype and device_type from the attributes.
     auto alloc_attrs = attrs.as<AllocStorageAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
@@ -189,7 +188,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
       this->Compile(mod);
     });
   } else if (name == "get_executable") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = builder_->Get(); });
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExec(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([name](TVMArgs args, TVMRetValue* rv) {});
@@ -212,6 +211,8 @@ void VMCompiler::Compile(IRModule mod) {
     }
   }
 }
+
+Executable VMCompiler::GetExec() { return builder_->Get(); }
 
 runtime::Module CreateVMCompiler() {
   auto compiler = make_object<VMCompiler>();
