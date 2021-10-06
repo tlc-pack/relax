@@ -37,13 +37,13 @@ ExecBuilder ExecBuilderNode::Create() {
   return ret;
 }
 
-vm::Index ExecBuilderNode::EmitConstant(ObjectRef obj) {
+vm::Index ExecBuilderNode::EmitConstant(TVMRetValue obj) {
   vm::Index idx = exec->constants.size();
   exec->constants.push_back(obj);
   return vm::Instruction::Arg(vm::Instruction::kConstIdx, idx).data;
 }
 
-void ExecBuilderNode::Function(std::string func_name, int64_t num_inputs) {
+void ExecBuilderNode::EmitFunction(std::string func_name, int64_t num_inputs) {
   const auto& m = exec->global_map;
   ICHECK(m.find(func_name) == m.end());
   VMFunction vmfunc;
@@ -181,13 +181,16 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate")
 .set_body_typed(ExecBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitConstant")
-.set_body_typed([](ExecBuilder builder, ObjectRef obj) {
-  return builder->EmitConstant(obj);
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ExecBuilder builder = args[0];
+  TVMRetValue rt;
+  rt = args[1];
+  *ret = builder->EmitConstant(rt);
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderFunction")
 .set_body_typed([](ExecBuilder builder, String name, int64_t num_inputs) {
-  return builder->Function(name, num_inputs);
+  return builder->EmitFunction(name, num_inputs);
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
