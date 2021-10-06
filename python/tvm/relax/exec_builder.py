@@ -16,9 +16,12 @@
 # under the License.
 
 from enum import IntEnum
+from typing import Optional, Union, List
 import tvm
+from tvm._ffi._ctypes.packed_func import TVMRetValueHandle
 from tvm.runtime import Object
 from tvm._ffi.base import _LIB, check_call
+from . vm import Executable
 from . import _ffi_api
 
 class SpecialReg(IntEnum):
@@ -40,40 +43,46 @@ class VMFuncScope(object):
 @tvm._ffi.register_object("relax.ExecBuilder")
 class ExecBuilder(Object):
     """A builder to emit instructions and build executable for the virtual machine."""
-    def __init__(self):
+
+    def __init__(self) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ExecBuilderCreate)
 
-    def r(self, idx):
+    def r(self, idx: int) -> int:
         """set instruction's argument as a register."""
         return _ffi_api.ExecBuilderR(self, idx)
 
-    def imm(self, value):
+    def imm(self, value: int) -> int:
         """set instruction's argument as an immediate."""
         return _ffi_api.ExecBuilderImm(self, value)
 
-    def c(self, idx):
+    def c(self, idx: int) -> int:
         """set instruction's argument as a constant."""
         return _ffi_api.ExecBuilderC(self, idx)
 
-    def void_arg(self):
+    def void_arg(self) -> int:
         return self.r(SpecialReg.VOID_ARG)
 
-    def vm_state(self):
+    def vm_state(self) -> int:
         return self.r(SpecialReg.VM_STATE)
 
-    def function(self, func_name, num_inputs=0):
+    def function(self, func_name: str, num_inputs: Optional[int] = 0) -> VMFuncScope:
         """annotate a VM function."""
         _ffi_api.ExecBuilderFunction(self, func_name, num_inputs)
         return VMFuncScope()
 
-    def _check_scope(self):
+    def _check_scope(self) -> None:
         if len(VMFuncScope.stack) == 0:
             raise ValueError("emit should happen in a function scope")
 
-    def emit_constant(self, const):
+    def emit_constant(self, const: TVMRetValueHandle) -> int:
         return _ffi_api.ExecBuilderEmitConstant(self, const)
 
-    def emit_call(self, name, args=[], dst=None):
+    def emit_call(
+        self,
+        name: str,
+        args: Optional[List[Union[tvm.nd.NDArray, tvm.DataType]]] = [],
+        dst: int = None,
+    ) -> None:
         """emit a call instruction which calls a packed function."""
         self._check_scope()
         if dst is None:
@@ -87,12 +96,11 @@ class ExecBuilder(Object):
                 args_.append(arg)
         _ffi_api.ExecBuilderEmitCall(self, name, args_, dst)
 
-    def emit_ret(self, result):
+    def emit_ret(self, result: int) -> None:
         """emit a return instruction"""
         self._check_scope()
         _ffi_api.ExecBuilderEmitRet(self, result)
 
-    def get(self):
+    def get(self) -> Executable:
         """return the executable"""
         return _ffi_api.ExecBuilderGet(self)
-
