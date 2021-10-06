@@ -80,7 +80,7 @@ class ExecBuilder(Object):
             dst = SpecialReg.VOID_ARG
         args_ = []
         for arg in args:
-            if isinstance(arg, tvm.nd.NDArray):
+            if isinstance(arg, tvm.nd.NDArray) or isinstance(arg, tvm.DataType):
                 new_arg = self.emit_constant(arg)
                 args_.append(new_arg)
             else:
