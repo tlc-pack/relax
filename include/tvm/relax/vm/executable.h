@@ -103,7 +103,7 @@ class ExecutableNode : public Object {
   /*! \brief A map from globals (as strings) to their index in the function map. */
   std::unordered_map<std::string, Index> global_map;
   /*! \brief The global constant pool. */
-  std::vector<ObjectRef> constants;
+  std::vector<TVMRetValue> constants;
   /*! \brief The name of packed functions. */
   std::vector<std::string> func_names;
   /*! \brief A mapping from the packed function (as string) to the index that
