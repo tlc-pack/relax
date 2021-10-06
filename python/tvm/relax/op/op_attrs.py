@@ -14,10 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+"""The attributes node used for Relax operators"""
+from tvm.ir import Attrs
+import tvm._ffi
 
-# Operators
-from .base import *
-from .tensor import *
-from .op_attrs import *
+@tvm._ffi.register_object("relax.attrs.AllocStorageAttrs")
+class AllocStorageAttrs(Attrs):
+    """Attributes used in alloc_storage operators"""
+
+
+@tvm._ffi.register_object("relax.attrs.AllocTensorAttrs")
+class AllocTensorAttrs(Attrs):
+    """Attributes used in alloc_tensor operators"""
