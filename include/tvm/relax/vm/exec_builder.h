@@ -21,8 +21,8 @@
  * \file tvm/relax/vm/exec_builder.h
  * \brief
  */
-#ifndef TVM_RELAX_EXEC_BUILDER_H_
-#define TVM_RELAX_EXEC_BUILDER_H_
+#ifndef TVM_RELAX_VM_EXEC_BUILDER_H_
+#define TVM_RELAX_VM_EXEC_BUILDER_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
@@ -52,7 +52,7 @@ class ExecBuilderNode : public Object {
    * \param func The function name.
    * \param num_inputs The number of inputs.
    */
-  void Function(std::string func, int64_t num_inputs);
+  void EmitFunction(std::string func, int64_t num_inputs);
   /*!
    * \brief Emit a call instruction for a packed function.
    * \param func The packed function name.
@@ -69,7 +69,7 @@ class ExecBuilderNode : public Object {
    * \brief Emit a constant value to the constant pool.
    * \return The index that represents the constant.
    */
-  vm::Index EmitConstant(ObjectRef obj);
+  vm::Index EmitConstant(TVMRetValue obj);
   /*!
    * \brief Get the built executable.
    * \return The built executable.
@@ -102,4 +102,4 @@ class ExecBuilder : public ObjectRef {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_EXEC_BUILDER_H_
+#endif  // TVM_RELAX_VM_EXEC_BUILDER_H_
