@@ -197,7 +197,9 @@ def test_vm_compile():
             return z
 
     mod = Mod()
-    ex, lib = rx.vm.build(mod)  
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(mod, target, target_host)
     inp = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
     res = vm["foo"](inp)
@@ -225,7 +227,9 @@ def test_vm_compile_shape():
 
     mod = Mod1()
     code = rx.parser.astext(mod)
-    ex, lib = rx.vm.build(mod)
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(mod, target, target_host)
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)

@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_VM_COMPILER_H_
 #define TVM_RELAX_VM_COMPILER_H_
 
+#include <tvm/target/target.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/vm/exec_builder.h>
 #include <tvm/relax/vm/executable.h>
@@ -35,13 +36,15 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
+using tvm::Target;
+
 class VMCompiler : public runtime::ModuleNode {
  public:
   /*!
    * \brief Compile the functions in a Module.
    * \param mod Input IRModule to be compiled.
    */
-  void Compile(IRModule mod);
+  void Compile(IRModule mod, Target target, Target target_host);
   /*!
    * \brief Get the compiled executable.
    * \return The compiled executable.

@@ -211,9 +211,9 @@ class VMCompilerImpl : public ExprVisitor {
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "compile") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.num_args, 1);
+      ICHECK_EQ(args.num_args, 3);
       IRModule mod = args[0];
-      this->Compile(mod);
+      this->Compile(mod, args[1], args[2]);
     });
   } else if (name == "get_executable") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExec(); });
@@ -223,29 +223,28 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
   }
 }
 
-void VMCompiler::Compile(IRModule mod) {
+void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {
   // Reset internal builder
   builder_ = relax::ExecBuilderNode::Create();
 
-  Target target("llvm");
-  IRModule tir_module;
-  IRModule rx_module;
+  IRModule tir_mod;
+  IRModule rx_mod;
   for (auto& p : mod->functions) {
     auto gvar = p.first;
 
     BaseFunc func = p.second;
     if (func.as<tir::PrimFuncNode>()) {
-      tir_module->Add(gvar, func);
+      tir_mod->Add(gvar, func);
     } else if (func.as<FunctionNode>()) {
-      rx_module->Add(gvar, func);
+      rx_mod->Add(gvar, func);
     } else {
       LOG(FATAL) << "Cannot handle such function node now:\n" << func;
     }
   }
-  lib_ = tvm::build(tir_module, target, target);
+  lib_ = tvm::build(tir_mod, target, target_host);
 
   VMCompilerImpl compiler(builder_.operator->());
-  for (auto& p : rx_module->functions) {
+  for (auto& p : rx_mod->functions) {
     compiler.VisitExpr(p.second);
   }
 }
@@ -263,14 +262,16 @@ runtime::Module CreateVMCompiler() {
   return runtime::Module(compiler);
 }
 
-TVM_REGISTER_GLOBAL("relax.VMBuild")
-.set_body_typed([](IRModule mod) {
+Array<ObjectRef> Build(IRModule mod, Target target, Target target_host) {
   auto compiler = make_object<VMCompiler>();
-  compiler->Compile(mod);
+  compiler->Compile(mod, target, target_host);
   Executable exec = compiler->GetExec();
   Module lib = compiler->GetLib();
   return Array<ObjectRef>({exec, lib});
-});
+}
+
+TVM_REGISTER_GLOBAL("relax.VMBuild")
+.set_body_typed(Build);
 
 }  // namespace relax_vm
 }  // namespace runtime
