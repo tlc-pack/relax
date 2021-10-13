@@ -181,7 +181,7 @@ Var BlockBuilderNode::EmitOutput(const Expr& output) {
   Var ret;
   if (block_stack_.top().is_dataflow) {
     // Reuse the input var if the shape and type of the call matches the var
-    Var ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
+    ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
     ret->shape_ = output->shape_;
     ret->checked_type_ = output->checked_type_;
     this->block_stack_.top().bindings.push_back(VarBinding(ret, output));

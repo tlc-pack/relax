@@ -35,8 +35,8 @@ class FunctionScope(object):
 
     def __exit__(self, ptype, value, trace):
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
-        # if block.bindings.block_.size() > 0:
-        self._ib._blocks.append(block)
+        if len(block.bindings) > 0:
+            self._ib._blocks.append(block)
 
 
 class DataflowScope(object):
@@ -50,8 +50,8 @@ class DataflowScope(object):
 
     def __exit__(self, ptype, value, trace):
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
-        # if block.bindings.block_.size() > 0:
-        self._ib._blocks.append(block)
+        if len(block.bindings) > 0:
+            self._ib._blocks.append(block)
         _ffi_api.BlockBuilderBeginBlock(self._ib, False)
 
 
@@ -172,6 +172,23 @@ class BlockBuilder(Object):
             output = Tuple(output)
         return _ffi_api.BlockBuilderEmitOutput(self, output)
 
+    def emit_func_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
+        """Emit output for the function.
+
+        Parameters
+        ----------
+        output : Expr | Tuple | List[Expr]
+            The output of the current block/function.
+
+        Returns
+        -------
+        ret : tvm.relax.Var
+            The return variable which gets binded to the output.
+        """
+        if isinstance(output, (list, tuple)):
+            output = Tuple(output)
+        self._func_ret = output
+
     def normalize(self, expr: Expr) -> Expr:
         """Normalize an Expr to complete its shape and type.
 
@@ -195,7 +212,8 @@ class BlockBuilder(Object):
         ret : tvm.relax.Function
             A Relax function node being built.
         """
-        pass
-        # seqe = rx.SeqExpr(
-        #     self.blocks,
-        # )
+        seqe = rx.SeqExpr(self._blocks, self._func_ret)
+        func = rx.Function(
+            self._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._func_name)
+        )
+        return func
