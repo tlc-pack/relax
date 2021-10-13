@@ -60,7 +60,7 @@ class BlockBuilderNode : public Object {
   virtual Var Emit(const VarBinding& binding);
   /*!
    * \brief Emit a Call, and bind it to a Var.
-   * \param var The Var to be binded with. \p var is reused implicitly if the shape 
+   * \param var The Var to be binded with. \p var is reused implicitly if the shape
    * and type of \p call matches \p var. Otherwise a new Var is created.
    * \param call The Call to be emitted.
    * \return The Var to be binded with \p var.
@@ -79,6 +79,7 @@ class BlockBuilderNode : public Object {
    * \return The variable being binded to \p output.
    */
   Var EmitOutput(const Var& var, const Expr& output);
+  Var EmitOutput(const Expr& output);
   /*!
    * \brief Lookup a var in the binding table \p var_map_.
    */
@@ -124,7 +125,7 @@ class BlockBuilderNode : public Object {
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
   /*! \brief A binding table that maps var to value. */
-  // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder 
+  // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 

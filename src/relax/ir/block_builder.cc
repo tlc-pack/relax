@@ -95,6 +95,7 @@ Var BlockBuilderNode::Emit(const Call& call) {
   call->checked_type_ = inferred_type;
   var->checked_type_ = inferred_type;
 
+  this->block_stack_.top().bindings.push_back(VarBinding(var, call));
   this->var_map_[var] = call;
   return var;
 }
@@ -120,6 +121,7 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
   }
 
   MatchShape match_shape = MatchShape(value, pattern, var);
+  this->block_stack_.top().bindings.push_back(match_shape);
   return var;
 }
 
@@ -128,6 +130,7 @@ Var BlockBuilderNode::Emit(const VarBinding& binding) {
   if (!binding->var.as<DataflowVarNode>()) {
     return EmitOutput(binding->var, binding->value);
   } else {
+    this->block_stack_.top().bindings.push_back(binding);
     this->var_map_[binding->var] = binding->value;
     return binding->var;
   }
@@ -138,6 +141,7 @@ Var BlockBuilderNode::Emit(const Var& var, const Call& call) {
   // Reuse the input var if the shape and type of the call matches the var
   if (CanProveShapeEqual(var->shape(), call->shape()) &&
       StructuralEqual()(var->checked_type(), call->checked_type())) {
+    this->block_stack_.top().bindings.push_back(VarBinding(var, normalized_call));
     this->var_map_[var] = normalized_call;
     return var;
   } else {
@@ -145,6 +149,7 @@ Var BlockBuilderNode::Emit(const Var& var, const Call& call) {
     if (normalized_call->shape_.defined()) {
       new_var->shape_ = normalized_call->shape_;
     }
+    this->block_stack_.top().bindings.push_back(VarBinding(new_var, normalized_call));
     this->var_map_[new_var] = normalized_call;
     return new_var;
   }
@@ -155,12 +160,14 @@ Var BlockBuilderNode::EmitOutput(const Var& var, const Expr& output) {
     // Reuse the input var if the shape and type of the call matches the var
     if (CanProveShapeEqual(var->shape(), output->shape()) &&
         StructuralEqual()(var->checked_type(), output->checked_type())) {
+      this->block_stack_.top().bindings.push_back(VarBinding(var, output));
       this->var_map_[var] = output;
       return var;
     } else {
       Var ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
       ret->shape_ = output->shape_;
       ret->checked_type_ = output->checked_type_;
+      this->block_stack_.top().bindings.push_back(VarBinding(ret, output));
       this->var_map_[ret] = output;
       return ret;
     }
@@ -168,6 +175,22 @@ Var BlockBuilderNode::EmitOutput(const Var& var, const Expr& output) {
     this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
                               << "EmitOutput has to be called inside dataflow block.");
   }
+}
+
+Var BlockBuilderNode::EmitOutput(const Expr& output) {
+  Var ret;
+  if (block_stack_.top().is_dataflow) {
+    // Reuse the input var if the shape and type of the call matches the var
+    Var ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
+    ret->shape_ = output->shape_;
+    ret->checked_type_ = output->checked_type_;
+    this->block_stack_.top().bindings.push_back(VarBinding(ret, output));
+    this->var_map_[ret] = output;
+  } else {
+    this->diag_ctx_.EmitFatal(Diagnostic::Error(output->span)
+                              << "EmitOutput has to be called inside dataflow block.");
+  }
+  return ret;
 }
 
 Expr BlockBuilderNode::LookupVar(const Var& var) {
@@ -224,6 +247,15 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilderNode::Create);
 
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBlock")
+    .set_body_typed([](BlockBuilder builder, bool is_dataflow) {
+      builder->BeginBlock(is_dataflow);
+    });
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock").set_body_typed([](BlockBuilder builder) {
+  return builder->EndBlock();
+});
+
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit")
     .set_body_typed([](BlockBuilder builder, const Call& call) { return builder->Emit(call); });
 
@@ -232,9 +264,14 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
       return builder->EmitMatchShape(value, pattern);
     });
 
+// TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitVarOutput")
+//     .set_body_typed([](BlockBuilder builder, const Var& var, const Expr& output) {
+//       return builder->EmitOutput(var, output);
+//     });
+
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
-    .set_body_typed([](BlockBuilder builder, const Var& var, const Expr& output) {
-      return builder->EmitOutput(var, output);
+    .set_body_typed([](BlockBuilder builder, const Expr& output) {
+      return builder->EmitOutput(output);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
