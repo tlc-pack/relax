@@ -27,8 +27,8 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/node/functor.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/ir_builder.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>

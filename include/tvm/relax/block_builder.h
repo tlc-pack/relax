@@ -36,31 +36,12 @@ namespace relax {
 
 using relay::Call;
 
-class IRBuilder;
-class LazyIRBuilder;
-
-// /*!
-//  * \brief The state of Relax function node being built.
-//  */
-// struct RelaxFunction {
-//   /*! \brief The function name. */
-//   Optional<GlobalVar> func_name = NullOpt;
-//   /*! \brief The function parameters. */
-//   Array<Var> params;
-//   /*! \brief The bindings in the function. */
-//   std::vector<Binding> bindings;
-//   /*! \brief The binding blocks in the function. */
-//   std::vector<BindingBlock> binding_blocks;
-//   /*! \brief The return of the function. */
-//   Expr ret = Tuple();
-//   /*! \brief The FunctionNode being built. */
-//   Function func;
-// };
+class BlockBuilder;
 
 /*!
  * \brief A builder that provides APIs to build Relax binding blocks.
  */
-class IRBuilderNode : public Object {
+class BlockBuilderNode : public Object {
  public:
   void BeginBlock(bool is_dataflow);
 
@@ -117,16 +98,16 @@ class IRBuilderNode : public Object {
    */
   Expr Normalize(const Expr& expr);
   /*!
-   * \brief Create a IRBuilder.
-   * \return The created IRBuilder.
+   * \brief Create a BlockBuilder.
+   * \return The created BlockBuilder.
    */
-  TVM_DLL static IRBuilder Create();
+  TVM_DLL static BlockBuilder Create();
 
   void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.IRBuilder";
-  TVM_DECLARE_BASE_OBJECT_INFO(IRBuilderNode, Object);
+  static constexpr const char* _type_key = "relax.BlockBuilder";
+  TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
 
  protected:
   struct BlockState {
@@ -147,144 +128,10 @@ class IRBuilderNode : public Object {
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 
-class IRBuilder : public ObjectRef {
+class BlockBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(IRBuilder, ObjectRef, IRBuilderNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
-
-/*! \brief Auxiliary scope for building Relax function node,
- * similar to python's with syntax.
- *
- * \code
- * {
- *   With<FunctionScope> scope(ir_builder);
- *   // build function node.
- * }
- */
-// class FunctionScopeNode : public Object {
-//  public:
-//   IRBuilder ir_builder;
-//   void VisitAttrs(AttrVisitor* v) { v->Visit("ir_builder", &ir_builder); }
-
-//   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-//   static constexpr const char* _type_key = "relax.FunctionScope";
-//   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionScopeNode, Object);
-// };
-
-// class FunctionScope : public ObjectRef {
-//  public:
-//   TVM_DLL FunctionScope(IRBuilder ib);
-//   TVM_DEFINE_OBJECT_REF_METHODS(FunctionScope, ObjectRef, FunctionScopeNode);
-//   class Internal;
-
-//  private:
-//   // Classes to get the Python `with` like syntax.
-//   friend class Internal;
-//   friend class With<FunctionScope>;
-//   // The entry of a function scope.
-//   TVM_DLL void EnterWithScope();
-//   // The exit of a function scope.
-//   TVM_DLL void ExitWithScope();
-// };
-
-// /*! \brief Auxiliary scope for building Relax dataflow block,
-//  * similar to python's with syntax.
-//  *
-//  * \code
-//  * {
-//  *   With<DataflowScope> scope(ir_builder);
-//  *   // build dataflow block.
-//  * }
-//  */
-// class DataflowScopeNode : public Object {
-//  public:
-//   IRBuilder ir_builder;
-//   void VisitAttrs(AttrVisitor* v) { v->Visit("ir_builder", &ir_builder); }
-
-//   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-//   static constexpr const char* _type_key = "relax.DataflowScope";
-//   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowScopeNode, Object);
-// };
-
-// class DataflowScope : public ObjectRef {
-//  public:
-//   TVM_DLL DataflowScope(IRBuilder ib);
-//   TVM_DEFINE_OBJECT_REF_METHODS(DataflowScope, ObjectRef, DataflowScopeNode);
-//   class Internal;
-
-//  private:
-//   // Classes to get the Python `with` like syntax.
-//   friend class Internal;
-//   friend class With<DataflowScope>;
-//   // The entry of a dataflow scope.
-//   TVM_DLL void EnterWithScope();
-//   // The exit of a dataflow scope.
-//   TVM_DLL void ExitWithScope();
-// };
-
-// /*!
-//  * \brief A lazy builder to construct dataflow block in a copy-on-write fashion.
-//  */
-// class LazyIRBuilderNode : public IRBuilderNode {
-//  public:
-//   /*!
-//    * \brief Emit a Call in a copy-on-write way.
-//    * If no bindings in a dataflow block need to be rewritten, reuse the original variable instead of
-//    * emiting one. If any binding in the block needs to be rewritten, reconstruct the whole block
-//    * from scratch by emiting all previous bindings. 
-//    * \param call The Call to be emitted. 
-//    * \return The variable being created and binded to \p call.
-//    */
-//   virtual Var Emit(const Call& call);
-//   /*!
-//    * \brief Emit a var binding in a copy-on-write way.
-//    * \param binding The VarBinding to be emitted.
-//    * \return The Var of the \p binding.
-//    */
-//   virtual Var Emit(const VarBinding& binding);
-//   /*!
-//    * \brief Emit a Call, and bind it to a Var in a copy-on-write way.
-//    * \param var The Var to be binded with.
-//    * \param call The Call to be emitted.
-//    * \return The Var to be binded with \p var.
-//    */
-//   virtual Var Emit(const Var& var, const Call& call);
-//   /*!
-//    * \brief Emit an output for the current dataflow block or function in a copy-on-write way.
-//    * \param binding The VarBinding to be emitted.
-//    * \return The variable being binded to \p output.
-//    */
-//   virtual Var EmitOutput(const VarBinding& binding);
-//   /*!
-//    * \brief Build a binding block.
-//    */
-//   virtual void BuildBlock();
-//   /*!
-//    * \brief Create a LazyIRBuilder.
-//    * \return The created LazyIRBuilder.
-//    */
-//   TVM_DLL static LazyIRBuilder Create(const DataflowBlock& block);
-
-//   void VisitAttrs(AttrVisitor* v) {}
-
-//   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-//   static constexpr const char* _type_key = "relax.LazyIRBuilder";
-//   TVM_DECLARE_FINAL_OBJECT_INFO(LazyIRBuilderNode, IRBuilderNode);
-
-//  private:
-//   /*! \brief Original DataflowBlock before rewriting. */
-//   DataflowBlock df_block_;
-//   /*! \brief index in the \p bindings. */
-//   int64_t index_ = 0;
-//   /*! \brief A flag tracking if current dataflow block needs to be rewritten or not. */
-//   bool is_rewrite_ = false;
-// };
-
-// class LazyIRBuilder : public IRBuilder {
-//  public:
-//   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LazyIRBuilder, IRBuilder, LazyIRBuilderNode);
-// };
-
 
 }  // namespace relax
 }  // namespace tvm

@@ -21,30 +21,25 @@
  * \file src/relax/block_builder.cc
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relay/op.h>
-#include <tvm/arith/analyzer.h>
 #include <tvm/relax/type.h>
+#include <tvm/relay/op.h>
 
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_NODE_TYPE(IRBuilderNode);
-// TVM_REGISTER_NODE_TYPE(LazyIRBuilderNode);
-// TVM_REGISTER_NODE_TYPE(FunctionScopeNode);
-// TVM_REGISTER_NODE_TYPE(DataflowScopeNode);
+TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
-IRBuilder IRBuilderNode::Create() {
-  IRBuilder ret(make_object<IRBuilderNode>());
+BlockBuilder BlockBuilderNode::Create() {
+  BlockBuilder ret(make_object<BlockBuilderNode>());
   return ret;
 }
 
-void IRBuilderNode::BeginBlock(bool is_dataflow) {
-  block_stack_.push({{}, is_dataflow});
-}
+void BlockBuilderNode::BeginBlock(bool is_dataflow) { block_stack_.push({{}, is_dataflow}); }
 
-BindingBlock IRBuilderNode::EndBlock() {
+BindingBlock BlockBuilderNode::EndBlock() {
   Array<Binding> bindings = block_stack_.top().bindings;
   bool is_df = block_stack_.top().is_dataflow;
   BindingBlock ret;
@@ -79,7 +74,7 @@ Type InferType(const Call& call, DiagnosticContext diag_ctx) {
   return VoidType();
 }
 
-Var IRBuilderNode::Emit(const Call& call) {
+Var BlockBuilderNode::Emit(const Call& call) {
   Var var;
   if (block_stack_.top().is_dataflow) {
     var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter_++)), NullOpt, NullOpt);
@@ -104,7 +99,7 @@ Var IRBuilderNode::Emit(const Call& call) {
   return var;
 }
 
-Var IRBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern) {
+Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern) {
   Var var;
   if (block_stack_.top().is_dataflow) {
     var = DataflowVar(Id("lv" + std::to_string(dataflow_var_counter_++)), NullOpt, NullOpt);
@@ -113,36 +108,36 @@ Var IRBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& patt
   }
   if (value->checked_type().as<ShapeTypeNode>()) {
     var->checked_type_ = ShapeType(Span());
-  } else if (value->checked_type().as<DynTensorTypeNode>()){
+  } else if (value->checked_type().as<DynTensorTypeNode>()) {
     ShapeExpr shape = ShapeExpr(pattern);
     var->shape_ = shape;
     DataType dtype = (Downcast<DynTensorType>(value->checked_type()))->dtype;
     var->checked_type_ = DynTensorType(pattern.size(), dtype);
   } else {
-    this->diag_ctx_.EmitFatal(Diagnostic::Error(value->span) 
-                              << "The value passed to EmitMatchShape must be of DynTensorType or ShapeType.");
+    this->diag_ctx_.EmitFatal(
+        Diagnostic::Error(value->span)
+        << "The value passed to EmitMatchShape must be of DynTensorType or ShapeType.");
   }
 
   MatchShape match_shape = MatchShape(value, pattern, var);
   return var;
 }
 
-Var IRBuilderNode::Emit(const VarBinding& binding) {
+Var BlockBuilderNode::Emit(const VarBinding& binding) {
   // FIXME(yuchen or ziheng): consider binding in normal block)
   if (!binding->var.as<DataflowVarNode>()) {
-    return EmitOutput(binding->value);
+    return EmitOutput(binding->var, binding->value);
   } else {
-    this->func_.bindings.emplace_back(binding);
     this->var_map_[binding->var] = binding->value;
     return binding->var;
   }
 }
 
-Var IRBuilderNode::Emit(const Var& var, const Call& call) {
+Var BlockBuilderNode::Emit(const Var& var, const Call& call) {
   Expr normalized_call = Normalize(call);
   // Reuse the input var if the shape and type of the call matches the var
-  if (CanProveShapeEqual(var->shape(), call->shape()) && StructuralEqual()(var->checked_type(), call->checked_type())) { 
-    this->func_.bindings.emplace_back(VarBinding(var, normalized_call));
+  if (CanProveShapeEqual(var->shape(), call->shape()) &&
+      StructuralEqual()(var->checked_type(), call->checked_type())) {
     this->var_map_[var] = normalized_call;
     return var;
   } else {
@@ -150,36 +145,41 @@ Var IRBuilderNode::Emit(const Var& var, const Call& call) {
     if (normalized_call->shape_.defined()) {
       new_var->shape_ = normalized_call->shape_;
     }
-    this->func_.bindings.emplace_back(VarBinding(new_var, normalized_call));
     this->var_map_[new_var] = normalized_call;
     return new_var;
   }
 }
 
-Var IRBuilderNode::EmitOutput(const Var& var, const Expr& output) {
-  Var ret;
-  if (is_dataflow_) {
-    ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
-    ret->shape_ = output->shape_;
-    ret->checked_type_ = output->checked_type_;
-    this->func_.bindings.emplace_back(VarBinding(ret, output));
-    this->var_map_[ret] = output;
+Var BlockBuilderNode::EmitOutput(const Var& var, const Expr& output) {
+  if (block_stack_.top().is_dataflow) {
+    // Reuse the input var if the shape and type of the call matches the var
+    if (CanProveShapeEqual(var->shape(), output->shape()) &&
+        StructuralEqual()(var->checked_type(), output->checked_type())) {
+      this->var_map_[var] = output;
+      return var;
+    } else {
+      Var ret = Var(Id("gv" + std::to_string(global_var_counter_++)), NullOpt, NullOpt);
+      ret->shape_ = output->shape_;
+      ret->checked_type_ = output->checked_type_;
+      this->var_map_[ret] = output;
+      return ret;
+    }
   } else {
-    this->func_.ret = output;
+    this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
+                              << "EmitOutput has to be called inside dataflow block.");
   }
-  return ret;
 }
 
-Expr IRBuilderNode::LookupVar(const Var& var) {
+Expr BlockBuilderNode::LookupVar(const Var& var) {
   auto it = this->var_map_.find(var);
   if (it == this->var_map_.end()) {
-    this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span) 
+    this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
                               << "The var to be looked up is not in the binding table.");
   }
   return it->second;
 }
 
-bool IRBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
+bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   if (lhs == rhs) {
     return true;
   }
@@ -204,7 +204,7 @@ bool IRBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   return false;
 }
 
-Expr IRBuilderNode::Normalize(const Expr& expr) {
+Expr BlockBuilderNode::Normalize(const Expr& expr) {
   if (expr.as<CallNode>()) {
     Call call = Downcast<Call>(expr);
     // Shape inference
@@ -222,24 +222,23 @@ Expr IRBuilderNode::Normalize(const Expr& expr) {
   return expr;
 }
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderCreate").set_body_typed(IRBuilderNode::Create);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilderNode::Create);
 
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit")
+    .set_body_typed([](BlockBuilder builder, const Call& call) { return builder->Emit(call); });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmit").set_body_typed([](IRBuilder builder, const Call& call) {
-  return builder->Emit(call);
-});
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
+    .set_body_typed([](BlockBuilder builder, const Expr& value, const Array<PrimExpr>& pattern) {
+      return builder->EmitMatchShape(value, pattern);
+    });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmitMatchShape").set_body_typed([](IRBuilder builder, const Expr& value, const Array<PrimExpr>& pattern) {
-  return builder->EmitMatchShape(value, pattern);
-});
-
-TVM_REGISTER_GLOBAL("relax.IRBuilderEmitOutput")
-    .set_body_typed([](IRBuilder builder, const Var& var, const Expr& output) {
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
+    .set_body_typed([](BlockBuilder builder, const Var& var, const Expr& output) {
       return builder->EmitOutput(var, output);
     });
 
-TVM_REGISTER_GLOBAL("relax.IRBuilderNormalize")
-    .set_body_typed([](IRBuilder builder, const Expr& expr) {
+TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
+    .set_body_typed([](BlockBuilder builder, const Expr& expr) {
       return builder->Normalize(expr);
     });
 
