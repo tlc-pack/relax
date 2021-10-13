@@ -29,13 +29,13 @@ def test_fma_rewrite():
     dtype1 = rx.DynTensorType(rank=2, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [m, n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.multiply(x, y))
             lv1 = ib.emit(rx.op.add(lv0, y))
             gv0 = ib.emit_output(lv1)
-        ib.emit_output(gv0)
+        ib.emit_func_output(gv0)
     expr = ib.get()
 
     # before rewrite
@@ -71,12 +71,12 @@ def test_explicit_memory_rewrite():
     shape_anno = [m, n]
     type_anno = rx.DynTensorType(2, "float32")
     x = rx.Var("x", shape_anno, type_anno)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
     with ib.function(x):
         with ib.dataflow() as df:
             lv0 = rx.call_dps([m, n], rx.extern("test.op.identity"), [x])
             gv0 = ib.emit_output(lv0)
-        ib.emit_output(gv0)
+        ib.emit_func_output(gv0)
     expr = ib.get()
 
     # before rewrite
@@ -117,6 +117,7 @@ def test_shape_lowering():
     assert "alloc_shape_heap" in code
     assert "decode_shape" in code
     assert "construct_shape" in code
+    print(code)
 
 
 if __name__ == "__main__":

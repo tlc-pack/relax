@@ -49,7 +49,7 @@ def test_post_order_visit():
             lv0 = ib.emit(rx.op.add(x, y))
             lv1 = ib.emit(rx.op.multiply(lv0, y))
             gv0 = ib.emit_output(lv1)
-        ib.emit_output(gv0)
+        ib.emit_func_output(gv0)
     expr = ib.get()
 
     names = []
@@ -68,7 +68,7 @@ def test_lazy_irbuilder():
     dtype1 = rx.DynTensorType(rank=2, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [m, n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
     # This program should not be rewritten by the fma_rewriter
     with ib.function([x, y]):
@@ -76,7 +76,7 @@ def test_lazy_irbuilder():
             lv0 = ib.emit(rx.op.multiply(x, y))
             lv1 = ib.emit(rx.op.multiply(lv0, y))
             gv0 = ib.emit_output(lv1)
-        ib.emit_output(gv0)
+        ib.emit_func_output(gv0)
     expr = ib.get()
 
     # before rewrite
