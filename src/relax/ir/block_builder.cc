@@ -38,7 +38,6 @@ BlockBuilder BlockBuilderNode::Create() {
 }
 
 void BlockBuilderNode::BeginBlock(bool is_dataflow) {
-  this->dataflow_var_counter_ = 0;
   this->block_stack_.push({{}, is_dataflow});
 }
 
