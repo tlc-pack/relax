@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
 from tvm import tir
 from tvm import relay
@@ -40,7 +41,6 @@ def test_function_single_block():
         assert gv0.name_hint == "gv0"
         ib.emit_func_output(gv0)
 
-    func = ib.get()
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
@@ -52,42 +52,43 @@ def test_function_single_block():
     assert len(func.body.blocks[0].bindings) == 3
 
 
-# # def test_function_multi_blocks():
-# #     m = tir.Var("m", "int32")
-# #     n = tir.Var("n", "int32")
-# #     dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-# #     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-# #     x = rx.Var("x", [m, n], dtype0)
-# #     y = rx.Var("y", [n], dtype1)
-# #     ib = rx.IRBuilder()
+def test_function_multi_blocks():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    ib = rx.BlockBuilder()
 
-# #     with ib.function([x, y], "func"):
-# #         with ib.dataflow() as df:
-# #             lv0 = ib.emit(rx.op.add(x, y))
-# #             assert lv0.name_hint == "lv0"
-# #             gv0 = ib.emit_output(lv0)
-# #         assert gv0.name_hint == "gv0"
-# #         gv1 = ib.emit(rx.op.add(gv0, gv0))
-# #         assert gv1.name_hint == "gv1"
-# #         with ib.dataflow() as df:
-# #             lv0 = ib.emit(rx.op.add(gv1, gv1))
-# #             assert lv0.name_hint == "lv0"
-# #             gv2 = ib.emit_output(gv1)
-# #         ib.emit_output(gv2)
+    with ib.function([x, y], "func"):
+        with ib.dataflow() as df:
+            lv0 = ib.emit(rx.op.add(x, y))
+            print(lv0.name_hint)
+            assert lv0.name_hint == "lv0"
+            gv0 = ib.emit_output(lv0)
+        assert gv0.name_hint == "gv0"
+        gv1 = ib.emit(rx.op.add(gv0, gv0))
+        assert gv1.name_hint == "gv1"
+        with ib.dataflow() as df:
+            lv0 = ib.emit(rx.op.add(gv1, gv1))
+            assert lv0.name_hint == "lv0"
+            gv2 = ib.emit_output(gv1)
+        ib.emit_func_output(gv2)
 
-# #     func = ib.get()
-# #     assert gv2.shape[0] == m
-# #     assert gv2.shape[1] == n
-# #     assert gv2.checked_type.rank == 2
-# #     assert gv2.checked_type.dtype == "float16"
-# #     assert func.params[0] == x
-# #     assert func.params[1] == y
-# #     assert func.name.name_hint == "func"
-# #     assert func.body.body == gv2
-# #     assert len(func.body.blocks) == 3
-# #     assert len(func.body.blocks[0].bindings) == 2
-# #     assert len(func.body.blocks[1].bindings) == 1
-# #     assert len(func.body.blocks[2].bindings) == 2
+    func = ib.get()
+    assert gv2.shape[0] == m
+    assert gv2.shape[1] == n
+    assert gv2.checked_type.rank == 2
+    assert gv2.checked_type.dtype == "float16"
+    assert func.params[0] == x
+    assert func.params[1] == y
+    assert func.name.name_hint == "func"
+    assert func.body.body == gv2
+    assert len(func.body.blocks) == 3
+    assert len(func.body.blocks[0].bindings) == 2
+    assert len(func.body.blocks[1].bindings) == 1
+    assert len(func.body.blocks[2].bindings) == 2
 
 
 # def test_binary_shape_type_deduction():
@@ -202,7 +203,7 @@ def test_function_single_block():
 
 if __name__ == "__main__":
     test_function_single_block()
-    # test_function_multi_blocks()
+    test_function_multi_blocks()
     # test_binary_shape_type_deduction()
     # test_emit_match_shape()
     # test_normalize()

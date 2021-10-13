@@ -37,7 +37,10 @@ BlockBuilder BlockBuilderNode::Create() {
   return ret;
 }
 
-void BlockBuilderNode::BeginBlock(bool is_dataflow) { block_stack_.push({{}, is_dataflow}); }
+void BlockBuilderNode::BeginBlock(bool is_dataflow) {
+  this->dataflow_var_counter_ = 0;
+  this->block_stack_.push({{}, is_dataflow});
+}
 
 BindingBlock BlockBuilderNode::EndBlock() {
   Array<Binding> bindings = block_stack_.top().bindings;

@@ -46,6 +46,9 @@ class DataflowScope(object):
         self._ib = irbuilder
 
     def __enter__(self):
+        block = _ffi_api.BlockBuilderEndBlock(self._ib)
+        if len(block.bindings) > 0:
+            self._ib._blocks.append(block)
         _ffi_api.BlockBuilderBeginBlock(self._ib, True)
 
     def __exit__(self, ptype, value, trace):
