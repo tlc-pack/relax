@@ -26,10 +26,13 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/name_table.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/with.h>
+
+#include <memory>
 
 namespace tvm {
 namespace relax {
@@ -43,9 +46,20 @@ class BlockBuilder;
  */
 class BlockBuilderNode : public Object {
  public:
+  BlockBuilderNode(std::shared_ptr<NameTable> name_table) : name_table_(name_table) {}
+
+  BlockBuilderNode() {
+    name_table_ = std::make_shared<NameTable>();
+  }
+
   void BeginBlock(bool is_dataflow);
 
   BindingBlock EndBlock();
+
+  inline bool IsDataflow() {
+    return CurrentBlock()->is_dataflow;
+  }
+
   /*!
    * \brief Emit a Call, and return a newly created Var binded to the Call.
    * \param call The Call to be emitted.
@@ -110,27 +124,28 @@ class BlockBuilderNode : public Object {
   static constexpr const char* _type_key = "relax.BlockBuilder";
   TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
 
+  std::shared_ptr<NameTable> name_table_;
+
  protected:
   struct BlockState {
     Array<Binding> bindings;
     bool is_dataflow;
   };
 
+  BlockState* CurrentBlock();
+
   /*! \brief  */
   std::stack<BlockState> block_stack_;
-  /*! \brief A global variable counter for naming global variables. */
-  int global_var_counter_ = 0;
-  /*! \brief A dataflow variable counter for naming dataflow variables. */
-  int dataflow_var_counter_ = 0;
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
   /*! \brief A binding table that maps var to value. */
   // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 
 class BlockBuilder : public ObjectRef {
  public:
+  TVM_DLL explicit BlockBuilder(std::shared_ptr<NameTable> name_table);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
 

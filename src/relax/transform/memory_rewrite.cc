@@ -36,7 +36,7 @@ namespace relax {
 // lv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
 // rx.call_packed(op.identity, x, lv0)
 
-class ExplicitMemMutator : public DataflowMutator {
+class ExplicitMemMutator : public ExprMutator {
   Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
     DynTensorType tensor_type = Downcast<DynTensorType>(type);
     DataType dtype = DataType(tensor_type->dtype);
@@ -62,21 +62,30 @@ class ExplicitMemMutator : public DataflowMutator {
     return ret;
   }
 
-	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
+  BindingBlock VisitBindingBlock(const BindingBlock& block) {
+    // convert to non-dataflow due to lowering
+    builder_->BeginBlock(false);
+    for (Binding binding : block->bindings) {
+      this->VisitBinding(binding);
+    }
+    return builder_->EndBlock();
+  }
+
+	Var VisitVarBinding(const VarBinding& binding) override {
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
 
     const CallNode* op = binding->value.as<CallNode>();
 		if(op && op->op == call_dps_op) {
       // switch current DataflowBlock to an impure BindingBlock
-      ir_builder->is_dataflow_ = false;
       ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
       Type arg_type = Downcast<Tuple>(op->args[2])->fields[0]->checked_type();
       Expr output_size = ComputeStorageSize(output_shape, arg_type);
-      Var tensor = ir_builder->Emit(Call(alloc_tensor_op, {op->args[0]}));
-      return ir_builder->Emit(binding->var, Call(op->args[1], {op->args[2], tensor}));
+      Var tensor = builder_->Emit(binding->var, Call(alloc_tensor_op, {op->args[0]}));
+      builder_->Emit(Call(op->args[1], {op->args[2], tensor}));
+      return tensor;
     }
-    return ir_builder->Emit(binding);
+    return builder_->Emit(binding);
   }
 };
 

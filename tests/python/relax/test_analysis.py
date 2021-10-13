@@ -43,7 +43,7 @@ def test_post_order_visit():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))

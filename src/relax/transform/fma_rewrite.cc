@@ -42,7 +42,7 @@ namespace relax {
 // z0 = ewise_fma(a, lv0, c)
 
 class EwiseFMARewriter : public DataflowMutator {
-	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
+	Var VisitDataflowVarBinding(const VarBinding& binding) override {
     static const Op& add_op = Op::Get("relax.add");
     static const Op& multiply_op = Op::Get("relax.multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
@@ -54,10 +54,10 @@ class EwiseFMARewriter : public DataflowMutator {
       const CallNode* op2 = value.as<CallNode>();
       if (op2 && op2->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
-        return ir_builder->Emit(binding->var, fma_call);
+        return builder_->Emit(binding->var, fma_call);
       }
     }
-    return ir_builder->Emit(binding);
+    return builder_->Emit(binding);
   }
 };
 

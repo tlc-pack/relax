@@ -75,18 +75,30 @@ class ShapeLowerMutator : public ExprMutator {
     return ret_mod_;
   } 
 
-  void VisitMatchShape(const MatchShape& binding,
-                       IRBuilder& builder) override {
+  void VisitMatchShape(const MatchShape& binding) override {
     Expr value = binding->value;
     Array<PrimExpr> pattern = binding->pattern;
-    Array<PrimExpr> indexes;
+    Array<PrimExpr> indices;
     for (size_t i = 0; i < pattern.size(); ++i) {
       IntImm idx = expr2slot_.at(pattern[i]);
-      indexes.push_back(idx);
+      indices.push_back(idx);
     }
-    ShapeExpr indexes_(indexes);
-    Call call(ExternFunc("decode_shape"), {value, shape_heap_, indexes_});
-    builder->Emit(call);
+    builder_->Emit(Call(ExternFunc("decode_shape"), {value, shape_heap_, ShapeExpr(indices)}));
+  }
+
+  Expr VisitExpr_(const ShapeExprNode* node) override {
+    tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
+    GlobalVar shape_func_var(name_table_->GetUniqueName("shape_func"));
+    // TODO make sure shape_heap doesnt get redefined by local funcs?
+    builder_->Emit(Call(shape_func_var, {shape_heap_}));
+    ret_mod_->Add(shape_func_var, func);
+
+      // construct shape
+    Array<PrimExpr> indices;
+    for (PrimExpr e : node->values) {
+      indices.push_back(expr2slot_.at(e));
+    }
+    return builder_->Emit(Call(ExternFunc("construct_shape"), {shape_heap_, ShapeExpr(indices)}));
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
@@ -97,47 +109,74 @@ class ShapeLowerMutator : public ExprMutator {
     ICHECK(seq);
 
     // prologue block: allocate shape heap
-    ShapeExpr heap_size({heap_size_});
-    Call alloc_heap_call(ExternFunc("relax.alloc_shape_heap"), {heap_size});
-    VarBinding binding(shape_heap_, alloc_heap_call);
-    BindingBlock prologue({binding});
+    // ShapeExpr heap_size({heap_size_});
+    // Call alloc_heap_call(ExternFunc("relax.alloc_shape_heap"), {heap_size});
+    // VarBinding binding(shape_heap_, alloc_heap_call);
+    // BindingBlock prologue({binding});
+
+    // visit params, etc
+    Array<Var> params;
+    for (Var param : node->params) {
+      params.push_back(Downcast<Var>(this->Mutate(param)));
+    }
+    Type ret_type = this->VisitType(node->ret_type);
+
+    builder_->BeginBlock(false);
+    builder_->Emit(shape_heap_, Call(ExternFunc("relax.alloc_shape_heap"), {ShapeExpr({heap_size_})}));
+
+    Expr new_body = this->Mutate(node->body);
+
+    Array<BindingBlock> blocks;
+
+    if (const SeqExprNode* seq = new_body.as<SeqExprNode>()) {
+      blocks.push_back(builder_->EndBlock());
+      blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
+      builder_->BeginBlock(false);
+      new_body = seq->body;
+    }
+
+    builder_->Emit(Call(ExternFunc("relax.free_shape_heap"), {shape_heap_}));
+    blocks.push_back(builder_->EndBlock());
+    new_body = SeqExpr(blocks, new_body);
+
+    return Function(node->name, params, new_body, ret_type);
 
     // process body
-    IRBuilder ib = IRBuilderNode::Create();
-    Array<ShapeExpr> shapes = CollectShapeExpr(seq->body);
-    Map<ShapeExpr, Var> mapping;
-    for (ShapeExpr shape : shapes) {
-      // generate tir shape function
-      tir::PrimFunc func = CalculateShape(shape);
-      GlobalVar shape_func_var("shape_func" + std::to_string(shape_func_counter_++));
-      ib->Emit(Call(shape_func_var, {shape_heap_}));
-      ret_mod_->Add(shape_func_var, func);
+    // BlockBuilder bb = BlockBuilder(name_table_);
+    // Array<ShapeExpr> shapes = CollectShapeExpr(seq->body);
+    // Map<ShapeExpr, Var> mapping;
+    // for (ShapeExpr shape : shapes) {
+    //   // generate tir shape function
+    //   tir::PrimFunc func = CalculateShape(shape);
+    //   GlobalVar shape_func_var("shape_func" + std::to_string(shape_func_counter_++));
+    //   builder_->Emit(Call(shape_func_var, {shape_heap_}));
+    //   ret_mod_->Add(shape_func_var, func);
 
-      // construct shape
-      Array<PrimExpr> indexes;
-      for (PrimExpr e : shape->values) {
-        indexes.push_back(expr2slot_.at(e));
-      }
-      ShapeExpr indexes_(indexes);
-      Call call(ExternFunc("construct_shape"), {shape_heap_, indexes_});
-      Var shape_var = ib->Emit(call);
-      mapping.Set(shape, shape_var);
-    }
-    Expr new_body = ShapeReplacer(mapping).Mutate(seq->body);
+    //   // construct shape
+    //   Array<PrimExpr> indexes;
+    //   for (PrimExpr e : shape->values) {
+    //     indexes.push_back(expr2slot_.at(e));
+    //   }
+    //   ShapeExpr indexes_(indexes);
+    //   Call call(ExternFunc("construct_shape"), {shape_heap_, indexes_});
+    //   Var shape_var = builder_->Emit(call);
+    //   mapping.Set(shape, shape_var);
+    // }
+    // Expr new_body = ShapeReplacer(mapping).Mutate(seq->body);
 
-    // epilogue block: kill the shape heap
-    Call free_heap_call(ExternFunc("relax.free_shape_heap"), {shape_heap_});
-    ib->Emit(free_heap_call);
+    // // epilogue block: kill the shape heap
+    // Call free_heap_call(ExternFunc("relax.free_shape_heap"), {shape_heap_});
+    // builder_->Emit(free_heap_call);
 
-    // process blocks
-    Array<BindingBlock> blocks;
-    blocks.push_back(prologue);
-    blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
-    blocks.push_back(ib->GetBlocks().back());
+    // // process blocks
+    // Array<BindingBlock> blocks;
+    // blocks.push_back(prologue);
+    // blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
+    // blocks.push_back(ib->GetBlocks().back());
 
 
-    SeqExpr new_seq(blocks, new_body);
-    return Function(visited->name, visited->params, new_seq, visited->ret_type);
+    // SeqExpr new_seq(blocks, new_body);
+    // return Function(visited->name, visited->params, new_seq, visited->ret_type);
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {

@@ -180,6 +180,11 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
  */
 class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
+  ExprMutator() {
+    name_table_ = std::make_shared<NameTable>();
+    builder_ = BlockBuilder(name_table_);
+  }
+
   /*!
    * \brief Mutate is alias for VisitExpr
    * \return expr.
@@ -208,22 +213,26 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
-  virtual void VisitBinding(const Binding& binding, IRBuilder& builder);
-  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& builder);
-  virtual void VisitMatchShape(const MatchShape& binding, IRBuilder& builder);
+  virtual void VisitBinding(const Binding& binding);
+  virtual Var VisitVarBinding(const VarBinding& binding);
+  virtual void VisitMatchShape(const MatchShape& binding);
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
  protected:
-  IRBuilder builder_;
+  Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
+
+  std::shared_ptr<NameTable> name_table_;
+  BlockBuilder builder_;
 };
 
 /*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes
  */
 class DataflowMutator : public ExprMutator {
  public:
-  virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
-  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& builder);
+  void VisitBinding(const Binding& binding) final;
+
+  virtual Var VisitDataflowVarBinding(const VarBinding& binding);
 
  protected:
   /*! \brief Look up the value binded to a var. */
