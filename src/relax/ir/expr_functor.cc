@@ -298,7 +298,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
     all_blocks_unchanged &= block.same_as(new_block);
   }
 
-  builder_->BeginBlock(false);
+  builder_->BeginBindingBlock();
   Expr body = this->Mutate(op->body);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
@@ -348,7 +348,7 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
   if (block.as<DataflowBlockNode>()) {
     return this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
   } else {
-    builder_->BeginBlock(false);
+    builder_->BeginBindingBlock();
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
     }
@@ -357,7 +357,7 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
 }
 
 BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
-  builder_->BeginBlock(true);
+  builder_->BeginDataflowBlock();
   for (auto binding : block->bindings) {
     this->VisitBinding(binding);
   }
@@ -370,7 +370,12 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 }
 
 Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
-  builder_->BeginBlock(is_dataflow);
+  if (is_dataflow) {
+    builder_->BeginDataflowBlock();
+  } else {
+    builder_->BeginBindingBlock();
+  }
+  
   Expr ret = Mutate(expr);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {

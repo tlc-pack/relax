@@ -31,7 +31,7 @@ class FunctionScope(object):
         self._ib = irbuilder
 
     def __enter__(self):
-        _ffi_api.BlockBuilderBeginBlock(self._ib, False)
+        _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
 
     def __exit__(self, ptype, value, trace):
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
@@ -49,13 +49,13 @@ class DataflowScope(object):
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
         if len(block.bindings) > 0:
             self._ib._blocks.append(block)
-        _ffi_api.BlockBuilderBeginBlock(self._ib, True)
+        _ffi_api.BlockBuilderBeginDataflowBlock(self._ib)
 
     def __exit__(self, ptype, value, trace):
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
         if len(block.bindings) > 0:
             self._ib._blocks.append(block)
-        _ffi_api.BlockBuilderBeginBlock(self._ib, False)
+        _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
 
 
 @tvm._ffi.register_object("relax.BlockBuilder")
@@ -85,6 +85,15 @@ class BlockBuilder(Object):
     def __init__(self):
         self._blocks = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
+
+    def _begin_dataflow_block(self):
+        _ffi_api.BlockBuilderBeginDataflowBlock(self)
+    
+    def _begin_binding_block(self):
+        _ffi_api.BlockBuilderBeginBindingBlock(self)
+    
+    def _end_block(self):
+        _ffi_api.BlockBuilderEndBlock(self)
 
     def function(
         self, params: Optional[Union[Var, Tuple, List[Var]]] = None, name: Optional[str] = ""

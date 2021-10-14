@@ -117,7 +117,6 @@ def test_shape_lowering():
     assert "alloc_shape_heap" in code
     assert "decode_shape" in code
     assert "construct_shape" in code
-    print(code)
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ class ExplicitMemMutator : public ExprMutator {
 
   BindingBlock VisitBindingBlock(const BindingBlock& block) {
     // convert to non-dataflow due to lowering
-    builder_->BeginBlock(false);
+    builder_->BeginBindingBlock();
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
     }

@@ -48,11 +48,15 @@ class BlockBuilderNode : public Object {
  public:
   BlockBuilderNode(std::shared_ptr<NameTable> name_table) : name_table_(name_table) {}
 
+  ~BlockBuilderNode();
+
   BlockBuilderNode() {
     name_table_ = std::make_shared<NameTable>();
   }
 
-  void BeginBlock(bool is_dataflow);
+  void BeginDataflowBlock();
+
+  void BeginBindingBlock();
 
   BindingBlock EndBlock();
 

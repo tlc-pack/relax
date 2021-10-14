@@ -32,13 +32,23 @@ namespace relax {
 
 TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
+BlockBuilderNode::~BlockBuilderNode() {
+  if (!block_stack_.empty()) {
+    LOG(FATAL) << "Not all blocks are ended.";
+  }
+}
+
 BlockBuilder BlockBuilderNode::Create() {
   BlockBuilder ret(make_object<BlockBuilderNode>());
   return ret;
 }
 
-void BlockBuilderNode::BeginBlock(bool is_dataflow) {
-  this->block_stack_.push({{}, is_dataflow});
+void BlockBuilderNode::BeginDataflowBlock() {
+  this->block_stack_.push({{}, true});
+}
+
+void BlockBuilderNode::BeginBindingBlock() {
+  this->block_stack_.push({{}, false});
 }
 
 BindingBlock BlockBuilderNode::EndBlock() {
@@ -128,7 +138,7 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
   return var;
 }
 
-// TODO(@altanh): EmitMatchShape(value, pattern, var)
+// TODO(@altanh, @yuchen): EmitMatchShape(MatchSHape)
 
 Var BlockBuilderNode::Emit(const VarBinding& binding) {
   BlockState* cur_block = CurrentBlock();
@@ -240,6 +250,7 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   return false;
 }
 
+// TODO(@altanh, @yuchen): emit expr in ssa form
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
   if (expr.as<CallNode>()) {
     Call call = Downcast<Call>(expr);
@@ -271,9 +282,14 @@ BlockBuilder::BlockBuilder(std::shared_ptr<NameTable> name_table) {
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilderNode::Create);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBlock")
-    .set_body_typed([](BlockBuilder builder, bool is_dataflow) {
-      builder->BeginBlock(is_dataflow);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginDataflowBlock")
+    .set_body_typed([](BlockBuilder builder) {
+      builder->BeginDataflowBlock();
+    });
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBindingBlock")
+    .set_body_typed([](BlockBuilder builder) {
+      builder->BeginBindingBlock();
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock").set_body_typed([](BlockBuilder builder) {
@@ -287,11 +303,6 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
     .set_body_typed([](BlockBuilder builder, const Expr& value, const Array<PrimExpr>& pattern) {
       return builder->EmitMatchShape(value, pattern);
     });
-
-// TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitVarOutput")
-//     .set_body_typed([](BlockBuilder builder, const Var& var, const Expr& output) {
-//       return builder->EmitOutput(var, output);
-//     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
     .set_body_typed([](BlockBuilder builder, const Expr& output) {

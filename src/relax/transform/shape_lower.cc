@@ -117,7 +117,7 @@ class ShapeLowerMutator : public ExprMutator {
     }
     Type ret_type = this->VisitType(node->ret_type);
 
-    builder_->BeginBlock(false);
+    builder_->BeginBindingBlock();
     builder_->Emit(shape_heap_,
                    Call(ExternFunc("relax.alloc_shape_heap"), {ShapeExpr({heap_size_})}));
 
@@ -128,7 +128,7 @@ class ShapeLowerMutator : public ExprMutator {
     if (const SeqExprNode* seq = new_body.as<SeqExprNode>()) {
       blocks.push_back(builder_->EndBlock());
       blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
-      builder_->BeginBlock(false);
+      builder_->BeginBindingBlock();
       new_body = seq->body;
     }
 
