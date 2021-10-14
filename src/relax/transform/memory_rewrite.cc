@@ -63,7 +63,6 @@ class ExplicitMemMutator : public ExprMutator {
   }
 
   BindingBlock VisitBindingBlock(const BindingBlock& block) {
-    // convert to non-dataflow due to lowering
     builder_->BeginBindingBlock();
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
@@ -71,21 +70,24 @@ class ExplicitMemMutator : public ExprMutator {
     return builder_->EndBlock();
   }
 
-	Var VisitVarBinding(const VarBinding& binding) override {
+  BindingBlock VisitDataflowBlock(const DataflowBlock& block) {
+    return this->VisitBindingBlock(block);
+  }
+
+  Expr VisitExpr_(const CallNode* call) override {
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
 
-    const CallNode* op = binding->value.as<CallNode>();
-		if(op && op->op == call_dps_op) {
-      // switch current DataflowBlock to an impure BindingBlock
-      ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
-      Type arg_type = Downcast<Tuple>(op->args[2])->fields[0]->checked_type();
+    if (call->op == call_dps_op) {
+      ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
+      Type arg_type = Downcast<Tuple>(call->args[2])->fields[0]->checked_type();
       Expr output_size = ComputeStorageSize(output_shape, arg_type);
-      Var tensor = builder_->Emit(binding->var, Call(alloc_tensor_op, {op->args[0]}));
-      builder_->Emit(Call(op->args[1], {op->args[2], tensor}));
+      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
+      builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
       return tensor;
     }
-    return builder_->Emit(binding);
+
+    return GetRef<Expr>(call);
   }
 };
 

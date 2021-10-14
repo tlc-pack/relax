@@ -43,7 +43,7 @@ class NameTable {
       }
     }
     alloc_map_[unique_prefix] = 0;
-    return prefix + std::to_string(alloc_map_[prefix]);
+    return unique_prefix;
   }
 
  private:

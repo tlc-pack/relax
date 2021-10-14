@@ -33,8 +33,7 @@ def test_fma_rewrite():
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.multiply(x, y))
-            lv1 = ib.emit(rx.op.add(lv0, y))
-            gv0 = ib.emit_output(lv1)
+            gv0 = ib.emit_output(rx.op.add(lv0, y))
         ib.emit_func_output(gv0)
     expr = ib.get()
 
@@ -47,8 +46,16 @@ def test_fma_rewrite():
     assert structural_equal(s0.shape, rx.ShapeExpr([m, n]))
     assert structural_equal(gv0.shape, rx.ShapeExpr([m, n]))
 
+    rx.parser.pretty_print(expr)
+
+    print("AFTER")
+
     # after rewrite
     func = rx.transform.fma_rewrite(expr)
+
+    rx.parser.pretty_print(func)
+
+    # import pdb; pdb.set_trace()
 
     v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
@@ -74,8 +81,7 @@ def test_explicit_memory_rewrite():
     ib = rx.BlockBuilder()
     with ib.function(x):
         with ib.dataflow() as df:
-            lv0 = rx.call_dps([m, n], rx.extern("test.op.identity"), [x])
-            gv0 = ib.emit_output(lv0)
+            gv0 = ib.emit_output(rx.call_dps([m, n], rx.extern("test.op.identity"), [x]))
         ib.emit_func_output(gv0)
     expr = ib.get()
 
@@ -100,6 +106,8 @@ def test_explicit_memory_rewrite():
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
+    rx.parser.pretty_print(func)
+
 
 @rx.script
 class Mod:
@@ -111,12 +119,13 @@ def test_shape_lowering():
     mod = Mod()
     new_mod = rx.transform.shape_lower(mod)
     assert isinstance(new_mod, tvm.IRModule)
-    assert isinstance(new_mod["shape_func0"], tvm.tir.function.PrimFunc)
+    assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
     assert isinstance(new_mod["foo"], tvm.relax.expr.Function)
     code = rx.parser.astext(new_mod)
     assert "alloc_shape_heap" in code
     assert "decode_shape" in code
     assert "construct_shape" in code
+    print(code)
 
 
 if __name__ == "__main__":

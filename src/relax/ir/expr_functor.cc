@@ -326,22 +326,35 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 }
 
 Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
-  Expr new_value = this->Mutate(binding->value);
+  Expr new_value = builder_->Normalize(this->Mutate(binding->value));
   Var new_var = Downcast<Var>(this->Mutate(binding->var));
-  if (!binding->var.as<DataflowVarNode>()) {
-    return builder_->EmitOutput(new_var, new_value);
+  // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
+  //                in this method...
+  // if (new_value->shape_.defined()) {
+  //   if (new_var->shape_.defined()) {
+  //     new_var = Var(new_var->vid, NullOpt, new_var->type_annotation, new_var->span);
+  //   }
+  //   new_var->shape_ = new_value->shape_;
+  // }
+  // if (new_value->checked_type_.defined()) {
+  //   if (new_var->checked_type_.defined()) {
+
+  //   }
+  //   new_var = Var(new_var->vid, new_var->shape_, NullOpt, new_var->span);
+  //   new_var->checked_type_ = new_value->checked_type_;
+  // }
+  if (builder_->IsDataflow() && !binding->var.as<DataflowVarNode>()) {
+    return builder_->EmitOutput(VarBinding(new_var, new_value));
   } else {
-    // FIXME(@altanh): builder should support emitting other Exprs...
-    return builder_->Emit(new_var, Downcast<Call>(new_value));
+    return builder_->Emit(VarBinding(new_var, new_value));
   }
 }
 
 void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
-  Expr new_var = this->Mutate(binding->var);
-  // FIXME(@altanh): where goes new_var?
-  builder_->EmitMatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values);
+  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  builder_->EmitMatchShape(MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
@@ -365,8 +378,7 @@ BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
-  Expr new_expr = ExprFunctor::VisitExpr(expr);
-  return new_expr;
+  return ExprFunctor::VisitExpr(expr);
 }
 
 Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
@@ -376,10 +388,10 @@ Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
     builder_->BeginBindingBlock();
   }
   
-  Expr ret = Mutate(expr);
+  Expr ret = this->Mutate(expr);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
-    ret = SeqExpr({prologue}, expr);
+    ret = SeqExpr({prologue}, ret);
   }
   return ret;
 }

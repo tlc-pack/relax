@@ -34,7 +34,7 @@ TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
 BlockBuilderNode::~BlockBuilderNode() {
   if (!block_stack_.empty()) {
-    LOG(FATAL) << "Not all blocks are ended.";
+    LOG(WARNING) << "BlockBuilder destroyed with remaining blocks!";
   }
 }
 
@@ -43,16 +43,12 @@ BlockBuilder BlockBuilderNode::Create() {
   return ret;
 }
 
-void BlockBuilderNode::BeginDataflowBlock() {
-  this->block_stack_.push({{}, true});
-}
+void BlockBuilderNode::BeginDataflowBlock() { this->block_stack_.push({{}, true}); }
 
-void BlockBuilderNode::BeginBindingBlock() {
-  this->block_stack_.push({{}, false});
-}
+void BlockBuilderNode::BeginBindingBlock() { this->block_stack_.push({{}, false}); }
 
 BindingBlock BlockBuilderNode::EndBlock() {
-  BlockState* cur_block = CurrentBlock();
+  BlockFrame* cur_block = CurrentBlock();
   BindingBlock ret = cur_block->is_dataflow ? DataflowBlock(cur_block->bindings)
                                             : BindingBlock(cur_block->bindings);
   block_stack_.pop();
@@ -78,47 +74,65 @@ Type InferType(const Call& call, DiagnosticContext diag_ctx) {
       return op_map[op](call, diag_ctx);
     }
   }
-  return IncompleteType(TypeKind::kType);
+  return Type();
 }
 
-Var BlockBuilderNode::Emit(const Call& call) {
-  BlockState* cur_block = CurrentBlock();
+Var BlockBuilderNode::Emit(const Expr& expr, std::string name_hint) {
+  return Emit(expr, CurrentBlock()->is_dataflow, name_hint);
+}
 
-  Var var;
-  if (cur_block->is_dataflow) {
-    var = DataflowVar(Id(name_table_->GetUniqueName("lv")), NullOpt, NullOpt);
+Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_hint) {
+  BlockFrame* cur_block = CurrentBlock();
+
+  if (name_hint.empty()) {
+    name_hint = is_dataflow ? "lv" : "gv";
+  }
+  Id vid = Id(name_table_->GetUniqueName(name_hint));
+  Var var = is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
+
+  // do eager inference for Calls
+  if (const CallNode* call_node = expr.as<CallNode>()) {
+    // TypeInference::InferCall(...)
+    const Call& call = GetRef<Call>(call_node);
+
+    Optional<Expr> inferred_shape = InferShape(call, this->diag_ctx_);
+    Type inferred_type = InferType(call, this->diag_ctx_);
+
+    var->shape_ = inferred_shape;
+    var->checked_type_ = inferred_type;
+
+    Call new_call = Call(call->op, call->args, call->attrs, call->type_args, call->span);
+    new_call->checked_type_ = inferred_type;
+    new_call->shape_ = inferred_shape;
+
+    cur_block->bindings.push_back(VarBinding(var, new_call));
+    this->var_map_[var->vid] = new_call;
   } else {
-    var = Var(Id(name_table_->GetUniqueName("gv")), NullOpt, NullOpt);
+    cur_block->bindings.push_back(VarBinding(var, expr));
+    this->var_map_[var->vid] = expr;
   }
 
-  // Shape inference
-  Optional<Expr> inferred_shape = InferShape(call, this->diag_ctx_);
-  if (inferred_shape.defined()) {
-    if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
-      call->shape_ = GetRef<Expr>(shape_expr);
-      var->shape_ = call->shape_;
-    }
-  }
-
-  // Type inference
-  Type inferred_type = InferType(call, this->diag_ctx_);
-  call->checked_type_ = inferred_type;
-  var->checked_type_ = inferred_type;
-
-  cur_block->bindings.push_back(VarBinding(var, call));
-  this->var_map_[var->vid] = call;
   return var;
 }
 
-Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern) {
-  BlockState* cur_block = CurrentBlock();
-
-  Var var;
-  if (block_stack_.top().is_dataflow) {
-    var = DataflowVar(Id(name_table_->GetUniqueName("lv")), NullOpt, NullOpt);
-  } else {
-    var = Var(Id(name_table_->GetUniqueName("gv")), NullOpt, NullOpt);
+Var BlockBuilderNode::Emit(const VarBinding& binding) {
+  BlockFrame* cur_block = CurrentBlock();
+  if (cur_block->is_dataflow) {
+    ICHECK(binding->var.as<DataflowVarNode>());
   }
+  cur_block->bindings.push_back(binding);
+  this->var_map_[binding->var->vid] = binding->value;
+  return binding->var;
+}
+
+Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern, std::string name_hint) {
+  BlockFrame* cur_block = CurrentBlock();
+
+  if (name_hint.empty()) {
+    name_hint = cur_block->is_dataflow ? "lv" : "gv";
+  }
+  Id vid = Id(name_table_->GetUniqueName(name_hint));
+  Var var = cur_block->is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
 
   if (value->checked_type().as<ShapeTypeNode>()) {
     var->checked_type_ = ShapeType(Span());
@@ -138,83 +152,73 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
   return var;
 }
 
+Var BlockBuilderNode::EmitMatchShape(const MatchShape& binding) {
+  BlockFrame* cur_block = CurrentBlock();
+  if (cur_block->is_dataflow) {
+    ICHECK(!binding->var.as<DataflowVarNode>()) << "cannot bind DataflowVar outside dataflow block.";
+  }
+  cur_block->bindings.push_back(binding);
+  return binding->var;
+}
+
 // TODO(@altanh, @yuchen): EmitMatchShape(MatchSHape)
 
-Var BlockBuilderNode::Emit(const VarBinding& binding) {
-  BlockState* cur_block = CurrentBlock();
-  if (cur_block->is_dataflow && !binding->var.as<DataflowVarNode>()) {
-    return EmitOutput(binding->var, binding->value);
-  } else {
-    cur_block->bindings.push_back(binding);
-    this->var_map_[binding->var->vid] = binding->value;
-    return binding->var;
-  }
+// Var BlockBuilderNode::Emit(const Var& var, const Call& call) {
+//   BlockFrame* cur_block = CurrentBlock();
+//   Expr normalized_call = Normalize(call);
+//   // Reuse the input var if the shape and type of the call matches the var
+//   if (CanProveShapeEqual(var->shape(), call->shape()) &&
+//       StructuralEqual()(var->checked_type(), call->checked_type())) {
+//     cur_block->bindings.push_back(VarBinding(var, normalized_call));
+//     this->var_map_[var->vid] = normalized_call;
+//     return var;
+//   } else {
+//     Var new_var = Var(var->vid, NullOpt, var->type_annotation);
+//     if (normalized_call->shape_.defined()) {
+//       new_var->shape_ = normalized_call->shape_;
+//     }
+//     new_var->checked_type_ = normalized_call->checked_type_;
+//     cur_block->bindings.push_back(VarBinding(new_var, normalized_call));
+//     this->var_map_[new_var->vid] = normalized_call;
+//     return new_var;
+//   }
+// }
+
+Var BlockBuilderNode::EmitOutput(const Expr& output, std::string name_hint) {
+  BlockFrame* cur_block = CurrentBlock();
+
+  ICHECK(cur_block->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
+
+  return Emit(output, false, name_hint);
 }
 
-Var BlockBuilderNode::Emit(const Var& var, const Call& call) {
-  BlockState* cur_block = CurrentBlock();
-  Expr normalized_call = Normalize(call);
-  // Reuse the input var if the shape and type of the call matches the var
-  if (CanProveShapeEqual(var->shape(), call->shape()) &&
-      StructuralEqual()(var->checked_type(), call->checked_type())) {
-    cur_block->bindings.push_back(VarBinding(var, normalized_call));
-    this->var_map_[var->vid] = normalized_call;
-    return var;
-  } else {
-    Var new_var = Var(var->vid, NullOpt, var->type_annotation);
-    if (normalized_call->shape_.defined()) {
-      new_var->shape_ = normalized_call->shape_;
-    }
-    new_var->checked_type_ = normalized_call->checked_type_;
-    cur_block->bindings.push_back(VarBinding(new_var, normalized_call));
-    this->var_map_[new_var->vid] = normalized_call;
-    return new_var;
-  }
+Var BlockBuilderNode::EmitOutput(const VarBinding& binding) {
+  BlockFrame* cur_block = CurrentBlock();
+
+  ICHECK(cur_block->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
+  ICHECK(!binding->var.as<DataflowVarNode>()) << "EmitOutput can only emit Var bindings.";
+
+  cur_block->bindings.push_back(binding);
+  this->var_map_[binding->var->vid] = binding->value;
+  return binding->var;
 }
 
-// TODO(@altanh): should we really be creating new Ids every time we need to reconstruct the Var
-//                to add new information? isn't this defeating the whole point of using Id?
+// Var BlockBuilderNode::EmitOutput(const Expr& output) {
+//   BlockFrame* cur_block = CurrentBlock();
 
-Var BlockBuilderNode::EmitOutput(const Var& var, const Expr& output) {
-  BlockState* cur_block = CurrentBlock();
+//   if (!cur_block->is_dataflow) {
+//     this->diag_ctx_.EmitFatal(Diagnostic::Error(output->span)
+//                               << "EmitOutput has to be called inside dataflow block.");
+//   }
 
-  if (!cur_block->is_dataflow) {
-    this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
-                              << "EmitOutput has to be called inside dataflow block.");
-  }
+//   Var ret = Var(Id(name_table_->GetUniqueName("gv")), NullOpt, NullOpt);
+//   ret->shape_ = output->shape_;
+//   ret->checked_type_ = output->checked_type_;
+//   cur_block->bindings.push_back(VarBinding(ret, output));
+//   this->var_map_[ret->vid] = output;
 
-  // Reuse the input var if the shape and type of the call matches the var
-  if (CanProveShapeEqual(var->shape(), output->shape()) &&
-      StructuralEqual()(var->checked_type(), output->checked_type())) {
-    cur_block->bindings.push_back(VarBinding(var, output));
-    this->var_map_[var->vid] = output;
-    return var;
-  } else {
-    Var ret = Var(var->vid, NullOpt, NullOpt);
-    ret->shape_ = output->shape_;
-    ret->checked_type_ = output->checked_type_;
-    cur_block->bindings.push_back(VarBinding(ret, output));
-    this->var_map_[ret->vid] = output;
-    return ret;
-  }
-}
-
-Var BlockBuilderNode::EmitOutput(const Expr& output) {
-  BlockState* cur_block = CurrentBlock();
-
-  if (!cur_block->is_dataflow) {
-    this->diag_ctx_.EmitFatal(Diagnostic::Error(output->span)
-                              << "EmitOutput has to be called inside dataflow block.");
-  }
-
-  Var ret = Var(Id(name_table_->GetUniqueName("gv")), NullOpt, NullOpt);
-  ret->shape_ = output->shape_;
-  ret->checked_type_ = output->checked_type_;
-  cur_block->bindings.push_back(VarBinding(ret, output));
-  this->var_map_[ret->vid] = output;
-
-  return ret;
-}
+//   return ret;
+// }
 
 Expr BlockBuilderNode::LookupVar(const Var& var) {
   auto it = this->var_map_.find(var->vid);
@@ -269,7 +273,7 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
   return expr;
 }
 
-BlockBuilderNode::BlockState* BlockBuilderNode::CurrentBlock() {
+BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentBlock() {
   ICHECK(!block_stack_.empty()) << "no block is being built";
   return &block_stack_.top();
 }
@@ -283,14 +287,11 @@ BlockBuilder::BlockBuilder(std::shared_ptr<NameTable> name_table) {
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginDataflowBlock")
-    .set_body_typed([](BlockBuilder builder) {
-      builder->BeginDataflowBlock();
-    });
+    .set_body_typed([](BlockBuilder builder) { builder->BeginDataflowBlock(); });
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBindingBlock")
-    .set_body_typed([](BlockBuilder builder) {
-      builder->BeginBindingBlock();
-    });
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBindingBlock").set_body_typed([](BlockBuilder builder) {
+  builder->BeginBindingBlock();
+});
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock").set_body_typed([](BlockBuilder builder) {
   return builder->EndBlock();

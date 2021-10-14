@@ -167,6 +167,9 @@ class ExprVisitor : public ExprFunctor<void(const Expr& n)> {
   virtual void VisitMatchShape(const MatchShape& binding);
   virtual void VisitBindingBlock(const BindingBlock& block);
   virtual void VisitDataflowBlock(const DataflowBlock& block);
+
+ protected:
+  std::unordered_map<const Object*, size_t> visit_counter_;
 };
 
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
@@ -189,7 +192,13 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * \brief Mutate is alias for VisitExpr
    * \return expr.
    */
-  Expr Mutate(const Expr& expr) { return this->VisitExpr(expr); }
+  Expr Mutate(const Expr& expr) { 
+    if (memo_.count(expr) == 0) {
+      memo_[expr] = this->VisitExpr(expr);
+    }
+    return Downcast<Expr>(memo_[expr]);
+  }
+
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
@@ -213,6 +222,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
+
   virtual void VisitBinding(const Binding& binding);
   virtual Var VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
@@ -222,6 +232,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  protected:
   Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
 
+  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::shared_ptr<NameTable> name_table_;
   BlockBuilder builder_;
 };

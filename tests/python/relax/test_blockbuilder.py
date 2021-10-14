@@ -56,11 +56,11 @@ def test_function_single_block():
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv0"
+            assert lv0.name_hint == "lv"
             lv1 = ib.emit(rx.op.multiply(lv0, y))
             assert lv1.name_hint == "lv1"
             gv0 = ib.emit_output(lv1)
-        assert gv0.name_hint == "gv0"
+        assert gv0.name_hint == "gv"
         ib.emit_func_output(gv0)
 
     func = ib.get()
@@ -87,9 +87,9 @@ def test_function_multi_blocks():
     with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv0"
+            assert lv0.name_hint == "lv"
             gv0 = ib.emit_output(lv0)
-        assert gv0.name_hint == "gv0"
+        assert gv0.name_hint == "gv"
         gv1 = ib.emit(rx.op.add(gv0, gv0))
         assert gv1.name_hint == "gv1"
         with ib.dataflow() as df:

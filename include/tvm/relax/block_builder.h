@@ -65,17 +65,27 @@ class BlockBuilderNode : public Object {
   }
 
   /*!
+   * \brief Emits an Expr, and returns the variable it is bound to.
+   * \param expr The Expr to be emitted.
+   * \param name_hint Name hint for the bound variable.
+   * \return The new variable that \p expr is bound to.
+   */
+  virtual Var Emit(const Expr& expr, std::string name_hint = "");
+
+  /*!
+   * \brief Emits a variable binding, and returns the bound Var.
+   * \param binding The variable binding.
+   * \return The bound variable.
+   */
+  virtual Var Emit(const VarBinding& binding);
+
+  /*!
    * \brief Emit a Call, and return a newly created Var binded to the Call.
    * \param call The Call to be emitted.
    * \return The variable being created and binded to \p call.
    */
-  virtual Var Emit(const Call& call);
-  /*!
-   * \brief Emit a var binding.
-   * \param binding The VarBinding to be emitted.
-   * \return The VarNode of the VarBinding \p binding.
-   */
-  virtual Var Emit(const VarBinding& binding);
+  // virtual Var EmitCall(const Call& call, std::string var_name = "");
+
   /*!
    * \brief Emit a Call, and bind it to a Var.
    * \param var The Var to be binded with. \p var is reused implicitly if the shape
@@ -83,21 +93,25 @@ class BlockBuilderNode : public Object {
    * \param call The Call to be emitted.
    * \return The Var to be binded with \p var.
    */
-  virtual Var Emit(const Var& var, const Call& call);
+  // virtual Var Emit(const Var& var, const Call& call);
   /*!
    * \brief Emit a MatchShape.
    * \param value The value of the MatchShape to be emitted.
    * \param pattern The pattern of the MatchShape to be emitted.
    * \return The variable being binded to the MatchShape.
    */
-  Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern);
+  Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern, std::string name_hint = "");
+  Var EmitMatchShape(const MatchShape& binding);
+
   /*!
    * \brief Generate an output for the current dataflow block.
    * \param output The output variable of the block.
    * \return The variable being binded to \p output.
    */
-  Var EmitOutput(const Var& var, const Expr& output);
-  Var EmitOutput(const Expr& output);
+  // Var EmitOutput(const Var& var, const Expr& output);
+  Var EmitOutput(const Expr& output, std::string name_hint = "");
+  Var EmitOutput(const VarBinding& binding);
+
   /*!
    * \brief Lookup a var in the binding table \p var_map_.
    */
@@ -110,12 +124,18 @@ class BlockBuilderNode : public Object {
    * \return Whether we can prove lhs shape == rhs shape.
    */
   bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
+
   /*!
    * \brief Normalize an Expr to complete its shape and type.
    * \param expr The input expr.
    * \return The expr with normalized shape and type.
    */
   Expr Normalize(const Expr& expr);
+
+  // Expr WithShape(const Expr& expr, Shape)
+  // if (expr.shape_ == nullptr) { expr.shape_ = shape; return expr;}
+  // else { Expr ret = expr.copy(); ret.shape_ = shape; return ret;}
+
   /*!
    * \brief Create a BlockBuilder.
    * \return The created BlockBuilder.
@@ -128,23 +148,28 @@ class BlockBuilderNode : public Object {
   static constexpr const char* _type_key = "relax.BlockBuilder";
   TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
 
-  std::shared_ptr<NameTable> name_table_;
+ private:
+  Var Emit(const Expr& expr, bool is_dataflow, std::string name_hint);
 
  protected:
-  struct BlockState {
+  struct BlockFrame {
     Array<Binding> bindings;
     bool is_dataflow;
   };
 
-  BlockState* CurrentBlock();
+  friend class BlockBuilder;
+
+  BlockFrame* CurrentBlock();
 
   /*! \brief  */
-  std::stack<BlockState> block_stack_;
+  std::stack<BlockFrame> block_stack_;
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
   /*! \brief A binding table that maps var to value. */
   // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
+
+  std::shared_ptr<NameTable> name_table_;
 };
 
 class BlockBuilder : public ObjectRef {
