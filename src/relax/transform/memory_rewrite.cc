@@ -73,7 +73,9 @@ class ExplicitMemMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // TODO(@yuchen, @altanh): post-order mutation
-    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
+    // Expr expr = ExprMutator::VisitExpr_(call);
+    // call = expr.as<CallNode>();
+    Expr expr = ExprMutator::Mutate(GetRef<Expr>(call));
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
