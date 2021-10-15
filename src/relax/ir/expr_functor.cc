@@ -174,9 +174,13 @@ TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr ex
 // ==================
 // ExprMutator
 
-Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
+  return GetRef<Expr>(op);
+}
 
-Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) {
+  return GetRef<Expr>(op);
+}
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
@@ -283,9 +287,13 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) {
+  return GetRef<Expr>(op);
+}
 
-Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) {
+  return GetRef<Expr>(op); 
+}
 
 Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   bool all_blocks_unchanged = true;
@@ -343,6 +351,21 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var = Var(new_var->vid, new_var->shape_, NullOpt, new_var->span);
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
+  
+  if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
+      !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
+    new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
+    if (new_value->shape_.defined()) {
+      new_var->shape_ = new_value->shape_;
+    }
+    // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent unknown type
+    if (new_value->checked_type_.defined()){
+      new_var->checked_type_ = new_value->checked_type_;
+    }
+  }
+
+  this->var_remap_[binding->var] = new_var;
+
   if (builder_->IsDataflow() && !binding->var.as<DataflowVarNode>()) {
     return builder_->EmitOutput(VarBinding(new_var, new_value));
   } else {
@@ -354,7 +377,8 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
   Var new_var = Downcast<Var>(this->Mutate(binding->var));
-  builder_->EmitMatchShape(MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
+  builder_->EmitMatchShape(
+      MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
@@ -377,9 +401,7 @@ BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
   return builder_->EndBlock();
 }
 
-Expr ExprMutator::VisitExpr(const Expr& expr) {
-  return ExprFunctor::VisitExpr(expr);
-}
+Expr ExprMutator::VisitExpr(const Expr& expr) { return ExprFunctor::VisitExpr(expr); }
 
 Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
   if (is_dataflow) {
@@ -387,13 +409,22 @@ Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
   } else {
     builder_->BeginBindingBlock();
   }
-  
+
   Expr ret = this->Mutate(expr);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
     ret = SeqExpr({prologue}, ret);
   }
   return ret;
+}
+
+Expr ExprMutator::LookupVar(Var var) {
+  auto it = var_remap_.find(var);
+  if (it != var_remap_.end()) {
+    return builder_->LookupVar(it->first);
+  } else {
+    return builder_->LookupVar(var);
+  }
 }
 
 // ==================
@@ -406,7 +437,7 @@ Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
 //     for (auto binding : block->bindings) {
 //       if (auto* var_binding = binding.as<VarBindingNode>()) {
 //         Var var = this->VisitVarBinding(Downcast<VarBinding>(binding), this->builder_);
-//         this->pre_post_var_map_[var_binding->var] = var;
+//         this->var_remap_[var_binding->var] = var;
 //       }
 //     }
 //   }
@@ -422,26 +453,17 @@ Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
 //   if (!binding->var.as<DataflowVarNode>()) {
 //     new_var = builder->EmitOutput(new_value);
 //   }
-//   pre_post_var_map_[binding->var] = new_var;
+//   var_remap_[binding->var] = new_var;
 //   return new_var;
 // }
-
-Expr DataflowMutator::LookupVar(Var var) {
-  auto it = pre_post_var_map_.find(var);
-  if (it != pre_post_var_map_.end()) {
-    return builder_->LookupVar(it->first);
-  } else {
-    return builder_->LookupVar(var);
-  }
-}
 
 void DataflowMutator::VisitBinding(const Binding& binding) {
   if (binding.as<VarBindingNode>()) {
     VarBinding var_binding = Downcast<VarBinding>(binding);
     if (builder_->IsDataflow()) {
-      pre_post_var_map_[var_binding->var] = this->VisitDataflowVarBinding(var_binding);
+      var_remap_[var_binding->var] = this->VisitDataflowVarBinding(var_binding);
     } else {
-      pre_post_var_map_[var_binding->var] = ExprMutator::VisitVarBinding(var_binding);
+      var_remap_[var_binding->var] = ExprMutator::VisitVarBinding(var_binding);
     }
   } else {
     ExprMutator::VisitBinding(binding);

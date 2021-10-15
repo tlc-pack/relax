@@ -18,11 +18,12 @@
  */
 /*!
  * \file src/relax/transform/memory_rewrite.cc
- * \brief 
+ * \brief
  */
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
+
 #include "../../relay/transforms/pattern_utils.h"
 
 namespace tvm {
@@ -70,11 +71,10 @@ class ExplicitMemMutator : public ExprMutator {
     return builder_->EndBlock();
   }
 
-  BindingBlock VisitDataflowBlock(const DataflowBlock& block) {
-    return this->VisitBindingBlock(block);
-  }
-
   Expr VisitExpr_(const CallNode* call) override {
+    // TODO(@yuchen, @altanh): post-order mutation
+    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
+
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
 
@@ -91,8 +91,8 @@ class ExplicitMemMutator : public ExprMutator {
   }
 };
 
-Expr ExplicitMemRewrite(const Expr& e) {
-  return ExplicitMemMutator().Mutate(e);
+Expr ExplicitMemRewrite(const Expr& e) { 
+  return ExplicitMemMutator().Mutate(e); 
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.explicit_memory_rewrite")

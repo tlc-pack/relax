@@ -41,7 +41,7 @@ namespace relax {
 // lv0 = add(k, b)
 // z0 = ewise_fma(a, lv0, c)
 
-class EwiseFMARewriter : public DataflowMutator {
+class EwiseFMARewriter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) override {
     static const Op& add_op = Op::Get("relax.add");
     static const Op& multiply_op = Op::Get("relax.multiply");

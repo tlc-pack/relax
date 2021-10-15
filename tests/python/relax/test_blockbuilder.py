@@ -21,6 +21,7 @@ from tvm import tir
 from tvm import relay
 from tvm import relax as rx
 
+
 def test_block_builder():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")

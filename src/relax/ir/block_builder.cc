@@ -107,7 +107,19 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
 
     cur_block->bindings.push_back(VarBinding(var, new_call));
     this->var_map_[var->vid] = new_call;
-  } else {
+  } else if (const VarNode* var_node = expr.as<VarNode>()) {
+    const Var& lhs_var = GetRef<Var>(var_node);
+    if (lhs_var->shape_.defined()) {
+      var->shape_ = lhs_var->shape_;
+    }
+    if (lhs_var->checked_type_.defined()) {
+      var->checked_type_ = lhs_var->checked_type_;
+    }
+    cur_block->bindings.push_back(VarBinding(var, lhs_var));
+    this->var_map_[var->vid] = lhs_var;
+  }
+
+  else {
     cur_block->bindings.push_back(VarBinding(var, expr));
     this->var_map_[var->vid] = expr;
   }
@@ -125,14 +137,16 @@ Var BlockBuilderNode::Emit(const VarBinding& binding) {
   return binding->var;
 }
 
-Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern, std::string name_hint) {
+Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern,
+                                     std::string name_hint) {
   BlockFrame* cur_block = CurrentBlock();
 
   if (name_hint.empty()) {
     name_hint = cur_block->is_dataflow ? "lv" : "gv";
   }
   Id vid = Id(name_table_->GetUniqueName(name_hint));
-  Var var = cur_block->is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
+  Var var =
+      cur_block->is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
 
   if (value->checked_type().as<ShapeTypeNode>()) {
     var->checked_type_ = ShapeType(Span());
@@ -155,7 +169,8 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
 Var BlockBuilderNode::EmitMatchShape(const MatchShape& binding) {
   BlockFrame* cur_block = CurrentBlock();
   if (cur_block->is_dataflow) {
-    ICHECK(!binding->var.as<DataflowVarNode>()) << "cannot bind DataflowVar outside dataflow block.";
+    ICHECK(!binding->var.as<DataflowVarNode>())
+        << "cannot bind DataflowVar outside dataflow block.";
   }
   cur_block->bindings.push_back(binding);
   return binding->var;

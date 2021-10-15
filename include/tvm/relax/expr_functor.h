@@ -192,7 +192,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * \brief Mutate is alias for VisitExpr
    * \return expr.
    */
-  Expr Mutate(const Expr& expr) { 
+  Expr Mutate(const Expr& expr) {
     if (memo_.count(expr) == 0) {
       memo_[expr] = this->VisitExpr(expr);
     }
@@ -231,12 +231,16 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
 
  protected:
   Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
-
+  /*! \brief Look up the value binded to a var. */
+  Expr LookupVar(Var var);
+  // A remapping table: pre var -> post var
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::shared_ptr<NameTable> name_table_;
   BlockBuilder builder_;
 };
 
+// TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks
 /*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes
  */
 class DataflowMutator : public ExprMutator {
@@ -244,12 +248,6 @@ class DataflowMutator : public ExprMutator {
   void VisitBinding(const Binding& binding) final;
 
   virtual Var VisitDataflowVarBinding(const VarBinding& binding);
-
- protected:
-  /*! \brief Look up the value binded to a var. */
-  Expr LookupVar(Var var);
-  // A remapping table: pre var -> post var
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> pre_post_var_map_;
 };
 
 }  // namespace relax
