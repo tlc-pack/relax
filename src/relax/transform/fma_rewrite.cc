@@ -43,6 +43,9 @@ namespace relax {
 
 class EwiseFMARewriter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) override {
+    Expr expr = ExprMutator::VisitExpr_(call);
+    call = expr.as<CallNode>();
+
     static const Op& add_op = Op::Get("relax.add");
     static const Op& multiply_op = Op::Get("relax.multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");

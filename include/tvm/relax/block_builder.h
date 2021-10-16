@@ -37,8 +37,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::Call;
-
 class BlockBuilder;
 
 /*!
@@ -80,36 +78,34 @@ class BlockBuilderNode : public Object {
   virtual Var Emit(const VarBinding& binding);
 
   /*!
-   * \brief Emit a Call, and return a newly created Var binded to the Call.
-   * \param call The Call to be emitted.
-   * \return The variable being created and binded to \p call.
-   */
-  // virtual Var EmitCall(const Call& call, std::string var_name = "");
-
-  /*!
-   * \brief Emit a Call, and bind it to a Var.
-   * \param var The Var to be binded with. \p var is reused implicitly if the shape
-   * and type of \p call matches \p var. Otherwise a new Var is created.
-   * \param call The Call to be emitted.
-   * \return The Var to be binded with \p var.
-   */
-  // virtual Var Emit(const Var& var, const Call& call);
-  /*!
    * \brief Emit a MatchShape.
    * \param value The value of the MatchShape to be emitted.
    * \param pattern The pattern of the MatchShape to be emitted.
+   * \param name_hint Name hint for the bound variable.
    * \return The variable being binded to the MatchShape.
    */
   Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern, std::string name_hint = "");
+
+  /*!
+   * \brief Emit a MatchShape binding.
+   * \param binding The MatchShape binding to be emitted.
+   * \return The variable being binded to the MatchShape.
+   */
   Var EmitMatchShape(const MatchShape& binding);
 
   /*!
    * \brief Generate an output for the current dataflow block.
    * \param output The output variable of the block.
+   * \param name_hint Name hint for the bound variable.
    * \return The variable being binded to \p output.
    */
-  // Var EmitOutput(const Var& var, const Expr& output);
   Var EmitOutput(const Expr& output, std::string name_hint = "");
+
+  /*!
+   * \brief Generate an output for the current dataflow block.
+   * \param binding The output binding to output.
+   * \return The variable being binded to \p output.
+   */
   Var EmitOutput(const VarBinding& binding);
 
   /*!
@@ -131,10 +127,6 @@ class BlockBuilderNode : public Object {
    * \return The expr with normalized shape and type.
    */
   Expr Normalize(const Expr& expr);
-
-  // Expr WithShape(const Expr& expr, Shape)
-  // if (expr.shape_ == nullptr) { expr.shape_ = shape; return expr;}
-  // else { Expr ret = expr.copy(); ret.shape_ = shape; return ret;}
 
   /*!
    * \brief Create a BlockBuilder.
@@ -161,14 +153,14 @@ class BlockBuilderNode : public Object {
 
   BlockFrame* CurrentBlock();
 
-  /*! \brief  */
+  /*! \brief A block stack to store block frames. */
   std::stack<BlockFrame> block_stack_;
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
   /*! \brief A binding table that maps var to value. */
   // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
-
+  /*! \brief A name table to get unique names for IR construction. */
   std::shared_ptr<NameTable> name_table_;
 };
 

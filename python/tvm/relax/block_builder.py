@@ -78,7 +78,7 @@ class BlockBuilder(Object):
                 lv0 = ib.emit(rx.add(x, y))
                 lv1 = ib.emit(rx.multiply(lv0, y))
                 gv0 = ib.emit_output(lv1)
-            ib.emit_output(gv0)
+            ib.emit_func_output(gv0)
         func = ib.get()
     """
 
@@ -86,18 +86,18 @@ class BlockBuilder(Object):
         self._blocks = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
-    def _begin_dataflow_block(self):
+    def _begin_dataflow_block(self) -> None:
         _ffi_api.BlockBuilderBeginDataflowBlock(self)
     
-    def _begin_binding_block(self):
+    def _begin_binding_block(self) -> None:
         _ffi_api.BlockBuilderBeginBindingBlock(self)
     
-    def _end_block(self):
-        _ffi_api.BlockBuilderEndBlock(self)
+    def _end_block(self) -> BindingBlock:
+        return _ffi_api.BlockBuilderEndBlock(self)
 
-    def function(
-        self, params: Optional[Union[Var, Tuple, List[Var]]] = None, name: Optional[str] = ""
-    ) -> FunctionScope:
+    def function(self,
+                 params: Optional[Union[Var, Tuple, List[Var]]] = None,
+                 name: Optional[str] = "") -> FunctionScope:
         """Annotate a Relax function.
 
         Parameters
@@ -149,7 +149,7 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderEmit(self, call)
 
-    def match_shape(self, value: Expr, pattern: List[PrimExpr]):
+    def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
         """Emit a MatchShape.
 
         Parameters

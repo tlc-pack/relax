@@ -36,13 +36,17 @@ def test_block_builder():
     ib._begin_dataflow_block()
     lv0 = ib.emit(rx.op.multiply(gv0, y))
     gv1 = ib.emit_output(rx.op.multiply(lv0, lv0))
-    ib._end_block()
+    b0 = ib._end_block()
     ib._begin_dataflow_block()
     lv1 = ib.emit(rx.op.multiply(gv0, y))
     gv2 = ib.emit_output(rx.op.multiply(lv1, lv1))
-    ib._end_block()
+    b1 = ib._end_block()
     gv3 = ib.emit(rx.op.add(x, y))
-    ib._end_block()
+    b2 = ib._end_block()
+
+    assert isinstance(b0, rx.DataflowBlock)
+    assert isinstance(b1, rx.DataflowBlock)
+    assert not isinstance(b2, rx.DataflowBlock)
 
 
 def test_function_single_block():
