@@ -19,7 +19,7 @@ from . import exec_builder
 from . import expr
 from . import ty
 from . import vm
-from . import ir_builder
+from . import block_builder
 from . import op
 from . import parser
 from . import analysis
@@ -69,7 +69,7 @@ from .op.base import call_dps
 from .op.op_attrs import AllocStorageAttrs, AllocTensorAttrs
 
 # IRBuilder
-IRBuilder = ir_builder.IRBuilder
+BlockBuilder = block_builder.BlockBuilder
 
 # Parser
 from .parser import script
