@@ -22,6 +22,7 @@ from tvm import relax as rx
 from tvm.ir import structural_equal
 import numpy as np
 
+
 def test_fma_rewrite():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
@@ -29,13 +30,12 @@ def test_fma_rewrite():
     dtype1 = rx.DynTensorType(rank=2, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [m, n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.multiply(x, y))
-            lv1 = ib.emit(rx.op.add(lv0, y))
-            gv0 = ib.emit_output(lv1)
-        ib.emit_output(gv0)
+            gv0 = ib.emit_output(rx.op.add(lv0, y))
+        ib.emit_func_output(gv0)
     expr = ib.get()
 
     # before rewrite
@@ -49,20 +49,17 @@ def test_fma_rewrite():
 
     # after rewrite
     func = rx.transform.fma_rewrite(expr)
-
     v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
     assert structural_equal(v1.shape, rx.ShapeExpr([m, n]))
     assert structural_equal(s1.shape, rx.ShapeExpr([m, n]))
-    
-    # The var binded to the fma call is reused because the shape 
-    # and type of var are unchanged after rewriting
-    assert lv1 == v0
 
-    assert type(func.body.blocks[0].bindings[2].var) == rx.Var
-    assert type(func.body.blocks[0].bindings[2].value) == rx.DataflowVar
+    # The var binded to the fma call is reused because the shape
+    # and type of var are unchanged after rewriting
+    assert gv0 == v0
+    assert type(func.body.blocks[0].bindings[1].var) == rx.Var
 
 
 def test_explicit_memory_rewrite():
@@ -71,12 +68,11 @@ def test_explicit_memory_rewrite():
     shape_anno = [m, n]
     type_anno = rx.DynTensorType(2, "float32")
     x = rx.Var("x", shape_anno, type_anno)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
     with ib.function(x):
         with ib.dataflow() as df:
-            lv0 = rx.call_dps([m, n], rx.extern("test.op.identity"), [x])
-            gv0 = ib.emit_output(lv0)
-        ib.emit_output(gv0)
+            gv0 = ib.emit_output(rx.call_dps([m, n], rx.extern("test.op.identity"), [x]))
+        ib.emit_func_output(gv0)
     expr = ib.get()
 
     # before rewrite
@@ -90,7 +86,7 @@ def test_explicit_memory_rewrite():
 
     # the dataflow block has changed to binding block due to the rewriting
     block = func.body.blocks[0]
-    assert isinstance(block, rx.BindingBlock)
+    assert not isinstance(block, rx.DataflowBlock)
 
     s1 = block.bindings[0].value
     assert isinstance(s1, tvm.relay.Call)
@@ -100,18 +96,21 @@ def test_explicit_memory_rewrite():
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
+    # rx.parser.pretty_print(func)
+
 
 @rx.script
 class Mod:
     def foo(x: Tensor[_, "float32"]) -> Shape:
         relax.match_shape(x.shape, (n, m))
-        return (n*2, m*3)
+        return (n * 2, m * 3)
+
 
 def test_shape_lowering():
     mod = Mod()
     new_mod = rx.transform.shape_lower(mod)
     assert isinstance(new_mod, tvm.IRModule)
-    assert isinstance(new_mod["shape_func0"], tvm.tir.function.PrimFunc)
+    assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
     assert isinstance(new_mod["foo"], tvm.relax.expr.Function)
     code = rx.parser.astext(new_mod)
     assert "alloc_shape_heap" in code

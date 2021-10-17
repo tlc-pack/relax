@@ -15,49 +15,38 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
 from tvm import tir
 from tvm import relay
 from tvm import relax as rx
 
 
-def test_dataflow_block():
+def test_block_builder():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
     dtype0 = rx.DynTensorType(rank=2, dtype="float16")
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
-    with ib.dataflow() as df:
-        lv0 = ib.emit(rx.op.add(x, y))
+    ib._begin_binding_block()
+    gv0 = ib.emit(rx.op.add(x, y))
+    ib._begin_dataflow_block()
+    lv0 = ib.emit(rx.op.multiply(gv0, y))
+    gv1 = ib.emit_output(rx.op.multiply(lv0, lv0))
+    b0 = ib._end_block()
+    ib._begin_dataflow_block()
+    lv1 = ib.emit(rx.op.multiply(gv0, y))
+    gv2 = ib.emit_output(rx.op.multiply(lv1, lv1))
+    b1 = ib._end_block()
+    gv3 = ib.emit(rx.op.add(x, y))
+    b2 = ib._end_block()
 
-        assert lv0.name_hint == "lv0"
-        assert lv0.shape[0] == m
-        assert lv0.shape[1] == n
-        assert lv0.checked_type.rank == 2
-        assert lv0.checked_type.dtype == "float16"
-
-        lv1 = ib.emit(rx.op.multiply(lv0, y))
-        assert lv1.name_hint == "lv1"
-        
-        b0 = ib.match_shape(x, [m, n])
-
-        gv0 = ib.emit_output(lv1)
-        assert gv0.name_hint == "gv0"
-        assert gv0.shape[0] == m
-        assert gv0.shape[1] == n
-        assert gv0.checked_type.rank == 2
-        assert gv0.checked_type.dtype == "float16"
-        assert isinstance(gv0, rx.Var)
-
-    blocks = ib.get_blocks()
-    assert len(blocks) == 1
-    assert len(blocks[-1].bindings) == 4
-    for i in [0, 1, 3]:
-        assert isinstance(blocks[-1].bindings[i], rx.VarBinding)   
-    assert isinstance(blocks[-1].bindings[2], rx.MatchShape)
+    assert isinstance(b0, rx.DataflowBlock)
+    assert isinstance(b1, rx.DataflowBlock)
+    assert not isinstance(b2, rx.DataflowBlock)
 
 
 def test_function_single_block():
@@ -67,17 +56,17 @@ def test_function_single_block():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
     with ib.function([x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv0"
+            assert lv0.name_hint == "lv"
             lv1 = ib.emit(rx.op.multiply(lv0, y))
             assert lv1.name_hint == "lv1"
             gv0 = ib.emit_output(lv1)
-        assert gv0.name_hint == "gv0"
-        ib.emit_output(gv0)
+        assert gv0.name_hint == "gv"
+        ib.emit_func_output(gv0)
 
     func = ib.get()
     assert func.params[0] == x
@@ -98,21 +87,21 @@ def test_function_multi_blocks():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
     with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv0"
+            assert lv0.name_hint == "lv"
             gv0 = ib.emit_output(lv0)
-        assert gv0.name_hint == "gv0"
+        assert gv0.name_hint == "gv"
         gv1 = ib.emit(rx.op.add(gv0, gv0))
         assert gv1.name_hint == "gv1"
         with ib.dataflow() as df:
-            lv0 = ib.emit(rx.op.add(gv1, gv1))
-            assert lv0.name_hint == "lv0"
+            lv1 = ib.emit(rx.op.add(gv1, gv1))
+            assert lv1.name_hint == "lv1"
             gv2 = ib.emit_output(gv1)
-        ib.emit_output(gv2)
+        ib.emit_func_output(gv2)
 
     func = ib.get()
     assert gv2.shape[0] == m
@@ -139,7 +128,7 @@ def test_binary_shape_type_deduction():
     y = rx.Var("y", [n], dtype1)
     z = rx.Var("z", [5], dtype1)
     w = rx.Var("w", [k], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
     with ib.function([x, y, z, w]):
         with ib.dataflow() as df:
@@ -168,10 +157,8 @@ def test_binary_shape_type_deduction():
             assert isinstance(lv3.checked_type, rx.DynTensorType)
             assert lv3.checked_type.rank == 1
             assert lv3.checked_type.dtype == "float16"
-
-            gv0 = ib.emit_output(lv3)            
-
-        ib.emit_output(gv0)
+            gv0 = ib.emit_output(lv3)
+        ib.emit_func_output(gv0)
         assert isinstance(gv0.shape, tvm.relay.Call)
         assert isinstance(gv0.checked_type, rx.DynTensorType)
         assert gv0.checked_type.rank == 1
@@ -185,7 +172,7 @@ def test_emit_match_shape():
     x = rx.Var("tensor_value", type_annotation=type_anno0)
     shape_anno = [16, 8]
     y = rx.Var("shape_value", type_annotation=rx.ShapeType(), shape_annotation=shape_anno)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
     with ib.function([x, y]):
         with ib.dataflow() as df:
@@ -201,11 +188,11 @@ def test_emit_match_shape():
             # lv1: Shape = match_shape(shape, [m, n])
             lv1 = ib.match_shape(y, [m, n])
             assert lv1.checked_type == rx.ShapeType()
-            gv0 = ib.emit_output(lv1)            
+            gv0 = ib.emit_output(lv1)
 
-        ib.emit_output(gv0)
-
-    block = ib.get_blocks()[-1]
+        ib.emit_func_output(gv0)
+    func = ib.get()
+    block = func.body.blocks[0]
     b0, b1 = block.bindings[:2]
     assert isinstance(b0, rx.MatchShape)
     assert isinstance(b1, rx.MatchShape)
@@ -228,7 +215,7 @@ def test_normalize():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.IRBuilder()
+    ib = rx.BlockBuilder()
 
     add_call = rx.op.multiply(x, y)
     assert isinstance(add_call.shape, relay.Call)
@@ -240,7 +227,7 @@ def test_normalize():
 
 
 if __name__ == "__main__":
-    test_dataflow_block()
+    test_block_builder()
     test_function_single_block()
     test_function_multi_blocks()
     test_binary_shape_type_deduction()
