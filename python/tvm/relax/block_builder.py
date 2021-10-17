@@ -18,41 +18,48 @@
 from typing import List, Optional, Union, Dict
 from tvm.relay.expr import Tuple
 from tvm.runtime import Object
+from tvm import relax as rx
 from .expr import *
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("relax.FunctionScope")
-class FunctionScope(Object):
+class FunctionScope(object):
     """Auxiliary scope for function"""
 
     def __init__(self, irbuilder):
-        self.__init_handle_by_constructor__(_ffi_api.CreateFunctionScope, irbuilder)
+        self._ib = irbuilder
 
     def __enter__(self):
-        return self
+        _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
 
     def __exit__(self, ptype, value, trace):
-        _ffi_api.ExitFunctionScope(self)
+        block = _ffi_api.BlockBuilderEndBlock(self._ib)
+        if len(block.bindings) > 0:
+            self._ib._blocks.append(block)
 
 
-@tvm._ffi.register_object("relax.DataflowScope")
-class DataflowScope(Object):
+class DataflowScope(object):
     """Auxiliary scope for Dataflow block"""
 
     def __init__(self, irbuilder):
-        self.__init_handle_by_constructor__(_ffi_api.CreateDataflowScope, irbuilder)
+        self._ib = irbuilder
 
     def __enter__(self):
-        _ffi_api.EnterDataflowScope(self)
+        block = _ffi_api.BlockBuilderEndBlock(self._ib)
+        if len(block.bindings) > 0:
+            self._ib._blocks.append(block)
+        _ffi_api.BlockBuilderBeginDataflowBlock(self._ib)
 
     def __exit__(self, ptype, value, trace):
-        _ffi_api.ExitDataflowScope(self)
+        block = _ffi_api.BlockBuilderEndBlock(self._ib)
+        if len(block.bindings) > 0:
+            self._ib._blocks.append(block)
+        _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
 
 
-@tvm._ffi.register_object("relax.IRBuilder")
-class IRBuilder(Object):
+@tvm._ffi.register_object("relax.BlockBuilder")
+class BlockBuilder(Object):
     """A builder to build Relax IR for testing and dev.
 
     Examples
@@ -71,12 +78,22 @@ class IRBuilder(Object):
                 lv0 = ib.emit(rx.add(x, y))
                 lv1 = ib.emit(rx.multiply(lv0, y))
                 gv0 = ib.emit_output(lv1)
-            ib.emit_output(gv0)
+            ib.emit_func_output(gv0)
         func = ib.get()
     """
 
     def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.IRBuilderCreate)
+        self._blocks = []
+        self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
+
+    def _begin_dataflow_block(self) -> None:
+        _ffi_api.BlockBuilderBeginDataflowBlock(self)
+    
+    def _begin_binding_block(self) -> None:
+        _ffi_api.BlockBuilderBeginBindingBlock(self)
+    
+    def _end_block(self) -> BindingBlock:
+        return _ffi_api.BlockBuilderEndBlock(self)
 
     def function(self,
                  params: Optional[Union[Var, Tuple, List[Var]]] = None,
@@ -87,10 +104,10 @@ class IRBuilder(Object):
         ----------
         params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function.
-        
+
         name : str, optional
             The name of the function. If provided, the function is global, otherwise local.
-        
+
         Returns
         -------
         ret: FunctionScope
@@ -101,12 +118,13 @@ class IRBuilder(Object):
         if not isinstance(params, (list, tuple)):
             params = [params]
 
-        _ffi_api.IRBuilderFillFuncNameParam(self, params, name)
+        self._func_params = params
+        self._func_name = name
         return FunctionScope(self)
 
     def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block.
-        
+
         Returns
         -------
         ret: DataflowScope
@@ -114,8 +132,7 @@ class IRBuilder(Object):
         """
         return DataflowScope(self)
 
-    def emit(self,
-             call: relay.Call) -> Var:
+    def emit(self, call: relay.Call) -> Var:
         """Emit a call node.
         This infers the shape and type of the CallNode, create a variable,
         and bind the CallNode to the variable.
@@ -130,11 +147,9 @@ class IRBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
         """
-        return _ffi_api.IRBuilderEmit(self, call)
-    
-    def match_shape(self,
-                        value: Expr,
-                        pattern: List[PrimExpr]):
+        return _ffi_api.BlockBuilderEmit(self, call)
+
+    def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
         """Emit a MatchShape.
 
         Parameters
@@ -144,23 +159,22 @@ class IRBuilder(Object):
 
         pattern : List[PrimExpr]
             The pattern of the MatchShape to be emitted.
-        
+
         Returns
         -------
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
         """
-        return _ffi_api.IRBuilderEmitMatchShape(self, value, pattern)
+        return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)
 
-    def emit_output(self,
-                    output: Union[Expr, Tuple, List[Expr]]) -> None:
+    def emit_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
         """Emit output for the current dataflow block or function.
 
         Parameters
         ----------
         output : Expr | Tuple | List[Expr]
             The output of the current block/function.
-        
+
         Returns
         -------
         ret : tvm.relax.Var
@@ -168,40 +182,50 @@ class IRBuilder(Object):
         """
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
-        return _ffi_api.IRBuilderEmitOutput(self, output)
+        return _ffi_api.BlockBuilderEmitOutput(self, output)
 
-    def normalize(self,
-                  expr: Expr) -> Expr:
+    def emit_func_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
+        """Emit output for the function.
+
+        Parameters
+        ----------
+        output : Expr | Tuple | List[Expr]
+            The output of the current block/function.
+
+        Returns
+        -------
+        ret : tvm.relax.Var
+            The return variable which gets binded to the output.
+        """
+        if isinstance(output, (list, tuple)):
+            output = Tuple(output)
+        self._func_ret = output
+
+    def normalize(self, expr: Expr) -> Expr:
         """Normalize an Expr to complete its shape and type.
 
         Parameters
         ----------
         expr : Expr
             The input expr.
-        
+
         Returns
         -------
         ret : Expr
             The expr with normalized shape and type.
         """
-        return _ffi_api.IRBuilderNormalize(self, expr)
+        return _ffi_api.BlockBuilderNormalize(self, expr)
 
     def get(self) -> Function:
         """Return the function being built.
-        
+
         Returns
         -------
         ret : tvm.relax.Function
             A Relax function node being built.
         """
-        return _ffi_api.IRBuilderGet(self)
-
-    def get_blocks(self) -> List[BindingBlock]:
-        """Return the binding blocks being built.
-
-        Returns
-        -------
-        ret : List[tvm.relax.BindingBlock]
-            A list of binding blocks being built.
-        """
-        return _ffi_api.IRBuilderGetBlocks(self)
+        seqe = rx.SeqExpr(self._blocks, self._func_ret)
+        func = rx.Function(
+            self._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._func_name)
+        )
+        return func

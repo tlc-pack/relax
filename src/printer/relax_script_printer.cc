@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ir/type_functor.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/ir_functor.h>
 
 #include <algorithm>
@@ -42,7 +43,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   TVM_DLL Doc Print(const ObjectRef& node);
 
  private:
-  std::unordered_map<std::string, int> name_alloc_map_;
+  NameTable name_table_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
   std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
 
@@ -533,16 +534,7 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
   if (prefix.empty()) {
     prefix = fallback;
   }
-  // TODO(@altanh): more robust name legalization
-  std::replace(prefix.begin(), prefix.end(), '.', '_');
-  std::string unique_prefix = prefix;
-  auto it = name_alloc_map_.find(prefix);
-  if (it != name_alloc_map_.end()) {
-    while (name_alloc_map_.count(unique_prefix = prefix + std::to_string(++it->second)) > 0) {
-    }
-  }
-  name_alloc_map_[unique_prefix] = 0;
-  return Doc::Text(unique_prefix);
+  return Doc::Text(name_table_.GetUniqueName(prefix));
 }
 
 String AsRelaxScript(const ObjectRef& mod) {
