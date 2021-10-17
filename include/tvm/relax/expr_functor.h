@@ -27,8 +27,8 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/node/functor.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/ir_builder.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
@@ -167,6 +167,9 @@ class ExprVisitor : public ExprFunctor<void(const Expr& n)> {
   virtual void VisitMatchShape(const MatchShape& binding);
   virtual void VisitBindingBlock(const BindingBlock& block);
   virtual void VisitDataflowBlock(const DataflowBlock& block);
+
+ protected:
+  std::unordered_map<const Object*, size_t> visit_counter_;
 };
 
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
@@ -180,11 +183,22 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
  */
 class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
+  ExprMutator() {
+    name_table_ = std::make_shared<NameTable>();
+    builder_ = BlockBuilder(name_table_);
+  }
+
   /*!
    * \brief Mutate is alias for VisitExpr
    * \return expr.
    */
-  Expr Mutate(const Expr& expr) { return this->VisitExpr(expr); }
+  Expr Mutate(const Expr& expr) {
+    if (memo_.count(expr) == 0) {
+      memo_[expr] = this->VisitExpr(expr);
+    }
+    return Downcast<Expr>(memo_[expr]);
+  }
+
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
@@ -208,28 +222,32 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
-  virtual void VisitBinding(const Binding& binding, IRBuilder& builder);
-  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& builder);
-  virtual void VisitMatchShape(const MatchShape& binding, IRBuilder& builder);
+
+  virtual void VisitBinding(const Binding& binding);
+  virtual Var VisitVarBinding(const VarBinding& binding);
+  virtual void VisitMatchShape(const MatchShape& binding);
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
  protected:
-  IRBuilder builder_;
+  Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
+  /*! \brief Look up the value binded to a var. */
+  Expr LookupVar(Var var);
+  // A remapping table: pre var -> post var
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> memo_;
+  std::shared_ptr<NameTable> name_table_;
+  BlockBuilder builder_;
 };
 
+// TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks
 /*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes
  */
 class DataflowMutator : public ExprMutator {
  public:
-  virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
-  virtual Var VisitVarBinding(const VarBinding& binding, IRBuilder& builder);
+  void VisitBinding(const Binding& binding) final;
 
- protected:
-  /*! \brief Look up the value binded to a var. */
-  Expr LookupVar(Var var);
-  // A remapping table: pre var -> post var
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> pre_post_var_map_;
+  virtual Var VisitDataflowVarBinding(const VarBinding& binding);
 };
 
 }  // namespace relax
