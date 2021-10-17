@@ -18,11 +18,12 @@
  */
 /*!
  * \file src/relax/transform/memory_rewrite.cc
- * \brief 
+ * \brief
  */
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
+
 #include "../../relay/transforms/pattern_utils.h"
 
 namespace tvm {
@@ -36,7 +37,7 @@ namespace relax {
 // lv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
 // rx.call_packed(op.identity, x, lv0)
 
-class ExplicitMemMutator : public DataflowMutator {
+class ExplicitMemMutator : public ExprMutator {
   Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
     DynTensorType tensor_type = Downcast<DynTensorType>(type);
     DataType dtype = DataType(tensor_type->dtype);
@@ -62,26 +63,39 @@ class ExplicitMemMutator : public DataflowMutator {
     return ret;
   }
 
-	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
+  BindingBlock VisitBindingBlock(const BindingBlock& block) {
+    builder_->BeginBindingBlock();
+    for (Binding binding : block->bindings) {
+      this->VisitBinding(binding);
+    }
+    return builder_->EndBlock();
+  }
+
+  Expr VisitExpr_(const CallNode* call) override {
+    // post-order mutation
+    Expr expr = ExprMutator::VisitExpr_(call);
+    call = expr.as<CallNode>();
+    // TODO(@yuchen, @altanh): using mutate cause infinite recursion
+    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
+
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
 
-    const CallNode* op = binding->value.as<CallNode>();
-		if(op && op->op == call_dps_op) {
-      // switch current DataflowBlock to an impure BindingBlock
-      ir_builder->is_dataflow_ = false;
-      ShapeExpr output_shape = Downcast<ShapeExpr>(op->args[0]);
-      Type arg_type = Downcast<Tuple>(op->args[2])->fields[0]->checked_type();
+    if (call->op == call_dps_op) {
+      ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
+      Type arg_type = Downcast<Tuple>(call->args[2])->fields[0]->checked_type();
       Expr output_size = ComputeStorageSize(output_shape, arg_type);
-      Var tensor = ir_builder->Emit(Call(alloc_tensor_op, {op->args[0]}));
-      return ir_builder->Emit(binding->var, Call(op->args[1], {op->args[2], tensor}));
+      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
+      builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
+      return tensor;
     }
-    return ir_builder->Emit(binding);
+
+    return GetRef<Expr>(call);
   }
 };
 
-Expr ExplicitMemRewrite(const Expr& e) {
-  return ExplicitMemMutator().Mutate(e);
+Expr ExplicitMemRewrite(const Expr& e) { 
+  return ExplicitMemMutator().Mutate(e); 
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.explicit_memory_rewrite")

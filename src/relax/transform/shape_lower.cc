@@ -18,42 +18,24 @@
  */
 /*!
  * \file src/relax/transform/shape_lower.cc
- * \brief 
+ * \brief
  */
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
+
 #include "../../printer/text_printer.h"
 
 namespace tvm {
 namespace relax {
 
-// Replace ShapeExpr with corresponding Var
-class ShapeReplacer : public ExprMutator {
- public:
-  explicit ShapeReplacer(Map<ShapeExpr, Var> mapping) {
-    mapping_ = mapping;
-  }
-  Expr VisitExpr_(const ShapeExprNode* op) override {
-    return mapping_.at(GetRef<ShapeExpr>(op));
-  }
-
- private:
-  Map<ShapeExpr, Var> mapping_;
-};
-
-
 class ShapeLowerMutator : public ExprMutator {
  public:
-  static DataType ShapeDType() {
-    return DataType::Int(32);
-  };
+  static DataType ShapeDType() { return DataType::Int(32); };
 
-  explicit ShapeLowerMutator(IRModule mod) {
-    mod_ = mod;
-  }
+  explicit ShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
     ret_mod_ = IRModule();
@@ -73,71 +55,62 @@ class ShapeLowerMutator : public ExprMutator {
       ret_mod_->Add(p.first, Downcast<BaseFunc>(new_func));
     }
     return ret_mod_;
-  } 
+  }
 
-  void VisitMatchShape(const MatchShape& binding,
-                       IRBuilder& builder) override {
+  void VisitMatchShape(const MatchShape& binding) override {
     Expr value = binding->value;
     Array<PrimExpr> pattern = binding->pattern;
-    Array<PrimExpr> indexes;
+    Array<PrimExpr> indices;
     for (size_t i = 0; i < pattern.size(); ++i) {
       IntImm idx = expr2slot_.at(pattern[i]);
-      indexes.push_back(idx);
+      indices.push_back(idx);
     }
-    ShapeExpr indexes_(indexes);
-    Call call(ExternFunc("decode_shape"), {value, shape_heap_, indexes_});
-    builder->Emit(call);
+    builder_->Emit(Call(ExternFunc("decode_shape"), {value, shape_heap_, ShapeExpr(indices)}), "_");
+  }
+
+  Expr VisitExpr_(const ShapeExprNode* node) override {
+    tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
+    GlobalVar shape_func_var(name_table_->GetUniqueName("shape_func"));
+    // TODO make sure shape_heap doesnt get redefined by local funcs?
+    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
+    ret_mod_->Add(shape_func_var, func);
+
+    // construct shape
+    Array<PrimExpr> indices;
+    for (PrimExpr e : node->values) {
+      indices.push_back(expr2slot_.at(e));
+    }
+    return builder_->Emit(Call(ExternFunc("construct_shape"), {shape_heap_, ShapeExpr(indices)}),
+                          "sh");
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
-    Expr visited_func = ExprMutator::VisitExpr_(node);
-    const auto* visited = visited_func.as<FunctionNode>();
-    ICHECK(visited);
-    const auto* seq = visited->body.as<SeqExprNode>();
-    ICHECK(seq);
-
-    // prologue block: allocate shape heap
-    ShapeExpr heap_size({heap_size_});
-    Call alloc_heap_call(ExternFunc("relax.alloc_shape_heap"), {heap_size});
-    VarBinding binding(shape_heap_, alloc_heap_call);
-    BindingBlock prologue({binding});
-
-    // process body
-    IRBuilder ib = IRBuilderNode::Create();
-    Array<ShapeExpr> shapes = CollectShapeExpr(seq->body);
-    Map<ShapeExpr, Var> mapping;
-    for (ShapeExpr shape : shapes) {
-      // generate tir shape function
-      tir::PrimFunc func = CalculateShape(shape);
-      GlobalVar shape_func_var("shape_func" + std::to_string(shape_func_counter_++));
-      ib->Emit(Call(shape_func_var, {shape_heap_}));
-      ret_mod_->Add(shape_func_var, func);
-
-      // construct shape
-      Array<PrimExpr> indexes;
-      for (PrimExpr e : shape->values) {
-        indexes.push_back(expr2slot_.at(e));
-      }
-      ShapeExpr indexes_(indexes);
-      Call call(ExternFunc("construct_shape"), {shape_heap_, indexes_});
-      Var shape_var = ib->Emit(call);
-      mapping.Set(shape, shape_var);
+    Array<Var> params;
+    for (Var param : node->params) {
+      params.push_back(Downcast<Var>(this->Mutate(param)));
     }
-    Expr new_body = ShapeReplacer(mapping).Mutate(seq->body);
+    Type ret_type = this->VisitType(node->ret_type);
 
-    // epilogue block: kill the shape heap
-    Call free_heap_call(ExternFunc("relax.free_shape_heap"), {shape_heap_});
-    ib->Emit(free_heap_call);
+    builder_->BeginBindingBlock();
+    builder_->Emit(VarBinding(
+        shape_heap_, Call(ExternFunc("relax.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
 
-    // process blocks
+    Expr new_body = this->Mutate(node->body);
+
     Array<BindingBlock> blocks;
-    blocks.push_back(prologue);
-    blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
-    blocks.push_back(ib->GetBlocks().back());
 
+    if (const SeqExprNode* seq = new_body.as<SeqExprNode>()) {
+      blocks.push_back(builder_->EndBlock());
+      blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
+      builder_->BeginBindingBlock();
+      new_body = seq->body;
+    }
 
-    SeqExpr new_seq(blocks, new_body);
-    return Function(visited->name, visited->params, new_seq, visited->ret_type);
+    builder_->Emit(Call(ExternFunc("relax.free_shape_heap"), {shape_heap_}), "_");
+    blocks.push_back(builder_->EndBlock());
+    new_body = SeqExpr(blocks, new_body);
+
+    return Function(node->name, params, new_body, ret_type);
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {
@@ -172,19 +145,7 @@ class ShapeLowerMutator : public ExprMutator {
     };
     tir::PostOrderVisit(expr, func);
     return ret;
-  } 
-
-  Array<ShapeExpr> CollectShapeExpr(Expr expr) const {
-    Array<ShapeExpr> ret;
-    auto func = [&ret](const Expr& e) {
-      if (e->IsInstance<ShapeExprNode>()) {
-        ret.push_back(Downcast<ShapeExpr>(e));
-      }
-    };
-    PostOrderVisit(expr, func);
-    return ret;
-  } 
-
+  }
 
   Map<PrimExpr, IntImm> PrepareExpr2Slot(Function expr) const {
     int cnt = 0;
@@ -192,7 +153,7 @@ class ShapeLowerMutator : public ExprMutator {
     auto func = [&](const Expr& e) {
       if (e->IsInstance<ShapeExprNode>()) {
         ShapeExpr shape = Downcast<ShapeExpr>(e);
-        for (auto prim_e: shape->values) {
+        for (auto prim_e : shape->values) {
           if (ret.count(prim_e) == 0) {
             IntImm idx(ShapeDType(), cnt++);
             ret.Set(prim_e, idx);
@@ -215,9 +176,7 @@ class ShapeLowerMutator : public ExprMutator {
   Map<PrimExpr, IntImm> expr2slot_;
 };
 
-
-TVM_REGISTER_GLOBAL("relax.transform.shape_lower")
-.set_body_typed([](IRModule mod) {
+TVM_REGISTER_GLOBAL("relax.transform.shape_lower").set_body_typed([](IRModule mod) {
   return ShapeLowerMutator(mod).Lower();
 });
 
