@@ -41,23 +41,26 @@ namespace relax {
 // lv0 = add(k, b)
 // z0 = ewise_fma(a, lv0, c)
 
-class EwiseFMARewriter : public DataflowMutator {
-	Var VisitVarBinding(const VarBinding& binding, IRBuilder& ir_builder) override {
+class EwiseFMARewriter : public ExprMutator {
+  Expr VisitExpr_(const CallNode* call) override {
+    Expr expr = ExprMutator::VisitExpr_(call);
+    call = expr.as<CallNode>();
+
     static const Op& add_op = Op::Get("relax.add");
     static const Op& multiply_op = Op::Get("relax.multiply");
     static const Op& ewise_fma_op = Op::Get("relax.ewise_fma");
 
-    // TODO: shape & dtype check
-    const CallNode* op1 = binding->value.as<CallNode>();
-    if (op1 && (op1->op == add_op)) {
-      Expr value = LookupVar(Downcast<Var>(op1->args[0]));
-      const CallNode* op2 = value.as<CallNode>();
-      if (op2 && op2->op == multiply_op) {
-        Call fma_call = Call(ewise_fma_op, {op2->args[0], op2->args[1], op1->args[1]}, {}, {});
-        return ir_builder->Emit(binding->var, fma_call);
+    if (call->op == add_op) {
+      // NOTE: assumes df block is completely SSA
+      Expr value = LookupVar(Downcast<Var>(call->args[0]));
+      const CallNode* mul = value.as<CallNode>();
+      if (mul && mul->op == multiply_op) {
+        Call fma_call = Call(ewise_fma_op, {mul->args[0], mul->args[1], call->args[1]}, {}, {});
+        return fma_call;
       }
     }
-    return ir_builder->Emit(binding);
+
+    return GetRef<Call>(call);
   }
 };
 
