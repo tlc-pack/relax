@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Tuple
 import tvm
 from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm._ffi.base import _LIB, check_call
@@ -133,3 +133,8 @@ class VirtualMachine(object):
 
     def __getitem__(self, key: str) -> PackedFunc:
         return self.module[key]
+
+
+def build(mod: tvm.IRModule) -> Tuple[Executable, Module]:
+    ex, lib = _ffi_api.VMBuild(mod)
+    return ex, lib

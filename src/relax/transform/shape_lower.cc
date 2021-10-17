@@ -33,7 +33,9 @@ namespace relax {
 
 class ShapeLowerMutator : public ExprMutator {
  public:
-  static DataType ShapeDType() { return DataType::Int(32); };
+  static DataType ShapeDType() {
+    return DataType::Int(64);
+  };
 
   explicit ShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
@@ -131,6 +133,7 @@ class ShapeLowerMutator : public ExprMutator {
     tir::Stmt body = tir::SeqStmt(seq);
     Array<tir::Var> params{heap};
     Type ret_type = VoidType();
+
     return tir::PrimFunc(params, body, ret_type, buffer_map);
   }
 

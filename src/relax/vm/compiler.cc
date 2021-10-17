@@ -24,8 +24,11 @@
 
 #include "compiler.h"
 
+#include <tvm/target/target.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/tir/function.h>
+#include <tvm/driver/driver_api.h>
 
 #include <string>
 #include <unordered_map>
@@ -37,13 +40,16 @@ namespace relax_vm {
 
 using namespace relax;
 
-class VMFunctionCompiler : public ExprVisitor {
+class VMCompilerImpl : public ExprVisitor {
  public:
-  explicit VMFunctionCompiler(ExecBuilderNode* builder) { builder_ = GetRef<ExecBuilder>(builder); }
+  explicit VMCompilerImpl(ExecBuilderNode* builder) {
+    builder_ = GetRef<ExecBuilder>(builder);
+  }
 
  protected:
   /*! \brief A counter for naming local functions. */
   int local_func_counter_ = 0;
+
 
   // TODO(@yuchen): support visiting other IR nodes
   void VisitExpr_(const FunctionNode* func_node) {
@@ -85,18 +91,15 @@ class VMFunctionCompiler : public ExprVisitor {
         EmitAllocTensor(call_node, var);
       } else {
         // Normal packed function without attributes
-        std::vector<Instruction::Arg> args;
-        for (size_t i = 0; i < call_node->args.size(); ++i) {
-          if (call_node->args[i].as<VarNode>()) {
-            auto reg = this->var_register_map_.find(Downcast<Var>(call_node->args[i]));
-            ICHECK(reg != this->var_register_map_.end());
-            args.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
-          }
-        }
+        std::vector<Instruction::Arg> args = ConvertArgs(call_node);
         // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
         // register)?
         builder_->EmitCall(name, args, NewRegister(var));
       }
+    } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
+      String name = gvar->name_hint;
+      std::vector<Instruction::Arg> args = ConvertArgs(call_node);
+      builder_->EmitCall(name, args, NewRegister(var));
     } else {
       LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
     }
@@ -172,6 +175,31 @@ class VMFunctionCompiler : public ExprVisitor {
     return reg;
   }
 
+  std::vector<Instruction::Arg> ConvertArgs(const Call& call) {
+    std::vector<Instruction::Arg> ret;
+    const auto& args = call->args;
+    for (size_t i = 0; i < call->args.size(); ++i) {
+      if (args[i]->IsInstance<VarNode>()) {
+        auto reg = this->var_register_map_.find(Downcast<Var>(args[i]));
+        ICHECK(reg != this->var_register_map_.end());
+        ret.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
+      } else if (args[i]->IsInstance<ShapeExprNode>()) {
+        std::vector<int64_t> shape;
+        for (PrimExpr e : Downcast<ShapeExpr>(args[i])->values) {
+          shape.push_back(Downcast<IntImm>(e)->value);
+        }
+        auto shape_tuple = ShapeTuple(shape);
+        TVMRetValue shape_tuple_value;
+        shape_tuple_value = shape_tuple;
+        Index index = builder_->EmitConstant(shape_tuple_value);
+        ret.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+      } else {
+        LOG(FATAL) << "not supported argument type.";
+      }
+    }
+    return ret;
+  }
+
   /*! \brief Internal ExecBuilder. */
   relax::ExecBuilder builder_;
   /*! \brief Total number of virtual registers allocated. */
@@ -196,30 +224,53 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
 }
 
 void VMCompiler::Compile(IRModule mod) {
-  // TODO(@yuchen, @ziheng): support lowering PrimFuncs
-  for (auto& func : mod->functions) {
-    auto gvar = func.first;
-    if (!func.second->IsInstance<FunctionNode>()) {
-      continue;
-    }
+  // Reset internal builder
+  builder_ = relax::ExecBuilderNode::Create();
 
-    VMFunctionCompiler func_compiler();
-    if (auto* n = func.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(n);
-      auto func_compiler = VMFunctionCompiler(builder_.operator->());
-      func_compiler.VisitExpr(func);
+  Target target("llvm");
+  IRModule tir_module;
+  IRModule rx_module;
+  for (auto& p : mod->functions) {
+    auto gvar = p.first;
+
+    BaseFunc func = p.second;
+    if (func.as<tir::PrimFuncNode>()) {
+      tir_module->Add(gvar, func);
+    } else if (func.as<FunctionNode>()) {
+      rx_module->Add(gvar, func);
+    } else {
+      LOG(FATAL) << "Cannot handle such function node now:\n" << func;
     }
+  }
+  lib_ = tvm::build(tir_module, target, target);
+
+  VMCompilerImpl compiler(builder_.operator->());
+  for (auto& p : rx_module->functions) {
+    compiler.VisitExpr(p.second);
   }
 }
 
-Executable VMCompiler::GetExec() { return builder_->Get(); }
+Executable VMCompiler::GetExec() { 
+  return builder_->Get();
+}
+
+runtime::Module VMCompiler::GetLib() {
+  return lib_;
+}
 
 runtime::Module CreateVMCompiler() {
   auto compiler = make_object<VMCompiler>();
   return runtime::Module(compiler);
 }
 
-TVM_REGISTER_GLOBAL("relax.VMCompiler").set_body_typed([]() { return CreateVMCompiler(); });
+TVM_REGISTER_GLOBAL("relax.VMBuild")
+.set_body_typed([](IRModule mod) {
+  auto compiler = make_object<VMCompiler>();
+  compiler->Compile(mod);
+  Executable exec = compiler->GetExec();
+  Module lib = compiler->GetLib();
+  return Array<ObjectRef>({exec, lib});
+});
 
 }  // namespace relax_vm
 }  // namespace runtime
