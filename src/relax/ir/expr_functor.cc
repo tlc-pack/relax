@@ -366,7 +366,7 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
 
   this->var_remap_[binding->var] = new_var;
 
-  if (builder_->IsDataflow() && !binding->var.as<DataflowVarNode>()) {
+  if (builder_->CurrentBlockIsDataFlow() && !binding->var.as<DataflowVarNode>()) {
     return builder_->EmitOutput(VarBinding(new_var, new_value));
   } else {
     return builder_->Emit(VarBinding(new_var, new_value));
@@ -430,37 +430,10 @@ Expr ExprMutator::LookupVar(Var var) {
 // ==================
 // DataflowMutator
 
-// BindingBlock DataflowMutator::VisitDataflowBlock(const DataflowBlock& block) {
-//   this->builder_ = LazyBlockBuilderNode::Create(block);
-//   {
-//     With<DataflowScope> scope(this->builder_);
-//     for (auto binding : block->bindings) {
-//       if (auto* var_binding = binding.as<VarBindingNode>()) {
-//         Var var = this->VisitVarBinding(Downcast<VarBinding>(binding), this->builder_);
-//         this->var_remap_[var_binding->var] = var;
-//       }
-//     }
-//   }
-//   return this->builder_->GetBlocks().back();
-// }
-
-// Var DataflowMutator::VisitVarBinding(const VarBinding& binding, BlockBuilder& builder) {
-//   Expr new_value = this->Mutate(binding->value);
-//   Var new_var;
-//   if (new_value.as<CallNode>()) {
-//     new_var = builder->Emit(Downcast<Call>(new_value));
-//   }
-//   if (!binding->var.as<DataflowVarNode>()) {
-//     new_var = builder->EmitOutput(new_value);
-//   }
-//   var_remap_[binding->var] = new_var;
-//   return new_var;
-// }
-
 void DataflowMutator::VisitBinding(const Binding& binding) {
   if (binding.as<VarBindingNode>()) {
     VarBinding var_binding = Downcast<VarBinding>(binding);
-    if (builder_->IsDataflow()) {
+    if (builder_->CurrentBlockIsDataFlow()) {
       var_remap_[var_binding->var] = this->VisitDataflowVarBinding(var_binding);
     } else {
       var_remap_[var_binding->var] = ExprMutator::VisitVarBinding(var_binding);

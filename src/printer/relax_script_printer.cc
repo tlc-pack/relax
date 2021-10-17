@@ -23,8 +23,8 @@
  */
 
 #include <tvm/ir/type_functor.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/ir_functor.h>
-#include <tvm/relax/name_table.h>
 
 #include <algorithm>
 #include <utility>
