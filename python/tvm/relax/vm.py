@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Tuple
 import tvm
 from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm._ffi.base import _LIB, check_call
@@ -64,7 +64,6 @@ class VirtualMachine(object):
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
         mod: Optional[Module] = None,
     ) -> None:
-
         """
         Construct a VirtualMachine wrapper object.
 
@@ -133,3 +132,37 @@ class VirtualMachine(object):
 
     def __getitem__(self, key: str) -> PackedFunc:
         return self.module[key]
+
+
+def build(mod: tvm.IRModule,
+          target: tvm.target.Target,
+          target_host: tvm.target.Target) -> Tuple[Executable, Module]:
+    """
+    Build an IRModule to VM executable.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The IR module.
+
+    target : tvm.target.Target
+        A build target.
+
+    target_host : tvm.target.Target
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        to setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    Returns
+    -------
+    ex: tvm.relax.vm.Exectuable
+        An executable that can be loaded by virtual machine.
+    lib: tvm.runtime.Module
+        A runtime module that contains generated code.
+    """
+    ex, lib = _ffi_api.VMBuild(mod, target, target_host)
+    return ex, lib
