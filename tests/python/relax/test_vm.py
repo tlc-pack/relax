@@ -167,21 +167,6 @@ def test_vm_shapeof():
     for i, s in enumerate(res):
         assert s == shape[i]
 
-def test_vm_heap():
-    ib = rx.ExecBuilder()
-    shape = (32, 16)
-    arr = tvm.nd.array(np.random.rand(*shape))
-    with ib.function("main", num_inputs=0):
-        ib.emit_call("vm.builtin.alloc_heap", args=[ib.imm(2)], dst=ib.r(0))
-        ib.emit_call("vm.builtin.shape_of", args=[arr], dst=ib.r(1))
-        ib.emit_call("vm.builtin.match_shape", args=[ib.r(1), ib.r(0), ib.imm(0), ib.imm(1)])
-        ib.emit_call("vm.builtin.make_shape", args=[ib.r(0), ib.imm(0), ib.imm(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    ex = ib.get()
-    vm = rx.VirtualMachine(ex, tvm.cpu())
-    res = vm["main"]()
-    for i, s in enumerate(res):
-        assert s == shape[i]
 
 def test_vm_storage():
     ib = rx.ExecBuilder()
@@ -202,7 +187,7 @@ def test_vm_storage():
     assert res.device == tvm.cpu()
     assert res.shape == shape
 
-def test_vm_compile():
+def test_vm_compile_stage0():
     @rx.script
     class Mod:
         def foo(x: Tensor[(3, 4), "float32"]):
@@ -212,11 +197,72 @@ def test_vm_compile():
             return z
 
     mod = Mod()
-    exec = rx.vm_compiler.compile(mod)  
-    input = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
-    vm = rx.VirtualMachine(exec, tvm.cpu())
-    res = vm["foo"](input)
-    np.testing.assert_allclose(input.asnumpy(), res.asnumpy())
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(mod, target, target_host)
+    inp = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    res = vm["foo"](inp)
+    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
+
+
+def test_vm_compile_stage1():
+    @rx.script
+    class Mod1:
+        @tvm.script.tir
+        def shape_func0(heap: ty.handle) -> None:
+            # function attr dict
+            tir.func_attr({"global_symbol": "shape_func0"})
+            H = tir.match_buffer(heap, [tir.int64(4)], dtype="int64", elem_offset=tir.int64(0), align=128, offset_factor=1)
+            # body
+            tir.store(H.data, tir.int64(2), (tir.load("int64", H.data, tir.int64(0))*tir.int64(2)), True)
+            tir.store(H.data, tir.int64(3), (tir.load("int64", H.data, tir.int64(1))*tir.int64(3)), True)
+    
+        def foo(x: Tensor[_, "float32"]) -> Shape:
+            shape_heap: Tensor[(4,), "int64"] = relax.call_packed("vm.builtin.alloc_shape_heap", (4,))
+            gv0 = relax.call_packed("vm.builtin.shape_of", x)
+            gv1 = relax.call_packed("vm.builtin.decode_shape", gv0, shape_heap, (0, 1))
+            gv2 = shape_func0(shape_heap)
+            gv3 = relax.call_packed("vm.builtin.make_shape", shape_heap, (2, 3))
+            return gv3
+
+    mod = Mod1()
+    code = rx.parser.astext(mod)
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(mod, target, target_host)
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+
+    shape = (32, 16)
+    arr = tvm.nd.array(np.random.rand(*shape))
+    res = vm["foo"](arr)
+    assert res[0] == shape[0] * 2
+    assert res[1] == shape[1] * 3
+
+
+def test_vm_compile_stage2():
+    @rx.script
+    class Mod2:
+        def foo(x: Tensor[_, "float32"]) -> Shape:
+            sh = relax.call_packed("vm.builtin.shape_of", x)
+            relax.match_shape(sh, (n, m))
+            return (n * 2, m * 3)
+
+    mod = Mod2()
+    code = rx.parser.astext(mod)
+    new_mod = rx.transform.shape_lower(mod)
+    code = rx.parser.astext(new_mod)
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(new_mod, target, target_host)
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+
+    shape = (32, 16)
+    arr = tvm.nd.array(np.random.rand(*shape))
+    res = vm["foo"](arr)
+    assert res[0] == shape[0] * 2
+    assert res[1] == shape[1] * 3
+
 
 if __name__ == "__main__":
     test_vm_execute()
@@ -227,6 +273,7 @@ if __name__ == "__main__":
     test_vm_serialize()
     test_vm_constant_serialize()
     test_vm_shapeof()
-    test_vm_heap()
     test_vm_storage()
-    test_vm_compile()
+    test_vm_compile_stage0()
+    test_vm_compile_stage1()
+    test_vm_compile_stage2()

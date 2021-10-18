@@ -375,7 +375,7 @@ class RelaxTransformer(Transformer):
                 return var
             elif bind_free_vars:
                 # introduce TIR variable to scope, e.g. for func params or rx.call_packed
-                var = tir.Var(var_name, "int32", self.to_tvm_span(expr.span))
+                var = tir.Var(var_name, "int64", self.to_tvm_span(expr.span))
                 self.scope[var_name] = var
                 return var
             else:
@@ -387,7 +387,7 @@ class RelaxTransformer(Transformer):
         elif isinstance(expr, ast.Constant):
             if not isinstance(expr.value, int):
                 self.report_error("only integer constants are supported", expr.span)
-            return tir.const(expr.value, "int32", self.to_tvm_span(expr.span))
+            return tir.const(expr.value, "int64", self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Call):
             if not isinstance(expr.func_name, ast.Op):
@@ -823,7 +823,7 @@ class RelaxTransformer(Transformer):
         """
         if expr.field.name == "shape":
             obj = self.transform_expr(expr.object)
-            attrs = tvm.ir.attrs.make_node("relay.attrs.ShapeOfAttrs", dtype="int32")
+            attrs = tvm.ir.attrs.make_node("relay.attrs.ShapeOfAttrs", dtype="int64")
             return relay.Call(
                 relay.op.get("shape_of"), [obj], attrs=attrs, span=self.to_tvm_span(expr.span)
             )
@@ -960,7 +960,7 @@ class RelaxTransformer(Transformer):
         elif isinstance(expr, ast.Constant):
             # FIXME(@altanh): use internal representation that doesn't have precision limits here
             if isinstance(expr.value, int):
-                return tir.IntImm("int32", expr.value, self.to_tvm_span(expr.span))
+                return tir.IntImm("int64", expr.value, self.to_tvm_span(expr.span))
             elif isinstance(expr.value, float):
                 return tir.FloatImm("float32", expr.value, self.to_tvm_span(expr.span))
             elif isinstance(expr.value, str):
