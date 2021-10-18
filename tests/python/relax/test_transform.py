@@ -96,15 +96,13 @@ def test_explicit_memory_rewrite():
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
-    # rx.parser.pretty_print(func)
-
 
 @rx.script
 class Mod:
     def foo(x: Tensor[_, "float32"]) -> Shape:
-        relax.match_shape(x.shape, (n, m))
+        sh = relax.call_packed("vm.builtin.shape_of", x)
+        relax.match_shape(sh, (n, m))
         return (n * 2, m * 3)
-
 
 def test_shape_lowering():
     mod = Mod()
@@ -115,7 +113,7 @@ def test_shape_lowering():
     code = rx.parser.astext(new_mod)
     assert "alloc_shape_heap" in code
     assert "decode_shape" in code
-    assert "construct_shape" in code
+    assert "make_shape" in code
 
 
 if __name__ == "__main__":
