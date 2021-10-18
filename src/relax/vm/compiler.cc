@@ -50,7 +50,6 @@ class VMCompilerImpl : public ExprVisitor {
   /*! \brief A counter for naming local functions. */
   int local_func_counter_ = 0;
 
-
   // TODO(@yuchen): support visiting other IR nodes
   void VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {

@@ -46,6 +46,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap")
   return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.free_shape_heap")
+.set_body_typed([](NDArray arr) {
+  return static_cast<NDArray::Container*>(const_cast<Object*>(arr.get()))->DecRef();
+});
+
 TVM_REGISTER_GLOBAL("vm.builtin.decode_shape")
 .set_body_typed([](ShapeTuple shape, NDArray heap, ShapeTuple indexes) {
   int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);

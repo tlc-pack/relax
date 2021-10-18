@@ -50,17 +50,20 @@ class VMCompiler : public runtime::ModuleNode {
    * \return The compiled executable.
    */
   Executable GetExec();
-
+  /*!
+   * \brief Get the compiled library.
+   * \return The compiled lirary.
+   */
   Module GetLib();
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   const char* type_key() const { return "relax.VMCompiler"; }
 
-  // TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(VMCompiler);
  protected:
   /*! \brief Internal executable builder. */
   relax::ExecBuilder builder_;
+  /*! \brief Built library. */
   runtime::Module lib_;
 };
 
