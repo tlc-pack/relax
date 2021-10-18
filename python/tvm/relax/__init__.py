@@ -24,7 +24,6 @@ from . import op
 from . import parser
 from . import analysis
 from . import transform
-from . import vm_compiler
 
 
 # Expr
@@ -62,7 +61,6 @@ DimType = ty.DimType
 ExecBuilder = exec_builder.ExecBuilder
 VirtualMachine = vm.VirtualMachine
 load_exec_from_file = vm.load_exec_from_file
-compile = vm_compiler.compile
 
 # Operator
 from .op.base import call_dps
