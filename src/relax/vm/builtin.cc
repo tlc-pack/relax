@@ -36,35 +36,41 @@ namespace relax_vm {
 
 using tvm::runtime::NDArray;
 
-TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_typed([](NDArray arr) { return arr.Shape(); });
-
-TVM_REGISTER_GLOBAL("vm.builtin.alloc_heap").set_body_typed([](int64_t size) {
-  return NDArray::Empty(ShapeTuple({size}), DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
+TVM_REGISTER_GLOBAL("vm.builtin.shape_of")
+.set_body_typed([](NDArray arr) {
+  return arr.Shape();
 });
 
-TVM_REGISTER_GLOBAL("vm.builtin.match_shape")
-.set_body([](runtime::TVMArgs args, runtime::TVMRetValue* rv) {
-  ShapeTuple shape = args[0];
-  NDArray heap = args[1];
+TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap")
+.set_body_typed([](ShapeTuple size) {
+  return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.free_shape_heap")
+.set_body_typed([](NDArray arr) {
+  return static_cast<NDArray::Container*>(const_cast<Object*>(arr.get()))->DecRef();
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.decode_shape")
+.set_body_typed([](ShapeTuple shape, NDArray heap, ShapeTuple indexes) {
   int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);
-  for (int i = 2; i < args.size(); ++i) {
-    int64_t heap_idx = args[i];
+  for (size_t i = 0; i < indexes.size(); ++i) {
+    int64_t heap_idx = indexes[i];
     ICHECK(heap_idx >= 0 && heap_idx < heap.Shape()[0]);
-    heap_data[heap_idx] = shape[i - 2];
+    heap_data[heap_idx] = shape[i];
   }
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_shape")
-.set_body([](runtime::TVMArgs args, runtime::TVMRetValue* rv) {
-  NDArray heap = args[0];
+.set_body_typed([](NDArray heap, ShapeTuple indexes) {
   int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);
   std::vector<int64_t> shape;
-  for (int i = 1; i < args.size(); ++i) {
-    int64_t heap_idx = args[i];
+  for (size_t i = 0; i < indexes.size(); ++i) {
+    int64_t heap_idx = indexes[i];
     ICHECK(heap_idx >= 0 && heap_idx < heap.Shape()[0]);
     shape.push_back(heap_data[heap_idx]);
   }
-  *rv = ShapeTuple(shape);
+  return ShapeTuple(shape);
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
