@@ -199,6 +199,10 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
+  auto it = var_remap_.find(GetRef<Var>(op));
+  if (it != var_remap_.end()) {
+    return it->second;
+  }
   if (op->type_annotation.defined()) {
     Type type = this->VisitType(op->type_annotation.value());
     if (!op->type_annotation.same_as(type)) {
