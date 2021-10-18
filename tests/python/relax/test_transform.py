@@ -100,22 +100,20 @@ def test_explicit_memory_rewrite():
 @rx.script
 class Mod:
     def foo(x: Tensor[_, "float32"]) -> Shape:
-        gv0 = relax.call_packed("vm.builtin.shape_of", x)
-        relax.match_shape(gv0, (n, m))
+        sh = relax.call_packed("vm.builtin.shape_of", x)
+        relax.match_shape(sh, (n, m))
         return (n * 2, m * 3)
 
 def test_shape_lowering():
     mod = Mod()
-    print(rx.parser.astext(mod))
     new_mod = rx.transform.shape_lower(mod)
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
     assert isinstance(new_mod["foo"], tvm.relax.expr.Function)
     code = rx.parser.astext(new_mod)
-    print(code)
     assert "alloc_shape_heap" in code
     assert "decode_shape" in code
-    assert "construct_shape" in code
+    assert "make_shape" in code
 
 
 if __name__ == "__main__":

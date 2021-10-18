@@ -187,7 +187,7 @@ def test_vm_storage():
     assert res.device == tvm.cpu()
     assert res.shape == shape
 
-def test_vm_compile():
+def test_vm_compile_stage0():
     @rx.script
     class Mod:
         def foo(x: Tensor[(3, 4), "float32"]):
@@ -205,7 +205,8 @@ def test_vm_compile():
     res = vm["foo"](inp)
     np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
 
-def test_vm_compile_shape():
+
+def test_vm_compile_stage1():
     @rx.script
     class Mod1:
         @tvm.script.tir
@@ -239,6 +240,30 @@ def test_vm_compile_shape():
     assert res[1] == shape[1] * 3
 
 
+def test_vm_compile_stage2():
+    @rx.script
+    class Mod2:
+        def foo(x: Tensor[_, "float32"]) -> Shape:
+            sh = relax.call_packed("vm.builtin.shape_of", x)
+            relax.match_shape(sh, (n, m))
+            return (n * 2, m * 3)
+
+    mod = Mod2()
+    code = rx.parser.astext(mod)
+    new_mod = rx.transform.shape_lower(mod)
+    code = rx.parser.astext(new_mod)
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(new_mod, target, target_host)
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+
+    shape = (32, 16)
+    arr = tvm.nd.array(np.random.rand(*shape))
+    res = vm["foo"](arr)
+    assert res[0] == shape[0] * 2
+    assert res[1] == shape[1] * 3
+
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -249,5 +274,6 @@ if __name__ == "__main__":
     test_vm_constant_serialize()
     test_vm_shapeof()
     test_vm_storage()
-    test_vm_compile()
-    test_vm_compile_shape()
+    test_vm_compile_stage0()
+    test_vm_compile_stage1()
+    test_vm_compile_stage2()
