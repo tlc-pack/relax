@@ -78,29 +78,40 @@ class VMCompilerImpl : public ExprVisitor {
     builder_->EmitRet(ret_reg->second);
   }
 
+  // TODO: visit call node
   void VisitVarBinding(const VarBinding& binding) {
     Var var = binding->var;
     // TODO(@yuchen): support other nodes than Call
-    Call call_node = Downcast<Call>(binding->value);
-    if (auto* extern_func = call_node->op.as<relax::ExternFuncNode>()) {
-      String name = extern_func->global_symbol;
-      if (name == "vm.builtin.alloc_storage") {
-        EmitAllocStorage(call_node, var);
-      } else if (name == "vm.builtin.alloc_tensor") {
-        EmitAllocTensor(call_node, var);
-      } else {
-        // Normal packed function without attributes
+    if (binding->value.as<CallNode>()){
+      Call call_node = Downcast<Call>(binding->value);
+      if (auto* extern_func = call_node->op.as<relax::ExternFuncNode>()) {
+        String name = extern_func->global_symbol;
+        if (name == "vm.builtin.alloc_storage") {
+          EmitAllocStorage(call_node, var);
+        } else if (name == "vm.builtin.alloc_tensor") {
+          EmitAllocTensor(call_node, var);
+        } else {
+          // Normal packed function without attributes
+          std::vector<Instruction::Arg> args = ConvertArgs(call_node);
+          // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
+          // register)?
+          builder_->EmitCall(name, args, NewRegister(var));
+        }
+      } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
+        String name = gvar->name_hint;
         std::vector<Instruction::Arg> args = ConvertArgs(call_node);
-        // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
-        // register)?
+        // TODO: global_var mangling
         builder_->EmitCall(name, args, NewRegister(var));
+      } else {
+        LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
       }
-    } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
-      String name = gvar->name_hint;
-      std::vector<Instruction::Arg> args = ConvertArgs(call_node);
-      builder_->EmitCall(name, args, NewRegister(var));
+    } else if (const VarNode* var_node = binding->value.as<VarNode>()) {
+      const Var& rhs_var = GetRef<Var>(var_node);
+      auto rhs_var_reg = this->var_register_map_.find(rhs_var);
+      ICHECK(rhs_var_reg != this->var_register_map_.end());
+      this->var_register_map_.insert({var, rhs_var_reg->second});
     } else {
-      LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
+      LOG(FATAL) << "TODO: support compiling everything other than Call and Var.";
     }
   }
 
@@ -116,10 +127,16 @@ class VMCompilerImpl : public ExprVisitor {
     PrimExpr alignment = Downcast<ShapeExpr>(call_node->args[1])->values[0];
 
     std::vector<Instruction::Arg> args;
+    // TODO: VisitArgs_
     args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
     args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(size)->value));
     args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(alignment)->value));
     args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
+
+    // TODO
+    // O1: PODConstant node (serialization) -> relax compiled time
+    // O2: PrimValue PrimExpr. IntImm.  dimension
+    // minimum
 
     // store dtype in constant pool
     TVMRetValue data_type;
@@ -174,6 +191,7 @@ class VMCompilerImpl : public ExprVisitor {
     return reg;
   }
 
+  // TODO: recursive Expr -> instr::arg, ExprFunctor, like llvm builder
   std::vector<Instruction::Arg> ConvertArgs(const Call& call) {
     std::vector<Instruction::Arg> ret;
     const auto& args = call->args;
