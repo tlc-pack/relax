@@ -72,6 +72,9 @@ class ShapeLowerMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const ShapeExprNode* node) override {
+    if (IsConstantShape(GetRef<ShapeExpr>(node))) {
+      return ExprMutator::VisitExpr_(node);
+    }
     tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
     std::string shape_func_name = name_table_->GetUniqueName("shape_func");
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
@@ -169,6 +172,15 @@ class ShapeLowerMutator : public ExprMutator {
     };
     PostOrderVisit(expr, func);
     return ret;
+  }
+
+  bool IsConstantShape(ShapeExpr shape) const {
+    for (PrimExpr e : shape->values) {
+      if (!e->IsInstance<IntImmNode>()) {
+        return false;
+      }
+    }
+    return true;
   }
 
  private:

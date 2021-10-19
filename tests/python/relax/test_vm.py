@@ -269,8 +269,8 @@ def test_vm_compile_e2e():
     class Mod3:
         def foo(x: Tensor[_, "float32"]) -> Tensor:
             with relax.dataflow():
-                # sh = relax.call_packed("vm.builtin.shape_of", x)
-                # x0 = relax.match_shape(sh, (n, m))
+                sh = relax.call_packed("vm.builtin.shape_of", x)
+                x0 = relax.match_shape(sh, (n, m))
                 y = relax.call_dps((32, 16), "test.vm.identity", (x))
                 relax.output(y)
             return y
@@ -287,9 +287,9 @@ def test_vm_compile_e2e():
     code = rx.parser.astext(mod3)
     print(code)
 
-    # mod4 = rx.transform.shape_lower(mod3)
-    # code = rx.parser.astext(mod4)
-    # print(code)
+    mod4 = rx.transform.shape_lower(mod3)
+    code = rx.parser.astext(mod4)
+    print(code)
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
