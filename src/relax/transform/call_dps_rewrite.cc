@@ -54,14 +54,6 @@ class CallDPSMutator : public ExprMutator {
     return ret_mod_;
   }
 
-  BindingBlock VisitBindingBlock(const BindingBlock& block) {
-    builder_->BeginBindingBlock();
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-    return builder_->EndBlock();
-  }
-
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
     Expr expr = ExprMutator::VisitExpr_(call);

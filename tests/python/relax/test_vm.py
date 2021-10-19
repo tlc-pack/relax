@@ -264,13 +264,11 @@ def test_vm_compile_stage2():
     assert res[1] == shape[1] * 3
 
 
-def test_vm_compile_e2e():
+def test_vm_compile_stage3():
     @rx.script
     class Mod3:
-        def foo(x: Tensor[_, "float32"]) -> Tensor:
+        def foo(x: Tensor[(32, 16), "float32"]) -> Tensor:
             with relax.dataflow():
-                sh = relax.call_packed("vm.builtin.shape_of", x)
-                x0 = relax.match_shape(sh, (n, m))
                 y = relax.call_dps((32, 16), "test.vm.identity", (x))
                 relax.output(y)
             return y
@@ -302,17 +300,55 @@ def test_vm_compile_e2e():
     np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
 
 
+def test_vm_compile_e2e():
+    @rx.script
+    class Mod4:
+        def foo(x: Tensor[_, "float32"]) -> Tensor:
+            with relax.dataflow():
+                sh = relax.call_packed("vm.builtin.shape_of", x)
+                x0 = relax.match_shape(sh, (n, m))
+                y = relax.call_dps((n, m), "test.vm.identity", (x))
+                relax.output(y)
+            return y
+
+    mod = Mod4()
+    code = rx.parser.astext(mod)
+
+    mod1 = rx.transform.to_non_dataflow(mod)
+    code = rx.parser.astext(mod1)
+
+    mod2 = rx.transform.call_dps_rewrite(mod1)
+    code = rx.parser.astext(mod2)
+
+    mod3 = rx.transform.memory_lower(mod2)
+    code = rx.parser.astext(mod3)
+
+    mod4 = rx.transform.shape_lower(mod3)
+    code = rx.parser.astext(mod4)
+
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(mod4, target, target_host)
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+
+    shape = (32, 16)
+    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    res = vm["foo"](inp)
+    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
+
+
 if __name__ == "__main__":
-    test_vm_execute()
-    test_vm_multiple_func()
-    test_vm_checker()
-    test_vm_formalize()
-    test_vm_operand()
-    test_vm_serialize()
-    test_vm_constant_serialize()
-    test_vm_shapeof()
-    test_vm_storage()
-    test_vm_compile_stage0()
-    test_vm_compile_stage1()
-    test_vm_compile_stage2()
+    # test_vm_execute()
+    # test_vm_multiple_func()
+    # test_vm_checker()
+    # test_vm_formalize()
+    # test_vm_operand()
+    # test_vm_serialize()
+    # test_vm_constant_serialize()
+    # test_vm_shapeof()
+    # test_vm_storage()
+    # test_vm_compile_stage0()
+    # test_vm_compile_stage1()
+    # test_vm_compile_stage2()
+    # test_vm_compile_stage3()
     test_vm_compile_e2e()

@@ -214,6 +214,10 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
+  auto it = var_remap_.find(GetRef<Var>(op));
+  if (it != var_remap_.end()) {
+    return it->second;
+  }
   if (op->type_annotation.defined()) {
     Type type = this->VisitType(op->type_annotation.value());
     if (!op->type_annotation.same_as(type)) {
@@ -340,6 +344,10 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = builder_->Normalize(this->Mutate(binding->value));
   Var new_var = Downcast<Var>(this->Mutate(binding->var));
+
+  // FIXME: Current logic is problematic: change the new_var again would cause
+  // divergence variable version.
+  //
   // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
   //                in this method...
   // if (new_value->shape_.defined()) {
@@ -356,17 +364,17 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
   
-  if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
-      !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
-    new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
-    if (new_value->shape_.defined()) {
-      new_var->shape_ = new_value->shape_;
-    }
-    // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent unknown type
-    if (new_value->checked_type_.defined()){
-      new_var->checked_type_ = new_value->checked_type_;
-    }
-  }
+  // if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
+  //     !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
+  //   new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
+  //   if (new_value->shape_.defined()) {
+  //     new_var->shape_ = new_value->shape_;
+  //   }
+  //   // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent unknown type
+  //   if (new_value->checked_type_.defined()){
+  //     new_var->checked_type_ = new_value->checked_type_;
+  //   }
+  // }
 
   this->var_remap_[binding->var] = new_var;
 

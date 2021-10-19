@@ -94,8 +94,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
-.set_body_typed([](Storage storage, Index offset, DLDataType dtype, ShapeTuple shape) {
-  auto tensor = storage->AllocNDArray(offset, shape, dtype);
+.set_body_typed([](Storage storage, ShapeTuple offset, ShapeTuple shape, DLDataType dtype) {
+  int64_t offset_imm = offset[0];
+  auto tensor = storage->AllocNDArray(offset_imm, shape, dtype);
   return tensor;
 });
 

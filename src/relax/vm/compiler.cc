@@ -154,30 +154,14 @@ class VMCompilerImpl : public ExprVisitor {
     DataType dtype = alloc_attrs->dtype;
 
     std::vector<Instruction::Arg> args;
-    auto storage_reg = this->var_register_map_.find(Downcast<Var>(call_node->args[0]));
-    ICHECK(storage_reg != this->var_register_map_.end());
-    args.push_back(Instruction::Arg(Instruction::kRegister, storage_reg->second));
-
-    PrimExpr offset = Downcast<ShapeExpr>(call_node->args[1])->values[0];
-    args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(offset)->value));
+    for (Expr arg: call_node->args) {
+      args.push_back(ConvertArg(arg));
+    }
 
     // store dtype in constant pool
     TVMRetValue data_type;
     data_type = dtype;
     Index index = builder_->EmitConstant(data_type);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-
-    // TODO(@yuchen, @ziheng): support symbolic shape when connecting with shape lowering
-    // store shape in constant pool
-    std::vector<int64_t> shape;
-    auto shape_expr = Downcast<ShapeExpr>(call_node->args[2])->values;
-    for (PrimExpr i : shape_expr) {
-      shape.push_back(Downcast<IntImm>(i)->value);
-    }
-    auto shape_tuple = ShapeTuple(shape);
-    TVMRetValue shape_tuple_value;
-    shape_tuple_value = shape_tuple;
-    index = builder_->EmitConstant(shape_tuple_value);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
     builder_->EmitCall("vm.builtin.alloc_tensor", args, NewRegister(var));
