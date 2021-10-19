@@ -162,7 +162,7 @@ class MemLowerMutator : public ExprMutator {
 
       Var storage =
           builder_->Emit(Call(ExternFunc("vm.builtin.alloc_storage"),
-                              {storage_size, alignment, device_type}, Attrs(storage_attr)),
+                              {storage_size, alignment}, Attrs(storage_attr)),
                          "storage");
 
       ShapeExpr offset = ShapeExpr({IntImm(DataType::Int(64), 0)});

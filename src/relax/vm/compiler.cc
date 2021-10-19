@@ -123,14 +123,12 @@ class VMCompilerImpl : public ExprVisitor {
     ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
     DataType dtype = alloc_attrs->dtype;
     int device_type = alloc_attrs->device_type;
-    PrimExpr size = Downcast<ShapeExpr>(call_node->args[0])->values[0];
-    PrimExpr alignment = Downcast<ShapeExpr>(call_node->args[1])->values[0];
 
     std::vector<Instruction::Arg> args;
-    // TODO: VisitArgs_
     args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
-    args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(size)->value));
-    args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(alignment)->value));
+    for (Expr arg: call_node->args) {
+      args.push_back(ConvertArg(arg));
+    }
     args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
 
     // TODO
@@ -191,28 +189,47 @@ class VMCompilerImpl : public ExprVisitor {
     return reg;
   }
 
+  bool IsConstantShape(ShapeExpr shape) const {
+    for (PrimExpr e : shape->values) {
+      if (!e->IsInstance<IntImmNode>()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // TODO: recursive Expr -> instr::arg, ExprFunctor, like llvm builder
+  Instruction::Arg ConvertArg(Expr arg) {
+    if (arg->IsInstance<VarNode>()) {
+      Var var = Downcast<Var>(arg);
+      auto reg = this->var_register_map_.find(Downcast<Var>(arg));
+      ICHECK(reg != this->var_register_map_.end())
+        << var->name_hint() << "(" << var << ")" << " not in the register map.";
+      return Instruction::Arg(Instruction::kRegister, reg->second);
+    } else if (arg->IsInstance<ShapeExprNode>()) {
+      ShapeExpr sh = Downcast<ShapeExpr>(arg);
+      ICHECK(IsConstantShape(sh))
+        << "should only use constant shape after shape lowering: "
+        << sh->values;
+      std::vector<int64_t> shape;
+      for (PrimExpr e : sh->values) {
+        shape.push_back(Downcast<IntImm>(e)->value);
+      }
+      auto shape_tuple = ShapeTuple(shape);
+      TVMRetValue shape_tuple_value;
+      shape_tuple_value = shape_tuple;
+      Index index = builder_->EmitConstant(shape_tuple_value);
+      return Instruction::Arg(Instruction::kConstIdx, index);
+    } else {
+      LOG(FATAL) << "not supported argument type.";
+    }
+    return Instruction::Arg();
+  }
+
   std::vector<Instruction::Arg> ConvertArgs(const Call& call) {
     std::vector<Instruction::Arg> ret;
-    const auto& args = call->args;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      if (args[i]->IsInstance<VarNode>()) {
-        auto reg = this->var_register_map_.find(Downcast<Var>(args[i]));
-        ICHECK(reg != this->var_register_map_.end());
-        ret.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
-      } else if (args[i]->IsInstance<ShapeExprNode>()) {
-        std::vector<int64_t> shape;
-        for (PrimExpr e : Downcast<ShapeExpr>(args[i])->values) {
-          shape.push_back(Downcast<IntImm>(e)->value);
-        }
-        auto shape_tuple = ShapeTuple(shape);
-        TVMRetValue shape_tuple_value;
-        shape_tuple_value = shape_tuple;
-        Index index = builder_->EmitConstant(shape_tuple_value);
-        ret.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-      } else {
-        LOG(FATAL) << "not supported argument type.";
-      }
+      ret.push_back(ConvertArg(call->args[i]));
     }
     return ret;
   }

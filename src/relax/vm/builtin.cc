@@ -74,10 +74,12 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape")
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
-.set_body_typed([](void* vm_state_ptr, Index size, Index alignment, Index device_type,
+.set_body_typed([](void* vm_state_ptr, ShapeTuple size, ShapeTuple alignment, Index device_type,
                     DLDataType dtype_hint) {
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
-  DLOG(INFO) << "AllocStorage: allocation_size=" << size << ", alignment=" << alignment
+  int64_t size_imm = size[0];
+  int64_t align_imm = alignment[0];
+  DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << align_imm
               << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
               << ", device_type=" << device_type;
 
@@ -86,7 +88,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
       << "Memory allocator for device " << device_type << " has not been initialized";
   auto* alloc = vm_state->allocators[device_type];
   ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
-  storage_obj->buffer = alloc->Alloc(size, alignment, dtype_hint);
+  storage_obj->buffer = alloc->Alloc(size_imm, align_imm, dtype_hint);
   Storage storage(storage_obj);
   return storage;
 });
