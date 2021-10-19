@@ -62,6 +62,45 @@ def test_fma_rewrite():
     assert type(func.body.blocks[0].bindings[1].var) == rx.Var
 
 
+def test_to_non_dataflow():
+    @rx.script
+    class Mod0:
+        def foo(x: Tensor[(m, n), "float32"]):
+            with relax.dataflow():
+                gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
+                gv1 = relax.call_dps((m, n), "test.op.identity", (gv0,))
+                relax.output(gv1)
+            return gv1
+
+    mod = Mod0()
+
+    old_vars = [] 
+    def fvisit(e):
+        if isinstance(e, rx.Var):
+            nonlocal old_vars
+            old_vars.append(e)
+    rx.analysis.post_order_visit(mod["foo"], fvisit)
+    _, x, gv0, gv1 = old_vars
+
+    new_mod = rx.transform.to_non_dataflow(mod)
+
+    new_vars = []
+    def fvisit(e):
+        if isinstance(e, rx.Var):
+            nonlocal new_vars
+            new_vars.append(e)
+    rx.analysis.post_order_visit(new_mod["foo"], fvisit)
+
+    assert x == new_vars[1]
+    assert gv0 != new_vars[2]
+    assert isinstance(gv0, rx.DataflowVar)
+    assert not isinstance(new_vars[2], rx.DataflowVar)
+
+    assert isinstance(gv1, rx.Var)
+    assert isinstance(new_vars[3], rx.Var)
+    assert gv1 != new_vars[3]
+
+
 def test_call_dps_rewrite():
     @rx.script
     class Mod:
@@ -142,6 +181,7 @@ def test_shape_lowering():
 
 if __name__ == "__main__":
     test_fma_rewrite()
+    test_to_non_dataflow()
     test_call_dps_rewrite()
     test_memory_lower()
     test_shape_lowering()

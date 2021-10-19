@@ -30,6 +30,9 @@ def fma_rewrite(expr):
     """
     return _ffi_api.fma_rewrite(expr)
 
+def to_non_dataflow(mod: IRModule) -> IRModule:
+    return _ffi_api.to_non_dataflow(mod)
+
 
 def call_dps_rewrite(mod: IRModule) -> IRModule:
     """Perform explicit memory allocation for call_dps.

@@ -31,67 +31,6 @@ namespace tvm {
 namespace relax {
 
 // ==================
-// CallDPSMutator
-// Example:
-// y: Tensor[n, m] = rx.call_dps((n, m), op.identity, (x))
-// -->
-// lv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
-// rx.call_packed(op.identity, x, lv0)
-
-class CallDPSMutator : public ExprMutator {
- public:
-  explicit CallDPSMutator(IRModule mod) { mod_ = mod; }
-
-  IRModule Lower() {
-    ret_mod_ = IRModule();
-    for (auto& p : mod_->functions) {
-      if (!p.second->IsInstance<FunctionNode>()) {
-        continue;
-      }
-      Expr new_func = this->Mutate(p.second);
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(new_func));
-    }
-    return ret_mod_;
-  }
-
-  BindingBlock VisitBindingBlock(const BindingBlock& block) {
-    builder_->BeginBindingBlock();
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-    return builder_->EndBlock();
-  }
-
-  Expr VisitExpr_(const CallNode* call) override {
-    // post-order mutation
-    Expr expr = ExprMutator::VisitExpr_(call);
-    call = expr.as<CallNode>();
-    // TODO(@yuchen, @altanh): using mutate cause infinite recursion
-    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
-
-    static const Op& call_dps_op = Op::Get("relax.call_dps");
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-
-    if (call->op == call_dps_op) {
-      ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
-      builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
-      return tensor;
-    }
-
-    return GetRef<Expr>(call);
-  }
-
- private:
-  IRModule mod_;
-  IRModule ret_mod_;
-};
-
-TVM_REGISTER_GLOBAL("relax.transform.call_dps_rewrite").set_body_typed([](IRModule mod) {
-  return CallDPSMutator(mod).Lower();
-});
-
-// ==================
 // MemLowerMutator
 // Lower the relax.builtin.alloc_tensor op to VM builtin functions.
 // Example:

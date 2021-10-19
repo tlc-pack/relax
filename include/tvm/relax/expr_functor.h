@@ -223,6 +223,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual void VisitBinding(const Binding& binding);
   virtual Var VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
+
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
