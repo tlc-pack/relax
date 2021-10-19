@@ -169,5 +169,12 @@ class ExternFunc(BaseFunc):
         self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol, span)
 
 
-def extern(name, span: Span = None):
+def extern(name: str, span: Span = None):
     return ExternFunc(name, span)
+
+
+def te_tensor(value: Expr, name: str = "rxplaceholder"):
+    return _ffi_api.RXPlaceholder(value, name)
+
+def te_func(inputs: List[tvm.te.Tensor]):
+    func = tvm.create_prim_func(inputs)

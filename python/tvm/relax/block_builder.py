@@ -20,6 +20,7 @@ from tvm.relay.expr import Tuple
 from tvm.runtime import Object
 from tvm import relax as rx
 from .expr import *
+from .op.base import call_dps
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
@@ -83,6 +84,7 @@ class BlockBuilder(Object):
     """
 
     def __init__(self):
+        self._tir_mod = {}
         self._blocks = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
@@ -147,7 +149,22 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
         """
+        # te extension
+        if isinstance(call, tvm.te.Tensor):
+            # TODO(ziheng): list root tensors
+            out = call
+            inputs = out.op.input_tensors
+            inputs = [inputs[0], out]
+            func = tvm.te.create_prim_func(inputs)
+            func_name = "tir_func" # TODO(ziheng): better name
+            func = func.with_attr("global_symbol", func_name)
+            gvar = GlobalVar(func_name)
+            self._tir_mod[gvar] = func
+            call = call_dps(inputs[-1].shape, gvar, [inputs[0].op.value])
+            # raise ValueError
+
         return _ffi_api.BlockBuilderEmit(self, call)
+
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
         """Emit a MatchShape.
