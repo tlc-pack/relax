@@ -249,12 +249,9 @@ def test_vm_compile_stage2():
             return (n * 2, m * 3)
 
     mod = Mod2()
-    code = rx.parser.astext(mod)
-    new_mod = rx.transform.shape_lower(mod)
-    code = rx.parser.astext(new_mod)
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(new_mod, target, target_host)
+    ex, lib = rx.vm.build(mod, target, target_host)
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -274,24 +271,9 @@ def test_vm_compile_stage3():
             return y
 
     mod = Mod3()
-    code = rx.parser.astext(mod)
-    print(code)
-
-    mod2 = rx.transform.call_dps_rewrite(mod)
-    code = rx.parser.astext(mod2)
-    print(code)
-
-    mod3 = rx.transform.memory_lower(mod2)
-    code = rx.parser.astext(mod3)
-    print(code)
-
-    mod4 = rx.transform.shape_lower(mod3)
-    code = rx.parser.astext(mod4)
-    print(code)
-
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod3, target, target_host)
+    ex, lib = rx.vm.build(mod, target, target_host)
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -312,23 +294,12 @@ def test_vm_compile_e2e():
             return y
 
     mod = Mod4()
-    code = rx.parser.astext(mod)
-
-    mod1 = rx.transform.to_non_dataflow(mod)
-    code = rx.parser.astext(mod1)
-
-    mod2 = rx.transform.call_dps_rewrite(mod1)
-    code = rx.parser.astext(mod2)
-
-    mod3 = rx.transform.memory_lower(mod2)
-    code = rx.parser.astext(mod3)
-
-    mod4 = rx.transform.shape_lower(mod3)
-    code = rx.parser.astext(mod4)
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod4, target, target_host)
+    print("build")
+    ex, lib = rx.vm.build(mod, target, target_host)
+    print("vm")
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -347,7 +318,7 @@ if __name__ == "__main__":
     # test_vm_constant_serialize()
     # test_vm_shapeof()
     # test_vm_storage()
-    # test_vm_compile_stage0()
+    test_vm_compile_stage0()
     # test_vm_compile_stage1()
     # test_vm_compile_stage2()
     # test_vm_compile_stage3()
