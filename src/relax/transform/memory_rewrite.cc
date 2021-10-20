@@ -47,11 +47,11 @@ class MemLowerMutator : public ExprMutator {
   IRModule Lower() {
     ret_mod_ = IRModule();
     for (auto& p : mod_->functions) {
-      if (!p.second->IsInstance<FunctionNode>()) {
-        continue;
+      Expr func = p.second;
+      if (p.second->IsInstance<FunctionNode>()) {
+        func = this->Mutate(p.second);
       }
-      Expr new_func = this->Mutate(p.second);
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(new_func));
+      ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
     }
     return ret_mod_;
   }

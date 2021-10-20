@@ -165,13 +165,9 @@ def build(mod: tvm.IRModule,
     lib: tvm.runtime.Module
         A runtime module that contains generated code.
     """
-    print("to_non_dataflow")
     new_mod = transform.to_non_dataflow(mod)
-    print("call_dps")
     new_mod = transform.call_dps_rewrite(new_mod)
-    print("memory")
     new_mod = transform.memory_lower(new_mod)
-    print("shape_lower")
     new_mod = transform.shape_lower(new_mod)
     ex, lib = _ffi_api.VMBuild(new_mod, target, target_host)
     return ex, lib

@@ -343,7 +343,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 
 Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = builder_->Normalize(this->Mutate(binding->value));
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  // Var new_var = Downcast<Var>(this->Mutate(binding->var));
 
   // FIXME: Current logic is problematic: change the new_var again would cause
   // divergence variable version.
@@ -364,17 +364,18 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
   
-  // if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
-  //     !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
-  //   new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
-  //   if (new_value->shape_.defined()) {
-  //     new_var->shape_ = new_value->shape_;
-  //   }
-  //   // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent unknown type
-  //   if (new_value->checked_type_.defined()){
-  //     new_var->checked_type_ = new_value->checked_type_;
-  //   }
-  // }
+  Var new_var = binding->var;
+  if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
+      !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
+    new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
+    if (new_value->shape_.defined()) {
+      new_var->shape_ = new_value->shape_;
+    }
+    // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent unknown type
+    if (new_value->checked_type_.defined()){
+      new_var->checked_type_ = new_value->checked_type_;
+    }
+  }
 
   this->var_remap_[binding->var] = new_var;
 
@@ -388,7 +389,10 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
 void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  Var new_var = binding->var;
+
+  // TODO: when value's shape/type changed, create new var
+
   builder_->EmitMatchShape(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
