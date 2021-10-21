@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
+import os
 import numpy as np
 import tvm
 from tvm.relay import Call
@@ -79,27 +80,29 @@ def test_vm_serialize():
         ib.emit_call("test.vm.mul", args=[ib.r(0), arr], dst=ib.r(1))
         ib.emit_ret(ib.r(1))
     exec0 = ib.get()
-    exec0.save_to_file("exec.bin")
-    exec1 = rx.load_exec_from_file("exec.bin")
+    exec0.save_to_file("exec.tmp")
+    exec1 = rx.load_exec_from_file("exec.tmp")
     assert exec0.astext() == exec1.astext()
+    os.remove("exec.tmp")
 
 def test_vm_constant_serialize():
     dtype = tvm.DataType('float32')
     shape = (4, 6)
-    input = tvm.nd.array(np.random.rand(4, 6).astype(np.float32))
+    inp = tvm.nd.array(np.random.rand(4, 6).astype(np.float32))
     ib = rx.ExecBuilder()
     with ib.function("main", num_inputs=1):
         ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype], dst=ib.r(1))
         ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
-        ib.emit_call("test.vm.identity", args=[input, ib.r(2)])
+        ib.emit_call("test.vm.identity", args=[inp, ib.r(2)])
         ib.emit_ret(ib.r(2))
-    exec = ib.get()
-    # exec0.save_to_file("exec.bin")
-    # exec1 = rx.load_exec_from_file("exec.bin")
-    # assert exec0.astext() == exec1.astext()
-    vm = rx.VirtualMachine(exec, tvm.cpu())
-    res = vm["main"](input)
-    np.testing.assert_allclose(input.asnumpy(), res.asnumpy())
+    exec0 = ib.get()
+    exec0.save_to_file("exec.tmp")
+    exec1 = rx.load_exec_from_file("exec.tmp")
+    assert exec0.astext() == exec1.astext()
+    vm = rx.VirtualMachine(exec0, tvm.cpu())
+    res = vm["main"](inp)
+    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
+    os.remove("exec.tmp")
 
 def test_vm_checker():
     ib = rx.ExecBuilder()
@@ -168,21 +171,17 @@ def test_vm_shapeof():
 
 
 def test_vm_storage():
+    dtype = tvm.DataType('float32')
+    shape = (4, 6)
     ib = rx.ExecBuilder()
-    with ib.function("main", num_inputs=7):
-        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), ib.r(0), ib.r(1), ib.r(2), ib.r(3)], dst=ib.r(7))
-        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(7), ib.r(4), ib.r(5), ib.r(6)], dst=ib.r(8))
-        ib.emit_ret(ib.r(8))
+    with ib.function("main", num_inputs=0):
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
+        ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = rx.VirtualMachine(ex, tvm.cpu())
-    dtype = tvm.DataType('float32')
-    cpu_dev = tvm.cpu().device_type
-    buffer_size = container.ShapeTuple([24])
-    alignment = container.ShapeTuple([8])
-    offset = container.ShapeTuple([0])
-    shape = (4, 6)
     shape_tuple = container.ShapeTuple(shape)
-    res = vm["main"](buffer_size, alignment, cpu_dev, dtype, offset, shape_tuple, dtype)
+    res = vm["main"]()
     assert res.device == tvm.cpu()
     assert res.shape == shape
 

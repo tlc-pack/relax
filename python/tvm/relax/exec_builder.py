@@ -19,7 +19,8 @@ from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
 from tvm._ffi._ctypes.packed_func import TVMRetValueHandle
-from tvm.runtime import Object, container
+from tvm.runtime import Object
+from tvm.runtime.container import ShapeTuple
 from tvm._ffi.base import _LIB, check_call
 from . vm import Executable
 from . import _ffi_api
@@ -90,10 +91,10 @@ class ExecBuilder(Object):
         args_ = []
         for arg in args:
             if isinstance(arg, tuple):
-                shape_tuple = container.ShapeTuple(arg)
+                shape_tuple = ShapeTuple(arg)
                 new_arg = self.emit_constant(shape_tuple)
                 args_.append(new_arg)
-            elif isinstance(arg, tvm.nd.NDArray) or isinstance(arg, tvm.DataType):
+            elif isinstance(arg, (tvm.nd.NDArray, tvm.DataType, ShapeTuple)):
                 new_arg = self.emit_constant(arg)
                 args_.append(new_arg)
             else:
