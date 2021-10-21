@@ -131,11 +131,6 @@ class VMCompilerImpl : public ExprVisitor {
     }
     args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
 
-    // TODO
-    // O1: PODConstant node (serialization) -> relax compiled time
-    // O2: PrimValue PrimExpr. IntImm.  dimension
-    // minimum
-
     // store dtype in constant pool
     TVMRetValue data_type;
     data_type = dtype;

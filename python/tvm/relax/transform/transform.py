@@ -31,6 +31,13 @@ def fma_rewrite(expr):
     return _ffi_api.fma_rewrite(expr)
 
 def to_non_dataflow(mod: IRModule) -> IRModule:
+    """Transform all dataflow structure to non-dataflow version.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module.
+    """
     return _ffi_api.to_non_dataflow(mod)
 
 

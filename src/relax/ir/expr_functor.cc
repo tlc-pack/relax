@@ -343,11 +343,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 
 Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = builder_->Normalize(this->Mutate(binding->value));
-  // Var new_var = Downcast<Var>(this->Mutate(binding->var));
 
-  // FIXME: Current logic is problematic: change the new_var again would cause
-  // divergence variable version.
-  //
   // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
   //                in this method...
   // if (new_value->shape_.defined()) {
@@ -392,7 +388,6 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Var new_var = binding->var;
 
   // TODO: when value's shape/type changed, create new var
-
   builder_->EmitMatchShape(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
