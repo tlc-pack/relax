@@ -114,6 +114,7 @@ class ShapeLowerMutator : public ExprMutator {
       new_body = seq->body;
     }
 
+    // FIXME(@yuchen): Implement vm.builtin.free_shape_heap.
     // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
     blocks.push_back(builder_->EndBlock());
     new_body = SeqExpr(blocks, new_body);

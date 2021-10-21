@@ -360,7 +360,7 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
   
-  Var new_var = binding->var;
+  Var new_var = Downcast<Var>(this->Mutate(binding->var));
   if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
       !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
     new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
@@ -385,7 +385,12 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
 void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
-  Var new_var = binding->var;
+  Var new_var;
+  if (binding->var.defined()){
+    new_var = Downcast<Var>(this->Mutate(binding->var));
+  } else {
+    new_var = binding->var;
+  }
 
   // TODO: when value's shape/type changed, create new var
   builder_->EmitMatchShape(
