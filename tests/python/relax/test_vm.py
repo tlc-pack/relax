@@ -41,6 +41,10 @@ def mul(a, b):
 def identity_packed(a, b):
     b[:] = tvm.nd.array(a.asnumpy())
 
+@tvm.register_func("test.vm.tile")
+def tile_packed(a, b):
+    b[:] = tvm.nd.array(np.tile(a.asnumpy(), (1, 2)))
+
 def test_vm_execute():
     ib = rx.ExecBuilder()
     with ib.function("func0", num_inputs=2):
@@ -93,7 +97,7 @@ def test_vm_constant_serialize():
     with ib.function("main", num_inputs=1):
         ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype], dst=ib.r(1))
         ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
-        ib.emit_call("test.vm.identity", args=[inp, ib.r(2)])
+        ib.emit_call("test.vm.identity", args=[ib.r(0), ib.r(2)])
         ib.emit_ret(ib.r(2))
     exec0 = ib.get()
     exec0.save_to_file("exec.tmp")
@@ -187,14 +191,14 @@ def test_vm_storage():
 
 def test_vm_compile_stage0():
     @rx.script
-    class Mod:
+    class TestVMCompileStage0:
         def foo(x: Tensor[(3, 4), "float32"]):
             y = relax.call_packed("vm.builtin.alloc_storage", (12,), (64,), device_id=0, device_type=1, attrs_type_key="relax.attrs.AllocStorageAttrs")
             z = relax.call_packed("vm.builtin.alloc_tensor", y, (0,), (3, 4), attrs_type_key="relax.attrs.AllocTensorAttrs")
             w = relax.call_packed("test.vm.identity", x, z)
             return z
 
-    mod = Mod()
+    mod = TestVMCompileStage0()
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
     ex, lib = rx.vm.build(mod, target, target_host)
@@ -207,7 +211,7 @@ def test_vm_compile_stage0():
 
 def test_vm_compile_stage1():
     @rx.script
-    class Mod1:
+    class TestVMCompileStage1:
         @tvm.script.tir
         def shape_func0(heap: ty.handle) -> None:
             # function attr dict
@@ -225,7 +229,7 @@ def test_vm_compile_stage1():
             gv3 = relax.call_packed("vm.builtin.make_shape", shape_heap, (2, 3))
             return gv3
 
-    mod = Mod1()
+    mod = TestVMCompileStage1()
     code = rx.parser.astext(mod)
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
@@ -241,13 +245,13 @@ def test_vm_compile_stage1():
 
 def test_vm_compile_stage2():
     @rx.script
-    class Mod2:
+    class TestVMCompileStage2:
         def foo(x: Tensor[_, "float32"]) -> Shape:
             sh = relax.call_packed("vm.builtin.shape_of", x)
             relax.match_shape(sh, (n, m))
             return (n * 2, m * 3)
 
-    mod = Mod2()
+    mod = TestVMCompileStage2()
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
     ex, lib = rx.vm.build(mod, target, target_host)
@@ -262,14 +266,14 @@ def test_vm_compile_stage2():
 
 def test_vm_compile_stage3():
     @rx.script
-    class Mod3:
+    class TestVMCompileStage3:
         def foo(x: Tensor[(32, 16), "float32"]) -> Tensor:
             with relax.dataflow():
                 y = relax.call_dps((32, 16), "test.vm.identity", (x))
                 relax.output(y)
             return y
 
-    mod = Mod3()
+    mod = TestVMCompileStage3()
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
     ex, lib = rx.vm.build(mod, target, target_host)
@@ -283,16 +287,16 @@ def test_vm_compile_stage3():
 
 def test_vm_compile_e2e():
     @rx.script
-    class Mod4:
+    class TestVMCompileE2E:
         def foo(x: Tensor[_, "float32"]) -> Tensor:
             with relax.dataflow():
                 sh = relax.call_packed("vm.builtin.shape_of", x)
                 x0 = relax.match_shape(sh, (n, m))
-                y = relax.call_dps((n, m), "test.vm.identity", (x))
+                y = relax.call_dps((n, m * 2), "test.vm.tile", (x))
                 relax.output(y)
             return y
 
-    mod = Mod4()
+    mod = TestVMCompileE2E()
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
@@ -302,7 +306,7 @@ def test_vm_compile_e2e():
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     res = vm["foo"](inp)
-    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
+    np.testing.assert_allclose(np.tile(inp.asnumpy(), (1, 2)), res.asnumpy())
 
 
 if __name__ == "__main__":

@@ -45,15 +45,15 @@ class MemLowerMutator : public ExprMutator {
   explicit MemLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
-    ret_mod_ = IRModule();
+    IRModule ret_mod = IRModule();
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
         func = this->Mutate(p.second);
       }
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
+      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
-    return ret_mod_;
+    return ret_mod;
   }
 
   Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
@@ -91,7 +91,7 @@ class MemLowerMutator : public ExprMutator {
     if (call->op == alloc_tensor_op) {
       ShapeExpr tensor_shape = Downcast<ShapeExpr>(call->args[0]);
       // TODO(@yuchen): Get the type of input x, options: add an attr to relax.builtin.alloc_tensor
-      Type tensor_type = DynTensorType(2, DataType::Float(32));
+      Type tensor_type = DynTensorType(tensor_shape->values.size(), DataType::Float(32));
       Expr storage_size = ComputeStorageSize(tensor_shape, tensor_type);
       ShapeExpr alignment = ShapeExpr({IntImm(DataType::Int(64), 64)});
       ShapeExpr device_type = ShapeExpr({IntImm(DataType::Int(64), 1)});
@@ -118,7 +118,6 @@ class MemLowerMutator : public ExprMutator {
 
  private:
   IRModule mod_;
-  IRModule ret_mod_;
 };
 
 TVM_REGISTER_GLOBAL("relax.transform.memory_lower").set_body_typed([](IRModule mod) {

@@ -69,10 +69,12 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape")
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
-.set_body_typed([](void* vm_state_ptr, ShapeTuple size, ShapeTuple alignment, Index device_type,
+.set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, ShapeTuple alignment, Index device_type,
                     DLDataType dtype_hint) {
+  ICHECK_EQ(buffer_size.size(), 1);
+  ICHECK_EQ(alignment.size(), 1);
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
-  int64_t size_imm = size[0];
+  int64_t size_imm = buffer_size[0];
   int64_t align_imm = alignment[0];
   DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << align_imm
               << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
@@ -90,6 +92,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
 .set_body_typed([](Storage storage, ShapeTuple offset, ShapeTuple shape, DLDataType dtype) {
+  ICHECK_EQ(offset.size(), 1);
   int64_t offset_imm = offset[0];
   auto tensor = storage->AllocNDArray(offset_imm, shape, dtype);
   return tensor;

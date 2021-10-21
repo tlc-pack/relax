@@ -64,7 +64,7 @@ def test_fma_rewrite():
 
 def test_to_non_dataflow():
     @rx.script
-    class Mod0:
+    class TestToNoneDataflow:
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
                 gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
@@ -72,7 +72,7 @@ def test_to_non_dataflow():
                 relax.output(gv1)
             return gv1
 
-    mod = Mod0()
+    mod = TestToNoneDataflow()
 
     old_vars = [] 
     def fvisit(e):
@@ -103,12 +103,12 @@ def test_to_non_dataflow():
 
 def test_call_dps_rewrite():
     @rx.script
-    class Mod:
+    class TestCallDpsRewrite:
         def foo(x: Tensor[(m, n), "float32"]):
             gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
             return gv0
 
-    mod = Mod()
+    mod = TestCallDpsRewrite()
     code = rx.parser.astext(mod)
 
     # before rewrite
@@ -130,23 +130,21 @@ def test_call_dps_rewrite():
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], rx.ShapeExpr)
-    # assert structural_equal(s1.args[0], rx.ShapeExpr(shape_anno))
+    assert structural_equal(s1.args[0], s0.args[0])
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
-    return new_mod
 
 
 def test_memory_lower():
     @rx.script
-    class Mod:
+    class TestMemoryLower:
         def foo(x: Tensor[(m, n), "float32"]):
-            with relax.dataflow():
-                gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-                relax.output(gv0)
+            alloc = relax.builtin.alloc_tensor((m, n))
+            _ = relax.call_packed("test.op.identity", (x,), alloc)
+            gv0 = alloc
             return gv0
-
-    mod = test_call_dps_rewrite()
-    code = rx.parser.astext(mod)
+    
+    mod = TestMemoryLower()
 
     # after memory lowering
     new_mod = rx.transform.memory_lower(mod)
@@ -160,13 +158,13 @@ def test_memory_lower():
 
 def test_shape_lowering():
     @rx.script
-    class Mod1:
+    class TestShapeLower:
         def foo(x: Tensor[_, "float32"]) -> Shape:
             sh = relax.call_packed("vm.builtin.shape_of", x)
             relax.match_shape(sh, (n, m))
             return (n * 2, m * 3)
 
-    mod = Mod1()
+    mod = TestShapeLower()
     new_mod = rx.transform.shape_lower(mod)
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)

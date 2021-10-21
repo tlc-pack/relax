@@ -43,15 +43,15 @@ class CallDPSMutator : public ExprMutator {
   explicit CallDPSMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
-    ret_mod_ = IRModule();
+    IRModule ret_mod = IRModule();
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
         func = this->Mutate(p.second);
       }
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
+      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
-    return ret_mod_;
+    return ret_mod;
   }
 
   Expr VisitExpr_(const CallNode* call) override {
@@ -76,7 +76,6 @@ class CallDPSMutator : public ExprMutator {
 
  private:
   IRModule mod_;
-  IRModule ret_mod_;
 };
 
 TVM_REGISTER_GLOBAL("relax.transform.call_dps_rewrite").set_body_typed([](IRModule mod) {

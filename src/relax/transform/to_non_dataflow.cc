@@ -33,15 +33,15 @@ class ToNonDFMutator : public ExprMutator {
   explicit ToNonDFMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
-    ret_mod_ = IRModule();
+    IRModule ret_mod = IRModule();
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
         func = this->Mutate(p.second);
       }
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
+      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
-    return ret_mod_;
+    return ret_mod;
   }
 
   Expr VisitExpr_(const DataflowVarNode* op) final {
@@ -63,7 +63,6 @@ class ToNonDFMutator : public ExprMutator {
 
  private:
   IRModule mod_;
-  IRModule ret_mod_;
 };
 
 TVM_REGISTER_GLOBAL("relax.transform.to_non_dataflow").set_body_typed([](IRModule mod) {
