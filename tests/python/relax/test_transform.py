@@ -105,9 +105,7 @@ def test_call_dps_rewrite():
     @rx.script
     class Mod:
         def foo(x: Tensor[(m, n), "float32"]):
-            with relax.dataflow():
-                gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-                relax.output(gv0)
+            gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
             return gv0
 
     mod = Mod()
