@@ -120,13 +120,19 @@ void ExprVisitor::VisitBinding(const Binding& binding) {
   }
 }
 
-void ExprVisitor::VisitVarBinding(const VarBinding& binding) { this->VisitExpr(binding->value); }
+void ExprVisitor::VisitVarBinding(const VarBinding& binding) {
+  this->VisitExpr(binding->value);
+  this->VisitExpr(binding->var);
+}
 
 void ExprVisitor::VisitMatchShape(const MatchShape& binding) {
   this->VisitExpr(binding->value);
   // TODO(ziheng): should we change pattern from
   // Array<PrimExpr> to ShapeExpr?
   this->VisitExpr(ShapeExpr(binding->pattern));
+  if (binding->var.defined()) {
+    this->VisitExpr(binding->var);
+  }
 }
 
 void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
@@ -214,6 +220,10 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
+  auto it = var_remap_.find(GetRef<Var>(op));
+  if (it != var_remap_.end()) {
+    return it->second;
+  }
   if (op->type_annotation.defined()) {
     Type type = this->VisitType(op->type_annotation.value());
     if (!op->type_annotation.same_as(type)) {
@@ -339,7 +349,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 
 Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = builder_->Normalize(this->Mutate(binding->value));
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+
   // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
   //                in this method...
   // if (new_value->shape_.defined()) {
@@ -356,6 +366,7 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
   
+  Var new_var = Downcast<Var>(this->Mutate(binding->var));
   if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
       !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
     new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
@@ -380,7 +391,14 @@ Var ExprMutator::VisitVarBinding(const VarBinding& binding) {
 void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  Var new_var;
+  if (binding->var.defined()){
+    new_var = Downcast<Var>(this->Mutate(binding->var));
+  } else {
+    new_var = binding->var;
+  }
+
+  // TODO: when value's shape/type changed, create new var
   builder_->EmitMatchShape(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
