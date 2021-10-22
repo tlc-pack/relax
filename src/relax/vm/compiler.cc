@@ -78,29 +78,40 @@ class VMCompilerImpl : public ExprVisitor {
     builder_->EmitRet(ret_reg->second);
   }
 
+  // TODO: visit call node
   void VisitVarBinding(const VarBinding& binding) {
     Var var = binding->var;
     // TODO(@yuchen): support other nodes than Call
-    Call call_node = Downcast<Call>(binding->value);
-    if (auto* extern_func = call_node->op.as<relax::ExternFuncNode>()) {
-      String name = extern_func->global_symbol;
-      if (name == "vm.builtin.alloc_storage") {
-        EmitAllocStorage(call_node, var);
-      } else if (name == "vm.builtin.alloc_tensor") {
-        EmitAllocTensor(call_node, var);
-      } else {
-        // Normal packed function without attributes
+    if (binding->value.as<CallNode>()){
+      Call call_node = Downcast<Call>(binding->value);
+      if (auto* extern_func = call_node->op.as<relax::ExternFuncNode>()) {
+        String name = extern_func->global_symbol;
+        if (name == "vm.builtin.alloc_storage") {
+          EmitAllocStorage(call_node, var);
+        } else if (name == "vm.builtin.alloc_tensor") {
+          EmitAllocTensor(call_node, var);
+        } else {
+          // Normal packed function without attributes
+          std::vector<Instruction::Arg> args = ConvertArgs(call_node);
+          // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
+          // register)?
+          builder_->EmitCall(name, args, NewRegister(var));
+        }
+      } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
+        String name = gvar->name_hint;
         std::vector<Instruction::Arg> args = ConvertArgs(call_node);
-        // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
-        // register)?
+        // TODO: global_var mangling
         builder_->EmitCall(name, args, NewRegister(var));
+      } else {
+        LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
       }
-    } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
-      String name = gvar->name_hint;
-      std::vector<Instruction::Arg> args = ConvertArgs(call_node);
-      builder_->EmitCall(name, args, NewRegister(var));
+    } else if (const VarNode* var_node = binding->value.as<VarNode>()) {
+      const Var& rhs_var = GetRef<Var>(var_node);
+      auto rhs_var_reg = this->var_register_map_.find(rhs_var);
+      ICHECK(rhs_var_reg != this->var_register_map_.end());
+      this->var_register_map_.insert({var, rhs_var_reg->second});
     } else {
-      LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
+      LOG(FATAL) << "TODO: support compiling everything other than Call and Var.";
     }
   }
 
@@ -112,13 +123,12 @@ class VMCompilerImpl : public ExprVisitor {
     ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
     DataType dtype = alloc_attrs->dtype;
     int device_type = alloc_attrs->device_type;
-    PrimExpr size = Downcast<ShapeExpr>(call_node->args[0])->values[0];
-    PrimExpr alignment = Downcast<ShapeExpr>(call_node->args[1])->values[0];
 
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
-    args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(size)->value));
-    args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(alignment)->value));
+    for (Expr arg: call_node->args) {
+      args.push_back(ConvertArg(arg));
+    }
     args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
 
     // store dtype in constant pool
@@ -139,30 +149,14 @@ class VMCompilerImpl : public ExprVisitor {
     DataType dtype = alloc_attrs->dtype;
 
     std::vector<Instruction::Arg> args;
-    auto storage_reg = this->var_register_map_.find(Downcast<Var>(call_node->args[0]));
-    ICHECK(storage_reg != this->var_register_map_.end());
-    args.push_back(Instruction::Arg(Instruction::kRegister, storage_reg->second));
-
-    PrimExpr offset = Downcast<ShapeExpr>(call_node->args[1])->values[0];
-    args.push_back(Instruction::Arg(Instruction::kImmediate, Downcast<IntImm>(offset)->value));
+    for (Expr arg: call_node->args) {
+      args.push_back(ConvertArg(arg));
+    }
 
     // store dtype in constant pool
     TVMRetValue data_type;
     data_type = dtype;
     Index index = builder_->EmitConstant(data_type);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-
-    // TODO(@yuchen, @ziheng): support symbolic shape when connecting with shape lowering
-    // store shape in constant pool
-    std::vector<int64_t> shape;
-    auto shape_expr = Downcast<ShapeExpr>(call_node->args[2])->values;
-    for (PrimExpr i : shape_expr) {
-      shape.push_back(Downcast<IntImm>(i)->value);
-    }
-    auto shape_tuple = ShapeTuple(shape);
-    TVMRetValue shape_tuple_value;
-    shape_tuple_value = shape_tuple;
-    index = builder_->EmitConstant(shape_tuple_value);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
     builder_->EmitCall("vm.builtin.alloc_tensor", args, NewRegister(var));
@@ -174,27 +168,47 @@ class VMCompilerImpl : public ExprVisitor {
     return reg;
   }
 
+  bool IsConstantShape(ShapeExpr shape) const {
+    for (PrimExpr e : shape->values) {
+      if (!e->IsInstance<IntImmNode>()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // TODO: recursive Expr -> instr::arg, ExprFunctor, like llvm builder
+  Instruction::Arg ConvertArg(Expr arg) {
+    if (arg->IsInstance<VarNode>()) {
+      Var var = Downcast<Var>(arg);
+      auto reg = this->var_register_map_.find(Downcast<Var>(arg));
+      ICHECK(reg != this->var_register_map_.end())
+        << var->name_hint() << "(" << var << ")" << " not in the register map.";
+      return Instruction::Arg(Instruction::kRegister, reg->second);
+    } else if (arg->IsInstance<ShapeExprNode>()) {
+      ShapeExpr sh = Downcast<ShapeExpr>(arg);
+      ICHECK(IsConstantShape(sh))
+        << "should only use constant shape after shape lowering: "
+        << sh->values;
+      std::vector<int64_t> shape;
+      for (PrimExpr e : sh->values) {
+        shape.push_back(Downcast<IntImm>(e)->value);
+      }
+      auto shape_tuple = ShapeTuple(shape);
+      TVMRetValue shape_tuple_value;
+      shape_tuple_value = shape_tuple;
+      Index index = builder_->EmitConstant(shape_tuple_value);
+      return Instruction::Arg(Instruction::kConstIdx, index);
+    } else {
+      LOG(FATAL) << "not supported argument type.";
+    }
+    return Instruction::Arg();
+  }
+
   std::vector<Instruction::Arg> ConvertArgs(const Call& call) {
     std::vector<Instruction::Arg> ret;
-    const auto& args = call->args;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      if (args[i]->IsInstance<VarNode>()) {
-        auto reg = this->var_register_map_.find(Downcast<Var>(args[i]));
-        ICHECK(reg != this->var_register_map_.end());
-        ret.push_back(Instruction::Arg(Instruction::kRegister, reg->second));
-      } else if (args[i]->IsInstance<ShapeExprNode>()) {
-        std::vector<int64_t> shape;
-        for (PrimExpr e : Downcast<ShapeExpr>(args[i])->values) {
-          shape.push_back(Downcast<IntImm>(e)->value);
-        }
-        auto shape_tuple = ShapeTuple(shape);
-        TVMRetValue shape_tuple_value;
-        shape_tuple_value = shape_tuple;
-        Index index = builder_->EmitConstant(shape_tuple_value);
-        ret.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-      } else {
-        LOG(FATAL) << "not supported argument type.";
-      }
+      ret.push_back(ConvertArg(call->args[i]));
     }
     return ret;
   }
