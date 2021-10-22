@@ -16,8 +16,9 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
-from tvm import IRModule 
+from tvm import IRModule
 from . import _ffi_api
+
 
 def fma_rewrite(expr):
     """Perform fused multiply add rewriting in dataflow blocks.
@@ -29,22 +30,45 @@ def fma_rewrite(expr):
     """
     return _ffi_api.fma_rewrite(expr)
 
-def explicit_memory_rewrite(expr):
-    """Perform explicit memory allocation for call_dps in dataflow blocks.
+def to_non_dataflow(mod: IRModule) -> IRModule:
+    """Transform all dataflow structure to non-dataflow version.
 
     Parameters
     ----------
-    expr : tvm.relay.Expr
-        The input expression.
+    mod : tvm.IRModule
+        The input module.
     """
-    return _ffi_api.explicit_memory_rewrite(expr)
+    return _ffi_api.to_non_dataflow(mod)
+
+
+def call_dps_rewrite(mod: IRModule) -> IRModule:
+    """Perform explicit memory allocation for call_dps.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module.
+    """
+    return _ffi_api.call_dps_rewrite(mod)
+
+
+def memory_lower(mod: IRModule) -> IRModule:
+    """Perform memory lowering. Lower the relax.builtin.alloc_tensor op to VM builtin functions.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module.
+    """
+    return _ffi_api.memory_lower(mod)
+
 
 def shape_lower(mod: IRModule) -> IRModule:
     """Lower the shape expression in relax to shape heap and TIR functions.
 
     Parameters
     ----------
-    expr : tvm.IRModule
+    mod : tvm.IRModule
         The input module.
     """
     return _ffi_api.shape_lower(mod)

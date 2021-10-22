@@ -42,19 +42,19 @@ class ShapeLowerMutator : public ExprMutator {
   IRModule Lower() {
     ret_mod_ = IRModule();
     for (auto& p : mod_->functions) {
-      if (!p.second->IsInstance<FunctionNode>()) {
-        continue;
-      }
-      // prepare mapping and heap var
-      expr2slot_ = PrepareExpr2Slot(Downcast<Function>(p.second));
-      // LOG(INFO) << "mapping: " << expr2slot_;
-      heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
-      DynTensorType heap_type(1, ShapeDType());
-      shape_heap_ = Var("shape_heap", ShapeExpr({heap_size_}), heap_type);
+      Expr func = p.second;
+      if (p.second->IsInstance<FunctionNode>()) {
+        // prepare mapping and heap var
+        expr2slot_ = PrepareExpr2Slot(Downcast<Function>(func));
+        // LOG(INFO) << "mapping: " << expr2slot_;
+        heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
+        DynTensorType heap_type(1, ShapeDType());
+        shape_heap_ = Var("shape_heap", ShapeExpr({heap_size_}), heap_type);
 
-      // mutate
-      Expr new_func = this->Mutate(p.second);
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(new_func));
+        // mutate
+        func = this->Mutate(func);
+      }
+      ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
     }
     return ret_mod_;
   }
@@ -72,6 +72,9 @@ class ShapeLowerMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const ShapeExprNode* node) override {
+    if (IsConstantShape(GetRef<ShapeExpr>(node))) {
+      return ExprMutator::VisitExpr_(node);
+    }
     tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
     std::string shape_func_name = name_table_->GetUniqueName("shape_func");
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
@@ -111,7 +114,8 @@ class ShapeLowerMutator : public ExprMutator {
       new_body = seq->body;
     }
 
-    builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
+    // FIXME(@yuchen): Implement vm.builtin.free_shape_heap.
+    // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
     blocks.push_back(builder_->EndBlock());
     new_body = SeqExpr(blocks, new_body);
 
@@ -169,6 +173,15 @@ class ShapeLowerMutator : public ExprMutator {
     };
     PostOrderVisit(expr, func);
     return ret;
+  }
+
+  bool IsConstantShape(ShapeExpr shape) const {
+    for (PrimExpr e : shape->values) {
+      if (!e->IsInstance<IntImmNode>()) {
+        return false;
+      }
+    }
+    return true;
   }
 
  private:
