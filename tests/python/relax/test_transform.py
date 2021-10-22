@@ -80,7 +80,7 @@ def test_to_non_dataflow():
             nonlocal old_vars
             old_vars.append(e)
     rx.analysis.post_order_visit(mod["foo"], fvisit)
-    _, x, gv0, gv1 = old_vars
+    _, x, _, gv0, _, gv1 = old_vars
 
     new_mod = rx.transform.to_non_dataflow(mod)
 
@@ -92,13 +92,13 @@ def test_to_non_dataflow():
     rx.analysis.post_order_visit(new_mod["foo"], fvisit)
 
     assert x == new_vars[1]
-    assert gv0 != new_vars[2]
+    assert gv0 != new_vars[3]
     assert isinstance(gv0, rx.DataflowVar)
-    assert not isinstance(new_vars[2], rx.DataflowVar)
+    assert not isinstance(new_vars[3], rx.DataflowVar)
 
     assert isinstance(gv1, rx.Var)
-    assert isinstance(new_vars[3], rx.Var)
-    assert gv1 != new_vars[3]
+    assert isinstance(new_vars[5], rx.Var)
+    assert gv1 != new_vars[5]
 
 
 def test_call_dps_rewrite():

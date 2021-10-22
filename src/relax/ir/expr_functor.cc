@@ -120,13 +120,19 @@ void ExprVisitor::VisitBinding(const Binding& binding) {
   }
 }
 
-void ExprVisitor::VisitVarBinding(const VarBinding& binding) { this->VisitExpr(binding->value); }
+void ExprVisitor::VisitVarBinding(const VarBinding& binding) {
+  this->VisitExpr(binding->value);
+  this->VisitExpr(binding->var);
+}
 
 void ExprVisitor::VisitMatchShape(const MatchShape& binding) {
   this->VisitExpr(binding->value);
   // TODO(ziheng): should we change pattern from
   // Array<PrimExpr> to ShapeExpr?
   this->VisitExpr(ShapeExpr(binding->pattern));
+  if (binding->var.defined()) {
+    this->VisitExpr(binding->var);
+  }
 }
 
 void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
