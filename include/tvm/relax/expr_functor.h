@@ -193,10 +193,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * \return expr.
    */
   Expr Mutate(const Expr& expr) {
-    if (memo_.count(expr) == 0) {
-      memo_[expr] = this->VisitExpr(expr);
-    }
-    return Downcast<Expr>(memo_[expr]);
+    return this->VisitExpr(expr);
   }
 
   Expr VisitExpr(const Expr& expr) override;
@@ -226,6 +223,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual void VisitBinding(const Binding& binding);
   virtual Var VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
+
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
