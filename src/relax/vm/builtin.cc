@@ -46,11 +46,6 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap")
   return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
 });
 
-TVM_REGISTER_GLOBAL("vm.builtin.free_shape_heap")
-.set_body_typed([](NDArray arr) {
-  return static_cast<NDArray::Container*>(const_cast<Object*>(arr.get()))->DecRef();
-});
-
 TVM_REGISTER_GLOBAL("vm.builtin.decode_shape")
 .set_body_typed([](ShapeTuple shape, NDArray heap, ShapeTuple indexes) {
   int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);
@@ -74,10 +69,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape")
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
-.set_body_typed([](void* vm_state_ptr, Index size, Index alignment, Index device_type,
+.set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, ShapeTuple alignment, Index device_type,
                     DLDataType dtype_hint) {
+  ICHECK_EQ(buffer_size.size(), 1);
+  ICHECK_EQ(alignment.size(), 1);
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
-  DLOG(INFO) << "AllocStorage: allocation_size=" << size << ", alignment=" << alignment
+  int64_t size_imm = buffer_size[0];
+  int64_t align_imm = alignment[0];
+  DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << align_imm
               << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
               << ", device_type=" << device_type;
 
@@ -86,14 +85,16 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
       << "Memory allocator for device " << device_type << " has not been initialized";
   auto* alloc = vm_state->allocators[device_type];
   ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
-  storage_obj->buffer = alloc->Alloc(size, alignment, dtype_hint);
+  storage_obj->buffer = alloc->Alloc(size_imm, align_imm, dtype_hint);
   Storage storage(storage_obj);
   return storage;
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor")
-.set_body_typed([](Storage storage, Index offset, DLDataType dtype, ShapeTuple shape) {
-  auto tensor = storage->AllocNDArray(offset, shape, dtype);
+.set_body_typed([](Storage storage, ShapeTuple offset, ShapeTuple shape, DLDataType dtype) {
+  ICHECK_EQ(offset.size(), 1);
+  int64_t offset_imm = offset[0];
+  auto tensor = storage->AllocNDArray(offset_imm, shape, dtype);
   return tensor;
 });
 

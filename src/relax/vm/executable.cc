@@ -42,6 +42,7 @@ constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 enum ConstantType : int {
   kNDArray = 0,
   kDLDataType = 1,
+  kShapeTuple = 2,
 };
 
 #define STREAM_CHECK(val, section)                                          \
@@ -239,11 +240,17 @@ void ExecutableNode::SaveGlobalSection(dmlc::Stream* strm) {
 
 void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
-  std::vector<DLTensor*> arrays;
   for (const auto& it : this->constants) {
     if (it.IsObjectRef<runtime::NDArray>()) {
       strm->Write(ConstantType::kNDArray);
       runtime::SaveDLTensor(strm, it.operator DLTensor*());
+    } else if (it.IsObjectRef<ShapeTuple>()){
+      ShapeTuple shape = it.operator ShapeTuple();
+      strm->Write(ConstantType::kShapeTuple);
+      strm->Write(shape.size());
+      for (size_t i = 0; i < shape.size(); ++i) {
+        strm->Write(shape.at(i));
+      }
     } else {
       try {
         strm->Write(ConstantType::kDLDataType);
@@ -292,6 +299,16 @@ void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
       ndarray.Load(strm);
       TVMRetValue cell;
       cell = ndarray;
+      this->constants.push_back(cell);
+    } else if (constant_type == ConstantType::kShapeTuple) {
+      size_t size;
+      strm->Read(&size);
+      std::vector<ShapeTuple::index_type> data(size);
+      for (size_t i = 0; i < size; ++i) {
+        strm->Read(&(data[i]));
+      }
+      TVMRetValue cell;
+      cell = ShapeTuple(data);
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kDLDataType) {
       strm->Read(&dtype);
