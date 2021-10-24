@@ -40,9 +40,9 @@ namespace relax_vm {
 
 using namespace relax;
 
-class VMCompilerImpl : public ExprVisitor {
+class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
  public:
-  explicit VMCompilerImpl(ExecBuilderNode* builder) {
+  explicit CodeGenVM(ExecBuilderNode* builder) {
     builder_ = GetRef<ExecBuilder>(builder);
   }
 
@@ -50,8 +50,7 @@ class VMCompilerImpl : public ExprVisitor {
   /*! \brief A counter for naming local functions. */
   int local_func_counter_ = 0;
 
-  // TODO(@yuchen): support visiting other IR nodes
-  void VisitExpr_(const FunctionNode* func_node) {
+  Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {
       builder_->EmitFunction(func_node->name.value()->name_hint, func_node->params.size());
     } else {
@@ -62,60 +61,76 @@ class VMCompilerImpl : public ExprVisitor {
       builder_->EmitFunction("local_func" + std::to_string(local_func_counter_++),
                              func_node->params.size());
     }
-    for (auto param : func_node->params) {
-      NewRegister(param);
+    for (Var param : func_node->params) {
+      Instruction::Arg reg = this->VisitExpr(param);
+      this->var_register_map_.insert({param, reg.data});
     }
-    ExprVisitor::VisitExpr_(func_node);
+    Instruction::Arg ret = ExprFunctor::VisitExpr(func_node->body);
+    return ret;
   }
 
-  void VisitExpr_(const SeqExprNode* op) {
+  Instruction::Arg VisitExpr_(const SeqExprNode* op) {
     for (auto block : op->blocks) {
-      this->VisitBindingBlock(block);
-    }
-    // find the function return value and emit the output
-    auto ret_reg = this->var_register_map_.find(Downcast<Var>(op->body));
-    ICHECK(ret_reg != this->var_register_map_.end());
-    builder_->EmitRet(ret_reg->second);
-  }
-
-  // TODO: visit call node
-  void VisitVarBinding(const VarBinding& binding) {
-    Var var = binding->var;
-    // TODO(@yuchen): support other nodes than Call
-    if (binding->value.as<CallNode>()){
-      Call call_node = Downcast<Call>(binding->value);
-      if (auto* extern_func = call_node->op.as<relax::ExternFuncNode>()) {
-        String name = extern_func->global_symbol;
-        if (name == "vm.builtin.alloc_storage") {
-          EmitAllocStorage(call_node, var);
-        } else if (name == "vm.builtin.alloc_tensor") {
-          EmitAllocTensor(call_node, var);
-        } else {
-          // Normal packed function without attributes
-          std::vector<Instruction::Arg> args = ConvertArgs(call_node);
-          // TODO(@yuchen): what if the packed func has void return (no need to write to the dst
-          // register)?
-          builder_->EmitCall(name, args, NewRegister(var));
-        }
-      } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
-        String name = gvar->name_hint;
-        std::vector<Instruction::Arg> args = ConvertArgs(call_node);
-        // TODO: global_var mangling
-        builder_->EmitCall(name, args, NewRegister(var));
-      } else {
-        LOG(FATAL) << "TODO: support compiling everything other than extern functions.";
+      for (Binding binding : block->bindings) {
+        ICHECK(binding->IsInstance<VarBindingNode>());
+        Expr value = Downcast<VarBinding>(binding)->value;
+        Var var = Downcast<VarBinding>(binding)->var;
+        Instruction::Arg reg = this->VisitExpr(value);
+        this->var_register_map_.insert({var, reg.data});
       }
-    } else if (const VarNode* var_node = binding->value.as<VarNode>()) {
-      const Var& rhs_var = GetRef<Var>(var_node);
-      auto rhs_var_reg = this->var_register_map_.find(rhs_var);
-      ICHECK(rhs_var_reg != this->var_register_map_.end());
-      this->var_register_map_.insert({var, rhs_var_reg->second});
+    }
+
+    Instruction::Arg ret_reg = this->VisitExpr(op->body);
+    builder_->EmitRet(ret_reg.data);
+    return ret_reg;
+  }
+
+  Instruction::Arg VisitExpr_(const CallNode* op) {
+    String name;
+    if (auto* extern_func = op->op.as<ExternFuncNode>()) {
+      name = extern_func->global_symbol;
+      if (name == "vm.builtin.alloc_storage") {
+        return EmitAllocStorage(GetRef<Call>(op));
+      } else if (name == "vm.builtin.alloc_tensor") {
+        return EmitAllocTensor(GetRef<Call>(op));
+      } 
+    } else if (auto* gvar = op->op.as<GlobalVarNode>()) {
+      name = gvar->name_hint;
+    }
+    std::vector<Instruction::Arg> args;
+    for (auto arg : op->args) {
+      args.push_back(this->VisitExpr(arg));
+    }
+    builder_->EmitCall(name, args, this->registers_num_);
+    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+  }
+
+  Instruction::Arg VisitExpr_(const VarNode* op) {
+    auto it = this->var_register_map_.find(GetRef<Var>(op));
+    if (it != this->var_register_map_.end()) {
+      return Instruction::Arg(Instruction::kRegister, it->second);
     } else {
-      LOG(FATAL) << "TODO: support compiling everything other than Call and Var.";
+      return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
     }
   }
 
-  void EmitAllocStorage(const Call& call_node, const Var& var) {
+  Instruction::Arg VisitExpr_(const ShapeExprNode* op) {
+    ShapeExpr sh = GetRef<ShapeExpr>(op);
+    ICHECK(IsConstantShape(sh))
+      << "should only use constant shape after shape lowering: "
+      << sh->values;
+    std::vector<int64_t> shape;
+    for (PrimExpr e : sh->values) {
+      shape.push_back(Downcast<IntImm>(e)->value);
+    }
+    auto shape_tuple = ShapeTuple(shape);
+    TVMRetValue shape_tuple_value;
+    shape_tuple_value = shape_tuple;
+    Index index = builder_->EmitConstant(shape_tuple_value);
+    return Instruction::Arg(Instruction::kConstIdx, index);
+  }
+
+  Instruction::Arg EmitAllocStorage(const Call& call_node) {
     Attrs attrs = call_node->attrs;
 
     // Get dtype and device_type from the attributes.
@@ -137,10 +152,11 @@ class VMCompilerImpl : public ExprVisitor {
     Index index = this->builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    builder_->EmitCall("vm.builtin.alloc_storage", args, NewRegister(var));
+    builder_->EmitCall("vm.builtin.alloc_storage", args, this->registers_num_);
+    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
   }
 
-  void EmitAllocTensor(const Call& call_node, const Var& var) {
+  Instruction::Arg EmitAllocTensor(const Call& call_node) {
     Attrs attrs = call_node->attrs;
 
     // Get dtype from the attributes.
@@ -159,14 +175,15 @@ class VMCompilerImpl : public ExprVisitor {
     Index index = builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    builder_->EmitCall("vm.builtin.alloc_tensor", args, NewRegister(var));
+    builder_->EmitCall("vm.builtin.alloc_tensor", args, this->registers_num_);
+    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
   }
 
-  size_t NewRegister(Var var) {
-    size_t reg = this->registers_num_++;
-    this->var_register_map_.insert({var, reg});
-    return reg;
-  }
+  // size_t NewRegister(Var var) {
+  //   size_t reg = this->registers_num_++;
+  //   this->var_register_map_.insert({var, reg});
+  //   return reg;
+  // }
 
   bool IsConstantShape(ShapeExpr shape) const {
     for (PrimExpr e : shape->values) {
@@ -256,7 +273,7 @@ void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {
   }
   lib_ = tvm::build(tir_mod, target, target_host);
 
-  VMCompilerImpl compiler(builder_.operator->());
+  CodeGenVM compiler(builder_.operator->());
   for (auto& p : rx_mod->functions) {
     compiler.VisitExpr(p.second);
   }
