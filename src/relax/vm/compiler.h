@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/vm/compiler.h
- * \brief A compiler to compile a relay::Module to the VM executable.
+ * \brief A compiler to compile an IRModule to VM executable.
  */
 
 #ifndef TVM_RELAX_VM_COMPILER_H_
@@ -38,7 +38,7 @@ namespace relax_vm {
 
 using tvm::Target;
 
-class VMCompiler : public runtime::ModuleNode {
+class VMCompiler : public Object {
  public:
   /*!
    * \brief Compile the functions in a Module.
@@ -56,9 +56,9 @@ class VMCompiler : public runtime::ModuleNode {
    */
   Module GetLib();
 
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
-
-  const char* type_key() const { return "relax.VMCompiler"; }
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.VMCompiler"; 
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
 
  protected:
   /*! \brief Internal executable builder. */

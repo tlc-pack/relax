@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/vm/compiler.cc
- * \brief A compiler from relay::Module to the VM byte code.
+ * \brief A compiler to compile an IRModule to VM executable.
  */
 
 #include "compiler.h"
@@ -179,12 +179,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
   }
 
-  // size_t NewRegister(Var var) {
-  //   size_t reg = this->registers_num_++;
-  //   this->var_register_map_.insert({var, reg});
-  //   return reg;
-  // }
-
   bool IsConstantShape(ShapeExpr shape) const {
     for (PrimExpr e : shape->values) {
       if (!e->IsInstance<IntImmNode>()) {
@@ -238,21 +232,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   std::unordered_map<Var, RegName, ObjectPtrHash, ObjectPtrEqual> var_register_map_;
 };
 
-PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "compile") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_EQ(args.num_args, 3);
-      IRModule mod = args[0];
-      this->Compile(mod, args[1], args[2]);
-    });
-  } else if (name == "get_executable") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExec(); });
-  } else {
-    LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc([name](TVMArgs args, TVMRetValue* rv) {});
-  }
-}
-
 void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {
   // Reset internal builder
   builder_ = relax::ExecBuilderNode::Create();
@@ -285,11 +264,6 @@ Executable VMCompiler::GetExec() {
 
 runtime::Module VMCompiler::GetLib() {
   return lib_;
-}
-
-runtime::Module CreateVMCompiler() {
-  auto compiler = make_object<VMCompiler>();
-  return runtime::Module(compiler);
 }
 
 Array<ObjectRef> Build(IRModule mod, Target target, Target target_host) {
