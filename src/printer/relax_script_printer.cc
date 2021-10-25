@@ -397,7 +397,7 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
     }
   } else {
     AttrPrinter attr_printer(&kwargs, this);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&attr_printer);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_printer);
   }
   return kwargs;
 }
