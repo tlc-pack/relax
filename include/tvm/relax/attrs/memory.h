@@ -29,7 +29,7 @@
 namespace tvm {
 namespace relax {
 /*!
- * \brief Options for allocating storage.
+ * \brief Attributes for allocating storage.
  */
 struct AllocStorageAttrs : public tvm::AttrsNode<AllocStorageAttrs> {
   DataType dtype;
@@ -46,12 +46,16 @@ struct AllocStorageAttrs : public tvm::AttrsNode<AllocStorageAttrs> {
 };
 
 /*!
- * \brief Options for allocating tensors.
+ * \brief Attributes for allocating tensors.
  */
 struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
+  int offset;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(AllocTensorAttrs, "relax.attrs.AllocTensorAttrs") {
+    TVM_ATTR_FIELD(offset)
+        .describe("Storage offset to allocate the tensor.")
+        .set_default(0);
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));

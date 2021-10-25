@@ -26,6 +26,7 @@
 
 #include <tvm/target/target.h>
 #include <tvm/relax/attrs/memory.h>
+#include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/function.h>
 #include <tvm/driver/driver_api.h>
@@ -86,14 +87,24 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const CallNode* op) {
+    if (op->op.as<OpNode>()) {
+      static const Op& alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
+      static const Op& alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
+      static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
+      static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
+
+      const Call& call = GetRef<Call>(op);
+      if (op->op == alloc_storage_op) {
+        return EmitAllocStorage(call);
+      } else if (op->op == alloc_tensor_op) {
+        return EmitAllocTensor(call);
+      } else if (op->op == decode_shape_op || op->op == make_shape_op) {
+        return EmitShape(call);
+      }
+    }
     String name;
     if (auto* extern_func = op->op.as<ExternFuncNode>()) {
       name = extern_func->global_symbol;
-      if (name == "vm.builtin.alloc_storage") {
-        return EmitAllocStorage(GetRef<Call>(op));
-      } else if (name == "vm.builtin.alloc_tensor") {
-        return EmitAllocTensor(GetRef<Call>(op));
-      } 
     } else if (auto* gvar = op->op.as<GlobalVarNode>()) {
       name = gvar->name_hint;
     }
@@ -146,7 +157,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
 
-    // store dtype in constant pool
+    // Store dtype in constant pool
     TVMRetValue data_type;
     data_type = dtype;
     Index index = this->builder_->EmitConstant(data_type);
@@ -162,6 +173,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Get dtype from the attributes.
     auto alloc_attrs = attrs.as<AllocTensorAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be the AllocTensor attrs";
+    int offset = alloc_attrs->offset;
     DataType dtype = alloc_attrs->dtype;
 
     std::vector<Instruction::Arg> args;
@@ -169,13 +181,50 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(ConvertArg(arg));
     }
 
-    // store dtype in constant pool
+    args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
+
+    // Store dtype in constant pool
     TVMRetValue data_type;
     data_type = dtype;
     Index index = builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
     builder_->EmitCall("vm.builtin.alloc_tensor", args, this->registers_num_);
+    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+  }
+
+  Instruction::Arg EmitShape(const Call& call_node) {
+    static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
+    static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
+
+    Attrs attrs = call_node->attrs;
+    // Get indices from the attributes.
+    auto shape_attrs = attrs.as<ShapeAttrs>();
+    ICHECK(shape_attrs != nullptr) << "must be the ShapeAttrs";
+    Array<Integer> indices = shape_attrs->indices;
+    
+    std::vector<Instruction::Arg> args;
+    for (Expr arg: call_node->args) {
+      args.push_back(ConvertArg(arg));
+    }
+
+    // Store indices in constant pool.
+    std::vector<int64_t> indices_vec;
+    for (auto ind : indices) {
+      indices_vec.push_back(ind);
+    }
+
+    auto shape_tuple = ShapeTuple(indices_vec);
+    TVMRetValue shape_tuple_value;
+    shape_tuple_value = shape_tuple;
+    Index index = builder_->EmitConstant(shape_tuple_value);
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+
+    if (call_node->op == decode_shape_op) {
+      builder_->EmitCall("vm.builtin.decode_shape", args, this->registers_num_);
+    } else if (call_node->op == make_shape_op) {
+      builder_->EmitCall("vm.builtin.make_shape", args, this->registers_num_);
+    }
     return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
   }
 
@@ -188,7 +237,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return true;
   }
 
-  // TODO: recursive Expr -> instr::arg, ExprFunctor, like llvm builder
   Instruction::Arg ConvertArg(Expr arg) {
     if (arg->IsInstance<VarNode>()) {
       Var var = Downcast<Var>(arg);

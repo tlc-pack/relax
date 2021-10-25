@@ -78,19 +78,63 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
+// alloc_storage
+
+RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
+.set_num_inputs(2)
+.add_argument("size", "Expr", "The size of the storage to allocate.");
+// .add_argument("alignment", "Expr", "The alignment of the storage.");
+
+Expr MakeAllocStorage(Expr size) {
+  static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
+  return Call(op, {size}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage")
+.set_body_typed(MakeAllocStorage);
+
 // alloc_tensor
 
-RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
 .set_num_inputs(1)
 .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
 Expr MakeAllocTensor(Expr shape) {
-  static const Op& op = Op::Get("relax.builtin.alloc_tensor");
+  static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
   return Call(op, {shape}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor")
 .set_body_typed(MakeAllocTensor);
+
+// decode_shape
+
+RELAY_REGISTER_OP("relax.vm.builtin.decode_shape")
+.set_num_inputs(2)
+.add_argument("shape", "Expr", "The shape to be decoded.")
+.add_argument("heap", "Expr", "The heap to store the shape.");
+
+Expr MakeDecodeShape(Expr shape, Expr heap) {
+  static const Op& op = Op::Get("relax.vm.builtin.decode_shape");
+  return Call(op, {shape, heap}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.decode_shape")
+.set_body_typed(MakeDecodeShape);
+
+// make_shape
+
+RELAY_REGISTER_OP("relax.vm.builtin.make_shape")
+.set_num_inputs(1)
+.add_argument("heap", "Expr", "The heap to make the shape from.");
+
+Expr MakeMakeShape(Expr heap) {
+  static const Op& op = Op::Get("relax.vm.builtin.make_shape");
+  return Call(op, {heap}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.make_shape")
+.set_body_typed(MakeMakeShape);
 
 } // namespace relax
 } // namespace tvm
