@@ -215,7 +215,7 @@ class GlobalVarNode : public RelayExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {

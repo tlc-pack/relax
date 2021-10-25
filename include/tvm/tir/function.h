@@ -98,7 +98,7 @@ class PrimFuncNode : public BaseFuncNode {
     v->Visit("buffer_map", &buffer_map);
     v->Visit("attrs", &attrs);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {

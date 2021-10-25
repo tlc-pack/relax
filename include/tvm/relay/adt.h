@@ -283,7 +283,7 @@ class MatchNode : public ExprNode {
     v->Visit("clauses", &clauses);
     v->Visit("complete", &complete);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const MatchNode* other, SEqualReducer equal) const {

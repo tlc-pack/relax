@@ -23,7 +23,7 @@
  */
 
 #include <tvm/ir/type_functor.h>
-#include <tvm/relax/block_builder.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relax/ir_functor.h>
 
 #include <algorithm>
