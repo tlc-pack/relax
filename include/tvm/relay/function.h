@@ -65,7 +65,7 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("type_params", &type_params);
     v->Visit("attrs", &attrs);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {

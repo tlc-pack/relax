@@ -72,7 +72,7 @@ class ConstantNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
@@ -108,7 +108,7 @@ class TupleNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
   }
 
@@ -181,7 +181,7 @@ class VarNode : public ExprNode {
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
@@ -274,7 +274,7 @@ class CallNode : public ExprNode {
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -347,7 +347,7 @@ class LetNode : public ExprNode {
     v->Visit("value", &value);
     v->Visit("body", &body);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
@@ -408,7 +408,7 @@ class IfNode : public ExprNode {
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
@@ -455,7 +455,7 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
@@ -494,7 +494,7 @@ class RefCreateNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const RefCreateNode* other, SEqualReducer equal) const {
@@ -533,7 +533,7 @@ class RefReadNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const RefReadNode* other, SEqualReducer equal) const {
@@ -574,7 +574,7 @@ class RefWriteNode : public ExprNode {
     v->Visit("ref", &ref);
     v->Visit("value", &value);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const RefWriteNode* other, SEqualReducer equal) const {
