@@ -142,52 +142,33 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg EmitAllocStorage(const Call& call_node) {
-    Attrs attrs = call_node->attrs;
-
-    // Get dtype and device_type from the attributes.
-    auto alloc_attrs = attrs.as<AllocStorageAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
-    DataType dtype = alloc_attrs->dtype;
-    int device_type = alloc_attrs->device_type;
-
+    // Handle args of the call
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
     for (Expr arg: call_node->args) {
       args.push_back(ConvertArg(arg));
     }
-    args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
 
-    // Store dtype in constant pool
-    TVMRetValue data_type;
-    data_type = dtype;
-    Index index = this->builder_->EmitConstant(data_type);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    // Handle attrs of the call
+    Attrs attrs = call_node->attrs;
+    CodeGenAttr attr_codegen(this->builder_, &args);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_codegen);
 
     builder_->EmitCall("vm.builtin.alloc_storage", args, this->registers_num_);
     return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
   }
 
   Instruction::Arg EmitAllocTensor(const Call& call_node) {
-    Attrs attrs = call_node->attrs;
-
-    // Get dtype from the attributes.
-    auto alloc_attrs = attrs.as<AllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be the AllocTensor attrs";
-    int offset = alloc_attrs->offset;
-    DataType dtype = alloc_attrs->dtype;
-
+    // Handle args of the call
     std::vector<Instruction::Arg> args;
     for (Expr arg: call_node->args) {
       args.push_back(ConvertArg(arg));
     }
 
-    args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
-
-    // Store dtype in constant pool
-    TVMRetValue data_type;
-    data_type = dtype;
-    Index index = builder_->EmitConstant(data_type);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    // Handle attrs of the call
+    Attrs attrs = call_node->attrs;
+    CodeGenAttr attr_codegen(this->builder_, &args);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_codegen);
 
     builder_->EmitCall("vm.builtin.alloc_tensor", args, this->registers_num_);
     return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
@@ -196,29 +177,16 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg EmitShape(const Call& call_node) {
     static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
     static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
-
-    Attrs attrs = call_node->attrs;
-    // Get indices from the attributes.
-    auto shape_attrs = attrs.as<ShapeAttrs>();
-    ICHECK(shape_attrs != nullptr) << "must be the ShapeAttrs";
-    Array<Integer> indices = shape_attrs->indices;
     
     std::vector<Instruction::Arg> args;
     for (Expr arg: call_node->args) {
       args.push_back(ConvertArg(arg));
     }
 
-    // Store indices in constant pool.
-    std::vector<int64_t> indices_vec;
-    for (auto ind : indices) {
-      indices_vec.push_back(ind);
-    }
-
-    auto shape_tuple = ShapeTuple(indices_vec);
-    TVMRetValue shape_tuple_value;
-    shape_tuple_value = shape_tuple;
-    Index index = builder_->EmitConstant(shape_tuple_value);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    // Handle attrs of the call
+    Attrs attrs = call_node->attrs;
+    CodeGenAttr attr_codegen(this->builder_, &args);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_codegen);
 
     if (call_node->op == decode_shape_op) {
       builder_->EmitCall("vm.builtin.decode_shape", args, this->registers_num_);
@@ -278,6 +246,70 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   size_t registers_num_ = 0;
   /*! \brief Map from var to register number. */
   std::unordered_map<Var, RegName, ObjectPtrHash, ObjectPtrEqual> var_register_map_;
+
+  /*!
+   * \brief Code generator for attributes in a call node.
+   */
+  class CodeGenAttr : public AttrVisitor {
+   public:
+    CodeGenAttr(relax::ExecBuilder& builder, std::vector<Instruction::Arg>* args)
+        : builder_(builder), args_(args) {}
+
+    void Visit(const char* key, int* value) final {
+      args_->push_back(Instruction::Arg(Instruction::kImmediate, *value));
+    }
+    void Visit(const char* key, DataType* value) final {
+      TVMRetValue data_type;
+      data_type = *value;
+      Index index = builder_->EmitConstant(data_type);
+      args_->push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    }
+    void Visit(const char* key, runtime::ObjectRef* obj) final {
+      if (const ShapeTupleObj* shape_obj = (*obj).as<ShapeTupleObj>()) {
+        TVMRetValue shape_tuple;
+        shape_tuple = shape_obj->data;
+        Index index = builder_->EmitConstant(shape_tuple);
+        args_->push_back(Instruction::Arg(Instruction::kConstIdx, index));
+      } else if (const ArrayNode* array_node = (*obj).as<ArrayNode>()) {
+        std::vector<int64_t> indices_vec;
+        for (auto ind : *array_node) {
+          indices_vec.push_back(Downcast<Integer>(ind));
+        }
+        auto shape_tuple = ShapeTuple(indices_vec);
+        TVMRetValue shape_tuple_value;
+        shape_tuple_value = shape_tuple;
+        Index index = builder_->EmitConstant(shape_tuple_value);
+        args_->push_back(Instruction::Arg(Instruction::kConstIdx, index));
+      } else {
+        LOG(FATAL) << "do not allow codegen for Object other than ShapeTuple or Array<Integer> to be attribute";
+      }
+    }
+    void Visit(const char* key, double* value) final {
+      LOG(FATAL) << "do not allow codegen for double attribute";
+    }
+    void Visit(const char* key, int64_t* value) final {
+      LOG(FATAL) << "do not allow codegen for int64_t attribute";
+    }
+    void Visit(const char* key, uint64_t* value) final {
+      LOG(FATAL) << "do not allow codegen for uint64_t attribute";
+    }
+    void Visit(const char* key, bool* value) final {
+      LOG(FATAL) << "do not allow codegen for bool attribute";
+    }
+    void Visit(const char* key, std::string* value) final {
+      LOG(FATAL) << "do not allow codegen for string attribute";
+    }
+    void Visit(const char* key, void** value) final {
+      LOG(FATAL) << "do not allow codegen for void attribute";
+    }
+    void Visit(const char* key, runtime::NDArray* value) final {
+      LOG(FATAL) << "do not allow codegen for NDArray attribute";
+    }
+
+   private:
+    relax::ExecBuilder builder_;
+    std::vector<Instruction::Arg>* args_;
+  };
 };
 
 void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {

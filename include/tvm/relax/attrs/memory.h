@@ -32,16 +32,16 @@ namespace relax {
  * \brief Attributes for allocating storage.
  */
 struct AllocStorageAttrs : public tvm::AttrsNode<AllocStorageAttrs> {
-  DataType dtype;
-  int device_id;
   int device_type;
+  DataType dtype;
+  // int device_id;
 
   TVM_DECLARE_ATTRS(AllocStorageAttrs, "relax.attrs.AllocStorageAttrs") {
+    TVM_ATTR_FIELD(device_type).describe("The device type on which to allocate memory.");
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));
-    TVM_ATTR_FIELD(device_id).describe("The device id on which to allocate memory.");
-    TVM_ATTR_FIELD(device_type).describe("The device type on which to allocate memory.");
+    // TVM_ATTR_FIELD(device_id).describe("The device id on which to allocate memory.");
   }
 };
 
