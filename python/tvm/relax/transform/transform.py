@@ -72,3 +72,7 @@ def shape_lower(mod: IRModule) -> IRModule:
         The input module.
     """
     return _ffi_api.shape_lower(mod)
+
+
+def to_anf(mod: IRModule):
+    return _ffi_api.to_anf(mod)

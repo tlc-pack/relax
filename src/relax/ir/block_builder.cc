@@ -23,6 +23,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/block_builder.h>
+#include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/relay/op.h>
@@ -30,7 +31,204 @@
 namespace tvm {
 namespace relax {
 
+// ExprNormalizer
+class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
+ public:
+  ExprNormalizer(BlockBuilderNode* builder, std::shared_ptr<NameTable> name_table)
+      : builder_(builder), name_table_(name_table) {}
+
+#define RELAX_EXPR_NORMALIZER_LEAF(OP) \
+  Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
+
+  RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
+  RELAX_EXPR_NORMALIZER_LEAF(VarNode);
+  RELAX_EXPR_NORMALIZER_LEAF(DataflowVarNode);
+  RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
+  RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
+  RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
+  RELAX_EXPR_NORMALIZER_LEAF(OpNode);
+
+  Expr VisitExpr(const Expr& expr) {
+    if (expr_memo_.count(expr)) {
+      return expr_memo_[expr];
+    }
+    return ExprFunctor::VisitExpr(expr);
+  }
+
+  Expr VisitExpr_(const TupleNode* op) final {
+    bool unchanged = true;
+    Array<Expr> new_fields;
+    for (const Expr& field : op->fields) {
+      Expr new_field = this->Bind(field);
+      new_fields.push_back(new_field);
+      unchanged &= new_field.same_as(field);
+    }
+    return unchanged ? GetRef<Expr>(op) : Tuple(new_fields);
+  }
+
+  Expr VisitExpr_(const FunctionNode* op) final {
+    Expr new_body = this->VisitWithPrologue(op->body);
+    if (new_body.same_as(op->body)) {
+      return GetRef<Expr>(op);
+    }
+    return Function(op->name, op->params, new_body, op->ret_type);
+  }
+
+  Expr VisitExpr_(const CallNode* op) final {
+    Expr new_op = this->VisitExpr(op->op);
+    bool unchanged = new_op.same_as(op->op);
+
+    Array<Expr> new_args;
+    for (const Expr& arg : op->args) {
+      Expr new_arg = this->Bind(arg);
+      new_args.push_back(new_arg);
+      unchanged &= new_arg.same_as(arg);
+    }
+
+    if (unchanged) {
+      return GetRef<Expr>(op);
+    }
+    return Call(new_op, new_args, op->attrs, op->type_args);
+  }
+
+  Expr VisitExpr_(const SeqExprNode* op) final {
+    bool unchanged = true;
+    Array<BindingBlock> new_blocks;
+    for (const BindingBlock& block : op->blocks) {
+      BindingBlock new_block = this->VisitBindingBlock(block);
+      new_blocks.push_back(new_block);
+      unchanged &= new_block.same_as(block);
+    }
+
+    builder_->BeginBindingBlock();
+    Expr new_body = this->VisitExpr(op->body);
+    unchanged &= new_body.same_as(op->body);
+    BindingBlock prologue = builder_->EndBlock();
+
+    if (!prologue->bindings.empty()) {
+      new_blocks.push_back(prologue);
+      unchanged = false;
+    }
+
+    if (unchanged) {
+      return GetRef<Expr>(op);
+    }
+    return SeqExpr(new_blocks, new_body);
+  }
+
+  Expr VisitExpr_(const IfNode* op) final {
+    Expr new_cond = this->VisitExpr(op->cond);
+    Expr new_true = this->VisitExpr(op->true_branch);
+    Expr new_false = this->VisitExpr(op->false_branch);
+    if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
+        new_false.same_as(op->false_branch)) {
+      return GetRef<Expr>(op);
+    }
+    return If(new_cond, new_true, new_false);
+  }
+
+  Expr VisitExpr_(const TupleGetItemNode* op) final {
+    Expr new_tuple = this->VisitExpr(op->tuple);
+    if (new_tuple.same_as(op->tuple)) {
+      return GetRef<Expr>(op);
+    }
+    return TupleGetItem(new_tuple, op->index);
+  }
+
+  Binding VisitBinding(const Binding& binding) {
+    if (binding.as<VarBindingNode>()) {
+      return this->VisitVarBinding(Downcast<VarBinding>(binding));
+    } else {
+      ICHECK(binding.as<MatchShapeNode>()) << "expected VarBinding or MatchShape, got " << binding;
+      return this->VisitMatchShape(Downcast<MatchShape>(binding));
+    }
+  }
+
+  VarBinding VisitVarBinding(const VarBinding& binding) {
+    Expr new_value = this->VisitExpr(binding->value);
+    if (new_value.same_as(binding->value)) {
+      return binding;
+    }
+    return VarBinding(binding->var, new_value);
+  }
+
+  MatchShape VisitMatchShape(const MatchShape& binding) {
+    Expr new_value = this->VisitExpr(binding->value);
+    if (new_value.same_as(binding->value)) {
+      return binding;
+    }
+    return MatchShape(new_value, binding->pattern, binding->var);
+  }
+
+  BindingBlock VisitBindingBlock(const BindingBlock& block) {
+    if (block.as<DataflowBlockNode>()) {
+      builder_->BeginDataflowBlock();
+    } else {
+      builder_->BeginBindingBlock();
+    }
+
+    bool unchanged = true;
+    for (const Binding& binding : block->bindings) {
+      Binding new_binding = this->VisitBinding(binding);
+      unchanged &= new_binding.same_as(binding);
+      if (new_binding.as<VarBindingNode>()) {
+        builder_->Emit(Downcast<VarBinding>(new_binding));
+      } else {
+        ICHECK(new_binding.as<MatchShapeNode>());
+        builder_->EmitMatchShape(Downcast<MatchShape>(new_binding));
+      }
+    }
+    BindingBlock new_block = builder_->EndBlock();
+    unchanged &= new_block->bindings.size() == block->bindings.size();
+    if (unchanged) {
+      return block;
+    }
+    return new_block;
+  }
+
+ private:
+  inline bool IsLeaf(const Expr& expr) {
+    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<relay::ConstantNode>() ||
+           expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>();
+  }
+
+  Expr VisitWithPrologue(const Expr& expr) {
+    builder_->BeginBindingBlock();
+    Expr post = this->VisitExpr(expr);
+    BindingBlock prologue = builder_->EndBlock();
+    if (!prologue->bindings.empty()) {
+      post = SeqExpr({prologue}, post);
+    }
+    return post;
+  }
+
+  Expr Bind(const Expr& expr) {
+    Expr post = this->VisitExpr(expr);
+    if (IsLeaf(post)) {
+      return post;
+    }
+    ICHECK(!expr.as<VarNode>());
+    Var var = builder_->Emit(post);
+    expr_memo_[expr] = var;
+    return var;
+  }
+
+  /*! \brief Memoization table. */
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
+
+  /*! \brief BlockBuilder used for emitting intermediate variables. */
+  BlockBuilderNode* builder_;
+
+  /*! \brief Shared name table for naming intermediate variables. */
+  std::shared_ptr<NameTable> name_table_;
+};
+
 TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
+
+BlockBuilderNode::BlockBuilderNode(std::shared_ptr<NameTable> name_table) {
+  name_table_ = name_table;
+  normalizer_ = std::make_shared<ExprNormalizer>(this, name_table);
+}
 
 BlockBuilderNode::~BlockBuilderNode() {
   if (!block_stack_.empty()) {
@@ -231,21 +429,22 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
 
 // TODO(@altanh, @yuchen): emit expr in ssa form
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
-  if (expr.as<CallNode>()) {
-    Call call = Downcast<Call>(expr);
-    // Shape inference
-    auto inferred_shape = InferShape(call, this->diag_ctx_);
-    if (inferred_shape.defined()) {
-      if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
-        call->shape_ = GetRef<Expr>(shape_expr);
-      }
-    }
-    // Type inference
-    auto inferred_type = InferType(call, this->diag_ctx_);
-    call->checked_type_ = inferred_type;
-    return call;
-  }
-  return expr;
+  return normalizer_->VisitExpr(expr);
+  // if (expr.as<CallNode>()) {
+  //   Call call = Downcast<Call>(expr);
+  //   // Shape inference
+  //   auto inferred_shape = InferShape(call, this->diag_ctx_);
+  //   if (inferred_shape.defined()) {
+  //     if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
+  //       call->shape_ = GetRef<Expr>(shape_expr);
+  //     }
+  //   }
+  //   // Type inference
+  //   auto inferred_type = InferType(call, this->diag_ctx_);
+  //   call->checked_type_ = inferred_type;
+  //   return call;
+  // }
+  // return expr;
 }
 
 BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
@@ -256,6 +455,7 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 BlockBuilder::BlockBuilder(std::shared_ptr<NameTable> name_table) {
   ObjectPtr<BlockBuilderNode> n = make_object<BlockBuilderNode>();
   n->name_table_ = name_table;
+  n->normalizer_ = std::make_shared<BlockBuilderNode::ExprNormalizer>(n.get(), name_table);
   data_ = std::move(n);
 }
 

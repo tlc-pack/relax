@@ -19,6 +19,7 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import tvm
 from tvm import tir
 from tvm import relax as rx
+from tvm import relay
 from tvm.ir import structural_equal
 import numpy as np
 
@@ -173,6 +174,24 @@ def test_shape_lowering():
     assert "alloc_shape_heap" in code
     assert "decode_shape" in code
     assert "make_shape" in code
+
+
+def test_to_anf():
+    x = rx.Var("x", type_annotation=rx.DynTensorType())
+    add = rx.op.add(x, x)
+    add2 = rx.op.add(add, add)
+    item = rx.op.add(add, add2)
+    # add2 = rx.op.add(add, rx.op.add(add, add))
+    # tup = rx.Tuple([add, add2])
+    # item = relay.TupleGetItem(tup, 0)
+    gvar = rx.GlobalVar("f")
+    func = rx.Function([x], item, None, gvar)
+
+    mod: tvm.IRModule = tvm.IRModule({gvar: func})
+    print(mod.get_global_vars())
+    mod = rx.transform.to_anf(mod)
+
+    print(rx.parser.astext(mod))
 
 
 if __name__ == "__main__":
