@@ -222,6 +222,8 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
  protected:
+  class ExprNormalizer;
+
   Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
 
   /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound

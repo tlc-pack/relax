@@ -310,7 +310,9 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::SeqExprNode* op) {
   Doc doc;
+  int i = 0;
   for (const relax::BindingBlock& block : op->blocks) {
+    doc << Doc::Text("# block ") << i++ << Doc::NewLine();
     doc << Print(block);
   }
   // NOTE: the body expression is printed in the parent, since SeqExprs are used for both Function

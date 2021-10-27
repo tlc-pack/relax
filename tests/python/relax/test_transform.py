@@ -204,6 +204,24 @@ def test_vm_shape_lowering():
     assert isinstance(s5, tvm.relay.Call)
     assert s5.op.name == "relax.vm.builtin.load_shape"
 
+def test_to_anf():
+    x = rx.Var("x", type_annotation=rx.DynTensorType())
+    add = rx.op.add(x, x)
+    add2 = rx.op.add(add, add)
+    item = rx.op.add(add, add2)
+    # add2 = rx.op.add(add, rx.op.add(add, add))
+    # tup = rx.Tuple([add, add2])
+    # item = relay.TupleGetItem(tup, 0)
+    gvar = rx.GlobalVar("f")
+    func = rx.Function([x], item, None, gvar)
+
+    mod: tvm.IRModule = tvm.IRModule({gvar: func})
+    print(mod.get_global_vars())
+    mod = rx.transform.to_anf(mod)
+
+    print(rx.parser.astext(mod))
+
+
 if __name__ == "__main__":
     test_fma_rewrite()
     test_to_non_dataflow()

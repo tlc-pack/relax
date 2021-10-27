@@ -72,4 +72,8 @@ def vm_shape_lower(mod: IRModule) -> IRModule:
     mod : tvm.IRModule
         The input module.
     """
-    return _ffi_api.vm_shape_lower(mod)
+    return _ffi_api.shape_lower(mod)
+
+
+def to_anf(mod: IRModule):
+    return _ffi_api.to_anf(mod)

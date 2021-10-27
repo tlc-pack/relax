@@ -180,13 +180,9 @@ TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr ex
 // ==================
 // ExprMutator
 
-Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
-  return GetRef<Expr>(op);
-}
+Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) {
-  return GetRef<Expr>(op);
-}
+Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
@@ -293,13 +289,9 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) {
-  return GetRef<Expr>(op);
-}
+Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) {
-  return GetRef<Expr>(op); 
-}
+Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   bool all_blocks_unchanged = true;
@@ -357,7 +349,7 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var = Var(new_var->vid, new_var->shape_, NullOpt, new_var->span);
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
-  
+
   Var new_var = Downcast<Var>(this->Mutate(binding->var));
   if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
       !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
@@ -370,8 +362,9 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
     if (new_value->shape_.defined()) {
       new_var->shape_ = new_value->shape_;
     }
-    // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent unknown type
-    if (new_value->checked_type_.defined()){
+    // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent
+    // unknown type
+    if (new_value->checked_type_.defined()) {
       new_var->checked_type_ = new_value->checked_type_;
     }
 
@@ -389,7 +382,7 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
   Var new_var;
-  if (binding->var.defined()){
+  if (binding->var.defined()) {
     new_var = Downcast<Var>(this->Mutate(binding->var));
     // TODO(@altanh, @yuchen): shape and type inference here too...
   } else {

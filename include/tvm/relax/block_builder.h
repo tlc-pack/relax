@@ -44,7 +44,7 @@ class BlockBuilder;
  */
 class BlockBuilderNode : public Object {
  public:
-  BlockBuilderNode(std::shared_ptr<NameTable> name_table) : name_table_(name_table) {}
+  BlockBuilderNode(std::shared_ptr<NameTable> name_table);
 
   ~BlockBuilderNode();
 
@@ -150,21 +150,31 @@ class BlockBuilderNode : public Object {
     Array<Binding> bindings;
     bool is_dataflow;
   };
+
+  class ExprNormalizer;
+
   friend class BlockBuilder;
+
   /*!
    * \brief Get the current block frame.
    * \return The current block frame.
    */
   BlockFrame* CurrentFrame();
+
   /*! \brief A stack to store block frames. */
   std::stack<BlockFrame> block_stack_;
+
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
+
   /*! \brief A binding table that maps var to value. */
   // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
+
   /*! \brief A name table to get unique names for IR construction. */
   std::shared_ptr<NameTable> name_table_;
+
+  std::shared_ptr<ExprNormalizer> normalizer_;
 };
 
 class BlockBuilder : public ObjectRef {
