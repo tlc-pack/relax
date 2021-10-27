@@ -36,9 +36,8 @@ namespace relax {
 // Example:
 // x = relax.builtin.alloc_tensor((m, n))
 // -->
-// gv0 = relax.call_packed("vm.builtin.alloc_storage", (m * n), alignment, device_type,
-// relax.attrs.AllocStorageAttrs) gv1 = relax.call_packed("vm.builtin.alloc_tensor", gv0, offset,
-// (m, n), relax.attrs.AllocTensorAttrs)
+// gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n), relax.attrs.AllocStorageAttrs) 
+// gv1 = relax.call_packed("relax.vm.builtin.alloc_tensor", gv0, (m, n), relax.attrs.AllocTensorAttrs)
 
 class MemLowerMutator : public ExprMutator {
  public:
@@ -86,11 +85,12 @@ class MemLowerMutator : public ExprMutator {
     Expr expr = ExprMutator::VisitExpr_(call);
     call = expr.as<CallNode>();
 
-    static const Op& call_dps_op = Op::Get("relax.call_dps");
-    static const Op& alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
-    static const Op& alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
+    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op& vm_alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
+    static const Op& vm_alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
 
-    if (call->op == call_dps_op) {
+    // TODO(@yuchen): memory planning
+    if (call->op == alloc_tensor_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
 
       // TODO(@yuchen): Get the type of input x, options: add an attr to relax.builtin.alloc_tensor
@@ -100,13 +100,12 @@ class MemLowerMutator : public ExprMutator {
       storage_attr->dtype = DataType::Float(32);
       storage_attr->device_type = 1;
 
-      Var storage = builder_->Emit(Call(alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
+      Var storage = builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
       auto tensor_attr = make_object<AllocTensorAttrs>();
       tensor_attr->offset = 0;
       tensor_attr->dtype = DataType::Float(32);
       Expr shape = call->args[0];
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
-      builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
+      Var tensor = builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
       return tensor;
     }
 

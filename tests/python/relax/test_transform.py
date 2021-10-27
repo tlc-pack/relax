@@ -66,20 +66,17 @@ def test_fma_rewrite():
     assert type(func.body.blocks[0].bindings[1].var) == relax.Var
 
 
-def test_to_non_dataflow():
-    @tvm.script.ir_module
-    class TestToNoneDataflow:
-        @R.function
+def test_call_dps_rewrite():
+    @rx.script
+    class TestCallDpsRewrite:
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-                gv1 = relax.call_dps((m, n), "test.op.identity", (gv0,))
+                lv0 = relax.call_dps((m, n), "test.op.identity", (x,))
+                gv1 = relax.call_dps((m, n), "test.op.identity", (lv0,))
                 relax.output(gv1)
             return gv1
 
-    mod = TestToNoneDataflow
-
-    old_vars = []
+    mod = TestCallDpsRewrite()
 
     def fvisit(e):
         if isinstance(e, relax.Var):
@@ -89,38 +86,6 @@ def test_to_non_dataflow():
     relax.analysis.post_order_visit(mod["foo"], fvisit)
     _, x, _, gv0, _, gv1 = old_vars
 
-    new_mod = relax.transform.to_non_dataflow(mod)
-
-    new_vars = []
-
-    def fvisit(e):
-        if isinstance(e, relax.Var):
-            nonlocal new_vars
-            new_vars.append(e)
-
-    relax.analysis.post_order_visit(new_mod["foo"], fvisit)
-
-    assert x == new_vars[1]
-    assert gv0 != new_vars[3]
-    assert isinstance(gv0, relax.DataflowVar)
-    assert not isinstance(new_vars[3], relax.DataflowVar)
-
-    assert isinstance(gv1, relax.Var)
-    assert isinstance(new_vars[5], relax.Var)
-    assert gv1 != new_vars[5]
-
-
-def test_call_dps_rewrite():
-    @tvm.script.ir_module
-    class TestCallDpsRewrite:
-        @R.function
-        def foo(x: Tensor[(m, n), "float32"]):
-            gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-            return gv0
-
-    mod = TestCallDpsRewrite
-    code = R.parser.astext(mod)
-
     # before rewrite
     v0 = mod["foo"].body.blocks[0].bindings[0].var
     s0 = mod["foo"].body.blocks[0].bindings[0].value
@@ -128,13 +93,25 @@ def test_call_dps_rewrite():
     assert s0.op.name == "relax.call_dps"
 
     # after rewrite
-    new_mod = relax.transform.call_dps_rewrite(mod)
-    func = new_mod["foo"]
-    code = R.parser.astext(new_mod)
+    new_mod = rx.transform.call_dps_rewrite(mod)
+
+    new_vars = []
+    def fvisit(e):
+        if isinstance(e, rx.Var):
+            nonlocal new_vars
+            new_vars.append(e)
+    rx.analysis.post_order_visit(new_mod["foo"], fvisit)
 
     # the dataflow block has changed to binding block due to the rewriting
-    block = func.body.blocks[0]
-    assert not isinstance(block, relax.DataflowBlock)
+    block = new_mod["foo"].body.blocks[0]
+    assert not isinstance(block, rx.DataflowBlock)
+
+    # all dataflow vars have changed to vars after the rewriting
+    assert x == new_vars[0]
+    assert isinstance(gv0, rx.DataflowVar)
+    assert not isinstance(gv1, rx.DataflowVar)
+    for var in new_vars:
+        assert not isinstance(var, rx.DataflowVar)
 
     s1 = block.bindings[0].value
     assert isinstance(s1, tvm.relay.Call)
@@ -189,7 +166,6 @@ def test_shape_lowering():
 
 if __name__ == "__main__":
     test_fma_rewrite()
-    test_to_non_dataflow()
     test_call_dps_rewrite()
     test_memory_lower()
     test_shape_lowering()

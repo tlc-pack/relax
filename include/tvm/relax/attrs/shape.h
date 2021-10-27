@@ -39,17 +39,6 @@ struct ShapeAttrs : public tvm::AttrsNode<ShapeAttrs> {
   }
 };
 
-// /*!
-//  * \brief Attributes for making shape.
-//  */
-// struct MakeShapeAttrs : public tvm::AttrsNode<MakeShapeAttrs> {
-//   Array<Integer> indices;
-
-//   TVM_DECLARE_ATTRS(MakeShapeAttrs, "relax.attrs.MakeShapeAttrs") {
-//     TVM_ATTR_FIELD(indices).describe("The indices of the heap to make the shape from.");
-//   }
-// };
-
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_ATTRS_SHAPE_H_

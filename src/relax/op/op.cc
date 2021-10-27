@@ -78,36 +78,49 @@ Expr MakeShapeOf(Expr expr) {
 TVM_REGISTER_GLOBAL("relax.op.shape_of")
 .set_body_typed(MakeShapeOf);
 
-// alloc_storage
+// alloc_tensor
+
+RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+.set_num_inputs(1)
+.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+
+Expr MakeAllocTensor(Expr shape) {
+  static const Op& op = Op::Get("relax.builtin.alloc_tensor");
+  return Call(op, {shape}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
+.set_body_typed(MakeAllocTensor);
+
+// vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
-.set_num_inputs(2)
+.set_num_inputs(1)
 .add_argument("size", "Expr", "The size of the storage to allocate.");
-// .add_argument("alignment", "Expr", "The alignment of the storage.");
 
-Expr MakeAllocStorage(Expr size) {
+Expr MakeVMAllocStorage(Expr size) {
   static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
   return Call(op, {size}, {}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage")
-.set_body_typed(MakeAllocStorage);
+.set_body_typed(MakeVMAllocStorage);
 
-// alloc_tensor
+// vm alloc_tensor
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
 .set_num_inputs(1)
 .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
-Expr MakeAllocTensor(Expr shape) {
+Expr MakeVMAllocTensor(Expr shape) {
   static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
   return Call(op, {shape}, {}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor")
-.set_body_typed(MakeAllocTensor);
+.set_body_typed(MakeVMAllocTensor);
 
-// decode_shape
+// vm decode_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.decode_shape")
 .set_num_inputs(2)
@@ -122,7 +135,7 @@ Expr MakeDecodeShape(Expr shape, Expr heap) {
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.decode_shape")
 .set_body_typed(MakeDecodeShape);
 
-// make_shape
+// vm make_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.make_shape")
 .set_num_inputs(1)
