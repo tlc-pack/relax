@@ -56,17 +56,15 @@ class CallDPSMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
-    Expr expr = ExprMutator::VisitExpr_(call);
+    Expr expr = MutatePostOrder(call);
     call = expr.as<CallNode>();
-    // TODO(@yuchen, @altanh): using mutate cause infinite recursion
-    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
 
     if (call->op == call_dps_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
+      Var tensor = builder_->Emit(Call(alloc_tensor_op, {output_shape}), "tensor");
       builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
       return tensor;
     }

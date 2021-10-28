@@ -24,6 +24,8 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
+#include <tvm/relax/expr.h>
+
 #include <string>
 #include <algorithm>
 #include <unordered_map>
@@ -55,6 +57,39 @@ class NameTable {
 
  private:
   std::unordered_map<std::string, uint32_t> alloc_map_;
+};
+
+/*!
+ * \brief Memoization map for expressions using Id for equality of variables.
+ */
+class ExprMemo {
+ public:
+  Optional<Expr> Get(const Expr& expr) {
+    if (const VarNode* var = expr.as<VarNode>()) {
+      auto it = var_memo_.find(var->vid);
+      if (it != var_memo_.end()) {
+        return it->second;
+      }
+    } else {
+      auto it = expr_memo_.find(expr);
+      if (it != expr_memo_.end()) {
+        return it->second;
+      }
+    }
+    return NullOpt;
+  }
+
+  void Set(const Expr& pre, const Expr& post) {
+    if (const VarNode* var = pre.as<VarNode>()) {
+      var_memo_[var->vid] = post;
+    } else {
+      expr_memo_[pre] = post;
+    }
+  }
+
+ private:
+  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
 };
 
 }  // namespace relax

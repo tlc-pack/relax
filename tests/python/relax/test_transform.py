@@ -20,7 +20,7 @@ import tvm
 from tvm import tir
 from tvm import relax as rx
 from tvm import relay
-from tvm.ir import structural_equal
+from tvm.ir import assert_structural_equal
 import numpy as np
 
 
@@ -44,9 +44,9 @@ def test_fma_rewrite():
     s0 = expr.body.blocks[0].bindings[1].value
     assert isinstance(s0, tvm.relay.Call)
     assert s0.op.name == "relax.add"
-    assert structural_equal(v0.shape, rx.ShapeExpr([m, n]))
-    assert structural_equal(s0.shape, rx.ShapeExpr([m, n]))
-    assert structural_equal(gv0.shape, rx.ShapeExpr([m, n]))
+    assert_structural_equal(v0.shape, rx.ShapeExpr([m, n]))
+    assert_structural_equal(s0.shape, rx.ShapeExpr([m, n]))
+    assert_structural_equal(gv0.shape, rx.ShapeExpr([m, n]))
 
     # after rewrite
     func = rx.transform.fma_rewrite(expr)
@@ -54,8 +54,8 @@ def test_fma_rewrite():
     s1 = func.body.blocks[0].bindings[1].value
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
-    assert structural_equal(v1.shape, rx.ShapeExpr([m, n]))
-    assert structural_equal(s1.shape, rx.ShapeExpr([m, n]))
+    assert_structural_equal(v1.shape, rx.ShapeExpr([m, n]))
+    assert_structural_equal(s1.shape, rx.ShapeExpr([m, n]))
 
     # The var binded to the fma call is reused because the shape
     # and type of var are unchanged after rewriting
@@ -65,7 +65,7 @@ def test_fma_rewrite():
 
 def test_to_non_dataflow():
     @rx.script
-    class TestToNoneDataflow:
+    class TestToNonDataflow:
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
                 gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
@@ -73,7 +73,7 @@ def test_to_non_dataflow():
                 relax.output(gv1)
             return gv1
 
-    mod = TestToNoneDataflow()
+    mod = TestToNonDataflow()
 
     old_vars = [] 
     def fvisit(e):
@@ -99,7 +99,7 @@ def test_to_non_dataflow():
 
     assert isinstance(gv1, rx.Var)
     assert isinstance(new_vars[5], rx.Var)
-    assert gv1 != new_vars[5]
+    assert gv1 == new_vars[5]
 
 
 def test_call_dps_rewrite():
@@ -131,7 +131,7 @@ def test_call_dps_rewrite():
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], rx.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.args[0])
+    assert_structural_equal(s1.args[0], s0.args[0])
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
@@ -178,20 +178,27 @@ def test_shape_lowering():
 
 def test_to_anf():
     x = rx.Var("x", type_annotation=rx.DynTensorType())
-    add = rx.op.add(x, x)
-    add2 = rx.op.add(add, add)
-    item = rx.op.add(add, add2)
-    # add2 = rx.op.add(add, rx.op.add(add, add))
-    # tup = rx.Tuple([add, add2])
-    # item = relay.TupleGetItem(tup, 0)
+    gv = rx.op.add(x, x)
+    gv1 = rx.op.add(gv, gv)
+    gv2 = rx.op.add(gv, gv1)
+    body = rx.Tuple([gv, gv2])
     gvar = rx.GlobalVar("f")
-    func = rx.Function([x], item, None, gvar)
+    func = rx.Function([x], body, None, gvar)
 
     mod: tvm.IRModule = tvm.IRModule({gvar: func})
-    print(mod.get_global_vars())
     mod = rx.transform.to_anf(mod)
 
-    print(rx.parser.astext(mod))
+    @rx.script
+    class TestToANFExpected:
+        def f(x: Tensor[_, "float32"]):
+            gv = relax.add(x, x)
+            gv1 = relax.add(gv, gv)
+            gv2 = relax.add(gv, gv1)
+            return (gv, gv2)
+
+    # TODO(@altanh): fix this once type inference works properly...?
+    assert rx.parser.astext(mod) == rx.parser.astext(TestToANFExpected())
+
 
 
 if __name__ == "__main__":

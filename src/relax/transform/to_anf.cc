@@ -29,7 +29,6 @@
 namespace tvm {
 namespace relax {
 
-// TODO(@altanh): CopyOnWrite
 
 class ToANFMutator : public ExprMutator {
  public:
@@ -47,49 +46,7 @@ class ToANFMutator : public ExprMutator {
     return ret_mod;
   }
 
-  Expr VisitExpr(const Expr& n) final {
-    return builder_->Normalize(ExprMutator::VisitExpr(n));
-  }
-
-  // Expr VisitExpr_(const TupleNode* op) override {
-  //   Array<Expr> new_fields;
-  //   for (const Expr& field : op->fields) {
-  //     new_fields.push_back(Bind(field));
-  //   }
-  //   return Tuple(new_fields);
-  // }
-
-  // Expr VisitExpr_(const CallNode* op) override {
-  //   Expr new_op = Bind(op->op);
-  //   Array<Expr> new_args;
-  //   for (const Expr& arg : op->args) {
-  //     new_args.push_back(Bind(arg));
-  //   }
-  //   return Call(new_op, new_args, op->attrs, op->type_args);
-  // }
-
-  // Expr VisitExpr_(const TupleGetItemNode* op) {
-  //   Expr new_tuple = Bind(op->tuple);
-  //   return TupleGetItem(new_tuple, op->index);
-  // }
-
  private:
-  // Expr Bind(const Expr& expr) {
-  //   Expr post = this->Mutate(expr);
-  //   if (IsLeaf(post)) {
-  //     return post;
-  //   }
-  //   ICHECK(!expr.as<VarNode>());
-  //   Expr var = builder_->Emit(post);
-  //   expr_memo_[expr] = var;
-  //   return var;
-  // }
-
-  // bool IsLeaf(const Expr& expr) {
-  //   return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<relay::ConstantNode>() ||
-  //          expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>();
-  // }
-
   IRModule mod_;
 };
 

@@ -68,7 +68,7 @@ class ShapeLowerMutator : public ExprMutator {
       indices.push_back(idx);
     }
     builder_->Emit(Call(ExternFunc("vm.builtin.decode_shape"),
-                        {shape, shape_heap_, ShapeExpr(indices)}), "_decode_shape");
+                        {shape, shape_heap_, ShapeExpr(indices)}), "_");
   }
 
   Expr VisitExpr_(const ShapeExprNode* node) override {
@@ -80,7 +80,7 @@ class ShapeLowerMutator : public ExprMutator {
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
     GlobalVar shape_func_var(shape_func_name);
     // TODO make sure shape_heap doesnt get redefined by local funcs?
-    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_compute_shape");
+    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
     ret_mod_->Add(shape_func_var, func);
 
     // construct shape
@@ -89,7 +89,7 @@ class ShapeLowerMutator : public ExprMutator {
       indices.push_back(expr2slot_.at(e));
     }
     return builder_->Emit(Call(ExternFunc("vm.builtin.make_shape"),
-                          {shape_heap_, ShapeExpr(indices)}), "sh");
+                          {shape_heap_, ShapeExpr(indices)}), "shape");
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
