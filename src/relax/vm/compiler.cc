@@ -48,8 +48,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
  protected:
-  /*! \brief A counter for naming local functions. */
-  int local_func_counter_ = 0;
+  size_t NewRegister() { return registers_num_++; }
 
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {
@@ -88,18 +87,15 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   Instruction::Arg VisitExpr_(const CallNode* op) {
     if (op->op.as<OpNode>()) {
-      static const Op& alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
-      static const Op& alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
-      static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
-      static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
-
       const Call& call = GetRef<Call>(op);
-      if (op->op == alloc_storage_op) {
+      if (op->op == alloc_storage_op_) {
         return EmitAllocStorage(call);
-      } else if (op->op == alloc_tensor_op) {
+      } else if (op->op == alloc_tensor_op_) {
         return EmitAllocTensor(call);
-      } else if (op->op == decode_shape_op || op->op == make_shape_op) {
+      } else if (op->op == decode_shape_op_ || op->op == make_shape_op_) {
         return EmitShape(call);
+      } else {
+        LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << op->op;
       }
     }
     String name;
@@ -107,13 +103,16 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       name = extern_func->global_symbol;
     } else if (auto* gvar = op->op.as<GlobalVarNode>()) {
       name = gvar->name_hint;
+    } else {
+      LOG(FATAL) << "CodeGenVM does not support calls to " << op->op->GetTypeKey();
     }
     std::vector<Instruction::Arg> args;
     for (auto arg : op->args) {
       args.push_back(this->VisitExpr(arg));
     }
     builder_->EmitCall(name, args, this->registers_num_);
-    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+
+    return Instruction::Arg(Instruction::kRegister, NewRegister());
   }
 
   Instruction::Arg VisitExpr_(const VarNode* op) {
@@ -121,7 +120,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     if (it != this->var_register_map_.end()) {
       return Instruction::Arg(Instruction::kRegister, it->second);
     } else {
-      return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+      return Instruction::Arg(Instruction::kRegister, NewRegister());
     }
   }
 
@@ -150,12 +149,18 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     // Handle attrs of the call
-    Attrs attrs = call_node->attrs;
-    CodeGenAttr attr_codegen(this->builder_, &args);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_codegen);
+    auto alloc_attrs = call_node->attrs.as<AllocStorageAttrs>();
+    ICHECK(alloc_attrs != nullptr) << "must be AllocStorageAttrs";
+    int device_type = alloc_attrs->device_type;
+    args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
+    DataType dtype = alloc_attrs->dtype;
+    TVMRetValue data_type;
+    data_type = dtype;
+    Index index = this->builder_->EmitConstant(data_type);
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
     builder_->EmitCall("vm.builtin.alloc_storage", args, this->registers_num_);
-    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+    return Instruction::Arg(Instruction::kRegister, NewRegister());
   }
 
   Instruction::Arg EmitAllocTensor(const Call& call_node) {
@@ -166,34 +171,46 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     // Handle attrs of the call
-    Attrs attrs = call_node->attrs;
-    CodeGenAttr attr_codegen(this->builder_, &args);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_codegen);
+    auto alloc_attrs = call_node->attrs.as<AllocTensorAttrs>();
+    ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
+    int offset = alloc_attrs->offset;
+    args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
+    DataType dtype = alloc_attrs->dtype;
+    TVMRetValue data_type;
+    data_type = dtype;
+    Index index = this->builder_->EmitConstant(data_type);
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
     builder_->EmitCall("vm.builtin.alloc_tensor", args, this->registers_num_);
-    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+    return Instruction::Arg(Instruction::kRegister, NewRegister());
   }
 
   Instruction::Arg EmitShape(const Call& call_node) {
-    static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
-    static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
-    
+    // Handle args of the call
     std::vector<Instruction::Arg> args;
     for (Expr arg: call_node->args) {
       args.push_back(ConvertArg(arg));
     }
 
     // Handle attrs of the call
-    Attrs attrs = call_node->attrs;
-    CodeGenAttr attr_codegen(this->builder_, &args);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_codegen);
+    auto shape_attrs = call_node->attrs.as<ShapeAttrs>();
+    ICHECK(shape_attrs != nullptr) << "must be ShapeAttrs";
+    std::vector<int64_t> indices_vec;
+    for (Integer ind : shape_attrs->indices) {
+      indices_vec.push_back(ind);
+    }
+    ShapeTuple indices = ShapeTuple(indices_vec);
+    TVMRetValue indices_const;
+    indices_const = indices;
+    Index index = builder_->EmitConstant(indices_const);
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    if (call_node->op == decode_shape_op) {
+    if (call_node->op == decode_shape_op_) {
       builder_->EmitCall("vm.builtin.decode_shape", args, this->registers_num_);
-    } else if (call_node->op == make_shape_op) {
+    } else if (call_node->op == make_shape_op_) {
       builder_->EmitCall("vm.builtin.make_shape", args, this->registers_num_);
     }
-    return Instruction::Arg(Instruction::kRegister, this->registers_num_++);
+    return Instruction::Arg(Instruction::kRegister, NewRegister());
   }
 
   bool IsConstantShape(ShapeExpr shape) const {
@@ -227,7 +244,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       Index index = builder_->EmitConstant(shape_tuple_value);
       return Instruction::Arg(Instruction::kConstIdx, index);
     } else {
-      LOG(FATAL) << "not supported argument type.";
+      LOG(FATAL) << "CodeGenVM does not this argument type:\n" << arg->GetTypeKey();
     }
     return Instruction::Arg();
   }
@@ -240,80 +257,22 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return ret;
   }
 
+  /*! \brief A counter for naming local functions. */
+  int local_func_counter_ = 0;
   /*! \brief Internal ExecBuilder. */
   relax::ExecBuilder builder_;
   /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_ = 0;
   /*! \brief Map from var to register number. */
   std::unordered_map<Var, RegName, ObjectPtrHash, ObjectPtrEqual> var_register_map_;
-
-  /*!
-   * \brief Code generator for attributes in a call node.
-   */
-  class CodeGenAttr : public AttrVisitor {
-   public:
-    CodeGenAttr(relax::ExecBuilder& builder, std::vector<Instruction::Arg>* args)
-        : builder_(builder), args_(args) {}
-
-    void Visit(const char* key, int* value) final {
-      args_->push_back(Instruction::Arg(Instruction::kImmediate, *value));
-    }
-    void Visit(const char* key, DataType* value) final {
-      TVMRetValue data_type;
-      data_type = *value;
-      Index index = builder_->EmitConstant(data_type);
-      args_->push_back(Instruction::Arg(Instruction::kConstIdx, index));
-    }
-    void Visit(const char* key, runtime::ObjectRef* obj) final {
-      if (const ShapeTupleObj* shape_obj = (*obj).as<ShapeTupleObj>()) {
-        TVMRetValue shape_tuple;
-        shape_tuple = shape_obj->data;
-        Index index = builder_->EmitConstant(shape_tuple);
-        args_->push_back(Instruction::Arg(Instruction::kConstIdx, index));
-      } else if (const ArrayNode* array_node = (*obj).as<ArrayNode>()) {
-        std::vector<int64_t> indices_vec;
-        for (auto ind : *array_node) {
-          indices_vec.push_back(Downcast<Integer>(ind));
-        }
-        auto shape_tuple = ShapeTuple(indices_vec);
-        TVMRetValue shape_tuple_value;
-        shape_tuple_value = shape_tuple;
-        Index index = builder_->EmitConstant(shape_tuple_value);
-        args_->push_back(Instruction::Arg(Instruction::kConstIdx, index));
-      } else {
-        LOG(FATAL) << "do not allow codegen for Object other than ShapeTuple or Array<Integer> to be attribute";
-      }
-    }
-    void Visit(const char* key, double* value) final {
-      LOG(FATAL) << "do not allow codegen for double attribute";
-    }
-    void Visit(const char* key, int64_t* value) final {
-      LOG(FATAL) << "do not allow codegen for int64_t attribute";
-    }
-    void Visit(const char* key, uint64_t* value) final {
-      LOG(FATAL) << "do not allow codegen for uint64_t attribute";
-    }
-    void Visit(const char* key, bool* value) final {
-      LOG(FATAL) << "do not allow codegen for bool attribute";
-    }
-    void Visit(const char* key, std::string* value) final {
-      LOG(FATAL) << "do not allow codegen for string attribute";
-    }
-    void Visit(const char* key, void** value) final {
-      LOG(FATAL) << "do not allow codegen for void attribute";
-    }
-    void Visit(const char* key, runtime::NDArray* value) final {
-      LOG(FATAL) << "do not allow codegen for NDArray attribute";
-    }
-
-   private:
-    relax::ExecBuilder builder_;
-    std::vector<Instruction::Arg>* args_;
-  };
+  /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
+  const Op& alloc_storage_op_ = Op::Get("relax.vm.builtin.alloc_storage");
+  const Op& alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
+  const Op& decode_shape_op_ = Op::Get("relax.vm.builtin.decode_shape");
+  const Op& make_shape_op_ = Op::Get("relax.vm.builtin.make_shape");
 };
 
 void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {
-  // Reset internal builder
   builder_ = relax::ExecBuilderNode::Create();
 
   IRModule tir_mod;
