@@ -82,7 +82,7 @@ class VMShapeLowerMutator : public ExprMutator {
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
     GlobalVar shape_func_var(shape_func_name);
     // TODO make sure shape_heap doesnt get redefined by local funcs?
-    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_compute_shape");
+    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
     ret_mod_->Add(shape_func_var, func);
 
     // construct shape

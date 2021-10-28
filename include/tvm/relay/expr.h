@@ -95,6 +95,7 @@ class Constant : public Expr {
   TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
 
 /*! \brief Tuple of multiple Exprs */
@@ -143,6 +144,7 @@ class Tuple : public Expr {
   TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
 
 /*!
@@ -219,6 +221,7 @@ class Var : public Expr {
   TVM_DLL Var(Id vid, Type type_annotation, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
 
 /*!
@@ -318,6 +321,7 @@ class Call : public Expr {
                Array<Type> type_args = Array<Type>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
 /*!
@@ -379,6 +383,7 @@ class Let : public Expr {
   TVM_DLL Let(Var var, Expr value, Expr body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetNode);
 };
 
 /*!
@@ -440,6 +445,7 @@ class If : public Expr {
   TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
 
 /*! \brief Get index-th field out of a tuple. */
@@ -482,6 +488,7 @@ class TupleGetItem : public Expr {
   TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
 
 /*! \brief Create a new Reference out of initial value. */
@@ -521,6 +528,7 @@ class RefCreate : public Expr {
   TVM_DLL explicit RefCreate(Expr value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RefCreateNode);
 };
 
 /*! \brief Get value out of Reference. */
@@ -560,6 +568,7 @@ class RefRead : public Expr {
   TVM_DLL explicit RefRead(Expr ref, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RefReadNode);
 };
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
@@ -603,6 +612,7 @@ class RefWrite : public Expr {
   TVM_DLL RefWrite(Expr ref, Expr value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RefWriteNode);
 };
 
 /*!

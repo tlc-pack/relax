@@ -83,7 +83,7 @@ class VMMemLowerMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
-    Expr expr = ExprMutator::VisitExpr_(call);
+    Expr expr = MutatePostOrder(call);
     call = expr.as<CallNode>();
 
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");

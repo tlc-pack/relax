@@ -186,9 +186,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * \brief Mutate is alias for VisitExpr
    * \return expr.
    */
-  Expr Mutate(const Expr& expr) {
-    return this->VisitExpr(expr);
-  }
+  Expr Mutate(const Expr& expr) { return this->VisitExpr(expr); }
 
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
@@ -224,43 +222,21 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  protected:
   class ExprNormalizer;
 
-  Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
+  Expr MutateWithPrologue(const Expr& expr);
 
   /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound
    *  value. Otherwise, returns the rewritten expression for the variable.
    */
   Expr LookupVar(Var var);
 
-  inline void UpdateMemo(Expr pre, Expr post) {
-    if (const VarNode* var = pre.as<VarNode>()) {
-      var_memo_[var->vid] = post;
-    } else {
-      expr_memo_[pre] = post;
-    }
+  template <typename T>
+  Expr MutatePostOrder(const T* op) {
+    return builder_->Normalize(ExprMutator::VisitExpr_(op));
   }
-
-  inline Optional<Expr> LookupMemo(Expr pre) {
-    if (pre.as<VarNode>()) {
-      Id vid = Downcast<Var>(pre)->vid;
-      if (var_memo_.count(vid)) {
-        return var_memo_[vid];
-      }
-    } else {
-      if (expr_memo_.count(pre)) {
-        return expr_memo_[pre];
-      }
-    }
-    return NullOpt;
-  }
-
-  /*! \brief Variable memoization table using Id equality */
-  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
-
-  /*! \brief Expr memoization table using pointer equality */
-  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
 
   std::shared_ptr<NameTable> name_table_;
   BlockBuilder builder_;
+  ExprMemo expr_memo_;
 };
 
 // TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks

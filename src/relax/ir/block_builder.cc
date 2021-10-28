@@ -31,7 +31,9 @@
 namespace tvm {
 namespace relax {
 
-// ExprNormalizer
+// ================================
+// BlockBuilderNode::ExprNormalizer
+
 class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
  public:
   ExprNormalizer(BlockBuilderNode* builder, std::shared_ptr<NameTable> name_table)
@@ -48,9 +50,13 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
 
+  // TODO(@altanh): CopyOnWrite
+
   Expr VisitExpr(const Expr& expr) {
-    if (expr_memo_.count(expr)) {
-      return expr_memo_[expr];
+    Optional<Expr> post = expr_memo_.Get(expr);
+    if (post) {
+      ICHECK(post.as<VarNode>()) << "memoized expressions should map to variables";
+      return post.value();
     }
     return ExprFunctor::VisitExpr(expr);
   }
@@ -95,6 +101,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     bool unchanged = true;
     Array<BindingBlock> new_blocks;
     for (const BindingBlock& block : op->blocks) {
+      // TODO(@altanh): we could merge sequential non-dataflow BindingBlocks here
       BindingBlock new_block = this->VisitBindingBlock(block);
       new_blocks.push_back(new_block);
       unchanged &= new_block.same_as(block);
@@ -104,6 +111,13 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     Expr new_body = this->VisitExpr(op->body);
     unchanged &= new_body.same_as(op->body);
     BindingBlock prologue = builder_->EndBlock();
+
+    // fold nested SeqExprs
+    // if (const SeqExprNode* new_body_seq = new_body.as<SeqExprNode>()) {
+    //   new_blocks.insert(new_blocks.end(), new_body_seq->blocks.begin(),
+    //   new_body_seq->blocks.end()); new_body = new_body_seq->body; unchanged = false;
+    //   ICHECK(prologue->bindings.empty()) << "SeqExprs should never need a prologue";
+    // }
 
     if (!prologue->bindings.empty()) {
       new_blocks.push_back(prologue);
@@ -118,8 +132,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   Expr VisitExpr_(const IfNode* op) final {
     Expr new_cond = this->VisitExpr(op->cond);
-    Expr new_true = this->VisitExpr(op->true_branch);
-    Expr new_false = this->VisitExpr(op->false_branch);
+    Expr new_true = this->VisitWithPrologue(op->true_branch);
+    Expr new_false = this->VisitWithPrologue(op->false_branch);
     if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
         new_false.same_as(op->false_branch)) {
       return GetRef<Expr>(op);
@@ -146,7 +160,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   VarBinding VisitVarBinding(const VarBinding& binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (new_value.same_as(binding->value)) {
+    if (new_value.same_as(binding->value) || new_value.same_as(binding->var)) {
+      // if new_value = binding->var, then we have found an ANF binding site, so just return it
       return binding;
     }
     return VarBinding(binding->var, new_value);
@@ -172,7 +187,12 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       Binding new_binding = this->VisitBinding(binding);
       unchanged &= new_binding.same_as(binding);
       if (new_binding.as<VarBindingNode>()) {
-        builder_->Emit(Downcast<VarBinding>(new_binding));
+        VarBinding var_binding = Downcast<VarBinding>(new_binding);
+        if (builder_->CurrentBlockIsDataFlow() && !var_binding->var.as<DataflowVarNode>()) {
+          builder_->EmitOutput(var_binding);
+        } else {
+          builder_->Emit(var_binding);
+        }
       } else {
         ICHECK(new_binding.as<MatchShapeNode>());
         builder_->EmitMatchShape(Downcast<MatchShape>(new_binding));
@@ -187,9 +207,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
  private:
-  inline bool IsLeaf(const Expr& expr) {
+  static bool IsLeaf(const Expr& expr) {
+    // NB: tuples are treated as leaf nodes for ergonomics
     return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<relay::ConstantNode>() ||
-           expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>();
+           expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
+           expr.as<TupleNode>();
   }
 
   Expr VisitWithPrologue(const Expr& expr) {
@@ -204,24 +226,25 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   Expr Bind(const Expr& expr) {
     Expr post = this->VisitExpr(expr);
-    if (IsLeaf(post)) {
-      return post;
+    if (!IsLeaf(post)) {
+      post = builder_->Emit(post);
+      expr_memo_.Set(expr, post);
     }
-    ICHECK(!expr.as<VarNode>());
-    Var var = builder_->Emit(post);
-    expr_memo_[expr] = var;
-    return var;
+    return post;
   }
-
-  /*! \brief Memoization table. */
-  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
 
   /*! \brief BlockBuilder used for emitting intermediate variables. */
   BlockBuilderNode* builder_;
 
+  /*! \brief Memoization table for mapping expressions to their ANF variables. */
+  ExprMemo expr_memo_;
+
   /*! \brief Shared name table for naming intermediate variables. */
   std::shared_ptr<NameTable> name_table_;
 };
+
+// ================
+// BlockBuilderNode
 
 TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
@@ -236,10 +259,7 @@ BlockBuilderNode::~BlockBuilderNode() {
   }
 }
 
-BlockBuilder BlockBuilderNode::Create() {
-  BlockBuilder ret(make_object<BlockBuilderNode>());
-  return ret;
-}
+BlockBuilder BlockBuilderNode::Create() { return BlockBuilder(std::make_shared<NameTable>()); }
 
 void BlockBuilderNode::BeginDataflowBlock() { this->block_stack_.push({{}, true}); }
 
@@ -304,7 +324,7 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
     new_call->shape_ = inferred_shape;
 
     cur_frame->bindings.push_back(VarBinding(var, new_call));
-    this->var_map_[var->vid] = new_call;
+    this->binding_table_[var->vid] = new_call;
   } else if (const VarNode* var_node = expr.as<VarNode>()) {
     const Var& lhs_var = GetRef<Var>(var_node);
     if (lhs_var->shape_.defined()) {
@@ -314,12 +334,10 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
       var->checked_type_ = lhs_var->checked_type_;
     }
     cur_frame->bindings.push_back(VarBinding(var, lhs_var));
-    this->var_map_[var->vid] = lhs_var;
-  }
-
-  else {
+    this->binding_table_[var->vid] = lhs_var;
+  } else {
     cur_frame->bindings.push_back(VarBinding(var, expr));
-    this->var_map_[var->vid] = expr;
+    binding_table_[var->vid] = expr;
   }
 
   return var;
@@ -331,7 +349,7 @@ Var BlockBuilderNode::Emit(const VarBinding& binding) {
     ICHECK(binding->var.as<DataflowVarNode>());
   }
   cur_frame->bindings.push_back(binding);
-  this->var_map_[binding->var->vid] = binding->value;
+  binding_table_[binding->var->vid] = binding->value;
   return binding->var;
 }
 
@@ -366,11 +384,16 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
 
 Var BlockBuilderNode::EmitMatchShape(const MatchShape& binding) {
   BlockFrame* cur_frame = CurrentFrame();
-  if (cur_frame->is_dataflow) {
+  if (cur_frame->is_dataflow && binding->var.defined()) {
     ICHECK(!binding->var.as<DataflowVarNode>())
         << "cannot bind DataflowVar outside dataflow block.";
   }
   cur_frame->bindings.push_back(binding);
+  // TODO(@altanh, @yuchen): what value should we bind? Consider
+  //    y = add(x, x)
+  //    z = match_shape(y, (n, m))
+  // We would like pass writers to match "z" with the "add" node but with extra shape info.
+  // Maybe this logic could be deferred to a DFPattern-style rewriter?
   return binding->var;
 }
 
@@ -389,13 +412,13 @@ Var BlockBuilderNode::EmitOutput(const VarBinding& binding) {
   ICHECK(!binding->var.as<DataflowVarNode>()) << "EmitOutput can only emit Var bindings.";
 
   cur_frame->bindings.push_back(binding);
-  this->var_map_[binding->var->vid] = binding->value;
+  binding_table_[binding->var->vid] = binding->value;
   return binding->var;
 }
 
 Expr BlockBuilderNode::LookupVar(const Var& var) {
-  auto it = this->var_map_.find(var->vid);
-  if (it == this->var_map_.end()) {
+  auto it = binding_table_.find(var->vid);
+  if (it == binding_table_.end()) {
     this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
                               << "The var to be looked up is not in the binding table.");
   }
@@ -429,22 +452,23 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
 
 // TODO(@altanh, @yuchen): emit expr in ssa form
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
-  return normalizer_->VisitExpr(expr);
-  // if (expr.as<CallNode>()) {
-  //   Call call = Downcast<Call>(expr);
-  //   // Shape inference
-  //   auto inferred_shape = InferShape(call, this->diag_ctx_);
-  //   if (inferred_shape.defined()) {
-  //     if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
-  //       call->shape_ = GetRef<Expr>(shape_expr);
-  //     }
-  //   }
-  //   // Type inference
-  //   auto inferred_type = InferType(call, this->diag_ctx_);
-  //   call->checked_type_ = inferred_type;
-  //   return call;
-  // }
-  // return expr;
+  Expr normalized = normalizer_->VisitExpr(expr);
+  if (normalized.as<CallNode>()) {
+    // FIXME(@altanh): potentially breaks idempotency
+    Call call = Downcast<Call>(normalized);
+    // Shape inference
+    auto inferred_shape = InferShape(call, this->diag_ctx_);
+    if (inferred_shape.defined()) {
+      if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
+        call->shape_ = GetRef<Expr>(shape_expr);
+      }
+    }
+    // Type inference
+    auto inferred_type = InferType(call, this->diag_ctx_);
+    call->checked_type_ = inferred_type;
+    return call;
+  }
+  return normalized;
 }
 
 BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {

@@ -232,7 +232,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   }
 
   Type ret_type = this->VisitType(op->ret_type);
-  Expr body = this->MutateWithPrologue(op->body, false);
+  Expr body = this->MutateWithPrologue(op->body);
 
   if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body)) {
     return GetRef<Expr>(op);
@@ -268,8 +268,8 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
 
 Expr ExprMutator::VisitExpr_(const IfNode* op) {
   Expr guard = this->Mutate(op->cond);
-  Expr true_b = this->MutateWithPrologue(op->true_branch, false);
-  Expr false_b = this->MutateWithPrologue(op->false_branch, false);
+  Expr true_b = this->MutateWithPrologue(op->true_branch);
+  Expr false_b = this->MutateWithPrologue(op->false_branch);
   if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
       op->false_branch.same_as(false_b)) {
     return GetRef<Expr>(op);
@@ -282,7 +282,7 @@ Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
   auto t = this->Mutate(get_item->tuple);
-  if (get_item->tuple == t) {
+  if (get_item->tuple.same_as(t)) {
     return GetRef<Expr>(get_item);
   } else {
     return TupleGetItem(t, get_item->index, get_item->span);
@@ -332,7 +332,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 }
 
 void ExprMutator::VisitVarBinding(const VarBinding& binding) {
-  Expr new_value = builder_->Normalize(this->Mutate(binding->value));
+  Expr new_value = this->Mutate(binding->value);
 
   // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
   //                in this method...
@@ -353,22 +353,16 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Var new_var = Downcast<Var>(this->Mutate(binding->var));
   if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
       !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
-    // TODO(@altanh): use CopyOnWrite and/or type inference machinery here
-    if (new_var.as<DataflowVarNode>()) {
-      new_var = DataflowVar(new_var->vid, NullOpt, NullOpt, new_var->span);
-    } else {
-      new_var = Var(new_var->vid, NullOpt, NullOpt, new_var->span);
-    }
     if (new_value->shape_.defined()) {
-      new_var->shape_ = new_value->shape_;
+      new_var.CopyOnWrite()->shape_ = new_value->shape_;
     }
     // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent
     // unknown type
     if (new_value->checked_type_.defined()) {
-      new_var->checked_type_ = new_value->checked_type_;
+      new_var.CopyOnWrite()->checked_type_ = new_value->checked_type_;
     }
 
-    UpdateMemo(binding->var, new_var);
+    expr_memo_.Set(binding->var, new_var);
   }
 
   if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
@@ -381,14 +375,8 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
 void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->Mutate(binding->value);
   Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
-  Var new_var;
-  if (binding->var.defined()) {
-    new_var = Downcast<Var>(this->Mutate(binding->var));
-    // TODO(@altanh, @yuchen): shape and type inference here too...
-  } else {
-    new_var = binding->var;
-  }
-
+  Var new_var = binding->var.defined() ? Downcast<Var>(this->Mutate(binding->var)) : binding->var;
+  // TODO(@altanh, @yuchen): shape and type inference here too...
   // TODO: when value's shape/type changed, create new var
   builder_->EmitMatchShape(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
@@ -415,23 +403,18 @@ BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
-  Optional<Expr> post = LookupMemo(expr);
-  if (post) {
-    return post.value();
+  Optional<Expr> maybe_post = expr_memo_.Get(expr);
+  if (maybe_post) {
+    return maybe_post.value();
   }
 
-  UpdateMemo(expr, ExprFunctor::VisitExpr(expr));
-
-  return LookupMemo(expr).value();
+  Expr normalized = builder_->Normalize(ExprFunctor::VisitExpr(expr));
+  expr_memo_.Set(expr, normalized);
+  return normalized;
 }
 
-Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
-  if (is_dataflow) {
-    builder_->BeginDataflowBlock();
-  } else {
-    builder_->BeginBindingBlock();
-  }
-
+Expr ExprMutator::MutateWithPrologue(const Expr& expr) {
+  builder_->BeginBindingBlock();
   Expr ret = this->Mutate(expr);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
@@ -441,18 +424,7 @@ Expr ExprMutator::MutateWithPrologue(const Expr& expr, bool is_dataflow) {
 }
 
 Expr ExprMutator::LookupVar(Var var) {
-  // cases:
-  //   1. var has been rewritten to some expr (e.g. a constant) and is no longer bound
-  //   2. var remains bound to some expr
-  //   3. var is deleted, in which case this should never be called
-  Expr mutated_var = LookupMemo(var).value();
-  if (mutated_var.as<VarNode>()) {
-    // lookup bound var in the builder
-    return builder_->LookupVar(Downcast<Var>(mutated_var));
-  }
-
-  // return the rewritten var value
-  return mutated_var;
+  return builder_->LookupVar(var);
 }
 
 // ==================

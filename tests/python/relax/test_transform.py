@@ -206,20 +206,27 @@ def test_vm_shape_lowering():
 
 def test_to_anf():
     x = rx.Var("x", type_annotation=rx.DynTensorType())
-    add = rx.op.add(x, x)
-    add2 = rx.op.add(add, add)
-    item = rx.op.add(add, add2)
-    # add2 = rx.op.add(add, rx.op.add(add, add))
-    # tup = rx.Tuple([add, add2])
-    # item = relay.TupleGetItem(tup, 0)
+    gv = rx.op.add(x, x)
+    gv1 = rx.op.add(gv, gv)
+    gv2 = rx.op.add(gv, gv1)
+    body = rx.Tuple([gv, gv2])
     gvar = rx.GlobalVar("f")
-    func = rx.Function([x], item, None, gvar)
+    func = rx.Function([x], body, None, gvar)
 
     mod: tvm.IRModule = tvm.IRModule({gvar: func})
-    print(mod.get_global_vars())
     mod = rx.transform.to_anf(mod)
 
-    print(rx.parser.astext(mod))
+    @rx.script
+    class TestToANFExpected:
+        def f(x: Tensor[_, "float32"]):
+            gv = relax.add(x, x)
+            gv1 = relax.add(gv, gv)
+            gv2 = relax.add(gv, gv1)
+            return (gv, gv2)
+
+    # TODO(@altanh): fix this once type inference works properly...?
+    assert rx.parser.astext(mod) == rx.parser.astext(TestToANFExpected())
+
 
 
 if __name__ == "__main__":
