@@ -29,12 +29,12 @@
 namespace tvm {
 namespace relax {
 /*!
- * \brief Attributes for decoding/making shape.
+ * \brief Attributes for decoding/making shape to/from VM heap.
  */
-struct ShapeAttrs : public tvm::AttrsNode<ShapeAttrs> {
+struct ShapeHeapAttrs : public tvm::AttrsNode<ShapeHeapAttrs> {
   Array<Integer> indices;
 
-  TVM_DECLARE_ATTRS(ShapeAttrs, "relax.attrs.ShapeAttrs") {
+  TVM_DECLARE_ATTRS(ShapeHeapAttrs, "relax.attrs.ShapeHeapAttrs") {
     TVM_ATTR_FIELD(indices).describe("The indices of the heap to decode/make the shape to/from.");
   }
 };

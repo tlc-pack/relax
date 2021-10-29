@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/memory_rewrite.cc
+ * \file src/relax/transform/vm_memory_lower.cc
  * \brief
  */
 #include <tvm/relax/attrs/memory.h>
@@ -39,9 +39,9 @@ namespace relax {
 // gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n), relax.attrs.AllocStorageAttrs) 
 // gv1 = relax.call_packed("relax.vm.builtin.alloc_tensor", gv0, (m, n), relax.attrs.AllocTensorAttrs)
 
-class MemLowerMutator : public ExprMutator {
+class VMMemLowerMutator : public ExprMutator {
  public:
-  explicit MemLowerMutator(IRModule mod) { mod_ = mod; }
+  explicit VMMemLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
     IRModule ret_mod = IRModule();
@@ -116,8 +116,9 @@ class MemLowerMutator : public ExprMutator {
   IRModule mod_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.memory_lower").set_body_typed([](IRModule mod) {
-  return MemLowerMutator(mod).Lower();
+TVM_REGISTER_GLOBAL("relax.transform.vm_memory_lower")
+.set_body_typed([](IRModule mod) {
+  return VMMemLowerMutator(mod).Lower();
 });
 
 }  // namespace relax

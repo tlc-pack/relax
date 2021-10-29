@@ -193,8 +193,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     // Handle attrs of the call
-    auto shape_attrs = call_node->attrs.as<ShapeAttrs>();
-    ICHECK(shape_attrs != nullptr) << "must be ShapeAttrs";
+    auto shape_attrs = call_node->attrs.as<ShapeHeapAttrs>();
+    ICHECK(shape_attrs != nullptr) << "must be ShapeHeapAttrs";
     std::vector<int64_t> indices_vec;
     for (Integer ind : shape_attrs->indices) {
       indices_vec.push_back(ind);

@@ -29,6 +29,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/device_api.h>
 
 namespace tvm {
 namespace runtime {
@@ -70,7 +71,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape")
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
 .set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, Index device_type, DLDataType dtype_hint) {
-  int alignment = 64;
+  int alignment = runtime::kAllocAlignment;
   ICHECK_EQ(buffer_size.size(), 1);
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
   int64_t size_imm = buffer_size[0];

@@ -166,7 +166,7 @@ def build(mod: tvm.IRModule,
         A runtime module that contains generated code.
     """
     new_mod = transform.call_dps_rewrite(mod)
-    new_mod = transform.memory_lower(new_mod)
-    new_mod = transform.shape_lower(new_mod)
+    new_mod = transform.vm_memory_lower(new_mod)
+    new_mod = transform.vm_shape_lower(new_mod)
     ex, lib = _ffi_api.VMBuild(new_mod, target, target_host)
     return ex, lib

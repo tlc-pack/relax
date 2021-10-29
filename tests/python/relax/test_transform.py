@@ -122,20 +122,19 @@ def test_call_dps_rewrite():
     assert s2.op.global_symbol == "test.op.identity"
 
 
-def test_memory_lower():
-    @tvm.script.ir_module
-    class TestMemoryLower:
-        @R.function
+def test_vm_memory_lower():
+    @rx.script
+    class TestVMMemoryLower:
         def foo(x: Tensor[(m, n), "float32"]):
             alloc = relax.builtin.alloc_tensor((m, n))
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
             return gv0
-
-    mod = TestMemoryLower
+    
+    mod = TestVMMemoryLower()
 
     # after memory lowering
-    new_mod = relax.transform.memory_lower(mod)
+    new_mod = rx.transform.vm_memory_lower(mod)
 
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["foo"], tvm.relax.expr.Function)
@@ -144,17 +143,16 @@ def test_memory_lower():
     assert "vm.builtin.alloc_tensor" in code
 
 
-def test_shape_lowering():
-    @tvm.script.ir_module
-    class TestShapeLower:
-        @R.function
+def test_vm_shape_lowering():
+    @rx.script
+    class TestVMShapeLower:
         def foo(x: Tensor[_, "float32"]) -> Shape:
             sh = relax.call_packed("vm.builtin.shape_of", x)
             relax.match_shape(sh, (n, m))
             return (n * 2, m * 3)
 
-    mod = TestShapeLower
-    new_mod = relax.transform.shape_lower(mod)
+    mod = TestVMShapeLower()
+    new_mod = rx.transform.vm_shape_lower(mod)
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
     assert isinstance(new_mod["foo"], tvm.relax.expr.Function)
@@ -167,5 +165,5 @@ def test_shape_lowering():
 if __name__ == "__main__":
     test_fma_rewrite()
     test_call_dps_rewrite()
-    test_memory_lower()
-    test_shape_lowering()
+    test_vm_memory_lower()
+    test_vm_shape_lowering()

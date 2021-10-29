@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/shape_lower.cc
+ * \file src/relax/transform/vm_shape_lower.cc
  * \brief
  */
 #include <tvm/relax/expr_functor.h>
@@ -32,13 +32,13 @@
 namespace tvm {
 namespace relax {
 
-class ShapeLowerMutator : public ExprMutator {
+class VMShapeLowerMutator : public ExprMutator {
  public:
   static DataType ShapeDType() {
     return DataType::Int(64);
   };
 
-  explicit ShapeLowerMutator(IRModule mod) { mod_ = mod; }
+  explicit VMShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
     ret_mod_ = IRModule();
@@ -63,7 +63,7 @@ class ShapeLowerMutator : public ExprMutator {
   void VisitMatchShape(const MatchShape& binding) override {
     Expr shape = ExprMutator::VisitExpr(binding->value);
     static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
-    auto decode_shape_attr = make_object<ShapeAttrs>();
+    auto decode_shape_attr = make_object<ShapeHeapAttrs>();
 
     Array<PrimExpr> pattern = binding->pattern;
     Array<Integer> indices;
@@ -93,7 +93,7 @@ class ShapeLowerMutator : public ExprMutator {
       indices.push_back(expr2slot_.at(e));
     }
     static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
-    auto make_shape_attr = make_object<ShapeAttrs>();
+    auto make_shape_attr = make_object<ShapeHeapAttrs>();
     make_shape_attr->indices = indices;
 
     return builder_->Emit(Call(make_shape_op, {shape_heap_}, Attrs(make_shape_attr)), "sh");
@@ -201,9 +201,9 @@ class ShapeLowerMutator : public ExprMutator {
   Map<PrimExpr, Integer> expr2slot_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.shape_lower")
+TVM_REGISTER_GLOBAL("relax.transform.vm_shape_lower")
 .set_body_typed([](IRModule mod) {
-  return ShapeLowerMutator(mod).Lower();
+  return VMShapeLowerMutator(mod).Lower();
 });
 
 }  // namespace relax

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/attrs/memory.h>
+#include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
 
@@ -95,6 +96,7 @@ TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
+.set_attrs_type<AllocStorageAttrs>()
 .set_num_inputs(1)
 .add_argument("size", "Expr", "The size of the storage to allocate.");
 
@@ -109,6 +111,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage")
 // vm alloc_tensor
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
+.set_attrs_type<AllocTensorAttrs>()
 .set_num_inputs(1)
 .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
@@ -123,6 +126,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor")
 // vm decode_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.decode_shape")
+.set_attrs_type<ShapeHeapAttrs>()
 .set_num_inputs(2)
 .add_argument("shape", "Expr", "The shape to be decoded.")
 .add_argument("heap", "Expr", "The heap to store the shape.");
@@ -138,6 +142,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.decode_shape")
 // vm make_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.make_shape")
+.set_attrs_type<ShapeHeapAttrs>()
 .set_num_inputs(1)
 .add_argument("heap", "Expr", "The heap to make the shape from.");
 
