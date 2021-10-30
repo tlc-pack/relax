@@ -85,7 +85,7 @@ def infer_type(node):
 def call_node_infer_type(node):
     """infer the output types of call node"""
     infer_out = infer_type(node)
-    out_type = infer_out._checked_type_
+    out_type = infer_out.checked_type_
     if isinstance(out_type, TensorType):
         types = [out_type]
     elif isinstance(out_type, TupleType):
