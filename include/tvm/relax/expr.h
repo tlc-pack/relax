@@ -54,7 +54,7 @@ class ShapeExprNode : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
     v->Visit("shape_", &shape_);
-    v->Visit("checked_type_", &checked_type_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -94,11 +94,11 @@ class VarNode : public ExprNode {
   const String& name_hint() const { return vid->name_hint; }
 
   void VisitAttrs(AttrVisitor* v) {
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
-    v->Visit("checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
@@ -143,7 +143,7 @@ class DataflowVarNode : public VarNode {
     v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
-    v->Visit("checked_type_", &checked_type_);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
@@ -330,7 +330,7 @@ class SeqExprNode : public ExprNode {
     v->Visit("blocks", &blocks);
     v->Visit("body", &body);
     v->Visit("shape_", &shape_);
-    v->Visit("checked_type_", &checked_type_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -378,7 +378,7 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
-    v->Visit("checked_type_", &checked_type_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
     v->Visit("span", &span);
   }
