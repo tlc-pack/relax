@@ -61,7 +61,7 @@ def test_match_shape() -> None:
     assert b0.pattern[0] == m
     assert b0.pattern[1] == n
     assert b0.var is not None
-    assert b0.var.checked_type_ == rx.ShapeType()
+    assert b0.var.checked_type == rx.ShapeType()
 
     # var1: Tensor[(m, n), "float32"] =
     #   match_shape(var0: Tensor[_, "float32"], [m, n])
@@ -78,7 +78,7 @@ def test_match_shape() -> None:
     assert b1.var is not None
     for s0, s1 in zip(b1.var.shape, [m, n]):
         assert s0 == s1
-    assert b1.var.checked_type_ == rx.DynTensorType(2, "float32")
+    assert b1.var.checked_type == rx.DynTensorType(2, "float32")
 
 
 def test_var_binding() -> None:
