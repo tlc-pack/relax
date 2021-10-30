@@ -23,7 +23,7 @@
  */
 
 #include <tvm/ir/type_functor.h>
-#include <tvm/relax/block_builder.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relax/ir_functor.h>
 
 #include <algorithm>
@@ -397,7 +397,7 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
     }
   } else {
     AttrPrinter attr_printer(&kwargs, this);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&attr_printer);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_printer);
   }
   return kwargs;
 }
