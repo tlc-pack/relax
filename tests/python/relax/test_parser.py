@@ -426,7 +426,7 @@ def test_inline_tir():
     check_call(
         z_bind.value,
         "relax.call_dps",
-        [rx.ShapeExpr([B, tir.IntImm("int32", 128)]), mm_bind.var, rx.Tuple([x, y])],
+        [rx.ShapeExpr([B, tir.IntImm("int64", 128)]), mm_bind.var, rx.Tuple([x, y])],
     )
 
 
@@ -479,7 +479,7 @@ def test_call_dps_extern():
     check_call(
         z_bind.value,
         "relax.call_dps",
-        [rx.ShapeExpr([tir.IntImm("int32", 10)]), rx.ExternFunc("my_extern"), rx.Tuple([x])],
+        [rx.ShapeExpr([tir.IntImm("int64", 10)]), rx.ExternFunc("my_extern"), rx.Tuple([x])],
     )
 
 

@@ -111,7 +111,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
                 else:
                     node_entry["inputs"].append([in_node_idx, 0, 0])
             infer_out = _infer_type(node)
-            out_type = infer_out._checked_type_
+            out_type = infer_out.checked_type_
             if isinstance(out_type, TensorType):
                 node_entry["types"].append(out_type)
             elif isinstance(out_type, TupleType):
