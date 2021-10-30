@@ -139,9 +139,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
 /*!
  * \brief A simple visitor wrapper around ExprFunctor.
  *  Recursively visit the content.
- *
- * ExprVisitor treats Expr as dataflow graph,
- * and only visit each Expr node once.
  */
 class ExprVisitor : public ExprFunctor<void(const Expr& n)> {
  public:
@@ -167,9 +164,6 @@ class ExprVisitor : public ExprFunctor<void(const Expr& n)> {
   virtual void VisitMatchShape(const MatchShape& binding);
   virtual void VisitBindingBlock(const BindingBlock& block);
   virtual void VisitDataflowBlock(const DataflowBlock& block);
-
- protected:
-  std::unordered_map<const Object*, size_t> visit_counter_;
 };
 
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
@@ -221,7 +215,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual Type VisitType(const Type& t);
 
   virtual void VisitBinding(const Binding& binding);
-  virtual Var VisitVarBinding(const VarBinding& binding);
+  virtual void VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
 
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
@@ -229,11 +223,40 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
 
  protected:
   Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
-  /*! \brief Look up the value binded to a var. */
+
+  /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound
+   *  value. Otherwise, returns the rewritten expression for the variable.
+   */
   Expr LookupVar(Var var);
-  // A remapping table: pre var -> post var
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
-  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> memo_;
+
+  inline void UpdateMemo(Expr pre, Expr post) {
+    if (const VarNode* var = pre.as<VarNode>()) {
+      var_memo_[var->vid] = post;
+    } else {
+      expr_memo_[pre] = post;
+    }
+  }
+
+  inline Optional<Expr> LookupMemo(Expr pre) {
+    if (pre.as<VarNode>()) {
+      Id vid = Downcast<Var>(pre)->vid;
+      if (var_memo_.count(vid)) {
+        return var_memo_[vid];
+      }
+    } else {
+      if (expr_memo_.count(pre)) {
+        return expr_memo_[pre];
+      }
+    }
+    return NullOpt;
+  }
+
+  /*! \brief Variable memoization table using Id equality */
+  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
+
+  /*! \brief Expr memoization table using pointer equality */
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
+
   std::shared_ptr<NameTable> name_table_;
   BlockBuilder builder_;
 };
@@ -245,7 +268,7 @@ class DataflowMutator : public ExprMutator {
  public:
   void VisitBinding(const Binding& binding) final;
 
-  virtual Var VisitDataflowVarBinding(const VarBinding& binding);
+  virtual void VisitDataflowVarBinding(const VarBinding& binding);
 };
 
 }  // namespace relax
