@@ -17,19 +17,21 @@
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.script import ty
+from tvm.script import tir as T
 
 @tvm.register_func("test.op.identity")
 def identity_packed(a):
     return tvm.nd.array(a.asnumpy())
 
-@tvm.script.tir
-def identity_tir(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [54, 96])
-    B = tir.match_buffer(b, [54, 96])
+@T.prim_func
+def identity_tir(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [54, 96])
+    B = T.match_buffer(b, [54, 96])
 
-    with tir.block([54, 96], "compute") as [vi, vj]:
-        B[vi, vj] = A[vi, vj]
+    for i, j in T.grid(54, 96):
+        with T.block("compute"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
 
 
 def test_call_dps() -> None:
