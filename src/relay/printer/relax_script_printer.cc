@@ -444,7 +444,7 @@ Doc RelaxScriptPrinter::PrintPrimFunc(const String& name, const tir::PrimFunc& f
   // refactoring to avoid this?
   IRModule mod;
   mod->Add(relay::GlobalVar(name), func);
-  return tir::AsTVMScriptDoc(mod, false, func);
+  return tir::AsTVMScriptDoc(mod, "tir", false, func);
 }
 
 Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite) {

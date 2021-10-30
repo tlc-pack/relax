@@ -321,7 +321,6 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const ShuffleNode* op) override;
   Doc VisitExpr_(const ReduceNode* op) override;
   Doc VisitExprDefault_(const Object* op) override;
-
   Doc VisitStmt_(const LetStmtNode* op) override;
   Doc VisitStmt_(const AttrStmtNode* op) override;
   Doc VisitStmt_(const AssertStmtNode* op) override;
@@ -364,8 +363,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitType_(const PointerTypeNode* node) override;
   Doc VisitType_(const TupleTypeNode* node) override;
 
-  Doc PrintIRModule(const IRModule& module);
   Doc PrintPrimFunc(const PrimFunc& primFunc);
+  Doc PrintIRModule(const IRModule& module);
   Doc PrintArray(const ArrayNode* op);
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
@@ -405,7 +404,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate);
 
-Doc AsTVMScriptDoc(const ObjectRef& mod, bool show_meta = false, const PrimFunc& func = PrimFunc());
+Doc AsTVMScriptDoc(const ObjectRef& mod, const String& tir_prefix = "tir", bool show_meta = false, const PrimFunc& func = PrimFunc());
 
 }  // namespace tir
 }  // namespace tvm
