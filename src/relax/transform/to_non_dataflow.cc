@@ -45,12 +45,7 @@ class ToNonDFMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const DataflowVarNode* op) final {
-    auto it = var_remap_.find(GetRef<Var>(op));
-    if (it != var_remap_.end()) {
-      return it->second;
-    }
-    Var new_var(op->vid, op->shape(), op->type_annotation, op->span);
-    return new_var;
+    return Var(op->vid, op->shape(), op->type_annotation, op->span);
   }
 
   BindingBlock VisitDataflowBlock(const DataflowBlock& block) final {

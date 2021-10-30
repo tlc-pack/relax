@@ -25,6 +25,7 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
@@ -37,32 +38,6 @@ namespace tvm {
 namespace relax {
 
 class BlockBuilder;
-
-/*!
- * \brief Utility data structure for generating unique names for IR construction.
- */
-class NameTable {
- public:
-  /*!
-   * \brief Generate a unique name with a specified prefix.
-   * \param prefix The name prefix.
-   * \return The generated name.
-   */
-  inline std::string GetUniqueName(std::string prefix) {
-    std::replace(prefix.begin(), prefix.end(), '.', '_');
-    std::string unique_prefix = prefix;
-    auto it = alloc_map_.find(prefix);
-    if (it != alloc_map_.end()) {
-      while (alloc_map_.count(unique_prefix = prefix + std::to_string(++it->second)) > 0) {
-      }
-    }
-    alloc_map_[unique_prefix] = 0;
-    return unique_prefix;
-  }
-
- private:
-  std::unordered_map<std::string, uint32_t> alloc_map_;
-};
 
 /*!
  * \brief A builder that provides APIs to build Relax binding blocks.
