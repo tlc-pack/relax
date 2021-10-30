@@ -19,7 +19,8 @@
 
 /*!
  * \file tvm/relax/ir_functor.h
- * \brief A generic visitor for traversing Relax IR nodes.
+ * \brief A generic functor for working with Relax IR nodes.
+ * \sa tvm/relax/expr_functor.h for common IR rewriting use-cases.
  */
 #ifndef TVM_RELAX_IR_FUNCTOR_H_
 #define TVM_RELAX_IR_FUNCTOR_H_
