@@ -193,13 +193,13 @@ def test_vm_shape_lowering():
     assert s2.op.global_symbol == "vm.builtin.shape_of"
     s3 = func.body.blocks[1].bindings[1].value
     assert isinstance(s3, tvm.relay.Call)
-    assert s3.op.name == "relax.vm.builtin.decode_shape"
+    assert s3.op.name == "relax.vm.builtin.store_shape"
     s4 = func.body.blocks[2].bindings[0].value
     assert isinstance(s4.op, rx.GlobalVar)
     assert s4.op.name_hint == "shape_func"
     s5 = func.body.blocks[2].bindings[1].value
     assert isinstance(s5, tvm.relay.Call)
-    assert s5.op.name == "relax.vm.builtin.make_shape"
+    assert s5.op.name == "relax.vm.builtin.load_shape"
 
 if __name__ == "__main__":
     test_fma_rewrite()

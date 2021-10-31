@@ -123,36 +123,36 @@ Expr MakeVMAllocTensor(Expr shape) {
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor")
 .set_body_typed(MakeVMAllocTensor);
 
-// vm decode_shape
+// vm store_shape
 
-RELAY_REGISTER_OP("relax.vm.builtin.decode_shape")
+RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
 .set_attrs_type<ShapeHeapAttrs>()
 .set_num_inputs(2)
-.add_argument("shape", "Expr", "The shape to be decoded.")
+.add_argument("shape", "Expr", "The shape to be stored.")
 .add_argument("heap", "Expr", "The heap to store the shape.");
 
-Expr MakeDecodeShape(Expr shape, Expr heap) {
-  static const Op& op = Op::Get("relax.vm.builtin.decode_shape");
+Expr MakeStoreShape(Expr shape, Expr heap) {
+  static const Op& op = Op::Get("relax.vm.builtin.store_shape");
   return Call(op, {shape, heap}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.decode_shape")
-.set_body_typed(MakeDecodeShape);
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.store_shape")
+.set_body_typed(MakeStoreShape);
 
-// vm make_shape
+// vm load_shape
 
-RELAY_REGISTER_OP("relax.vm.builtin.make_shape")
+RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
 .set_attrs_type<ShapeHeapAttrs>()
 .set_num_inputs(1)
-.add_argument("heap", "Expr", "The heap to make the shape from.");
+.add_argument("heap", "Expr", "The heap to load the shape from.");
 
-Expr MakeMakeShape(Expr heap) {
-  static const Op& op = Op::Get("relax.vm.builtin.make_shape");
+Expr MakeLoadShape(Expr heap) {
+  static const Op& op = Op::Get("relax.vm.builtin.load_shape");
   return Call(op, {heap}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.make_shape")
-.set_body_typed(MakeMakeShape);
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape")
+.set_body_typed(MakeLoadShape);
 
 } // namespace relax
 } // namespace tvm

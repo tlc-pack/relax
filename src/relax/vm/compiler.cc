@@ -92,7 +92,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         return EmitAllocStorage(call);
       } else if (op->op == alloc_tensor_op_) {
         return EmitAllocTensor(call);
-      } else if (op->op == decode_shape_op_ || op->op == make_shape_op_) {
+      } else if (op->op == store_shape_op_ || op->op == load_shape_op_) {
         return EmitShape(call);
       } else {
         LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << op->op;
@@ -205,10 +205,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     Index index = builder_->EmitConstant(indices_const);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    if (call_node->op == decode_shape_op_) {
-      builder_->EmitCall("vm.builtin.decode_shape", args, this->registers_num_);
-    } else if (call_node->op == make_shape_op_) {
-      builder_->EmitCall("vm.builtin.make_shape", args, this->registers_num_);
+    if (call_node->op == store_shape_op_) {
+      builder_->EmitCall("vm.builtin.store_shape", args, this->registers_num_);
+    } else if (call_node->op == load_shape_op_) {
+      builder_->EmitCall("vm.builtin.load_shape", args, this->registers_num_);
     }
     return Instruction::Arg(Instruction::kRegister, NewRegister());
   }
@@ -268,8 +268,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.builtin.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
-  const Op& decode_shape_op_ = Op::Get("relax.vm.builtin.decode_shape");
-  const Op& make_shape_op_ = Op::Get("relax.vm.builtin.make_shape");
+  const Op& store_shape_op_ = Op::Get("relax.vm.builtin.store_shape");
+  const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
 };
 
 void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {

@@ -61,8 +61,8 @@ class VMShapeLowerMutator : public ExprMutator {
 
   void VisitMatchShape(const MatchShape& binding) override {
     Expr shape = ExprMutator::VisitExpr(binding->value);
-    static const Op& decode_shape_op = Op::Get("relax.vm.builtin.decode_shape");
-    auto decode_shape_attr = make_object<ShapeHeapAttrs>();
+    static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
+    auto store_shape_attr = make_object<ShapeHeapAttrs>();
 
     Array<PrimExpr> pattern = binding->pattern;
     Array<Integer> indices;
@@ -70,8 +70,8 @@ class VMShapeLowerMutator : public ExprMutator {
       int idx = expr2slot_.at(pattern[i]);
       indices.push_back(idx);
     }
-    decode_shape_attr->indices = indices;
-    builder_->Emit(Call(decode_shape_op, {shape, shape_heap_}, Attrs(decode_shape_attr)), "gv");
+    store_shape_attr->indices = indices;
+    builder_->Emit(Call(store_shape_op, {shape, shape_heap_}, Attrs(store_shape_attr)), "gv");
   }
 
   Expr VisitExpr_(const ShapeExprNode* node) override {
@@ -91,11 +91,11 @@ class VMShapeLowerMutator : public ExprMutator {
     for (PrimExpr e : node->values) {
       indices.push_back(expr2slot_.at(e));
     }
-    static const Op& make_shape_op = Op::Get("relax.vm.builtin.make_shape");
-    auto make_shape_attr = make_object<ShapeHeapAttrs>();
-    make_shape_attr->indices = indices;
+    static const Op& load_shape_op = Op::Get("relax.vm.builtin.load_shape");
+    auto load_shape_attr = make_object<ShapeHeapAttrs>();
+    load_shape_attr->indices = indices;
 
-    return builder_->Emit(Call(make_shape_op, {shape_heap_}, Attrs(make_shape_attr)), "sh");
+    return builder_->Emit(Call(load_shape_op, {shape_heap_}, Attrs(load_shape_attr)), "sh");
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
