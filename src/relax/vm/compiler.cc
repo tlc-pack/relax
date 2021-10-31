@@ -66,6 +66,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       this->var_register_map_.insert({param, reg.data});
     }
     Instruction::Arg ret = ExprFunctor::VisitExpr(func_node->body);
+    builder_->EmitRet(ret.data);
     return ret;
   }
 
@@ -81,7 +82,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     Instruction::Arg ret_reg = this->VisitExpr(op->body);
-    builder_->EmitRet(ret_reg.data);
     return ret_reg;
   }
 
@@ -110,9 +110,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     for (auto arg : op->args) {
       args.push_back(this->VisitExpr(arg));
     }
-    builder_->EmitCall(name, args, this->registers_num_);
+    size_t arg_register = NewRegister();
+    builder_->EmitCall(name, args, arg_register);
 
-    return Instruction::Arg(Instruction::kRegister, NewRegister());
+    return Instruction::Arg(Instruction::kRegister, arg_register);
   }
 
   Instruction::Arg VisitExpr_(const VarNode* op) {
@@ -159,8 +160,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     Index index = this->builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    builder_->EmitCall("vm.builtin.alloc_storage", args, this->registers_num_);
-    return Instruction::Arg(Instruction::kRegister, NewRegister());
+    size_t arg_register = NewRegister();
+    builder_->EmitCall("vm.builtin.alloc_storage", args, arg_register);
+    return Instruction::Arg(Instruction::kRegister, arg_register);
   }
 
   Instruction::Arg EmitAllocTensor(const Call& call_node) {
@@ -181,8 +183,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     Index index = this->builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
-    builder_->EmitCall("vm.builtin.alloc_tensor", args, this->registers_num_);
-    return Instruction::Arg(Instruction::kRegister, NewRegister());
+    size_t arg_register = NewRegister();
+    builder_->EmitCall("vm.builtin.alloc_tensor", args, arg_register);
+    return Instruction::Arg(Instruction::kRegister, arg_register);
   }
 
   Instruction::Arg EmitShape(const Call& call_node) {
@@ -205,12 +208,13 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     Index index = builder_->EmitConstant(indices_const);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
 
+    size_t arg_register = NewRegister();
     if (call_node->op == store_shape_op_) {
-      builder_->EmitCall("vm.builtin.store_shape", args, this->registers_num_);
+      builder_->EmitCall("vm.builtin.store_shape", args, arg_register);
     } else if (call_node->op == load_shape_op_) {
-      builder_->EmitCall("vm.builtin.load_shape", args, this->registers_num_);
+      builder_->EmitCall("vm.builtin.load_shape", args, arg_register);
     }
-    return Instruction::Arg(Instruction::kRegister, NewRegister());
+    return Instruction::Arg(Instruction::kRegister, arg_register);
   }
 
   bool IsConstantShape(ShapeExpr shape) const {
