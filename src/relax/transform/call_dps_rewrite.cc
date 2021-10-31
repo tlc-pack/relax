@@ -32,8 +32,7 @@ namespace relax {
 
 // ==================
 // CallDPSMutator
-// Transform all dataflow structure to non-dataflow version, and perform 
-// explicit tensor allocation for call_dps.
+// Perform explicit tensor allocation for call_dps.
 // Example:
 // lv0: Tensor[n, m] = rx.call_dps((n, m), op.identity, (x))
 // -->
@@ -56,29 +55,10 @@ class CallDPSMutator : public ExprMutator {
     return ret_mod;
   }
 
-  BindingBlock VisitDataflowBlock(const DataflowBlock& block) final {
-    builder_->BeginBindingBlock();
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-    return builder_->EndBlock();
-  }
-
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    auto it = var_remap_.find(GetRef<Var>(op));
-    if (it != var_remap_.end()) {
-      return it->second;
-    }
-    Var new_var(op->vid, op->shape(), op->type_annotation, op->span);
-    return new_var;
-  }
-
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
     Expr expr = ExprMutator::VisitExpr_(call);
     call = expr.as<CallNode>();
-    // TODO(@yuchen, @altanh): using mutate cause infinite recursion
-    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
