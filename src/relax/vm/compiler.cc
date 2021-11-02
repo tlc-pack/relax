@@ -36,11 +36,14 @@
 #include <vector>
 
 namespace tvm {
-namespace runtime {
+namespace relax {
 namespace relax_vm {
 
 using namespace relax;
 
+/*!
+ * \brief A class to generate VM executable for Relax functions.
+ */
 class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
  public:
   explicit CodeGenVM(ExecBuilderNode* builder) {
@@ -50,6 +53,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
  protected:
   size_t NewRegister() { return registers_num_++; }
 
+  // TODO(@yuchen): add visitors for IfNode when goto and if instructions are introduced to relax vm.
+
+  // TODO(@yuchen): when we support closure, this visitor should return a register that 
+  // contains the closure object.
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {
       builder_->EmitFunction(func_node->name.value()->name_hint, func_node->params.size());
@@ -87,6 +94,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   Instruction::Arg VisitExpr_(const CallNode* op) {
     if (op->op.as<OpNode>()) {
+      // special case generate for the intrinsics whose attribute fields 
+      // cannot be represented by args in the CallNode
       const Call& call = GetRef<Call>(op);
       if (op->op == alloc_storage_op_) {
         return EmitAllocStorage(call);
@@ -95,6 +104,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       } else if (op->op == store_shape_op_ || op->op == load_shape_op_) {
         return EmitShape(call);
       } else {
+        // every "normal" operator is lowered to a global var in the IR module. The Attrs for those ops 
+        // are handled in a pass when lowering them to TIR.
         LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << op->op;
       }
     }
@@ -321,5 +332,5 @@ TVM_REGISTER_GLOBAL("relax.VMBuild")
 .set_body_typed(Build);
 
 }  // namespace relax_vm
-}  // namespace runtime
+}  // namespace relax
 }  // namespace tvm

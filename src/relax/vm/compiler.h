@@ -25,18 +25,20 @@
 #ifndef TVM_RELAX_VM_COMPILER_H_
 #define TVM_RELAX_VM_COMPILER_H_
 
-#include <tvm/target/target.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/vm/exec_builder.h>
 #include <tvm/relax/vm/executable.h>
+#include <tvm/target/target.h>
 
 #include <string>
 
 namespace tvm {
-namespace runtime {
+namespace relax {
 namespace relax_vm {
 
 using tvm::Target;
+using namespace tvm::runtime::relax_vm;
+using namespace tvm::runtime;
 
 class VMCompiler : public Object {
  public:
@@ -57,7 +59,7 @@ class VMCompiler : public Object {
   Module GetLib();
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.VMCompiler"; 
+  static constexpr const char* _type_key = "relax.VMCompiler";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
 
  protected:
@@ -68,7 +70,7 @@ class VMCompiler : public Object {
 };
 
 }  // namespace relax_vm
-}  // namespace runtime
+}  // namespace relax
 }  // namespace tvm
 
 #endif  // TVM_RELAX_VM_COMPILER_H_
