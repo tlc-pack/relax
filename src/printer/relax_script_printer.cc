@@ -23,8 +23,8 @@
  */
 
 #include <tvm/ir/type_functor.h>
-#include <tvm/relax/utils.h>
 #include <tvm/relax/ir_functor.h>
+#include <tvm/relax/utils.h>
 
 #include <algorithm>
 #include <utility>
@@ -426,6 +426,7 @@ Doc RelaxScriptPrinter::VisitAttr_(const tir::FloatImmNode* op) {
 
 Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
   Doc doc;
+  doc << "@tvm.script.ir_module" << Doc::NewLine();
   doc << "class Module:";
   for (const std::pair<GlobalVar, BaseFunc>& pr : mod->functions) {
     Doc func;
@@ -476,6 +477,7 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     params.push_back(param);
   }
 
+  doc << "@relax.function" << Doc::NewLine();
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
   if (func->ret_type.defined()) {
     doc << " -> " << Print(func->ret_type);
@@ -539,7 +541,7 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
 
 String AsRelaxScript(const ObjectRef& mod) {
   ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
-  return "@tvm.script.relax\n" + RelaxScriptPrinter().Print(mod).str();
+  return RelaxScriptPrinter().Print(mod).str();
 }
 
 TVM_REGISTER_GLOBAL("script.AsRelaxScript").set_body_typed(AsRelaxScript);

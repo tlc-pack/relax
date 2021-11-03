@@ -19,46 +19,63 @@ import os
 import numpy as np
 import tvm
 from tvm.relay import Call
-from tvm import relax as rx
+from tvm import relax
 from tvm.runtime import container
+
+import tvm.script
+from tvm.script import tir as T, relax as R
 
 
 @tvm.register_func("test.vm.move")
 def move(src):
     return src
 
+
 @tvm.register_func("test.vm.add")
 def add(a, b):
     ret = a.asnumpy() + b.asnumpy()
     return tvm.nd.array(ret)
+
 
 @tvm.register_func("test.vm.mul")
 def mul(a, b):
     ret = a.asnumpy() * b.asnumpy()
     return tvm.nd.array(ret)
 
+
 @tvm.register_func("test.vm.identity")
 def identity_packed(a, b):
     b[:] = tvm.nd.array(a.asnumpy())
+
 
 @tvm.register_func("test.vm.tile")
 def tile_packed(a, b):
     b[:] = tvm.nd.array(np.tile(a.asnumpy(), (1, 2)))
 
+
 def test_vm_execute():
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     with ib.function("func0", num_inputs=2):
         ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
-    vm = rx.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(np.random.rand(4,))
-    b = tvm.nd.array(np.random.rand(4,))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    a = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
+    b = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
     add_res = vm["func0"](a, b)
     np.testing.assert_allclose(add_res.asnumpy(), a.asnumpy() + b.asnumpy())
 
+
 def test_vm_multiple_func():
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     with ib.function("func0", num_inputs=2):
         ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
@@ -66,50 +83,69 @@ def test_vm_multiple_func():
         ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
-    vm = rx.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(np.random.rand(4,))
-    b = tvm.nd.array(np.random.rand(4,))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    a = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
+    b = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
     mul_res = vm["func1"](a, b)
     add_res = vm["func0"](a, b)
     np.testing.assert_allclose(add_res.asnumpy(), a.asnumpy() + b.asnumpy())
     np.testing.assert_allclose(mul_res.asnumpy(), a.asnumpy() * b.asnumpy())
 
+
 def test_vm_serialize():
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     with ib.function("func0", num_inputs=2):
         ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
-    arr = tvm.nd.array(np.random.rand(4,))
+    arr = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
     with ib.function("func1", num_inputs=2):
         ib.emit_call("test.vm.mul", args=[ib.r(0), arr], dst=ib.r(1))
         ib.emit_ret(ib.r(1))
     exec0 = ib.get()
     exec0.save_to_file("exec.tmp")
-    exec1 = rx.load_exec_from_file("exec.tmp")
+    exec1 = relax.load_exec_from_file("exec.tmp")
     assert exec0.astext() == exec1.astext()
     os.remove("exec.tmp")
 
+
 def test_vm_constant_serialize():
-    dtype = tvm.DataType('float32')
+    dtype = tvm.DataType("float32")
     shape = (4, 6)
     inp = tvm.nd.array(np.random.rand(4, 6).astype(np.float32))
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=1):
-        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call(
+            "vm.builtin.alloc_storage",
+            args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype],
+            dst=ib.r(1),
+        )
         ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
         ib.emit_call("test.vm.identity", args=[ib.r(0), ib.r(2)])
         ib.emit_ret(ib.r(2))
     exec0 = ib.get()
     exec0.save_to_file("exec.tmp")
-    exec1 = rx.load_exec_from_file("exec.tmp")
+    exec1 = relax.load_exec_from_file("exec.tmp")
     assert exec0.astext() == exec1.astext()
-    vm = rx.VirtualMachine(exec0, tvm.cpu())
+    vm = relax.VirtualMachine(exec0, tvm.cpu())
     res = vm["main"](inp)
     np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
     os.remove("exec.tmp")
 
+
 def test_vm_checker():
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     try:
         with ib.function("func0", num_inputs=2):
             ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(2)], dst=ib.r(2))
@@ -118,9 +154,10 @@ def test_vm_checker():
     except ValueError as ex:
         assert True
 
+
 def test_vm_formalize():
-    ib0 = rx.ExecBuilder()
-    ib1 = rx.ExecBuilder()
+    ib0 = relax.ExecBuilder()
+    ib1 = relax.ExecBuilder()
     with ib0.function("func0", num_inputs=2):
         ib0.emit_call("test.vm.add", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(100))
         ib0.emit_call("test.vm.mul", args=[ib0.r(1), ib0.r(100)], dst=ib0.r(50))
@@ -133,108 +170,147 @@ def test_vm_formalize():
     exec1 = ib1.get()
     assert exec0.astext() == exec1.astext()
 
+
 @tvm.register_func("test.vm.add_scalar")
 def add_scalar(a, b):
     return a + b
+
 
 @tvm.register_func("test.vm.get_device_id")
 def get_device_id(device):
     return device.device_id
 
+
 def test_vm_operand():
-    ib0 = rx.ExecBuilder()
+    ib0 = relax.ExecBuilder()
     with ib0.function("func0", num_inputs=2):
         ib0.emit_call("test.vm.add_scalar", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(2))
         ib0.emit_ret(ib0.r(2))
     exec0 = ib0.get()
-    vm = rx.VirtualMachine(exec0, tvm.cpu())
+    vm = relax.VirtualMachine(exec0, tvm.cpu())
     res = vm["func0"](2, 3)
     assert res == 5
 
-    ib1 = rx.ExecBuilder()
+    ib1 = relax.ExecBuilder()
     with ib1.function("func1", num_inputs=1):
         ib1.emit_call("test.vm.get_device_id", args=[ib1.r(0)], dst=ib1.r(1))
         ib1.emit_ret(ib1.r(1))
     exec1 = ib1.get()
-    vm = rx.VirtualMachine(exec1, tvm.cpu())
+    vm = relax.VirtualMachine(exec1, tvm.cpu())
     res = vm["func1"](tvm.cpu(3))
     assert res == 3
 
+
 def test_vm_shapeof():
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     shape = (32, 16)
     arr = tvm.nd.array(np.random.rand(*shape))
     with ib.function("main", num_inputs=0):
         ib.emit_call("vm.builtin.shape_of", args=[arr], dst=ib.r(0))
         ib.emit_ret(ib.r(0))
     ex = ib.get()
-    vm = rx.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"]()
     for i, s in enumerate(res):
         assert s == shape[i]
 
 
 def test_vm_storage():
-    dtype = tvm.DataType('float32')
+    dtype = tvm.DataType("float32")
     shape = (4, 6)
-    ib = rx.ExecBuilder()
+    ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=0):
-        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call(
+            "vm.builtin.alloc_storage",
+            args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype],
+            dst=ib.r(1),
+        )
         ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
-    vm = rx.VirtualMachine(ex, tvm.cpu())
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     shape_tuple = container.ShapeTuple(shape)
     res = vm["main"]()
     assert res.device == tvm.cpu()
     assert res.shape == shape
 
+
 def test_vm_compile_stage0():
-    @rx.script
+    @tvm.script.ir_module
     class TestVMCompileStage0:
+        @R.function
         def foo(x: Tensor[(3, 4), "float32"]):
-            y = relax.call_packed("vm.builtin.alloc_storage", (12,), (64,), device_id=0, device_type=1, attrs_type_key="relax.attrs.AllocStorageAttrs")
-            z = relax.call_packed("vm.builtin.alloc_tensor", y, (0,), (3, 4), attrs_type_key="relax.attrs.AllocTensorAttrs")
+            y = relax.call_packed(
+                "vm.builtin.alloc_storage",
+                (12,),
+                (64,),
+                device_id=0,
+                device_type=1,
+                attrs_type_key="relax.attrs.AllocStorageAttrs",
+            )
+            z = relax.call_packed(
+                "vm.builtin.alloc_tensor",
+                y,
+                (0,),
+                (3, 4),
+                attrs_type_key="relax.attrs.AllocTensorAttrs",
+            )
             w = relax.call_packed("test.vm.identity", x, z)
             return z
 
-    mod = TestVMCompileStage0()
+    mod = TestVMCompileStage0
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
-    inp = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex, lib = relax.vm.build(mod, target, target_host)
+    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     res = vm["foo"](inp)
     np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
     res = vm["foo"](inp)
 
 
 def test_vm_compile_stage1():
-    @rx.script
-    class TestVMCompileStage1:
-        @tvm.script.tir
-        def shape_func0(heap: ty.handle) -> None:
-            # function attr dict
-            tir.func_attr({"global_symbol": "shape_func0"})
-            H = tir.match_buffer(heap, [tir.int64(4)], dtype="int64", elem_offset=tir.int64(0), align=128, offset_factor=1)
-            # body
-            tir.store(H.data, tir.int64(2), (tir.load("int64", H.data, tir.int64(0))*tir.int64(2)), True)
-            tir.store(H.data, tir.int64(3), (tir.load("int64", H.data, tir.int64(1))*tir.int64(3)), True)
-    
-        def foo(x: Tensor[_, "float32"]) -> Shape:
-            shape_heap: Tensor[(4,), "int64"] = relax.call_packed("vm.builtin.alloc_shape_heap", (4,))
-            gv0 = relax.call_packed("vm.builtin.shape_of", x)
-            gv1 = relax.call_packed("vm.builtin.decode_shape", gv0, shape_heap, (0, 1))
-            gv2 = shape_func0(shape_heap)
-            gv3 = relax.call_packed("vm.builtin.make_shape", shape_heap, (2, 3))
-            return gv3
+    # FIXME(@altanh): see comment in test_parser.py
+    src = """@tvm.script.ir_module
+class TestVMCompileStage1:
+    @T.prim_func
+    def shape_func0(heap: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "shape_func0"})
+        H = T.match_buffer(
+            heap,
+            [T.int64(4)],
+            dtype="int64",
+            elem_offset=T.int64(0),
+            align=128,
+            offset_factor=1,
+        )
+        # body
+        T.store(
+            H.data, T.int64(2), (T.load("int64", H.data, T.int64(0)) * T.int64(2)), True
+        )
+        T.store(
+            H.data, T.int64(3), (T.load("int64", H.data, T.int64(1)) * T.int64(3)), True
+        )
 
-    mod = TestVMCompileStage1()
-    code = rx.parser.astext(mod)
+    @R.function
+    def foo(x: Tensor[_, "float32"]) -> Shape:
+        shape_heap: Tensor[(4,), "int64"] = relax.call_packed(
+            "vm.builtin.alloc_shape_heap", (4,)
+        )
+        gv0 = relax.call_packed("vm.builtin.shape_of", x)
+        gv1 = relax.call_packed("vm.builtin.decode_shape", gv0, shape_heap, (0, 1))
+        gv2 = shape_func0(shape_heap)
+        gv3 = relax.call_packed("vm.builtin.make_shape", shape_heap, (2, 3))
+        return gv3
+"""
+
+    mod = R.parser.from_source(src)
+    code = R.parser.astext(mod)
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex, lib = relax.vm.build(mod, target, target_host)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
     arr = tvm.nd.array(np.random.rand(*shape))
@@ -244,18 +320,19 @@ def test_vm_compile_stage1():
 
 
 def test_vm_compile_stage2():
-    @rx.script
+    @tvm.script.ir_module
     class TestVMCompileStage2:
+        @R.function
         def foo(x: Tensor[_, "float32"]) -> Shape:
             sh = relax.call_packed("vm.builtin.shape_of", x)
             relax.match_shape(sh, (n, m))
             return (n * 2, m * 3)
 
-    mod = TestVMCompileStage2()
+    mod = TestVMCompileStage2
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex, lib = relax.vm.build(mod, target, target_host)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
     arr = tvm.nd.array(np.random.rand(*shape))
@@ -265,19 +342,20 @@ def test_vm_compile_stage2():
 
 
 def test_vm_compile_stage3():
-    @rx.script
+    @tvm.script.ir_module
     class TestVMCompileStage3:
+        @R.function
         def foo(x: Tensor[(32, 16), "float32"]) -> Tensor:
             with relax.dataflow():
                 y = relax.call_dps((32, 16), "test.vm.identity", (x))
                 relax.output(y)
             return y
 
-    mod = TestVMCompileStage3()
+    mod = TestVMCompileStage3
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex, lib = relax.vm.build(mod, target, target_host)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
@@ -286,8 +364,9 @@ def test_vm_compile_stage3():
 
 
 def test_vm_compile_e2e():
-    @rx.script
+    @tvm.script.ir_module
     class TestVMCompileE2E:
+        @R.function
         def foo(x: Tensor[_, "float32"]) -> Tensor:
             with relax.dataflow():
                 sh = relax.call_packed("vm.builtin.shape_of", x)
@@ -296,12 +375,12 @@ def test_vm_compile_e2e():
                 relax.output(y)
             return y
 
-    mod = TestVMCompileE2E()
+    mod = TestVMCompileE2E
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex, lib = relax.vm.build(mod, target, target_host)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))

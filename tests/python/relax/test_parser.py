@@ -18,16 +18,19 @@
 from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
-from tvm import relax as rx
-from tvm import tir, relay
-from tvm.ir import structural_equal
+
+from tvm import tir, relay, relax
+from tvm.ir import assert_structural_equal
+
+import tvm.script
+from tvm.script import tir as T, relax as R
 
 # TODO: replace xfails with proper diagnostics checking.
 #       c.f. tests/python/unittest/test_tvmscript_error_report.py
 
 
 def check_shape(e, s):
-    if isinstance(e, rx.Expr):
+    if isinstance(e, relax.Expr):
         e = e.shape_
 
     if s is None:
@@ -46,7 +49,7 @@ def check_shape(e, s):
 
 
 def check_tensor_var(v, s, d, rank=None):
-    assert isinstance(v.type_annotation, rx.ty.DynTensorType)
+    assert isinstance(v.type_annotation, relax.ty.DynTensorType)
     assert v.type_annotation.dtype == d
     if isinstance(s, (list, tuple)):
         assert v.type_annotation.rank == len(s)
@@ -56,15 +59,15 @@ def check_tensor_var(v, s, d, rank=None):
 
 
 def check_call(call, op, args):
-    assert isinstance(call, rx.Call)
+    assert isinstance(call, relax.Call)
     if isinstance(op, str):
         op = relay.op.get(op)
     assert call.op == op
-    assert structural_equal(call.args, args)
+    assert_structural_equal(call.args, args)
 
 
 def test_annotations():
-    @rx.script
+    @R.function
     def f(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
         z: Tensor[(32, k), "float32"] = nn.matmul(x, y, units=None)
         w: Tensor[_, _] = multiply(z, z)
@@ -87,20 +90,20 @@ def test_annotations():
     check_tensor_var(w, None, "")
     check_tensor_var(q, None, "", rank=2)
     assert t.type_annotation is None
-    assert isinstance(sh.type_annotation, rx.ty.ShapeType)
+    assert isinstance(sh.type_annotation, relax.ty.ShapeType)
 
     check_call(mm, "nn.matmul", [x, y])
     check_call(mul, "multiply", [z, z])
     check_call(sub, "subtract", [w, z])
-    check_call(shape_of, "shape_of", [t])
+    check_call(shape_of, "relax.shape_of", [t])
 
     assert f.body.body == t
 
-    assert isinstance(f.ret_type, rx.ty.DynTensorType)
+    assert isinstance(f.ret_type, relax.ty.DynTensorType)
 
 
 def test_match_shape():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, "float32"]):
         relax.match_shape(x.shape, (n, m))
         y: Tensor[(n, m), "float32"] = add(x, x)
@@ -110,19 +113,19 @@ def test_match_shape():
     pattern, value = match_sh.pattern, match_sh.value
 
     check_shape(pattern, ("n", "m"))
-    check_call(value, "shape_of", [f.params[0]])
+    check_call(value, "relax.shape_of", [f.params[0]])
 
 
 @pytest.mark.xfail
 def test_dim_var_intro_fail():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         y: Tensor[(n, m), "float32"] = x
         return y
 
 
 def test_if():
-    @rx.script
+    @R.function
     def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         if cond:
             w = add(x, x)
@@ -139,12 +142,12 @@ def test_if():
     check_tensor_var(cond, tuple(), "bool")
     check_tensor_var(x, (1,), "float32")
 
-    assert isinstance(y, rx.Var)
+    assert isinstance(y, relax.Var)
     assert y.name_hint == "y"
 
-    assert isinstance(ite, rx.If)
-    assert isinstance(ite.true_branch, rx.SeqExpr)
-    assert isinstance(ite.false_branch, rx.SeqExpr)
+    assert isinstance(ite, relax.If)
+    assert isinstance(ite.true_branch, relax.SeqExpr)
+    assert isinstance(ite.false_branch, relax.SeqExpr)
 
     w_bind = ite.true_branch.blocks[0].bindings[0]
     body = ite.true_branch.body
@@ -164,7 +167,7 @@ def test_if():
 
 @pytest.mark.xfail
 def test_var_redefine_fail():
-    @rx.script
+    @R.function
     def f(x, y):
         z = add(x, y)
         y = z
@@ -173,7 +176,7 @@ def test_var_redefine_fail():
 
 @pytest.mark.xfail
 def test_var_redefine_fail_if():
-    @rx.script
+    @R.function
     def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         y = x
         if cond:
@@ -187,7 +190,7 @@ def test_var_redefine_fail_if():
 
 @pytest.mark.xfail
 def test_var_if_scoping_fail():
-    @rx.script
+    @R.function
     def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         if cond:
             w = add(x, x)
@@ -200,7 +203,7 @@ def test_var_if_scoping_fail():
 
 @pytest.mark.xfail
 def test_if_mismatch_var_fail():
-    @rx.script
+    @R.function
     def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         if cond:
             w = add(x, x)
@@ -213,14 +216,14 @@ def test_if_mismatch_var_fail():
 
 @pytest.mark.xfail
 def test_unassigned_call_fail():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         add(x, x)
         return x
 
 
 def test_tuple():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _], y: Tensor[(32,), "float32"]):
         t: Tuple[Tensor[_, _], Tensor[(32,), "float32"]] = (x, y)
         return t
@@ -231,21 +234,24 @@ def test_tuple():
 
     assert isinstance(t.type_annotation, relay.TupleType)
     annot = t.type_annotation
-    assert isinstance(annot.fields[0], rx.ty.DynTensorType) and annot.fields[0].dtype == ""
-    assert isinstance(annot.fields[1], rx.ty.DynTensorType) and annot.fields[1].dtype == "float32"
+    assert isinstance(annot.fields[0], relax.ty.DynTensorType) and annot.fields[0].dtype == ""
+    assert (
+        isinstance(annot.fields[1], relax.ty.DynTensorType) and annot.fields[1].dtype == "float32"
+    )
 
     assert t.shape_ is None
 
-    assert isinstance(tup, rx.Tuple)
-    assert structural_equal(tup.fields, [x, y])
+    assert isinstance(tup, relax.Tuple)
+    assert_structural_equal(tup.fields, [x, y])
     assert tup.shape_ is None
     check_shape(tup.fields[0], None)
     check_shape(tup.fields[1], (32,))
 
 
 def test_local_func():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
+        @R.function
         def bar(y: Tensor[_, _]):
             return y
 
@@ -256,14 +262,14 @@ def test_local_func():
     bar, bar_fn = bar_bind.var, bar_bind.value
     bar_x = y_bind.value
 
-    assert isinstance(bar_fn, rx.Function)
+    assert isinstance(bar_fn, relax.Function)
     assert bar_fn.body.body == bar_fn.params[0]
 
     assert bar_x.op == bar
 
 
 def test_dataflow():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         with relax.dataflow():
             y = add(x, x)
@@ -280,9 +286,9 @@ def test_dataflow():
     x = f.params[0]
     y, z, w, t = map(lambda b: b.var, [y_bind, z_bind, w_bind, t_bind])
 
-    assert isinstance(y, rx.Var)
-    assert isinstance(z, rx.DataflowVar)
-    assert isinstance(w, rx.Var)
+    assert isinstance(y, relax.Var)
+    assert isinstance(z, relax.DataflowVar)
+    assert isinstance(w, relax.Var)
 
     check_call(y_bind.value, "add", [x, x])
     check_call(z_bind.value, "multiply", [y, x])
@@ -293,7 +299,7 @@ def test_dataflow():
 
 
 def test_dataflow_match_shape():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         with relax.dataflow():
             x2: Tensor[(n, m), _] = relax.match_shape(x, (n, m))
@@ -324,7 +330,7 @@ def test_dataflow_match_shape():
 
 @pytest.mark.xfail
 def test_dataflow_scope_fail():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         with relax.dataflow():
             y = add(x, x)
@@ -337,7 +343,7 @@ def test_dataflow_scope_fail():
 
 @pytest.mark.xfail
 def test_dataflow_syntax_fail_pattern():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         with relax.dataflow() as df:
             y = add(x, x)
@@ -350,7 +356,7 @@ def test_dataflow_syntax_fail_pattern():
 
 @pytest.mark.xfail
 def test_dataflow_syntax_fail_params():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         with relax.dataflow(x) as df:
             y = add(x, x)
@@ -363,7 +369,7 @@ def test_dataflow_syntax_fail_params():
 
 @pytest.mark.xfail
 def test_dataflow_unbound_outputs():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         with relax.dataflow():
             y = add(x, x)
@@ -376,7 +382,7 @@ def test_dataflow_unbound_outputs():
 
 @pytest.mark.xfail
 def test_invalid_special_op_dataflow():
-    @rx.script
+    @R.function
     def f(x: Tensor):
         y = add(x, x)
         z = relax.dataflow()
@@ -385,7 +391,7 @@ def test_invalid_special_op_dataflow():
 
 @pytest.mark.xfail
 def test_invalid_special_op_output():
-    @rx.script
+    @R.function
     def f(x: Tensor):
         y = add(x, x)
         z = relax.output(y)
@@ -394,24 +400,26 @@ def test_invalid_special_op_output():
 
 @pytest.mark.xfail
 def test_func_no_return_fail():
-    @rx.script
+    @R.function
     def f(x: Tensor[_, _]):
         y = add(x, x)
 
 
 def test_inline_tir():
-    @rx.script
+    @R.function
     def f(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
-        @tvm.script.tir
-        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-            A = tir.match_buffer(a, [128, 128])
-            B = tir.match_buffer(b, [128, 128])
-            C = tir.match_buffer(c, [128, 128])
+        @T.prim_func
+        def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, (128, 128))
+            B = T.match_buffer(b, (128, 128))
+            C = T.match_buffer(c, (128, 128))
 
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-                with tir.init():
-                    C[vi, vj] = tir.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+            for i, j, k in T.grid(128, 128, 128):
+                with T.block():
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
 
         z = relax.call_dps((B, 128), my_matmul, (x, y))
         return z
@@ -426,12 +434,12 @@ def test_inline_tir():
     check_call(
         z_bind.value,
         "relax.call_dps",
-        [rx.ShapeExpr([B, tir.IntImm("int64", 128)]), mm_bind.var, rx.Tuple([x, y])],
+        [relax.ShapeExpr([B, tir.IntImm("int64", 128)]), mm_bind.var, relax.Tuple([x, y])],
     )
 
 
 def test_call_packed():
-    @rx.script
+    @R.function
     def f(x: Tensor[(3, 3), "float32"]):
         # test that we can intro dim vars
         z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", x, x, mp=False)
@@ -444,16 +452,16 @@ def test_call_packed():
     (z_bind, w_bind) = f.body.blocks[0].bindings
     check_tensor_var(z_bind.var, ("n", "m"), "float32")
 
-    assert isinstance(z_bind.value.op, rx.ExternFunc)
+    assert isinstance(z_bind.value.op, relax.ExternFunc)
     assert z_bind.value.op.global_symbol == "contrib.my_matmul"
     assert "mp" in z_bind.value.attrs and z_bind.value.attrs["mp"] == False
-    assert structural_equal(z_bind.value.args, [x, x])
+    assert_structural_equal(z_bind.value.args, [x, x])
 
     assert isinstance(w_bind.value.attrs, relay.op.op_attrs.ShapeOfAttrs)
 
 
 def test_primexpr_arithmetic():
-    @rx.script
+    @R.function
     def f(x: Tensor[(n, m), "float32"]):
         z: Tensor[(n * m,), "float32"] = relax.call_packed("my_flatten", (x,))
         sh: Shape = (n + m, n // m)
@@ -463,12 +471,12 @@ def test_primexpr_arithmetic():
     n, m = x.shape_
     z_bind, sh_bind = f.body.blocks[0].bindings
 
-    assert structural_equal(z_bind.var.shape_.values, [tir.Mul(n, m)])
-    assert structural_equal(sh_bind.value.values, [tir.Add(n, m), tir.FloorDiv(n, m)])
+    assert_structural_equal(z_bind.var.shape_.values, [tir.Mul(n, m)])
+    assert_structural_equal(sh_bind.value.values, [tir.Add(n, m), tir.FloorDiv(n, m)])
 
 
 def test_call_dps_extern():
-    @rx.script
+    @R.function
     def f(x: Tensor):
         z = relax.call_dps((10,), "my_extern", (x,))
         return z
@@ -479,35 +487,54 @@ def test_call_dps_extern():
     check_call(
         z_bind.value,
         "relax.call_dps",
-        [rx.ShapeExpr([tir.IntImm("int64", 10)]), rx.ExternFunc("my_extern"), rx.Tuple([x])],
+        [
+            relax.ShapeExpr([tir.IntImm("int64", 10)]),
+            relax.ExternFunc("my_extern"),
+            relax.Tuple([x]),
+        ],
     )
 
 
 def test_class_irmodule():
-    @rx.script
-    class MyModule:
-        @tvm.script.tir
-        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-            A = tir.match_buffer(a, [128, 128])
-            B = tir.match_buffer(b, [128, 128])
-            C = tir.match_buffer(c, [128, 128])
+    # FIXME(@altanh): Python class method decorators are executed eagerly before the class
+    # decorator, which means each function is parsed in isolation. This means we cannot resolve
+    # global variables at parsing time (or indeed any undefined identifier), so we either need to
+    #   1. defer parsing in the function decorators (so that the ir_module decorator can populate
+    #      global variables first), although this means non-IRModule uses of the function decorators
+    #      will no longer return Function/PrimFunc but some kind of wrapper type. This could cause
+    #      problems if we pass them directly to things that expect Function/PrimFuncs.
+    #   2. parse every undefined identifier to a placeholder node (e.g. "UndefinedVar"), and run an
+    #      IRModule -> IRModule pass that tries to resolve identifiers.
+    src = """@tvm.script.ir_module
+class MyModule:
+    @T.prim_func
+    def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128))
+        B = T.match_buffer(b, (128, 128))
+        C = T.match_buffer(c, (128, 128))
 
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-                with tir.init():
-                    C[vi, vj] = tir.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block():
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        def f(x: Tensor[(n, n), _]) -> Tensor:
-            return g(x)
+    @R.function
+    def f(x: Tensor[(n, n), _]) -> Tensor:
+        return g(x)
 
-        def g(y: Tensor[(n, n), _]) -> Tensor:
-            return relax.call_dps((n, n), my_matmul, (y, y))
+    @R.function
+    def g(y: Tensor[(n, n), _]) -> Tensor:
+        return relax.call_dps((n, n), my_matmul, (y, y))
 
-        def h(x, y, z):
-            _ = my_matmul(x, y, z)
-            return z
+    @R.function
+    def h(x, y, z):
+        _ = my_matmul(x, y, z)
+        return z
+"""
 
-    my_module = MyModule()
+    my_module = tvm.script.relax.parser.from_source(src)
     assert isinstance(my_module, tvm.IRModule)
 
     var_f = my_module.get_global_var("f")
