@@ -37,15 +37,20 @@ class ToNonDFMutator : public ExprMutator {
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
-        func = this->Mutate(p.second);
+        func = this->VisitExpr(p.second);
       }
       ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
     return ret_mod;
   }
 
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    return Var(op->vid, op->shape(), op->type_annotation, op->span);
+  Var VisitVarDef(const Var& var) final {
+    if (var.as<DataflowVarNode>()){
+        Var new_var = Var(var->vid, var->shape(), var->checked_type_, var->span);
+        this->var_remap_[var] = new_var;
+        return new_var;
+      }
+    return var;
   }
 
   BindingBlock VisitDataflowBlock(const DataflowBlock& block) final {

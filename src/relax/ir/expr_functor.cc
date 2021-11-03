@@ -188,7 +188,7 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
   bool all_fields_unchanged = true;
   for (Expr field : op->fields) {
-    Expr new_field = this->Mutate(field);
+    Expr new_field = this->VisitExpr(field);
     fields.push_back(new_field);
     all_fields_unchanged &= new_field.same_as(field);
   }
@@ -200,24 +200,24 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   }
 }
 
+// Visit the use site of a defined Var
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  if (op->type_annotation.defined()) {
-    Type type = this->VisitType(op->type_annotation.value());
-    if (!op->type_annotation.same_as(type)) {
-      return Var(op->vid, Downcast<Expr>(op->shape()), type, op->span);
-    }
+  auto it = var_remap_.find(GetRef<Var>(op));
+  if (it != var_remap_.end()) {
+    return it->second;
   }
+
   // default case return self.
   return GetRef<Expr>(op);
 }
 
+// Visit the use site of a defined DataflowVar
 Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
-  if (op->type_annotation.defined()) {
-    Type type = this->VisitType(op->type_annotation.value());
-    if (!op->type_annotation.same_as(type)) {
-      return DataflowVar(op->vid, Downcast<Expr>(op->shape()), type, op->span);
-    }
+  auto it = var_remap_.find(GetRef<Var>(op));
+  if (it != var_remap_.end()) {
+    return it->second;
   }
+
   // default case return self.
   return GetRef<Expr>(op);
 }
@@ -226,13 +226,13 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   tvm::Array<Var> params;
   bool all_params_unchanged = true;
   for (Var param : op->params) {
-    Var new_param = Downcast<Var>(this->Mutate(param));
+    Var new_param = this->VisitVarDef(param);
     params.push_back(new_param);
     all_params_unchanged &= param.same_as(new_param);
   }
 
   Type ret_type = this->VisitType(op->ret_type);
-  Expr body = this->MutateWithPrologue(op->body);
+  Expr body = this->VisitWithNewScope(op->body);
 
   if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body)) {
     return GetRef<Expr>(op);
@@ -242,7 +242,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
-  Expr new_op = this->Mutate(call_node->op);
+  Expr new_op = this->VisitExpr(call_node->op);
   bool unchanged = call_node->op.same_as(new_op);
 
   tvm::Array<Type> ty_args;
@@ -254,7 +254,7 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
 
   tvm::Array<Expr> call_args;
   for (Expr arg : call_node->args) {
-    Expr new_arg = this->Mutate(arg);
+    Expr new_arg = this->VisitExpr(arg);
     call_args.push_back(new_arg);
     unchanged &= new_arg.same_as(arg);
   }
@@ -267,9 +267,9 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
 }
 
 Expr ExprMutator::VisitExpr_(const IfNode* op) {
-  Expr guard = this->Mutate(op->cond);
-  Expr true_b = this->MutateWithPrologue(op->true_branch);
-  Expr false_b = this->MutateWithPrologue(op->false_branch);
+  Expr guard = this->VisitExpr(op->cond);
+  Expr true_b = this->VisitWithNewScope(op->true_branch);
+  Expr false_b = this->VisitWithNewScope(op->false_branch);
   if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
       op->false_branch.same_as(false_b)) {
     return GetRef<Expr>(op);
@@ -281,7 +281,7 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
 Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
-  auto t = this->Mutate(get_item->tuple);
+  auto t = this->VisitExpr(get_item->tuple);
   if (get_item->tuple.same_as(t)) {
     return GetRef<Expr>(get_item);
   } else {
@@ -305,7 +305,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   }
 
   builder_->BeginBindingBlock();
-  Expr body = this->Mutate(op->body);
+  Expr body = this->VisitExpr(op->body);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
     blocks.push_back(prologue);
@@ -332,7 +332,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 }
 
 void ExprMutator::VisitVarBinding(const VarBinding& binding) {
-  Expr new_value = this->Mutate(binding->value);
+  Expr new_value = this->VisitExpr(binding->value);
 
   // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
   //                in this method...
@@ -350,10 +350,12 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   //   new_var->checked_type_ = new_value->checked_type_;
   // }
 
-  Var new_var = Downcast<Var>(this->Mutate(binding->var));
+  Var new_var = this->VisitVarDef(binding->var);
   if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
       !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
     if (new_value->shape_.defined()) {
+      // FIXME(@yuchen, @altanh): note copyonwrite polymorphism, should be ok when we use enum 
+      // to distinguish DataflowVar and Var
       new_var.CopyOnWrite()->shape_ = new_value->shape_;
     }
     // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent
@@ -361,8 +363,8 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
     if (new_value->checked_type_.defined()) {
       new_var.CopyOnWrite()->checked_type_ = new_value->checked_type_;
     }
-
-    expr_memo_.Set(binding->var, new_var);
+    
+    this->var_remap_[binding->var] = new_var;
   }
 
   if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
@@ -373,11 +375,13 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
 }
 
 void ExprMutator::VisitMatchShape(const MatchShape& binding) {
-  Expr new_value = this->Mutate(binding->value);
-  Expr new_pattern = this->Mutate(ShapeExpr(binding->pattern));
-  Var new_var = binding->var.defined() ? Downcast<Var>(this->Mutate(binding->var)) : binding->var;
+  Expr new_value = this->VisitExpr(binding->value);
+  Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
+
+  Var new_var = binding->var.defined() ? this->VisitVarDef(binding->var) : binding->var;
   // TODO(@altanh, @yuchen): shape and type inference here too...
   // TODO: when value's shape/type changed, create new var
+  // TODO: group the can prove shape/type logic and replace var into a function
   builder_->EmitMatchShape(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
@@ -402,20 +406,30 @@ BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
   return builder_->EndBlock();
 }
 
-Expr ExprMutator::VisitExpr(const Expr& expr) {
-  Optional<Expr> maybe_post = expr_memo_.Get(expr);
-  if (maybe_post) {
-    return maybe_post.value();
+Var ExprMutator::VisitVarDef(const Var& var) {
+  if (var->type_annotation.defined()) {
+    Type type = this->VisitType(var->type_annotation.value());
+    if (!var->type_annotation.same_as(type)) {
+      Var new_var;
+      if (var.as<DataflowVarNode>()) {
+        new_var = DataflowVar(var->vid, var->shape(), type, var->span);
+      } else {
+        new_var = Var(var->vid, var->shape(), type, var->span);
+      }
+      this->var_remap_[var] = new_var;
+      return new_var;
+    }
   }
-
-  Expr normalized = builder_->Normalize(ExprFunctor::VisitExpr(expr));
-  expr_memo_.Set(expr, normalized);
-  return normalized;
+  return var;
 }
 
-Expr ExprMutator::MutateWithPrologue(const Expr& expr) {
+Expr ExprMutator::VisitExpr(const Expr& expr) {
+  return builder_->Normalize(ExprFunctor::VisitExpr(expr));
+}
+
+Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
   builder_->BeginBindingBlock();
-  Expr ret = this->Mutate(expr);
+  Expr ret = this->VisitExpr(expr);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
     ret = SeqExpr({prologue}, ret);
@@ -423,7 +437,7 @@ Expr ExprMutator::MutateWithPrologue(const Expr& expr) {
   return ret;
 }
 
-Expr ExprMutator::LookupVar(Var var) {
+Expr ExprMutator::LookupVar(const Var& var) {
   return builder_->LookupVar(var);
 }
 

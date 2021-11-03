@@ -43,7 +43,7 @@ namespace relax {
 
 class EwiseFMARewriter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) override {
-    Expr expr = MutatePostOrder(call);
+    Expr expr = VisitPostOrder(call);
     call = expr.as<CallNode>();
 
     static const Op& add_op = Op::Get("relax.add");
@@ -66,7 +66,7 @@ class EwiseFMARewriter : public ExprMutator {
 };
 
 Expr FMARewrite(const Expr& e) {
-  return EwiseFMARewriter().Mutate(e);
+  return EwiseFMARewriter().VisitExpr(e);
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.fma_rewrite")

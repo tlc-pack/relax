@@ -39,7 +39,7 @@ class ToANFMutator : public ExprMutator {
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
-        func = this->Mutate(p.second);
+        func = this->VisitExpr(p.second);
       }
       ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }

@@ -179,14 +179,9 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
   ExprMutator() {
     name_table_ = std::make_shared<NameTable>();
+    // TODO (@yuchen, @altanh): should block builder expose name_table_ instead?
     builder_ = BlockBuilder(name_table_);
   }
-
-  /*!
-   * \brief Mutate is alias for VisitExpr
-   * \return expr.
-   */
-  Expr Mutate(const Expr& expr) { return this->VisitExpr(expr); }
 
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
@@ -215,6 +210,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual void VisitBinding(const Binding& binding);
   virtual void VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
+  virtual Var VisitVarDef(const Var& var);
 
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
@@ -222,21 +218,21 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  protected:
   class ExprNormalizer;
 
-  Expr MutateWithPrologue(const Expr& expr);
+  Expr VisitWithNewScope(const Expr& expr);
 
   /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound
    *  value. Otherwise, returns the rewritten expression for the variable.
    */
-  Expr LookupVar(Var var);
+  Expr LookupVar(const Var& var);
 
   template <typename T>
-  Expr MutatePostOrder(const T* op) {
+  Expr VisitPostOrder(const T* op) {
     return builder_->Normalize(ExprMutator::VisitExpr_(op));
   }
 
   std::shared_ptr<NameTable> name_table_;
   BlockBuilder builder_;
-  ExprMemo expr_memo_;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
 // TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks

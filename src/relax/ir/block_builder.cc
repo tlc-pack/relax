@@ -36,6 +36,7 @@ namespace relax {
 
 class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
  public:
+  // TODO(@yuchen, @altanh): name_table_ unused
   ExprNormalizer(BlockBuilderNode* builder, std::shared_ptr<NameTable> name_table)
       : builder_(builder), name_table_(name_table) {}
 
@@ -209,6 +210,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
  private:
   static bool IsLeaf(const Expr& expr) {
     // NB: tuples are treated as leaf nodes for ergonomics
+    // TODO(@altanh, @yuchen): remove TupleNode from leaf
     return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<relay::ConstantNode>() ||
            expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
            expr.as<TupleNode>();

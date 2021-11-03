@@ -48,7 +48,7 @@ class CallDPSMutator : public ExprMutator {
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
-        func = this->Mutate(p.second);
+        func = this->VisitExpr(p.second);
       }
       ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
@@ -57,7 +57,7 @@ class CallDPSMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
-    Expr expr = MutatePostOrder(call);
+    Expr expr = VisitPostOrder(call);
     call = expr.as<CallNode>();
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
