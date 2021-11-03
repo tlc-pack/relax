@@ -1862,13 +1862,13 @@ String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_met
   return doc.str() + "\n";
 }
 
-Doc AsTVMScriptDoc(const ObjectRef& mod, const String& tir_prefix,
-                   bool show_meta, const PrimFunc& func) {
+Doc AsTVMScriptDoc(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
+                   const PrimFunc& func) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
   TVMScriptPrinter printer = TVMScriptPrinter(tir_prefix, show_meta);
   Doc mod_doc = printer.Print(mod);
   // TODO(altan, tqchen): change to the first argument only?
-  Doc doc = Doc::Text("@tvm.script.tir") << Doc::NewLine();
+  Doc doc;
   doc << (func.defined() ? printer.Print(func) : mod_doc) << Doc::NewLine();
   return doc;
 }
