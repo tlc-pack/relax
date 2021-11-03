@@ -18,20 +18,25 @@
 from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
-from tvm import relax as rx
+
+from tvm import relax
 from tvm import tir, relay
 from tvm.ir import structural_equal, assert_structural_equal
 
+import tvm.script
+from tvm.script import tir as T, relax as R
+
 
 def check_roundtrip(f_pre):
-    f_post = rx.parser.fromtext(rx.parser.astext(f_pre))
-    if isinstance(f_pre, tvm.IRModule):
+    print(R.parser.astext(f_pre))
+    f_post = R.parser.from_source(R.parser.astext(f_pre))
+    if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         f_post = f_post()
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
 def test_annotations():
-    @rx.script
+    @R.function
     def foo(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
         z: Tensor[(32, k), "float32"] = nn.matmul(x, y, units=None)
         w: Tensor[_, _] = multiply(z, z)
@@ -43,7 +48,7 @@ def test_annotations():
 
 
 def test_match_shape():
-    @rx.script
+    @R.function
     def foo(x: Tensor[_, "float32"]):
         relax.match_shape(x.shape, (n, m))
         y: Tensor[(n, m), "float32"] = add(x, x)
@@ -53,7 +58,7 @@ def test_match_shape():
 
 
 def test_if():
-    @rx.script
+    @R.function
     def foo(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
         if cond:
             w = add(x, x)
@@ -67,7 +72,7 @@ def test_if():
 
 
 def test_tuple():
-    @rx.script
+    @R.function
     def foo(x: Tensor[_, _], y: Tensor[(32,), "float32"]):
         t: Tuple[Tensor[_, _], Tensor[(32,), "float32"]] = (x, y)
         return t
@@ -76,8 +81,9 @@ def test_tuple():
 
 
 def test_local_func():
-    @rx.script
+    @R.function
     def foo(x: Tensor[_, _]):
+        @R.function
         def bar(y: Tensor[_, _]):
             return y
 
@@ -88,7 +94,7 @@ def test_local_func():
 
 
 def test_dataflow():
-    @rx.script
+    @R.function
     def foo(x: Tensor[_, _]):
         with relax.dataflow():
             # TODO: parse this
@@ -104,7 +110,7 @@ def test_dataflow():
 
 
 def test_dataflow_match_shape():
-    @rx.script
+    @R.function
     def foo(x: Tensor[_, _]):
         with relax.dataflow():
             x2: Tensor[(n, m), _] = relax.match_shape(x, (n, m))
@@ -121,18 +127,20 @@ def test_dataflow_match_shape():
 
 
 def test_inline_tir():
-    @rx.script
+    @R.function
     def foo(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
-        @tvm.script.tir
-        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-            A = tir.match_buffer(a, [128, 128])
-            B = tir.match_buffer(b, [128, 128])
-            C = tir.match_buffer(c, [128, 128])
+        @T.prim_func
+        def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, (128, 128))
+            B = T.match_buffer(b, (128, 128))
+            C = T.match_buffer(c, (128, 128))
 
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-                with tir.init():
-                    C[vi, vj] = tir.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+            for i, j, k in T.grid(128, 128, 128):
+                with T.block():
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
 
         z = relax.call_dps((B, 128), my_matmul, (x, y))
         return z
@@ -141,7 +149,7 @@ def test_inline_tir():
 
 
 def test_call_packed():
-    @rx.script
+    @R.function
     def foo(x: Tensor[(3, 3), "float32"]):
         # test that we can intro dim vars
         z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", x, x, mp=False)
@@ -154,7 +162,7 @@ def test_call_packed():
 
 
 def test_primexpr_arithmetic():
-    @rx.script
+    @R.function
     def foo(x: Tensor[(n, m), "float32"]):
         z: Tensor[(n * m,), "float32"] = relax.call_packed("my_flatten", (x,))
         sh: Shape = (n + m, n // m)
@@ -164,7 +172,7 @@ def test_primexpr_arithmetic():
 
 
 def test_call_dps_extern():
-    @rx.script
+    @R.function
     def foo(x: Tensor):
         z = relax.call_dps((10,), "my_extern", (x,))
         return z
@@ -173,28 +181,35 @@ def test_call_dps_extern():
 
 
 def test_class_irmodule():
-    @rx.script
-    class MyModule:
-        @tvm.script.tir
-        def my_matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-            A = tir.match_buffer(a, [128, 128])
-            B = tir.match_buffer(b, [128, 128])
-            C = tir.match_buffer(c, [128, 128])
+    # FIXME(@altanh): see comment in test_parser.py
+    src = """@tvm.script.ir_module
+class MyModule:
+    @T.prim_func
+    def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (128, 128))
+        B = T.match_buffer(b, (128, 128))
+        C = T.match_buffer(c, (128, 128))
 
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-                with tir.init():
-                    C[vi, vj] = tir.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block():
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        def f(x: Tensor[(n, n), _]) -> Tensor:
-            return g(x)
+    @R.function
+    def f(x: Tensor[(n, n), _]) -> Tensor:
+        return g(x)
 
-        def g(y: Tensor[(n, n), _]) -> Tensor:
-            return relax.call_dps((n, n), my_matmul, (y, y))
+    @R.function
+    def g(y: Tensor[(n, n), _]) -> Tensor:
+        return relax.call_dps((n, n), my_matmul, (y, y))
 
-        def h(x, y, z):
-            _ = my_matmul(x, y, z)
-            return z
+    @R.function
+    def h(x, y, z):
+        _ = my_matmul(x, y, z)
+        return z
+"""
 
-    mod = MyModule()
-    check_roundtrip(mod)
+    my_module = tvm.script.relax.parser.from_source(src)
+    check_roundtrip(my_module)
