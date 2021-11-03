@@ -21,7 +21,6 @@ from . import ty
 from . import vm
 from . import block_builder
 from . import op
-from . import parser
 from . import analysis
 from . import transform
 
@@ -68,6 +67,3 @@ from .op.op_attrs import AllocStorageAttrs, AllocTensorAttrs
 
 # IRBuilder
 BlockBuilder = block_builder.BlockBuilder
-
-# Parser
-from .parser import script
