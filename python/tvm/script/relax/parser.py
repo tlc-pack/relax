@@ -18,26 +18,26 @@
 from __future__ import annotations
 
 import inspect
-from typing import TypeVar, Generic, Union, Dict, List, Tuple, Optional, Callable
-from io import StringIO
+from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 from enum import Enum
 
 import tvm
 import tvm.script
 from tvm.ir.module import IRModule
-from tvm.relay.base import Id
 from tvm.ir import diagnostics
 from tvm import tir
 
-import numpy as np
-
 import synr
 from synr import ast, Transformer
-from synr.diagnostic_context import DiagnosticContext
-from tvm.relay.op.strategy.generic import conv1d_strategy
 
+import tvm.relax as relax
 import tvm.relay as relay
-import tvm.relax as rx
+
+import tvm.script.relax as relax_namespace
+import tvm.script.tir as tir_namespace
+
+from ..diagnostics import TVMDiagnosticCtx as _TIRDiagnosticCtx
+from ..parser import TVMScriptParser as _TIRScriptParser
 
 
 def _is_registered(op_name: str, op_set=None) -> bool:
@@ -59,27 +59,6 @@ def _is_registered(op_name: str, op_set=None) -> bool:
     if op_set is None:
         op_set = tvm.ir._ffi_api.ListOpNames()
     return op_name in op_set
-
-
-def _tir_from_synr(
-    synr_ast: ast.Node, diag_ctx: tvm.script.diagnostics.TVMDiagnosticCtx
-) -> tir.PrimFunc:
-    """Parses the given synr AST using the TVMScript parser to a PrimFunc.
-
-    Parameters
-    ----------
-    synr_ast : ast.Node
-        The synr AST to be parsed.
-    diag_ctx : tvm.script.diagnostics.TVMDiagnosticCtx
-        The diagnostic context for TVMScript parser error reporting.
-
-    Returns
-    -------
-    tir.PrimFunc
-        The parsed TIR PrimFunc.
-    """
-    parser = tvm.script.parser.TVMScriptParser(synr_ast.span.start_line)
-    return parser.do_transform(synr_ast, diag_ctx)
 
 
 # NOTE: call_dps is an actual registered operator
@@ -120,9 +99,11 @@ PRIMEXPR_ARITHMETIC_OP_MAP = {
 
 
 class RelaxTransformer(Transformer):
-    def __init__(self):
+    def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
-        self.module = tvm.IRModule()
+        self.module = ir_mod
+        self.relax_prefix = relax_prefix
+        self.tir_prefix = tir_prefix
         self._scopes = [{}]  # str -> Var
         self._registered_ops = set(tvm.ir._ffi_api.ListOpNames())  # cached
 
@@ -139,7 +120,7 @@ class RelaxTransformer(Transformer):
         tvm.ir.Span
             The corresponding TVM span
         """
-        return self._diagnostic_context.to_tvm_span(self._diagnostic_context.source_name, span)
+        return self._diagnostic_context.to_tvm_span(span)
 
     def report_error(self, msg: str, span: ast.Span):
         """Helper method for emitting and immediately rendering an error.
@@ -151,7 +132,7 @@ class RelaxTransformer(Transformer):
         span : ast.Span
             The span to report the error at
         """
-        self._diagnostic_context.emit("error", msg, span)
+        self._diagnostic_context.emit("error", msg, self.to_tvm_span(span))
         self._diagnostic_context.render()
 
     def new_scope(self):
@@ -182,7 +163,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        Dict[str, Union[rx.Var, tir.Var]]
+        Dict[str, Union[relax.Var, tir.Var]]
             The scope of all currently defined variables (Relax and TIR).
         """
         return self._scopes[-1]
@@ -190,40 +171,40 @@ class RelaxTransformer(Transformer):
     def decl_var(
         self,
         name: str,
-        type_annotation: Optional[rx.Type],
-        shape: Optional[rx.Expr],
+        type_annotation: Optional[relax.Type],
+        shape: Optional[relax.Expr],
         span: ast.Span,
         is_dataflow: bool = False,
-    ) -> rx.Var:
+    ) -> relax.Var:
         """Introduces a variable with the given name and annotations to the current scope.
 
         Parameters
         ----------
         name : str
             The name of the variable
-        type_annotation : Optional[rx.Type]
+        type_annotation : Optional[relax.Type]
             The type annotation
-        shape : Optional[rx.Expr]
+        shape : Optional[relax.Expr]
             The shape annotation
         span : ast.Span
             The span where the variable is declared
 
         Returns
         -------
-        Union[rx.Var, rx.DataflowVar]
+        Union[relax.Var, relax.DataflowVar]
             The declared variable
         """
         if name in self.scope:
             # TODO(@altanh): maybe emit an error at the declaration site and report it together
             self.report_error("variable has already been declared in the current scope", span)
         if is_dataflow:
-            var = rx.DataflowVar(name, shape, type_annotation, self.to_tvm_span(span))
+            var = relax.DataflowVar(name, shape, type_annotation, self.to_tvm_span(span))
         else:
-            var = rx.Var(name, shape, type_annotation, self.to_tvm_span(span))
+            var = relax.Var(name, shape, type_annotation, self.to_tvm_span(span))
         self.scope[name] = var
         return var
 
-    def transform_type(self, ty: ast.Type, bind_free_vars: bool) -> Tuple[rx.Type, rx.Expr]:
+    def transform_type(self, ty: ast.Type, bind_free_vars: bool) -> Tuple[relax.Type, relax.Expr]:
         """Transforms the given synr type annotation to a Relax type and shape expression.
 
         Parameters
@@ -235,7 +216,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        Tuple[rx.Type, rx.Expr]:
+        Tuple[relax.Type, relax.Expr]:
             The corresponding Relax type and shape expression
         """
         if ty is None:
@@ -246,11 +227,11 @@ class RelaxTransformer(Transformer):
         # simple annotation with no type arguments
         if isinstance(ty, ast.TypeVar):
             if ty.id.name == "Tensor":
-                return (rx.DynTensorType(rank=-1, dtype=None, span=span), None)
+                return (relax.DynTensorType(rank=-1, dtype=None, span=span), None)
             elif ty.id.name == "Shape":
-                return (rx.ShapeType(span), None)
+                return (relax.ShapeType(span), None)
             elif ty.id.name == "Dim":
-                return (rx.DimType(span), None)
+                return (relax.DimType(span), None)
             else:
                 self.report_error("unknown type in annotation", span)
 
@@ -291,7 +272,7 @@ class RelaxTransformer(Transformer):
                     if len(shape_annotation.values) > 0 and is_unmatched:
                         rank = len(shape_annotation.values)
                     else:
-                        shape = rx.ShapeExpr(
+                        shape = relax.ShapeExpr(
                             self.parse_shape(shape_annotation, bind_free_vars),
                             span=self.to_tvm_span(shape_annotation.span),
                         )
@@ -313,7 +294,7 @@ class RelaxTransformer(Transformer):
                         dtype_annotation.span,
                     )
 
-                return (rx.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
+                return (relax.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
             elif ty.id.name == "Tuple":
                 field_types = []
                 field_shapes = []
@@ -374,7 +355,7 @@ class RelaxTransformer(Transformer):
                     )
                 return var
             elif bind_free_vars:
-                # introduce TIR variable to scope, e.g. for func params or rx.call_packed
+                # introduce TIR variable to scope, e.g. for func params or relax.call_packed
                 var = tir.Var(var_name, "int64", self.to_tvm_span(expr.span))
                 self.scope[var_name] = var
                 return var
@@ -444,11 +425,43 @@ class RelaxTransformer(Transformer):
             attr = attr.object
         if not isinstance(attr, ast.Var):
             self.report_error("unsupported attribute access", expr.span)
-        strs.append(attr.id.name)
+        if attr.id.name in self.tir_prefix:
+            strs.append("tir")
+        elif attr.id.name in self.relax_prefix:
+            strs.append("relax")
+        else:
+            strs.append(attr.id.name)
         result = ".".join(reversed(strs))
         return result
 
-    def transform_function(self, func: ast.Function, is_global: bool = False) -> rx.Function:
+    def _get_lhs(self, stmt: ast.Assign) -> ast.Var:
+        if len(stmt.lhs) > 1:
+            self.report_error("currently we only support single variable assignments", stmt.span)
+        return stmt.lhs[0]
+
+    def _tir_from_synr(self, synr_ast: ast.Node) -> tir.PrimFunc:
+        """Parses the given synr AST using the TVMScript parser to a PrimFunc.
+
+        Parameters
+        ----------
+        synr_ast : ast.Node
+            The synr AST to be parsed.
+        diag_ctx : _TIRDiagnosticCtx
+            The diagnostic context for TVMScript parser error reporting.
+
+        Returns
+        -------
+        tir.PrimFunc
+            The parsed TIR PrimFunc.
+        """
+        # this behavior is assumed by the TIR parser
+        self._diagnostic_context._render_on_error = True
+        parser = _TIRScriptParser(synr_ast.span.start_line, self.tir_prefix)
+        prim_func = parser.do_transform(synr_ast, self._diagnostic_context)
+        self._diagnostic_context._render_on_error = False
+        return prim_func
+
+    def transform_function(self, func: ast.Function, is_global: bool = False) -> relax.Function:
         """Transforms the given synr Function to a Relax Function.
 
         Parameters
@@ -460,14 +473,21 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.Function
+        relax.Function
             The parsed Relax Function
         """
-        if (
-            len(func.decorators) == 1
-            and self._parse_attrs_to_str(func.decorators[0]) == "tvm.script.tir"
-        ):
-            return _tir_from_synr(func, self._diagnostic_context)
+        if len(func.decorators) != 1:
+            self.report_error(
+                "functions must be decorated as a Relax Function or TIR PrimFunc", func.span
+            )
+
+        if self._parse_attrs_to_str(func.decorators[0]) == "tir.prim_func":
+            return self._tir_from_synr(func)
+
+        if self._parse_attrs_to_str(func.decorators[0]) != "relax.function":
+            self.report_error(
+                "functions must be decorated as a Relax Function or TIR PrimFunc", func.span
+            )
 
         with self.new_scope():
             params = []
@@ -478,8 +498,8 @@ class RelaxTransformer(Transformer):
             new_body = self.transform_block(func.body)
             ret_type, _ = self.transform_type(func.ret_type, bind_free_vars=False)
 
-        func_name = rx.GlobalVar(func.name) if is_global else None
-        return rx.Function(
+        func_name = relax.GlobalVar(func.name) if is_global else None
+        return relax.Function(
             params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
         )
 
@@ -503,7 +523,7 @@ class RelaxTransformer(Transformer):
             call_op = self.transform_expr(stmt.rhs.func_name)
         return call_op == SpecialOp.MATCH_SHAPE
 
-    def parse_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> rx.Binding:
+    def parse_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> relax.Binding:
         """Parses the input synr statement to the corresponding Relax binding.
 
         Parameters
@@ -515,7 +535,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.Binding
+        relax.Binding
             The parsed Relax binding
         """
         assert isinstance(stmt, (ast.Assign, ast.UnassignedCall))
@@ -525,7 +545,7 @@ class RelaxTransformer(Transformer):
             assert isinstance(stmt, ast.Assign)
             return self.parse_var_binding(stmt, is_dataflow=is_dataflow)
 
-    def parse_shape_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> rx.MatchShape:
+    def parse_shape_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> relax.MatchShape:
         """Parses the input synr statement to a Relax shape binding.
 
         Parameters
@@ -537,7 +557,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.MatchShape
+        relax.MatchShape
             The parsed Relax shape binding
         """
         var: ast.Var = None
@@ -549,12 +569,10 @@ class RelaxTransformer(Transformer):
         else:
             # case where the statement also binds a Relax variable to the value being matched
             assert isinstance(stmt, ast.Assign)
-            if not isinstance(stmt.lhs, ast.Var):
-                self.report_error(
-                    "the left hand side of a binding must be a variable", stmt.lhs.span
-                )
-            var = stmt.lhs
+            var = self._get_lhs(stmt)
             call = stmt.rhs
+            if not isinstance(var, ast.Var):
+                self.report_error("the left hand side of a binding must be a variable", stmt.span)
 
         op = self.transform_expr(call.func_name)
 
@@ -574,9 +592,9 @@ class RelaxTransformer(Transformer):
             ty, shape = self.transform_type(stmt.ty, bind_free_vars=False)
             var = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
 
-        return rx.MatchShape(value, pattern, var, self.to_tvm_span(stmt.span))
+        return relax.MatchShape(value, pattern, var, self.to_tvm_span(stmt.span))
 
-    def parse_var_binding(self, stmt: ast.Assign, is_dataflow=False) -> rx.VarBinding:
+    def parse_var_binding(self, stmt: ast.Assign, is_dataflow=False) -> relax.VarBinding:
         """Parses the input synr assignment to a Relax variable binding.
 
         Parameters
@@ -588,23 +606,19 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.VarBinding
+        relax.VarBinding
             The parsed Relax variable binding
         """
-        if not isinstance(stmt.lhs, ast.Var):
-            self.report_error(
-                "the left hand side of a binding must be a variable",
-                stmt.lhs.span,
-            )
+        var = self._get_lhs(stmt)
         rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
-        if isinstance(rhs, relay.Call) and isinstance(rhs.op, rx.ExternFunc):
+        if isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc):
             bind_free_vars = True
         else:
             bind_free_vars = False
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
-        lhs = self.decl_var(stmt.lhs.id.name, ty, shape, stmt.lhs.span, is_dataflow=is_dataflow)
-        return rx.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
+        lhs = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
+        return relax.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
 
     # Stmts:
     # - Assert: probably unsupported for now
@@ -613,8 +627,10 @@ class RelaxTransformer(Transformer):
     # - If: IfThenElse, must check no empty false branch
     # - Return: just the returned expression, must terminate blocks? (special case if-else)
     # - UnassignedCall: match_shape
-    # - With: rx.dataflow
-    def transform_stmt(self, stmt: ast.Stmt) -> Union[rx.Expr, rx.Binding, rx.DataflowBlock]:
+    # - With: relax.dataflow
+    def transform_stmt(
+        self, stmt: ast.Stmt
+    ) -> Union[relax.Expr, relax.Binding, relax.DataflowBlock]:
         """Transforms the given synr statement to the corresponding Relax node.
 
         Parameters
@@ -624,7 +640,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        Union[rx.Expr, rx.Binding, rx.DataflowBlock]
+        Union[relax.Expr, relax.Binding, relax.DataflowBlock]
             The parsed Relax node
         """
         if isinstance(stmt, ast.Assign):
@@ -639,26 +655,28 @@ class RelaxTransformer(Transformer):
             false_assign = stmt.false.stmts[-1]
 
             # check last statement in each branch lines up
-            if not isinstance(true_assign, ast.Assign) or not isinstance(true_assign.lhs, ast.Var):
+            if not isinstance(true_assign, ast.Assign) or not isinstance(
+                self._get_lhs(true_assign), ast.Var
+            ):
                 self.report_error(
                     "each branch of an if-else statement must end in a variable assignment",
                     true_assign.span,
                 )
             if not isinstance(false_assign, ast.Assign) or not isinstance(
-                false_assign.lhs, ast.Var
+                self._get_lhs(false_assign), ast.Var
             ):
                 self.report_error(
                     "each branch of an if-else statement must end in a variable assignment",
                     false_assign.span,
                 )
             union_span = ast.Span.union([true_assign.span, false_assign.span])
-            if true_assign.lhs.id.name != false_assign.lhs.id.name:
+            if self._get_lhs(true_assign).id.name != self._get_lhs(false_assign).id.name:
                 self.report_error(
                     "the final assignment of both branches must have the same variable",
                     union_span,
                 )
 
-            var_name = true_assign.lhs.id.name
+            var_name = self._get_lhs(true_assign).id.name
 
             # rewrite branches to have a return statement so the blocks properly parse to SeqExprs
             true_block = synr.ast.Block(
@@ -682,7 +700,7 @@ class RelaxTransformer(Transformer):
             ite_expr = relay.If(cond, true_branch, false_branch, self.to_tvm_span(stmt.span))
             # TODO(@altanh): type and shape of return var
             var = self.decl_var(var_name, None, None, union_span)
-            return rx.VarBinding(var, ite_expr, self.to_tvm_span(union_span))
+            return relax.VarBinding(var, ite_expr, self.to_tvm_span(union_span))
 
         elif isinstance(stmt, ast.Return):
             return self.transform_expr(stmt.value)
@@ -720,7 +738,7 @@ class RelaxTransformer(Transformer):
         elif isinstance(stmt, ast.Function):
             func = self.transform_function(stmt)
             func_var = self.decl_var(stmt.name, None, None, stmt.span)
-            return rx.VarBinding(func_var, func, self.to_tvm_span(stmt.span))
+            return relax.VarBinding(func_var, func, self.to_tvm_span(stmt.span))
 
         else:
             self.report_error(
@@ -728,7 +746,7 @@ class RelaxTransformer(Transformer):
                 stmt.span,
             )
 
-    def parse_dataflow(self, block: ast.Block) -> rx.DataflowBlock:
+    def parse_dataflow(self, block: ast.Block) -> relax.DataflowBlock:
         """Parses the input synr block to a Relax dataflow block.
 
         Parameters
@@ -738,7 +756,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.DataflowBlock
+        relax.DataflowBlock
             The parsed Relax dataflow block
         """
         assert len(block.stmts) > 0, "should never have an empty dataflow block"
@@ -776,7 +794,7 @@ class RelaxTransformer(Transformer):
                 is_match_shape = self.is_match_shape(binding_stmt)
                 is_dataflow = (
                     isinstance(binding_stmt, ast.Assign)
-                    and binding_stmt.lhs.id.name not in output_var_names
+                    and self._get_lhs(binding_stmt).id.name not in output_var_names
                 )
                 binding = self.parse_binding(binding_stmt, is_dataflow=is_dataflow)
                 bindings.append(binding)
@@ -806,9 +824,9 @@ class RelaxTransformer(Transformer):
             if v not in self.scope:
                 self.scope[v_name] = v
 
-        return rx.DataflowBlock(bindings, self.to_tvm_span(block.span))
+        return relax.DataflowBlock(bindings, self.to_tvm_span(block.span))
 
-    def parse_attr(self, expr: ast.Attr) -> rx.Expr:
+    def parse_attr(self, expr: ast.Attr) -> relax.Expr:
         """Parses the given synr Attr node to a Relax expression.
 
         Parameters
@@ -818,14 +836,13 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.Expr
+        relax.Expr
             The parsed expression.
         """
         if expr.field.name == "shape":
             obj = self.transform_expr(expr.object)
-            attrs = tvm.ir.attrs.make_node("relay.attrs.ShapeOfAttrs", dtype="int64")
             return relay.Call(
-                relay.op.get("shape_of"), [obj], attrs=attrs, span=self.to_tvm_span(expr.span)
+                relay.op.get("relax.shape_of"), [obj], span=self.to_tvm_span(expr.span)
             )
         else:
             # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_dps)
@@ -837,7 +854,7 @@ class RelaxTransformer(Transformer):
                 # TODO(@altanh): maybe diagnostics here in case this fails?
                 return relay.op.get(op_name)
 
-    def parse_call(self, expr: ast.Call) -> Union[tir.PrimExpr, rx.Expr]:
+    def parse_call(self, expr: ast.Call) -> Union[tir.PrimExpr, relax.Expr]:
         """Parses the given synr Call node to a Relax expression or PrimExpr.
 
         Parameters
@@ -847,7 +864,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        Union[tir.PrimExpr, rx.Expr]
+        Union[tir.PrimExpr, relax.Expr]
             The parsed expression. It will be a PrimExpr if expr is an arithmetic operation on
             PrimExprs.
         """
@@ -860,7 +877,7 @@ class RelaxTransformer(Transformer):
                     "the first argument of " + op.value + " must be the extern function name",
                     extern_func.span,
                 )
-            op = rx.ExternFunc(extern_func.value, self.to_tvm_span(extern_func.span))
+            op = relax.ExternFunc(extern_func.value, self.to_tvm_span(extern_func.span))
             args = [self.transform_expr(arg) for arg in expr.params[1:]]
 
         elif isinstance(op, ArithmeticOp):
@@ -879,7 +896,7 @@ class RelaxTransformer(Transformer):
                 )
             if op.name == "relax.call_dps" and isinstance(args[1], str):
                 # extern function call case: rewrite identifier to an ExternFunc
-                args[1] = rx.ExternFunc(args[1], self.to_tvm_span(expr.params[1].span))
+                args[1] = relax.ExternFunc(args[1], self.to_tvm_span(expr.params[1].span))
 
         elif isinstance(op, relay.Expr):
             args = [self.transform_expr(arg) for arg in expr.params]
@@ -919,7 +936,7 @@ class RelaxTransformer(Transformer):
     # - Slice: unsupported for now, could desugar to slice op
     # - Tuple
     # - Var
-    def transform_expr(self, expr: ast.Expr) -> rx.Expr:
+    def transform_expr(self, expr: ast.Expr) -> relax.Expr:
         """Transforms the input synr expression to a Relax expression.
 
         Parameters
@@ -929,7 +946,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.Expr
+        relax.Expr
             The corresponding Relax expression
         """
         if isinstance(expr, ast.Attr):
@@ -946,7 +963,7 @@ class RelaxTransformer(Transformer):
 
             # coerce to ShapeExpr when fields are all PrimExprs
             if all([isinstance(f, tir.PrimExpr) for f in fields]):
-                return rx.ShapeExpr(fields, span=self.to_tvm_span(expr.span))
+                return relax.ShapeExpr(fields, span=self.to_tvm_span(expr.span))
             return relay.Tuple(fields, span=self.to_tvm_span(expr.span))
 
         elif isinstance(expr, ast.Var):
@@ -985,7 +1002,7 @@ class RelaxTransformer(Transformer):
         else:
             self.report_error(f"unsupported expression: {expr}", expr.span)
 
-    def transform_block(self, block: ast.Block) -> rx.SeqExpr:
+    def transform_block(self, block: ast.Block) -> relax.SeqExpr:
         """Transforms the given synr block to a Relax SeqExpr (sequence of Blocks with a final
         expression).
 
@@ -996,7 +1013,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        rx.SeqExpr
+        relax.SeqExpr
             The parsed SeqExpr
         """
         # a block of statements needs to be converted to a SeqExpr of binding blocks
@@ -1004,17 +1021,17 @@ class RelaxTransformer(Transformer):
         current_block = []
         for stmt in block.stmts[:-1]:
             parsed_stmt = self.transform_stmt(stmt)
-            if isinstance(parsed_stmt, rx.DataflowBlock):
+            if isinstance(parsed_stmt, relax.DataflowBlock):
                 if current_block:
                     # FIXME(@altanh): need to manually construct span start & end
-                    blocks.append(rx.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
+                    blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
                     current_block = []
                 blocks.append(parsed_stmt)
             else:
-                assert isinstance(parsed_stmt, rx.Binding)
+                assert isinstance(parsed_stmt, relax.Binding)
                 current_block.append(parsed_stmt)
         if len(current_block) > 0:
-            blocks.append(rx.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
+            blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
 
         ret_stmt = block.stmts[-1]
         if not isinstance(ret_stmt, ast.Return):
@@ -1024,93 +1041,151 @@ class RelaxTransformer(Transformer):
             )
         ret_expr = self.transform_stmt(ret_stmt)
 
-        return rx.SeqExpr(blocks, ret_expr, self.to_tvm_span(block.span))
+        return relax.SeqExpr(blocks, ret_expr, self.to_tvm_span(block.span))
 
 
-# class TVMDiagnosticContext(synr.DiagnosticContext):
-#     def __init__(self, tvm_diag_ctx):
-#         self.tvm_diag_ctx = tvm_diag_ctx
-#         self.str_to_source_name = {}
+class RelaxDiagnosticContext(synr.DiagnosticContext):
+    def __init__(self, ir_mod):
+        self.tvm_diag_ctx = diagnostics.DiagnosticContext(ir_mod, diagnostics.get_renderer())
+        self.str_to_source_name = {}
+        self._render_on_error = False
 
-#     def add_source(self, name: str, source: str) -> None:
-#         """Add a file with source code to the context. This will be called
-#         before any call to :py:func:`emit` that contains a span in this
-#         file.
-#         """
-#         src_name = self.tvm_diag_ctx.module.source_map.add(name, source)
-#         self.str_to_source_name[name] = src_name
+    def to_tvm_span(self, ast_span: ast.Span) -> tvm.ir.Span:
+        return tvm.ir.Span(
+            self.str_to_source_name[ast_span.filename],
+            ast_span.start_line,
+            ast_span.end_line,
+            ast_span.start_column,
+            ast_span.end_column,
+        )
 
-#     def emit(self, level: str, message: str, span: tvm.ir.Span) -> None:
-#         """Called when an error has occured."""
+    def add_source(self, name: str, source: str) -> None:
+        """Add a file with source code to the context. This will be called
+        before any call to :py:func:`emit` that contains a span in this
+        file.
+        """
+        src_name = self.tvm_diag_ctx.module.source_map.add(name, source)
+        self.str_to_source_name[name] = src_name
 
-#         if level == "error":
-#             level = diagnostics.DiagnosticLevel.ERROR
-#         elif level == "bug":
-#             level = diagnostics.DiagnosticLevel.BUG
-#         elif level == "warning":
-#             level = diagnostics.DiagnosticLevel.WARNING
-#         else:
-#             level = "error"
+    def emit(self, level: str, message: str, span: tvm.ir.Span) -> None:
+        """Called when an error has occured."""
+        if isinstance(span, ast.Span):
+            span = self.to_tvm_span(span)
 
-#         assert span, "Span must not be null"
-#         assert isinstance(span, tvm.ir.Span), "Expected tvm.ir.Span, but got " + str(type(span))
+        if level == "error":
+            level = diagnostics.DiagnosticLevel.ERROR
+        elif level == "bug":
+            level = diagnostics.DiagnosticLevel.BUG
+        elif level == "warning":
+            level = diagnostics.DiagnosticLevel.WARNING
+        else:
+            level = "error"
 
-#         diag = diagnostics.Diagnostic(level, span, message)
+        assert span, "Span must not be null"
+        assert isinstance(span, tvm.ir.Span), "Expected tvm.ir.Span, but got " + str(type(span))
 
-#         self.tvm_diag_ctx.emit(diag)
+        diag = diagnostics.Diagnostic(level, span, message)
 
-#     def render(self) -> Optional[Any]:
-#         """Render out all error messages. Can either return a value or raise
-#         and execption.
-#         """
-#         self.tvm_diag_ctx.render()
+        self.tvm_diag_ctx.emit(diag)
+        if self._render_on_error:
+            self.render()
+
+    def render(self) -> Optional[Any]:
+        """Render out all error messages. Can either return a value or raise
+        and execption.
+        """
+        self.tvm_diag_ctx.render()
 
 
-def script(f) -> Union[rx.Function, Callable[[], tvm.IRModule]]:
-    """Parses the decorated Relax function or module (in Relax IR) to a Relax AST.
+# def script(f) -> Union[relax.Function, Callable[[], tvm.IRModule]]:
+#     """Parses the decorated Relax function or module (in Relax IR) to a Relax AST.
+
+#     Parameters
+#     ----------
+#     f : Union[function, class]
+#         The function or class to be parsed, written in the Relax IR.
+
+#     Returns
+#     -------
+#     Union[relax.Function, IRModule]
+#         The parsed Relax function or IRModule factory (which returns the parsed IRModule when
+#         called).
+#     """
+#     diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
+#     ast = synr.to_ast(f, diag_ctx)
+#     mod = RelaxTransformer().do_transform(ast, diag_ctx)
+#     if isinstance(mod, tvm.IRModule):
+#         return lambda: mod
+#     return mod
+
+
+def from_source(
+    input_func: Union[str, Callable],
+    relax_prefix: Optional[List[str]] = None,
+    tir_prefix: Optional[List[str]] = None,
+) -> Union[relax.Function, IRModule]:
+    """Parse function or string into a Relax Function or IRModule.
+
+    If possible, pass the TVM script in as a function so that line numbers and
+    filename will be accurate.
 
     Parameters
     ----------
-    f : Union[function, class]
-        The function or class to be parsed, written in the Relax IR.
+    input_module : Union[str, Callable]
+        The python function to be parsed.
+
+    relax_prefix : Optional[List[str]]
+        The relax prefix list. Only works for str input, default by "relax" and "R".
+
+    tir_prefix : Optional[List[str]]
+        The tir prefix list. Only works for str input, default by "tir" and "T".
 
     Returns
     -------
-    Union[rx.Function, IRModule]
-        The parsed Relax function or IRModule factory (which returns the parsed IRModule when
-        called).
+    output : Union[Function, Module]
+        The Function or Module in IR.
     """
-    diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
-    ast = synr.to_ast(f, diag_ctx)
-    mod = RelaxTransformer().do_transform(ast, diag_ctx)
-    if isinstance(mod, tvm.IRModule):
-        return lambda: mod
-    return mod
+    mod = IRModule()
+    if isinstance(input_func, str):
+        relax_prefix = ["R", "relax"] if relax_prefix is None else relax_prefix
+        tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
+        return synr.to_ast(
+            input_func, RelaxDiagnosticContext(mod), RelaxTransformer(mod, relax_prefix, tir_prefix)
+        )
+    elif inspect.isfunction(input_func):
+        env: Dict[str, Any] = input_func.__globals__
+        relax_prefix = [key for key in env.keys() if env[key] == relax_namespace]
+        tir_prefix = [key for key in env.keys() if env[key] == tir_namespace]
+        return synr.to_ast(
+            input_func, RelaxDiagnosticContext(mod), RelaxTransformer(mod, relax_prefix, tir_prefix)
+        )
+    else:
+        raise TypeError("Only function definitions are supported.")
 
 
-def fromtext(source: str, source_name: str = "from_string") -> Union[rx.Function, tvm.IRModule]:
-    """Parses the given input string (in the Relax text format) to a Relax AST.
+# def fromtext(source: str, source_name: str = "from_string") -> Union[relax.Function, tvm.IRModule]:
+#     """Parses the given input string (in the Relax text format) to a Relax AST.
 
-    Parameters
-    ----------
-    source : str
-        The input source string. It should be either a decorated Python class or function.
-    source_name : str, optional
-        A descriptive name for error reporting, by default "from_string".
+#     Parameters
+#     ----------
+#     source : str
+#         The input source string. It should be either a decorated Python class or function.
+#     source_name : str, optional
+#         A descriptive name for error reporting, by default "from_string".
 
-    Returns
-    -------
-    Union[rx.Function, IRModule]
-        The parsed Relax function or IRModule factory (which returns the parsed IRModule when
-        called).
-    """
-    # TODO(@altanh): actually use source_name somewhere?
-    diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
-    ast = synr.to_ast(source, diag_ctx)
-    mod = RelaxTransformer().do_transform(ast, diag_ctx)
-    if isinstance(mod, tvm.IRModule):
-        return lambda: mod
-    return mod
+#     Returns
+#     -------
+#     Union[relax.Function, IRModule]
+#         The parsed Relax function or IRModule factory (which returns the parsed IRModule when
+#         called).
+#     """
+#     # TODO(@altanh): actually use source_name somewhere?
+#     diag_ctx = tvm.script.diagnostics.TVMDiagnosticCtx()
+#     ast = synr.to_ast(source, diag_ctx)
+#     mod = RelaxTransformer().do_transform(ast, diag_ctx)
+#     if isinstance(mod, tvm.IRModule):
+#         return lambda: mod
+#     return mod
 
 
 def pretty_print(node):
@@ -1118,18 +1193,19 @@ def pretty_print(node):
 
     Parameters
     ----------
-    node : Union[rx.Type, rx.Expr, rx.Binding, rx.BindingBlock]
+    node : Union[relax.Type, relax.Expr, relax.Binding, relax.BindingBlock]
         The Relax IR node to print.
     """
     print(tvm.script._ffi_api.AsRelaxScript(node))
 
 
+# TODO(@altanh): printer stuff should probably live elsewhere?
 def astext(node) -> str:
     """Returns the Relax text format representation of the given Relax IR node.
 
     Parameters
     ----------
-    node : Union[rx.Type, rx.Expr, rx.Binding, rx.BindingBlock]
+    node : Union[relax.Type, relax.Expr, relax.Binding, relax.BindingBlock]
         The Relax IR node to print.
 
     Returns
