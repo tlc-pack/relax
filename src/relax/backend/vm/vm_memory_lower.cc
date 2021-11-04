@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/memory_rewrite.cc
+ * \file src/relax/backend/vm/vm_memory_lower.cc
  * \brief
  */
 #include <tvm/relax/attrs/memory.h>
@@ -25,10 +25,11 @@
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 
-#include "../../relay/transforms/pattern_utils.h"
+#include "../../../relay/transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relax {
+namespace vm {
 
 // ==================
 // MemLowerMutator
@@ -36,13 +37,12 @@ namespace relax {
 // Example:
 // x = relax.builtin.alloc_tensor((m, n))
 // -->
-// gv0 = relax.call_packed("vm.builtin.alloc_storage", (m * n), alignment, device_type,
-// relax.attrs.AllocStorageAttrs) gv1 = relax.call_packed("vm.builtin.alloc_tensor", gv0, offset,
-// (m, n), relax.attrs.AllocTensorAttrs)
+// gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n), relax.attrs.AllocStorageAttrs) 
+// gv1 = relax.call_packed("relax.vm.builtin.alloc_tensor", gv0, (m, n), relax.attrs.AllocTensorAttrs)
 
-class MemLowerMutator : public ExprMutator {
+class VMMemLowerMutator : public ExprMutator {
  public:
-  explicit MemLowerMutator(IRModule mod) { mod_ = mod; }
+  explicit VMMemLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
     IRModule ret_mod = IRModule();
@@ -87,30 +87,27 @@ class MemLowerMutator : public ExprMutator {
     call = expr.as<CallNode>();
 
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op& vm_alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
+    static const Op& vm_alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
 
+    // TODO(@yuchen): memory planning
     if (call->op == alloc_tensor_op) {
-      ShapeExpr tensor_shape = Downcast<ShapeExpr>(call->args[0]);
+      ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
+
       // TODO(@yuchen): Get the type of input x, options: add an attr to relax.builtin.alloc_tensor
-      Type tensor_type = DynTensorType(tensor_shape->values.size(), DataType::Float(32));
-      Expr storage_size = ComputeStorageSize(tensor_shape, tensor_type);
-      ShapeExpr alignment = ShapeExpr({IntImm(DataType::Int(64), 64)});
-      ShapeExpr device_type = ShapeExpr({IntImm(DataType::Int(64), 1)});
+      Type tensor_type = DynTensorType(output_shape->values.size(), DataType::Float(32));
+      Expr storage_size = ComputeStorageSize(output_shape, tensor_type);
       auto storage_attr = make_object<AllocStorageAttrs>();
       storage_attr->dtype = DataType::Float(32);
       storage_attr->device_type = 1;
 
-      Var storage =
-          builder_->Emit(Call(ExternFunc("vm.builtin.alloc_storage"),
-                              {storage_size, alignment}, Attrs(storage_attr)),
-                         "storage");
-
-      ShapeExpr offset = ShapeExpr({IntImm(DataType::Int(64), 0)});
+      Var storage = builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
       auto tensor_attr = make_object<AllocTensorAttrs>();
+      tensor_attr->offset = 0;
       tensor_attr->dtype = DataType::Float(32);
       Expr shape = call->args[0];
-      return builder_->Emit(
-          Call(ExternFunc("vm.builtin.alloc_tensor"), {storage, offset, shape}, Attrs(tensor_attr)),
-          "tensor");
+      Var tensor = builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
+      return tensor;
     }
 
     return GetRef<Expr>(call);
@@ -120,9 +117,11 @@ class MemLowerMutator : public ExprMutator {
   IRModule mod_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.memory_lower").set_body_typed([](IRModule mod) {
-  return MemLowerMutator(mod).Lower();
+TVM_REGISTER_GLOBAL("relax.transform.vm_memory_lower")
+.set_body_typed([](IRModule mod) {
+  return VMMemLowerMutator(mod).Lower();
 });
 
+}  // namespace vm
 }  // namespace relax
 }  // namespace tvm
