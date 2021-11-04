@@ -35,7 +35,7 @@ struct ShapeHeapAttrs : public tvm::AttrsNode<ShapeHeapAttrs> {
   Array<Integer> indices;
 
   TVM_DECLARE_ATTRS(ShapeHeapAttrs, "relax.attrs.ShapeHeapAttrs") {
-    TVM_ATTR_FIELD(indices).describe("The indices of the heap to decode/make the shape to/from.");
+    TVM_ATTR_FIELD(indices).describe("The indices of the heap to store/load the shape to/from.");
   }
 };
 
