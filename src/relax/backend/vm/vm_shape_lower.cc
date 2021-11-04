@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/vm_shape_lower.cc
+ * \file src/relax/backend/vm/vm_shape_lower.cc
  * \brief
  */
 #include <tvm/relax/expr_functor.h>
@@ -27,10 +27,9 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/relax/attrs/shape.h>
 
-#include "../../printer/text_printer.h"
-
 namespace tvm {
 namespace relax {
+namespace vm {
 
 class VMShapeLowerMutator : public ExprMutator {
  public:
@@ -205,5 +204,6 @@ TVM_REGISTER_GLOBAL("relax.transform.vm_shape_lower")
   return VMShapeLowerMutator(mod).Lower();
 });
 
+}  // namespace vm
 }  // namespace relax
 }  // namespace tvm

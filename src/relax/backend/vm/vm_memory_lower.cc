@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/vm_memory_lower.cc
+ * \file src/relax/backend/vm/vm_memory_lower.cc
  * \brief
  */
 #include <tvm/relax/attrs/memory.h>
@@ -25,10 +25,11 @@
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 
-#include "../../relay/transforms/pattern_utils.h"
+#include "../../../relay/transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relax {
+namespace vm {
 
 // ==================
 // MemLowerMutator
@@ -121,5 +122,6 @@ TVM_REGISTER_GLOBAL("relax.transform.vm_memory_lower")
   return VMMemLowerMutator(mod).Lower();
 });
 
+}  // namespace vm
 }  // namespace relax
 }  // namespace tvm

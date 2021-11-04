@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/relax/vm/compiler.h
+ * \file src/relax/backend/vm/codegen_vm.h
  * \brief A compiler to compile an IRModule to VM executable.
  */
 
-#ifndef TVM_RELAX_VM_COMPILER_H_
-#define TVM_RELAX_VM_COMPILER_H_
+#ifndef TVM_RELAX_BACKEND_VM_COMPILER_H_
+#define TVM_RELAX_BACKEND_VM_COMPILER_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/relax/vm/exec_builder.h>
@@ -73,4 +73,4 @@ class VMCompiler : public Object {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_COMPILER_H_
+#endif  // TVM_RELAX_BACKEND_VM_COMPILER_H_

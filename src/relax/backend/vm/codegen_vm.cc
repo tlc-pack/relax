@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/relax/vm/compiler.cc
+ * \file src/relax/backend/vm/codegen_vm.cc
  * \brief A compiler to compile an IRModule to VM executable.
  */
 
-#include "compiler.h"
+#include "codegen_vm.h"
 
 #include <tvm/target/target.h>
 #include <tvm/relax/attrs/memory.h>
