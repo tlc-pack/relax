@@ -126,12 +126,8 @@ def test_vm_constant_serialize():
     inp = tvm.nd.array(np.random.rand(4, 6).astype(np.float32))
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=1):
-        ib.emit_call(
-            "vm.builtin.alloc_storage",
-            args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype],
-            dst=ib.r(1),
-        )
-        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), shape, ib.imm(0), dtype], dst=ib.r(2))
         ib.emit_call("test.vm.identity", args=[ib.r(0), ib.r(2)])
         ib.emit_ret(ib.r(2))
     exec0 = ib.get()
@@ -220,12 +216,8 @@ def test_vm_storage():
     shape = (4, 6)
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=0):
-        ib.emit_call(
-            "vm.builtin.alloc_storage",
-            args=[ib.vm_state(), (24,), (8,), ib.imm(1), dtype],
-            dst=ib.r(1),
-        )
-        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), (0,), shape, dtype], dst=ib.r(2))
+        ib.emit_call("vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(1), dtype], dst=ib.r(1))
+        ib.emit_call("vm.builtin.alloc_tensor", args=[ib.r(1), shape, ib.imm(0), dtype], dst=ib.r(2))
         ib.emit_ret(ib.r(2))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -239,34 +231,19 @@ def test_vm_compile_stage0():
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
-        def foo(x: Tensor[(3, 4), "float32"]):
-            y = relax.call_packed(
-                "vm.builtin.alloc_storage",
-                (12,),
-                (64,),
-                device_id=0,
-                device_type=1,
-                attrs_type_key="relax.attrs.AllocStorageAttrs",
-            )
-            z = relax.call_packed(
-                "vm.builtin.alloc_tensor",
-                y,
-                (0,),
-                (3, 4),
-                attrs_type_key="relax.attrs.AllocTensorAttrs",
-            )
-            w = relax.call_packed("test.vm.identity", x, z)
-            return z
+        def foo(x: Tensor[(3, 4), "float32"], y: Tensor[(3, 4), "float32"]):
+            z = relax.call_packed("test.vm.identity", x, y)
+            return y
 
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
     ex, lib = relax.vm.build(mod, target, target_host)
-    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    inp1 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
+    inp2 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
-    res = vm["foo"](inp)
-    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
-    res = vm["foo"](inp)
+    vm["foo"](inp1, inp2)
+    np.testing.assert_allclose(inp2.asnumpy(), inp1.asnumpy())
 
 
 def test_vm_compile_stage1():
@@ -299,9 +276,9 @@ class TestVMCompileStage1:
             "vm.builtin.alloc_shape_heap", (4,)
         )
         gv0 = relax.call_packed("vm.builtin.shape_of", x)
-        gv1 = relax.call_packed("vm.builtin.decode_shape", gv0, shape_heap, (0, 1))
+        gv1 = relax.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1))
         gv2 = shape_func0(shape_heap)
-        gv3 = relax.call_packed("vm.builtin.make_shape", shape_heap, (2, 3))
+        gv3 = relax.call_packed("vm.builtin.load_shape", shape_heap, (2, 3))
         return gv3
 """
 

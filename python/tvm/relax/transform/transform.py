@@ -30,6 +30,7 @@ def fma_rewrite(expr):
     """
     return _ffi_api.fma_rewrite(expr)
 
+
 def to_non_dataflow(mod: IRModule) -> IRModule:
     """Transform all dataflow structure to non-dataflow version.
 
@@ -42,7 +43,7 @@ def to_non_dataflow(mod: IRModule) -> IRModule:
 
 
 def call_dps_rewrite(mod: IRModule) -> IRModule:
-    """Perform explicit memory allocation for call_dps.
+    """Perform explicit tensor allocation for call_dps.
 
     Parameters
     ----------
@@ -52,23 +53,23 @@ def call_dps_rewrite(mod: IRModule) -> IRModule:
     return _ffi_api.call_dps_rewrite(mod)
 
 
-def memory_lower(mod: IRModule) -> IRModule:
-    """Perform memory lowering. Lower the relax.builtin.alloc_tensor op to VM builtin functions.
+def vm_memory_lower(mod: IRModule) -> IRModule:
+    """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
     Parameters
     ----------
     mod : tvm.IRModule
         The input module.
     """
-    return _ffi_api.memory_lower(mod)
+    return _ffi_api.vm_memory_lower(mod)
 
 
-def shape_lower(mod: IRModule) -> IRModule:
-    """Lower the shape expression in relax to shape heap and TIR functions.
+def vm_shape_lower(mod: IRModule) -> IRModule:
+    """Lower the shape expression in relax to VM shape heap and TIR functions.
 
     Parameters
     ----------
     mod : tvm.IRModule
         The input module.
     """
-    return _ffi_api.shape_lower(mod)
+    return _ffi_api.vm_shape_lower(mod)
