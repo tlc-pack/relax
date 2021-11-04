@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/shape_lower.cc
+ * \file src/relax/backend/vm/vm_shape_lower.cc
  * \brief
  */
 #include <tvm/relax/expr_functor.h>
@@ -25,19 +25,19 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-
-#include "../../printer/text_printer.h"
+#include <tvm/relax/attrs/shape.h>
 
 namespace tvm {
 namespace relax {
+namespace vm {
 
-class ShapeLowerMutator : public ExprMutator {
+class VMShapeLowerMutator : public ExprMutator {
  public:
   static DataType ShapeDType() {
     return DataType::Int(64);
   };
 
-  explicit ShapeLowerMutator(IRModule mod) { mod_ = mod; }
+  explicit VMShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
     ret_mod_ = IRModule();
@@ -46,7 +46,6 @@ class ShapeLowerMutator : public ExprMutator {
       if (p.second->IsInstance<FunctionNode>()) {
         // prepare mapping and heap var
         expr2slot_ = PrepareExpr2Slot(Downcast<Function>(func));
-        // LOG(INFO) << "mapping: " << expr2slot_;
         heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
         DynTensorType heap_type(1, ShapeDType());
         shape_heap_ = Var("shape_heap", ShapeExpr({heap_size_}), heap_type);
@@ -61,14 +60,17 @@ class ShapeLowerMutator : public ExprMutator {
 
   void VisitMatchShape(const MatchShape& binding) override {
     Expr shape = ExprMutator::VisitExpr(binding->value);
+    static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
+    auto store_shape_attr = make_object<ShapeHeapAttrs>();
+
     Array<PrimExpr> pattern = binding->pattern;
-    Array<PrimExpr> indices;
+    Array<Integer> indices;
     for (size_t i = 0; i < pattern.size(); ++i) {
-      IntImm idx = expr2slot_.at(pattern[i]);
+      int idx = expr2slot_.at(pattern[i]);
       indices.push_back(idx);
     }
-    builder_->Emit(Call(ExternFunc("vm.builtin.decode_shape"),
-                        {shape, shape_heap_, ShapeExpr(indices)}), "_decode_shape");
+    store_shape_attr->indices = indices;
+    builder_->Emit(Call(store_shape_op, {shape, shape_heap_}, Attrs(store_shape_attr)), "gv");
   }
 
   Expr VisitExpr_(const ShapeExprNode* node) override {
@@ -84,12 +86,15 @@ class ShapeLowerMutator : public ExprMutator {
     ret_mod_->Add(shape_func_var, func);
 
     // construct shape
-    Array<PrimExpr> indices;
+    Array<Integer> indices;
     for (PrimExpr e : node->values) {
       indices.push_back(expr2slot_.at(e));
     }
-    return builder_->Emit(Call(ExternFunc("vm.builtin.make_shape"),
-                          {shape_heap_, ShapeExpr(indices)}), "sh");
+    static const Op& load_shape_op = Op::Get("relax.vm.builtin.load_shape");
+    auto load_shape_attr = make_object<ShapeHeapAttrs>();
+    load_shape_attr->indices = indices;
+
+    return builder_->Emit(Call(load_shape_op, {shape_heap_}, Attrs(load_shape_attr)), "sh");
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
@@ -134,7 +139,7 @@ class ShapeLowerMutator : public ExprMutator {
     for (PrimExpr e : s->values) {
       Map<tir::Var, PrimExpr> var_mapping = BuildVarMapping(e, buffer);
       PrimExpr value = tir::Substitute(e, var_mapping);
-      IntImm idx = expr2slot_.at(e);
+      int idx = expr2slot_.at(e);
       seq.push_back(tir::Store(buffer->data, value, idx, tir::const_true()));
     }
     tir::Stmt body = tir::SeqStmt(seq);
@@ -157,16 +162,15 @@ class ShapeLowerMutator : public ExprMutator {
     return ret;
   }
 
-  Map<PrimExpr, IntImm> PrepareExpr2Slot(Function expr) const {
+  Map<PrimExpr, Integer> PrepareExpr2Slot(Function expr) const {
     int cnt = 0;
-    Map<PrimExpr, IntImm> ret;
+    Map<PrimExpr, Integer> ret;
     auto func = [&](const Expr& e) {
       if (e->IsInstance<ShapeExprNode>()) {
         ShapeExpr shape = Downcast<ShapeExpr>(e);
         for (auto prim_e : shape->values) {
           if (ret.count(prim_e) == 0) {
-            IntImm idx(ShapeDType(), cnt++);
-            ret.Set(prim_e, idx);
+            ret.Set(prim_e, cnt++);
           }
         }
       }
@@ -192,13 +196,14 @@ class ShapeLowerMutator : public ExprMutator {
   // function-wise members
   IntImm heap_size_;
   Var shape_heap_;
-  Map<PrimExpr, IntImm> expr2slot_;
+  Map<PrimExpr, Integer> expr2slot_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.shape_lower")
+TVM_REGISTER_GLOBAL("relax.transform.vm_shape_lower")
 .set_body_typed([](IRModule mod) {
-  return ShapeLowerMutator(mod).Lower();
+  return VMShapeLowerMutator(mod).Lower();
 });
 
+}  // namespace vm
 }  // namespace relax
 }  // namespace tvm
