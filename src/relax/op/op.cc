@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/attrs/memory.h>
+#include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
 
@@ -91,6 +92,67 @@ Expr MakeAllocTensor(Expr shape) {
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
 .set_body_typed(MakeAllocTensor);
+
+// vm alloc_storage
+
+RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
+.set_attrs_type<AllocStorageAttrs>()
+.set_num_inputs(1)
+.add_argument("size", "Expr", "The size of the storage to allocate.");
+
+Expr MakeVMAllocStorage(Expr size) {
+  static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
+  return Call(op, {size}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage")
+.set_body_typed(MakeVMAllocStorage);
+
+// vm alloc_tensor
+
+RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
+.set_attrs_type<AllocTensorAttrs>()
+.set_num_inputs(1)
+.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+
+Expr MakeVMAllocTensor(Expr shape) {
+  static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
+  return Call(op, {shape}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor")
+.set_body_typed(MakeVMAllocTensor);
+
+// vm store_shape
+
+RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
+.set_attrs_type<ShapeHeapAttrs>()
+.set_num_inputs(2)
+.add_argument("shape", "Expr", "The shape to be stored.")
+.add_argument("heap", "Expr", "The heap to store the shape.");
+
+Expr MakeStoreShape(Expr shape, Expr heap) {
+  static const Op& op = Op::Get("relax.vm.builtin.store_shape");
+  return Call(op, {shape, heap}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.store_shape")
+.set_body_typed(MakeStoreShape);
+
+// vm load_shape
+
+RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
+.set_attrs_type<ShapeHeapAttrs>()
+.set_num_inputs(1)
+.add_argument("heap", "Expr", "The heap to load the shape from.");
+
+Expr MakeLoadShape(Expr heap) {
+  static const Op& op = Op::Get("relax.vm.builtin.load_shape");
+  return Call(op, {heap}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape")
+.set_body_typed(MakeLoadShape);
 
 } // namespace relax
 } // namespace tvm
