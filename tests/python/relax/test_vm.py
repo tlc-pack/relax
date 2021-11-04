@@ -238,10 +238,10 @@ def test_vm_compile_stage0():
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
+    ex, lib = relax.vm.build(mod, target, target_host)
     inp1 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     vm["foo"](inp1, inp2)
     np.testing.assert_allclose(inp2.asnumpy(), inp1.asnumpy())
 
@@ -276,9 +276,9 @@ class TestVMCompileStage1:
             "vm.builtin.alloc_shape_heap", (4,)
         )
         gv0 = relax.call_packed("vm.builtin.shape_of", x)
-        gv1 = relax.call_packed("vm.builtin.decode_shape", gv0, shape_heap, (0, 1))
+        gv1 = relax.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1))
         gv2 = shape_func0(shape_heap)
-        gv3 = relax.call_packed("vm.builtin.make_shape", shape_heap, (2, 3))
+        gv3 = relax.call_packed("vm.builtin.load_shape", shape_heap, (2, 3))
         return gv3
 """
 

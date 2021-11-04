@@ -24,8 +24,6 @@ from tvm.ir import structural_equal
 import tvm.script
 from tvm.script import relax as R
 
-import numpy as np
-
 
 def test_fma_rewrite():
     m = tir.Var("m", "int32")
@@ -67,8 +65,9 @@ def test_fma_rewrite():
 
 
 def test_to_non_dataflow():
-    @rx.script
+    @tvm.script.ir_module
     class TestToNonDataflow:
+        @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
                 gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
@@ -76,7 +75,9 @@ def test_to_non_dataflow():
                 relax.output(gv1)
             return gv1
 
-    mod = TestToNonDataflow()
+    mod = TestToNonDataflow
+
+    old_vars = []
 
     def fvisit(e):
         if isinstance(e, relax.Var):
@@ -86,33 +87,34 @@ def test_to_non_dataflow():
     relax.analysis.post_order_visit(mod["foo"], fvisit)
     _, x, _, gv0, _, gv1 = old_vars
 
-    new_mod = rx.transform.to_non_dataflow(mod)
+    new_mod = relax.transform.to_non_dataflow(mod)
 
     new_vars = []
     def fvisit(e):
-        if isinstance(e, rx.Var):
+        if isinstance(e, relax.Var):
             nonlocal new_vars
             new_vars.append(e)
-    rx.analysis.post_order_visit(new_mod["foo"], fvisit)
+    relax.analysis.post_order_visit(new_mod["foo"], fvisit)
 
     assert x == new_vars[1]
     assert gv0 != new_vars[3]
-    assert isinstance(gv0, rx.DataflowVar)
-    assert not isinstance(new_vars[3], rx.DataflowVar)
+    assert isinstance(gv0, relax.DataflowVar)
+    assert not isinstance(new_vars[3], relax.DataflowVar)
 
-    assert isinstance(gv1, rx.Var)
-    assert isinstance(new_vars[5], rx.Var)
+    assert isinstance(gv1, relax.Var)
+    assert isinstance(new_vars[5], relax.Var)
     assert gv1 != new_vars[5]
 
 
 def test_call_dps_rewrite():
-    @rx.script
+    @tvm.script.ir_module
     class TestCallDpsRewrite:
+        @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
             return gv0
 
-    mod = TestCallDpsRewrite()
+    mod = TestCallDpsRewrite
 
     # before rewrite
     v0 = mod["foo"].body.blocks[0].bindings[0].var
@@ -121,11 +123,11 @@ def test_call_dps_rewrite():
     assert s0.op.name == "relax.call_dps"
 
     # after rewrite
-    new_mod = rx.transform.call_dps_rewrite(mod)
+    new_mod = relax.transform.call_dps_rewrite(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]
-    assert not isinstance(block, rx.DataflowBlock)
+    assert not isinstance(block, relax.DataflowBlock)
 
     s1 = block.bindings[0].value
     assert isinstance(s1, tvm.relay.Call)
@@ -137,18 +139,19 @@ def test_call_dps_rewrite():
 
 
 def test_vm_memory_lower():
-    @rx.script
+    @tvm.script.ir_module
     class TestVMMemoryLower:
+        @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             alloc = relax.builtin.alloc_tensor((m, n))
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
             return gv0
     
-    mod = TestVMMemoryLower()
+    mod = TestVMMemoryLower
 
     # after vm memory lowering
-    new_mod = rx.transform.vm_memory_lower(mod)
+    new_mod = relax.transform.vm_memory_lower(mod)
     func = new_mod["foo"]
 
     assert isinstance(new_mod, tvm.IRModule)
@@ -162,40 +165,40 @@ def test_vm_memory_lower():
     assert isinstance(s2, tvm.relay.Call)
     s4 = block.bindings[3].value
     assert isinstance(s4, tvm.relay.Call)
-    assert isinstance(s4.op, rx.ExternFunc)
+    assert isinstance(s4.op, relax.ExternFunc)
     assert s4.op.global_symbol == "test.op.identity"
 
 
 def test_vm_shape_lowering():
-    @rx.script
+    @tvm.script.ir_module
     class TestVMShapeLower:
+        @R.function
         def foo(x: Tensor[_, "float32"]) -> Shape:
             sh = relax.call_packed("vm.builtin.shape_of", x)
             relax.match_shape(sh, (n, m))
             return (n * 2, m * 3)
 
-    mod = TestVMShapeLower()
+    mod = TestVMShapeLower
 
     # after vm shape lowering
-    new_mod = rx.transform.vm_shape_lower(mod)
+    new_mod = relax.transform.vm_shape_lower(mod)
 
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
     func = new_mod["foo"]
     assert isinstance(func, tvm.relax.expr.Function)
 
-    code = rx.parser.astext(new_mod)
     s1 = func.body.blocks[0].bindings[0].value
-    assert isinstance(s1.op, rx.ExternFunc)
+    assert isinstance(s1.op, relax.ExternFunc)
     assert s1.op.global_symbol == "vm.builtin.alloc_shape_heap"
     s2 = func.body.blocks[1].bindings[0].value
-    assert isinstance(s2.op, rx.ExternFunc)
+    assert isinstance(s2.op, relax.ExternFunc)
     assert s2.op.global_symbol == "vm.builtin.shape_of"
     s3 = func.body.blocks[1].bindings[1].value
     assert isinstance(s3, tvm.relay.Call)
     assert s3.op.name == "relax.vm.builtin.store_shape"
     s4 = func.body.blocks[2].bindings[0].value
-    assert isinstance(s4.op, rx.GlobalVar)
+    assert isinstance(s4.op, relax.GlobalVar)
     assert s4.op.name_hint == "shape_func"
     s5 = func.body.blocks[2].bindings[1].value
     assert isinstance(s5, tvm.relay.Call)
