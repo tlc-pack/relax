@@ -103,7 +103,7 @@ def test_to_non_dataflow():
 
     assert isinstance(gv1, relax.Var)
     assert isinstance(new_vars[5], relax.Var)
-    assert gv1 != new_vars[5]
+    assert gv1 == new_vars[5]
 
 
 def test_call_dps_rewrite():
@@ -205,19 +205,20 @@ def test_vm_shape_lowering():
     assert s5.op.name == "relax.vm.builtin.load_shape"
 
 def test_to_anf():
-    x = rx.Var("x", type_annotation=rx.DynTensorType())
-    gv = rx.op.add(x, x)
-    gv1 = rx.op.add(gv, gv)
-    gv2 = rx.op.add(gv, gv1)
-    body = rx.Tuple([gv, gv2])
-    gvar = rx.GlobalVar("f")
-    func = rx.Function([x], body, None, gvar)
+    x = relax.Var("x", type_annotation=relax.DynTensorType())
+    gv = relax.op.add(x, x)
+    gv1 = relax.op.add(gv, gv)
+    gv2 = relax.op.add(gv, gv1)
+    body = relax.Tuple([gv, gv2])
+    gvar = relax.GlobalVar("f")
+    func = relax.Function([x], body, None, gvar)
 
     mod: tvm.IRModule = tvm.IRModule({gvar: func})
-    mod = rx.transform.to_anf(mod)
+    mod = relax.transform.to_anf(mod)
 
-    @rx.script
+    @tvm.script.ir_module
     class TestToANFExpected:
+        @R.function
         def f(x: Tensor[_, "float32"]):
             gv = relax.add(x, x)
             gv1 = relax.add(gv, gv)
@@ -225,7 +226,7 @@ def test_to_anf():
             return (gv, gv2)
 
     # TODO(@altanh): fix this once type inference works properly...?
-    assert rx.parser.astext(mod) == rx.parser.astext(TestToANFExpected())
+    assert R.parser.astext(mod) == R.parser.astext(TestToANFExpected)
 
 
 
