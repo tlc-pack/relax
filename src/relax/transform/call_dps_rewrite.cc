@@ -32,11 +32,12 @@ namespace relax {
 
 // ==================
 // CallDPSMutator
+// Perform explicit tensor allocation for call_dps.
 // Example:
-// y: Tensor[n, m] = rx.call_dps((n, m), op.identity, (x))
+// lv0: Tensor[n, m] = rx.call_dps((n, m), op.identity, (x))
 // -->
-// lv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
-// rx.call_packed(op.identity, x, lv0)
+// gv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
+// rx.call_packed(op.identity, x, gv0)
 
 class CallDPSMutator : public ExprMutator {
  public:
@@ -58,8 +59,6 @@ class CallDPSMutator : public ExprMutator {
     // post-order mutation
     Expr expr = ExprMutator::VisitExpr_(call);
     call = expr.as<CallNode>();
-    // TODO(@yuchen, @altanh): using mutate cause infinite recursion
-    // Expr expr = ExprMutator::Mutate(GetRef<Call>(call));
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
