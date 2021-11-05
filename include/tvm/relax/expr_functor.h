@@ -223,7 +223,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound
    *  value. Otherwise, returns the rewritten expression for the variable.
    */
-  Expr LookupVar(const Var& var);
+  Expr LookupBinding(const Var& var);
 
   template <typename T>
   Expr VisitPostOrder(const T* op) {
@@ -231,8 +231,12 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   }
 
   std::shared_ptr<NameTable> name_table_;
+  
+  /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+
+  /*! \brief Remap a var to a new var in use-site. */
+  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
 // TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks

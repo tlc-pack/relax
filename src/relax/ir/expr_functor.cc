@@ -200,9 +200,9 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   }
 }
 
-// Visit the use site of a defined Var
+// Visit the use-site of a defined Var
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  auto it = var_remap_.find(GetRef<Var>(op));
+  auto it = var_remap_.find(op->vid);
   if (it != var_remap_.end()) {
     return it->second;
   }
@@ -211,9 +211,9 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
   return GetRef<Expr>(op);
 }
 
-// Visit the use site of a defined DataflowVar
+// Visit the use-site of a defined DataflowVar
 Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
-  auto it = var_remap_.find(GetRef<Var>(op));
+  auto it = var_remap_.find(op->vid);
   if (it != var_remap_.end()) {
     return it->second;
   }
@@ -364,7 +364,7 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
       new_var.CopyOnWrite()->checked_type_ = new_value->checked_type_;
     }
     
-    this->var_remap_[binding->var] = new_var;
+    this->var_remap_[binding->var->vid] = new_var;
   }
 
   if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
@@ -412,11 +412,12 @@ Var ExprMutator::VisitVarDef(const Var& var) {
     if (!var->type_annotation.same_as(type)) {
       Var new_var;
       if (var.as<DataflowVarNode>()) {
-        new_var = DataflowVar(var->vid, var->shape(), type, var->span);
+        new_var = DataflowVar(var->vid, NullOpt, type, var->span);
       } else {
-        new_var = Var(var->vid, var->shape(), type, var->span);
+        new_var = Var(var->vid, NullOpt, type, var->span);
       }
-      this->var_remap_[var] = new_var;
+      new_var->shape_ = var->shape_;
+      this->var_remap_[var->vid] = new_var;
       return new_var;
     }
   }
@@ -437,8 +438,8 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
   return ret;
 }
 
-Expr ExprMutator::LookupVar(const Var& var) {
-  return builder_->LookupVar(var);
+Expr ExprMutator::LookupBinding(const Var& var) {
+  return builder_->LookupBinding(var);
 }
 
 // ==================

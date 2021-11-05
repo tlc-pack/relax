@@ -115,11 +115,11 @@ class BlockBuilderNode : public Object {
   Var EmitOutput(const VarBinding& binding);
 
   /*!
-   * \brief Lookup a var in the binding table \p var_map_.
+   * \brief Lookup a var in the binding table \p binding_table_.
    * \param var The input var.
    * \return The Expr bound to the input \p var.
    */
-  Expr LookupVar(const Var& var);
+  Expr LookupBinding(const Var& var);
 
   /*!
    * \brief Check if two shape expressions can be proven equal at compile time.

@@ -30,6 +30,7 @@ namespace tvm {
 namespace relax {
 
 
+// TODO(@altanh): LCA binding lifting
 class ToANFMutator : public ExprMutator {
  public:
   ToANFMutator(const IRModule& mod) : mod_(mod) {}

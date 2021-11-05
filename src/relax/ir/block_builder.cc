@@ -36,9 +36,7 @@ namespace relax {
 
 class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
  public:
-  // TODO(@yuchen, @altanh): name_table_ unused
-  ExprNormalizer(BlockBuilderNode* builder, std::shared_ptr<NameTable> name_table)
-      : builder_(builder), name_table_(name_table) {}
+  ExprNormalizer(BlockBuilderNode* builder): builder_(builder) {}
 
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
@@ -74,7 +72,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {
-    Expr new_body = this->VisitWithPrologue(op->body);
+    Expr new_body = this->VisitWithNewScope(op->body);
     if (new_body.same_as(op->body)) {
       return GetRef<Expr>(op);
     }
@@ -113,12 +111,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     unchanged &= new_body.same_as(op->body);
     BindingBlock prologue = builder_->EndBlock();
 
-    // fold nested SeqExprs
-    // if (const SeqExprNode* new_body_seq = new_body.as<SeqExprNode>()) {
-    //   new_blocks.insert(new_blocks.end(), new_body_seq->blocks.begin(),
-    //   new_body_seq->blocks.end()); new_body = new_body_seq->body; unchanged = false;
-    //   ICHECK(prologue->bindings.empty()) << "SeqExprs should never need a prologue";
-    // }
+    // TODO(@altanh, @yuchen): normalize nested SeqExprs and BindingBlocks
 
     if (!prologue->bindings.empty()) {
       new_blocks.push_back(prologue);
@@ -133,8 +126,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   Expr VisitExpr_(const IfNode* op) final {
     Expr new_cond = this->VisitExpr(op->cond);
-    Expr new_true = this->VisitWithPrologue(op->true_branch);
-    Expr new_false = this->VisitWithPrologue(op->false_branch);
+    Expr new_true = this->VisitWithNewScope(op->true_branch);
+    Expr new_false = this->VisitWithNewScope(op->false_branch);
     if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
         new_false.same_as(op->false_branch)) {
       return GetRef<Expr>(op);
@@ -216,7 +209,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
            expr.as<TupleNode>();
   }
 
-  Expr VisitWithPrologue(const Expr& expr) {
+  Expr VisitWithNewScope(const Expr& expr) {
     builder_->BeginBindingBlock();
     Expr post = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
@@ -240,9 +233,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   /*! \brief Memoization table for mapping expressions to their ANF variables. */
   ExprMemo expr_memo_;
-
-  /*! \brief Shared name table for naming intermediate variables. */
-  std::shared_ptr<NameTable> name_table_;
 };
 
 // ================
@@ -252,7 +242,7 @@ TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
 BlockBuilderNode::BlockBuilderNode(std::shared_ptr<NameTable> name_table) {
   name_table_ = name_table;
-  normalizer_ = std::make_shared<ExprNormalizer>(this, name_table);
+  normalizer_ = std::make_shared<ExprNormalizer>(this);
 }
 
 BlockBuilderNode::~BlockBuilderNode() {
@@ -418,7 +408,7 @@ Var BlockBuilderNode::EmitOutput(const VarBinding& binding) {
   return binding->var;
 }
 
-Expr BlockBuilderNode::LookupVar(const Var& var) {
+Expr BlockBuilderNode::LookupBinding(const Var& var) {
   auto it = binding_table_.find(var->vid);
   if (it == binding_table_.end()) {
     this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
@@ -452,7 +442,7 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   return false;
 }
 
-// TODO(@altanh, @yuchen): emit expr in ssa form
+// TODO(@altanh, @yuchen): need an internal Emit_ that doesn't call normalize
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
   Expr normalized = normalizer_->VisitExpr(expr);
   if (normalized.as<CallNode>()) {
@@ -481,7 +471,7 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 BlockBuilder::BlockBuilder(std::shared_ptr<NameTable> name_table) {
   ObjectPtr<BlockBuilderNode> n = make_object<BlockBuilderNode>();
   n->name_table_ = name_table;
-  n->normalizer_ = std::make_shared<BlockBuilderNode::ExprNormalizer>(n.get(), name_table);
+  n->normalizer_ = std::make_shared<BlockBuilderNode::ExprNormalizer>(n.get());
   data_ = std::move(n);
 }
 
