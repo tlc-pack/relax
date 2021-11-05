@@ -242,7 +242,12 @@ TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
 BlockBuilderNode::BlockBuilderNode(std::shared_ptr<NameTable> name_table) {
   name_table_ = name_table;
-  normalizer_ = std::make_shared<ExprNormalizer>(this);
+  normalizer_ = std::make_unique<ExprNormalizer>(this);
+}
+
+BlockBuilderNode::BlockBuilderNode() {
+  name_table_ = std::make_shared<NameTable>();
+  normalizer_ = std::make_unique<ExprNormalizer>(this);
 }
 
 BlockBuilderNode::~BlockBuilderNode() {
@@ -471,7 +476,7 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 BlockBuilder::BlockBuilder(std::shared_ptr<NameTable> name_table) {
   ObjectPtr<BlockBuilderNode> n = make_object<BlockBuilderNode>();
   n->name_table_ = name_table;
-  n->normalizer_ = std::make_shared<BlockBuilderNode::ExprNormalizer>(n.get());
+  n->normalizer_ = std::make_unique<BlockBuilderNode::ExprNormalizer>(n.get());
   data_ = std::move(n);
 }
 

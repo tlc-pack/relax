@@ -46,9 +46,9 @@ class BlockBuilderNode : public Object {
  public:
   BlockBuilderNode(std::shared_ptr<NameTable> name_table);
 
-  ~BlockBuilderNode();
+  BlockBuilderNode();
 
-  BlockBuilderNode() { name_table_ = std::make_shared<NameTable>(); }
+  ~BlockBuilderNode();
 
   /*! \brief Begin to build a DataflowBlock. */
   void BeginDataflowBlock();
@@ -190,7 +190,8 @@ class BlockBuilderNode : public Object {
   /*! \brief A name table to get unique names for IR construction. */
   std::shared_ptr<NameTable> name_table_;
 
-  std::shared_ptr<ExprNormalizer> normalizer_;
+  /*! \brief The internal normalizer used for ANF conversion. */
+  std::unique_ptr<ExprNormalizer> normalizer_;
 };
 
 class BlockBuilder : public ObjectRef {

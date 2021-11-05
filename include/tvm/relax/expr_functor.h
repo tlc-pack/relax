@@ -226,12 +226,41 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   Expr LookupBinding(const Var& var);
 
   template <typename T>
-  Expr VisitPostOrder(const T* op) {
+  Expr VisitExprPostOrder_(const T* op) {
     return builder_->Normalize(ExprMutator::VisitExpr_(op));
   }
 
+  template <typename T>
+  T WithShapeAndType(T expr, Optional<ObjectRef> shape, Type type) {
+    // make sure to not "forget" DataflowVars
+    if (!std::is_same<T, DataflowVar>::value && static_cast<ObjectRef>(expr).as<DataflowVarNode>()) {
+      return WithShapeAndType(Downcast<DataflowVar>(expr), shape, type);
+    }
+
+    bool shape_changed = !shape || !expr->shape_ ||
+                         !builder_->CanProveShapeEqual(Downcast<Expr>(expr->shape_.value()), Downcast<Expr>(shape.value()));
+    bool type_changed = !type.defined() || !expr->checked_type_.defined() ||
+                        !StructuralEqual()(expr->checked_type_, type);
+    if (shape_changed) {
+      if (expr->shape_) {
+        expr.CopyOnWrite()->shape_ = shape;
+      } else {
+        expr->shape_ = shape;
+      }
+    }
+    if (type_changed) {
+      if (expr->checked_type_.defined()) {
+        expr.CopyOnWrite()->checked_type_ = type;
+      } else {
+        expr->checked_type_ = type;
+      }
+    }
+
+    return expr;
+  }
+
   std::shared_ptr<NameTable> name_table_;
-  
+
   /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;
 

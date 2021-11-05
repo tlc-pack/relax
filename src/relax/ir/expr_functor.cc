@@ -333,39 +333,10 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 
 void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = this->VisitExpr(binding->value);
-
-  // TODO(@altanh): this probably shouldn't live here, all passes would have to make sure to do it
-  //                in this method...
-  // if (new_value->shape_.defined()) {
-  //   if (new_var->shape_.defined()) {
-  //     new_var = Var(new_var->vid, NullOpt, new_var->type_annotation, new_var->span);
-  //   }
-  //   new_var->shape_ = new_value->shape_;
-  // }
-  // if (new_value->checked_type_.defined()) {
-  //   if (new_var->checked_type_.defined()) {
-
-  //   }
-  //   new_var = Var(new_var->vid, new_var->shape_, NullOpt, new_var->span);
-  //   new_var->checked_type_ = new_value->checked_type_;
-  // }
-
   Var new_var = this->VisitVarDef(binding->var);
-  if (!builder_->CanProveShapeEqual(new_var->shape(), new_value->shape()) ||
-      !StructuralEqual()(new_var->checked_type(), new_value->checked_type())) {
-    if (new_value->shape_.defined()) {
-      // FIXME(@yuchen, @altanh): note copyonwrite polymorphism, should be ok when we use enum 
-      // to distinguish DataflowVar and Var
-      new_var.CopyOnWrite()->shape_ = new_value->shape_;
-    }
-    // TODO(@yuchen, @altanh): checked_type_.defined() needs to change depends on how to represent
-    // unknown type
-    if (new_value->checked_type_.defined()) {
-      new_var.CopyOnWrite()->checked_type_ = new_value->checked_type_;
-    }
-    
-    this->var_remap_[binding->var->vid] = new_var;
-  }
+  new_var = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
+
+  this->var_remap_[binding->var->vid] = new_var;
 
   if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
     builder_->EmitOutput(VarBinding(new_var, new_value));
@@ -378,7 +349,17 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
   Expr new_value = this->VisitExpr(binding->value);
   Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
 
-  Var new_var = binding->var.defined() ? this->VisitVarDef(binding->var) : binding->var;
+  Var new_var;
+  if (binding->var.defined()) {
+    Optional<Expr> new_shape;
+    if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
+      new_shape = new_pattern;
+    }
+    new_var = WithShapeAndType(this->VisitVarDef(binding->var), new_shape, new_value->checked_type_);
+    this->var_remap_[binding->var->vid] = new_var;
+  }
+
+  // Var new_var = binding->var.defined() ? this->VisitVarDef(binding->var) : binding->var;
   // TODO(@altanh, @yuchen): shape and type inference here too...
   // TODO: when value's shape/type changed, create new var
   // TODO: group the can prove shape/type logic and replace var into a function
@@ -438,9 +419,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
   return ret;
 }
 
-Expr ExprMutator::LookupBinding(const Var& var) {
-  return builder_->LookupBinding(var);
-}
+Expr ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
 
 // ==================
 // DataflowMutator

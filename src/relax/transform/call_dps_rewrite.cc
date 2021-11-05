@@ -57,7 +57,7 @@ class CallDPSMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
-    Expr expr = VisitPostOrder(call);
+    Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");

@@ -43,7 +43,7 @@ namespace relax {
 
 class EwiseFMARewriter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) override {
-    Expr expr = VisitPostOrder(call);
+    Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
     static const Op& add_op = Op::Get("relax.add");
