@@ -210,6 +210,12 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual void VisitBinding(const Binding& binding);
   virtual void VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
+
+  /*!
+   * \brief Rewrite the var definition site.
+   * \param var The var to be visited.
+   * \return The var after post-order rewritten.
+   */
   virtual Var VisitVarDef(const Var& var);
 
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
@@ -218,27 +224,51 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  protected:
   class ExprNormalizer;
 
+  /*!
+   * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
+   * \param expr The expr to be visited.
+   * \return The expr after visiting.
+   */
   Expr VisitWithNewScope(const Expr& expr);
 
-  /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound
-   *  value. Otherwise, returns the rewritten expression for the variable.
+  /*!
+   * \brief Look up the value bound to a variable.
+   * \param var The var to be looked up.
+   * \return The value bound to the input \p var.
    */
   Expr LookupBinding(const Var& var);
 
+  /*!
+   * \brief Post-order rewrite a node and normalize.
+   * \param T The node type to be rewritten.
+   * \param op The node to be rewritten.
+   * \return The node after post rewritten.
+   */
   template <typename T>
   Expr VisitExprPostOrder_(const T* op) {
     return builder_->Normalize(ExprMutator::VisitExpr_(op));
   }
 
+  /*!
+   * \brief Create a new expr with specified shape and type if it's original shape or type does not
+   * match with the specified ones.
+   * \param T The node type to be visited.
+   * \param expr The node to be visited.
+   * \param shape The specified shape.
+   * \param type The specified type.
+   * \return The expr filled with \p shape and \p type.
+   */
   template <typename T>
   T WithShapeAndType(T expr, Optional<ObjectRef> shape, Type type) {
     // make sure to not "forget" DataflowVars
-    if (!std::is_same<T, DataflowVar>::value && static_cast<ObjectRef>(expr).as<DataflowVarNode>()) {
+    if (!std::is_same<T, DataflowVar>::value &&
+        static_cast<ObjectRef>(expr).as<DataflowVarNode>()) {
       return WithShapeAndType(Downcast<DataflowVar>(expr), shape, type);
     }
 
     bool shape_changed = !shape || !expr->shape_ ||
-                         !builder_->CanProveShapeEqual(Downcast<Expr>(expr->shape_.value()), Downcast<Expr>(shape.value()));
+                         !builder_->CanProveShapeEqual(Downcast<Expr>(expr->shape_.value()),
+                                                       Downcast<Expr>(shape.value()));
     bool type_changed = !type.defined() || !expr->checked_type_.defined() ||
                         !StructuralEqual()(expr->checked_type_, type);
     if (shape_changed) {

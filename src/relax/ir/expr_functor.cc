@@ -334,8 +334,14 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   Expr new_value = this->VisitExpr(binding->value);
   Var new_var = this->VisitVarDef(binding->var);
-  new_var = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
 
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    // no-op if there is no change
+    builder_->Emit(binding);
+    return;
+  }
+
+  new_var = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
   this->var_remap_[binding->var->vid] = new_var;
 
   if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
@@ -355,7 +361,8 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
     if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
       new_shape = new_pattern;
     }
-    new_var = WithShapeAndType(this->VisitVarDef(binding->var), new_shape, new_value->checked_type_);
+    new_var =
+        WithShapeAndType(this->VisitVarDef(binding->var), new_shape, new_value->checked_type_);
     this->var_remap_[binding->var->vid] = new_var;
   }
 

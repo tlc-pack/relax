@@ -36,7 +36,7 @@ namespace relax {
 
 class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
  public:
-  ExprNormalizer(BlockBuilderNode* builder): builder_(builder) {}
+  ExprNormalizer(BlockBuilderNode* builder) : builder_(builder) {}
 
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
@@ -453,6 +453,12 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
   if (normalized.as<CallNode>()) {
     // FIXME(@altanh): potentially breaks idempotency
     Call call = Downcast<Call>(normalized);
+
+    // only do shape/type inference if the call does not have shape/type
+    if (call->shape_ && call->checked_type_.defined()) {
+      return call;
+    }
+
     // Shape inference
     auto inferred_shape = InferShape(call, this->diag_ctx_);
     if (inferred_shape.defined()) {
