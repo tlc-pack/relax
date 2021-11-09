@@ -489,10 +489,8 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
     // Shape inference
     if (!call->shape_) {
       auto inferred_shape = InferShape(call, this->diag_ctx_);
-      if (inferred_shape.defined()) {
-        if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
-          call->shape_ = GetRef<Expr>(shape_expr);
-        }
+      if (inferred_shape) {
+        call->shape_ = this->Normalize(inferred_shape.value());
       }
     }
 
