@@ -25,7 +25,7 @@ module[gvar] = func
 for var in tir_mod:
     module[var] = tir_mod[var]
 
-print(rx.parser.astext(module))
+print(module.astext())
 
 # target = tvm.target.Target("llvm")
 # target_host = tvm.target.Target("llvm")

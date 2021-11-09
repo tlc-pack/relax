@@ -88,7 +88,8 @@ void RXPlaceholderOpNode::GatherBound(
 tir::Stmt RXPlaceholderOpNode::BuildRealize(
     const te::Stage& stage,
     const std::unordered_map<tir::IterVar, Range>& realize_map,
-    const tir::Stmt& body) const {
+    const tir::Stmt& body,
+    String storage_scope) const {
   return body;
 }
 

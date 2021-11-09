@@ -50,7 +50,8 @@ class RXPlaceholderOpNode : public te::OperationNode {
                    std::unordered_map<tir::IterVar, Range>* out_dom_map) const final;
   tir::Stmt BuildRealize(const te::Stage& stage,
                          const std::unordered_map<tir::IterVar, Range>& realize_map,
-                         const tir::Stmt& body) const final;
+                         const tir::Stmt& body,
+                         String storage_scope = "") const final;
   tir::Stmt BuildProvide(const te::Stage& stage,
                          const std::unordered_map<tir::IterVar, Range>& dom_map,
                          bool debug_keep_trivial_loop) const final;
