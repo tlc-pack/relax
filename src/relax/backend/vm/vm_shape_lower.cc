@@ -20,12 +20,13 @@
  * \file src/relax/backend/vm/vm_shape_lower.cc
  * \brief
  */
+#include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/vm/transform.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/relax/attrs/shape.h>
 
 namespace tvm {
 namespace relax {
@@ -33,9 +34,7 @@ namespace vm {
 
 class VMShapeLowerMutator : public ExprMutator {
  public:
-  static DataType ShapeDType() {
-    return DataType::Int(64);
-  };
+  static DataType ShapeDType() { return DataType::Int(64); };
 
   explicit VMShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
@@ -199,10 +198,17 @@ class VMShapeLowerMutator : public ExprMutator {
   Map<PrimExpr, Integer> expr2slot_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.vm_shape_lower")
-.set_body_typed([](IRModule mod) {
-  return VMShapeLowerMutator(mod).Lower();
-});
+namespace transform {
+
+Pass VMShapeLower() {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+      [=](IRModule mod, PassContext pc) { return VMShapeLowerMutator(mod).Lower(); };
+  return CreateModulePass(pass_func, 0, "VMShapeLower", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed(VMShapeLower);
+
+}  // namespace transform
 
 }  // namespace vm
 }  // namespace relax

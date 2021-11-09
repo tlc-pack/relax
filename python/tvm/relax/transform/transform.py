@@ -57,25 +57,24 @@ def CallDPSRewrite() -> tvm.transform.Pass:
     return _ffi_api.CallDPSRewrite()
 
 
-def VMMemoryLower(mod: IRModule) -> tvm.transform.Pass:
+def VMMemoryLower() -> tvm.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
     Returns
     -------
     ret: tvm.transform.Pass
     """
-    return _ffi_api.VMMemoryLower(mod)
+    return _ffi_api.VMMemoryLower()
 
 
-def vm_shape_lower(mod: IRModule) -> IRModule:
+def VMShapeLower() -> tvm.transform.Pass:
     """Lower the shape expression in relax to VM shape heap and TIR functions.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.vm_shape_lower(mod)
+    return _ffi_api.VMShapeLower()
 
 
 def to_anf(mod: IRModule):

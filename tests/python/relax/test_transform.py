@@ -155,7 +155,9 @@ def test_vm_memory_lower():
     mod = TestVMMemoryLower
 
     # after vm memory lowering
-    new_mod = relax.transform.vm_memory_lower(mod)
+    passes = [relax.transform.VMMemoryLower()]
+    seq = tvm.transform.Sequential(passes)
+    new_mod = seq(mod)
     func = new_mod["foo"]
 
     assert isinstance(new_mod, tvm.IRModule)
@@ -185,7 +187,9 @@ def test_vm_shape_lowering():
     mod = TestVMShapeLower
 
     # after vm shape lowering
-    new_mod = relax.transform.vm_shape_lower(mod)
+    passes = [relax.transform.VMShapeLower()]
+    seq = tvm.transform.Sequential(passes)
+    new_mod = seq(mod)
 
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
@@ -238,5 +242,5 @@ if __name__ == "__main__":
     test_fma_rewrite()
     test_to_non_dataflow()
     test_call_dps_rewrite()
-    # test_vm_memory_lower()
-    # test_vm_shape_lowering()
+    test_vm_memory_lower()
+    test_vm_shape_lowering()

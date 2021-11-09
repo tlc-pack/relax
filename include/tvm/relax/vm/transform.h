@@ -26,6 +26,7 @@
 
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/transform.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/target/target.h>
 
@@ -36,6 +37,7 @@ namespace relax {
 namespace vm {
 namespace transform {
 
+using namespace tvm::relax::transform;
 using Pass = tvm::transform::Pass;
 using PassNode = tvm::transform::PassNode;
 using PassInfo = tvm::transform::PassInfo;
@@ -44,9 +46,10 @@ using PassContext = tvm::transform::PassContext;
 using PassContextNode = tvm::transform::PassContextNode;
 using Sequential = tvm::transform::Sequential;
 using Function = tvm::relax::Function;
-using CreateFunctionPass = tvm::relax::CreateFunctionPass;
 
 TVM_DLL Pass VMMemoryLower();
+
+TVM_DLL Pass VMShapeLower();
 
 }  // namespace transform
 }  // namespace vm
