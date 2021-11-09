@@ -213,6 +213,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * \brief Rewrite the var definition site.
    * \param var The var to be visited.
    * \return The var after post-order rewritten.
+   * \note VisitExpr_(const VarNode*) will only visit the usage site of an Var
    */
   virtual Var VisitVarDef(const Var& var);
 

@@ -34,6 +34,7 @@ namespace relax {
 // ================================
 // BlockBuilderNode::ExprNormalizer
 
+// TODO(@altanh): more test cases to cover different visits
 class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
  public:
   ExprNormalizer(BlockBuilderNode* builder) : builder_(builder) {}

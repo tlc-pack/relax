@@ -341,8 +341,13 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
     return;
   }
 
-  new_var = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
-  this->var_remap_[binding->var->vid] = new_var;
+  {
+    Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
+    if (!temp.same_as(new_var)) {
+      new_var = temp;
+      this->var_remap_[binding->var->vid] = new_var;
+    }
+  }
 
   if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
     builder_->EmitOutput(VarBinding(new_var, new_value));
@@ -357,16 +362,20 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
 
   Var new_var;
   if (binding->var.defined()) {
+    // in the case of `x = R.match_shape(val, pattern)`, we want `x` to directly get `pattern` as
+    // the shape when `val` is a tensor.
     Optional<Expr> new_shape;
     if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
       new_shape = new_pattern;
     }
-    new_var =
+    Var temp =
         WithShapeAndType(this->VisitVarDef(binding->var), new_shape, new_value->checked_type_);
-    this->var_remap_[binding->var->vid] = new_var;
+    if (!temp.same_as(new_var)) {
+      new_var = temp;
+      this->var_remap_[binding->var->vid] = new_var;
+    }
   }
 
-  // Var new_var = binding->var.defined() ? this->VisitVarDef(binding->var) : binding->var;
   // TODO(@altanh, @yuchen): shape and type inference here too...
   // TODO: when value's shape/type changed, create new var
   // TODO: group the can prove shape/type logic and replace var into a function
@@ -429,16 +438,19 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
 Expr ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
 
 Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type) {
+  // shape/type changes if it goes from defined -> undefined or the other way, hence xor
   bool shape_changed = var->shape_.operator bool() ^ shape.operator bool();
   shape_changed |= var->shape_ && shape &&
                    !builder_->CanProveShapeEqual(Downcast<Expr>(var->shape_.value()),
                                                  Downcast<Expr>(shape.value()));
 
   bool type_changed = var->checked_type_.defined() ^ type.defined();
-  type_changed |= var->checked_type_.defined() && type.defined() && !StructuralEqual()(var->checked_type_, type);
+  type_changed |= var->checked_type_.defined() && type.defined() &&
+                  !StructuralEqual()(var->checked_type_, type);
 
   if (shape_changed || type_changed) {
-    Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span) : Var(var->vid, NullOpt, NullOpt, var->span);
+    Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
+                                            : Var(var->vid, NullOpt, NullOpt, var->span);
     new_var->shape_ = var->shape_;
     new_var->checked_type_ = var->checked_type_;
     var = new_var;
