@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/backend/vm/codegen_vm.cc
- * \brief A compiler to compile an IRModule to VM executable.
+ * \brief A codegen to generate VM executable from an IRModule with relax functions.
  */
 
 #include "codegen_vm.h"
@@ -64,7 +64,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       // TODO(@yuchen): handle local functions that capture local vars outside the func
       // TODO(@yuchen): a renaming pass to resolve name conflicts, e.g. the input module has a
       // function named "local_funcN"
-      // lift the local func to a global func and compile it normally
+      // lift the local func to a global func and process it normally
       builder_->EmitFunction("local_func" + std::to_string(local_func_counter_++),
                              func_node->params.size());
     }
@@ -287,49 +287,27 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
 };
 
-void VMCompiler::Compile(IRModule mod, Target target, Target target_host) {
+void VMCodeGen::CodeGen(IRModule rx_mod) {
   builder_ = relax::ExecBuilderNode::Create();
-
-  IRModule tir_mod;
-  IRModule rx_mod;
-  for (auto& p : mod->functions) {
-    auto gvar = p.first;
-
-    BaseFunc func = p.second;
-    if (func.as<tir::PrimFuncNode>()) {
-      tir_mod->Add(gvar, func);
-    } else if (func.as<FunctionNode>()) {
-      rx_mod->Add(gvar, func);
-    } else {
-      LOG(FATAL) << "Cannot handle such function node now:\n" << func;
-    }
-  }
-  lib_ = tvm::build(tir_mod, target, target_host);
-
-  CodeGenVM compiler(builder_.operator->());
+  CodeGenVM codegen(builder_.operator->());
   for (auto& p : rx_mod->functions) {
-    compiler.VisitExpr(p.second);
+    codegen.VisitExpr(p.second);
   }
 }
 
-Executable VMCompiler::GetExec() { 
+Executable VMCodeGen::GetExec() { 
   return builder_->Get();
 }
 
-runtime::Module VMCompiler::GetLib() {
-  return lib_;
+Executable CodeGen(IRModule mod) {
+  auto codegen = make_object<VMCodeGen>();
+  codegen->CodeGen(mod);
+  Executable exec = codegen->GetExec();
+  return exec;
 }
 
-Array<ObjectRef> Build(IRModule mod, Target target, Target target_host) {
-  auto compiler = make_object<VMCompiler>();
-  compiler->Compile(mod, target, target_host);
-  Executable exec = compiler->GetExec();
-  Module lib = compiler->GetLib();
-  return Array<ObjectRef>({exec, lib});
-}
-
-TVM_REGISTER_GLOBAL("relax.VMBuild")
-.set_body_typed(Build);
+TVM_REGISTER_GLOBAL("relax.VMCodeGen")
+.set_body_typed(CodeGen);
 
 }  // namespace relax_vm
 }  // namespace relax
