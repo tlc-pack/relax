@@ -78,7 +78,7 @@ class VMShapeLowerMutator : public ExprMutator {
       return ExprMutator::VisitExpr_(node);
     }
     tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
-    std::string shape_func_name = name_table_->GetUniqueName("shape_func");
+    std::string shape_func_name = builder_->name_table()->GetUniqueName("shape_func");
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
     GlobalVar shape_func_var(shape_func_name);
     // TODO make sure shape_heap doesnt get redefined by local funcs?

@@ -201,6 +201,39 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
  private:
+  /*!
+  * \brief Memoization map for expressions using Id for equality of variables.
+  */
+  class ExprMemo {
+  public:
+    Optional<Expr> Get(const Expr& expr) {
+      if (const VarNode* var = expr.as<VarNode>()) {
+        auto it = var_memo_.find(var->vid);
+        if (it != var_memo_.end()) {
+          return it->second;
+        }
+      } else {
+        auto it = expr_memo_.find(expr);
+        if (it != expr_memo_.end()) {
+          return it->second;
+        }
+      }
+      return NullOpt;
+    }
+
+    void Set(const Expr& pre, const Expr& post) {
+      if (const VarNode* var = pre.as<VarNode>()) {
+        var_memo_[var->vid] = post;
+      } else {
+        expr_memo_[pre] = post;
+      }
+    }
+
+  private:
+    std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
+    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
+  };
+
   static bool IsLeaf(const Expr& expr) {
     // NB: tuples are treated as leaf nodes for ergonomics
     // TODO(@altanh, @yuchen): remove TupleNode from leaf
@@ -240,13 +273,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
 TVM_REGISTER_NODE_TYPE(BlockBuilderNode);
 
-BlockBuilderNode::BlockBuilderNode(std::shared_ptr<NameTable> name_table) {
-  name_table_ = name_table;
-  normalizer_ = std::make_unique<ExprNormalizer>(this);
-}
-
 BlockBuilderNode::BlockBuilderNode() {
-  name_table_ = std::make_shared<NameTable>();
+  name_table_ = std::make_unique<NameTable>();
   normalizer_ = std::make_unique<ExprNormalizer>(this);
 }
 
@@ -255,8 +283,6 @@ BlockBuilderNode::~BlockBuilderNode() {
     LOG(WARNING) << "BlockBuilder destroyed with remaining blocks!";
   }
 }
-
-BlockBuilder BlockBuilderNode::Create() { return BlockBuilder(std::make_shared<NameTable>()); }
 
 void BlockBuilderNode::BeginDataflowBlock() { this->block_stack_.push({{}, true}); }
 
@@ -449,6 +475,7 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
 
 // TODO(@altanh, @yuchen): need an internal Emit_ that doesn't call normalize
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
+  // TODO(@altanh): fast path
   Expr normalized = normalizer_->VisitExpr(expr);
   if (normalized.as<CallNode>()) {
     // FIXME(@altanh): potentially breaks idempotency
@@ -479,14 +506,15 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
   return &block_stack_.top();
 }
 
-BlockBuilder::BlockBuilder(std::shared_ptr<NameTable> name_table) {
-  ObjectPtr<BlockBuilderNode> n = make_object<BlockBuilderNode>();
-  n->name_table_ = name_table;
-  n->normalizer_ = std::make_unique<BlockBuilderNode::ExprNormalizer>(n.get());
-  data_ = std::move(n);
+NameTable* BlockBuilderNode::name_table() {
+  return name_table_.get();
 }
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilderNode::Create);
+BlockBuilder BlockBuilder::Create() {
+  return BlockBuilder(make_object<BlockBuilderNode>());
+}
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilder::Create);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginDataflowBlock")
     .set_body_typed([](BlockBuilder builder) { builder->BeginDataflowBlock(); });

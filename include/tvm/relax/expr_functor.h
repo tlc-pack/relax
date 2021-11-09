@@ -178,9 +178,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
   ExprMutator() {
-    name_table_ = std::make_shared<NameTable>();
-    // TODO (@yuchen, @altanh): should block builder expose name_table_ instead?
-    builder_ = BlockBuilder(name_table_);
+    builder_ = BlockBuilder::Create();
   }
 
   Expr VisitExpr(const Expr& expr) override;
@@ -250,46 +248,14 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   }
 
   /*!
-   * \brief Create a new expr with specified shape and type if it's original shape or type does not
+   * \brief Create a new var with specified shape and type if it's original shape or type does not
    * match with the specified ones.
-   * \param T The node type to be visited.
-   * \param expr The node to be visited.
+   * \param var The var to be updated.
    * \param shape The specified shape.
    * \param type The specified type.
-   * \return The expr filled with \p shape and \p type.
+   * \return The var filled with \p shape and \p type.
    */
-  template <typename T>
-  T WithShapeAndType(T expr, Optional<ObjectRef> shape, Type type) {
-    // make sure to not "forget" DataflowVars
-    if (!std::is_same<T, DataflowVar>::value &&
-        static_cast<ObjectRef>(expr).as<DataflowVarNode>()) {
-      return WithShapeAndType(Downcast<DataflowVar>(expr), shape, type);
-    }
-
-    bool shape_changed = !shape || !expr->shape_ ||
-                         !builder_->CanProveShapeEqual(Downcast<Expr>(expr->shape_.value()),
-                                                       Downcast<Expr>(shape.value()));
-    bool type_changed = !type.defined() || !expr->checked_type_.defined() ||
-                        !StructuralEqual()(expr->checked_type_, type);
-    if (shape_changed) {
-      if (expr->shape_) {
-        expr.CopyOnWrite()->shape_ = shape;
-      } else {
-        expr->shape_ = shape;
-      }
-    }
-    if (type_changed) {
-      if (expr->checked_type_.defined()) {
-        expr.CopyOnWrite()->checked_type_ = type;
-      } else {
-        expr->checked_type_ = type;
-      }
-    }
-
-    return expr;
-  }
-
-  std::shared_ptr<NameTable> name_table_;
+  Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
 
   /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;

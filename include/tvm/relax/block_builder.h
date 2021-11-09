@@ -44,8 +44,6 @@ class BlockBuilder;
  */
 class BlockBuilderNode : public Object {
  public:
-  BlockBuilderNode(std::shared_ptr<NameTable> name_table);
-
   BlockBuilderNode();
 
   ~BlockBuilderNode();
@@ -137,10 +135,11 @@ class BlockBuilderNode : public Object {
   Expr Normalize(const Expr& expr);
 
   /*!
-   * \brief Create a BlockBuilder.
-   * \return The created BlockBuilder.
+   * \brief Get the name table for generating unique names.
+   *
+   * \return The name table.
    */
-  TVM_DLL static BlockBuilder Create();
+  NameTable* name_table();
 
   void VisitAttrs(AttrVisitor* v) {}
 
@@ -188,7 +187,7 @@ class BlockBuilderNode : public Object {
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
 
   /*! \brief A name table to get unique names for IR construction. */
-  std::shared_ptr<NameTable> name_table_;
+  std::unique_ptr<NameTable> name_table_;
 
   /*! \brief The internal normalizer used for ANF conversion. */
   std::unique_ptr<ExprNormalizer> normalizer_;
@@ -196,7 +195,12 @@ class BlockBuilderNode : public Object {
 
 class BlockBuilder : public ObjectRef {
  public:
-  TVM_DLL explicit BlockBuilder(std::shared_ptr<NameTable> name_table);
+  /*!
+   * \brief Create a BlockBuilder.
+   * \return The created BlockBuilder.
+   */
+  TVM_DLL static BlockBuilder Create();
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
 

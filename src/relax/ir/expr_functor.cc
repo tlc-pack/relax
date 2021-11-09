@@ -428,6 +428,33 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
 
 Expr ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
 
+Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type) {
+  bool shape_changed = var->shape_.operator bool() ^ shape.operator bool();
+  shape_changed |= var->shape_ && shape &&
+                   !builder_->CanProveShapeEqual(Downcast<Expr>(var->shape_.value()),
+                                                 Downcast<Expr>(shape.value()));
+
+  bool type_changed = var->checked_type_.defined() ^ type.defined();
+  type_changed |= var->checked_type_.defined() && type.defined() && !StructuralEqual()(var->checked_type_, type);
+
+  if (shape_changed || type_changed) {
+    Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span) : Var(var->vid, NullOpt, NullOpt, var->span);
+    new_var->shape_ = var->shape_;
+    new_var->checked_type_ = var->checked_type_;
+    var = new_var;
+  }
+
+  if (shape_changed) {
+    var->shape_ = shape;
+  }
+
+  if (type_changed) {
+    var->checked_type_ = type;
+  }
+
+  return var;
+}
+
 // ==================
 // DataflowMutator
 
