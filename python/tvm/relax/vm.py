@@ -17,8 +17,11 @@
 
 from typing import List, Optional, Union, Dict, Tuple
 import tvm
+from tvm import relax
+from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm._ffi.base import _LIB, check_call
+from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from . import transform
 from ..rpc.base import RPC_SESS_MASK
@@ -169,5 +172,22 @@ def build(mod: tvm.IRModule,
     new_mod = transform.call_dps_rewrite(new_mod)
     new_mod = transform.vm_memory_lower(new_mod)
     new_mod = transform.vm_shape_lower(new_mod)
-    ex, lib = _ffi_api.VMBuild(new_mod, target, target_host)
+
+    # split primfunc and relax function
+    rx_mod, tir_mod = _split_tir_relax(new_mod)
+
+    lib = tvm.build(tir_mod, target, target_host)
+    ex = _ffi_api.VMCodeGen(rx_mod)
     return ex, lib
+
+def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
+    rx_mod = IRModule({})
+    tir_mod = IRModule({})
+    for gv in mod.get_global_vars():
+        if isinstance(mod[gv], PrimFunc):
+            tir_mod[gv] = mod[gv]
+        elif isinstance(mod[gv], relax.Function):
+            rx_mod[gv] = mod[gv]
+        else:
+            raise ValueError("An IRModule should contain contain relax function and TIR primfunc.")
+    return rx_mod, tir_mod
