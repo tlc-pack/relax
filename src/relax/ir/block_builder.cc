@@ -487,15 +487,21 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
     }
 
     // Shape inference
-    auto inferred_shape = InferShape(call, this->diag_ctx_);
-    if (inferred_shape.defined()) {
-      if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
-        call->shape_ = GetRef<Expr>(shape_expr);
+    if (!call->shape_) {
+      auto inferred_shape = InferShape(call, this->diag_ctx_);
+      if (inferred_shape.defined()) {
+        if (auto* shape_expr = inferred_shape.value().as<ShapeExprNode>()) {
+          call->shape_ = GetRef<Expr>(shape_expr);
+        }
       }
     }
-    // Type inference
-    auto inferred_type = InferType(call, this->diag_ctx_);
-    call->checked_type_ = inferred_type;
+
+    if (!call->checked_type_.defined()) {
+      // Type inference
+      auto inferred_type = InferType(call, this->diag_ctx_);
+      call->checked_type_ = inferred_type;
+    }
+
     return call;
   }
   return normalized;
