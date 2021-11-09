@@ -17,7 +17,6 @@
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
 import tvm.ir
-from tvm import IRModule
 from . import _ffi_api
 
 @tvm._ffi.register_object("relax.FunctionPass")
@@ -26,15 +25,14 @@ class FunctionPass(tvm.ir.transform.Pass):
     pass class should be created through `function_pass`.
     """
 
-def fma_rewrite(expr):
+def FMARewrite() -> tvm.transform.Pass:
     """Perform fused multiply add rewriting in dataflow blocks.
 
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.fma_rewrite(expr)
+    return _ffi_api.FMARewrite()
 
 
 def ToNonDataflow() -> tvm.transform.Pass:

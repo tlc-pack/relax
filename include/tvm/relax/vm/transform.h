@@ -27,8 +27,6 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relay/attrs/transform.h>
-#include <tvm/target/target.h>
 
 #include <string>
 
@@ -39,16 +37,22 @@ namespace transform {
 
 using namespace tvm::relax::transform;
 using Pass = tvm::transform::Pass;
-using PassNode = tvm::transform::PassNode;
 using PassInfo = tvm::transform::PassInfo;
-using PassInfoNode = tvm::transform::PassInfoNode;
 using PassContext = tvm::transform::PassContext;
-using PassContextNode = tvm::transform::PassContextNode;
-using Sequential = tvm::transform::Sequential;
 using Function = tvm::relax::Function;
 
+/*!
+ * \brief Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
+ *
+ * \return The Pass.
+ */
 TVM_DLL Pass VMMemoryLower();
 
+/*!
+ * \brief Lower the shape expression in relax to VM shape heap and TIR functions.
+ *
+ * \return The Pass.
+ */
 TVM_DLL Pass VMShapeLower();
 
 }  // namespace transform

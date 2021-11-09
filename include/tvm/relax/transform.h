@@ -27,7 +27,6 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/target/target.h>
 
 #include <string>
 
@@ -36,15 +35,11 @@ namespace relax {
 namespace transform {
 
 using Pass = tvm::transform::Pass;
-using PassNode = tvm::transform::PassNode;
 using PassInfo = tvm::transform::PassInfo;
-using PassInfoNode = tvm::transform::PassInfoNode;
 using PassContext = tvm::transform::PassContext;
-using PassContextNode = tvm::transform::PassContextNode;
-using Sequential = tvm::transform::Sequential;
 using Function = tvm::relax::Function;
 
-/*
+/*!
  * \brief Create a function pass.
  *
  * \param pass_func The packed function that contains the optimization.
@@ -58,8 +53,25 @@ TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
 
+/*!
+ * \brief Perform fused multiply add rewriting in dataflow blocks.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FMARewrite();
+
+/*!
+ * \brief Transform all dataflow structure to non-dataflow version.
+ *
+ * \return The Pass.
+ */
 TVM_DLL Pass ToNonDataflow();
 
+/*!
+ * \brief Perform explicit tensor allocation for call_dps.
+ *
+ * \return The Pass.
+ */
 TVM_DLL Pass CallDPSRewrite();
 
 }  // namespace transform

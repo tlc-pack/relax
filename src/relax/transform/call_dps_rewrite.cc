@@ -18,7 +18,7 @@
  */
 /*!
  * \file src/relax/transform/call_dps_rewrite.cc
- * \brief
+ * \brief Perform explicit tensor allocation for call_dps.
  */
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
