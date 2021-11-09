@@ -16,9 +16,15 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
+import tvm.ir
 from tvm import IRModule
 from . import _ffi_api
 
+@tvm._ffi.register_object("relax.FunctionPass")
+class FunctionPass(tvm.ir.transform.Pass):
+    """A pass that works on each tvm.relax.Function in a module. A function
+    pass class should be created through `function_pass`.
+    """
 
 def fma_rewrite(expr):
     """Perform fused multiply add rewriting in dataflow blocks.
@@ -31,37 +37,34 @@ def fma_rewrite(expr):
     return _ffi_api.fma_rewrite(expr)
 
 
-def to_non_dataflow(mod: IRModule) -> IRModule:
+def ToNonDataflow() -> tvm.transform.Pass:
     """Transform all dataflow structure to non-dataflow version.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.to_non_dataflow(mod)
+    return _ffi_api.ToNonDataflow()
 
 
-def call_dps_rewrite(mod: IRModule) -> IRModule:
+def CallDPSRewrite() -> tvm.transform.Pass:
     """Perform explicit tensor allocation for call_dps.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.call_dps_rewrite(mod)
+    return _ffi_api.CallDPSRewrite()
 
 
-def vm_memory_lower(mod: IRModule) -> IRModule:
+def VMMemoryLower(mod: IRModule) -> tvm.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.vm_memory_lower(mod)
+    return _ffi_api.VMMemoryLower(mod)
 
 
 def vm_shape_lower(mod: IRModule) -> IRModule:

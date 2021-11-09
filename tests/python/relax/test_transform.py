@@ -87,7 +87,9 @@ def test_to_non_dataflow():
     relax.analysis.post_order_visit(mod["foo"], fvisit)
     _, x, _, gv0, _, gv1 = old_vars
 
-    new_mod = relax.transform.to_non_dataflow(mod)
+    passes = [relax.transform.ToNonDataflow()]
+    seq = tvm.transform.Sequential(passes)
+    new_mod = seq(mod)
 
     new_vars = []
     def fvisit(e):
@@ -108,13 +110,13 @@ def test_to_non_dataflow():
 
 def test_call_dps_rewrite():
     @tvm.script.ir_module
-    class TestCallDpsRewrite:
+    class TestCallDPSRewrite:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
             return gv0
 
-    mod = TestCallDpsRewrite
+    mod = TestCallDPSRewrite
 
     # before rewrite
     v0 = mod["foo"].body.blocks[0].bindings[0].var
@@ -123,7 +125,9 @@ def test_call_dps_rewrite():
     assert s0.op.name == "relax.call_dps"
 
     # after rewrite
-    new_mod = relax.transform.call_dps_rewrite(mod)
+    passes = [relax.transform.CallDPSRewrite()]
+    seq = tvm.transform.Sequential(passes)
+    new_mod = seq(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]
@@ -234,5 +238,5 @@ if __name__ == "__main__":
     test_fma_rewrite()
     test_to_non_dataflow()
     test_call_dps_rewrite()
-    test_vm_memory_lower()
-    test_vm_shape_lowering()
+    # test_vm_memory_lower()
+    # test_vm_shape_lowering()

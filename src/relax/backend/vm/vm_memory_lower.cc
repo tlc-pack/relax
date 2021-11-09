@@ -23,6 +23,7 @@
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/vm/transform.h>
 #include <tvm/tir/op.h>
 
 #include "../../../relay/transforms/pattern_utils.h"
@@ -37,25 +38,11 @@ namespace vm {
 // Example:
 // x = relax.builtin.alloc_tensor((m, n))
 // -->
-// gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n), relax.attrs.AllocStorageAttrs) 
-// gv1 = relax.call_packed("relax.vm.builtin.alloc_tensor", gv0, (m, n), relax.attrs.AllocTensorAttrs)
+// gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n), relax.attrs.AllocStorageAttrs)
+// gv1 = relax.call_packed("relax.vm.builtin.alloc_tensor", gv0, (m, n),
+// relax.attrs.AllocTensorAttrs)
 
 class VMMemLowerMutator : public ExprMutator {
- public:
-  explicit VMMemLowerMutator(IRModule mod) { mod_ = mod; }
-
-  IRModule Lower() {
-    IRModule ret_mod = IRModule();
-    for (auto& p : mod_->functions) {
-      Expr func = p.second;
-      if (p.second->IsInstance<FunctionNode>()) {
-        func = this->VisitExpr(p.second);
-      }
-      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
-    }
-    return ret_mod;
-  }
-
   Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
     DynTensorType tensor_type = Downcast<DynTensorType>(type);
     DataType dtype = DataType(tensor_type->dtype);
@@ -101,26 +88,34 @@ class VMMemLowerMutator : public ExprMutator {
       storage_attr->dtype = DataType::Float(32);
       storage_attr->device_type = 1;
 
-      Var storage = builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
+      Var storage =
+          builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
       auto tensor_attr = make_object<AllocTensorAttrs>();
       tensor_attr->offset = 0;
       tensor_attr->dtype = DataType::Float(32);
       Expr shape = call->args[0];
-      Var tensor = builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
+      Var tensor =
+          builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
       return tensor;
     }
 
     return GetRef<Expr>(call);
   }
-
- private:
-  IRModule mod_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.vm_memory_lower")
-.set_body_typed([](IRModule mod) {
-  return VMMemLowerMutator(mod).Lower();
-});
+Expr VMMemLower(const Expr& e) { return VMMemLowerMutator().VisitExpr(e); }
+
+namespace transform {
+
+Pass VMMemoryLower() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(VMMemLower(f)); };
+  return CreateFunctionPass(pass_func, 0, "VMMemoryLower", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.VMMemoryLower").set_body_typed(VMMemoryLower);
+
+}  // namespace transform
 
 }  // namespace vm
 }  // namespace relax
