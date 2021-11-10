@@ -51,7 +51,7 @@ class VMShapeLowerMutator : public ExprMutator {
         shape_heap_ = Var("shape_heap", ShapeExpr({heap_size_}), heap_type);
 
         // mutate
-        func = this->Mutate(func);
+        func = this->VisitExpr(func);
       }
       ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
     }
@@ -78,11 +78,11 @@ class VMShapeLowerMutator : public ExprMutator {
       return ExprMutator::VisitExpr_(node);
     }
     tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
-    std::string shape_func_name = name_table_->GetUniqueName("shape_func");
+    std::string shape_func_name = builder_->name_table()->GetUniqueName("shape_func");
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
     GlobalVar shape_func_var(shape_func_name);
     // TODO make sure shape_heap doesnt get redefined by local funcs?
-    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_compute_shape");
+    builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
     ret_mod_->Add(shape_func_var, func);
 
     // construct shape
@@ -100,7 +100,7 @@ class VMShapeLowerMutator : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* node) override {
     Array<Var> params;
     for (Var param : node->params) {
-      params.push_back(Downcast<Var>(this->Mutate(param)));
+      params.push_back(this->VisitVarDef(param));
     }
     Type ret_type = this->VisitType(node->ret_type);
 
@@ -108,7 +108,7 @@ class VMShapeLowerMutator : public ExprMutator {
     builder_->Emit(VarBinding(
         shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
 
-    Expr new_body = this->Mutate(node->body);
+    Expr new_body = this->VisitExpr(node->body);
 
     Array<BindingBlock> blocks;
 

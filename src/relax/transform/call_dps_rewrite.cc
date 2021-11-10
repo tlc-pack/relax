@@ -48,7 +48,7 @@ class CallDPSMutator : public ExprMutator {
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
-        func = this->Mutate(p.second);
+        func = this->VisitExpr(p.second);
       }
       ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
@@ -57,7 +57,7 @@ class CallDPSMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
-    Expr expr = ExprMutator::VisitExpr_(call);
+    Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
@@ -65,7 +65,7 @@ class CallDPSMutator : public ExprMutator {
 
     if (call->op == call_dps_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
+      Var tensor = builder_->Emit(Call(alloc_tensor_op, {output_shape}), "tensor");
       builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
       return tensor;
     }
