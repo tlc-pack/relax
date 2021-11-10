@@ -97,6 +97,7 @@ class Constant : public Expr {
   TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
 
 /*! \brief Tuple of multiple Exprs */
