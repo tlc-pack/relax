@@ -49,7 +49,7 @@ class VMMemLowerMutator : public ExprMutator {
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
-        func = this->Mutate(p.second);
+        func = this->VisitExpr(p.second);
       }
       ret_mod->Add(p.first, Downcast<BaseFunc>(func));
     }
@@ -83,7 +83,7 @@ class VMMemLowerMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
-    Expr expr = ExprMutator::VisitExpr_(call);
+    Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
