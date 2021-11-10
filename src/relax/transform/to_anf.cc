@@ -16,21 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*!
- * \file src/relax/transform/to_non_dataflow.cc
- * \brief
+ * \file tvm/relax/transform/to_anf.cc
+ * \brief Pass for transforming Relax IR to A-normal form.
  */
-#include <tvm/relax/attrs/memory.h>
+
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/type.h>
-#include <tvm/tir/op.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relax {
 
-class ToNonDFMutator : public ExprMutator {
+
+// TODO(@altanh): LCA binding lifting
+class ToANFMutator : public ExprMutator {
  public:
-  explicit ToNonDFMutator(IRModule mod) { mod_ = mod; }
+  ToANFMutator(const IRModule& mod) : mod_(mod) {}
 
   IRModule Lower() {
     IRModule ret_mod = IRModule();
@@ -44,30 +47,12 @@ class ToNonDFMutator : public ExprMutator {
     return ret_mod;
   }
 
-  Var VisitVarDef(const Var& var) final {
-    if (var.as<DataflowVarNode>()){
-      Var new_var = Var(var->vid, NullOpt, var->checked_type_, var->span);
-      new_var->shape_ = var->shape_;
-      this->var_remap_[var->vid] = new_var;
-      return new_var;
-    }
-    return var;
-  }
-
-  BindingBlock VisitDataflowBlock(const DataflowBlock& block) final {
-    builder_->BeginBindingBlock();
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-    return builder_->EndBlock();
-  }
-
  private:
   IRModule mod_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.to_non_dataflow").set_body_typed([](IRModule mod) {
-  return ToNonDFMutator(mod).Lower();
+TVM_REGISTER_GLOBAL("relax.transform.to_anf").set_body_typed([](IRModule mod) {
+  return ToANFMutator(mod).Lower();
 });
 
 }  // namespace relax
