@@ -103,7 +103,7 @@ def test_to_non_dataflow():
 
     assert isinstance(gv1, relax.Var)
     assert isinstance(new_vars[5], relax.Var)
-    assert gv1 != new_vars[5]
+    assert gv1 == new_vars[5]
 
 
 def test_call_dps_rewrite():
@@ -203,6 +203,32 @@ def test_vm_shape_lowering():
     s5 = func.body.blocks[2].bindings[1].value
     assert isinstance(s5, tvm.relay.Call)
     assert s5.op.name == "relax.vm.builtin.load_shape"
+
+def test_to_anf():
+    x = relax.Var("x", type_annotation=relax.DynTensorType())
+    gv = relax.op.add(x, x)
+    gv1 = relax.op.add(gv, gv)
+    gv2 = relax.op.add(gv, gv1)
+    body = relax.Tuple([gv, gv2])
+    gvar = relax.GlobalVar("f")
+    func = relax.Function([x], body, None, gvar)
+
+    mod: tvm.IRModule = tvm.IRModule({gvar: func})
+    mod = relax.transform.to_anf(mod)
+
+    @tvm.script.ir_module
+    class TestToANFExpected:
+        @R.function
+        def f(x: Tensor[_, "float32"]):
+            gv = relax.add(x, x)
+            gv1 = relax.add(gv, gv)
+            gv2 = relax.add(gv, gv1)
+            return (gv, gv2)
+
+    # TODO(@altanh): fix this once type inference works properly...?
+    assert R.parser.astext(mod) == R.parser.astext(TestToANFExpected)
+
+
 
 if __name__ == "__main__":
     test_fma_rewrite()
