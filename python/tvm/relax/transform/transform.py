@@ -75,5 +75,5 @@ def VMShapeLower() -> tvm.transform.Pass:
     return _ffi_api.VMShapeLower()
 
 
-def to_anf(mod: IRModule):
+def to_anf(mod):
     return _ffi_api.to_anf(mod)

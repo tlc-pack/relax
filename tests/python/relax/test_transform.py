@@ -18,39 +18,55 @@
 from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
 from tvm import relax
+from tvm import tir
 from tvm.ir import structural_equal
+from tvm.ir.module import IRModule
 
 import tvm.script
 from tvm.script import relax as R
 
 
 def test_fma_rewrite():
-    @tvm.script.ir_module
-    class TestFmaRewrite:
-        @R.function
-        def foo(x: Tensor[(m, n), "float32"], y: Tensor[(m, n), "float32"]):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
-            return gv0
-
-    mod = TestFmaRewrite
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = relax.DynTensorType(rank=2, dtype="float16")
+    dtype1 = relax.DynTensorType(rank=2, dtype="float16")
+    x = relax.Var("x", [m, n], dtype0)
+    y = relax.Var("y", [m, n], dtype1)
+    ib = relax.BlockBuilder()
+    with ib.function([x, y]):
+        with ib.dataflow() as df:
+            lv0 = ib.emit(relax.op.multiply(x, y))
+            gv0 = ib.emit_output(relax.op.add(lv0, y))
+        ib.emit_func_output(gv0)
+    expr = ib.get()
+    mod = IRModule.from_expr(expr)
 
     # before rewrite
-    func = mod["foo"]
-    s0 = func.body.blocks[0].bindings[1].value
+    v0 = expr.body.blocks[0].bindings[1].var
+    s0 = expr.body.blocks[0].bindings[1].value
     assert isinstance(s0, tvm.relay.Call)
     assert s0.op.name == "relax.add"
+    assert structural_equal(v0.shape, relax.ShapeExpr([m, n]))
+    assert structural_equal(s0.shape, relax.ShapeExpr([m, n]))
+    assert structural_equal(gv0.shape, relax.ShapeExpr([m, n]))
 
     # after rewrite
     passes = [relax.transform.FMARewrite()]
     seq = tvm.transform.Sequential(passes)
     new_mod = seq(mod)
-    func = new_mod["foo"]
+    func = new_mod["main"]
+    v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
+    assert structural_equal(v1.shape, relax.ShapeExpr([m, n]))
+    assert structural_equal(s1.shape, relax.ShapeExpr([m, n]))
+
+    # The var binded to the fma call is reused because the shape
+    # and type of var are unchanged after rewriting
+    assert gv0 == v0
+    assert type(func.body.blocks[0].bindings[1].var) == relax.Var
 
 
 def test_to_non_dataflow():

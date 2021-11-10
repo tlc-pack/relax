@@ -30,7 +30,6 @@
 
 namespace tvm {
 namespace relax {
-namespace vm {
 
 // ==================
 // MemLowerMutator
@@ -116,7 +115,5 @@ Pass VMMemoryLower() {
 TVM_REGISTER_GLOBAL("relax.transform.VMMemoryLower").set_body_typed(VMMemoryLower);
 
 }  // namespace transform
-
-}  // namespace vm
 }  // namespace relax
 }  // namespace tvm

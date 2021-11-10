@@ -30,7 +30,6 @@
 
 namespace tvm {
 namespace relax {
-namespace vm {
 
 class VMShapeLowerMutator : public ExprMutator {
  public:
@@ -209,7 +208,5 @@ Pass VMShapeLower() {
 TVM_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed(VMShapeLower);
 
 }  // namespace transform
-
-}  // namespace vm
 }  // namespace relax
 }  // namespace tvm

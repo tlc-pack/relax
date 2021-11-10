@@ -24,22 +24,11 @@
 #ifndef TVM_RELAX_VM_TRANSFORM_H_
 #define TVM_RELAX_VM_TRANSFORM_H_
 
-#include <tvm/ir/transform.h>
-#include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
-
-#include <string>
 
 namespace tvm {
 namespace relax {
-namespace vm {
 namespace transform {
-
-using namespace tvm::relax::transform;
-using Pass = tvm::transform::Pass;
-using PassInfo = tvm::transform::PassInfo;
-using PassContext = tvm::transform::PassContext;
-using Function = tvm::relax::Function;
 
 /*!
  * \brief Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
@@ -56,7 +45,6 @@ TVM_DLL Pass VMMemoryLower();
 TVM_DLL Pass VMShapeLower();
 
 }  // namespace transform
-}  // namespace vm
 }  // namespace relax
 }  // namespace tvm
 
