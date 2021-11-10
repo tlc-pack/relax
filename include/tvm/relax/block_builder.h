@@ -44,26 +44,28 @@ class BlockBuilder;
  */
 class BlockBuilderNode : public Object {
  public:
-  BlockBuilderNode(std::shared_ptr<NameTable> name_table) : name_table_(name_table) {}
+  BlockBuilderNode();
 
   ~BlockBuilderNode();
 
-  BlockBuilderNode() { name_table_ = std::make_shared<NameTable>(); }
-
   /*! \brief Begin to build a DataflowBlock. */
   void BeginDataflowBlock();
+
   /*! \brief Begin to build a BindingBlock. */
   void BeginBindingBlock();
+
   /*!
    * \brief End building a BindingBlock.
    * \return The BindingBlock being built.
    */
   BindingBlock EndBlock();
+
   /*!
    * \brief Check if the block being built is DataflowBlock or not.
    * \return A boolean that indicates if the block being built is DataflowBlock or not.
    */
   inline bool CurrentBlockIsDataFlow() { return CurrentFrame()->is_dataflow; }
+
   /*!
    * \brief Emits an Expr, and returns the variable it is bound to.
    * \param expr The Expr to be emitted.
@@ -71,12 +73,14 @@ class BlockBuilderNode : public Object {
    * \return The new variable that \p expr is bound to.
    */
   virtual Var Emit(const Expr& expr, std::string name_hint = "");
+
   /*!
    * \brief Emits a variable binding, and returns the bound Var.
    * \param binding The variable binding.
    * \return The bound variable.
    */
   virtual Var Emit(const VarBinding& binding);
+
   /*!
    * \brief Emit a MatchShape.
    * \param value The value of the MatchShape to be emitted.
@@ -85,12 +89,14 @@ class BlockBuilderNode : public Object {
    * \return The variable bound to the MatchShape.
    */
   Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern, std::string name_hint = "");
+
   /*!
    * \brief Emit a MatchShape binding.
    * \param binding The MatchShape binding to be emitted.
    * \return The variable bound to the MatchShape.
    */
   Var EmitMatchShape(const MatchShape& binding);
+
   /*!
    * \brief Generate an output for the current dataflow block.
    * \param output The output variable of the block.
@@ -98,18 +104,21 @@ class BlockBuilderNode : public Object {
    * \return The variable bound to \p output.
    */
   Var EmitOutput(const Expr& output, std::string name_hint = "");
+
   /*!
    * \brief Generate an output for the current dataflow block.
    * \param binding The output binding to output.
    * \return The variable bound to \p output.
    */
   Var EmitOutput(const VarBinding& binding);
+
   /*!
-   * \brief Lookup a var in the binding table \p var_map_.
+   * \brief Lookup a var in the binding table \p binding_table_.
    * \param var The input var.
    * \return The Expr bound to the input \p var.
    */
-  Expr LookupVar(const Var& var);
+  Expr LookupBinding(const Var& var);
+
   /*!
    * \brief Check if two shape expressions can be proven equal at compile time.
    * \param lhs The input lhs shape.
@@ -117,17 +126,20 @@ class BlockBuilderNode : public Object {
    * \return Whether we can prove lhs shape is the same as the rhs shape.
    */
   bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
+
   /*!
-   * \brief Normalize an Expr to complete its shape and type.
-   * \param expr The input expr.
-   * \return The expr with normalized shape and type.
+   * \brief Convert an expression to A-normal form, and try to eagerly infer types and shapes.
+   * \param expr The input expression.
+   * \return The normalized expression.
    */
   Expr Normalize(const Expr& expr);
+
   /*!
-   * \brief Create a BlockBuilder.
-   * \return The created BlockBuilder.
+   * \brief Get the name table for generating unique names.
+   *
+   * \return The name table.
    */
-  TVM_DLL static BlockBuilder Create();
+  NameTable* name_table();
 
   void VisitAttrs(AttrVisitor* v) {}
 
@@ -150,26 +162,45 @@ class BlockBuilderNode : public Object {
     Array<Binding> bindings;
     bool is_dataflow;
   };
+
+  /*!
+   * \brief Utility class for performing IR normalization (conversion to ANF, eager forward shape
+   * and type inference).
+   */
+  class ExprNormalizer;
+
   friend class BlockBuilder;
+
   /*!
    * \brief Get the current block frame.
    * \return The current block frame.
    */
   BlockFrame* CurrentFrame();
+
   /*! \brief A stack to store block frames. */
   std::stack<BlockFrame> block_stack_;
+
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
+
   /*! \brief A binding table that maps var to value. */
-  // TODO(@yuchen, @altanh): make var_map_ scoped, and decide if it should be in the builder
-  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
+
   /*! \brief A name table to get unique names for IR construction. */
-  std::shared_ptr<NameTable> name_table_;
+  std::unique_ptr<NameTable> name_table_;
+
+  /*! \brief The internal normalizer used for ANF conversion. */
+  std::unique_ptr<ExprNormalizer> normalizer_;
 };
 
 class BlockBuilder : public ObjectRef {
  public:
-  TVM_DLL explicit BlockBuilder(std::shared_ptr<NameTable> name_table);
+  /*!
+   * \brief Create a BlockBuilder.
+   * \return The created BlockBuilder.
+   */
+  TVM_DLL static BlockBuilder Create();
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
 

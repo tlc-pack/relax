@@ -309,7 +309,9 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::SeqExprNode* op) {
   Doc doc;
+  int i = 0;
   for (const relax::BindingBlock& block : op->blocks) {
+    doc << "# block " << i++ << Doc::NewLine();
     doc << Print(block);
   }
   // NOTE: the body expression is printed in the parent, since SeqExprs are used for both Function
@@ -484,11 +486,13 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   }
   doc << ":" << Doc::NewLine(4);
 
-  const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>();
-  ICHECK(body) << "in the Relax IR normal form, the body of a Function should be a SeqExpr";
+  if (const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>()) {
+    doc << Doc::Indent(4, Print(func->body));
+    doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
+  } else {
+    doc << Doc::Indent(4, Doc::Text("return ") << Print(func->body)) << Doc::NewLine();
+  }
 
-  doc << Doc::Indent(4, Print(func->body));
-  doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
   return doc;
 }
 
