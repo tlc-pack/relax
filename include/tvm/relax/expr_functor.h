@@ -178,16 +178,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
   ExprMutator() {
-    name_table_ = std::make_shared<NameTable>();
-    builder_ = BlockBuilder(name_table_);
-  }
-
-  /*!
-   * \brief Mutate is alias for VisitExpr
-   * \return expr.
-   */
-  Expr Mutate(const Expr& expr) {
-    return this->VisitExpr(expr);
+    builder_ = BlockBuilder::Create();
   }
 
   Expr VisitExpr(const Expr& expr) override;
@@ -218,47 +209,60 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual void VisitVarBinding(const VarBinding& binding);
   virtual void VisitMatchShape(const MatchShape& binding);
 
+  /*!
+   * \brief Rewrite the var definition site.
+   * \param var The var to be visited.
+   * \return The var after post-order rewritten.
+   * \note VisitExpr_(const VarNode*) will only visit the usage site of an Var
+   */
+  virtual Var VisitVarDef(const Var& var);
+
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   virtual BindingBlock VisitDataflowBlock(const DataflowBlock& block);
 
  protected:
-  Expr MutateWithPrologue(const Expr& expr, bool is_dataflow);
+  class ExprNormalizer;
 
-  /*! \brief Look up the value of a variable. If the variable is bound, then returns the bound
-   *  value. Otherwise, returns the rewritten expression for the variable.
+  /*!
+   * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
+   * \param expr The expr to be visited.
+   * \return The expr after visiting.
    */
-  Expr LookupVar(Var var);
+  Expr VisitWithNewScope(const Expr& expr);
 
-  inline void UpdateMemo(Expr pre, Expr post) {
-    if (const VarNode* var = pre.as<VarNode>()) {
-      var_memo_[var->vid] = post;
-    } else {
-      expr_memo_[pre] = post;
-    }
+  /*!
+   * \brief Look up the value bound to a variable.
+   * \param var The var to be looked up.
+   * \return The value bound to the input \p var.
+   */
+  Expr LookupBinding(const Var& var);
+
+  /*!
+   * \brief Post-order rewrite a node and normalize.
+   * \param T The node type to be rewritten.
+   * \param op The node to be rewritten.
+   * \return The node after post rewritten.
+   */
+  template <typename T>
+  Expr VisitExprPostOrder_(const T* op) {
+    return builder_->Normalize(ExprMutator::VisitExpr_(op));
   }
 
-  inline Optional<Expr> LookupMemo(Expr pre) {
-    if (pre.as<VarNode>()) {
-      Id vid = Downcast<Var>(pre)->vid;
-      if (var_memo_.count(vid)) {
-        return var_memo_[vid];
-      }
-    } else {
-      if (expr_memo_.count(pre)) {
-        return expr_memo_[pre];
-      }
-    }
-    return NullOpt;
-  }
+  /*!
+   * \brief Create a new var with specified shape and type if it's original shape or type does not
+   * match with the specified ones.
+   * \param var The var to be updated.
+   * \param shape The specified shape.
+   * \param type The specified type.
+   * \return The var filled with \p shape and \p type.
+   */
+  Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
 
-  /*! \brief Variable memoization table using Id equality */
-  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
-
-  /*! \brief Expr memoization table using pointer equality */
-  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
-
-  std::shared_ptr<NameTable> name_table_;
+  /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;
+
+  /*! \brief Remap a var to a new var in use-site. */
+  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
 // TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks
