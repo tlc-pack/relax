@@ -43,7 +43,7 @@ namespace relax {
 
 class EwiseFMARewriter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) override {
-    Expr expr = ExprMutator::VisitExpr_(call);
+    Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
     static const Op& add_op = Op::Get("relax.add");
@@ -52,7 +52,8 @@ class EwiseFMARewriter : public ExprMutator {
 
     if (call->op == add_op) {
       // NOTE: assumes df block is completely SSA
-      Expr value = LookupVar(Downcast<Var>(call->args[0]));
+      // FIXME(@altanh, @yuchen): this will crash if args[0] isn't a Var
+      Expr value = LookupBinding(Downcast<Var>(call->args[0]));
       const CallNode* mul = value.as<CallNode>();
       if (mul && mul->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {mul->args[0], mul->args[1], call->args[1]}, {}, {});
@@ -65,7 +66,7 @@ class EwiseFMARewriter : public ExprMutator {
 };
 
 Expr FMARewrite(const Expr& e) {
-  return EwiseFMARewriter().Mutate(e);
+  return EwiseFMARewriter().VisitExpr(e);
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.fma_rewrite")
