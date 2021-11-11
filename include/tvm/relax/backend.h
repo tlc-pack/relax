@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/vm/transform.h
- * \brief Relax VM specific transformation passes.
+ * \file tvm/relax/backend.h
+ * \brief Relax backend specific transformation passes.
  */
-#ifndef TVM_RELAX_VM_TRANSFORM_H_
-#define TVM_RELAX_VM_TRANSFORM_H_
+#ifndef TVM_RELAX_BACKEND_H_
+#define TVM_RELAX_BACKEND_H_
 
 #include <tvm/relax/transform.h>
 
@@ -48,4 +48,4 @@ TVM_DLL Pass VMShapeLower();
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_TRANSFORM_H_
+#endif  // TVM_RELAX_BACKEND_H_

@@ -92,9 +92,7 @@ def test_to_non_dataflow():
     relax.analysis.post_order_visit(mod["foo"], fvisit)
     _, x, _, gv0, _, gv1 = old_vars
 
-    passes = [relax.transform.ToNonDataflow()]
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
+    new_mod = relax.transform.ToNonDataflow()(mod)
 
     new_vars = []
     def fvisit(e):
@@ -130,9 +128,7 @@ def test_call_dps_rewrite():
     assert s0.op.name == "relax.call_dps"
 
     # after rewrite
-    passes = [relax.transform.CallDPSRewrite()]
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
+    new_mod = relax.transform.CallDPSRewrite()(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]
@@ -160,9 +156,7 @@ def test_vm_memory_lower():
     mod = TestVMMemoryLower
 
     # after vm memory lowering
-    passes = [relax.transform.VMMemoryLower()]
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
+    new_mod = relax.transform.VMMemoryLower()(mod)
     func = new_mod["foo"]
 
     assert isinstance(new_mod, tvm.IRModule)
@@ -192,9 +186,7 @@ def test_vm_shape_lowering():
     mod = TestVMShapeLower
 
     # after vm shape lowering
-    passes = [relax.transform.VMShapeLower()]
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
+    new_mod = relax.transform.VMShapeLower()(mod)
 
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
@@ -227,7 +219,7 @@ def test_to_anf():
     func = relax.Function([x], body, None, gvar)
 
     mod: tvm.IRModule = tvm.IRModule({gvar: func})
-    mod = relax.transform.to_anf(mod)
+    new_mod = relax.transform.ToANF()(mod)
 
     @tvm.script.ir_module
     class TestToANFExpected:
@@ -239,7 +231,7 @@ def test_to_anf():
             return (gv, gv2)
 
     # TODO(@altanh): fix this once type inference works properly...?
-    assert R.parser.astext(mod) == R.parser.astext(TestToANFExpected)
+    assert R.parser.astext(new_mod) == R.parser.astext(TestToANFExpected)
 
 
 
@@ -249,3 +241,4 @@ if __name__ == "__main__":
     test_call_dps_rewrite()
     test_vm_memory_lower()
     test_vm_shape_lowering()
+    test_to_anf()

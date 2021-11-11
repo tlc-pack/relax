@@ -71,6 +71,13 @@ TVM_DLL Pass ToNonDataflow();
  */
 TVM_DLL Pass CallDPSRewrite();
 
+/*!
+ * \brief Transform Relax IR to A-normal form.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass ToANF();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

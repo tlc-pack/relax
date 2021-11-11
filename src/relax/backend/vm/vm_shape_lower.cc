@@ -18,12 +18,13 @@
  */
 /*!
  * \file src/relax/backend/vm/vm_shape_lower.cc
- * \brief
+ * \brief Lower the shape expressions in relax to VM shape heap manipulations and generate related
+ * TIR functions to do shape calculations.
  */
 #include <tvm/relax/attrs/shape.h>
+#include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/relax/vm/transform.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>

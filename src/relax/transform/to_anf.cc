@@ -24,36 +24,27 @@
 
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relay/transform.h>
+#include <tvm/relax/transform.h>
 
 namespace tvm {
 namespace relax {
 
-
 // TODO(@altanh): LCA binding lifting
-class ToANFMutator : public ExprMutator {
- public:
-  ToANFMutator(const IRModule& mod) : mod_(mod) {}
+class ToANFMutator : public ExprMutator {};
 
-  IRModule Lower() {
-    IRModule ret_mod = IRModule();
-    for (auto& p : mod_->functions) {
-      Expr func = p.second;
-      if (p.second->IsInstance<FunctionNode>()) {
-        func = this->VisitExpr(p.second);
-      }
-      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
-    }
-    return ret_mod;
-  }
+Expr ToANF(const Expr& e) { return ToANFMutator().VisitExpr(e); }
 
- private:
-  IRModule mod_;
-};
+namespace transform {
 
-TVM_REGISTER_GLOBAL("relax.transform.to_anf").set_body_typed([](IRModule mod) {
-  return ToANFMutator(mod).Lower();
-});
+Pass ToANF() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(ToANF(f)); };
+  return CreateFunctionPass(pass_func, 1, "ToANF", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.ToANF").set_body_typed(ToANF);
+
+}  // namespace transform
 
 }  // namespace relax
 }  // namespace tvm

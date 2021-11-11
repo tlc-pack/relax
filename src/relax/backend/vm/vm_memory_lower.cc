@@ -18,12 +18,12 @@
  */
 /*!
  * \file src/relax/backend/vm/vm_memory_lower.cc
- * \brief
+ * \brief Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
  */
 #include <tvm/relax/attrs/memory.h>
+#include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/relax/vm/transform.h>
 #include <tvm/tir/op.h>
 
 #include "../../../relay/transforms/pattern_utils.h"

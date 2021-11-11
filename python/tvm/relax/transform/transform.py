@@ -66,7 +66,8 @@ def VMMemoryLower() -> tvm.transform.Pass:
 
 
 def VMShapeLower() -> tvm.transform.Pass:
-    """Lower the shape expression in relax to VM shape heap and TIR functions.
+    """Lower the shape expressions in relax to VM shape heap manipulations and generate related 
+    TIR functions to do shape calculations.
 
     Returns
     -------
@@ -75,5 +76,11 @@ def VMShapeLower() -> tvm.transform.Pass:
     return _ffi_api.VMShapeLower()
 
 
-def to_anf(mod):
-    return _ffi_api.to_anf(mod)
+def ToANF() -> tvm.transform.Pass:
+    """Transforming Relax IR to A-normal form.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+    """
+    return _ffi_api.ToANF()

@@ -33,6 +33,7 @@ namespace transform {
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.fallback_device_type", IntImm);
 
+// TODO(@yuchen): will need to dedup with FunctionPass in Relay when we upstream
 class FunctionPass;
 
 /*!
@@ -163,6 +164,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 }
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
+  // TODO(@yuchen): will need to revisit in the future
   return (func->GetAttr<String>(relay::attr::kCompiler).defined()) ||
          func->GetAttr<Integer>(relay::attr::kSkipOptimization, 0) != 0;
 }
