@@ -18,9 +18,10 @@
  */
 /*!
  * \file src/relax/transform/fma_rewrite.cc
- * \brief 
+ * \brief Perform fused multiply add rewriting in dataflow blocks.
  */
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/transform.h>
 
 namespace tvm {
 namespace relax {
@@ -33,7 +34,7 @@ namespace relax {
 // -->
 // z0 = ewise_fma(a, b, c)
 
-// Example 2: 
+// Example 2:
 // Question: do we want to support this?
 // x0 = mul(a, add(k, b))
 // z0 = add(x0, c)
@@ -65,14 +66,19 @@ class EwiseFMARewriter : public ExprMutator {
   }
 };
 
-Expr FMARewrite(const Expr& e) {
-  return EwiseFMARewriter().VisitExpr(e);
+Expr FMARewrite(const Expr& e) { return EwiseFMARewriter().VisitExpr(e); }
+
+namespace transform {
+
+Pass FMARewrite() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(FMARewrite(f)); };
+  return CreateFunctionPass(pass_func, 2, "FMARewrite", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.fma_rewrite")
-.set_body_typed([](Expr expr) {
-  return FMARewrite(expr);
-});
+TVM_REGISTER_GLOBAL("relax.transform.FMARewrite").set_body_typed(FMARewrite);
+
+}  // namespace transform
 
 }  // namespace relax
 }  // namespace tvm

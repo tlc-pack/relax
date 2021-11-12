@@ -168,10 +168,12 @@ def build(mod: tvm.IRModule,
     lib: tvm.runtime.Module
         A runtime module that contains generated code.
     """
-    new_mod = transform.to_non_dataflow(mod)
-    new_mod = transform.call_dps_rewrite(new_mod)
-    new_mod = transform.vm_memory_lower(new_mod)
-    new_mod = transform.vm_shape_lower(new_mod)
+    passes = [relax.transform.ToNonDataflow()]
+    passes.append(relax.transform.CallDPSRewrite())
+    passes.append(relax.transform.VMMemoryLower())
+    passes.append(relax.transform.VMShapeLower())
+    seq = tvm.transform.Sequential(passes)
+    new_mod = seq(mod)
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
@@ -189,5 +191,5 @@ def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
         elif isinstance(mod[gv], relax.Function):
             rx_mod[gv] = mod[gv]
         else:
-            raise ValueError("An IRModule should contain contain relax function and TIR primfunc.")
+            raise ValueError("An IRModule should contain relax function and/or TIR primfunc.")
     return rx_mod, tir_mod

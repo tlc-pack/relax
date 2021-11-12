@@ -132,7 +132,7 @@ class Var : public Expr {
   TVM_DLL explicit Var(Id vid, runtime::Optional<Expr> shape_annotation,
                        runtime::Optional<Type> type_annotation, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode); 
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
 
 /*! \brief A sub-type of the variable node used to mark dataflow variables from
@@ -414,11 +414,11 @@ class FunctionNode : public BaseFuncNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
-class Function : public Expr {
+class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
                             Type ret_type, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
@@ -445,10 +445,10 @@ class ExternFuncNode : public BaseFuncNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncNode, BaseFuncNode);
 };
 
-class ExternFunc : public Expr {
+class ExternFunc : public BaseFunc {
  public:
   TVM_DLL ExternFunc(String global_symbol, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, Expr, ExternFuncNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
 
