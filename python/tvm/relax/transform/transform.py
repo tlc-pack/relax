@@ -16,64 +16,71 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
-from tvm import IRModule
+import tvm.ir
 from . import _ffi_api
 
+@tvm._ffi.register_object("relax.FunctionPass")
+class FunctionPass(tvm.ir.transform.Pass):
+    """A pass that works on each tvm.relax.Function in a module. A function
+    pass class should be created through `function_pass`.
+    """
 
-def fma_rewrite(expr):
+def FMARewrite() -> tvm.transform.Pass:
     """Perform fused multiply add rewriting in dataflow blocks.
 
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.fma_rewrite(expr)
+    return _ffi_api.FMARewrite()
 
 
-def to_non_dataflow(mod: IRModule) -> IRModule:
+def ToNonDataflow() -> tvm.transform.Pass:
     """Transform all dataflow structure to non-dataflow version.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.to_non_dataflow(mod)
+    return _ffi_api.ToNonDataflow()
 
 
-def call_dps_rewrite(mod: IRModule) -> IRModule:
+def CallDPSRewrite() -> tvm.transform.Pass:
     """Perform explicit tensor allocation for call_dps.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.call_dps_rewrite(mod)
+    return _ffi_api.CallDPSRewrite()
 
 
-def vm_memory_lower(mod: IRModule) -> IRModule:
+def VMMemoryLower() -> tvm.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.vm_memory_lower(mod)
+    return _ffi_api.VMMemoryLower()
 
 
-def vm_shape_lower(mod: IRModule) -> IRModule:
-    """Lower the shape expression in relax to VM shape heap and TIR functions.
+def VMShapeLower() -> tvm.transform.Pass:
+    """Lower the shape expressions in relax to VM shape heap manipulations and generate related 
+    TIR functions to do shape calculations.
 
-    Parameters
-    ----------
-    mod : tvm.IRModule
-        The input module.
+    Returns
+    -------
+    ret: tvm.transform.Pass
     """
-    return _ffi_api.vm_shape_lower(mod)
+    return _ffi_api.VMShapeLower()
 
 
-def to_anf(mod: IRModule):
-    return _ffi_api.to_anf(mod)
+def ToANF() -> tvm.transform.Pass:
+    """Transforming Relax IR to A-normal form.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+    """
+    return _ffi_api.ToANF()
