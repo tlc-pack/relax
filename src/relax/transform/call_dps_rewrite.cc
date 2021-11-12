@@ -18,10 +18,11 @@
  */
 /*!
  * \file src/relax/transform/call_dps_rewrite.cc
- * \brief
+ * \brief Perform explicit tensor allocation for call_dps.
  */
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 
@@ -41,20 +42,6 @@ namespace relax {
 
 class CallDPSMutator : public ExprMutator {
  public:
-  explicit CallDPSMutator(IRModule mod) { mod_ = mod; }
-
-  IRModule Lower() {
-    IRModule ret_mod = IRModule();
-    for (auto& p : mod_->functions) {
-      Expr func = p.second;
-      if (p.second->IsInstance<FunctionNode>()) {
-        func = this->VisitExpr(p.second);
-      }
-      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
-    }
-    return ret_mod;
-  }
-
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
     Expr expr = VisitExprPostOrder_(call);
@@ -65,21 +52,35 @@ class CallDPSMutator : public ExprMutator {
 
     if (call->op == call_dps_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {output_shape}), "tensor");
-      builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
+      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
+      Array<Expr> args;
+      if (call->args[2].as<TupleNode>()) {
+        args = Downcast<Tuple>(call->args[2])->fields;
+        args.push_back(tensor);
+        builder_->Emit(Call(call->args[1], args), "_");
+      } else {
+        builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
+      }
       return tensor;
     }
 
     return GetRef<Expr>(call);
   }
-
- private:
-  IRModule mod_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.call_dps_rewrite").set_body_typed([](IRModule mod) {
-  return CallDPSMutator(mod).Lower();
-});
+Expr CallDPSRewrite(const Expr& e) { return CallDPSMutator().VisitExpr(e); }
+
+namespace transform {
+
+Pass CallDPSRewrite() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(CallDPSRewrite(f)); };
+  return CreateFunctionPass(pass_func, 0, "CallDPSRewrite", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.CallDPSRewrite").set_body_typed(CallDPSRewrite);
+
+}  // namespace transform
 
 }  // namespace relax
 }  // namespace tvm
