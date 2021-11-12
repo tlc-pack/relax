@@ -237,7 +237,7 @@ class InputModule:
     mod = tvm.script.relax.parser.from_source(src)
 
     # after vm shape lowering
-    new_mod = relax.transform.vm_shape_lower(mod)
+    new_mod = relax.transform.VMShapeLower()(mod)
 
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
