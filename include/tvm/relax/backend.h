@@ -18,33 +18,34 @@
  */
 
 /*!
- * \file tvm/relax/transform/to_anf.cc
- * \brief Pass for transforming Relax IR to A-normal form.
+ * \file tvm/relax/backend.h
+ * \brief Relax backend specific transformation passes.
  */
+#ifndef TVM_RELAX_BACKEND_H_
+#define TVM_RELAX_BACKEND_H_
 
-#include <tvm/relax/expr.h>
-#include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
 namespace relax {
-
-// TODO(@altanh): LCA binding lifting
-class ToANFMutator : public ExprMutator {};
-
-Expr ToANF(const Expr& e) { return ToANFMutator().VisitExpr(e); }
-
 namespace transform {
 
-Pass ToANF() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(ToANF(f)); };
-  return CreateFunctionPass(pass_func, 1, "ToANF", {});
-}
+/*!
+ * \brief Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass VMMemoryLower();
 
-TVM_REGISTER_GLOBAL("relax.transform.ToANF").set_body_typed(ToANF);
+/*!
+ * \brief Lower the shape expression in relax to VM shape heap and TIR functions.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass VMShapeLower();
 
 }  // namespace transform
-
 }  // namespace relax
 }  // namespace tvm
+
+#endif  // TVM_RELAX_BACKEND_H_
