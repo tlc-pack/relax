@@ -18,10 +18,11 @@
  */
 /*!
  * \file src/relax/transform/to_non_dataflow.cc
- * \brief
+ * \brief Transform all dataflow structure to non-dataflow version.
  */
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 
@@ -30,22 +31,8 @@ namespace relax {
 
 class ToNonDFMutator : public ExprMutator {
  public:
-  explicit ToNonDFMutator(IRModule mod) { mod_ = mod; }
-
-  IRModule Lower() {
-    IRModule ret_mod = IRModule();
-    for (auto& p : mod_->functions) {
-      Expr func = p.second;
-      if (p.second->IsInstance<FunctionNode>()) {
-        func = this->VisitExpr(p.second);
-      }
-      ret_mod->Add(p.first, Downcast<BaseFunc>(func));
-    }
-    return ret_mod;
-  }
-
   Var VisitVarDef(const Var& var) final {
-    if (var.as<DataflowVarNode>()){
+    if (var.as<DataflowVarNode>()) {
       Var new_var = Var(var->vid, NullOpt, var->checked_type_, var->span);
       new_var->shape_ = var->shape_;
       this->var_remap_[var->vid] = new_var;
@@ -61,14 +48,21 @@ class ToNonDFMutator : public ExprMutator {
     }
     return builder_->EndBlock();
   }
-
- private:
-  IRModule mod_;
 };
 
-TVM_REGISTER_GLOBAL("relax.transform.to_non_dataflow").set_body_typed([](IRModule mod) {
-  return ToNonDFMutator(mod).Lower();
-});
+Expr ToNonDataflow(const Expr& e) { return ToNonDFMutator().VisitExpr(e); }
+
+namespace transform {
+
+Pass ToNonDataflow() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(ToNonDataflow(f)); };
+  return CreateFunctionPass(pass_func, 0, "ToNonDataflow", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.ToNonDataflow").set_body_typed(ToNonDataflow);
+
+}  // namespace transform
 
 }  // namespace relax
 }  // namespace tvm
