@@ -17,9 +17,10 @@
 
 from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
-from tvm import tir
 from tvm import relax
+from tvm import tir
 from tvm.ir import structural_equal
+from tvm.ir.module import IRModule
 
 import tvm.script
 from tvm.script import relax as R
@@ -39,6 +40,7 @@ def test_fma_rewrite():
             gv0 = ib.emit_output(relax.op.add(lv0, y))
         ib.emit_func_output(gv0)
     expr = ib.get()
+    mod = IRModule.from_expr(expr)
 
     # before rewrite
     v0 = expr.body.blocks[0].bindings[1].var
@@ -50,7 +52,10 @@ def test_fma_rewrite():
     assert structural_equal(gv0.shape, relax.ShapeExpr([m, n]))
 
     # after rewrite
-    func = relax.transform.fma_rewrite(expr)
+    passes = [relax.transform.FMARewrite()]
+    seq = tvm.transform.Sequential(passes)
+    new_mod = seq(mod)
+    func = new_mod["main"]
     v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
     assert isinstance(s1, tvm.relay.Call)
@@ -87,7 +92,7 @@ def test_to_non_dataflow():
     relax.analysis.post_order_visit(mod["foo"], fvisit)
     _, x, _, gv0, _, gv1 = old_vars
 
-    new_mod = relax.transform.to_non_dataflow(mod)
+    new_mod = relax.transform.ToNonDataflow()(mod)
 
     new_vars = []
     def fvisit(e):
@@ -108,13 +113,13 @@ def test_to_non_dataflow():
 
 def test_call_dps_rewrite():
     @tvm.script.ir_module
-    class TestCallDpsRewrite:
+    class TestCallDPSRewrite:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
             return gv0
 
-    mod = TestCallDpsRewrite
+    mod = TestCallDPSRewrite
 
     # before rewrite
     v0 = mod["foo"].body.blocks[0].bindings[0].var
@@ -123,7 +128,7 @@ def test_call_dps_rewrite():
     assert s0.op.name == "relax.call_dps"
 
     # after rewrite
-    new_mod = relax.transform.call_dps_rewrite(mod)
+    new_mod = relax.transform.CallDPSRewrite()(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]
@@ -151,7 +156,7 @@ def test_vm_memory_lower():
     mod = TestVMMemoryLower
 
     # after vm memory lowering
-    new_mod = relax.transform.vm_memory_lower(mod)
+    new_mod = relax.transform.VMMemoryLower()(mod)
     func = new_mod["foo"]
 
     assert isinstance(new_mod, tvm.IRModule)
@@ -181,7 +186,7 @@ def test_vm_shape_lowering():
     mod = TestVMShapeLower
 
     # after vm shape lowering
-    new_mod = relax.transform.vm_shape_lower(mod)
+    new_mod = relax.transform.VMShapeLower()(mod)
 
     assert isinstance(new_mod, tvm.IRModule)
     assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
@@ -214,7 +219,7 @@ def test_to_anf():
     func = relax.Function([x], body, None, gvar)
 
     mod: tvm.IRModule = tvm.IRModule({gvar: func})
-    mod = relax.transform.to_anf(mod)
+    new_mod = relax.transform.ToANF()(mod)
 
     @tvm.script.ir_module
     class TestToANFExpected:
@@ -226,7 +231,7 @@ def test_to_anf():
             return (gv, gv2)
 
     # TODO(@altanh): fix this once type inference works properly...?
-    assert R.parser.astext(mod) == R.parser.astext(TestToANFExpected)
+    assert R.parser.astext(new_mod) == R.parser.astext(TestToANFExpected)
 
 
 
@@ -236,3 +241,4 @@ if __name__ == "__main__":
     test_call_dps_rewrite()
     test_vm_memory_lower()
     test_vm_shape_lowering()
+    test_to_anf()
