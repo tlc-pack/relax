@@ -137,136 +137,11 @@ class ExprFunctor<R(const Expr& n, Args...)> {
 };
 
 
-template <typename FType>
-class BindingFunctor;
-
-// functions to be overriden.
-#define BINDING_FUNCTOR_DEFAULT \
-  { return VisitBindingDefault_(op, std::forward<Args>(args)...); }
-
-#define RELAX_BINDING_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitBinding_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
-  });
-
-template <typename R, typename... Args>
-class BindingFunctor<R(const Binding& n, Args...)> {
- private:
-  using TSelf = BindingFunctor<R(const Binding& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
-
- public:
-  /*! \brief the result type of this functor */
-  using result_type = R;
-  /*! \brief virtual destructor */
-  virtual ~BindingFunctor() {}
-  /*!
-   * \brief Same as call.
-   * \param n The binding node.
-   * \param args Additional arguments.
-   * \return The result of the call
-   */
-  R operator()(const Binding& n, Args... args) { return VisitBinding(n, std::forward<Args>(args)...); }
-  /*!
-   * \brief The functor call.
-   * \param n The binding node.
-   * \param args Additional arguments.
-   * \return The result of the call
-   */
-  virtual R VisitBinding(const Binding& n, Args... args) {
-    ICHECK(n.defined()) << "Found null pointer node while traversing AST. The previous pass may "
-                           "have generated invalid data.";
-    static FType vtable = InitVTable();
-    return vtable(n, this, std::forward<Args>(args)...);
-  }
-  // Functions that can be overriden by subclass
-  virtual R VisitBinding_(const VarBindingNode* op, Args... args) BINDING_FUNCTOR_DEFAULT;
-  virtual R VisitBinding_(const MatchShapeNode* op, Args... args) BINDING_FUNCTOR_DEFAULT;
-  virtual R VisitBindingDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
-    throw;
-  }
-
- private:
-  // initialize the vtable.
-  static FType InitVTable() {
-    FType vtable;
-    // Set dispatch
-    RELAX_BINDING_FUNCTOR_DISPATCH(VarBindingNode);
-    RELAX_BINDING_FUNCTOR_DISPATCH(MatchShapeNode);
-    return vtable;
-  }
-};
-
-
-template <typename FType>
-class BindingBlockFunctor;
-
-// functions to be overriden.
-#define BINDINGBLOCK_FUNCTOR_DEFAULT \
-  { return VisitBindingBlockDefault_(op, std::forward<Args>(args)...); }
-
-#define RELAX_BINDINGBLOCK_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitBindingBlock_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
-  });
-
-template <typename R, typename... Args>
-class BindingBlockFunctor<R(const BindingBlock& n, Args...)> {
- private:
-  using TSelf = BindingBlockFunctor<R(const BindingBlock& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
-
- public:
-  /*! \brief the result type of this functor */
-  using result_type = R;
-  /*! \brief virtual destructor */
-  virtual ~BindingBlockFunctor() {}
-  /*!
-   * \brief Same as call.
-   * \param n The BindingBlock node.
-   * \param args Additional arguments.
-   * \return The result of the call
-   */
-  R operator()(const BindingBlock& n, Args... args) { return VisitBindingBlock(n, std::forward<Args>(args)...); }
-  /*!
-   * \brief The functor call.
-   * \param n The BindingBlock node.
-   * \param args Additional arguments.
-   * \return The result of the call
-   */
-  virtual R VisitBindingBlock(const BindingBlock& n, Args... args) {
-    ICHECK(n.defined()) << "Found null pointer node while traversing AST. The previous pass may "
-                           "have generated invalid data.";
-    static FType vtable = InitVTable();
-    return vtable(n, this, std::forward<Args>(args)...);
-  }
-  // Functions that can be overriden by subclass
-  virtual R VisitBindingBlock_(const BindingBlockNode* op, Args... args) BINDINGBLOCK_FUNCTOR_DEFAULT;
-  virtual R VisitBindingBlock_(const DataflowBlockNode* op, Args... args) BINDINGBLOCK_FUNCTOR_DEFAULT;
-  virtual R VisitBindingBlockDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
-    throw;
-  }
-
- private:
-  // initialize the vtable.
-  static FType InitVTable() {
-    FType vtable;
-    // Set dispatch
-    RELAX_BINDINGBLOCK_FUNCTOR_DISPATCH(BindingBlockNode);
-    RELAX_BINDINGBLOCK_FUNCTOR_DISPATCH(DataflowBlockNode);
-    return vtable;
-  }
-};
-
 /*!
  * \brief A simple visitor wrapper around ExprFunctor.
  *  Recursively visit the content.
  */
-class ExprVisitor : public ExprFunctor<void(const Expr&)>,
-                    public BindingFunctor<void(const Binding&)>,
-                    public BindingBlockFunctor<void(const BindingBlock&)> {
+class ExprVisitor : public ExprFunctor<void(const Expr&)> {
  public:
   /*!
    * \brief Generic dispatcher for Expr.
@@ -292,7 +167,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)>,
    * \brief Generic dispatcher for bindings.
    * \param binding The binding to be visited.
    */
-  void VisitBinding(const Binding& binding) override;
+  virtual void VisitBinding(const Binding& binding);
   // specific leaf level visitor functions
   virtual void VisitBinding_(const VarBindingNode* binding);
   virtual void VisitBinding_(const MatchShapeNode* binding);
@@ -301,7 +176,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)>,
    * \brief Generic dispatcher for binding blocks.
    * \param block The binding block to be visited.
    */
-  void VisitBindingBlock(const BindingBlock& block) override;
+  virtual void VisitBindingBlock(const BindingBlock& block);
   // specific leaf level visitor functions
   virtual void VisitBindingBlock_(const BindingBlockNode* block);
   virtual void VisitBindingBlock_(const DataflowBlockNode* block);
@@ -319,9 +194,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
  * The mutated results are memoized in a map and reused so that
  * local transformation on the dataflow preserves the graph structure.
  */
-class ExprMutator : public ExprFunctor<Expr(const Expr&)>,
-                    public BindingFunctor<void(const Binding&)>,
-                    public BindingBlockFunctor<BindingBlock(const BindingBlock&)> {
+class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
   ExprMutator() {
     builder_ = BlockBuilder::Create();
@@ -355,7 +228,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)>,
    * \brief Generic dispatcher for bindings.
    * \param binding The binding to be visited.
    */
-  void VisitBinding(const Binding& binding) override;
+  virtual void VisitBinding(const Binding& binding);
   // specific leaf level visitor functions
   virtual void VisitBinding_(const VarBindingNode* binding);
   virtual void VisitBinding_(const MatchShapeNode* binding);
@@ -365,7 +238,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)>,
    * \param block The binding block to be visited.
    * \return The binding block after transformation.
    */
-  BindingBlock VisitBindingBlock(const BindingBlock& block) override;
+  virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
   // specific leaf level visitor functions
   virtual BindingBlock VisitBindingBlock_(const BindingBlockNode* block);
   virtual BindingBlock VisitBindingBlock_(const DataflowBlockNode* block);

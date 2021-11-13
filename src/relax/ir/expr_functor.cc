@@ -142,11 +142,23 @@ void ExprVisitor::VisitExpr(const Expr& expr) {
 }
 
 void ExprVisitor::VisitBinding(const Binding& binding) {
-  BindingFunctor::VisitBinding(binding);
+  if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchShapeNode>()) {
+    VisitBinding_(node);
+  } else {
+    LOG(FATAL) << "Wrong type.";
+  }
 }
 
 void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
-  BindingBlockFunctor::VisitBindingBlock(block);
+  if (const auto* node = block.as<DataflowBlockNode>()) {
+    VisitBindingBlock_(node);
+  } else if (const auto* node = block.as<BindingBlockNode>()) {
+    VisitBindingBlock_(node);
+  } else {
+    LOG(FATAL) << "Wrong type.";
+  }
 }
 
 class ExprApplyVisit : public ExprVisitor {
@@ -405,11 +417,25 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 }
 
 void ExprMutator::VisitBinding(const Binding& binding) {
-  BindingFunctor::VisitBinding(binding);
+  if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchShapeNode>()) {
+    VisitBinding_(node);
+  } else {
+    LOG(FATAL) << "Wrong type.";
+  }
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
-  return BindingBlockFunctor::VisitBindingBlock(block);
+  BindingBlock ret;
+  if (const auto* node = block.as<DataflowBlockNode>()) {
+    ret = VisitBindingBlock_(node);
+  } else if (const auto* node = block.as<BindingBlockNode>()) {
+    ret = VisitBindingBlock_(node);
+  } else {
+    LOG(FATAL) << "Wrong type.";
+  }
+  return ret;
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
