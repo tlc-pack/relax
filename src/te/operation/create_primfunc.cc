@@ -20,12 +20,12 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/relax/te_extension.h>
 
 #include <algorithm>
 #include <unordered_set>
 
 #include "../schedule/graph.h"
+#include "../../relax/ir/emit_te.h"
 
 namespace tvm {
 namespace tir {

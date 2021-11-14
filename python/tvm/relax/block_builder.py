@@ -149,20 +149,18 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
         """
-        # te extension
-        if isinstance(call, tvm.te.Tensor):
-            # TODO(ziheng): list root tensors
-            out = call
-            inputs = out.op.input_tensors
-            inputs = [inputs[0], out]
-            func = tvm.te.create_prim_func(inputs)
-            func_name = "tir_func" # TODO(ziheng): better name
-            func = func.with_attr("global_symbol", func_name)
-            gvar = GlobalVar(func_name)
-            self._tir_mod[gvar] = func
-            call = call_dps(inputs[-1].shape, gvar, [inputs[0].op.value])
-            # raise ValueError
+        return _ffi_api.BlockBuilderEmit(self, call)
 
+    def emit_te(self, func, *args) -> Var:
+        te_args = [te_tensor(x) for x in args]
+        te_out = func(*te_args)
+        inputs = [*te_args, te_out]
+        tir_func = tvm.te.create_prim_func(inputs)
+        func_name = "tir_func" # TODO(ziheng): better name
+        tir_func = tir_func.with_attr("global_symbol", func_name)
+        gvar = GlobalVar(func_name)
+        self._tir_mod[gvar] = tir_func
+        call = call_dps(inputs[-1].shape, gvar, [inputs[0].op.value])
         return _ffi_api.BlockBuilderEmit(self, call)
 
 
@@ -246,3 +244,6 @@ class BlockBuilder(Object):
             self._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._func_name)
         )
         return func
+
+    def get_tir_mod(self):
+        return self._tir_mod

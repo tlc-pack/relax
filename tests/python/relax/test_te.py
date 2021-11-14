@@ -9,15 +9,18 @@ def mybuild(mod, target, target_host):
 bb = rx.BlockBuilder()
 n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
 x = rx.Var("x", [n, m])
+y = rx.Var("y", [n, m])
 
-with bb.function([x], "rx_func"):
-    A = rx.te_tensor(x, name="A")
-    B = te.compute((n, m), lambda i, j: A[i, j] * 2, name="B")
-    b = bb.emit(B)
-    bb.emit_func_output(b)
+
+def te_func(A, B):
+    return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+
+with bb.function([x, y], "rx_func"):
+    z = bb.emit_te(te_func, x, y)
+    bb.emit_func_output(z)
 
 func = bb.get()
-tir_mod = bb._tir_mod
+tir_mod = bb.get_tir_mod()
 
 module = tvm.IRModule()
 gvar = tvm.relay.GlobalVar("rx_func")

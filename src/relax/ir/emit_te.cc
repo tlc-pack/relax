@@ -21,7 +21,7 @@
  * \file relax/src/ir/te_extension.cc
  * \brief 
  */
-#include <tvm/relax/te_extension.h>
+#include "./emit_te.h"
 
 namespace tvm {
 namespace relax {
