@@ -57,7 +57,7 @@ class VMShapeLowerMutator : public ExprMutator {
     return ret_mod_;
   }
 
-  void VisitMatchShape(const MatchShape& binding) override {
+  void VisitBinding_(const MatchShapeNode* binding) override {
     Expr shape = ExprMutator::VisitExpr(binding->value);
     static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
     auto store_shape_attr = make_object<ShapeHeapAttrs>();
