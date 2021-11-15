@@ -174,4 +174,4 @@ def extern(name: str, span: Span = None):
 
 
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
-    return _ffi_api.RXPlaceholder(value, name)
+    return _ffi_api.TETensor(value, name)

@@ -30,49 +30,53 @@
 namespace tvm {
 namespace relax {
 
-class RXPlaceholderOpNode : public te::OperationNode {
+class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  public:
   Expr value;
 
-  int num_outputs() const final;
-  Array<tir::IterVar> root_iter_vars() const final;
-  DataType output_dtype(size_t i) const final;
-  Array<PrimExpr> output_shape(size_t i) const final;
-  Array<te::Tensor> InputTensors() const final;
-  te::Operation ReplaceInputs(const te::Operation& self,
-                              const std::unordered_map<te::Tensor, te::Tensor>& rmap) const final;
-  void PropBoundToInputs(const te::Operation& self,
-                         arith::Analyzer* analyzer,
-                         const std::unordered_map<const tir::VarNode*, arith::IntSet>& dom_map,
-                         std::unordered_map<te::Tensor, te::TensorDom>* out_dom_map) const final;
-  void GatherBound(const te::Operation& self,
-                   const std::unordered_map<te::Tensor, te::TensorDom>& tensor_dom,
-                   std::unordered_map<tir::IterVar, Range>* out_dom_map) const final;
-  tir::Stmt BuildRealize(const te::Stage& stage,
-                         const std::unordered_map<tir::IterVar, Range>& realize_map,
-                         const tir::Stmt& body,
-                         String storage_scope = "") const final;
-  tir::Stmt BuildProvide(const te::Stage& stage,
-                         const std::unordered_map<tir::IterVar, Range>& dom_map,
-                         bool debug_keep_trivial_loop) const final;
+  // int num_outputs() const final;
+  // Array<tir::IterVar> root_iter_vars() const final;
+  // DataType output_dtype(size_t i) const final;
+  // Array<PrimExpr> output_shape(size_t i) const final;
+  // Array<te::Tensor> InputTensors() const final;
+  // te::Operation ReplaceInputs(const te::Operation& self,
+  //                             const std::unordered_map<te::Tensor, te::Tensor>& rmap) const final;
+  // void PropBoundToInputs(const te::Operation& self,
+  //                        arith::Analyzer* analyzer,
+  //                        const std::unordered_map<const tir::VarNode*, arith::IntSet>& dom_map,
+  //                        std::unordered_map<te::Tensor, te::TensorDom>* out_dom_map) const final;
+  // void GatherBound(const te::Operation& self,
+  //                  const std::unordered_map<te::Tensor, te::TensorDom>& tensor_dom,
+  //                  std::unordered_map<tir::IterVar, Range>* out_dom_map) const final;
+  // tir::Stmt BuildRealize(const te::Stage& stage,
+  //                        const std::unordered_map<tir::IterVar, Range>& realize_map,
+  //                        const tir::Stmt& body,
+  //                        String storage_scope = "") const final;
+  // tir::Stmt BuildProvide(const te::Stage& stage,
+  //                        const std::unordered_map<tir::IterVar, Range>& dom_map,
+  //                        bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
+    v->Visit("tag", &tag);
+    v->Visit("attrs", &attrs);
     v->Visit("value", &value);
+    v->Visit("shape", &shape);
+    v->Visit("dtype", &dtype);
   }
 
   static constexpr const char* _type_key = "RXPlaceholderOp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::OperationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::PlaceholderOpNode);
 };
 
-class RXPlaceholderOp : public te::Operation {
- public:
-  RXPlaceholderOp(std::string name, Expr value);
+// class RXPlaceholderOp : public te::Operation {
+//  public:
+//   RXPlaceholderOp(std::string name, Expr value);
+// 
+//   TVM_DEFINE_OBJECT_REF_METHODS(RXPlaceholderOp, te::Operation, RXPlaceholderOpNode);
+// };
 
-  TVM_DEFINE_OBJECT_REF_METHODS(RXPlaceholderOp, te::Operation, RXPlaceholderOpNode);
-};
-
-te::Tensor rxplaceholder(Expr value, std::string name = "rxplaceholder");
+te::Tensor TETensor(Expr value, std::string name = "rxplaceholder");
 
 }  // namespace relax
 }  // namespace tvm

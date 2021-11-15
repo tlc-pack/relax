@@ -8,8 +8,9 @@ def mybuild(mod, target, target_host):
 
 bb = rx.BlockBuilder()
 n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-x = rx.Var("x", [n, m])
-y = rx.Var("y", [n, m])
+type_anno = rx.DynTensorType(2, "float32")
+x = rx.Var("x", [n, m], type_anno)
+y = rx.Var("y", [n, m], type_anno)
 
 
 def te_func(A, B, msg):
