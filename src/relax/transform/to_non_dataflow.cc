@@ -41,7 +41,7 @@ class ToNonDFMutator : public ExprMutator {
     return var;
   }
 
-  BindingBlock VisitDataflowBlock(const DataflowBlock& block) final {
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) final {
     builder_->BeginBindingBlock();
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
