@@ -181,6 +181,16 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitBindingBlock_(const BindingBlockNode* block);
   virtual void VisitBindingBlock_(const DataflowBlockNode* block);
 
+  /*!
+   * \brief Generic dispatcher for visiting the var definition site.
+   * \param var The var to be visited.
+   * \note VisitExpr_(const VarNode*) will only visit the usage site of an Var
+   */
+  virtual void VisitVarDef(const Var& var);
+  // specific leaf level visitor functions
+  virtual void VisitVarDef_(const VarNode* var);
+  virtual void VisitVarDef_(const DataflowVarNode* var);
+
   virtual void VisitType(const Type& t);
   virtual void VisitSpan(const Span& span);  
 };
@@ -244,12 +254,15 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   virtual BindingBlock VisitBindingBlock_(const DataflowBlockNode* block);
 
   /*!
-   * \brief Rewrite the var definition site.
+   * \brief Generic dispatcher for rewriting the var definition site.
    * \param var The var to be visited.
    * \return The var after post-order rewritten.
    * \note VisitExpr_(const VarNode*) will only visit the usage site of an Var
    */
   virtual Var VisitVarDef(const Var& var);
+  // specific leaf level visitor functions
+  virtual Var VisitVarDef_(const VarNode* var);
+  virtual Var VisitVarDef_(const DataflowVarNode* var);
 
  protected:
   class ExprNormalizer;
@@ -295,16 +308,6 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   /*! \brief Remap a var to a new var in use-site. */
   std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
-
-// TODO(@yuchen, @altan): Refactor to enforce dataflow mutator only rewrite stuff in dataflow blocks
-/*! \brief Dataflow Graph Rewriting for Custom Rewriting Passes
- */
-// class DataflowMutator : public ExprMutator {
-//  public:
-//   void VisitBinding(const Binding& binding) final;
-
-//   virtual void VisitDataflowVarBinding(const VarBinding& binding);
-// };
 
 }  // namespace relax
 }  // namespace tvm
