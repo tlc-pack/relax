@@ -75,10 +75,10 @@ def test_to_non_dataflow():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-                gv1 = relax.call_dps((m, n), "test.op.identity", (gv0,))
-                relax.output(gv1)
-            return gv1
+                lv0 = relax.call_dps((m, n), "test.op.identity", (x,))
+                gv0 = relax.call_dps((m, n), "test.op.identity", (lv0,))
+                relax.output(gv0)
+            return gv0
 
     mod = TestToNonDataflow
 
@@ -90,7 +90,7 @@ def test_to_non_dataflow():
             old_vars.append(e)
 
     relax.analysis.post_order_visit(mod["foo"], fvisit)
-    _, x, _, gv0, _, gv1 = old_vars
+    x, lv0, gv0 = old_vars
 
     new_mod = relax.transform.ToNonDataflow()(mod)
 
@@ -101,14 +101,14 @@ def test_to_non_dataflow():
             new_vars.append(e)
     relax.analysis.post_order_visit(new_mod["foo"], fvisit)
 
-    assert x == new_vars[1]
-    assert gv0 != new_vars[3]
-    assert isinstance(gv0, relax.DataflowVar)
-    assert not isinstance(new_vars[3], relax.DataflowVar)
+    assert x == new_vars[0]
+    assert lv0 != new_vars[1]
+    assert isinstance(lv0, relax.DataflowVar)
+    assert not isinstance(new_vars[1], relax.DataflowVar)
 
-    assert isinstance(gv1, relax.Var)
-    assert isinstance(new_vars[5], relax.Var)
-    assert gv1 == new_vars[5]
+    assert isinstance(gv0, relax.Var)
+    assert isinstance(new_vars[2], relax.Var)
+    assert gv0 == new_vars[2]
 
 
 def test_call_dps_rewrite():
