@@ -175,6 +175,3 @@ def extern(name: str, span: Span = None):
 
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
     return _ffi_api.RXPlaceholder(value, name)
-
-def te_func(inputs: List[tvm.te.Tensor]):
-    func = tvm.create_prim_func(inputs)

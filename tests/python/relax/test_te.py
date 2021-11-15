@@ -12,11 +12,12 @@ x = rx.Var("x", [n, m])
 y = rx.Var("y", [n, m])
 
 
-def te_func(A, B):
+def te_func(A, B, msg):
+    print(msg)
     return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
 
 with bb.function([x, y], "rx_func"):
-    z = bb.emit_te(te_func, x, y)
+    z = bb.emit_te(te_func, x, y, msg="hello")
     bb.emit_func_output(z)
 
 func = bb.get()

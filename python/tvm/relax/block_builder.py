@@ -151,9 +151,27 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderEmit(self, call)
 
-    def emit_te(self, func, *args) -> Var:
-        te_args = [te_tensor(x) for x in args]
-        te_out = func(*te_args)
+    def emit_te(self, func, *args, **kwargs) -> Var:
+        te_args = []
+
+        # convert args
+        new_args = []
+        for arg in args:
+            if isinstance(arg, Expr):
+                arg = te_tensor(arg)
+                te_args.append(arg)
+            new_args.append(arg)
+
+        # convert kwargs
+        new_kwargs = {}
+        for key in kwargs:
+            arg = kwargs[key]
+            if isinstance(arg, Expr):
+                arg = te_tensor(arg)
+                te_args.append(arg)
+            new_kwargs[key] = arg
+                
+        te_out = func(*new_args, **new_kwargs)
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
         func_name = "tir_func" # TODO(ziheng): better name
@@ -169,7 +187,7 @@ class BlockBuilder(Object):
 
         Parameters
         ----------
-        value : tvm.relay.Expr
+        value : tvm.relax.Expr
             The value of the MatchShape to be emitted.
 
         pattern : List[PrimExpr]
