@@ -61,7 +61,7 @@ void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
 void ExprVisitor::VisitExpr_(const FunctionNode* op) {
   this->VisitSpan(op->span);
   for (Var param : op->params) {
-    this->VisitExpr(param);
+    this->VisitVarDef(param);
   }
 
   this->VisitExpr(op->body);
@@ -110,50 +110,79 @@ void ExprVisitor::VisitType(const Type& t) {}
 
 void ExprVisitor::VisitSpan(const Span& span) {}
 
-void ExprVisitor::VisitBinding(const Binding& binding) {
-  if (binding.as<VarBindingNode>()) {
-    this->VisitVarBinding(Downcast<VarBinding>(binding));
-  } else if (binding.as<MatchShapeNode>()) {
-    this->VisitMatchShape(Downcast<MatchShape>(binding));
-  } else {
-    LOG(FATAL) << "Wrong type.";
-  }
-}
-
-void ExprVisitor::VisitVarBinding(const VarBinding& binding) {
+void ExprVisitor::VisitBinding_(const VarBindingNode* binding) {
   this->VisitExpr(binding->value);
-  this->VisitExpr(binding->var);
+  this->VisitVarDef(binding->var);
 }
 
-void ExprVisitor::VisitMatchShape(const MatchShape& binding) {
+void ExprVisitor::VisitBinding_(const MatchShapeNode* binding) {
   this->VisitExpr(binding->value);
   // TODO(ziheng): should we change pattern from
   // Array<PrimExpr> to ShapeExpr?
   this->VisitExpr(ShapeExpr(binding->pattern));
   if (binding->var.defined()) {
-    this->VisitExpr(binding->var);
+    this->VisitVarDef(binding->var);
   }
 }
 
-void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
-  if (block.as<DataflowBlockNode>()) {
-    this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
-  } else {
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-  }
-}
-
-void ExprVisitor::VisitDataflowBlock(const DataflowBlock& block) {
+void ExprVisitor::VisitBindingBlock_(const BindingBlockNode* block) {
   for (Binding binding : block->bindings) {
     this->VisitBinding(binding);
   }
 }
 
+void ExprVisitor::VisitBindingBlock_(const DataflowBlockNode* block) {
+  for (Binding binding : block->bindings) {
+    this->VisitBinding(binding);
+  }
+}
+
+void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
+  this->VisitSpan(var->span);
+  if (var->type_annotation.defined()) {
+    this->VisitType(var->type_annotation.value());
+  }
+}
+
+void ExprVisitor::VisitVarDef_(const VarNode* var) {
+  this->VisitSpan(var->span);
+  if (var->type_annotation.defined()) {
+    this->VisitType(var->type_annotation.value());
+  }
+}
+
 void ExprVisitor::VisitExpr(const Expr& expr) {
-  using TParent = ExprFunctor<void(const Expr&)>;
-  TParent::VisitExpr(expr);
+  ExprFunctor::VisitExpr(expr);
+}
+
+void ExprVisitor::VisitBinding(const Binding& binding) {
+  if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchShapeNode>()) {
+    VisitBinding_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+  }
+}
+
+void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
+  if (const auto* node = block.as<DataflowBlockNode>()) {
+    VisitBindingBlock_(node);
+  } else if (const auto* node = block.as<BindingBlockNode>()) {
+    VisitBindingBlock_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+  }
+}
+
+void ExprVisitor::VisitVarDef(const Var& var) {
+  if (const auto* node = var.as<DataflowVarNode>()) {
+    VisitVarDef_(node);
+  } else if (const auto* node = var.as<VarNode>()) {
+    VisitVarDef_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+  }
 }
 
 class ExprApplyVisit : public ExprVisitor {
@@ -321,23 +350,13 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
-void ExprMutator::VisitBinding(const Binding& binding) {
-  if (binding.as<VarBindingNode>()) {
-    this->VisitVarBinding(Downcast<VarBinding>(binding));
-  } else if (binding.as<MatchShapeNode>()) {
-    this->VisitMatchShape(Downcast<MatchShape>(binding));
-  } else {
-    LOG(FATAL) << "Wrong type.";
-  }
-}
-
-void ExprMutator::VisitVarBinding(const VarBinding& binding) {
+void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
   Expr new_value = this->VisitExpr(binding->value);
   Var new_var = this->VisitVarDef(binding->var);
 
   if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
     // no-op if there is no change
-    builder_->Emit(binding);
+    builder_->Emit(GetRef<VarBinding>(binding));
     return;
   }
 
@@ -356,7 +375,7 @@ void ExprMutator::VisitVarBinding(const VarBinding& binding) {
   }
 }
 
-void ExprMutator::VisitMatchShape(const MatchShape& binding) {
+void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
   Expr new_value = this->VisitExpr(binding->value);
   Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
 
@@ -383,19 +402,15 @@ void ExprMutator::VisitMatchShape(const MatchShape& binding) {
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
 
-BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
-  if (block.as<DataflowBlockNode>()) {
-    return this->VisitDataflowBlock(Downcast<DataflowBlock>(block));
-  } else {
-    builder_->BeginBindingBlock();
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-    return builder_->EndBlock();
+BindingBlock ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) {
+  builder_->BeginBindingBlock();
+  for (Binding binding : block->bindings) {
+    this->VisitBinding(binding);
   }
+  return builder_->EndBlock();
 }
 
-BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
+BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
   builder_->BeginDataflowBlock();
   for (auto binding : block->bindings) {
     this->VisitBinding(binding);
@@ -403,26 +418,68 @@ BindingBlock ExprMutator::VisitDataflowBlock(const DataflowBlock& block) {
   return builder_->EndBlock();
 }
 
-Var ExprMutator::VisitVarDef(const Var& var) {
+Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
   if (var->type_annotation.defined()) {
     Type type = this->VisitType(var->type_annotation.value());
     if (!var->type_annotation.same_as(type)) {
-      Var new_var;
-      if (var.as<DataflowVarNode>()) {
-        new_var = DataflowVar(var->vid, NullOpt, type, var->span);
-      } else {
-        new_var = Var(var->vid, NullOpt, type, var->span);
-      }
+      Var new_var = DataflowVar(var->vid, NullOpt, type, var->span);
       new_var->shape_ = var->shape_;
       this->var_remap_[var->vid] = new_var;
       return new_var;
     }
   }
-  return var;
+  return GetRef<Var>(var);
+}
+
+Var ExprMutator::VisitVarDef_(const VarNode* var) {
+  if (var->type_annotation.defined()) {
+    Type type = this->VisitType(var->type_annotation.value());
+    if (!var->type_annotation.same_as(type)) {
+      Var new_var = Var(var->vid, NullOpt, type, var->span);
+      new_var->shape_ = var->shape_;
+      this->var_remap_[var->vid] = new_var;
+      return new_var;
+    }
+  }
+  return GetRef<Var>(var);
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   return builder_->Normalize(ExprFunctor::VisitExpr(expr));
+}
+
+void ExprMutator::VisitBinding(const Binding& binding) {
+  if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchShapeNode>()) {
+    VisitBinding_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+  }
+}
+
+BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
+  BindingBlock ret;
+  if (const auto* node = block.as<DataflowBlockNode>()) {
+    ret = VisitBindingBlock_(node);
+  } else if (const auto* node = block.as<BindingBlockNode>()) {
+    ret = VisitBindingBlock_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+  }
+  return ret;
+}
+
+Var ExprMutator::VisitVarDef(const Var& var) {
+  Var ret;
+  if (const auto* node = var.as<DataflowVarNode>()) {
+    ret = VisitVarDef_(node);
+  } else if (const auto* node = var.as<VarNode>()) {
+    ret = VisitVarDef_(node);
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+  }
+  return ret;
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
@@ -465,26 +522,6 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
   }
 
   return var;
-}
-
-// ==================
-// DataflowMutator
-
-void DataflowMutator::VisitBinding(const Binding& binding) {
-  if (binding.as<VarBindingNode>()) {
-    VarBinding var_binding = Downcast<VarBinding>(binding);
-    if (builder_->CurrentBlockIsDataFlow()) {
-      this->VisitDataflowVarBinding(var_binding);
-    } else {
-      ExprMutator::VisitVarBinding(var_binding);
-    }
-  } else {
-    ExprMutator::VisitBinding(binding);
-  }
-}
-
-void DataflowMutator::VisitDataflowVarBinding(const VarBinding& binding) {
-  ExprMutator::VisitVarBinding(binding);
 }
 
 }  // namespace relax
