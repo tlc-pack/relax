@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Developer API of constructing Relax AST."""
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Any, Callable
 from tvm.relay.expr import Tuple
 from tvm.runtime import Object
 from tvm import relax as rx
@@ -151,7 +151,7 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderEmit(self, call)
 
-    def emit_te(self, func, *args, **kwargs) -> Var:
+    def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         te_args = []
 
         # convert args
@@ -178,7 +178,7 @@ class BlockBuilder(Object):
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
         self._tir_mod[gvar] = tir_func
-        call = call_dps(inputs[-1].shape, gvar, [inputs[0].op.value])
+        call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
         return _ffi_api.BlockBuilderEmit(self, call)
 
 

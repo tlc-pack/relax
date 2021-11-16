@@ -2,10 +2,6 @@ import tvm
 from tvm import tir, te
 from tvm import relax as rx
 
-@tvm.register_func("mybuild")
-def mybuild(mod, target, target_host):
-    return tvm.build(mod, target, target_host)
-
 bb = rx.BlockBuilder()
 n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
 type_anno = rx.DynTensorType(2, "float32")
