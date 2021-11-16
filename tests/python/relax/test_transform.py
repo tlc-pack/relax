@@ -23,7 +23,7 @@ from tvm.ir import structural_equal
 from tvm.ir.module import IRModule
 
 import tvm.script
-from tvm.script import relax as R
+from tvm.script import tir as T, relax as R
 
 
 def test_fma_rewrite():
@@ -179,8 +179,7 @@ def test_vm_shape_lowering():
     class TestVMShapeLower:
         @R.function
         def foo(x: Tensor[_, "float32"]) -> Shape:
-            sh = relax.call_packed("vm.builtin.shape_of", x)
-            relax.match_shape(sh, (n, m))
+            relax.match_shape(x, (n, m))
             return (n * 2, m * 3)
 
     mod = TestVMShapeLower
@@ -196,6 +195,7 @@ def test_vm_shape_lowering():
     s1 = func.body.blocks[0].bindings[0].value
     assert isinstance(s1.op, relax.ExternFunc)
     assert s1.op.global_symbol == "vm.builtin.alloc_shape_heap"
+    assert s1.args[0].values[0] == 4
     s2 = func.body.blocks[1].bindings[0].value
     assert isinstance(s2.op, relax.ExternFunc)
     assert s2.op.global_symbol == "vm.builtin.shape_of"
@@ -208,6 +208,65 @@ def test_vm_shape_lowering():
     s5 = func.body.blocks[2].bindings[1].value
     assert isinstance(s5, tvm.relay.Call)
     assert s5.op.name == "relax.vm.builtin.load_shape"
+
+
+def test_vm_shape_lowering_func_param_with_shape():
+    src = """@tvm.script.ir_module
+class InputModule:
+    @T.prim_func
+    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        T.func_attr({"global_symbol": "tir_matmul"})
+        m = T.var("int32")
+        n = T.var("int32")
+        k = T.var("int32")
+        A = T.match_buffer(x, (m,n))
+        B = T.match_buffer(y, (n,k))
+        C = T.match_buffer(z, (m,k))
+
+        for i, j, k in T.grid(m, k, n):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = T.float32(0)
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    @R.function
+    def foo(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
+        gv0 = R.call_dps((m, k), tir_matmul, (x, w))
+        return gv0
+"""
+    mod = tvm.script.relax.parser.from_source(src)
+
+    # after vm shape lowering
+    new_mod = relax.transform.VMShapeLower()(mod)
+
+    assert isinstance(new_mod, tvm.IRModule)
+    assert isinstance(new_mod["shape_func"], tvm.tir.function.PrimFunc)
+    assert isinstance(new_mod["tir_matmul"], tvm.tir.function.PrimFunc)
+    func = new_mod["foo"]
+    assert isinstance(func, tvm.relax.expr.Function)
+
+    x, w = func.params
+    s1 = func.body.blocks[0].bindings[0].value
+    assert isinstance(s1.op, relax.ExternFunc)
+    assert s1.op.global_symbol == "vm.builtin.alloc_shape_heap"
+    assert s1.args[0].values[0] == 3
+
+    s2 = func.body.blocks[0].bindings[1].value
+    assert isinstance(s2.op, relax.ExternFunc)
+    assert s2.op.global_symbol == "vm.builtin.shape_of"
+    assert s2.args[0] == x
+    s3 = func.body.blocks[0].bindings[2].value
+    assert isinstance(s3, tvm.relay.Call)
+    assert s3.op.name == "relax.vm.builtin.store_shape"
+
+    s4 = func.body.blocks[0].bindings[3].value
+    assert isinstance(s4.op, relax.ExternFunc)
+    assert s4.op.global_symbol == "vm.builtin.shape_of"
+    assert s4.args[0] == w
+    s5 = func.body.blocks[0].bindings[2].value
+    assert isinstance(s5, tvm.relay.Call)
+    assert s5.op.name == "relax.vm.builtin.store_shape"
+
 
 def test_to_anf():
     x = relax.Var("x", type_annotation=relax.DynTensorType())
@@ -241,4 +300,5 @@ if __name__ == "__main__":
     test_call_dps_rewrite()
     test_vm_memory_lower()
     test_vm_shape_lowering()
+    test_vm_shape_lowering_func_param_with_shape()
     test_to_anf()
