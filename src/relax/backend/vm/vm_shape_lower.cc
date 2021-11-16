@@ -32,6 +32,38 @@
 namespace tvm {
 namespace relax {
 
+/*!
+ * \brief Visitor to apply a function to every Expr it visits. Also applies the function
+ * to the shape field of the var definition site if the var's shape is a ShapeExpr.
+ */
+class ExprApplyVisitWithShape : public ExprVisitor {
+ public:
+  explicit ExprApplyVisitWithShape(std::function<void(const Expr&)> f) : f_(f) {}
+
+  void VisitVarDef(const Var& var) {
+    if (var.as<DataflowVarNode>()) {
+      this->VisitExpr(Downcast<DataflowVar>(var));
+    } else {
+      this->VisitExpr(var);
+    }
+    if (var->shape_.operator bool() && var->shape_.value().as<ShapeExprNode>()) {
+      f_(Downcast<ShapeExpr>(var->shape_.value()));
+    }
+  }
+
+  void VisitExpr(const Expr& e) final {
+    ExprVisitor::VisitExpr(e);
+    f_(e);
+  }
+
+ private:
+  std::function<void(const Expr&)> f_;
+};
+
+void PostOrderVisitWithShape(const Expr& e, std::function<void(const Expr&)> fvisit) {
+  ExprApplyVisitWithShape(fvisit).VisitExpr(e);
+}
+
 class VMShapeLowerMutator : public ExprMutator {
  public:
   static DataType ShapeDType() { return DataType::Int(64); };
@@ -58,18 +90,11 @@ class VMShapeLowerMutator : public ExprMutator {
   }
 
   void VisitBinding_(const MatchShapeNode* binding) override {
-    Expr shape = ExprMutator::VisitExpr(binding->value);
-    static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
-    auto store_shape_attr = make_object<ShapeHeapAttrs>();
-
-    Array<PrimExpr> pattern = binding->pattern;
-    Array<Integer> indices;
-    for (size_t i = 0; i < pattern.size(); ++i) {
-      int idx = expr2slot_.at(pattern[i]);
-      indices.push_back(idx);
-    }
-    store_shape_attr->indices = indices;
-    builder_->Emit(Call(store_shape_op, {shape, shape_heap_}, Attrs(store_shape_attr)), "gv");
+    Expr value = ExprMutator::VisitExpr(binding->value);
+    
+    // TODO(@yuchen): match_shape overloaded semantic: value is ShapeType
+    Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {value}), "sh");
+    StoreShape(shape, binding->pattern);
   }
 
   Expr VisitExpr_(const ShapeExprNode* node) override {
@@ -97,16 +122,18 @@ class VMShapeLowerMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
-    Array<Var> params;
-    for (Var param : node->params) {
-      params.push_back(this->VisitVarDef(param));
-    }
-    Type ret_type = this->VisitType(node->ret_type);
-
     builder_->BeginBindingBlock();
     builder_->Emit(VarBinding(
         shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
-
+    Array<Var> params;
+    for (Var param : node->params) {
+      params.push_back(this->VisitVarDef(param));
+      if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
+        Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
+        StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
+      }
+    }
+    Type ret_type = this->VisitType(node->ret_type);
     Expr new_body = this->VisitExpr(node->body);
 
     Array<BindingBlock> blocks;
@@ -174,8 +201,22 @@ class VMShapeLowerMutator : public ExprMutator {
         }
       }
     };
-    PostOrderVisit(expr, func);
+    PostOrderVisitWithShape(expr, func);
     return ret;
+  }
+
+  /*! \brief Store symbolic shape into indices of the VM shape heap. */  
+  void StoreShape(Expr shape, Array<PrimExpr> pattern) {
+    static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
+    auto store_shape_attr = make_object<ShapeHeapAttrs>();
+
+    Array<Integer> indices;
+    for (size_t i = 0; i < pattern.size(); ++i) {
+      int idx = expr2slot_.at(pattern[i]);
+      indices.push_back(idx);
+    }
+    store_shape_attr->indices = indices;
+    builder_->Emit(Call(store_shape_op, {shape, shape_heap_}, Attrs(store_shape_attr)), "gv");
   }
 
   bool IsConstantShape(ShapeExpr shape) const {
