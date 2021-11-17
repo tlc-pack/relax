@@ -85,7 +85,7 @@ class BlockBuilder(Object):
     """
 
     def __init__(self):
-        self._tir_mod = {}
+        self._tir_mod = tvm.IRModule()
         self._blocks = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
@@ -286,4 +286,11 @@ class BlockBuilder(Object):
         return func
 
     def get_tir_mod(self):
+        """Return the module that contains tir functions.
+
+        Returns
+        -------
+        mod : tvm.IRModule
+            The module that contains tir functions during emit.
+        """
         return self._tir_mod

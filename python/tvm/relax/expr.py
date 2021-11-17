@@ -170,8 +170,10 @@ class ExternFunc(BaseFunc):
 
 
 def extern(name: str, span: Span = None):
+    """Create extern function."""
     return ExternFunc(name, span)
 
 
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
+    """Create te tensor from relax expression."""
     return _ffi_api.TETensor(value, name)

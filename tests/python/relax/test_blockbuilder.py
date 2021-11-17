@@ -244,17 +244,14 @@ def test_emit_te():
         bb.emit_func_output(z)
     
     func = bb.get()
-    tir_mod = bb.get_tir_mod()
+    mod = bb.get_tir_mod()
     
-    module = tvm.IRModule()
     gvar = tvm.relay.GlobalVar("rx_func")
-    module[gvar] = func
-    for var in tir_mod:
-        module[var] = tir_mod[var]
+    mod[gvar] = func
     
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(module, target, target_host)
+    ex, lib = rx.vm.build(mod, target, target_host)
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (128, 128)
