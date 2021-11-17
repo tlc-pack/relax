@@ -20,6 +20,7 @@ import tvm
 from tvm import relax
 from tvm import tir
 from tvm.ir import structural_equal
+from tvm.ir.base import assert_structural_equal
 from tvm.ir.module import IRModule
 
 import tvm.script
@@ -269,6 +270,7 @@ class InputModule:
 
 
 def test_to_anf():
+    # FIXME(@altanh): DO NOT MERGE UNTIL FIXED, something is not working with type inference
     x = relax.Var("x", type_annotation=relax.DynTensorType())
     gv = relax.op.add(x, x)
     gv1 = relax.op.add(gv, gv)
@@ -292,6 +294,22 @@ def test_to_anf():
     # TODO(@altanh): fix this once type inference works properly...?
     assert R.parser.astext(new_mod) == R.parser.astext(TestToANFExpected)
 
+
+def test_anf_no_op():
+    @tvm.script.ir_module
+    class TestANFNoOp:
+        @R.function
+        def foo(x: Tensor[(m, n), "float32"]):
+            with relax.dataflow():
+                lv0 = relax.call_dps((m, n), "test.op.identity", (x,))
+                gv0 = relax.call_dps((m, n), "test.op.identity", (lv0,))
+                relax.output(gv0)
+            return gv0
+
+    mod = TestANFNoOp
+    mod_post = relax.transform.ToANF()(mod)
+
+    assert_structural_equal(mod, mod_post)
 
 
 if __name__ == "__main__":

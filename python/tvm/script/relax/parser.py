@@ -970,9 +970,12 @@ class RelaxTransformer(Transformer):
             var_name = expr.id.name
             if _is_registered(var_name, op_set=self._registered_ops):
                 return relay.op.get(var_name)
-            if var_name not in self.scope:
-                self.report_error("undefined variable", expr.span)
-            return self.scope[var_name]
+            if var_name in self.scope:
+                return self.scope[var_name]
+            # NOTE: this is a "hack" to get around Python eagerly parsing class method decorators
+            #       first (meaning we need to resolve them after the functions are parsed). These
+            #       GlobalVars need to be resolved using string equality only.
+            return relay.GlobalVar(var_name)
 
         elif isinstance(expr, ast.Constant):
             # FIXME(@altanh): use internal representation that doesn't have precision limits here

@@ -81,7 +81,8 @@ Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
   auto* t1 = rhs_type.as<DynTensorTypeNode>();
   if (!t0 || !t1) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Both lhs and rhs should be DynTensor for broadcasting");
+                       << "Both lhs and rhs should be DynTensor for broadcasting, but got "
+                       << lhs_type->GetTypeKey() << " and " << rhs_type->GetTypeKey());
   }
 
   DataType output_dtype;

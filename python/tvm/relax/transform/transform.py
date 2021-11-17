@@ -25,7 +25,7 @@ class FunctionPass(tvm.ir.transform.Pass):
     pass class should be created through `function_pass`.
     """
 
-def FMARewrite() -> tvm.transform.Pass:
+def FMARewrite() -> tvm.ir.transform.Pass:
     """Perform fused multiply add rewriting in dataflow blocks.
 
     Returns
@@ -35,7 +35,7 @@ def FMARewrite() -> tvm.transform.Pass:
     return _ffi_api.FMARewrite()
 
 
-def ToNonDataflow() -> tvm.transform.Pass:
+def ToNonDataflow() -> tvm.ir.transform.Pass:
     """Transform all dataflow structure to non-dataflow version.
 
     Returns
@@ -45,7 +45,7 @@ def ToNonDataflow() -> tvm.transform.Pass:
     return _ffi_api.ToNonDataflow()
 
 
-def CallDPSRewrite() -> tvm.transform.Pass:
+def CallDPSRewrite() -> tvm.ir.transform.Pass:
     """Perform explicit tensor allocation for call_dps.
 
     Returns
@@ -55,7 +55,7 @@ def CallDPSRewrite() -> tvm.transform.Pass:
     return _ffi_api.CallDPSRewrite()
 
 
-def VMMemoryLower() -> tvm.transform.Pass:
+def VMMemoryLower() -> tvm.ir.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
     Returns
@@ -65,7 +65,7 @@ def VMMemoryLower() -> tvm.transform.Pass:
     return _ffi_api.VMMemoryLower()
 
 
-def VMShapeLower() -> tvm.transform.Pass:
+def VMShapeLower() -> tvm.ir.transform.Pass:
     """Lower the shape expressions in relax to VM shape heap manipulations and generate related 
     TIR functions to do shape calculations.
 
@@ -76,7 +76,7 @@ def VMShapeLower() -> tvm.transform.Pass:
     return _ffi_api.VMShapeLower()
 
 
-def ToANF() -> tvm.transform.Pass:
+def ToANF() -> tvm.ir.transform.Pass:
     """Transforming Relax IR to A-normal form.
 
     Returns
@@ -84,3 +84,7 @@ def ToANF() -> tvm.transform.Pass:
     ret: tvm.transform.Pass
     """
     return _ffi_api.ToANF()
+
+
+def ResolveGlobals() -> tvm.ir.transform.Pass:
+    return _ffi_api.ResolveGlobals()
