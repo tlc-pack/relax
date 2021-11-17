@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/te_extension.h
+ * \file relax/src/ir/emit_te.h
  * \brief Tensor expression extension in Relax.
  */
-#ifndef TVM_RELAX_TE_EXTENSION_H_
-#define TVM_RELAX_TE_EXTENSION_H_
+#ifndef TVM_RELAX_IR_EMIT_TE_H_
+#define TVM_RELAX_IR_EMIT_TE_H_
 
 #include <tvm/relax/expr.h>
 #include <tvm/te/operation.h>
@@ -30,31 +30,13 @@
 namespace tvm {
 namespace relax {
 
+/*!
+ * \brief A placholder op represents a relax expression.
+ */
 class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  public:
+  /*! \brief The relax expression. */
   Expr value;
-
-  // int num_outputs() const final;
-  // Array<tir::IterVar> root_iter_vars() const final;
-  // DataType output_dtype(size_t i) const final;
-  // Array<PrimExpr> output_shape(size_t i) const final;
-  // Array<te::Tensor> InputTensors() const final;
-  // te::Operation ReplaceInputs(const te::Operation& self,
-  //                             const std::unordered_map<te::Tensor, te::Tensor>& rmap) const final;
-  // void PropBoundToInputs(const te::Operation& self,
-  //                        arith::Analyzer* analyzer,
-  //                        const std::unordered_map<const tir::VarNode*, arith::IntSet>& dom_map,
-  //                        std::unordered_map<te::Tensor, te::TensorDom>* out_dom_map) const final;
-  // void GatherBound(const te::Operation& self,
-  //                  const std::unordered_map<te::Tensor, te::TensorDom>& tensor_dom,
-  //                  std::unordered_map<tir::IterVar, Range>* out_dom_map) const final;
-  // tir::Stmt BuildRealize(const te::Stage& stage,
-  //                        const std::unordered_map<tir::IterVar, Range>& realize_map,
-  //                        const tir::Stmt& body,
-  //                        String storage_scope = "") const final;
-  // tir::Stmt BuildProvide(const te::Stage& stage,
-  //                        const std::unordered_map<tir::IterVar, Range>& dom_map,
-  //                        bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -69,15 +51,13 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::PlaceholderOpNode);
 };
 
-// class RXPlaceholderOp : public te::Operation {
-//  public:
-//   RXPlaceholderOp(std::string name, Expr value);
-// 
-//   TVM_DEFINE_OBJECT_REF_METHODS(RXPlaceholderOp, te::Operation, RXPlaceholderOpNode);
-// };
-
+/*!
+ * \brief create a te tensor from relax expression.
+ * \param value The relax experession.
+ * \param name The name of the tensor.
+ */
 te::Tensor TETensor(Expr value, std::string name = "rxplaceholder");
 
 }  // namespace relax
 }  // namespace tvm
-#endif  // TVM_RELAX_TE_EXTENSION_H_
+#endif  // TVM_RELAX_IR_EMIT_TE_H_
