@@ -497,13 +497,18 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
 }
 
 Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
+  // TODO(@altanh): we should consider moving annotation into binding
   Doc doc;
-  if (var->type_annotation.defined()) {
+  Type annotation = var->checked_type_;
+  if (!annotation.defined()) {
+    annotation = var->type_annotation.value_or(Type());
+  }
+  if (annotation.defined()) {
     doc << ": ";
-    if (const relax::DynTensorTypeNode* tty = var->type_annotation.as<relax::DynTensorTypeNode>()) {
+    if (const relax::DynTensorTypeNode* tty = annotation.as<relax::DynTensorTypeNode>()) {
       doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
     } else {
-      doc << Print(var->type_annotation);
+      doc << Print(annotation);
     }
   }
   return doc;

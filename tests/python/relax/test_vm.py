@@ -361,32 +361,32 @@ def test_vm_compile_e2e():
     np.testing.assert_allclose(np.tile(inp.asnumpy(), (1, 2)), res.asnumpy())
 
 def test_vm_compile_e2e_func_param_with_shape():
-    src = """@tvm.script.ir_module
-class TestVMCompileE2E2:
-    @T.prim_func
-    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-        T.func_attr({"global_symbol": "tir_matmul"})
-        m = T.var("int32")
-        n = T.var("int32")
-        k = T.var("int32")
-        A = T.match_buffer(x, (m,n))
-        B = T.match_buffer(y, (n,k))
-        C = T.match_buffer(z, (m,k))
+    @tvm.script.ir_module
+    class TestVMCompileE2E2:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.var("int32")
+            n = T.var("int32")
+            k = T.var("int32")
+            A = T.match_buffer(x, (m,n))
+            B = T.match_buffer(y, (n,k))
+            C = T.match_buffer(z, (m,k))
 
-        for i, j, k in T.grid(m, k, n):
-            with T.block("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    C[vi, vj] = T.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-    @R.function
-    def func(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
-        gv0 = R.call_dps((m, k), tir_matmul, (x, w))
-        return gv0
-"""
+        @R.function
+        def func(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
+            gv0 = R.call_dps((m, k), tir_matmul, (x, w))
+            return gv0
 
-    mod = tvm.script.relax.parser.from_source(src)
+
+    mod = TestVMCompileE2E2
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
