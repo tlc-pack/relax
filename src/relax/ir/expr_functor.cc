@@ -362,11 +362,12 @@ void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
     }
   };
 
-  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-    // no-op if there is no change
-    emit(GetRef<VarBinding>(binding));
-    return;
-  }
+  // FIXME(@altanh): try to clean up all the fast paths and ty/shape infer, it's getting unwieldy
+  // if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+  //   // no-op if there is no change
+  //   emit(GetRef<VarBinding>(binding));
+  //   return;
+  // }
 
   {
     Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
