@@ -19,6 +19,7 @@ from typing import List, Optional, Union, Dict, Any, Callable
 from tvm.relay.expr import Tuple
 from tvm.runtime import Object
 from tvm import relax as rx
+from tvm import tir
 from .expr import *
 from .op.base import call_dps
 from tvm._ffi.base import _LIB, check_call
@@ -185,6 +186,12 @@ class BlockBuilder(Object):
 
         new_args = convert_arg(args)
         new_kwargs = convert_arg(kwargs)
+
+        for x in te_args:
+            for s in x.shape:
+                if not isinstance(s, (tir.Var, tir.IntImm)):
+                    raise ValueError("emit_te not support symbolic shape"
+                        "contains expression now: {}".format(x.shape))
                 
         te_out = func(*new_args, **new_kwargs)
         inputs = [*te_args, te_out]
