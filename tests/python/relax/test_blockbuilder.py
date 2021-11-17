@@ -17,9 +17,10 @@
 
 from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
-from tvm import tir
+from tvm import tir, te
 from tvm import relay
 from tvm import relax as rx
+import numpy as np
 
 
 def test_block_builder():
@@ -226,6 +227,44 @@ def test_normalize():
     assert add_call.shape[1] == n
 
 
+def test_emit_te():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [n, m], type_anno)
+    
+    
+    def te_func(args, msg):
+        A, B = args
+        return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+    
+    with bb.function([x, y], "rx_func"):
+        z = bb.emit_te(te_func, [x, y], msg="hello")
+        bb.emit_func_output(z)
+    
+    func = bb.get()
+    tir_mod = bb.get_tir_mod()
+    
+    module = tvm.IRModule()
+    gvar = tvm.relay.GlobalVar("rx_func")
+    module[gvar] = func
+    for var in tir_mod:
+        module[var] = tir_mod[var]
+    
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(module, target, target_host)
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+
+    shape = (128, 128)
+    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    inp2 = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    res = vm["rx_func"](inp, inp2)
+    
+    np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() + inp2.asnumpy())
+
+
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
@@ -233,3 +272,4 @@ if __name__ == "__main__":
     test_binary_shape_type_deduction()
     test_emit_match_shape()
     test_normalize()
+    test_emit_te()
