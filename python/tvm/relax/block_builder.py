@@ -196,7 +196,7 @@ class BlockBuilder(Object):
         te_out = func(*new_args, **new_kwargs)
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
-        func_name = "tir_func" # TODO(ziheng): better name
+        func_name = func.__name__
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
         self._tir_mod[gvar] = tir_func
