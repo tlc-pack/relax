@@ -25,7 +25,6 @@
 #include <unordered_set>
 
 #include "../schedule/graph.h"
-#include "../../relax/ir/emit_te.h"
 
 namespace tvm {
 namespace tir {
@@ -249,9 +248,8 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   for (const te::Operation& op : order) {
     if (!(op->IsInstance<te::PlaceholderOpNode>() || op->IsInstance<te::ComputeOpNode>() ||
           op->IsInstance<te::ExternOpNode>()))
-      0;
-      // LOG(FATAL) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
-      //            << "Only te.placeholder and te.compute are allowed for now.";
+      LOG(FATAL) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
+                 << "Only te.placeholder and te.compute are allowed for now.";
   }
 
   // Infomations used in CreatePrimFunc and its sub-funtions.
@@ -269,14 +267,6 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
       ICHECK(info.IsArg(tensor));
       const Buffer& buffer =
           decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
-      info.tensor2buffers[tensor] = buffer;
-    } else if (const auto* placeholder = op.as<relax::RXPlaceholderOpNode>()) {
-      // Case 1. PlaceholderOp (te.placeholder)
-      ICHECK_EQ(op->num_outputs(), 1);
-      const te::Tensor& tensor = op.output(0);
-      // Check op is in op list
-      ICHECK(info.IsArg(tensor));
-      const Buffer& buffer = decl_buffer(placeholder->output_shape(0), placeholder->output_dtype(0), placeholder->name);
       info.tensor2buffers[tensor] = buffer;
     } else if (const auto* compute_op = op.as<te::ComputeOpNode>()) {
       // Case 2. ComputeOp (te.compute)
