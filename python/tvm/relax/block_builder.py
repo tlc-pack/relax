@@ -141,7 +141,7 @@ class BlockBuilder(Object):
 
         Parameters
         ----------
-        call : tvm.relay.Call
+        call : tvm.relax.Call
             The call node to be emitted.
 
         Returns
@@ -152,24 +152,39 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderEmit(self, call)
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
+        """Emit a call node according to the te function.
+        This function convert arguments from relax expression to te tensor,
+        The callback func should return a te tensor.
+
+        Parameters
+        ----------
+        func : Callable
+            A function that return a te tensor.
+
+        Returns
+        -------
+        ret : tvm.relax.Var
+            A newly created variable that gets binded to the call code.
+        """
         te_args = []
-
-        # convert args
-        new_args = []
-        for arg in args:
+        def convert_arg(arg):
+            """helper function to convert argument to te tensor""" 
+            nonlocal te_args
             if isinstance(arg, Expr):
                 arg = te_tensor(arg)
                 te_args.append(arg)
-            new_args.append(arg)
+                return arg
+            elif isinstance(arg, list):
+                return [convert_arg(x) for x in arg]
+            elif isinstance(arg, tuple):
+                return tuple([convert_arg(x) for x in arg])
+            elif isinstance(arg, dict):
+                return {k: convert_arg(arg[k]) for k in arg}
+            else:
+                return arg
 
-        # convert kwargs
-        new_kwargs = {}
-        for key in kwargs:
-            arg = kwargs[key]
-            if isinstance(arg, Expr):
-                arg = te_tensor(arg)
-                te_args.append(arg)
-            new_kwargs[key] = arg
+        new_args = convert_arg(args)
+        new_kwargs = convert_arg(kwargs)
                 
         te_out = func(*new_args, **new_kwargs)
         inputs = [*te_args, te_out]
