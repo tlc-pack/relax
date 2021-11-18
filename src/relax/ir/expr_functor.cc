@@ -354,11 +354,20 @@ void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
   Expr new_value = this->VisitExpr(binding->value);
   Var new_var = this->VisitVarDef(binding->var);
 
-  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-    // no-op if there is no change
-    builder_->Emit(GetRef<VarBinding>(binding));
-    return;
-  }
+  auto emit = [this](VarBinding b) {
+    if (this->builder_->CurrentBlockIsDataFlow() && !b->var.as<DataflowVarNode>()) {
+      this->builder_->EmitOutput(b);
+    } else {
+      this->builder_->Emit(b);
+    }
+  };
+
+  // FIXME(@altanh): try to clean up all the fast paths and ty/shape infer, it's getting unwieldy
+  // if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+  //   // no-op if there is no change
+  //   emit(GetRef<VarBinding>(binding));
+  //   return;
+  // }
 
   {
     Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
@@ -368,11 +377,7 @@ void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
     }
   }
 
-  if (builder_->CurrentBlockIsDataFlow() && !new_var.as<DataflowVarNode>()) {
-    builder_->EmitOutput(VarBinding(new_var, new_value));
-  } else {
-    builder_->Emit(VarBinding(new_var, new_value));
-  }
+  emit(VarBinding(new_var, new_value));
 }
 
 void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
@@ -387,8 +392,8 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
     if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
       new_shape = new_pattern;
     }
-    Var temp =
-        WithShapeAndType(this->VisitVarDef(binding->var), new_shape, new_value->checked_type_);
+    new_var = this->VisitVarDef(binding->var);
+    Var temp = WithShapeAndType(new_var, new_shape, new_value->checked_type_);
     if (!temp.same_as(new_var)) {
       new_var = temp;
       this->var_remap_[binding->var->vid] = new_var;
