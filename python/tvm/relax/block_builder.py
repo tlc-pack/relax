@@ -180,9 +180,13 @@ class BlockBuilder(Object):
             elif isinstance(arg, tuple):
                 return tuple([convert_arg(x) for x in arg])
             elif isinstance(arg, dict):
+                for key in arg:
+                    assert isinstance(key, str), "emit_te only supports dict with string as the key currently"
                 return {k: convert_arg(arg[k]) for k in arg}
-            else:
+            elif isinstance(arg, (int, float, str)):
                 return arg
+            else:
+                raise TypeError("not supported type in emit_te: {}".format(type(arg)))
 
         new_args = convert_arg(args)
         new_kwargs = convert_arg(kwargs)

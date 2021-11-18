@@ -233,15 +233,19 @@ def test_emit_te():
     type_anno = rx.DynTensorType(2, "float32")
     x = rx.Var("x", [n, m], type_anno)
     y = rx.Var("y", [n, m], type_anno)
+    z = rx.Var("z", [n, m], type_anno)
     
     
-    def te_func(args, msg):
+    def te_func(args, args_dict, msg):
         A, B = args
-        return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+        C = args_dict["C"]
+        D = te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+        E = te.compute((128, 128), lambda i, j: D[i, j] - C[i, j])
+        return E
     
-    with bb.function([x, y], "rx_func"):
-        z = bb.emit_te(te_func, [x, y], msg="hello")
-        bb.emit_func_output(z)
+    with bb.function([x, y, z], "rx_func"):
+        out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
+        bb.emit_func_output(out)
     
     func = bb.get()
     mod = bb.get_tir_mod()
@@ -255,11 +259,12 @@ def test_emit_te():
     vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (128, 128)
-    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    inp2 = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    res = vm["rx_func"](inp, inp2)
+    a = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    b = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    c = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    res = vm["rx_func"](a, b, c)
     
-    np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() + inp2.asnumpy())
+    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy() - c.asnumpy())
 
 
 if __name__ == "__main__":
