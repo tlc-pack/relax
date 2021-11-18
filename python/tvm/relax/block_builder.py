@@ -191,12 +191,15 @@ class BlockBuilder(Object):
         new_args = convert_arg(args)
         new_kwargs = convert_arg(kwargs)
 
-        for x in te_args:
-            for s in x.shape:
-                if not isinstance(s, (tir.Var, tir.IntImm)):
-                    raise ValueError("emit_te not support symbolic shape"
-                        "contains expression now: {}".format(x.shape))
-                
+        def validate_te_args(te_args):
+            for x in te_args:
+                for s in x.shape:
+                    if not isinstance(s, (tir.Var, tir.IntImm)):
+                        raise ValueError("emit_te not support symbolic shape"
+                            "contains expression now: {}".format(x.shape))
+
+        validate_te_args(te_args)
+
         te_out = func(*new_args, **new_kwargs)
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)

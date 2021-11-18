@@ -22,6 +22,8 @@ from tvm import relay
 from tvm import relax as rx
 import numpy as np
 
+from tvm.ir.base import assert_structural_equal
+from tvm.relax import op
 
 def test_block_builder():
     m = tir.Var("m", "int32")
@@ -235,7 +237,6 @@ def test_emit_te():
     y = rx.Var("y", [n, m], type_anno)
     z = rx.Var("z", [n, m], type_anno)
     
-    
     def te_func(args, args_dict, msg):
         A, B = args
         C = args_dict["C"]
@@ -252,20 +253,32 @@ def test_emit_te():
     
     gvar = tvm.relay.GlobalVar("rx_func")
     mod[gvar] = func
-    
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = rx.vm.build(mod, target, target_host)
-    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
-    shape = (128, 128)
-    a = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    b = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    c = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    res = vm["rx_func"](a, b, c)
-    
-    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy() - c.asnumpy())
+    def get_tir_func():
+        A = te.placeholder((n, m), dtype="float32", name="A")
+        B = te.placeholder((n, m), dtype="float32", name="B")
+        C = te.placeholder((n, m), dtype="float32", name="C")
+        out = te_func((A, B), {"C": C}, "")
+        return tvm.te.create_prim_func([A, B, C, out])
 
+    # check TIR structure matches expected
+    assert_structural_equal(mod["te_func"].body, get_tir_func().body)
+
+    # check Relax function calls TIR function with call_dps call
+    assert func.params[0] == x
+    assert func.params[1] == y
+    assert func.params[2] == z
+    assert func.name.name_hint == "rx_func"
+    assert func.body.body == out
+    assert len(func.body.blocks) == 1
+    assert len(func.body.blocks[0].bindings) == 1
+    assert isinstance(func.body.blocks[0].bindings[0].value, rx.Call)
+    assert func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert len(func.body.blocks[0].bindings[0].value.args) == 3
+    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert func.body.blocks[0].bindings[0].value.args[2][0] == x
+    assert func.body.blocks[0].bindings[0].value.args[2][1] == y
+    assert func.body.blocks[0].bindings[0].value.args[2][2] == z
 
 if __name__ == "__main__":
     test_block_builder()
