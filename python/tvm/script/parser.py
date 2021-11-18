@@ -29,7 +29,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from synr import ast, Transformer, to_ast
 
 import tvm
-from tvm import IRModule
+from tvm import IRModule, relax
 from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
 from tvm.ir.function import BaseFunc
@@ -1381,5 +1381,9 @@ def ir_module(input_module: type) -> IRModule:
         func_dict = {
             name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
         }
-        return IRModule(func_dict)
+        mod = IRModule(func_dict)
+        mod = relax.transform.ResolveGlobals()(mod)
+        # FIXME(@altanh): where is the source map?
+        return mod
+
     raise TypeError("Only class definitions are supported.")
