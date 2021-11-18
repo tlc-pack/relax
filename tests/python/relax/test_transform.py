@@ -20,6 +20,7 @@ import tvm
 from tvm import relax
 from tvm import tir
 from tvm.ir import structural_equal
+from tvm.ir.base import assert_structural_equal
 from tvm.ir.module import IRModule
 
 import tvm.script
@@ -211,30 +212,30 @@ def test_vm_shape_lowering():
 
 
 def test_vm_shape_lowering_func_param_with_shape():
-    src = """@tvm.script.ir_module
-class InputModule:
-    @T.prim_func
-    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-        T.func_attr({"global_symbol": "tir_matmul"})
-        m = T.var("int32")
-        n = T.var("int32")
-        k = T.var("int32")
-        A = T.match_buffer(x, (m,n))
-        B = T.match_buffer(y, (n,k))
-        C = T.match_buffer(z, (m,k))
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.var("int32")
+            n = T.var("int32")
+            k = T.var("int32")
+            A = T.match_buffer(x, (m,n))
+            B = T.match_buffer(y, (n,k))
+            C = T.match_buffer(z, (m,k))
 
-        for i, j, k in T.grid(m, k, n):
-            with T.block("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    C[vi, vj] = T.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-    @R.function
-    def foo(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
-        gv0 = R.call_dps((m, k), tir_matmul, (x, w))
-        return gv0
-"""
-    mod = tvm.script.relax.parser.from_source(src)
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        @R.function
+        def foo(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
+            gv0 = R.call_dps((m, k), tir_matmul, (x, w))
+            return gv0
+
+    mod = InputModule
 
     # after vm shape lowering
     new_mod = relax.transform.VMShapeLower()(mod)
@@ -289,9 +290,24 @@ def test_to_anf():
             gv2 = relax.add(gv, gv1)
             return (gv, gv2)
 
-    # TODO(@altanh): fix this once type inference works properly...?
-    assert R.parser.astext(new_mod) == R.parser.astext(TestToANFExpected)
+    assert_structural_equal(new_mod, TestToANFExpected, map_free_vars=True)
 
+
+def test_to_anf_no_op():
+    @tvm.script.ir_module
+    class TestANFNoOp:
+        @R.function
+        def foo(x: Tensor[(m, n), "float32"]):
+            with relax.dataflow():
+                lv0 = relax.call_dps((m, n), "test.op.identity", (x,))
+                gv0 = relax.call_dps((m, n), "test.op.identity", (lv0,))
+                relax.output(gv0)
+            return gv0
+
+    mod = TestANFNoOp
+    mod_post = relax.transform.ToANF()(mod)
+
+    assert_structural_equal(mod, mod_post)
 
 
 if __name__ == "__main__":
@@ -302,3 +318,4 @@ if __name__ == "__main__":
     test_vm_shape_lowering()
     test_vm_shape_lowering_func_param_with_shape()
     test_to_anf()
+    test_to_anf_no_op()
