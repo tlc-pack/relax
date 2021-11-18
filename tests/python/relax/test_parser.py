@@ -496,45 +496,35 @@ def test_call_dps_extern():
 
 
 def test_class_irmodule():
-    # FIXME(@altanh): Python class method decorators are executed eagerly before the class
-    # decorator, which means each function is parsed in isolation. This means we cannot resolve
-    # global variables at parsing time (or indeed any undefined identifier), so we either need to
-    #   1. defer parsing in the function decorators (so that the ir_module decorator can populate
-    #      global variables first), although this means non-IRModule uses of the function decorators
-    #      will no longer return Function/PrimFunc but some kind of wrapper type. This could cause
-    #      problems if we pass them directly to things that expect Function/PrimFuncs.
-    #   2. parse every undefined identifier to a placeholder node (e.g. "UndefinedVar"), and run an
-    #      IRModule -> IRModule pass that tries to resolve identifiers.
-    src = """@tvm.script.ir_module
-class MyModule:
-    @T.prim_func
-    def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128))
-        B = T.match_buffer(b, (128, 128))
-        C = T.match_buffer(c, (128, 128))
+    @tvm.script.ir_module
+    class MyModule:
+        @T.prim_func
+        def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, (128, 128))
+            B = T.match_buffer(b, (128, 128))
+            C = T.match_buffer(c, (128, 128))
 
-        for i, j, k in T.grid(128, 128, 128):
-            with T.block():
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    C[vi, vj] = 0.0
-                C[vi, vj] += A[vi, vk] * B[vj, vk]
+            for i, j, k in T.grid(128, 128, 128):
+                with T.block():
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-    @R.function
-    def f(x: Tensor[(n, n), _]) -> Tensor:
-        return g(x)
+        @R.function
+        def f(x: Tensor[(n, n), _]) -> Tensor:
+            return g(x)
 
-    @R.function
-    def g(y: Tensor[(n, n), _]) -> Tensor:
-        return relax.call_dps((n, n), my_matmul, (y, y))
+        @R.function
+        def g(y: Tensor[(n, n), _]) -> Tensor:
+            return relax.call_dps((n, n), my_matmul, (y, y))
 
-    @R.function
-    def h(x, y, z):
-        _ = my_matmul(x, y, z)
-        return z
-"""
+        @R.function
+        def h(x, y, z):
+            _ = my_matmul(x, y, z)
+            return z
 
-    my_module = tvm.script.relax.parser.from_source(src)
+    my_module = MyModule
     assert isinstance(my_module, tvm.IRModule)
 
     var_f = my_module.get_global_var("f")

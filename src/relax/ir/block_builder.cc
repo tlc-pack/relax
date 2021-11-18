@@ -203,10 +203,10 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
  private:
   /*!
-  * \brief Memoization map for expressions using Id for equality of variables.
-  */
+   * \brief Memoization map for expressions using Id for equality of variables.
+   */
   class ExprMemo {
-  public:
+   public:
     Optional<Expr> Get(const Expr& expr) {
       if (const VarNode* var = expr.as<VarNode>()) {
         auto it = var_memo_.find(var->vid);
@@ -230,7 +230,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       }
     }
 
-  private:
+   private:
     std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
     std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
   };
@@ -370,7 +370,9 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
 Var BlockBuilderNode::Emit(const VarBinding& binding) {
   BlockFrame* cur_frame = CurrentFrame();
   if (cur_frame->is_dataflow) {
-    ICHECK(binding->var.as<DataflowVarNode>());
+    ICHECK(binding->var.as<DataflowVarNode>())
+        << "Emit can only be used for local bindings in a dataflow block, use EmitOutput for "
+           "output bindings instead";
   }
   cur_frame->bindings.push_back(binding);
   binding_table_[binding->var->vid] = binding->value;
@@ -408,9 +410,11 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
 
 Var BlockBuilderNode::EmitMatchShape(const MatchShape& binding) {
   BlockFrame* cur_frame = CurrentFrame();
-  if (cur_frame->is_dataflow && binding->var.defined()) {
-    ICHECK(!binding->var.as<DataflowVarNode>())
-        << "cannot bind DataflowVar outside dataflow block.";
+  if (binding->var.defined()) {
+    ICHECK(!cur_frame->is_dataflow || binding->var.as<DataflowVarNode>())
+        << "EmitMatchShape can only be used for local bindings in a dataflow block.";
+    ICHECK(cur_frame->is_dataflow || !binding->var.as<DataflowVarNode>())
+        << "cannot emit dataflow vars outside a dataflow block: " << binding->var->name_hint();
   }
   cur_frame->bindings.push_back(binding);
   // TODO(@altanh, @yuchen): what value should we bind? Consider
@@ -511,13 +515,9 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
   return &block_stack_.top();
 }
 
-NameTable* BlockBuilderNode::name_table() {
-  return name_table_.get();
-}
+NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 
-BlockBuilder BlockBuilder::Create() {
-  return BlockBuilder(make_object<BlockBuilderNode>());
-}
+BlockBuilder BlockBuilder::Create() { return BlockBuilder(make_object<BlockBuilderNode>()); }
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilder::Create);
 

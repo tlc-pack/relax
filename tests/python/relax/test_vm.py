@@ -247,42 +247,40 @@ def test_vm_compile_stage0():
 
 
 def test_vm_compile_stage1():
-    # FIXME(@altanh): see comment in test_parser.py
-    src = """@tvm.script.ir_module
-class TestVMCompileStage1:
-    @T.prim_func
-    def shape_func0(heap: T.handle) -> None:
-        # function attr dict
-        T.func_attr({"global_symbol": "shape_func0"})
-        H = T.match_buffer(
-            heap,
-            [T.int64(4)],
-            dtype="int64",
-            elem_offset=T.int64(0),
-            align=128,
-            offset_factor=1,
-        )
-        # body
-        T.store(
-            H.data, T.int64(2), (T.load("int64", H.data, T.int64(0)) * T.int64(2)), True
-        )
-        T.store(
-            H.data, T.int64(3), (T.load("int64", H.data, T.int64(1)) * T.int64(3)), True
-        )
+    @tvm.script.ir_module
+    class TestVMCompileStage1:
+        @T.prim_func
+        def shape_func0(heap: T.handle) -> None:
+            # function attr dict
+            T.func_attr({"global_symbol": "shape_func0"})
+            H = T.match_buffer(
+                heap,
+                [T.int64(4)],
+                dtype="int64",
+                elem_offset=T.int64(0),
+                align=128,
+                offset_factor=1,
+            )
+            # body
+            T.store(
+                H.data, T.int64(2), (T.load("int64", H.data, T.int64(0)) * T.int64(2)), True
+            )
+            T.store(
+                H.data, T.int64(3), (T.load("int64", H.data, T.int64(1)) * T.int64(3)), True
+            )
 
-    @R.function
-    def foo(x: Tensor[_, "float32"]) -> Shape:
-        shape_heap: Tensor[(4,), "int64"] = R.call_packed(
-            "vm.builtin.alloc_shape_heap", (4,)
-        )
-        gv0 = R.call_packed("vm.builtin.shape_of", x)
-        gv1 = R.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1))
-        gv2 = shape_func0(shape_heap)
-        gv3 = R.call_packed("vm.builtin.load_shape", shape_heap, (2, 3))
-        return gv3
-"""
+        @R.function
+        def foo(x: Tensor[_, "float32"]) -> Shape:
+            shape_heap: Tensor[(4,), "int64"] = relax.call_packed(
+                "vm.builtin.alloc_shape_heap", (4,)
+            )
+            gv0 = relax.call_packed("vm.builtin.shape_of", x)
+            gv1 = relax.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1))
+            gv2 = shape_func0(shape_heap)
+            gv3 = relax.call_packed("vm.builtin.load_shape", shape_heap, (2, 3))
+            return gv3
 
-    mod = R.parser.from_source(src)
+    mod = TestVMCompileStage1
     code = R.parser.astext(mod)
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
@@ -363,32 +361,32 @@ def test_vm_compile_e2e():
     np.testing.assert_allclose(np.tile(inp.asnumpy(), (1, 2)), res.asnumpy())
 
 def test_vm_compile_e2e_func_param_with_shape():
-    src = """@tvm.script.ir_module
-class TestVMCompileE2E2:
-    @T.prim_func
-    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-        T.func_attr({"global_symbol": "tir_matmul"})
-        m = T.var("int32")
-        n = T.var("int32")
-        k = T.var("int32")
-        A = T.match_buffer(x, (m,n))
-        B = T.match_buffer(y, (n,k))
-        C = T.match_buffer(z, (m,k))
+    @tvm.script.ir_module
+    class TestVMCompileE2E2:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.var("int32")
+            n = T.var("int32")
+            k = T.var("int32")
+            A = T.match_buffer(x, (m,n))
+            B = T.match_buffer(y, (n,k))
+            C = T.match_buffer(z, (m,k))
 
-        for i, j, k in T.grid(m, k, n):
-            with T.block("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    C[vi, vj] = T.float32(0)
-                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-    @R.function
-    def func(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
-        gv0 = R.call_dps((m, k), tir_matmul, (x, w))
-        return gv0
-"""
+        @R.function
+        def func(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
+            gv0 = R.call_dps((m, k), tir_matmul, (x, w))
+            return gv0
 
-    mod = tvm.script.relax.parser.from_source(src)
+
+    mod = TestVMCompileE2E2
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
