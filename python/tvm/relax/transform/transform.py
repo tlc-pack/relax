@@ -19,18 +19,20 @@
 import tvm.ir
 from . import _ffi_api
 
+
 @tvm._ffi.register_object("relax.FunctionPass")
 class FunctionPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.Function in a module. A function
     pass class should be created through `function_pass`.
     """
 
+
 def FMARewrite() -> tvm.ir.transform.Pass:
     """Perform fused multiply add rewriting in dataflow blocks.
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.FMARewrite()
 
@@ -40,7 +42,7 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.ToNonDataflow()
 
@@ -50,7 +52,7 @@ def CallDPSRewrite() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.CallDPSRewrite()
 
@@ -60,18 +62,18 @@ def VMMemoryLower() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.VMMemoryLower()
 
 
 def VMShapeLower() -> tvm.ir.transform.Pass:
-    """Lower the shape expressions in relax to VM shape heap manipulations and generate related 
+    """Lower the shape expressions in relax to VM shape heap manipulations and generate related
     TIR functions to do shape calculations.
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.VMShapeLower()
 
@@ -81,10 +83,18 @@ def ToANF() -> tvm.ir.transform.Pass:
 
     Returns
     -------
-    ret: tvm.transform.Pass
+    ret: tvm.ir.transform.Pass
     """
     return _ffi_api.ToANF()
 
 
 def ResolveGlobals() -> tvm.ir.transform.Pass:
+    """Resolve global variables using string equality. This ensures all GlobalVars in the IR refer
+    to the correct GlobalVar of the input IRModule. An error is reported if any GlobalVar cannot be
+    resolved.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
     return _ffi_api.ResolveGlobals()
