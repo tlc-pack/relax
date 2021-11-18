@@ -32,38 +32,6 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Visitor to apply a function to every Expr it visits. Also applies the function
- * to the shape field of the var definition site if the var's shape is a ShapeExpr.
- */
-class ExprApplyVisitWithShape : public ExprVisitor {
- public:
-  explicit ExprApplyVisitWithShape(std::function<void(const Expr&)> f) : f_(f) {}
-
-  void VisitVarDef(const Var& var) {
-    if (var.as<DataflowVarNode>()) {
-      this->VisitExpr(Downcast<DataflowVar>(var));
-    } else {
-      this->VisitExpr(var);
-    }
-    if (var->shape_.operator bool() && var->shape_.value().as<ShapeExprNode>()) {
-      f_(Downcast<ShapeExpr>(var->shape_.value()));
-    }
-  }
-
-  void VisitExpr(const Expr& e) final {
-    ExprVisitor::VisitExpr(e);
-    f_(e);
-  }
-
- private:
-  std::function<void(const Expr&)> f_;
-};
-
-void PostOrderVisitWithShape(const Expr& e, std::function<void(const Expr&)> fvisit) {
-  ExprApplyVisitWithShape(fvisit).VisitExpr(e);
-}
-
 class VMShapeLowerMutator : public ExprMutator {
  public:
   static DataType ShapeDType() { return DataType::Int(64); };
@@ -201,7 +169,7 @@ class VMShapeLowerMutator : public ExprMutator {
         }
       }
     };
-    PostOrderVisitWithShape(expr, func);
+    PostOrderVisit(expr, func);
     return ret;
   }
 

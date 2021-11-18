@@ -69,6 +69,19 @@ def test_fma_rewrite():
     assert gv0 == v0
     assert type(func.body.blocks[0].bindings[1].var) == relax.Var
 
+def test_visit_shape():
+    @tvm.script.ir_module
+    # constant fold n to 4
+    class TestVisitShape:
+        @R.function
+        def foo(x: Tensor[(m, n), "float32"]):
+            with relax.dataflow():
+                lv0 = relax.add(x, x)
+                gv0 = relax.multiply(lv0, lv0)
+                relax.output(gv0)
+            return gv0
+    
+    mod = TestVisitShape
 
 def test_to_non_dataflow():
     @tvm.script.ir_module
@@ -312,6 +325,7 @@ def test_to_anf_no_op():
 
 if __name__ == "__main__":
     test_fma_rewrite()
+    test_visit_shape()
     test_to_non_dataflow()
     test_call_dps_rewrite()
     test_vm_memory_lower()

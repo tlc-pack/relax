@@ -49,12 +49,20 @@ void ExprVisitor::VisitExpr_(const VarNode* op) {
   if (op->type_annotation.defined()) {
     this->VisitType(op->type_annotation.value());
   }
+
+  if (op->shape_) {
+    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
+  }
 }
 
 void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
   this->VisitSpan(op->span);
   if (op->type_annotation.defined()) {
     this->VisitType(op->type_annotation.value());
+  }
+
+  if (op->shape_) {
+    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
   }
 }
 
@@ -77,6 +85,10 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
 
   for (Expr arg : op->args) {
     this->VisitExpr(arg);
+  }
+
+  if (op->shape_) {
+    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
   }
 }
 
@@ -142,12 +154,20 @@ void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
   if (var->type_annotation.defined()) {
     this->VisitType(var->type_annotation.value());
   }
+
+  if (var->shape_) {
+    this->VisitExpr(Downcast<Expr>(var->shape_.value()));
+  }
 }
 
 void ExprVisitor::VisitVarDef_(const VarNode* var) {
   this->VisitSpan(var->span);
   if (var->type_annotation.defined()) {
     this->VisitType(var->type_annotation.value());
+  }
+
+  if (var->shape_) {
+    this->VisitExpr(Downcast<Expr>(var->shape_.value()));
   }
 }
 
@@ -288,10 +308,18 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
     unchanged &= new_arg.same_as(arg);
   }
 
+  Expr new_shape;
+  if (call_node->shape_) {
+    new_shape = this->VisitExpr(Downcast<Expr>(call_node->shape_.value()));
+    unchanged &= new_shape.same_as(call_node->shape_);
+  }
+
   if (unchanged) {
     return GetRef<Expr>(call_node);
   } else {
-    return Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
+    Expr new_call = Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
+    new_call->shape_ = new_shape;
+    return new_call;
   }
 }
 
