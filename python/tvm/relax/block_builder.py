@@ -201,6 +201,8 @@ class BlockBuilder(Object):
         validate_te_args(te_args)
 
         te_out = func(*new_args, **new_kwargs)
+        if (isinstance(te_out, tuple)):
+            raise ValueError("emit_te currently does not support TE functions that return multiple outputs")
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
         func_name = func.__name__
