@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Developer API of constructing Relax AST."""
+import typing
 from typing import List, Optional, Union, Dict, Any, Callable
 from tvm.relay.expr import Tuple
 from tvm.runtime import Object
@@ -94,6 +95,49 @@ class BlockBuilder(Object):
     
     def _begin_binding_block(self) -> None:
         _ffi_api.BlockBuilderBeginBindingBlock(self)
+
+    def _convert_te_arg(self,
+        arg: Union[Expr, List, Tuple, Dict, tvm.ir.Map, tvm.ir.Array]
+    ) -> typing.Tuple[Union[tvm.te.Tensor, List, Tuple, Dict], List[tvm.te.Tensor]]:
+        """Helper function to convert Relax expressions to te tensor.
+        In the common case, the type of arg is a Relax expression and is converted into a te tensor.
+        If arg is a nested or recursive datatype (i.e List, Tuple, Map), we recursive and convert
+        any value of type Relax expression into a te tensor. Common values of type int, float, and str
+        are handled but are ignored.
+
+        Parameters
+        ----------
+        arg : Union[Expr, List, Tuple, Dict, tvm.ir.Map, tvm.ir.Array]
+            Argument to convert to te
+
+        Returns
+        -------
+        ret : (Union[tvm.te.Tensor, List, Tuple, Dict], [tvm.te.Tensor])
+            A tuple of the converted arg, and a list of te tensors for each converted Relax expression
+        """
+        te_args = []
+
+        def _convert_te_arg_helper(arg):
+            nonlocal te_args
+            if isinstance(arg, Expr):
+                arg = te_tensor(arg)
+                te_args.append(arg)
+                return arg
+            elif isinstance(arg, (list, tvm.ir.Array)):
+                return [_convert_te_arg_helper(x) for x in arg]
+            elif isinstance(arg, tuple):
+                return tuple([_convert_te_arg_helper(x) for x in arg])
+            elif isinstance(arg, (dict, tvm.ir.Map)):
+                for key in arg:
+                    assert isinstance(key, str), "emit_te only supports dict with string as the key currently"
+                return {k: _convert_te_arg_helper(arg[k]) for k in arg}
+            elif isinstance(arg, (int, float, str)):
+                return arg
+            else:
+                raise TypeError("not supported type in emit_te: {}".format(type(arg)))
+
+        new_arg = _convert_te_arg_helper(arg)
+        return new_arg, te_args
     
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)
@@ -154,7 +198,7 @@ class BlockBuilder(Object):
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
-        This function convert arguments from relax expression to te tensor,
+        This function converts arguments from relax expression to te tensor,
         The callback func should return a te tensor.
 
         Parameters
@@ -167,34 +211,16 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
         """
-        te_args = []
-        def convert_arg(arg):
-            """helper function to convert argument to te tensor""" 
-            nonlocal te_args
-            if isinstance(arg, Expr):
-                arg = te_tensor(arg)
-                te_args.append(arg)
-                return arg
-            elif isinstance(arg, list):
-                return [convert_arg(x) for x in arg]
-            elif isinstance(arg, tuple):
-                return tuple([convert_arg(x) for x in arg])
-            elif isinstance(arg, dict):
-                for key in arg:
-                    assert isinstance(key, str), "emit_te only supports dict with string as the key currently"
-                return {k: convert_arg(arg[k]) for k in arg}
-            elif isinstance(arg, (int, float, str)):
-                return arg
-            else:
-                raise TypeError("not supported type in emit_te: {}".format(type(arg)))
+        new_args, te_arg_list = self._convert_te_arg(args)
+        new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
 
-        new_args = convert_arg(args)
-        new_kwargs = convert_arg(kwargs)
+        te_args = te_arg_list + te_kwarg_list
 
         def validate_te_args(te_args):
             for x in te_args:
                 for s in x.shape:
                     if not isinstance(s, (tir.Var, tir.IntImm)):
+                        #TODO(hypercubestart, ziheng) support full dynamic shape in the future
                         raise ValueError("emit_te not support symbolic shape"
                             "contains expression now: {}".format(x.shape))
 
@@ -202,7 +228,9 @@ class BlockBuilder(Object):
 
         te_out = func(*new_args, **new_kwargs)
         if (isinstance(te_out, tuple)):
-            raise ValueError("emit_te currently does not support TE functions that return multiple outputs")
+            #TODO(hypercubestart, ziheng) handle multiple output case
+            raise ValueError("emit_te currently does not support te output with multiple tensors")
+
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
         func_name = func.__name__

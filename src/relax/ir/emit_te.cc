@@ -41,14 +41,14 @@ te::Tensor TETensor(Expr value, std::string name) {
   n->value = value;
 
   Expr shape_expr = value->shape();
-  ICHECK(shape_expr->IsInstance<ShapeExprNode>())
-    << "Expression does not have an known symbolic shape, please consider use match_shape "
-    << "to constraint the shape before passing into te_tensor";
+  CHECK(shape_expr->IsInstance<ShapeExprNode>())
+    << "ValueError: Expression does not have an known symbolic shape, please consider use match_shape "
+    << "to constrain the shape before passing into te_tensor";
   Array<PrimExpr> shape = Downcast<ShapeExpr>(shape_expr)->values;
   n->shape = shape;
   Type type = value->checked_type();
   ICHECK(type->IsInstance<DynTensorTypeNode>())
-    << "Expression should have a inferred DynTensorType: "
+    << "ValueError: Expression should have a inferred DynTensorType: "
     << type->GetTypeKey();
   DataType dtype = Downcast<DynTensorType>(type)->dtype;
   n->dtype = dtype;
