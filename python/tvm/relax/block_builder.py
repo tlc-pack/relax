@@ -97,22 +97,22 @@ class BlockBuilder(Object):
         _ffi_api.BlockBuilderBeginBindingBlock(self)
 
     def _convert_te_arg(self,
-        arg: Union[Expr, List, Tuple, Dict, tvm.ir.Map, tvm.ir.Array]
-    ) -> typing.Tuple[Union[tvm.te.Tensor, List, Tuple, Dict], List[tvm.te.Tensor]]:
+        arg: Any
+    ) -> typing.Tuple[Any, List[tvm.te.Tensor]]:
         """Helper function to convert Relax expressions to te tensor.
         In the common case, the type of arg is a Relax expression and is converted into a te tensor.
-        If arg is a nested or recursive datatype (i.e List, Tuple, Map), we recursive and convert
-        any value of type Relax expression into a te tensor. Common values of type int, float, and str
-        are handled but are ignored.
+        If arg is a nested or recursive datatype (i.e list, dict, tvm.ir.Map, tvm.ir.Array), 
+        we recursive and convert any value of type Relax expression into a te tensor. 
+        Common values of type int, float, and str are preserved.
 
         Parameters
         ----------
-        arg : Union[Expr, List, Tuple, Dict, tvm.ir.Map, tvm.ir.Array]
+        arg : Any
             Argument to convert to te
 
         Returns
         -------
-        ret : (Union[tvm.te.Tensor, List, Tuple, Dict], [tvm.te.Tensor])
+        ret : (Any, [tvm.te.Tensor])
             A tuple of the converted arg, and a list of te tensors for each converted Relax expression
         """
         te_args = []
@@ -210,6 +210,47 @@ class BlockBuilder(Object):
         -------
         ret : tvm.relax.Var
             A newly created variable that gets binded to the call code.
+
+        Example
+        -------
+
+        .. code-block:: python
+
+        bb = rx.BlockBuilder()
+        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        type_anno = rx.DynTensorType(2, "float32")
+        x = rx.Var("x", [n, m], type_anno)
+        y = rx.Var("y", [n, m], type_anno)
+        
+        def te_func(args, args_dict, msg):
+            A = args[0]
+            B = args_dict["B"]
+            return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+        
+        with bb.function([x, y], "rx_func"):
+            out = bb.emit_te(te_func, [x], {"B": y}, msg="hello")
+            bb.emit_func_output(out)
+
+        # result in TVMScript
+        # @tvm.script.ir_module
+        # class Module:
+        #     @T.prim_func
+        #     def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_compute: T.handle) -> None:
+        #         # function attr dict
+        #         T.func_attr({"global_symbol": "te_func"})
+        #         m = T.var("int64")
+        #         n = T.var("int64")
+        #         rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
+        #         rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
+        #         compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
+        #         # body
+        #         # with T.block("root")
+        #         for i0, i1 in T.grid(128, 128):
+        #             with T.block("compute"):
+        #                 i, j = T.axis.remap("SS", [i0, i1])
+        #                 T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
+        #                 T.writes([compute[i, j]])
+        #                 compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
         """
         new_args, te_arg_list = self._convert_te_arg(args)
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
