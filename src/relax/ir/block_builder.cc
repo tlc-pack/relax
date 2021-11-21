@@ -550,5 +550,10 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
       return builder->Normalize(expr);
     });
 
+TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
+    .set_body_typed([](BlockBuilder builder, String name_hint) {
+      return builder->name_table()->GetUniqueName(name_hint);
+    });
+
 }  // namespace relax
 }  // namespace tvm
