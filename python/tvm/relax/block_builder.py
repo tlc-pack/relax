@@ -100,31 +100,31 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderEndBlock(self)
 
     def _convert_te_arg(self,
-        arg: Any
+        te_args: Any
     ) -> typing.Tuple[Any, List[tvm.te.Tensor]]:
         """Helper function to convert Relax expressions to te tensor.
-        In the common case, the type of arg is a Relax expression and is converted into a te tensor.
-        If arg is a nested or recursive datatype (i.e list, dict, tvm.ir.Map, tvm.ir.Array), 
+        In the common case, the type of te_args is a Relax expression and is converted into a te tensor.
+        If te_args is a nested or recursive datatype (i.e list, dict, tvm.ir.Map, tvm.ir.Array), 
         we recursive and convert any value of type Relax expression into a te tensor. 
         Common values of type int, float, and str are preserved.
 
         Parameters
         ----------
-        arg : Any
+        te_args : Any
             Argument to convert to te
 
         Returns
         -------
         ret : (Any, [tvm.te.Tensor])
-            A tuple of the converted arg, and a list of te tensors for each converted Relax expression
+            A tuple of the converted te_args, and a list of te tensors for each converted Relax expression
         """
-        te_args = []
+        te_args_list = []
 
         def _convert_te_arg_helper(arg):
-            nonlocal te_args
+            nonlocal te_args_list
             if isinstance(arg, Expr):
                 arg = te_tensor(arg)
-                te_args.append(arg)
+                te_args_list.append(arg)
                 return arg
             elif isinstance(arg, (list, tvm.ir.Array)):
                 return [_convert_te_arg_helper(x) for x in arg]
@@ -139,8 +139,8 @@ class BlockBuilder(Object):
             else:
                 raise TypeError("not supported type in emit_te: {}".format(type(arg)))
 
-        new_arg = _convert_te_arg_helper(arg)
-        return new_arg, te_args
+        new_arg = _convert_te_arg_helper(te_args)
+        return new_arg, te_args_list
     
     def _check_te_args(self, args):
         """check te arguments."""
