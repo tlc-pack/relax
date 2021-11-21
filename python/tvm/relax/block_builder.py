@@ -96,6 +96,9 @@ class BlockBuilder(Object):
     def _begin_binding_block(self) -> None:
         _ffi_api.BlockBuilderBeginBindingBlock(self)
 
+    def _end_block(self) -> BindingBlock:
+        return _ffi_api.BlockBuilderEndBlock(self)
+
     def _convert_te_arg(self,
         arg: Any
     ) -> typing.Tuple[Any, List[tvm.te.Tensor]]:
@@ -139,8 +142,14 @@ class BlockBuilder(Object):
         new_arg = _convert_te_arg_helper(arg)
         return new_arg, te_args
     
-    def _end_block(self) -> BindingBlock:
-        return _ffi_api.BlockBuilderEndBlock(self)
+    def _check_te_args(self, args):
+        """check te arguments."""
+        #TODO(hypercubestart, ziheng) support full dynamic shape in the future
+        for x in args:
+            for s in x.shape:
+                if not isinstance(s, (tir.Var, tir.IntImm)):
+                    raise ValueError("emit_te not support symbolic shape"
+                        "contains expression now: {}".format(x.shape))
 
     def _get_gvar(self, tir_func: tvm.tir.PrimFunc, name_hint: str):
         """Get global var for the tir function."""
@@ -155,7 +164,6 @@ class BlockBuilder(Object):
         gvar = GlobalVar(name_hint)
         self._context_mod[gvar] = tir_func
         return gvar
-
 
     def function(self,
                  params: Optional[Union[Var, Tuple, List[Var]]] = None,
@@ -247,6 +255,7 @@ class BlockBuilder(Object):
                 bb.emit_func_output(out)
 
         will result in TVMScript
+
         .. code-block:: python
 
             @tvm.script.ir_module
@@ -273,21 +282,11 @@ class BlockBuilder(Object):
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
 
         te_args = te_arg_list + te_kwarg_list
+        self._check_te_args(te_args)
 
-        def validate_te_args(te_args):
-            for x in te_args:
-                for s in x.shape:
-                    if not isinstance(s, (tir.Var, tir.IntImm)):
-                        #TODO(hypercubestart, ziheng) support full dynamic shape in the future
-                        raise ValueError("emit_te not support symbolic shape"
-                            "contains expression now: {}".format(x.shape))
-
-        validate_te_args(te_args)
-
+        # TODO(hypercubestart, ziheng) handle multiple output case
         te_out = func(*new_args, **new_kwargs)
-        if (isinstance(te_out, tuple)):
-            #TODO(hypercubestart, ziheng) handle multiple output case
-            raise ValueError("emit_te currently does not support te output with multiple tensors")
+        assert isinstance(te_out, tvm.te.tensor.Tensor), "only support te tensor as function output"
 
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
