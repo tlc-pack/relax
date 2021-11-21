@@ -86,8 +86,9 @@ class BlockBuilder(Object):
     """
 
     def __init__(self):
-        self._context_mod = tvm.IRModule()
         self._blocks = []
+        self._context_mod = tvm.IRModule()
+        self._cached = {}
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
     def _begin_dataflow_block(self) -> None:
@@ -141,6 +142,21 @@ class BlockBuilder(Object):
     
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)
+
+    def _get_gvar(self, tir_func: tvm.tir.PrimFunc, name_hint: str):
+        """Get global var for the tir function."""
+        # check whether this tir function has been cached
+        cached_gvars = self._context_mod.get_global_vars()
+        for cached_gvar in cached_gvars:
+            cached_func = self._context_mod[cached_gvar]
+            if tvm.ir.structural_equal(cached_func, tir_func):
+                return cached_gvar
+
+        # not cached
+        gvar = GlobalVar(name_hint)
+        self._context_mod[gvar] = tir_func
+        return gvar
+
 
     def function(self,
                  params: Optional[Union[Var, Tuple, List[Var]]] = None,
@@ -274,10 +290,9 @@ class BlockBuilder(Object):
 
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
-        func_name = func.__name__
-        tir_func = tir_func.with_attr("global_symbol", func_name)
-        gvar = GlobalVar(func_name)
-        self._context_mod[gvar] = tir_func
+        tir_func = tir_func.with_attr("global_symbol", func.__name__)
+
+        gvar = self._get_gvar(tir_func, func.__name__)
         call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
         return _ffi_api.BlockBuilderEmit(self, call)
 
