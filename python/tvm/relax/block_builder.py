@@ -121,7 +121,6 @@ class BlockBuilder(Object):
         te_args_list = []
 
         def _convert_te_arg_helper(arg):
-            nonlocal te_args_list
             if isinstance(arg, Expr):
                 arg = te_tensor(arg)
                 te_args_list.append(arg)
@@ -142,7 +141,7 @@ class BlockBuilder(Object):
         new_arg = _convert_te_arg_helper(te_args)
         return new_arg, te_args_list
     
-    def _check_te_args(self, args):
+    def _check_te_args(self, args: List[tvm.te.Tensor]):
         """check te arguments."""
         #TODO(hypercubestart, ziheng) support full dynamic shape in the future
         for x in args:
@@ -263,6 +262,12 @@ class BlockBuilder(Object):
                             T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
                             T.writes([compute[i, j]])
                             compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
+
+                @relax.function
+                def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor[_, "float32"]:
+                    # block 0
+                    gv = relax.call_dps((128, 128), te_func, (x, y))
+                    return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
@@ -359,6 +364,7 @@ class BlockBuilder(Object):
         ret : tvm.relax.Function
             A Relax function node being built.
         """
+        # TODO(hyoercubestart, ziheng) get should return IRModule with relax + TIR functions
         seqe = rx.SeqExpr(self._blocks, self._func_ret)
         func = rx.Function(
             self._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._func_name)
@@ -366,7 +372,7 @@ class BlockBuilder(Object):
         return func
 
     def context_mod(self):
-        """Return the context module that might contains tir functions.
+        """Return the context module that might contain tir functions.
 
         Returns
         -------
