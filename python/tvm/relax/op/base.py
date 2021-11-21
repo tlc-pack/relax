@@ -13,7 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-from ...ir import BaseFunc
+from ...ir import BaseFunc, Array
 from ..expr import Expr, ShapeExpr, Tuple, Call
 from . import _ffi_api
 from typing import Union, List
@@ -41,7 +41,7 @@ def call_dps(
     ret: Call
         A call node for the call_dps operator.
     """
-    if isinstance(shape, (list, tuple)):
+    if isinstance(shape, (list, tuple, Array)):
         shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)

@@ -169,5 +169,11 @@ class ExternFunc(BaseFunc):
         self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol, span)
 
 
-def extern(name, span: Span = None):
+def extern(name: str, span: Span = None):
+    """Create extern function."""
     return ExternFunc(name, span)
+
+
+def te_tensor(value: Expr, name: str = "rxplaceholder"):
+    """Create te tensor from relax expression."""
+    return _ffi_api.TETensor(value, name)

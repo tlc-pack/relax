@@ -49,6 +49,7 @@ If = expr.If
 # helper functions
 const = expr.const
 extern = expr.extern
+te_tensor = expr.te_tensor
 
 # Type
 Type = ty.Type
