@@ -88,7 +88,6 @@ class BlockBuilder(Object):
     def __init__(self):
         self._blocks = []
         self._context_mod = tvm.IRModule()
-        self._cached = {}
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
     def _begin_dataflow_block(self) -> None:
@@ -232,41 +231,43 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
-        bb = rx.BlockBuilder()
-        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-        type_anno = rx.DynTensorType(2, "float32")
-        x = rx.Var("x", [n, m], type_anno)
-        y = rx.Var("y", [n, m], type_anno)
-        
-        def te_func(args, args_dict, msg):
-            A = args[0]
-            B = args_dict["B"]
-            return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
-        
-        with bb.function([x, y], "rx_func"):
-            out = bb.emit_te(te_func, [x], {"B": y}, msg="hello")
-            bb.emit_func_output(out)
+            bb = rx.BlockBuilder()
+            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            type_anno = rx.DynTensorType(2, "float32")
+            x = rx.Var("x", [n, m], type_anno)
+            y = rx.Var("y", [n, m], type_anno)
+            
+            def te_func(args, args_dict, msg):
+                A = args[0]
+                B = args_dict["B"]
+                return te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+            
+            with bb.function([x, y], "rx_func"):
+                out = bb.emit_te(te_func, [x], {"B": y}, msg="hello")
+                bb.emit_func_output(out)
 
-        # result in TVMScript
-        # @tvm.script.ir_module
-        # class Module:
-        #     @T.prim_func
-        #     def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_compute: T.handle) -> None:
-        #         # function attr dict
-        #         T.func_attr({"global_symbol": "te_func"})
-        #         m = T.var("int64")
-        #         n = T.var("int64")
-        #         rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
-        #         rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
-        #         compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
-        #         # body
-        #         # with T.block("root")
-        #         for i0, i1 in T.grid(128, 128):
-        #             with T.block("compute"):
-        #                 i, j = T.axis.remap("SS", [i0, i1])
-        #                 T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
-        #                 T.writes([compute[i, j]])
-        #                 compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
+        will result in TVMScript
+        .. code-block:: python
+
+            @tvm.script.ir_module
+            class Module:
+                @T.prim_func
+                def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_compute: T.handle) -> None:
+                    # function attr dict
+                    T.func_attr({"global_symbol": "te_func"})
+                    m = T.var("int64")
+                    n = T.var("int64")
+                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
+                    rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
+                    compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
+                    # body
+                    # with T.block("root")
+                    for i0, i1 in T.grid(128, 128):
+                        with T.block("compute"):
+                            i, j = T.axis.remap("SS", [i0, i1])
+                            T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
+                            T.writes([compute[i, j]])
+                            compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
         """
         new_args, te_arg_list = self._convert_te_arg(args)
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
