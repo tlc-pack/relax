@@ -280,6 +280,27 @@ def test_emit_te():
     assert func.body.blocks[0].bindings[0].value.args[2][1] == y
     assert func.body.blocks[0].bindings[0].value.args[2][2] == z
 
+
+def test_emit_te_multiple():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [n, m], type_anno)
+
+    def te_func(A):
+        B = te.compute((128, 128), lambda i, j: A[i, j] + 1)
+        return B
+
+    with bb.function([x, y], "rx_func"):
+        x1 = bb.emit_te(te_func, x)
+        y1 = bb.emit_te(te_func, y)
+        bb.emit_func_output(y1)
+    
+    func = bb.get()
+    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func1"
+
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
@@ -288,3 +309,4 @@ if __name__ == "__main__":
     test_emit_match_shape()
     test_normalize()
     test_emit_te()
+    test_emit_te_multiple()

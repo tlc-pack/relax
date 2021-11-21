@@ -290,9 +290,10 @@ class BlockBuilder(Object):
 
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
-        tir_func = tir_func.with_attr("global_symbol", func.__name__)
-
-        gvar = self._get_gvar(tir_func, func.__name__)
+        func_name = _ffi_api.BlockBuilderGetUniqueName(self, func.__name__)
+        tir_func = tir_func.with_attr("global_symbol", func_name)
+        gvar = GlobalVar(func_name)
+        self._context_mod[gvar] = tir_func
         call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
         return _ffi_api.BlockBuilderEmit(self, call)
 
