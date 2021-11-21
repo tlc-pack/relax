@@ -263,10 +263,10 @@ class BlockBuilder(Object):
                             T.writes([compute[i, j]])
                             compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
 
-                @relax.function
-                def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor[_, "float32"]:
+                @R.function
+                def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor:
                     # block 0
-                    gv = relax.call_dps((128, 128), te_func, (x, y))
+                    gv = relax.call_dps((128, 128), "te_func", (x, y))
                     return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
