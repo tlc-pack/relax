@@ -17,10 +17,13 @@
 
 from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
-from tvm import tir
+from tvm import tir, te
 from tvm import relay
 from tvm import relax as rx
+import numpy as np
 
+from tvm.ir.base import assert_structural_equal
+from tvm.relax import op
 
 def test_block_builder():
     m = tir.Var("m", "int32")
@@ -226,6 +229,78 @@ def test_normalize():
     assert add_call.shape[1] == n
 
 
+def test_emit_te():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [n, m], type_anno)
+    z = rx.Var("z", [n, m], type_anno)
+    
+    def te_func(args, args_dict, msg):
+        A, B = args
+        C = args_dict["C"]
+        D = te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+        E = te.compute((128, 128), lambda i, j: D[i, j] - C[i, j])
+        return E
+    
+    with bb.function([x, y, z], "rx_func"):
+        out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
+        bb.emit_func_output(out)
+    
+    func = bb.get()
+    mod = bb.context_mod()
+    
+    gvar = tvm.relay.GlobalVar("rx_func")
+    mod[gvar] = func
+
+    def get_tir_func():
+        A = te.placeholder((n, m), dtype="float32", name="A")
+        B = te.placeholder((n, m), dtype="float32", name="B")
+        C = te.placeholder((n, m), dtype="float32", name="C")
+        out = te_func((A, B), {"C": C}, "")
+        return tvm.te.create_prim_func([A, B, C, out])
+
+    # check TIR structure matches expected
+    assert_structural_equal(mod["te_func"].body, get_tir_func().body)
+
+    # check Relax function calls TIR function with call_dps call
+    assert func.params[0] == x
+    assert func.params[1] == y
+    assert func.params[2] == z
+    assert func.name.name_hint == "rx_func"
+    assert func.body.body == out
+    assert len(func.body.blocks) == 1
+    assert len(func.body.blocks[0].bindings) == 1
+    assert isinstance(func.body.blocks[0].bindings[0].value, rx.Call)
+    assert func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert len(func.body.blocks[0].bindings[0].value.args) == 3
+    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert func.body.blocks[0].bindings[0].value.args[2][0] == x
+    assert func.body.blocks[0].bindings[0].value.args[2][1] == y
+    assert func.body.blocks[0].bindings[0].value.args[2][2] == z
+
+
+def test_emit_te_multiple():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [n, m], type_anno)
+
+    def te_func(A):
+        B = te.compute((128, 128), lambda i, j: A[i, j] + 1)
+        return B
+
+    with bb.function([x, y], "rx_func"):
+        x1 = bb.emit_te(te_func, x)
+        y1 = bb.emit_te(te_func, y)
+        bb.emit_func_output(y1)
+    
+    func = bb.get()
+    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func1"
+
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
@@ -233,3 +308,5 @@ if __name__ == "__main__":
     test_binary_shape_type_deduction()
     test_emit_match_shape()
     test_normalize()
+    test_emit_te()
+    test_emit_te_multiple()
