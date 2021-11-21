@@ -31,7 +31,7 @@ namespace tvm {
 namespace relax {
 
 /*!
- * \brief A placholder op that represents a relax expression.
+ * \brief A placeholder op that represents a relax expression.
  */
 class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  public:
