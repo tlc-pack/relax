@@ -75,7 +75,7 @@ class BlockBuilder(Object):
         dtype1 = rx.DynTensorType(rank=1, dtype="float16")
         x = rx.Var("x", [m, n], dtype0)
         y = rx.Var("y", [n], dtype1)
-        ib = rx.IRBuilder()
+        ib = rx.BlockBuilder()
         with ib.function([x, y], "func"):
             with ib.dataflow() as df:
                 lv0 = ib.emit(rx.add(x, y))
@@ -86,7 +86,7 @@ class BlockBuilder(Object):
     """
 
     def __init__(self):
-        self._tir_mod = tvm.IRModule()
+        self._context_mod = tvm.IRModule()
         self._blocks = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
@@ -277,7 +277,7 @@ class BlockBuilder(Object):
         func_name = func.__name__
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
-        self._tir_mod[gvar] = tir_func
+        self._context_mod[gvar] = tir_func
         call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
         return _ffi_api.BlockBuilderEmit(self, call)
 
@@ -363,12 +363,12 @@ class BlockBuilder(Object):
         )
         return func
 
-    def get_tir_mod(self):
-        """Return the module that contains tir functions.
+    def context_mod(self):
+        """Return the context module that might contains tir functions.
 
         Returns
         -------
         mod : tvm.IRModule
-            The module that contains tir functions during emit.
+            The context module that contains tir functions during emit.
         """
-        return self._tir_mod
+        return self._context_mod

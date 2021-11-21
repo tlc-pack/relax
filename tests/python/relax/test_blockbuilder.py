@@ -249,7 +249,7 @@ def test_emit_te():
         bb.emit_func_output(out)
     
     func = bb.get()
-    mod = bb.get_tir_mod()
+    mod = bb.context_mod()
     
     gvar = tvm.relay.GlobalVar("rx_func")
     mod[gvar] = func
