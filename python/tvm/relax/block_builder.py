@@ -151,20 +151,6 @@ class BlockBuilder(Object):
                     raise ValueError("emit_te not support symbolic shape"
                         "contains expression now: {}".format(x.shape))
 
-    def _get_gvar(self, tir_func: tvm.tir.PrimFunc, name_hint: str):
-        """Get global var for the tir function."""
-        # check whether this tir function has been cached
-        cached_gvars = self._context_mod.get_global_vars()
-        for cached_gvar in cached_gvars:
-            cached_func = self._context_mod[cached_gvar]
-            if tvm.ir.structural_equal(cached_func, tir_func):
-                return cached_gvar
-
-        # not cached
-        gvar = GlobalVar(name_hint)
-        self._context_mod[gvar] = tir_func
-        return gvar
-
     def function(self,
                  params: Optional[Union[Var, Tuple, List[Var]]] = None,
                  name: Optional[str] = "") -> FunctionScope:
