@@ -240,8 +240,22 @@ TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr ex
 // ExprMutator
 
 Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
-  // TODO(@yuchen): should we visit the shape of ConstantNode?
-  return GetRef<Expr>(op);
+  Expr new_shape;
+  bool unchanged = true;
+  if (op->shape_) {
+    new_shape = this->VisitExpr(Downcast<Expr>(op->shape_.value()));
+    if (!new_shape.same_as(op->shape_)) {
+      unchanged = false;
+    }
+  }
+
+  if (unchanged) {
+    return GetRef<Expr>(op);
+  } else {
+    Expr new_constant = Constant(op->data, op->span);
+    new_constant->shape_ = new_shape;
+    return new_constant;
+  }
 }
 
 Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
@@ -250,7 +264,6 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
   bool all_fields_unchanged = true;
   for (Expr field : op->fields) {
-    // TODO(@yuchen): should we visit the shape of fields of TupleNode?
     Expr new_field = this->VisitExpr(field);
     fields.push_back(new_field);
     all_fields_unchanged &= new_field.same_as(field);
