@@ -71,17 +71,31 @@ def test_fma_rewrite():
 
 def test_visit_shape():
     @tvm.script.ir_module
-    # constant fold n to 4
     class TestVisitShape:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
-            with relax.dataflow():
-                lv0 = relax.add(x, x)
-                gv0 = relax.multiply(lv0, lv0)
-                relax.output(gv0)
+            gv0 = R.add(x, x)
             return gv0
     
     mod = TestVisitShape
+    
+    shape_expr = []
+    def fvisit(e):
+        if isinstance(e, relax.ShapeExpr):
+            nonlocal shape_expr
+            shape_expr.append(e)
+
+    relax.analysis.post_order_visit(mod["foo"], fvisit)
+    
+    # should have visited ShapeExpr 6 times
+    # the first three times visited are x.shape
+    # the last three times are the callnode's shape and gv0's shape
+    assert len(shape_expr) == 6
+    assert shape_expr[0] == shape_expr[1]
+    assert shape_expr[0] == shape_expr[2]
+    assert shape_expr[3] == shape_expr[4]
+    assert shape_expr[3] == shape_expr[5]
+
 
 def test_to_non_dataflow():
     @tvm.script.ir_module

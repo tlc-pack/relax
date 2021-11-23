@@ -33,7 +33,13 @@
 namespace tvm {
 namespace relax {
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const ConstantNode* op) {
+  this->VisitSpan(op->span);
+
+  if (op->shape_) {
+    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
+  }
+}
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) { this->VisitSpan(op->span); }
 
@@ -41,9 +47,14 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
   this->VisitSpan(op->span);
   for (Expr field : op->fields) {
     this->VisitExpr(field);
+
+    if (field->shape_) {
+      this->VisitExpr(Downcast<Expr>(field->shape_.value()));
+    }
   }
 }
 
+// Visit the use-site of a defined Var
 void ExprVisitor::VisitExpr_(const VarNode* op) {
   this->VisitSpan(op->span);
   if (op->type_annotation.defined()) {
@@ -55,6 +66,7 @@ void ExprVisitor::VisitExpr_(const VarNode* op) {
   }
 }
 
+// Visit the use-site of a defined DataflowVar
 void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
   this->VisitSpan(op->span);
   if (op->type_annotation.defined()) {
@@ -171,9 +183,7 @@ void ExprVisitor::VisitVarDef_(const VarNode* var) {
   }
 }
 
-void ExprVisitor::VisitExpr(const Expr& expr) {
-  ExprFunctor::VisitExpr(expr);
-}
+void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
 void ExprVisitor::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
@@ -229,7 +239,10 @@ TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr ex
 // ==================
 // ExprMutator
 
-Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
+  // TODO(@yuchen): should we visit the shape of ConstantNode?
+  return GetRef<Expr>(op);
+}
 
 Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
 
@@ -237,6 +250,7 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
   bool all_fields_unchanged = true;
   for (Expr field : op->fields) {
+    // TODO(@yuchen): should we visit the shape of fields of TupleNode?
     Expr new_field = this->VisitExpr(field);
     fields.push_back(new_field);
     all_fields_unchanged &= new_field.same_as(field);
