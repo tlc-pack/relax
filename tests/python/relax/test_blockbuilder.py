@@ -20,7 +20,6 @@ import tvm
 from tvm import tir, te
 from tvm import relay
 from tvm import relax as rx
-import numpy as np
 
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import op
@@ -61,7 +60,7 @@ def test_function_single_block():
     y = rx.Var("y", [n], dtype1)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y]):
+    with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
@@ -71,7 +70,7 @@ def test_function_single_block():
         assert gv0.name_hint == "gv"
         ib.emit_func_output(gv0)
 
-    func = ib.get()
+    func = ib.get()["func"]
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
@@ -106,7 +105,7 @@ def test_function_multi_blocks():
             gv2 = ib.emit_output(gv1)
         ib.emit_func_output(gv2)
 
-    func = ib.get()
+    func = ib.get()["func"]
     assert gv2.shape[0] == m
     assert gv2.shape[1] == n
     assert gv2.checked_type.rank == 2
@@ -119,6 +118,40 @@ def test_function_multi_blocks():
     assert len(func.body.blocks[0].bindings) == 2
     assert len(func.body.blocks[1].bindings) == 1
     assert len(func.body.blocks[2].bindings) == 2
+
+
+def test_multi_functions():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    ib = rx.BlockBuilder()
+
+    with ib.function([x, y], "func1"):
+        with ib.dataflow() as df:
+            lv0 = ib.emit(rx.op.add(x, y))
+            assert lv0.name_hint == "lv"
+            gv0 = ib.emit_output(lv0)
+        ib.emit_func_output(gv0)
+
+    with ib.function([x, y], "func2"):
+        with ib.dataflow() as df:
+            lv0 = ib.emit(rx.op.add(x, y))
+            assert lv0.name_hint == "lv"
+            gv0 = ib.emit_output(lv0)
+        ib.emit_func_output(gv0)
+
+    mod = ib.get()
+    func1 = mod["func1"]
+    assert func1.params[0] == x
+    assert func1.params[1] == y
+    assert func1.name.name_hint == "func1"
+    func2 = mod["func2"]
+    assert func2.params[0] == x
+    assert func2.params[1] == y
+    assert func2.name.name_hint == "func2"
 
 
 def test_binary_shape_type_deduction():
@@ -177,7 +210,7 @@ def test_emit_match_shape():
     y = rx.Var("shape_value", type_annotation=rx.ShapeType(), shape_annotation=shape_anno)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y]):
+    with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             # lv0: Tensor[(m, n), "float32"] =
             #   match_shape(x: Tensor[_, "float32"], [m, n])
@@ -194,7 +227,7 @@ def test_emit_match_shape():
             gv0 = ib.emit_output(lv1)
 
         ib.emit_func_output(gv0)
-    func = ib.get()
+    func = ib.get()["func"]
     block = func.body.blocks[0]
     b0, b1 = block.bindings[:2]
     assert isinstance(b0, rx.MatchShape)
@@ -248,11 +281,8 @@ def test_emit_te():
         out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
         bb.emit_func_output(out)
     
-    func = bb.get()
-    mod = bb.context_mod()
-    
-    gvar = tvm.relay.GlobalVar("rx_func")
-    mod[gvar] = func
+    mod = bb.get()
+    rx_func = mod["rx_func"]
 
     def get_tir_func():
         A = te.placeholder((n, m), dtype="float32", name="A")
@@ -265,20 +295,20 @@ def test_emit_te():
     assert_structural_equal(mod["te_func"].body, get_tir_func().body)
 
     # check Relax function calls TIR function with call_dps call
-    assert func.params[0] == x
-    assert func.params[1] == y
-    assert func.params[2] == z
-    assert func.name.name_hint == "rx_func"
-    assert func.body.body == out
-    assert len(func.body.blocks) == 1
-    assert len(func.body.blocks[0].bindings) == 1
-    assert isinstance(func.body.blocks[0].bindings[0].value, rx.Call)
-    assert func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
-    assert len(func.body.blocks[0].bindings[0].value.args) == 3
-    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert func.body.blocks[0].bindings[0].value.args[2][0] == x
-    assert func.body.blocks[0].bindings[0].value.args[2][1] == y
-    assert func.body.blocks[0].bindings[0].value.args[2][2] == z
+    assert rx_func.params[0] == x
+    assert rx_func.params[1] == y
+    assert rx_func.params[2] == z
+    assert rx_func.name.name_hint == "rx_func"
+    assert rx_func.body.body == out
+    assert len(rx_func.body.blocks) == 1
+    assert len(rx_func.body.blocks[0].bindings) == 1
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
+    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
+    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
+    assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
+    assert rx_func.body.blocks[0].bindings[0].value.args[2][2] == z
 
 
 def test_emit_te_multiple():
@@ -297,16 +327,45 @@ def test_emit_te_multiple():
         y1 = bb.emit_te(te_func, y)
         bb.emit_func_output(y1)
     
-    func = bb.get()
+    func = bb.get()["rx_func"]
     assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
     assert func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func1"
+
+
+def test_emit_te_extern():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [m, n], type_anno)
+
+    with bb.function([x, y], "rx_cblas_matmul"):
+        out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
+        bb.emit_func_output(out)
+    
+    mod = bb.get()
+    rx_func = mod["rx_cblas_matmul"]
+    
+    # check Relax function calls TIR function with call_dps call
+    assert rx_func.params[0] == x
+    assert rx_func.params[1] == y
+    assert len(rx_func.body.blocks) == 1
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
+    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
+    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "matmul"
+    assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
+    assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
+
 
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
     test_function_multi_blocks()
+    test_multi_functions()
     test_binary_shape_type_deduction()
     test_emit_match_shape()
     test_normalize()
     test_emit_te()
     test_emit_te_multiple()
+    test_emit_te_extern()
