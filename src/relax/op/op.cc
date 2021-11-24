@@ -59,7 +59,10 @@ RELAY_REGISTER_OP("relax.call_dps")
 
 Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.call_dps");
-  return Call(op, {shape, func, args}, {}, {});
+  Call call = Call(op, {shape, func, args}, {}, {});
+  call->shape_ = shape;
+  call->checked_type_ = args->fields[0]->checked_type_;
+  return call;
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_dps")
