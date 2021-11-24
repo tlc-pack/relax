@@ -35,6 +35,7 @@ using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
 using relay::Call;
 using relay::CallNode;
+using relay::Constant;
 using relay::ConstantNode;
 using relay::Id;
 using relay::If;
