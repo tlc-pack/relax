@@ -408,25 +408,11 @@ def test_vm_emit_te_extern():
     x = relax.Var("x", [n, m], type_anno)
     y = relax.Var("y", [n, m], type_anno)
     
-    def te_cblas_matmul(args):
-        A, B = args
-        C = te.extern(
-            (n, m),
-            [A, B],
-            lambda ins, outs: tvm.tir.call_packed("tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], False, False),
-            name="C",
-        )
-        return C
-    
     with bb.function([x, y], "rx_cblas_matmul"):
-        out = bb.emit_te(te_cblas_matmul, [x, y])
+        out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
         bb.emit_func_output(out)
     
-    func = bb.get()
-    mod = bb.context_mod()
-
-    gvar = tvm.relay.GlobalVar("rx_cblas_matmul")
-    mod[gvar] = func
+    mod = bb.get()
 
     target = tvm.target.Target("llvm")
     target_host = tvm.target.Target("llvm")
