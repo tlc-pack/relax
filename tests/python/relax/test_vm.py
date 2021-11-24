@@ -19,8 +19,9 @@ import os
 import numpy as np
 import tvm
 from tvm.relay import Call
-from tvm import relax
+from tvm import relax, tir, te
 from tvm.runtime import container
+import numpy as np
 
 import tvm.script
 from tvm.script import tir as T, relax as R
@@ -393,10 +394,48 @@ def test_vm_compile_e2e_func_param_with_shape():
     ex, lib = relax.vm.build(mod, target, target_host)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
-    import numpy as np
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
     res = vm["func"](data, weight)
+    expected = np.dot(data.asnumpy(), weight.asnumpy())
+    np.testing.assert_allclose(expected, res.asnumpy(), rtol=1e-4, atol=1e-4)
+
+
+def test_vm_emit_te_extern():
+    bb = relax.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = relax.DynTensorType(2, "float32")
+    x = relax.Var("x", [n, m], type_anno)
+    y = relax.Var("y", [n, m], type_anno)
+    
+    def te_cblas_matmul(args):
+        A, B = args
+        C = te.extern(
+            (n, m),
+            [A, B],
+            lambda ins, outs: tvm.tir.call_packed("tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], False, False),
+            name="C",
+        )
+        return C
+    
+    with bb.function([x, y], "rx_cblas_matmul"):
+        out = bb.emit_te(te_cblas_matmul, [x, y])
+        bb.emit_func_output(out)
+    
+    func = bb.get()
+    mod = bb.context_mod()
+
+    gvar = tvm.relay.GlobalVar("rx_cblas_matmul")
+    mod[gvar] = func
+
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = relax.vm.build(mod, target, target_host)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+
+    data = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
+    weight = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
+    res = vm["rx_cblas_matmul"](data, weight)
     expected = np.dot(data.asnumpy(), weight.asnumpy())
     np.testing.assert_allclose(expected, res.asnumpy(), rtol=1e-4, atol=1e-4)
 
@@ -417,3 +456,4 @@ if __name__ == "__main__":
     test_vm_compile_stage3()
     test_vm_compile_e2e()
     test_vm_compile_e2e_func_param_with_shape()
+    test_vm_emit_te_extern()

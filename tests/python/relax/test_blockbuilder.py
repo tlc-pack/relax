@@ -301,6 +301,46 @@ def test_emit_te_multiple():
     assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
     assert func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func1"
 
+
+def test_emit_te_extern():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [n, m], type_anno)
+    
+    def te_cblas_matmul(args):
+        A, B = args
+        C = te.extern(
+            (n, m),
+            [A, B],
+            lambda ins, outs: tvm.tir.call_packed("tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], False, False),
+            name="C",
+        )
+        return C
+    
+    with bb.function([x, y], "rx_cblas_matmul"):
+        out = bb.emit_te(te_cblas_matmul, [x, y])
+        bb.emit_func_output(out)
+    
+    func = bb.get()
+    mod = bb.context_mod()
+
+    gvar = tvm.relay.GlobalVar("rx_cblas_matmul")
+    mod[gvar] = func
+    
+    # check Relax function calls TIR function with call_dps call
+    assert func.params[0] == x
+    assert func.params[1] == y
+    assert len(func.body.blocks) == 1
+    assert isinstance(func.body.blocks[0].bindings[0].value, rx.Call)
+    assert func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert len(func.body.blocks[0].bindings[0].value.args) == 3
+    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_cblas_matmul"
+    assert func.body.blocks[0].bindings[0].value.args[2][0] == x
+    assert func.body.blocks[0].bindings[0].value.args[2][1] == y
+
+
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
@@ -310,3 +350,4 @@ if __name__ == "__main__":
     test_normalize()
     test_emit_te()
     test_emit_te_multiple()
+    test_emit_te_extern()
