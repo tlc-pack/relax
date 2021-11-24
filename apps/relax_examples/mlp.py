@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Example code on creating, compiling, and run a MLP model in relax
+# Example code on creating, compiling, and running an MLP model in relax
 
 
 import tvm
