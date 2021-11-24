@@ -35,17 +35,17 @@ def test_fma_rewrite():
     x = relax.Var("x", [m, n], dtype0)
     y = relax.Var("y", [m, n], dtype1)
     ib = relax.BlockBuilder()
-    with ib.function([x, y]):
+    with ib.function([x, y], "func"):
         with ib.dataflow() as df:
             lv0 = ib.emit(relax.op.multiply(x, y))
             gv0 = ib.emit_output(relax.op.add(lv0, y))
         ib.emit_func_output(gv0)
-    expr = ib.get()
-    mod = IRModule.from_expr(expr)
+    mod = ib.get()
+    func = mod["func"]
 
     # before rewrite
-    v0 = expr.body.blocks[0].bindings[1].var
-    s0 = expr.body.blocks[0].bindings[1].value
+    v0 = func.body.blocks[0].bindings[1].var
+    s0 = func.body.blocks[0].bindings[1].value
     assert isinstance(s0, tvm.relay.Call)
     assert s0.op.name == "relax.add"
     assert structural_equal(v0.shape, relax.ShapeExpr([m, n]))
@@ -54,9 +54,9 @@ def test_fma_rewrite():
 
     # after rewrite
     new_mod = relax.transform.FMARewrite()(mod)
-    func = new_mod["main"]
-    v1 = func.body.blocks[0].bindings[1].var
-    s1 = func.body.blocks[0].bindings[1].value
+    new_func = new_mod["func"]
+    v1 = new_func.body.blocks[0].bindings[1].var
+    s1 = new_func.body.blocks[0].bindings[1].value
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.ewise_fma"
     assert structural_equal(v1.shape, relax.ShapeExpr([m, n]))
@@ -65,7 +65,7 @@ def test_fma_rewrite():
     # The var binded to the fma call is reused because the shape
     # and type of var are unchanged after rewriting
     assert gv0 == v0
-    assert type(func.body.blocks[0].bindings[1].var) == relax.Var
+    assert type(new_func.body.blocks[0].bindings[1].var) == relax.Var
 
 def test_visit_shape():
     @tvm.script.ir_module
