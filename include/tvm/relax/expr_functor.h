@@ -293,7 +293,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   }
 
   /*!
-   * \brief Create a new var with specified shape and type if it's original shape or type does not
+   * \brief Create a new var with specified shape and type if the original var's shape or type does not
    * match with the specified ones.
    * \param var The var to be updated.
    * \param shape The specified shape.
