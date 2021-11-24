@@ -19,7 +19,7 @@ import os
 import numpy as np
 import tvm
 from tvm.relay import Call
-from tvm import relax, tir, te
+from tvm import relax, tir
 from tvm.runtime import container
 import numpy as np
 
@@ -406,7 +406,7 @@ def test_vm_emit_te_extern():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     type_anno = relax.DynTensorType(2, "float32")
     x = relax.Var("x", [n, m], type_anno)
-    y = relax.Var("y", [n, m], type_anno)
+    y = relax.Var("y", [m, n], type_anno)
     
     with bb.function([x, y], "rx_cblas_matmul"):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
@@ -419,8 +419,8 @@ def test_vm_emit_te_extern():
     ex, lib = relax.vm.build(mod, target, target_host)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
-    data = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
-    weight = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
+    data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
+    weight = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     res = vm["rx_cblas_matmul"](data, weight)
     expected = np.dot(data.asnumpy(), weight.asnumpy())
     np.testing.assert_allclose(expected, res.asnumpy(), rtol=1e-4, atol=1e-4)

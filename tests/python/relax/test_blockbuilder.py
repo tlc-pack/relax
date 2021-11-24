@@ -337,7 +337,7 @@ def test_emit_te_extern():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     type_anno = rx.DynTensorType(2, "float32")
     x = rx.Var("x", [n, m], type_anno)
-    y = rx.Var("y", [n, m], type_anno)
+    y = rx.Var("y", [m, n], type_anno)
 
     with bb.function([x, y], "rx_cblas_matmul"):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
