@@ -93,9 +93,7 @@ class VMShapeLowerMutator : public ExprMutator {
     builder_->BeginBindingBlock();
     builder_->Emit(VarBinding(
         shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
-    Array<Var> params;
     for (Var param : node->params) {
-      params.push_back(this->VisitVarDef(param));
       if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
         Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
         StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
@@ -118,7 +116,7 @@ class VMShapeLowerMutator : public ExprMutator {
     blocks.push_back(builder_->EndBlock());
     new_body = SeqExpr(blocks, new_body);
 
-    return Function(node->name, params, new_body, ret_type);
+    return Function(node->name, node->params, new_body, ret_type);
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {

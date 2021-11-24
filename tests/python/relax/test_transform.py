@@ -53,9 +53,7 @@ def test_fma_rewrite():
     assert structural_equal(gv0.shape, relax.ShapeExpr([m, n]))
 
     # after rewrite
-    passes = [relax.transform.FMARewrite()]
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
+    new_mod = relax.transform.FMARewrite()(mod)
     func = new_mod["main"]
     v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
@@ -87,14 +85,12 @@ def test_visit_shape():
 
     relax.analysis.post_order_visit(mod["foo"], fvisit)
     
-    # should have visited ShapeExpr 6 times
-    # the first three times visited are x.shape
-    # the last three times are the callnode's shape and gv0's shape
-    assert len(shape_expr) == 6
-    assert shape_expr[0] == shape_expr[1]
-    assert shape_expr[0] == shape_expr[2]
-    assert shape_expr[3] == shape_expr[4]
-    assert shape_expr[3] == shape_expr[5]
+    # should have visited ShapeExpr 3 times
+    # the first time being visited is x.shape
+    # the last two times are the call node's shape and gv0's shape
+    assert len(shape_expr) == 3
+    assert shape_expr[0] == mod["foo"].params[0].shape
+    assert shape_expr[1] == shape_expr[2]
 
 
 def test_to_non_dataflow():

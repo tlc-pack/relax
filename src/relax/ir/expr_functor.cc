@@ -47,35 +47,21 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
   this->VisitSpan(op->span);
   for (Expr field : op->fields) {
     this->VisitExpr(field);
+  }
 
-    if (field->shape_) {
-      this->VisitExpr(Downcast<Expr>(field->shape_.value()));
-    }
+  if (op->shape_) {
+    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
   }
 }
 
 // Visit the use-site of a defined Var
 void ExprVisitor::VisitExpr_(const VarNode* op) {
   this->VisitSpan(op->span);
-  if (op->type_annotation.defined()) {
-    this->VisitType(op->type_annotation.value());
-  }
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-  }
 }
 
 // Visit the use-site of a defined DataflowVar
 void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
   this->VisitSpan(op->span);
-  if (op->type_annotation.defined()) {
-    this->VisitType(op->type_annotation.value());
-  }
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-  }
 }
 
 void ExprVisitor::VisitExpr_(const FunctionNode* op) {
@@ -261,18 +247,26 @@ Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
 Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
+  bool unchanged = true;
   tvm::Array<Expr> fields;
-  bool all_fields_unchanged = true;
   for (Expr field : op->fields) {
     Expr new_field = this->VisitExpr(field);
     fields.push_back(new_field);
-    all_fields_unchanged &= new_field.same_as(field);
+    unchanged &= new_field.same_as(field);
   }
 
-  if (all_fields_unchanged) {
+  Expr new_shape;
+  if (op->shape_) {
+    new_shape = this->VisitExpr(Downcast<Expr>(op->shape_.value()));
+    unchanged &= new_shape.same_as(op->shape_);
+  }
+
+  if (unchanged) {
     return GetRef<Expr>(op);
   } else {
-    return Tuple(fields, op->span);
+    Expr new_tuple = Tuple(fields, op->span);
+    new_tuple->shape_ = new_shape;
+    return new_tuple;
   }
 }
 
@@ -479,29 +473,75 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
 }
 
 Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
+  bool type_unchanged = true;
+  Type new_type;
   if (var->type_annotation.defined()) {
-    Type type = this->VisitType(var->type_annotation.value());
-    if (!var->type_annotation.same_as(type)) {
-      Var new_var = DataflowVar(var->vid, NullOpt, type, var->span);
-      new_var->shape_ = var->shape_;
-      this->var_remap_[var->vid] = new_var;
-      return new_var;
-    }
+    new_type = this->VisitType(var->type_annotation.value());
+    type_unchanged &= new_type.same_as(var->type_annotation);
   }
-  return GetRef<Var>(var);
+
+  bool shape_unchanged = true;
+  Expr new_shape;
+  if (var->shape_) {
+    new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
+    shape_unchanged &= new_shape.same_as(var->shape_);
+  }
+
+  if (type_unchanged && shape_unchanged) {
+    return GetRef<Var>(var);
+  } else {
+    Var new_var;
+    if (type_unchanged) {
+      new_var = DataflowVar(var->vid, NullOpt, var->type_annotation, var->span);
+    } else {
+      new_var = DataflowVar(var->vid, NullOpt, new_type, var->span);
+    }
+
+    if (shape_unchanged) {
+      new_var->shape_ = var->shape_;
+    } else {
+      new_var->shape_ = new_shape;
+    }
+    
+    this->var_remap_[var->vid] = new_var;
+    return new_var;
+  }
 }
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {
+  bool type_unchanged = true;
+  Type new_type;
   if (var->type_annotation.defined()) {
-    Type type = this->VisitType(var->type_annotation.value());
-    if (!var->type_annotation.same_as(type)) {
-      Var new_var = Var(var->vid, NullOpt, type, var->span);
-      new_var->shape_ = var->shape_;
-      this->var_remap_[var->vid] = new_var;
-      return new_var;
-    }
+    new_type = this->VisitType(var->type_annotation.value());
+    type_unchanged &= new_type.same_as(var->type_annotation);
   }
-  return GetRef<Var>(var);
+
+  bool shape_unchanged = true;
+  Expr new_shape;
+  if (var->shape_) {
+    new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
+    shape_unchanged &= new_shape.same_as(var->shape_);
+  }
+
+  if (type_unchanged && shape_unchanged) {
+    return GetRef<Var>(var);
+  } else {
+    Var new_var;
+    if (type_unchanged) {
+      new_var = Var(var->vid, NullOpt, var->type_annotation, var->span);
+    } else {
+      new_var = Var(var->vid, NullOpt, new_type, var->span);
+    }
+
+    if (shape_unchanged) {
+      new_var->shape_ = var->shape_;
+    } else {
+      new_var->shape_ = new_shape;
+    }
+    
+    this->var_remap_[var->vid] = new_var;
+    return new_var;
+  }
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
