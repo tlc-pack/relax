@@ -32,38 +32,6 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Visitor to apply a function to every Expr it visits. Also applies the function
- * to the shape field of the var definition site if the var's shape is a ShapeExpr.
- */
-class ExprApplyVisitWithShape : public ExprVisitor {
- public:
-  explicit ExprApplyVisitWithShape(std::function<void(const Expr&)> f) : f_(f) {}
-
-  void VisitVarDef(const Var& var) {
-    if (var.as<DataflowVarNode>()) {
-      this->VisitExpr(Downcast<DataflowVar>(var));
-    } else {
-      this->VisitExpr(var);
-    }
-    if (var->shape_.operator bool() && var->shape_.value().as<ShapeExprNode>()) {
-      f_(Downcast<ShapeExpr>(var->shape_.value()));
-    }
-  }
-
-  void VisitExpr(const Expr& e) final {
-    ExprVisitor::VisitExpr(e);
-    f_(e);
-  }
-
- private:
-  std::function<void(const Expr&)> f_;
-};
-
-void PostOrderVisitWithShape(const Expr& e, std::function<void(const Expr&)> fvisit) {
-  ExprApplyVisitWithShape(fvisit).VisitExpr(e);
-}
-
 class VMShapeLowerMutator : public ExprMutator {
  public:
   static DataType ShapeDType() { return DataType::Int(64); };
@@ -125,9 +93,7 @@ class VMShapeLowerMutator : public ExprMutator {
     builder_->BeginBindingBlock();
     builder_->Emit(VarBinding(
         shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
-    Array<Var> params;
     for (Var param : node->params) {
-      params.push_back(this->VisitVarDef(param));
       if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
         Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
         StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
@@ -150,7 +116,7 @@ class VMShapeLowerMutator : public ExprMutator {
     blocks.push_back(builder_->EndBlock());
     new_body = SeqExpr(blocks, new_body);
 
-    return Function(node->name, params, new_body, ret_type);
+    return Function(node->name, node->params, new_body, ret_type);
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {
@@ -201,7 +167,7 @@ class VMShapeLowerMutator : public ExprMutator {
         }
       }
     };
-    PostOrderVisitWithShape(expr, func);
+    PostOrderVisit(expr, func);
     return ret;
   }
 
