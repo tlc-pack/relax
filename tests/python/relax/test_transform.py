@@ -53,9 +53,7 @@ def test_fma_rewrite():
     assert structural_equal(gv0.shape, relax.ShapeExpr([m, n]))
 
     # after rewrite
-    passes = [relax.transform.FMARewrite()]
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
+    new_mod = relax.transform.FMARewrite()(mod)
     func = new_mod["main"]
     v1 = func.body.blocks[0].bindings[1].var
     s1 = func.body.blocks[0].bindings[1].value
@@ -68,6 +66,31 @@ def test_fma_rewrite():
     # and type of var are unchanged after rewriting
     assert gv0 == v0
     assert type(func.body.blocks[0].bindings[1].var) == relax.Var
+
+def test_visit_shape():
+    @tvm.script.ir_module
+    class TestVisitShape:
+        @R.function
+        def foo(x: Tensor[(m, n), "float32"]):
+            gv0 = R.add(x, x)
+            return gv0
+    
+    mod = TestVisitShape
+    
+    shape_expr = []
+    def fvisit(e):
+        if isinstance(e, relax.ShapeExpr):
+            nonlocal shape_expr
+            shape_expr.append(e)
+
+    relax.analysis.post_order_visit(mod["foo"], fvisit)
+    
+    # should have visited ShapeExpr 3 times
+    # the first time being visited is x.shape
+    # the last two times are the call node's shape and gv0's shape
+    assert len(shape_expr) == 3
+    assert shape_expr[0] == mod["foo"].params[0].shape
+    assert shape_expr[1] == shape_expr[2]
 
 
 def test_to_non_dataflow():
@@ -312,6 +335,7 @@ def test_to_anf_no_op():
 
 if __name__ == "__main__":
     test_fma_rewrite()
+    test_visit_shape()
     test_to_non_dataflow()
     test_call_dps_rewrite()
     test_vm_memory_lower()
