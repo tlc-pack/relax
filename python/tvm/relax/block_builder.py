@@ -40,6 +40,13 @@ class FunctionScope(object):
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
         if len(block.bindings) > 0:
             self._ib._blocks.append(block)
+        seqe = rx.SeqExpr(self._ib._blocks, self._ib._func_ret)
+        func = rx.Function(
+            self._ib._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._ib._func_name)
+        )
+        gvar = rx.GlobalVar(self._ib._func_name)
+        self._ib._context_mod[gvar] = func
+        return func
 
 
 class DataflowScope(object):
@@ -82,7 +89,7 @@ class BlockBuilder(Object):
                 lv1 = ib.emit(rx.multiply(lv0, y))
                 gv0 = ib.emit_output(lv1)
             ib.emit_func_output(gv0)
-        func = ib.get()
+        mod = ib.get()
     """
 
     def __init__(self):
@@ -356,27 +363,12 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderNormalize(self, expr)
 
-    def get(self) -> Function:
-        """Return the function being built.
+    def get(self) -> tvm.IRModule:
+        """Return the IRModule being built.
 
         Returns
         -------
-        ret : tvm.relax.Function
-            A Relax function node being built.
-        """
-        # TODO(hyoercubestart, ziheng) get should return IRModule with relax + TIR functions
-        seqe = rx.SeqExpr(self._blocks, self._func_ret)
-        func = rx.Function(
-            self._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._func_name)
-        )
-        return func
-
-    def context_mod(self):
-        """Return the context module that might contain tir functions.
-
-        Returns
-        -------
-        mod : tvm.IRModule
-            The context module that contains tir functions during emit.
+        ret : tvm.IRModule
+            An IRModule with Relax and TIR functions being built.
         """
         return self._context_mod
