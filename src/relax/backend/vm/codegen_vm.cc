@@ -88,7 +88,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       }
     }
 
-    Instruction::Arg ret_reg = this->VisitExpr(op->body);
+    Instruction::Arg ret_reg = this->VisitExpr(op->output);
     return ret_reg;
   }
 

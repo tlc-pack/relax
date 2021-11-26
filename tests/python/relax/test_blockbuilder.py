@@ -73,7 +73,7 @@ def test_function_single_block():
     func = ib.get()["func"]
     assert func.params[0] == x
     assert func.params[1] == y
-    assert func.body.body == gv0
+    assert func.body.output == gv0
     assert gv0.shape[0] == m
     assert gv0.shape[1] == n
     assert gv0.checked_type.rank == 2
@@ -113,7 +113,7 @@ def test_function_multi_blocks():
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.name.name_hint == "func"
-    assert func.body.body == gv2
+    assert func.body.output == gv2
     assert len(func.body.blocks) == 3
     assert len(func.body.blocks[0].bindings) == 2
     assert len(func.body.blocks[1].bindings) == 1
@@ -299,7 +299,7 @@ def test_emit_te():
     assert rx_func.params[1] == y
     assert rx_func.params[2] == z
     assert rx_func.name.name_hint == "rx_func"
-    assert rx_func.body.body == out
+    assert rx_func.body.output == out
     assert len(rx_func.body.blocks) == 1
     assert len(rx_func.body.blocks[0].bindings) == 1
     assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)

@@ -126,7 +126,7 @@ def test_seq_expr() -> None:
     blocks = [rx.BindingBlock(bindings)]
     seqe = rx.SeqExpr(blocks, x)
     assert seqe.blocks[0] == blocks[0]
-    assert seqe.body == x
+    assert seqe.output == x
 
 
 def test_shape_expr() -> None:

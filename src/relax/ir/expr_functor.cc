@@ -113,7 +113,7 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   for (BindingBlock block : op->blocks) {
     this->VisitBindingBlock(block);
   }
-  this->VisitExpr(op->body);
+  this->VisitExpr(op->output);
 }
 
 void ExprVisitor::VisitType(const Type& t) {}
@@ -383,17 +383,17 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   }
 
   builder_->BeginBindingBlock();
-  Expr body = this->VisitExpr(op->body);
+  Expr output = this->VisitExpr(op->output);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
     blocks.push_back(prologue);
     all_blocks_unchanged = false;
   }
 
-  if (all_blocks_unchanged && body.same_as(op->body)) {
+  if (all_blocks_unchanged && output.same_as(op->output)) {
     return GetRef<Expr>(op);
   } else {
-    return SeqExpr(blocks, body);
+    return SeqExpr(blocks, output);
   }
 }
 

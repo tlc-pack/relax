@@ -332,24 +332,24 @@ class DataflowBlock : public BindingBlock {
 class SeqExprNode : public ExprNode {
  public:
   Array<BindingBlock> blocks;
-  Expr body;
+  Expr output;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("blocks", &blocks);
-    v->Visit("body", &body);
+    v->Visit("output", &output);
     v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
-    return equal(blocks, other->blocks) && equal(body, other->body) &&
+    return equal(blocks, other->blocks) && equal(output, other->output) &&
            equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(blocks);
-    hash_reduce(body);
+    hash_reduce(output);
     hash_reduce(shape_);
     hash_reduce(checked_type_);
   }
@@ -362,7 +362,7 @@ class SeqExprNode : public ExprNode {
 
 class SeqExpr : public Expr {
  public:
-  TVM_DLL explicit SeqExpr(Array<BindingBlock> blocks, Expr body, Span span = Span());
+  TVM_DLL explicit SeqExpr(Array<BindingBlock> blocks, Expr output, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };

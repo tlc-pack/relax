@@ -460,11 +460,11 @@ Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite)
   Doc doc;
   doc << "if " << Print(ite->cond) << ":" << Doc::NewLine(4);
   doc << Doc::Indent(4, Print(GetRef<SeqExpr>(true_branch)));
-  doc << Doc::Indent(4, Print(relax::VarBinding(var, true_branch->body)));
+  doc << Doc::Indent(4, Print(relax::VarBinding(var, true_branch->output)));
   doc << Doc::NewLine();
   doc << "else:" << Doc::NewLine(4);
   doc << Doc::Indent(4, Print(GetRef<SeqExpr>(false_branch)));
-  doc << Doc::Indent(4, Print(relax::VarBinding(var, false_branch->body)));
+  doc << Doc::Indent(4, Print(relax::VarBinding(var, false_branch->output)));
   return doc;
 }
 
@@ -488,7 +488,7 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
 
   if (const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>()) {
     doc << Doc::Indent(4, Print(func->body));
-    doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
+    doc << Doc::Indent(4, Doc::Text("return ") << Print(body->output)) << Doc::NewLine();
   } else {
     doc << Doc::Indent(4, Doc::Text("return ") << Print(func->body)) << Doc::NewLine();
   }

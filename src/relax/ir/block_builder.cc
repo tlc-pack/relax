@@ -108,8 +108,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     builder_->BeginBindingBlock();
-    Expr new_body = this->VisitExpr(op->body);
-    unchanged &= new_body.same_as(op->body);
+    Expr new_output = this->VisitExpr(op->output);
+    unchanged &= new_output.same_as(op->output);
     BindingBlock prologue = builder_->EndBlock();
 
     // TODO(@altanh, @yuchen): normalize nested SeqExprs and BindingBlocks
@@ -122,7 +122,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     if (unchanged) {
       return GetRef<Expr>(op);
     }
-    return SeqExpr(new_blocks, new_body);
+    return SeqExpr(new_blocks, new_output);
   }
 
   Expr VisitExpr_(const IfNode* op) final {

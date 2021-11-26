@@ -108,7 +108,7 @@ class VMShapeLowerMutator : public ExprMutator {
       blocks.push_back(builder_->EndBlock());
       blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
       builder_->BeginBindingBlock();
-      new_body = seq->body;
+      new_body = seq->output;
     }
 
     // FIXME(@yuchen): Implement vm.builtin.free_shape_heap.

@@ -137,10 +137,10 @@ class DataflowBlock(BindingBlock):
 @tvm._ffi.register_object("relax.expr.SeqExpr")
 class SeqExpr(Expr):
     blocks: List[BindingBlock]
-    body: Expr
+    output: Expr
 
-    def __init__(self, blocks: List[BindingBlock], body: Expr, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)
+    def __init__(self, blocks: List[BindingBlock], output: Expr, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, output, span)
 
 
 @tvm._ffi.register_object("relax.expr.Function")
