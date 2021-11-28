@@ -326,6 +326,27 @@ def test_data_dependent_access():
     func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
+def test_loop_var_datatype():
+    def test_helper(dtype):
+        n = te.var("n", dtype)
+        A = te.placeholder((n,), name="A")
+        B = te.placeholder((n,), name="B", dtype="int32")
+        C = te.compute((n,), lambda i: A[i] + B[i])
+
+        func = te.create_prim_func([C, A, B])
+
+        assert func.body.block.body.loop_var.dtype == dtype
+
+        func = tvm.build(func)
+
+        a_np = np.random.uniform(size=(10,)).astype(A.dtype)
+        b_np = np.random.uniform(size=(10,)).astype(B.dtype)
+        c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
+        func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+        tvm.testing.assert_allclose(a_np + b_np, c.numpy())
+
+    test_helper("int32")
+    test_helper("int64")
 
 if __name__ == "__main__":
     test_unique_name()
@@ -337,3 +358,4 @@ if __name__ == "__main__":
     test_arg_order()
     test_error_reporting()
     test_constant()
+    test_loop_var_datatype()

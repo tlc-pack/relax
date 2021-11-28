@@ -280,7 +280,7 @@ class BlockBuilder(Object):
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
 
         te_args = te_arg_list + te_kwarg_list
-        self._check_te_args(te_args)
+        # self._check_te_args(te_args)
 
         # TODO(hypercubestart, ziheng) handle multiple output case
         te_out = func(*new_args, **new_kwargs)
