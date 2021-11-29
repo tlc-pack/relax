@@ -106,6 +106,9 @@ class BlockBuilder(Object):
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)
 
+    def _get_unique_name(self, name_hint: str) -> str:
+        return _ffi_api.BlockBuilderGetUniqueName(self, name_hint)
+
     def _convert_te_arg(self,
         te_args: Any
     ) -> typing.Tuple[Any, List[tvm.te.Tensor]]:
