@@ -396,6 +396,44 @@ def test_emit_te_simple_symbolic_shape():
 
     np.testing.assert_allclose(res.asnumpy(), np.append(inp.asnumpy(), inp2.asnumpy()))
 
+def test_emit_te_floor_symbolic_shape():
+    bb = rx.BlockBuilder()
+    n = tir.Var("n", "int64")
+    type_anno = rx.DynTensorType(1, "float32")
+    x = rx.Var("x", [n], type_anno)
+
+    def te_func(A):
+        C = te.compute((tir.floordiv(n, 2), ), lambda i: A[i] + 1)
+        return C
+
+    with bb.function([x], "rx_func"):
+        x1 = bb.emit_te(te_func, x)
+        bb.emit_func_output(x1)
+
+    mod = bb.get()
+    rx_func = mod["rx_func"]
+    tir_func = mod["te_func"]
+
+    # check TIR structure matches expected
+    assert rx_func.params[0] == x
+    assert_structural_equal(tir_func.body.block.body.extent, tir.floordiv(n, 2))
+
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = rx.vm.build(mod, target, target_host)
+
+    vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    import numpy as np
+    shape1 = (9, )
+    inp = tvm.nd.array(np.random.rand(*shape1).astype(np.float32))
+    res = vm["rx_func"](inp)
+
+    def expected_output():
+        output_shape = (shape1[0] // 2, )
+        return inp.asnumpy()[:output_shape[0]] + 1
+
+    np.testing.assert_allclose(res.asnumpy(), expected_output())
+
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
@@ -408,3 +446,4 @@ if __name__ == "__main__":
     test_emit_te_multiple()
     test_emit_te_extern()
     test_emit_te_simple_symbolic_shape()
+    test_emit_te_floor_symbolic_shape()
