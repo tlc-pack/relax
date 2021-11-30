@@ -69,6 +69,7 @@ if __name__ == "__main__":
     linear_bias2 = tvm.nd.array(np.random.rand(output_size,).astype(np.float32))
     params = [linear_weight0, linear_bias0, linear_weight1, linear_bias1, linear_weight2, linear_bias2]
 
+    # run the model on relax vm
     data = tvm.nd.array(np.random.rand(n, 1).astype(np.float32))
     res = vm["main"](data, *params)
     print(res)

@@ -88,7 +88,7 @@ class Parameter(relax.Var):
     def __init__(self, shape, dtype="float32", name="param"):
         if isinstance(shape, (list, tuple)):
             rank = len(shape)
-        # TODO: handle other cases
+        # TODO(@yuchen): handle other cases
         type_anno = relax.DynTensorType(rank, dtype)
         super().__init__(current_builder()._get_unique_name(name), shape, type_anno)
 
@@ -131,21 +131,20 @@ class Sequential(Module):
 
     Example
     -------
-
     .. code-block:: python
 
-    model = nn.Sequential(
-                nn.Conv2d(1, 20, 5),
-                nn.ReLU(),
-                nn.Conv2d(20, 64, 5),
-                nn.ReLU()
-            )
+        model = nn.Sequential(
+                    nn.Conv2d(1, 20, 5),
+                    nn.ReLU(),
+                    nn.Conv2d(20, 64, 5),
+                    nn.ReLU()
+                )
     """
 
     def __init__(self, *modules: Module):
         self.modules = modules
 
-    def forward(self, input: relax.Var) -> relax.Var:
+    def forward(self, input: relax.Expr) -> relax.Var:
         for module in self.modules:
             input = module(input)
         return input
@@ -154,14 +153,14 @@ class Sequential(Module):
 class ReLU(Module):
     """Applies the rectified linear unit activation function on the input."""
 
-    def forward(self, input: relax.Var) -> relax.Var:
+    def forward(self, input: relax.Expr) -> relax.Var:
         return emit_te(topi.nn.relu, input)
 
 
 class LogSoftmax(Module):
     """Applies log softmax activation function on the input."""
 
-    def forward(self, input: relax.Var) -> relax.Var:
+    def forward(self, input: relax.Expr) -> relax.Var:
         return emit_te(topi.nn.log_softmax, input)
 
 
@@ -177,7 +176,7 @@ class Linear(Module):
         else:
             self.bias = None
 
-    def forward(self, input: relax.Var) -> relax.Var:
+    def forward(self, input: relax.Expr) -> relax.Var:
         y = emit_te(topi.matmul, input, self.weight)
         if self.bias is not None:
             y = emit_te(topi.add, y, self.bias)
