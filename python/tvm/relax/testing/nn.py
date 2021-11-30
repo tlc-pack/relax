@@ -17,8 +17,8 @@
 
 import tvm
 from typing import List, Optional, Union, Dict, Any, Callable
-from tvm.relay import Call
-from tvm import relax, topi
+from tvm import relax, topi, tir
+import numpy as np
 
 
 class FunctionScope(object):
@@ -124,6 +124,26 @@ def _unpack_params(value: object) -> List[relax.Var]:
         return params
     else:
         return []
+
+
+def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
+    """Utility function to initialize model's parameters."""
+    shape_dict = {v.name_hint: v.shape_ for v in mod["main"].params}
+    params = []
+    for k, v in shape_dict.items():
+        if k == "data":
+            continue
+        if isinstance(v, relax.ShapeExpr):
+            shape = []
+            for i in v:
+                if isinstance(i, tir.IntImm):
+                    shape.append(int(i))
+                else:
+                    raise ValueError("cannot initialize for unknown-shape parameters.")
+            params.append(tvm.nd.array(np.random.rand(*shape).astype(np.float32)))
+        else:
+            raise ValueError("cannot initialize for unknown-shape parameters.")
+    return params
 
 
 class Sequential(Module):
