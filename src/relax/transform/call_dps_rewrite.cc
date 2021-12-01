@@ -52,7 +52,7 @@ class CallDPSMutator : public ExprMutator {
 
     if (call->op == call_dps_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {call->args[0]}), "alloc");
+      Var tensor = builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc");
       Array<Expr> args;
       if (call->args[2].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[2])->fields;

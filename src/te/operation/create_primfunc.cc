@@ -244,7 +244,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
   Array<PrimExpr> bindings;
   for (size_t i = 0; i < axes.size(); ++i) {
-    bindings.push_back(Var("i" + std::to_string(i)));
+    bindings.push_back(Var("i" + std::to_string(i), axes[i]->var->dtype));
   }
   // Step 2. Generate block bodies.
   Array<Stmt> seq_stmt;
