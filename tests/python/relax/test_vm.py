@@ -238,9 +238,8 @@ def test_vm_compile_stage0():
             return y
 
     mod = TestVMCompileStage0
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     inp1 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
@@ -283,10 +282,8 @@ def test_vm_compile_stage1():
             return gv3
 
     mod = TestVMCompileStage1
-    code = R.parser.astext(mod)
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -305,9 +302,8 @@ def test_vm_compile_stage2():
             return (n * 2, m * 3)
 
     mod = TestVMCompileStage2
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -328,9 +324,8 @@ def test_vm_compile_stage3():
             return y
 
     mod = TestVMCompileStage3
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -352,9 +347,8 @@ def test_vm_compile_e2e():
 
     mod = TestVMCompileE2E
 
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     shape = (32, 16)
@@ -390,9 +384,8 @@ def test_vm_compile_e2e_func_param_with_shape():
 
     mod = TestVMCompileE2E2
 
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
@@ -415,9 +408,8 @@ def test_vm_emit_te_extern():
     
     mod = bb.get()
 
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
@@ -444,9 +436,8 @@ def test_vm_emit_te_concat():
 
     mod = bb.get()
 
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     inp = tvm.nd.array(np.random.rand(1, ).astype(np.float32))
@@ -471,9 +462,8 @@ def test_vm_emit_te_floor_symbolic_shape():
 
     mod = bb.get()
 
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     shape = (9, )
@@ -503,9 +493,8 @@ def test_vm_relax_symbolic_shape():
 
     mod = bb.get()
 
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     shape1 = (5, )
