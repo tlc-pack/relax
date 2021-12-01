@@ -74,6 +74,14 @@ std::string ExecutableNode::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
+    } else if (it.IsObjectRef<ShapeTuple>()){
+      ShapeTuple shape = it.operator ShapeTuple();
+      oss << "shapetuple[";
+      for (size_t i = 0; i < shape.size(); ++i) {
+        oss << shape.at(i) << ", ";
+      }
+      oss.seekp(-2, oss.cur);
+      oss << "], ";
     } else {
       try {
         DLDataType dtype = it.operator DLDataType();
