@@ -13,7 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
+# under the License
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import numpy as np
 import tvm
@@ -366,6 +366,29 @@ def test_data_dependent_access():
     c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
     func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
+
+
+def test_loop_var_datatype():
+    def test_helper(dtype):
+        n = te.var("n", dtype)
+        A = te.placeholder((n,), name="A")
+        B = te.placeholder((n,), name="B", dtype="int32")
+        C = te.compute((n,), lambda i: A[i] + B[i])
+
+        func = te.create_prim_func([C, A, B])
+
+        assert func.body.block.body.loop_var.dtype == dtype
+
+        func = tvm.build(func)
+
+        a_np = np.random.uniform(size=(10,)).astype(A.dtype)
+        b_np = np.random.uniform(size=(10,)).astype(B.dtype)
+        c = tvm.nd.array(np.zeros(10, dtype=C.dtype))
+        func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
+        tvm.testing.assert_allclose(a_np + b_np, c.numpy())
+
+    test_helper("int32")
+    test_helper("int64")
 
 
 def test_select_simplify():
