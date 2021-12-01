@@ -148,14 +148,29 @@ class BlockBuilder(Object):
         new_arg = _convert_te_arg_helper(te_args)
         return new_arg, te_args_list
     
-    def _check_te_args(self, args: List[tvm.te.Tensor]):
-        """check te arguments."""
-        #TODO(hypercubestart, ziheng) support full dynamic shape in the future
-        for x in args:
+    def _check_te_args(self, args: List[tvm.te.Tensor], te_out: tvm.te.Tensor):
+        """check te arguments"""
+        #TODO(hypercubestart, ziheng) support case where match_buffer doesn't bind to a variable
+        tensors = args + [te_out]
+        bound_vars = set()
+        used_vars = set()
+
+        def _populate_used_vars(expr):
+            if isinstance(expr, tvm.tir.Var):
+                used_vars.add(expr)
+
+        for x in tensors:
             for s in x.shape:
-                if not isinstance(s, (tir.Var, tir.IntImm)):
-                    raise ValueError("emit_te not support symbolic shape"
-                        "contains expression now: {}".format(x.shape))
+                tvm.tir.stmt_functor.post_order_visit(s, _populate_used_vars)
+                if isinstance(s, tir.Var):
+                    bound_vars.add(s)
+
+        diff = used_vars - bound_vars
+
+        if len(diff) != 0:
+            # there are TIR variable in shape expressions that are not bound by match buffer
+            raise ValueError("emit_te does not support TE functions with unbound tir.Vars: {}".format(diff))
+                    
 
     def function(self,
                  params: Optional[Union[Var, Tuple, List[Var]]] = None,
@@ -280,11 +295,12 @@ class BlockBuilder(Object):
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
 
         te_args = te_arg_list + te_kwarg_list
-        self._check_te_args(te_args)
 
         # TODO(hypercubestart, ziheng) handle multiple output case
         te_out = func(*new_args, **new_kwargs)
         assert isinstance(te_out, tvm.te.tensor.Tensor), "only support te tensor as function output"
+
+        self._check_te_args(te_args, te_out)
 
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
