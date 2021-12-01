@@ -138,26 +138,22 @@ class VirtualMachine(object):
         return self.module[key]
 
 
-def build(mod: tvm.IRModule,
-          target: tvm.target.Target,
-          target_host: tvm.target.Target) -> Tuple[Executable, Module]:
+def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Module]:
     """
     Build an IRModule to VM executable.
 
     Parameters
     ----------
     mod: IRModule
-        The IR module.
+        The input IRModule to be built.
 
     target : tvm.target.Target
-        A build target.
+        A build target which can have optional host side compilation target.
 
-    target_host : tvm.target.Target
-        Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
         we also need host(CPU) side code to interact with the driver
         to setup the dimensions and parameters correctly.
-        target_host is used to specify the host side codegen target.
+        host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
         otherwise a stackvm intepreter is used.
 
@@ -167,6 +163,20 @@ def build(mod: tvm.IRModule,
         An executable that can be loaded by virtual machine.
     lib: tvm.runtime.Module
         A runtime module that contains generated code.
+
+    Example
+    -------
+
+    .. code-block:: python
+        class InputModule:
+            @R.function
+            def foo(x: Tensor[(3, 4), "float32"], y: Tensor[(3, 4), "float32"]):
+                z = R.add(x, y)
+                return z
+
+        mod = InputModule
+        target = tvm.target.Target("llvm", host="llvm")
+        ex, lib = relax.vm.build(mod, target)
     """
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallDPSRewrite())
@@ -178,9 +188,10 @@ def build(mod: tvm.IRModule,
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
 
-    lib = tvm.build(tir_mod, target, target_host)
+    lib = tvm.build(tir_mod, target)
     ex = _ffi_api.VMCodeGen(rx_mod)
     return ex, lib
+
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
     rx_mod = IRModule({})
