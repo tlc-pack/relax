@@ -74,6 +74,8 @@ struct Instruction {
   static constexpr RegName kVoidArg = 0x00EC66FE0321975A;
   /*! \brief Random magic number that represents the VM state. */
   static constexpr RegName kVMStateRegister = 0x008D14FA4379015C;
+  /*! \brief Random magic number that represents the loaded runtime module. */
+  static constexpr RegName kRuntimeModuleRegister = 0x008D14FA4379015F;
   /*!
    * \brief The kind of instruction's argument.
    */

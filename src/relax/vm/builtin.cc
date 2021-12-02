@@ -119,6 +119,35 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
   return ShapeTuple(output_shape.rbegin(), output_shape.rend());
 });
 
+TVM_REGISTER_GLOBAL("vm.call_tir_dyn_lowered")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  void *module_ptr = args[0];
+  runtime::Module mod_ = *(static_cast<runtime::Module*>(module_ptr));
+
+  runtime::String func_name = args[1];
+
+  PackedFunc func = mod_->GetFunction(func_name, true);
+  if (func == nullptr) {
+    func = *(mod_->GetFuncFromEnv(func_name));
+  }
+
+  ShapeTuple to_unpack = args[args.size() - 1];
+  int num_tensor_args = args.size() - 3;
+  std::vector<TVMValue> values(num_tensor_args + to_unpack.size());
+  std::vector<int> tcodes(num_tensor_args + to_unpack.size());
+  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
+  for (int i = 0; i < num_tensor_args; i++) {
+    NDArray arg = args[i + 2];
+    setter(i, arg);
+  }
+  for (int i = 0; i < to_unpack.size(); i++) {
+    setter(i + num_tensor_args, to_unpack[i]);
+  }
+
+  TVMArgs func_args(values.data(), tcodes.data(), values.size());
+  func.CallPacked(func_args, rv);
+});
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm

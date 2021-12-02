@@ -22,7 +22,7 @@ from tvm.runtime import Object
 from tvm import relax as rx
 from tvm import tir
 from .expr import *
-from .op.base import call_dps
+from .op.base import call_dps, call_tir_dyn_lowered
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
@@ -217,7 +217,24 @@ class BlockBuilder(Object):
         if len(diff) != 0:
             # there are TIR variable in shape expressions that are not bound by match buffer
             raise ValueError("emit_te does not support TE functions with unbound tir.Vars: {}".format(diff))
-                    
+
+    def _get_unbound_tir_vars(self, args: List[tvm.te.Tensor]):
+        """get unbound TIR vars (i.e TIR vars used in the shape but is not itself a dimension of a shape)"""
+        bound_vars = set()
+        used_vars = set()
+
+        def _populate_used_vars(expr):
+            if isinstance(expr, tvm.tir.Var):
+                used_vars.add(expr)
+
+        for x in args:
+            for s in x.shape:
+                tvm.tir.stmt_functor.post_order_visit(s, _populate_used_vars)
+                if isinstance(s, tir.Var):
+                    bound_vars.add(s)
+
+        diff = used_vars - bound_vars
+        return list(diff)
 
     def function(self,
                  name: str,
@@ -352,16 +369,25 @@ class BlockBuilder(Object):
         te_out = func(*new_args, **new_kwargs)
         assert isinstance(te_out, tvm.te.tensor.Tensor), "only support te tensor as function output"
 
-        self._check_te_args(te_args, te_out)
+        # self._check_te_args(te_args, te_out)
+
+        unbound_tir_vars = self._get_unbound_tir_vars(te_args + [te_out])
 
         inputs = [*te_args, te_out]
-        tir_func = tvm.te.create_prim_func(inputs)
+        tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
         func_name = self.get_unique_name(func.__name__)
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
         self._context_mod[gvar] = tir_func
-        call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
-        return self.emit(call)
+
+        call_args = [x.op.value for x in inputs[:-1]]
+        # add arguments for extra parameters from unbound var
+        if (len(unbound_tir_vars) > 0):
+            call_args.append(ShapeExpr(unbound_tir_vars))
+            call = call_tir_dyn_lowered(inputs[-1].shape, gvar, call_args)
+        else:
+            call = call_dps(inputs[-1].shape, gvar, call_args)
+        return _ffi_api.BlockBuilderEmit(self, call)
 
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:

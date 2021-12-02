@@ -115,6 +115,8 @@ void VirtualMachine::RunLoop() {
             case Instruction::kRegister: {
               if (arg.value() == Instruction::kVMStateRegister) {
                 setter(i, &(this->state));
+              } else if (arg.value() == Instruction::kRuntimeModuleRegister) {
+                setter(i, &(this->mod_));
               } else {
                 setter(i, ReadRegister(arg.value()));
               }

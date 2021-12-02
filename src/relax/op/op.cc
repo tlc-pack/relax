@@ -157,5 +157,31 @@ Expr MakeLoadShape(Expr heap) {
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape")
 .set_body_typed(MakeLoadShape);
 
+// op call_tir_dyn_lowered
+
+RELAY_REGISTER_OP("relax.call_tir_dyn_lowered")
+.set_num_inputs(3)
+.add_argument("shape", "Expr", "The output shape.")
+.add_argument("func", "Expr", "The TIR PrimFunc")
+.add_argument("args", "Tuple", "The input arguments (either tensors or ShapeExpr)");
+
+Expr MakeCallTirDynLowered(Expr shape, Expr func, Tuple args) {
+  static const Op& op = Op::Get("relax.call_tir_dyn_lowered");
+  Call call = Call(op, {shape, func, args}, {}, {});
+  call->shape_ = shape;
+  call->checked_type_ = args->fields[0]->checked_type_;
+  return call;
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_tir_dyn_lowered")
+.set_body_typed(MakeCallTirDynLowered);
+
+// call_tir_dyn_lowered after call_dps_rewrite
+RELAY_REGISTER_OP("relax.vm.call_tir_dyn_lowered")
+.set_num_inputs(2)
+.add_argument("func", "Expr", "The TIR PrimFunc")
+.add_argument("args", "Tuple", "The input arguments (either tensors or ShapeExpr)");
+
+
 } // namespace relax
 } // namespace tvm

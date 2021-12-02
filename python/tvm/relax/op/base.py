@@ -46,3 +46,31 @@ def call_dps(
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
     return _ffi_api.call_dps(shape, func, args)
+
+def call_tir_dyn_lowered(
+    shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]]
+) -> Call:
+    """
+    Call a destination-passing-style function and return the output.
+
+    Parameters
+    ----------
+    shape: ShapeExpr
+        The output shape.
+
+    func : ExternFunc or PrimFunc
+        The destination-passing-style function.
+
+    args : Tuple[Expr]
+        The input arguments.
+
+    Returns
+    -------
+    ret: Call
+        A call node for the call_dps operator.
+    """
+    if isinstance(shape, (list, tuple, Array)):
+        shape = ShapeExpr(shape)
+    if isinstance(args, (list, tuple)):
+        args = Tuple(args)
+    return _ffi_api.call_tir_dyn_lowered(shape, func, args)

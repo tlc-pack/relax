@@ -74,7 +74,7 @@ std::string ExecutableNode::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (it.IsObjectRef<ShapeTuple>()){
+    } else if (it.IsObjectRef<ShapeTuple>()) {
       ShapeTuple shape = it.operator ShapeTuple();
       oss << "shapetuple[";
       for (size_t i = 0; i < shape.size(); ++i) {
@@ -82,6 +82,11 @@ std::string ExecutableNode::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
+    } else if (it.IsObjectRef<String>()) {
+      std::string f = it.AsObjectRef<tvm::runtime::String>().operator std::string();
+      oss << "\"";
+      oss << f;
+      oss << "\", ";
     } else {
       try {
         DLDataType dtype = it.operator DLDataType();

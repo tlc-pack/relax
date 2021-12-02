@@ -508,6 +508,36 @@ def test_vm_relax_symbolic_shape():
 
     np.testing.assert_allclose(res.numpy(), expected_output())
 
+def test_vm_relax_dyn_tir_shape():
+    # case where TIR variables are unbound in generated PrimFunc
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    type_anno = relax.DynTensorType(1, "float32")
+    x = relax.Var("x", [n], type_anno)
+    y = relax.Var("y", [n + 1], type_anno)
+
+    def te_func(A):
+        C = te.compute((n + 1), lambda i: A[i])
+        return C
+
+    with bb.function([x, y], "rx_func"):
+        x1 = bb.emit_te(te_func, y)
+        bb.emit_func_output(x1)
+
+    mod = bb.get()
+
+    target = tvm.target.Target("llvm")
+    target_host = tvm.target.Target("llvm")
+    ex, lib = relax.vm.build(mod, target, target_host)
+    
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
+    inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
+
+    res = vm["rx_func"](inp, inp2)
+
+    np.testing.assert_allclose(res.asnumpy(), inp2.asnumpy())
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -528,3 +558,4 @@ if __name__ == "__main__":
     test_vm_emit_te_concat()
     test_vm_emit_te_floor_symbolic_shape()
     test_vm_relax_symbolic_shape()
+    test_vm_relax_dyn_tir_shape()
