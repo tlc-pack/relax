@@ -47,9 +47,8 @@ if __name__ == "__main__":
     mod = build_mlp(data, weight)
 
     # build and create vm executor
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     # run the mlp model on relax vm

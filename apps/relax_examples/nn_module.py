@@ -55,9 +55,8 @@ if __name__ == "__main__":
     print(R.parser.astext(mod))
 
     # build the IRModule and create relax vm
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     # init parameters
