@@ -34,9 +34,14 @@ class FunctionScope(object):
         self._ib = irbuilder
 
     def __enter__(self):
+        if BlockBuilder.current is not None:
+            raise ValueError("BlockBuilder does not allow nested functions.")
+        BlockBuilder.current = self._ib
         _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
 
     def __exit__(self, ptype, value, trace):
+        if not self._ib._is_emit_func_output_called:
+            raise ValueError("emit_func_output must be called exactly once in a relax function.")
         block = _ffi_api.BlockBuilderEndBlock(self._ib)
         if len(block.bindings) > 0:
             self._ib._blocks.append(block)
@@ -46,6 +51,7 @@ class FunctionScope(object):
         )
         gvar = rx.GlobalVar(self._ib._func_name)
         self._ib._context_mod[gvar] = func
+        BlockBuilder.current = None
         return func
 
 
@@ -92,9 +98,13 @@ class BlockBuilder(Object):
         mod = ib.get()
     """
 
+    current = None
+
     def __init__(self):
         self._blocks = []
         self._context_mod = tvm.IRModule()
+        # a boolean flag that tracks if emit_func_output has been called
+        self._is_emit_func_output_called = False;
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
 
     def _begin_dataflow_block(self) -> None:
@@ -105,9 +115,6 @@ class BlockBuilder(Object):
 
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)
-
-    def _get_unique_name(self, name_hint: str) -> str:
-        return _ffi_api.BlockBuilderGetUniqueName(self, name_hint)
 
     def _convert_te_arg(self,
         te_args: Any
@@ -184,6 +191,7 @@ class BlockBuilder(Object):
         ----------
         params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function.
+            If params is None, it means deferring initialization of function parameters until emit_func_output.
 
         name : str, optional
             The name of the function. If provided, the function is global, otherwise local.
@@ -194,9 +202,14 @@ class BlockBuilder(Object):
             A FunctionScope for building a Relax function node.
         """
         if not params:
-            params = []
-        if not isinstance(params, (list, tuple)):
+            params = None
+        elif isinstance(params, rx.Var):
             params = [params]
+        elif isinstance(params, (list, tuple)):
+            for param in params:
+                if not isinstance(param, rx.Var):
+                    raise TypeError("each element of function parameters must be of type tvm.relax.Var,\
+                                    but got: {}".format(type(param)))
 
         self._func_params = params
         self._func_name = name
@@ -350,19 +363,38 @@ class BlockBuilder(Object):
             output = Tuple(output)
         return _ffi_api.BlockBuilderEmitOutput(self, output)
 
-    def emit_func_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
+    def emit_func_output(self,
+                         output: Union[Expr, Tuple, List[Expr]],
+                         params: Optional[Union[Var, Tuple, List[Var]]] = None) -> None:
         """Emit output for the function.
 
         Parameters
         ----------
         output : Expr | Tuple | List[Expr]
             The output of the current block/function.
+            
+        params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
+            The parameters of the function to be built.
+            If params is None, it means the params have been initialized in the function with scope.
 
         Returns
         -------
         ret : tvm.relax.Var
             The return variable which gets binded to the output.
         """
+        if self._is_emit_func_output_called:
+            raise ValueError("emit_func_output must be called exactly once in a relax function.")
+        self._is_emit_func_output_called = True
+
+        if self._func_params is not None and params is not None:
+            raise ValueError("function parameters have been initialized in the function with scope.")
+
+        if self._func_params is None and params is None:
+            raise ValueError("Relax function must have parameter.")
+
+        if self._func_params is None:
+            self._func_params = params
+
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
         self._func_ret = output
@@ -391,3 +423,19 @@ class BlockBuilder(Object):
             An IRModule with Relax and TIR functions being built.
         """
         return self._context_mod
+
+
+    def get_unique_name(self, name_prefix: str) -> str:
+        """Generate a unique name with a specified prefix.
+
+        Parameters
+        ----------
+        name_hint : str
+            The name prefix.
+
+        Returns
+        -------
+        ret : str
+            The generated name.
+        """
+        return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)

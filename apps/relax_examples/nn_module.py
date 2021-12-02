@@ -27,7 +27,7 @@ import numpy as np
 
 
 if __name__ == "__main__":
-    builder = nn.Builder()
+    builder = relax.BlockBuilder()
 
     # a symbolic variable to represent minibatch size
     n = tir.Var("n", "int64")
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     output_size = 10
 
     # build a three linear-layer neural network for a classification task
-    with builder.func("main"):
+    with builder.function(name="main"):
         model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
@@ -46,8 +46,9 @@ if __name__ == "__main__":
             nn.LogSoftmax(),
         )
         data = nn.Placeholder((n, input_size), name="data")
-        result = model(data)
-        builder.finalize([data] + model.parameters(), result)
+        output = model(data)
+        params = [data] + model.parameters()
+        builder.emit_func_output(output, params=params) 
 
     # get and print the IRmodule being built
     mod = builder.get()
@@ -67,3 +68,10 @@ if __name__ == "__main__":
     data = tvm.nd.array(np.random.rand(3, input_size).astype(np.float32))
     res = vm["main"](data, *params)
     print(res)
+
+    with builder.function(name="hmm"):
+        linear_layer = nn.Linear(20, 20)
+        data = nn.Placeholder((10,), name="data")
+        output = model(data)
+        params = [data] + model.parameters()
+        builder.emit_func_output(output, params=params)

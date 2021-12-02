@@ -21,51 +21,10 @@ from tvm import relax, topi, tir
 import numpy as np
 
 
-class FunctionScope(object):
-    """Auxiliary scope for relax function"""
-
-    def __init__(self):
-        self._ib = current_builder()
-
-    def __enter__(self):
-        self._ib._begin_binding_block()
-
-    def __exit__(self, ptype, value, trace):
-        self._ib._blocks = []
-
-
-class Builder:
-    """A builder to build Relax IR with a pytorch-like nn.Module API."""
-
-    current = None
-
-    def __init__(self):
-        Builder.current = relax.BlockBuilder()
-
-    def func(self, name: str) -> FunctionScope:
-        Builder.current._func_name = name
-        return FunctionScope()
-
-    def finalize(self, args, result):
-        if Builder.current:
-            block = Builder.current._end_block()
-            if len(block.bindings) > 0:
-                Builder.current._blocks.append(block)
-            seqe = relax.SeqExpr(Builder.current._blocks, result)
-            gvar = relax.GlobalVar(Builder.current._func_name)
-            func = relax.Function(args, seqe, relax.DynTensorType(-1, "float32"), gvar)
-            gvar = relax.GlobalVar(Builder.current._func_name)
-            Builder.current._context_mod[gvar] = func
-            return func
-        else:
-            raise ValueError("block builder has not been initialized")
-
-    def get(self):
-        return Builder.current.get()
-
-
 def current_builder():
-    return Builder.current
+    if relax.BlockBuilder.current is None:
+        raise ValueError("BlockBuilder.current is not initialized.")
+    return relax.BlockBuilder.current
 
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
@@ -76,32 +35,59 @@ class Placeholder(relax.Var):
     """A placeholder variable that can represent model input."""
 
     def __init__(self, shape, dtype="float32", name="data"):
-        if isinstance(shape, (list, tuple)):
-            rank = len(shape)
+        if not isinstance(shape, (list, tuple)):
+            raise ValueError("the shape of Placeholder must be a list or a tuple")
+        rank = len(shape)
         type_anno = relax.DynTensorType(rank, dtype)
-        super().__init__(current_builder()._get_unique_name(name), shape, type_anno)
+        super().__init__(current_builder().get_unique_name(name), shape, type_anno)
 
 
 class Parameter(relax.Var):
     """A special kind of relax Var that represents model parameter(weight)."""
 
     def __init__(self, shape, dtype="float32", name="param"):
-        if isinstance(shape, (list, tuple)):
-            rank = len(shape)
-        # TODO(@yuchen): handle other cases
+        if not isinstance(shape, (list, tuple)):
+            raise ValueError("the shape of Parameter must be a list or a tuple")
+        rank = len(shape)
         type_anno = relax.DynTensorType(rank, dtype)
-        super().__init__(current_builder()._get_unique_name(name), shape, type_anno)
+        super().__init__(current_builder().get_unique_name(name), shape, type_anno)
 
 
 class Module:
     """Base class for all model modules.
 
     A neural network or a layer can subclass this class.
+    
+    Example
+    -------
+    .. code-block:: python
+        
+        # Define a linear layer
+        class Linear(Module)
+            def __init__(self, in_features, out_features, bias=True):
+                self.in_features = in_features
+                self.out_features = out_features
+                self.weight = Parameter((in_features, out_features), name="linear_weight")
+                if bias:
+                    self.bias = Parameter((out_features,), name="linear_bias")
+                else:
+                    self.bias = None
+
+            # All submodules should implement forward. Defines the forward computation performed at every call.
+            def forward(self, input: relax.Expr) -> relax.Var:
+                y = emit_te(topi.matmul, input, self.weight)
+                if self.bias is not None:
+                    y = emit_te(topi.add, y, self.bias)
+                return y
     """
 
     def parameters(self) -> List[Parameter]:
         """Return the list of parameters in the module."""
         return _unpack_params(self.__dict__)
+
+    def forward(self):
+        """Define the computation performed at every call."""
+        raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -122,8 +108,7 @@ def _unpack_params(value: object) -> List[relax.Var]:
         for v in value:
             params += _unpack_params(v)
         return params
-    else:
-        return []
+    return []
 
 
 def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
