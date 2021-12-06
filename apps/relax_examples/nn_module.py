@@ -36,7 +36,7 @@ if __name__ == "__main__":
     output_size = 10
 
     # build a three linear-layer neural network for a classification task
-    with builder.function(name="main"):
+    with builder.function("main"):
         model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),

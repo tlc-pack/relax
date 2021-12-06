@@ -402,7 +402,7 @@ def test_vm_emit_te_extern():
     x = relax.Var("x", [n, m], type_anno)
     y = relax.Var("y", [m, n], type_anno)
     
-    with bb.function([x, y], "rx_cblas_matmul"):
+    with bb.function("rx_cblas_matmul", [x, y]):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
         bb.emit_func_output(out)
     
@@ -430,7 +430,7 @@ def test_vm_emit_te_concat():
         C = te.compute((n + m), lambda i: tvm.tir.if_then_else(i < n, A[i], B[i-n]))
         return C
 
-    with bb.function([x, y], "rx_func"):
+    with bb.function("rx_func", [x, y]):
         x1 = bb.emit_te(te_func, x, y)
         bb.emit_func_output(x1)
 
@@ -456,7 +456,7 @@ def test_vm_emit_te_floor_symbolic_shape():
         C = te.compute((tir.floordiv(n, 2),), lambda i: A[i] + 1)
         return C
 
-    with bb.function([x], "rx_func"):
+    with bb.function("rx_func", [x]):
         x1 = bb.emit_te(te_func, x)
         bb.emit_func_output(x1)
 
@@ -487,7 +487,7 @@ def test_vm_relax_symbolic_shape():
         C = te.compute((n, ), lambda i: A[i] + B[i // 2])
         return C
 
-    with bb.function([x, y], "rx_func"):
+    with bb.function("rx_func", [x, y]):
         x1 = bb.emit_te(te_func, x, y)
         bb.emit_func_output(x1)
 

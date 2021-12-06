@@ -30,48 +30,47 @@ from . import _ffi_api
 class FunctionScope(object):
     """Auxiliary scope for function"""
 
-    def __init__(self, irbuilder):
-        self._ib = irbuilder
+    def __init__(self, block_builder, func_params, func_name):
+        self._bb = block_builder
+        self._func_params = func_params
+        self._func_name = func_name
 
     def __enter__(self):
-        if BlockBuilder.current is not None:
-            raise ValueError("BlockBuilder does not allow nested functions.")
-        BlockBuilder.current = self._ib
-        _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
+        if BlockBuilder.current() is not None:
+            raise RuntimeError("BlockBuilder does not allow nested functions.")
+        BlockBuilder._current = self._bb
+        self._bb._func_params = self._func_params
+        self._bb._func_name = self._func_name
+        self._bb._begin_binding_block()
 
-    def __exit__(self, ptype, value, trace):
-        if not self._ib._is_emit_func_output_called:
-            raise ValueError("emit_func_output must be called exactly once in a relax function.")
-        block = _ffi_api.BlockBuilderEndBlock(self._ib)
-        if len(block.bindings) > 0:
-            self._ib._blocks.append(block)
-        seqe = rx.SeqExpr(self._ib._blocks, self._ib._func_ret)
-        func = rx.Function(
-            self._ib._func_params, seqe, rx.DynTensorType(-1, "float32"), rx.GlobalVar(self._ib._func_name)
-        )
-        gvar = rx.GlobalVar(self._ib._func_name)
-        self._ib._context_mod[gvar] = func
-        BlockBuilder.current = None
-        return func
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # __exit__ should properly handle the case where the with block exits with an exception
+        # when handling error case in exit, always check if there is already an exception been thrown in the with block
+        if exc_type is None:
+            if not self._bb._is_emit_func_output_called:
+                raise RuntimeError("emit_func_output must be called in a relax function.")
+        
+        self._bb._is_emit_func_output_called = False
+        BlockBuilder._current = None
 
 
 class DataflowScope(object):
     """Auxiliary scope for Dataflow block"""
 
-    def __init__(self, irbuilder):
-        self._ib = irbuilder
+    def __init__(self, block_builder):
+        self._bb = block_builder
 
     def __enter__(self):
-        block = _ffi_api.BlockBuilderEndBlock(self._ib)
+        block = self._bb._end_block()
         if len(block.bindings) > 0:
-            self._ib._blocks.append(block)
-        _ffi_api.BlockBuilderBeginDataflowBlock(self._ib)
+            self._bb._blocks.append(block)
+        self._bb._begin_dataflow_block()
 
     def __exit__(self, ptype, value, trace):
-        block = _ffi_api.BlockBuilderEndBlock(self._ib)
+        block = self._bb._end_block()
         if len(block.bindings) > 0:
-            self._ib._blocks.append(block)
-        _ffi_api.BlockBuilderBeginBindingBlock(self._ib)
+            self._bb._blocks.append(block)
+        self._bb._begin_binding_block()
 
 
 @tvm._ffi.register_object("relax.BlockBuilder")
@@ -88,17 +87,48 @@ class BlockBuilder(Object):
         dtype1 = rx.DynTensorType(rank=1, dtype="float16")
         x = rx.Var("x", [m, n], dtype0)
         y = rx.Var("y", [n], dtype1)
-        ib = rx.BlockBuilder()
-        with ib.function([x, y], "func"):
-            with ib.dataflow() as df:
-                lv0 = ib.emit(rx.add(x, y))
-                lv1 = ib.emit(rx.multiply(lv0, y))
-                gv0 = ib.emit_output(lv1)
-            ib.emit_func_output(gv0)
-        mod = ib.get()
+        bb = rx.BlockBuilder()
+        with bb.function([x, y], "func"):
+            with bb.dataflow() as df:
+                lv0 = bb.emit(rx.add(x, y))
+                lv1 = bb.emit(rx.multiply(lv0, y))
+                gv0 = bb.emit_output(lv1)
+            bb.emit_func_output(gv0)
+        mod = bb.get()
+    
+    BlockBuilder can also be used to contruct neural networks with nn.Module API
+
+    .. code-block:: python
+        from tvm.relax.testing import nn
+
+        n = tir.Var("n", "int64")
+        input_size = 784
+        hidden_sizes = [128, 32]
+        output_size = 10
+        bb = rx.BlockBuilder()
+
+        with bb.function("main"):
+            model = nn.Sequential(
+                nn.Linear(input_size, hidden_sizes[0]),
+                nn.ReLU(),
+                nn.Linear(hidden_sizes[0], hidden_sizes[1]),
+                nn.ReLU(),
+                nn.Linear(hidden_sizes[1], output_size),
+                nn.LogSoftmax(),
+            )
+            data = nn.Placeholder((n, input_size), name="data")
+            output = model(data)
+            params = [data] + model.parameters()
+            builder.emit_func_output(output, params=params)
+        mod = bb.get()
     """
 
-    current = None
+    _current = None
+    
+    @staticmethod
+    def current():
+        """Returns the current BlockBuilder."""
+        return BlockBuilder._current
 
     def __init__(self):
         self._blocks = []
@@ -183,18 +213,18 @@ class BlockBuilder(Object):
                     
 
     def function(self,
-                 params: Optional[Union[Var, Tuple, List[Var]]] = None,
-                 name: Optional[str] = "") -> FunctionScope:
+                 name: str,
+                 params: Optional[Union[Var, Tuple, List[Var]]] = None) -> FunctionScope:
         """Annotate a Relax function.
 
         Parameters
         ----------
+        name : str, optional
+            The name of the function
+
         params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function.
             If params is None, it means deferring initialization of function parameters until emit_func_output.
-
-        name : str, optional
-            The name of the function. If provided, the function is global, otherwise local.
 
         Returns
         -------
@@ -211,9 +241,8 @@ class BlockBuilder(Object):
                     raise TypeError("each element of function parameters must be of type tvm.relax.Var,\
                                     but got: {}".format(type(param)))
 
-        self._func_params = params
-        self._func_name = name
-        return FunctionScope(self)
+        func_name = self.get_unique_name(name)
+        return FunctionScope(self, params, func_name)
 
     def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block.
@@ -320,12 +349,12 @@ class BlockBuilder(Object):
 
         inputs = [*te_args, te_out]
         tir_func = tvm.te.create_prim_func(inputs)
-        func_name = _ffi_api.BlockBuilderGetUniqueName(self, func.__name__)
+        func_name = self.get_unique_name(func.__name__)
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
         self._context_mod[gvar] = tir_func
         call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
-        return _ffi_api.BlockBuilderEmit(self, call)
+        return self.emit(call)
 
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
@@ -383,14 +412,14 @@ class BlockBuilder(Object):
             The return variable which gets binded to the output.
         """
         if self._is_emit_func_output_called:
-            raise ValueError("emit_func_output must be called exactly once in a relax function.")
+            raise RuntimeError("emit_func_output must be called exactly once in a relax function.")
         self._is_emit_func_output_called = True
 
         if self._func_params is not None and params is not None:
-            raise ValueError("function parameters have been initialized in the function with scope.")
+            raise RuntimeError("function parameters have been initialized in the function with scope.")
 
         if self._func_params is None and params is None:
-            raise ValueError("Relax function must have parameter.")
+            raise RuntimeError("Relax function must have parameter.")
 
         if self._func_params is None:
             self._func_params = params
@@ -398,6 +427,16 @@ class BlockBuilder(Object):
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
         self._func_ret = output
+        
+        block = self._end_block()
+        if len(block.bindings) > 0:
+            self._blocks.append(block)
+        seqe = rx.SeqExpr(self._blocks, self._func_ret)
+        func = rx.Function(
+            self._func_params, seqe, rx.DynTensorType(-1), rx.GlobalVar(self._func_name)
+        )
+        gvar = rx.GlobalVar(self._func_name)
+        self._context_mod[gvar] = func
 
     def normalize(self, expr: Expr) -> Expr:
         """Normalize an Expr to complete its shape and type.

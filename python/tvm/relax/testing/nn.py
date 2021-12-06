@@ -21,14 +21,8 @@ from tvm import relax, topi, tir
 import numpy as np
 
 
-def current_builder():
-    if relax.BlockBuilder.current is None:
-        raise ValueError("BlockBuilder.current is not initialized.")
-    return relax.BlockBuilder.current
-
-
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
-    return current_builder().emit_te(func, *args, **kwargs)
+    return relax.BlockBuilder.current().emit_te(func, *args, **kwargs)
 
 
 class Placeholder(relax.Var):
@@ -36,10 +30,10 @@ class Placeholder(relax.Var):
 
     def __init__(self, shape, dtype="float32", name="data"):
         if not isinstance(shape, (list, tuple)):
-            raise ValueError("the shape of Placeholder must be a list or a tuple")
+            raise TypeError("the shape of Placeholder is expected to be a list or a tuple")
         rank = len(shape)
         type_anno = relax.DynTensorType(rank, dtype)
-        super().__init__(current_builder().get_unique_name(name), shape, type_anno)
+        super().__init__(relax.BlockBuilder.current().get_unique_name(name), shape, type_anno)
 
 
 class Parameter(relax.Var):
@@ -47,10 +41,10 @@ class Parameter(relax.Var):
 
     def __init__(self, shape, dtype="float32", name="param"):
         if not isinstance(shape, (list, tuple)):
-            raise ValueError("the shape of Parameter must be a list or a tuple")
+            raise TypeError("the shape of Parameter is expected to be a list or a tuple")
         rank = len(shape)
         type_anno = relax.DynTensorType(rank, dtype)
-        super().__init__(current_builder().get_unique_name(name), shape, type_anno)
+        super().__init__(relax.BlockBuilder.current().get_unique_name(name), shape, type_anno)
 
 
 class Module:
@@ -124,10 +118,10 @@ def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
                 if isinstance(i, tir.IntImm):
                     shape.append(int(i))
                 else:
-                    raise ValueError("cannot initialize for unknown-shape parameters.")
+                    raise TypeError("cannot initialize for unknown-shape parameters.")
             params.append(tvm.nd.array(np.random.rand(*shape).astype(np.float32)))
         else:
-            raise ValueError("cannot initialize for unknown-shape parameters.")
+            raise TypeError("cannot initialize for unknown-shape parameters.")
     return params
 
 
