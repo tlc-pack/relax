@@ -30,28 +30,18 @@ from . import _ffi_api
 class FunctionScope(object):
     """Auxiliary scope for function"""
 
-    def __init__(self, block_builder, func_params, func_name):
+    def __init__(self, block_builder, name, params):
         self._bb = block_builder
-        self._func_params = func_params
-        self._func_name = func_name
+        self._name = name
+        self._params = params
 
     def __enter__(self):
-        if BlockBuilder.current() is not None:
-            raise RuntimeError("BlockBuilder does not allow nested functions.")
-        BlockBuilder._current = self._bb
-        self._bb._func_params = self._func_params
-        self._bb._func_name = self._func_name
-        self._bb._begin_binding_block()
+        self._bb._enter_function_scope(self._name, self._params)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # __exit__ should properly handle the case where the with block exits with an exception
         # when handling error case in exit, always check if there is already an exception been thrown in the with block
-        if exc_type is None:
-            if not self._bb._is_emit_func_output_called:
-                raise RuntimeError("emit_func_output must be called in a relax function.")
-        
-        self._bb._is_emit_func_output_called = False
-        BlockBuilder._current = None
+        self._bb._exit_function_scope(exc_type, exc_val, exc_tb)
 
 
 class DataflowScope(object):
@@ -99,6 +89,7 @@ class BlockBuilder(Object):
     BlockBuilder can also be used to contruct neural networks with nn.Module API
 
     .. code-block:: python
+
         from tvm.relax.testing import nn
 
         n = tir.Var("n", "int64")
@@ -145,6 +136,22 @@ class BlockBuilder(Object):
 
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)
+    
+    def _enter_function_scope(self, name, params):
+        if BlockBuilder.current() is not None:
+            raise RuntimeError("BlockBuilder does not allow nested functions.")
+        BlockBuilder._current = self
+        self._func_name = name
+        self._func_params = params
+        self._begin_binding_block()
+    
+    def _exit_function_scope(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            if not self._is_emit_func_output_called:
+                raise RuntimeError("emit_func_output must be called in a relax function.")
+        
+        self._is_emit_func_output_called = False
+        BlockBuilder._current = None
 
     def _convert_te_arg(self,
         te_args: Any
@@ -241,8 +248,8 @@ class BlockBuilder(Object):
                     raise TypeError("each element of function parameters must be of type tvm.relax.Var,\
                                     but got: {}".format(type(param)))
 
-        func_name = self.get_unique_name(name)
-        return FunctionScope(self, params, func_name)
+        name = self.get_unique_name(name)
+        return FunctionScope(self, name, params)
 
     def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block.
@@ -423,6 +430,9 @@ class BlockBuilder(Object):
 
         if self._func_params is None:
             self._func_params = params
+
+        if BlockBuilder.current() is not self:
+            raise RuntimeError("BlockBuilder._current must be self.")
 
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
