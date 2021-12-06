@@ -67,10 +67,3 @@ if __name__ == "__main__":
     data = tvm.nd.array(np.random.rand(3, input_size).astype(np.float32))
     res = vm["main"](data, *params)
     print(res)
-
-    with builder.function(name="hmm"):
-        linear_layer = nn.Linear(20, 20)
-        data = nn.Placeholder((10,), name="data")
-        output = model(data)
-        params = [data] + model.parameters()
-        builder.emit_func_output(output, params=params)

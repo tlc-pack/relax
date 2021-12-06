@@ -102,7 +102,10 @@ def _unpack_params(value: object) -> List[relax.Var]:
         for v in value:
             params += _unpack_params(v)
         return params
-    return []
+    elif isinstance(value, (int, float, str)):
+        return []
+    else:
+        raise TypeError("not supported type when unpacking parameters: {}".format(type(value)))
 
 
 def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
@@ -110,7 +113,7 @@ def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
     shape_dict = {v.name_hint: v.shape_ for v in mod["main"].params}
     params = []
     for k, v in shape_dict.items():
-        if k == "data":
+        if k.startswith("data"):
             continue
         if isinstance(v, relax.ShapeExpr):
             shape = []
