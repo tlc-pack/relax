@@ -35,7 +35,7 @@ def test_fma_rewrite():
     x = relax.Var("x", [m, n], dtype0)
     y = relax.Var("y", [m, n], dtype1)
     ib = relax.BlockBuilder()
-    with ib.function([x, y], "func"):
+    with ib.function("func", [x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(relax.op.multiply(x, y))
             gv0 = ib.emit_output(relax.op.add(lv0, y))
