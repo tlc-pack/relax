@@ -51,7 +51,12 @@ def call_tir_dyn_lowered(
     shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]]
 ) -> Call:
     """
-    Call a destination-passing-style function and return the output.
+    Call destination-passing-style function and return the output specifically
+    for TIR PrimFunc that have unbound shape variables as arguments.
+    Arguments is a list of tensor handles and the last value is a ShapeExpr that 
+    is unpacked during runtime.
+
+    Ex. call(op=Op::Get("relax.call_tir_dyn_lowered", ShapeExpr([m + 1]), tir_func, {X, Y, ShapeExpr([m])})
 
     Parameters
     ----------

@@ -162,8 +162,8 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape")
 RELAY_REGISTER_OP("relax.call_tir_dyn_lowered")
 .set_num_inputs(3)
 .add_argument("shape", "Expr", "The output shape.")
-.add_argument("func", "Expr", "The TIR PrimFunc")
-.add_argument("args", "Tuple", "The input arguments (either tensors or ShapeExpr)");
+.add_argument("func", "Expr", "The destination-passing-style function.")
+.add_argument("args", "Tuple", "The input arguments (list of input tensors and last argument is ShapeExpr)");
 
 Expr MakeCallTirDynLowered(Expr shape, Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.call_tir_dyn_lowered");
@@ -179,8 +179,8 @@ TVM_REGISTER_GLOBAL("relax.op.call_tir_dyn_lowered")
 // call_tir_dyn_lowered after call_dps_rewrite
 RELAY_REGISTER_OP("relax.vm.call_tir_dyn_lowered")
 .set_num_inputs(2)
-.add_argument("func", "Expr", "The TIR PrimFunc")
-.add_argument("args", "Tuple", "The input arguments (either tensors or ShapeExpr)");
+.add_argument("func", "Expr", "The destination-passing-style function.")
+.add_argument("args", "Tuple", "The input arguments (list of tensors and last argument is ShapeExpr)");
 
 
 } // namespace relax

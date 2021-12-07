@@ -359,6 +359,52 @@ class BlockBuilder(Object):
                     # block 0
                     gv = relax.call_dps((128, 128), "te_func", (x, y))
                     return gv
+
+        Example
+        -------
+
+        .. code-block:: python
+
+            bb = relax.BlockBuilder()
+            n = tir.Var("n", "int64")
+            type_anno = relax.DynTensorType(1, "float32")
+            x = relax.Var("x", [n], type_anno)
+            y = relax.Var("y", [n + 1], type_anno)
+
+            def te_func(A):
+                C = te.compute((n + 1), lambda i: A[i])
+                return C
+
+            with bb.function("rx_func", [x, y]):
+                x1 = bb.emit_te(te_func, y)
+                bb.emit_func_output(x1)
+
+        will result in TVMScript
+
+        .. code-block:: python
+
+            @tvm.script.ir_module
+            class Module:
+                @T.prim_func
+                def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
+                    # function attr dict
+                    T.func_attr({"global_symbol": "te_func"})
+                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)], dtype="float32")
+                    compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
+                    # body
+                    # with T.block("root")
+                    for i0 in T.serial(0, n + T.int64(1)):
+                        with T.block("compute"):
+                            i = T.axis.spatial(n + T.int64(1), i0)
+                            T.reads([rxplaceholder[i]])
+                            T.writes([compute[i]])
+                            compute[i] = rxplaceholder[i]
+
+                @R.function
+                def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"]) -> Tensor[_, "float32"]:
+                    # block 0
+                    gv: Tensor[((n + 1),), "float32"] = relax.call_tir_dyn_lowered(((n + 1),), te_func, (y, (n,)))
+                    return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
@@ -368,8 +414,6 @@ class BlockBuilder(Object):
         # TODO(hypercubestart, ziheng) handle multiple output case
         te_out = func(*new_args, **new_kwargs)
         assert isinstance(te_out, tvm.te.tensor.Tensor), "only support te tensor as function output"
-
-        # self._check_te_args(te_args, te_out)
 
         unbound_tir_vars = self._get_unbound_tir_vars(te_args + [te_out])
 
