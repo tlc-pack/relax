@@ -47,7 +47,7 @@ def test_post_order_visit():
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
     ib = rx.BlockBuilder()
-    with ib.function([x, y], "func"):
+    with ib.function("func", [x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             lv1 = ib.emit(rx.op.multiply(lv0, y))
