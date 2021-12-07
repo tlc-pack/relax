@@ -35,24 +35,24 @@ def move(src):
 
 @tvm.register_func("test.vm.add")
 def add(a, b):
-    ret = a.asnumpy() + b.asnumpy()
+    ret = a.numpy() + b.numpy()
     return tvm.nd.array(ret)
 
 
 @tvm.register_func("test.vm.mul")
 def mul(a, b):
-    ret = a.asnumpy() * b.asnumpy()
+    ret = a.numpy() * b.numpy()
     return tvm.nd.array(ret)
 
 
 @tvm.register_func("test.vm.identity")
 def identity_packed(a, b):
-    b[:] = tvm.nd.array(a.asnumpy())
+    b[:] = tvm.nd.array(a.numpy())
 
 
 @tvm.register_func("test.vm.tile")
 def tile_packed(a, b):
-    b[:] = tvm.nd.array(np.tile(a.asnumpy(), (1, 2)))
+    b[:] = tvm.nd.array(np.tile(a.numpy(), (1, 2)))
 
 
 def test_vm_execute():
@@ -73,7 +73,7 @@ def test_vm_execute():
         )
     )
     add_res = vm["func0"](a, b)
-    np.testing.assert_allclose(add_res.asnumpy(), a.asnumpy() + b.asnumpy())
+    np.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy())
 
 
 def test_vm_multiple_func():
@@ -98,8 +98,8 @@ def test_vm_multiple_func():
     )
     mul_res = vm["func1"](a, b)
     add_res = vm["func0"](a, b)
-    np.testing.assert_allclose(add_res.asnumpy(), a.asnumpy() + b.asnumpy())
-    np.testing.assert_allclose(mul_res.asnumpy(), a.asnumpy() * b.asnumpy())
+    np.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy())
+    np.testing.assert_allclose(mul_res.numpy(), a.numpy() * b.numpy())
 
 
 def test_vm_serialize():
@@ -138,7 +138,7 @@ def test_vm_constant_serialize():
     assert exec0.astext() == exec1.astext()
     vm = relax.VirtualMachine(exec0, tvm.cpu())
     res = vm["main"](inp)
-    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
+    np.testing.assert_allclose(inp.numpy(), res.numpy())
     os.remove("exec.tmp")
 
 
@@ -244,7 +244,7 @@ def test_vm_compile_stage0():
     inp2 = tvm.nd.array(np.random.rand(3,4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     vm["foo"](inp1, inp2)
-    np.testing.assert_allclose(inp2.asnumpy(), inp1.asnumpy())
+    np.testing.assert_allclose(inp2.numpy(), inp1.numpy())
 
 
 def test_vm_compile_stage1():
@@ -331,7 +331,7 @@ def test_vm_compile_stage3():
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     res = vm["foo"](inp)
-    np.testing.assert_allclose(inp.asnumpy(), res.asnumpy())
+    np.testing.assert_allclose(inp.numpy(), res.numpy())
 
 
 def test_vm_compile_e2e():
@@ -354,7 +354,7 @@ def test_vm_compile_e2e():
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     res = vm["foo"](inp)
-    np.testing.assert_allclose(np.tile(inp.asnumpy(), (1, 2)), res.asnumpy())
+    np.testing.assert_allclose(np.tile(inp.numpy(), (1, 2)), res.numpy())
 
 def test_vm_compile_e2e_func_param_with_shape():
     @tvm.script.ir_module
@@ -391,8 +391,8 @@ def test_vm_compile_e2e_func_param_with_shape():
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
     res = vm["func"](data, weight)
-    expected = np.dot(data.asnumpy(), weight.asnumpy())
-    np.testing.assert_allclose(expected, res.asnumpy(), rtol=1e-4, atol=1e-4)
+    expected = np.dot(data.numpy(), weight.numpy())
+    np.testing.assert_allclose(expected, res.numpy(), rtol=1e-4, atol=1e-4)
 
 
 def test_vm_emit_te_extern():
@@ -402,7 +402,7 @@ def test_vm_emit_te_extern():
     x = relax.Var("x", [n, m], type_anno)
     y = relax.Var("y", [m, n], type_anno)
     
-    with bb.function([x, y], "rx_cblas_matmul"):
+    with bb.function("rx_cblas_matmul", [x, y]):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
         bb.emit_func_output(out)
     
@@ -415,8 +415,8 @@ def test_vm_emit_te_extern():
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     res = vm["rx_cblas_matmul"](data, weight)
-    expected = np.dot(data.asnumpy(), weight.asnumpy())
-    np.testing.assert_allclose(expected, res.asnumpy(), rtol=1e-4, atol=1e-4)
+    expected = np.dot(data.numpy(), weight.numpy())
+    np.testing.assert_allclose(expected, res.numpy(), rtol=1e-4, atol=1e-4)
 
 def test_vm_emit_te_concat():
     # concatenate of two vectors of size (n,) and (m,)
@@ -430,7 +430,7 @@ def test_vm_emit_te_concat():
         C = te.compute((n + m), lambda i: tvm.tir.if_then_else(i < n, A[i], B[i-n]))
         return C
 
-    with bb.function([x, y], "rx_func"):
+    with bb.function("rx_func", [x, y]):
         x1 = bb.emit_te(te_func, x, y)
         bb.emit_func_output(x1)
 
@@ -444,7 +444,7 @@ def test_vm_emit_te_concat():
     inp2 = tvm.nd.array(np.random.rand(2, ).astype(np.float32))
     res = vm["rx_func"](inp, inp2)
 
-    np.testing.assert_allclose(res.asnumpy(), np.append(inp.asnumpy(), inp2.asnumpy()))
+    np.testing.assert_allclose(res.numpy(), np.append(inp.numpy(), inp2.numpy()))
 
 def test_vm_emit_te_floor_symbolic_shape():
     bb = relax.BlockBuilder()
@@ -456,7 +456,7 @@ def test_vm_emit_te_floor_symbolic_shape():
         C = te.compute((tir.floordiv(n, 2),), lambda i: A[i] + 1)
         return C
 
-    with bb.function([x], "rx_func"):
+    with bb.function("rx_func", [x]):
         x1 = bb.emit_te(te_func, x)
         bb.emit_func_output(x1)
 
@@ -472,9 +472,9 @@ def test_vm_emit_te_floor_symbolic_shape():
 
     def expected_output():
         output_shape = (shape[0] // 2, )
-        return inp.asnumpy()[:output_shape[0]] + 1
+        return inp.numpy()[:output_shape[0]] + 1
 
-    np.testing.assert_allclose(res.asnumpy(), expected_output())
+    np.testing.assert_allclose(res.numpy(), expected_output())
 
 def test_vm_relax_symbolic_shape():
     bb = relax.BlockBuilder()
@@ -487,7 +487,7 @@ def test_vm_relax_symbolic_shape():
         C = te.compute((n, ), lambda i: A[i] + B[i // 2])
         return C
 
-    with bb.function([x, y], "rx_func"):
+    with bb.function("rx_func", [x, y]):
         x1 = bb.emit_te(te_func, x, y)
         bb.emit_func_output(x1)
 
@@ -504,9 +504,9 @@ def test_vm_relax_symbolic_shape():
     res = vm["rx_func"](inp, inp2)
 
     def expected_output():
-        return inp.asnumpy() + np.repeat(inp2.asnumpy(), 2)[:5]
+        return inp.numpy() + np.repeat(inp2.numpy(), 2)[:5]
 
-    np.testing.assert_allclose(res.asnumpy(), expected_output())
+    np.testing.assert_allclose(res.numpy(), expected_output())
 
 if __name__ == "__main__":
     test_vm_execute()
