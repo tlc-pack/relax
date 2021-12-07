@@ -27,7 +27,7 @@ import numpy as np
 def build_mlp(data, weight):
     bb = relax.BlockBuilder()
 
-    with bb.function([data, weight], "mlp"):
+    with bb.function("mlp", [data, weight]):
         gv0 = bb.emit_te(tvm.contrib.cblas.matmul, data, weight, transa=False, transb=False)
         gv1 = bb.emit_te(topi.nn.relu, gv0)
         bb.emit_func_output(gv1)
@@ -47,9 +47,8 @@ if __name__ == "__main__":
     mod = build_mlp(data, weight)
 
     # build and create vm executor
-    target = tvm.target.Target("llvm")
-    target_host = tvm.target.Target("llvm")
-    ex, lib = relax.vm.build(mod, target, target_host)
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     # run the mlp model on relax vm

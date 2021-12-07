@@ -16,13 +16,20 @@
 # under the License.
 
 from __future__ import annotations  # must import to defer parsing of annotations
+import pytest
 import tvm
 from tvm import tir, te
 from tvm import relay
 from tvm import relax as rx
 
 from tvm.ir.base import assert_structural_equal
-from tvm.relax import op
+from tvm.relax import ExternFunc, op
+
+
+@tvm.register_func("test.blockbuilder.nop")
+def nop():
+    pass
+
 
 def test_block_builder():
     m = tir.Var("m", "int32")
@@ -60,7 +67,7 @@ def test_function_single_block():
     y = rx.Var("y", [n], dtype1)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y], "func"):
+    with ib.function("func", [x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
@@ -91,7 +98,7 @@ def test_function_multi_blocks():
     y = rx.Var("y", [n], dtype1)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y], "func"):
+    with ib.function("func", [x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
@@ -129,17 +136,18 @@ def test_multi_functions():
     y = rx.Var("y", [n], dtype1)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y], "func1"):
+    with ib.function("func1", [x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
             gv0 = ib.emit_output(lv0)
         ib.emit_func_output(gv0)
 
-    with ib.function([x, y], "func2"):
+    with ib.function("func2", [x, y]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv"
+            # TODO(@yuchen): enable block builder to reset local var unique name map
+            assert lv0.name_hint == "lv1"
             gv0 = ib.emit_output(lv0)
         ib.emit_func_output(gv0)
 
@@ -166,7 +174,7 @@ def test_binary_shape_type_deduction():
     w = rx.Var("w", [k], dtype1)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y, z, w]):
+    with ib.function("func", [x, y, z, w]):
         with ib.dataflow() as df:
             lv0 = ib.emit(rx.op.add(x, y))
             assert lv0.shape[0] == m
@@ -210,7 +218,7 @@ def test_emit_match_shape():
     y = rx.Var("shape_value", type_annotation=rx.ShapeType(), shape_annotation=shape_anno)
     ib = rx.BlockBuilder()
 
-    with ib.function([x, y], "func"):
+    with ib.function("func", [x, y]):
         with ib.dataflow() as df:
             # lv0: Tensor[(m, n), "float32"] =
             #   match_shape(x: Tensor[_, "float32"], [m, n])
@@ -277,7 +285,7 @@ def test_emit_te():
         E = te.compute((128, 128), lambda i, j: D[i, j] - C[i, j])
         return E
     
-    with bb.function([x, y, z], "rx_func"):
+    with bb.function("rx_func", [x, y, z]):
         out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
         bb.emit_func_output(out)
     
@@ -322,7 +330,7 @@ def test_emit_te_multiple():
         B = te.compute((128, 128), lambda i, j: A[i, j] + 1)
         return B
 
-    with bb.function([x, y], "rx_func"):
+    with bb.function("rx_func", [x, y]):
         x1 = bb.emit_te(te_func, x)
         y1 = bb.emit_te(te_func, y)
         bb.emit_func_output(y1)
@@ -339,7 +347,7 @@ def test_emit_te_extern():
     x = rx.Var("x", [n, m], type_anno)
     y = rx.Var("y", [m, n], type_anno)
 
-    with bb.function([x, y], "rx_cblas_matmul"):
+    with bb.function("rx_cblas_matmul", [x, y]):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
         bb.emit_func_output(out)
     
@@ -358,6 +366,69 @@ def test_emit_te_extern():
     assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
 
 
+def test_nested_function_fail():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    bb = rx.BlockBuilder()
+
+    with pytest.raises(RuntimeError):
+        with bb.function("func", [x, y]):
+            gv0 = bb.emit(rx.op.add(x, x))
+            with bb.function("func1", [x, y]):
+                gv1 = bb.emit(rx.op.add(x, x))
+            bb.emit_func_output(gv0)
+
+
+def test_emit_func_output_twice_fail():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    bb = rx.BlockBuilder()
+
+    with pytest.raises(RuntimeError):
+        with bb.function("func", [x, y]):
+            gv0 = bb.emit(rx.op.add(x, y))
+            bb.emit_func_output(gv0)
+            bb.emit_func_output(gv0)
+
+
+def test_func_params_twice_fail():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    bb = rx.BlockBuilder()
+
+    with pytest.raises(RuntimeError):
+        with bb.function("func", [x, y]):
+            gv0 = bb.emit(rx.op.add(x, y))
+            bb.emit_func_output(gv0, [x])
+
+
+def test_no_func_params_fail():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], dtype0)
+    y = rx.Var("y", [n], dtype1)
+    bb = rx.BlockBuilder()
+
+    with pytest.raises(RuntimeError):
+        with bb.function("func"):
+            gv0 = bb.emit(rx.Call(ExternFunc("test.blockbuilder.nop"), None))
+            bb.emit_func_output(gv0)
+
+
 if __name__ == "__main__":
     test_block_builder()
     test_function_single_block()
@@ -369,3 +440,7 @@ if __name__ == "__main__":
     test_emit_te()
     test_emit_te_multiple()
     test_emit_te_extern()
+    test_nested_function_fail()
+    test_emit_func_output_twice_fail()
+    test_func_params_twice_fail()
+    test_no_func_params_fail()
