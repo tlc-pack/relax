@@ -202,5 +202,9 @@ def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
         elif isinstance(mod[gv], relax.Function):
             rx_mod[gv] = mod[gv]
         else:
-            raise ValueError("An IRModule should contain relax function and/or TIR primfunc.")
+            raise TypeError(
+                "IRModule is expected to contain PrimFunc or Function, but gets {}".format(
+                    type(mod[gv])
+                )
+            )
     return rx_mod, tir_mod
