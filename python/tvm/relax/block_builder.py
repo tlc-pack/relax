@@ -194,29 +194,6 @@ class BlockBuilder(Object):
 
         new_arg = _convert_te_arg_helper(te_args)
         return new_arg, te_args_list
-    
-    def _check_te_args(self, args: List[tvm.te.Tensor], te_out: tvm.te.Tensor):
-        """check te arguments"""
-        #TODO(hypercubestart, ziheng) support case where match_buffer doesn't bind to a variable
-        tensors = args + [te_out]
-        bound_vars = set()
-        used_vars = set()
-
-        def _populate_used_vars(expr):
-            if isinstance(expr, tvm.tir.Var):
-                used_vars.add(expr)
-
-        for x in tensors:
-            for s in x.shape:
-                tvm.tir.stmt_functor.post_order_visit(s, _populate_used_vars)
-                if isinstance(s, tir.Var):
-                    bound_vars.add(s)
-
-        diff = used_vars - bound_vars
-
-        if len(diff) != 0:
-            # there are TIR variable in shape expressions that are not bound by match buffer
-            raise ValueError("emit_te does not support TE functions with unbound tir.Vars: {}".format(diff))
 
     def _get_unbound_tir_vars(self, args: List[tvm.te.Tensor]) -> List[tvm.tir.Var]:
         """get unbound TIR vars (i.e TIR vars used in the shape but is not itself a dimension of a shape)"""
