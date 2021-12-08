@@ -26,7 +26,7 @@ import numpy as np
 from tvm.ir.base import assert_structural_equal
 import tvm.script
 from tvm.script import tir as T, relax as R
-
+from tvm.relax.testing import nn
 
 @tvm.register_func("test.vm.move")
 def move(src):
@@ -512,17 +512,17 @@ def test_vm_relax_dyn_tir_shape():
     # case where TIR variables are unbound in generated PrimFunc
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
-    type_anno = relax.DynTensorType(1, "float32")
-    x = relax.Var("x", [n], type_anno)
-    y = relax.Var("y", [n + 1], type_anno)
 
     def te_func(A):
         C = te.compute((n + 1), lambda i: A[i])
         return C
 
-    with bb.function("rx_func", [x, y]):
+    with bb.function("rx_func"):
+        x = nn.Placeholder((n,), dtype="float32", name="x")
+        y = nn.Placeholder((n + 1,), dtype="float32", name="y")
+
         x1 = bb.emit_te(te_func, y)
-        bb.emit_func_output(x1)
+        bb.emit_func_output(x1, params=[x, y])
 
     mod = bb.get()
 
