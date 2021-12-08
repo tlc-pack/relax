@@ -136,11 +136,11 @@ TVM_REGISTER_GLOBAL("vm.call_tir_dyn_lowered")
   std::vector<TVMValue> values(num_tensor_args + to_unpack.size());
   std::vector<int> tcodes(num_tensor_args + to_unpack.size());
   runtime::TVMArgsSetter setter(values.data(), tcodes.data());
-  for (int i = 0; i < num_tensor_args; i++) {
+  for (size_t i = 0; i < num_tensor_args; i++) {
     NDArray arg = args[i + 2];
     setter(i, arg);
   }
-  for (int i = 0; i < to_unpack.size(); i++) {
+  for (size_t i = 0; i < to_unpack.size(); i++) {
     setter(i + num_tensor_args, to_unpack[i]);
   }
 

@@ -218,7 +218,7 @@ class BlockBuilder(Object):
             # there are TIR variable in shape expressions that are not bound by match buffer
             raise ValueError("emit_te does not support TE functions with unbound tir.Vars: {}".format(diff))
 
-    def _get_unbound_tir_vars(self, args: List[tvm.te.Tensor]):
+    def _get_unbound_tir_vars(self, args: List[tvm.te.Tensor]) -> List[tvm.tir.Var]:
         """get unbound TIR vars (i.e TIR vars used in the shape but is not itself a dimension of a shape)"""
         bound_vars = set()
         used_vars = set()
