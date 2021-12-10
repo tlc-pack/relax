@@ -22,7 +22,7 @@ from tvm.runtime import Object
 from tvm import relax as rx
 from tvm import tir
 from .expr import *
-from .op.base import call_dps, call_tir_dyn_lowered
+from .op.base import call_dps
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
@@ -404,8 +404,7 @@ class BlockBuilder(Object):
         call_args = [x.op.value for x in inputs[:-1]]
         # add arguments for extra parameters from unbound var
         if (len(unbound_tir_vars) > 0):
-            call_args.append(ShapeExpr(unbound_tir_vars))
-            call = call_tir_dyn_lowered(inputs[-1].shape, gvar, call_args)
+            call = call_dps(inputs[-1].shape, gvar, call_args, packed_ints=ShapeExpr(unbound_tir_vars))
         else:
             call = call_dps(inputs[-1].shape, gvar, call_args)
         return _ffi_api.BlockBuilderEmit(self, call)

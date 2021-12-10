@@ -20,7 +20,8 @@ from typing import Union, List
 
 
 def call_dps(
-    shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]]
+    shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]],
+    packed_ints: ShapeExpr = None
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.
@@ -36,38 +37,8 @@ def call_dps(
     args : Tuple[Expr]
         The input arguments.
 
-    Returns
-    -------
-    ret: Call
-        A call node for the call_dps operator.
-    """
-    if isinstance(shape, (list, tuple, Array)):
-        shape = ShapeExpr(shape)
-    if isinstance(args, (list, tuple)):
-        args = Tuple(args)
-    return _ffi_api.call_dps(shape, func, args)
-
-def call_tir_dyn_lowered(
-    shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]]
-) -> Call:
-    """
-    Call destination-passing-style function and return the output specifically
-    for TIR PrimFunc that have unbound shape variables as arguments.
-    Arguments is a list of tensor handles and the last value is a ShapeExpr that 
-    is unpacked during runtime.
-
-    Ex. call(op=Op::Get("relax.call_tir_dyn_lowered", ShapeExpr([m + 1]), tir_func, {X, Y, ShapeExpr([m])})
-
-    Parameters
-    ----------
-    shape: ShapeExpr
-        The output shape.
-
-    func : ExternFunc or PrimFunc
-        The destination-passing-style function.
-
-    args : Tuple[Expr]
-        The input arguments.
+    packed_ints : ShapeExpr
+        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
     -------
@@ -78,4 +49,4 @@ def call_tir_dyn_lowered(
         shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_tir_dyn_lowered(shape, func, args)
+    return _ffi_api.call_dps(shape, func, args, packed_ints)

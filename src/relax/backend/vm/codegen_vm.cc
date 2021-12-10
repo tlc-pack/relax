@@ -103,7 +103,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         return EmitAllocTensor(call);
       } else if (op->op == store_shape_op_ || op->op == load_shape_op_) {
         return EmitShape(call);
-      } else if (op->op == call_tir_dyn_lower_op_) {
+      } else if (op->op == call_tir_dyn_op_) {
         return EmitTirDynOp(call);
       } else {
         // every "normal" operator is lowered to a global var in the IR module. The Attrs for those ops 
@@ -252,7 +252,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     size_t dst_register = NewRegister();
 
-    builder_->EmitCall("vm.call_tir_dyn_lowered", args, dst_register);
+    builder_->EmitCall("vm.call_tir_dyn", args, dst_register);
     return Instruction::Arg(Instruction::kRegister, dst_register);
   }
 
@@ -314,7 +314,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& store_shape_op_ = Op::Get("relax.vm.builtin.store_shape");
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
 
-  const Op& call_tir_dyn_lower_op_ = Op::Get("relax.vm.call_tir_dyn_lowered");
+  const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
 };
 
 void VMCodeGen::CodeGen(IRModule rx_mod) {

@@ -119,7 +119,7 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
   return ShapeTuple(output_shape.rbegin(), output_shape.rend());
 });
 
-TVM_REGISTER_GLOBAL("vm.call_tir_dyn_lowered")
+TVM_REGISTER_GLOBAL("vm.call_tir_dyn")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   void *vm_state_ptr = args[0];
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
