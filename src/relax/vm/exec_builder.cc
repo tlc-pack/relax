@@ -92,7 +92,7 @@ bool CheckExecutable(Executable exec) {
         case Opcode::Call: {
           for (int i = 0; i < instr.num_args; ++i) {
             if (instr.args[i].kind() == Instruction::kRegister &&
-                (instr.args[i].value() == Instruction::kVMStateRegister || instr.args[i].value() == Instruction::kRuntimeModuleRegister)) {
+                instr.args[i].value() == Instruction::kVMStateRegister) {
               continue;
             }
             if (instr.args[i].kind() == Instruction::kRegister &&

@@ -121,8 +121,9 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
 
 TVM_REGISTER_GLOBAL("vm.call_tir_dyn_lowered")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-  void *module_ptr = args[0];
-  runtime::Module mod_ = *(static_cast<runtime::Module*>(module_ptr));
+  void *vm_state_ptr = args[0];
+  VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
+  runtime::Module mod_ = vm_state->mod_;
 
   runtime::String func_name = args[1];
 

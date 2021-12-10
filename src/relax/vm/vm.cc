@@ -58,7 +58,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 
 void VirtualMachine::Load(Executable exec, runtime::Module mod) {
   this->exec_ = exec;
-  this->mod_ = mod;
+  this->state.mod_ = mod;
 }
 
 RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
@@ -101,9 +101,9 @@ void VirtualMachine::RunLoop() {
       case Opcode::Call: {
         std::string func_name = exec_->func_names[instr.func_idx];
         DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << func_name;
-        PackedFunc func = mod_->GetFunction(func_name, true);
+        PackedFunc func = state.mod_->GetFunction(func_name, true);
         if (func == nullptr) {
-          func = *(mod_->GetFuncFromEnv(func_name));
+          func = *(state.mod_->GetFuncFromEnv(func_name));
         }
 
         std::vector<TVMValue> values(instr.num_args);
@@ -115,8 +115,6 @@ void VirtualMachine::RunLoop() {
             case Instruction::kRegister: {
               if (arg.value() == Instruction::kVMStateRegister) {
                 setter(i, &(this->state));
-              } else if (arg.value() == Instruction::kRuntimeModuleRegister) {
-                setter(i, &(this->mod_));
               } else {
                 setter(i, ReadRegister(arg.value()));
               }

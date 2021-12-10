@@ -244,7 +244,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto func_name_index = builder_->EmitConstant(func_name_constant);
 
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kRuntimeModuleRegister));
+    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
     args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
     for (Expr arg: tir_args->fields) {
       args.push_back(ConvertArg(arg));
