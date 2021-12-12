@@ -21,7 +21,7 @@ from typing import Union, List
 
 def call_dps(
     shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]],
-    packed_ints: ShapeExpr = None
+    tir_vars: ShapeExpr = None
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.
@@ -37,7 +37,7 @@ def call_dps(
     args : Tuple[Expr]
         The input arguments.
 
-    packed_ints : ShapeExpr
+    tir_vars : ShapeExpr
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -49,4 +49,4 @@ def call_dps(
         shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_dps(shape, func, args, packed_ints)
+    return _ffi_api.call_dps(shape, func, args, tir_vars)

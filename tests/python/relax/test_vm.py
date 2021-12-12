@@ -528,6 +528,10 @@ def test_vm_relax_dyn_tir_shape():
 
     target = tvm.target.Target("llvm", host="llvm")
     ex, lib = relax.vm.build(mod, target)
+
+    ex.save_to_file("exec.tmp")
+    exec1 = relax.load_exec_from_file("exec.tmp")
+    assert ex.astext() == exec1.astext()
     
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
@@ -536,6 +540,7 @@ def test_vm_relax_dyn_tir_shape():
     res = vm["rx_func"](inp, inp2)
 
     np.testing.assert_allclose(res.asnumpy(), inp2.asnumpy())
+    os.remove("exec.tmp")
 
 if __name__ == "__main__":
     test_vm_execute()

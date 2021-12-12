@@ -380,7 +380,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"]) -> Tensor[_, "float32"]:
                     # block 0
-                    gv: Tensor[((n + 1),), "float32"] = relax.call_tir_dyn_lowered(((n + 1),), te_func, (y, (n,)))
+                    gv: Tensor[((n + 1),), "float32"] = relax.call_dps(((n + 1),), te_func, (y,), (n,))
                     return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
@@ -404,7 +404,7 @@ class BlockBuilder(Object):
         call_args = [x.op.value for x in inputs[:-1]]
         # add arguments for extra parameters from unbound var
         if (len(unbound_tir_vars) > 0):
-            call = call_dps(inputs[-1].shape, gvar, call_args, packed_ints=ShapeExpr(unbound_tir_vars))
+            call = call_dps(inputs[-1].shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
         else:
             call = call_dps(inputs[-1].shape, gvar, call_args)
         return _ffi_api.BlockBuilderEmit(self, call)
