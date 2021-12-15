@@ -513,7 +513,8 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<St
 }
 
 PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
-                                     const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
+                                     const Array<Stmt>& root_stmts, CreateFuncInfo* info,
+                                     const Optional<Array<tir::Var>> tir_var_list) {
   Array<Var> parameters;
   Map<Var, Buffer> buffer_map;
   for (const te::Tensor& tensor : arg_list) {
@@ -523,11 +524,20 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
     ICHECK(it != info->tensor2buffers.end());
     buffer_map.Set(arg, it->second);
   }
+
+  // add additional arguments for tir vars that are left unbound by match buffer
+  if (tir_var_list) {
+    for (const Var& v : tir_var_list.value()) {
+      parameters.push_back(v);
+    }
+  }
+
   PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
                             {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
+
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
   func = (*complete)(std::move(func), info->root_alloc);
@@ -536,8 +546,9 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
 
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
                                      const Array<runtime::NDArray>& constants,
-                                     std::optional<DataType> index_dtype_override) {
-  // Information used in CreatePrimFunc and its sub-functions.
+                                     std::optional<DataType> index_dtype_override)
+                                     const Optional<Array<tir::Var>>& tir_var_list) {
+  // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   Array<Stmt> root_stmts;
@@ -554,9 +565,7 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
   for (const te::Operation& op : order) {
     RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
-
-  // Step 4. Create func and complete prim func.
-  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info, tir_var_list);
   func = tir::BindParams(func, constants);
   if (index_dtype_override.has_value()) {
     func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
