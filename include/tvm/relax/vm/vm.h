@@ -63,6 +63,8 @@ struct VMFrame {
 struct VMState {
   /*! \brief The memory allocators. */
   std::vector<Allocator*> allocators;
+  /*! \brief The loaded module. */
+  runtime::Module mod_;
 };
 
 /*!
@@ -151,8 +153,6 @@ class VirtualMachine : public runtime::ModuleNode {
  private:
   /*! \brief The loaded executable. */
   Executable exec_;
-  /*! \brief The loaded module. */
-  runtime::Module mod_;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The virtual machine PC. */

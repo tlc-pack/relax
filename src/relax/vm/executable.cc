@@ -43,6 +43,7 @@ enum ConstantType : int {
   kNDArray = 0,
   kDLDataType = 1,
   kShapeTuple = 2,
+  kString = 3,
 };
 
 #define STREAM_CHECK(val, section)                                          \
@@ -74,7 +75,7 @@ std::string ExecutableNode::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (it.IsObjectRef<ShapeTuple>()){
+    } else if (it.IsObjectRef<ShapeTuple>()) {
       ShapeTuple shape = it.operator ShapeTuple();
       oss << "shapetuple[";
       for (size_t i = 0; i < shape.size(); ++i) {
@@ -82,6 +83,11 @@ std::string ExecutableNode::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
+    } else if (it.IsObjectRef<String>()) {
+      std::string f = it.AsObjectRef<tvm::runtime::String>().operator std::string();
+      oss << "\"";
+      oss << f;
+      oss << "\", ";
     } else {
       try {
         DLDataType dtype = it.operator DLDataType();
@@ -259,6 +265,13 @@ void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
       for (size_t i = 0; i < shape.size(); ++i) {
         strm->Write(shape.at(i));
       }
+    } else if (it.IsObjectRef<String>()) {
+      String str = it.operator String();
+      strm->Write(ConstantType::kString);
+      strm->Write(str.size());
+      for (size_t i = 0; i < str.size(); ++i) {
+        strm->Write(str.at(i));
+      }
     } else {
       try {
         strm->Write(ConstantType::kDLDataType);
@@ -322,6 +335,16 @@ void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
       strm->Read(&dtype);
       TVMRetValue cell;
       cell = dtype;
+      this->constants.push_back(cell);
+    } else if (constant_type == ConstantType::kString) {
+      size_t size;
+      strm->Read(&size);
+      std::vector<char> data(size);
+      for (size_t i = 0; i < size; ++i) {
+        strm->Read(&(data[i]));
+      }
+      TVMRetValue cell;
+      cell = String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
     } else {
       LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
