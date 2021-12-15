@@ -49,6 +49,7 @@ class CallDPSMutator : public ExprMutator {
 
     static const Op& call_dps_op = Op::Get("relax.call_dps");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
     if (call->op == call_dps_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
@@ -57,7 +58,14 @@ class CallDPSMutator : public ExprMutator {
       if (call->args[2].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[2])->fields;
         args.push_back(tensor);
-        builder_->Emit(Call(call->args[1], args), "_");
+
+        if (call->args.size() == 3) {
+          builder_->Emit(Call(call->args[1], args), "_");
+        } else {
+          // unpack semantics
+          args.push_back(call->args[3]);
+          builder_->Emit(Call(call_tir_dyn_op, {call->args[1], Tuple(args)}), "_");
+        }
       } else {
         builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
       }

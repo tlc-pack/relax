@@ -52,14 +52,22 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 // call_dps
 
 RELAY_REGISTER_OP("relax.call_dps")
-.set_num_inputs(3)
+.set_num_inputs(4)
 .add_argument("shape", "Expr", "The output shape.")
 .add_argument("func", "Expr", "The destination-passing-style function.")
-.add_argument("args", "Tuple", "The input arguments.");
+.add_argument("args", "Tuple", "The input arguments.")
+.add_argument("packed_ints", "Expr", 
+  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from args if unused");
 
-Expr MakeCallDPS(Expr shape, Expr func, Tuple args) {
+Expr MakeCallDPS(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
   static const Op& op = Op::Get("relax.call_dps");
-  Call call = Call(op, {shape, func, args}, {}, {});
+  Call call;
+  if (!packed_ints) {
+    // don't use additional optional argument
+    call = Call(op, {shape, func, args}, {}, {});
+  } else {
+    call = Call(op, {shape, func, args, packed_ints.value()}, {}, {});
+  }
   call->shape_ = shape;
   call->checked_type_ = args->fields[0]->checked_type_;
   return call;
@@ -156,6 +164,13 @@ Expr MakeLoadShape(Expr heap) {
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape")
 .set_body_typed(MakeLoadShape);
+
+// vm call_tir_dyn
+RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
+.set_num_inputs(2)
+.add_argument("func", "Expr", "The destination-passing-style function.")
+.add_argument("args", "Tuple", "The input arguments (list of tensors and last argument is ShapeExpr)");
+
 
 } // namespace relax
 } // namespace tvm
