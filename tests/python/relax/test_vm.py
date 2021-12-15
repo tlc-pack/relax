@@ -26,7 +26,7 @@ import numpy as np
 from tvm.ir.base import assert_structural_equal
 import tvm.script
 from tvm.script import tir as T, relax as R
-
+from tvm.relax.testing import nn
 
 @tvm.register_func("test.vm.move")
 def move(src):
@@ -508,6 +508,40 @@ def test_vm_relax_symbolic_shape():
 
     np.testing.assert_allclose(res.numpy(), expected_output())
 
+def test_vm_relax_dyn_tir_shape():
+    # case where TIR variables are unbound in generated PrimFunc
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+
+    def te_func(A):
+        C = te.compute((n + 1), lambda i: A[i])
+        return C
+
+    with bb.function("rx_func"):
+        x = nn.Placeholder((n,), dtype="float32", name="x")
+        y = nn.Placeholder((n + 1,), dtype="float32", name="y")
+
+        x1 = bb.emit_te(te_func, y)
+        bb.emit_func_output(x1, params=[x, y])
+
+    mod = bb.get()
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+
+    ex.save_to_file("exec.tmp")
+    exec1 = relax.load_exec_from_file("exec.tmp")
+    assert ex.astext() == exec1.astext()
+    
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
+    inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
+
+    res = vm["rx_func"](inp, inp2)
+
+    np.testing.assert_allclose(res.asnumpy(), inp2.asnumpy())
+    os.remove("exec.tmp")
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -528,3 +562,4 @@ if __name__ == "__main__":
     test_vm_emit_te_concat()
     test_vm_emit_te_floor_symbolic_shape()
     test_vm_relax_symbolic_shape()
+    test_vm_relax_dyn_tir_shape()

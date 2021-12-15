@@ -348,6 +348,21 @@ def test_loop_var_datatype():
     test_helper("int32")
     test_helper("int64")
 
+def test_unbound_var():
+    n = tir.Var("n", "int32")
+    A = te.placeholder((n + 1,), name="A")
+    B = te.compute((n + 1,), lambda i: A[i], name="B")
+    func = te.create_prim_func([A, B], [n])
+    assert(len(func.params) == 3)
+    assert(func.params[2] == n)
+
+    func = tvm.build(func)
+
+    a_np = np.random.uniform(size=(10,)).astype(A.dtype)
+    b = tvm.nd.array(np.zeros(10, dtype=B.dtype))
+    func(tvm.nd.array(a_np), b, 9)
+    tvm.testing.assert_allclose(a_np, b.numpy())
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -359,3 +374,4 @@ if __name__ == "__main__":
     test_error_reporting()
     test_constant()
     test_loop_var_datatype()
+    test_unbound_var()
