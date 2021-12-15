@@ -103,6 +103,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         return EmitAllocTensor(call);
       } else if (op->op == store_shape_op_ || op->op == load_shape_op_) {
         return EmitShape(call);
+      } else if (op->op == call_tir_dyn_op_) {
+        return EmitTirDynOp(call);
       } else {
         // every "normal" operator is lowered to a global var in the IR module. The Attrs for those ops 
         // are handled in a pass when lowering them to TIR.
@@ -228,6 +230,32 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return Instruction::Arg(Instruction::kRegister, arg_register);
   }
 
+  Instruction::Arg EmitTirDynOp(const Call& call_node) {
+    ICHECK(call_node->args.size() == 2);
+    ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
+    ICHECK(call_node->args[1]->IsInstance<TupleNode>());
+
+    auto gv = Downcast<GlobalVar>(call_node->args[0]);
+    auto tir_args = Downcast<Tuple>(call_node->args[1]);
+    auto func_name = gv->name_hint;
+
+    TVMRetValue func_name_constant;
+    func_name_constant = func_name;
+    auto func_name_index = builder_->EmitConstant(func_name_constant);
+
+    std::vector<Instruction::Arg> args;
+    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
+    for (Expr arg: tir_args->fields) {
+      args.push_back(ConvertArg(arg));
+    }
+
+    size_t dst_register = NewRegister();
+
+    builder_->EmitCall("vm.call_tir_dyn", args, dst_register);
+    return Instruction::Arg(Instruction::kRegister, dst_register);
+  }
+
   bool IsConstantShape(ShapeExpr shape) const {
     for (PrimExpr e : shape->values) {
       if (!e->IsInstance<IntImmNode>()) {
@@ -285,6 +313,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
   const Op& store_shape_op_ = Op::Get("relax.vm.builtin.store_shape");
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
+
+  const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
 };
 
 void VMCodeGen::CodeGen(IRModule rx_mod) {
