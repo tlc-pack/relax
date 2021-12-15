@@ -194,11 +194,9 @@ class BlockBuilder(Object):
 
         new_arg = _convert_te_arg_helper(te_args)
         return new_arg, te_args_list
-    
-    def _check_te_args(self, args: List[tvm.te.Tensor], te_out: tvm.te.Tensor):
-        """check te arguments"""
-        #TODO(hypercubestart, ziheng) support case where match_buffer doesn't bind to a variable
-        tensors = args + [te_out]
+
+    def _get_unbound_tir_vars(self, args: List[tvm.te.Tensor]) -> List[tvm.tir.Var]:
+        """get unbound TIR vars (i.e TIR vars used in the shape but is not itself a dimension of a shape)"""
         bound_vars = set()
         used_vars = set()
 
@@ -206,18 +204,14 @@ class BlockBuilder(Object):
             if isinstance(expr, tvm.tir.Var):
                 used_vars.add(expr)
 
-        for x in tensors:
+        for x in args:
             for s in x.shape:
                 tvm.tir.stmt_functor.post_order_visit(s, _populate_used_vars)
                 if isinstance(s, tir.Var):
                     bound_vars.add(s)
 
         diff = used_vars - bound_vars
-
-        if len(diff) != 0:
-            # there are TIR variable in shape expressions that are not bound by match buffer
-            raise ValueError("emit_te does not support TE functions with unbound tir.Vars: {}".format(diff))
-                    
+        return list(diff)
 
     def function(self,
                  name: str,
@@ -342,6 +336,52 @@ class BlockBuilder(Object):
                     # block 0
                     gv = relax.call_dps((128, 128), "te_func", (x, y))
                     return gv
+
+        Example
+        -------
+
+        .. code-block:: python
+
+            bb = relax.BlockBuilder()
+            n = tir.Var("n", "int64")
+            type_anno = relax.DynTensorType(1, "float32")
+            x = relax.Var("x", [n], type_anno)
+            y = relax.Var("y", [n + 1], type_anno)
+
+            def te_func(A):
+                C = te.compute((n + 1), lambda i: A[i])
+                return C
+
+            with bb.function("rx_func", [x, y]):
+                x1 = bb.emit_te(te_func, y)
+                bb.emit_func_output(x1)
+
+        will result in TVMScript
+
+        .. code-block:: python
+
+            @tvm.script.ir_module
+            class Module:
+                @T.prim_func
+                def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
+                    # function attr dict
+                    T.func_attr({"global_symbol": "te_func"})
+                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)], dtype="float32")
+                    compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
+                    # body
+                    # with T.block("root")
+                    for i0 in T.serial(0, n + T.int64(1)):
+                        with T.block("compute"):
+                            i = T.axis.spatial(n + T.int64(1), i0)
+                            T.reads([rxplaceholder[i]])
+                            T.writes([compute[i]])
+                            compute[i] = rxplaceholder[i]
+
+                @R.function
+                def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"]) -> Tensor[_, "float32"]:
+                    # block 0
+                    gv: Tensor[((n + 1),), "float32"] = relax.call_dps(((n + 1),), te_func, (y,), (n,))
+                    return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
@@ -352,16 +392,22 @@ class BlockBuilder(Object):
         te_out = func(*new_args, **new_kwargs)
         assert isinstance(te_out, tvm.te.tensor.Tensor), "only support te tensor as function output"
 
-        self._check_te_args(te_args, te_out)
+        unbound_tir_vars = self._get_unbound_tir_vars(te_args + [te_out])
 
         inputs = [*te_args, te_out]
-        tir_func = tvm.te.create_prim_func(inputs)
+        tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
         func_name = self.get_unique_name(func.__name__)
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
         self._context_mod[gvar] = tir_func
-        call = call_dps(inputs[-1].shape, gvar, [x.op.value for x in inputs[:-1]])
-        return self.emit(call)
+
+        call_args = [x.op.value for x in inputs[:-1]]
+        # add arguments for extra parameters from unbound var
+        if (len(unbound_tir_vars) > 0):
+            call = call_dps(inputs[-1].shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
+        else:
+            call = call_dps(inputs[-1].shape, gvar, call_args)
+        return _ffi_api.BlockBuilderEmit(self, call)
 
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
