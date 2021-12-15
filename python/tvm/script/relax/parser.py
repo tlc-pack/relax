@@ -890,9 +890,15 @@ class RelaxTransformer(Transformer):
         elif isinstance(op, tvm.ir.Op):
             args = [self.transform_expr(arg) for arg in expr.params]
             # check call arity eagerly
-            if op.num_inputs != -1 and len(args) != op.num_inputs:
+            if op.name == "relax.call_dps":
+                # call_dps is special case because last argument is optional
+                if len(args) != 3 and len(args) != 4:
+                    self.report_error(
+                        f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
+                    )
+            elif op.num_inputs != -1 and len(args) != op.num_inputs:
                 self.report_error(
-                    f"{op.name} expects {op.num_input} arguments but got {len(args)}", expr.span
+                    f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
                 )
             if op.name == "relax.call_dps" and isinstance(args[1], str):
                 # extern function call case: rewrite identifier to an ExternFunc

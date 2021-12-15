@@ -742,5 +742,21 @@ def test_extern_with_explicit_buffer_access():
     _check_workload(te_extern, tir_extern)
 
 
+def test_unbound_var():
+    n = tir.Var("n", "int32")
+    A = te.placeholder((n + 1,), name="A")
+    B = te.compute((n + 1,), lambda i: A[i], name="B")
+    func = te.create_prim_func([A, B], [n])
+    assert len(func.params) == 3
+    assert func.params[2] == n
+
+    func = tvm.build(func)
+
+    a_np = np.random.uniform(size=(10,)).astype(A.dtype)
+    b = tvm.nd.array(np.zeros(10, dtype=B.dtype))
+    func(tvm.nd.array(a_np), b, 9)
+    tvm.testing.assert_allclose(a_np, b.numpy())
+
+
 if __name__ == "__main__":
     tvm.testing.main()
