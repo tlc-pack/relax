@@ -20,17 +20,13 @@ from typing import Callable, Dict, List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
-from tvm.relay import Any, Function as RelayFunc, vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
-
-<<<<<<< HEAD
-from .database import Database
-from tvm.relax import Function as RelaxFunc, DynTensorType, vm
-=======
->>>>>>> [WIP] For gradual integration with Relay pipeline, meta_schedule/integration.py is created for relax to avoid potential conflict.
-from . import _ffi_api
+from tvm.meta_schedule import _ffi_api
+from tvm.relax import vm
+from tvm.relax.expr import Function as RelaxFunc
+from tvm.relax.ty import DynTensorType
 
 
 @register_object("meta_schedule.ExtractedTask")
@@ -74,7 +70,7 @@ class MetaScheduleContext(Object):
         task_name: str,
         mod: IRModule,
         dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
+    ) -> Union[IRModule, RelaxFunc, PrimFunc, None]:
         """The entry point of the integration
 
         Parameters
@@ -88,11 +84,11 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : Union[IRModule, RelayFunc, PrimFunc, None]
+        result : Union[IRModule, RelaxFunc, PrimFunc, None]
             There are different types of the output:
             1) NullOpt if there is no feedback hint;
             2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relay::Function if `mod` should be dispatched to BYOC workflow;
+            3) relax::Function if `mod` should be dispatched to BYOC workflow;
             4) IRModule for unified dispatch
         """
         return _ffi_api.MetaScheduleContextQuery(  # type: ignore # pylint: disable=no-member
@@ -119,7 +115,7 @@ class MetaScheduleContext(Object):
         task_name: str,
         mod: IRModule,
         dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
+    ) -> Union[IRModule, RelaxFunc, PrimFunc, None]:
         """The entry point of the integration workflow. The compilation process of the high-level
         IR should call this method for task extraction and for feedback hints
 
@@ -143,11 +139,11 @@ class MetaScheduleContext(Object):
 
         Returns
         -------
-        result : Union[IRModule, RelayFunc, PrimFunc, None]
+        result : Union[IRModule, RelaxFunc, PrimFunc, None]
             There are different types of the output:
             1) NullOpt if there is no feedback hint;
             2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relay::Function if `mod` should be dispatched to BYOC workflow;
+            3) relax::Function if `mod` should be dispatched to BYOC workflow;
             4) IRModule for unified dispatch
         """
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
@@ -179,31 +175,23 @@ class TaskExtraction(MetaScheduleContext):
 
 @register_object("meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
-    """An integration context that allows application of historically best record from database"""
-
-    database: Database
-    """ The database to be queried from"""
-
-    def __init__(self, database) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
+    pass
 
 
 def extract_task(
-    mod: Union[IRModule, RelayFunc],
+    mod: Union[IRModule, RelaxFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,
     *,
     opt_level: int = 3,
-    pass_config: Dict[str, Any] = {
-        "relay.backend.use_meta_schedule": True,
-    },
+    pass_config: Dict[str, DynTensorType] = {},
     disabled_pass: List[str] = [],
 ) -> List[ExtractedTask]:
-    """Extract tuning tasks from a relay program.
+    """Extract tuning tasks from a relax program.
 
     Parameters
     ----------
-    mod : Union[tvm.IRModule, tvm.relay.Function]
+    mod : Union[tvm.IRModule, tvm.relax.Function]
         The module or function to tune
     target : tvm.target.Target
         The compilation target
@@ -211,7 +199,7 @@ def extract_task(
         The associated parameters of the program
     opt_level : int
         The optimization level of the compiler
-    pass_config : Dict[str, Any]
+    pass_config : Dict[str, DynTensorType]
         The pass config of the compiler
     disabled_pass : List[str]
         The list of disabled passes of the compiler
@@ -241,7 +229,7 @@ def extract_task(
         thread.join()
 
     env = TaskExtraction()
-    if isinstance(mod, RelayFunc):
+    if isinstance(mod, RelaxFunc):
         mod = IRModule.from_expr(mod)
     if not isinstance(target, Target):
         target = Target(target)
@@ -252,10 +240,7 @@ def extract_task(
             disabled_pass=disabled_pass,
             opt_level=opt_level,
         ):
-            compiler = vm.VMCompiler()
-            if params:
-                compiler.set_params(params)
-            compiler.lower(mod, target)
+            vm.build(mod, Target(target))
 
     _thread_run(_func)
     return env.tasks

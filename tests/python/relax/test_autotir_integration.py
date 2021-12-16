@@ -2,7 +2,7 @@ import tvm
 from tvm.script import tir as T, relax as R
 from tvm import relax
 import numpy as np
-from tvm import meta_schedule as ms
+from tvm.relax import meta_schedule as ms
 
 
 def test_class_irmodule():
