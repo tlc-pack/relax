@@ -21,10 +21,12 @@
  * \brief Lower the shape expressions in relax to VM shape heap manipulations and generate related
  * TIR functions to do shape calculations.
  */
+#include <tvm/arith/int_solver.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -93,12 +95,33 @@ class VMShapeLowerMutator : public ExprMutator {
     builder_->BeginBindingBlock();
     builder_->Emit(VarBinding(
         shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
+
+    Array<PrimExpr> all_param_shape_exprs;
     for (Var param : node->params) {
       if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
         Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
-        StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
+        Array<PrimExpr> shape_values = Downcast<ShapeExpr>(param->shape_.value())->values;
+        StoreShape(shape, shape_values);
+        all_param_shape_exprs.insert(all_param_shape_exprs.end(), shape_values.begin(), shape_values.end());
       }
     }
+
+    // function may contain "unbound" TIR vars if a TIR variable
+    // is not the value of any of the dimensions of the parameters
+    // i.e. "n" is unbound and needs to be solved for during runtime
+    // n = tir.Var("n", "int64")
+    // x = relax.Var("x", [n + 1], type_anno)
+    Array<tir::Var> unbound_vars = GetUnboundTIRVars(all_param_shape_exprs);
+    if (unbound_vars.size() > 0) {
+      tir::PrimFunc func = CalculateUnboundVars(unbound_vars, all_param_shape_exprs);
+      std::string var_func_name = builder_->name_table()->GetUniqueName("var_func");
+      func = WithAttr(std::move(func), "global_symbol", runtime::String(var_func_name));
+      GlobalVar var_func_var(var_func_name);
+      // TODO make sure shape_heap doesnt get redefined by local funcs?
+      builder_->Emit(Call(var_func_var, {shape_heap_}), "_");
+      ret_mod_->Add(var_func_var, func);
+    }
+
     Type ret_type = this->VisitType(node->ret_type);
     Expr new_body = this->VisitExpr(node->body);
 
@@ -154,6 +177,68 @@ class VMShapeLowerMutator : public ExprMutator {
     return ret;
   }
 
+  tir::PrimFunc CalculateUnboundVars(Array<tir::Var> unbound_vars, Array<PrimExpr> shape_exprs) const {
+    // generate prim func
+    tir::Var heap("heap", DataType::Handle());
+    Array<PrimExpr> buffer_shape{heap_size_};
+    tir::Buffer buffer = tir::decl_buffer(buffer_shape, ShapeDType(), "H");
+    Map<tir::Var, tir::Buffer> buffer_map;
+    buffer_map.Set(heap, buffer);
+
+    // generate relations to solve
+    Map<tir::Var, PrimExpr> var_mapping;
+    Array<PrimExpr> relations;
+    for (const auto shape_e: shape_exprs) {
+      tir::Var new_var = tir::Var("dummy_v", ShapeDType());
+      var_mapping.Set(new_var, tir::Load(ShapeDType(), buffer->data, expr2slot_.at(shape_e), tir::const_true()));
+      relations.push_back(tir::EQ(shape_e, new_var));
+    }
+    // TODO(hypercubestart): expand capability beyond using linear solver
+    auto solutions = arith::SolveLinearEquations(arith::IntConstraints(unbound_vars, {}, relations));
+
+    CHECK(solutions->src_to_dst.size() != 0)
+      << "ValueError: no solution found when solving for unbound TIR variables";
+    CHECK(solutions->dst_to_src.size() == 0)
+      << "ValueError: unable to solve for unbound TIR variables because is not full rank";
+
+    Array<tir::Stmt> seq;
+    for (const auto& it: solutions->src_to_dst) {
+      PrimExpr value = tir::Substitute(it.second, var_mapping);
+      int idx = expr2slot_.at(it.first);
+      seq.push_back(tir::Store(buffer->data, value, idx, tir::const_true()));
+    }
+    tir::Stmt body = tir::SeqStmt(seq);
+    Array<tir::Var> params{heap};
+    Type ret_type = VoidType();
+
+    return tir::PrimFunc(params, body, ret_type, buffer_map);
+  }
+
+  Array<tir::Var> GetUnboundTIRVars(Array<PrimExpr> shape_exprs) const {
+    // shape_exprs is a flattened array of all shape expressions from the params of a Relax function
+    // a variable is unbound if it appears in shape_exprs, but never by itself
+    Map<tir::Var, Bool> var_bound_map;
+    for (PrimExpr shape_e: shape_exprs) {
+      if (shape_e->IsInstance<tir::VarNode>()) {
+        var_bound_map.Set(Downcast<tir::Var>(shape_e), Bool(true));
+      }
+      for (tir::Var v: tir::UndefinedVars(shape_e)) {
+        if (var_bound_map.count(v) == 0) {
+          var_bound_map.Set(v, Bool(false));
+        }
+      }
+    }
+
+    Array<tir::Var> ret;
+    for (const auto& it : var_bound_map) {
+      if (!it.second.operator bool()) {
+        ret.push_back(it.first);
+      }
+    }
+
+    return ret;
+  }
+
   Map<PrimExpr, Integer> PrepareExpr2Slot(Function expr) const {
     int cnt = 0;
     Map<PrimExpr, Integer> ret;
@@ -163,6 +248,12 @@ class VMShapeLowerMutator : public ExprMutator {
         for (auto prim_e : shape->values) {
           if (ret.count(prim_e) == 0) {
             ret.Set(prim_e, cnt++);
+          }
+          // additionally add slots for all used TIR vars
+          for (tir::Var v: tvm::tir::UndefinedVars(prim_e)) {
+            if (ret.count(v) == 0) {
+              ret.Set(v, cnt++);
+            }
           }
         }
       }

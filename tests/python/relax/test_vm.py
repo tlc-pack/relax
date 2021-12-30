@@ -542,6 +542,31 @@ def test_vm_relax_dyn_tir_shape():
     np.testing.assert_allclose(res.asnumpy(), inp2.asnumpy())
     os.remove("exec.tmp")
 
+def test_vm_relax_unbound_var():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+
+    def te_func(A):
+        C = te.compute((n + 1), lambda i: A[2 * i])
+        return C
+
+    with bb.function("rx_func"):
+        x = nn.Placeholder((2 * n + 2,), dtype="float32", name="x")
+
+        x1 = bb.emit_te(te_func, x)
+        bb.emit_func_output(x1, params=[x])
+
+    mod = bb.get()
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    inp = tvm.nd.array(np.random.rand(6, ).astype(np.float32))
+    res = vm["rx_func"](inp)
+
+    np.testing.assert_allclose(res.numpy(), inp.numpy()[::2])
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -563,3 +588,4 @@ if __name__ == "__main__":
     test_vm_emit_te_floor_symbolic_shape()
     test_vm_relax_symbolic_shape()
     test_vm_relax_dyn_tir_shape()
+    test_vm_relax_unbound_var()
