@@ -106,13 +106,11 @@ class VMShapeLowerMutator : public ExprMutator {
       }
     }
 
-    // function may contain "unbound" TIR vars if a TIR variable
-    // is not the value of any of the dimensions of the parameters
-    // i.e. "n" is unbound and needs to be solved for during runtime
-    // n = tir.Var("n", "int64")
-    // x = relax.Var("x", [n + 1], type_anno)
+    // function may contain "unbound" TIR vars if the variable is used in the shape expression,
+    // but is not directly bound to a dimension of any shape
     Array<tir::Var> unbound_vars = GetUnboundTIRVars(all_param_shape_exprs);
     if (unbound_vars.size() > 0) {
+      // generate function to calculate value of variable during runtime
       tir::PrimFunc func = CalculateUnboundVars(unbound_vars, all_param_shape_exprs);
       std::string var_func_name = builder_->name_table()->GetUniqueName("var_func");
       func = WithAttr(std::move(func), "global_symbol", runtime::String(var_func_name));
@@ -178,7 +176,7 @@ class VMShapeLowerMutator : public ExprMutator {
   }
 
   tir::PrimFunc CalculateUnboundVars(Array<tir::Var> unbound_vars, Array<PrimExpr> shape_exprs) const {
-    // generate prim func
+    // generate prim func to calculate value of unbound_vars
     tir::Var heap("heap", DataType::Handle());
     Array<PrimExpr> buffer_shape{heap_size_};
     tir::Buffer buffer = tir::decl_buffer(buffer_shape, ShapeDType(), "H");
@@ -193,7 +191,7 @@ class VMShapeLowerMutator : public ExprMutator {
       var_mapping.Set(new_var, tir::Load(ShapeDType(), buffer->data, expr2slot_.at(shape_e), tir::const_true()));
       relations.push_back(tir::EQ(shape_e, new_var));
     }
-    // TODO(hypercubestart): expand capability beyond using linear solver
+    // TODO(hypercubestart): expand beyond using linear system
     auto solutions = arith::SolveLinearEquations(arith::IntConstraints(unbound_vars, {}, relations));
 
     CHECK(solutions->src_to_dst.size() != 0)
