@@ -112,12 +112,12 @@ class VMShapeLowerMutator : public ExprMutator {
     if (unbound_vars.size() > 0) {
       // generate function to calculate value of variable during runtime
       tir::PrimFunc func = CalculateUnboundVars(unbound_vars, all_param_shape_exprs);
-      std::string var_func_name = builder_->name_table()->GetUniqueName("var_func");
-      func = WithAttr(std::move(func), "global_symbol", runtime::String(var_func_name));
-      GlobalVar var_func_var(var_func_name);
+      std::string unbound_shape_func_name = builder_->name_table()->GetUniqueName("unbound_shape_func");
+      func = WithAttr(std::move(func), "global_symbol", runtime::String(unbound_shape_func_name));
+      GlobalVar unbound_shape_func_var(unbound_shape_func_name);
       // TODO make sure shape_heap doesnt get redefined by local funcs?
-      builder_->Emit(Call(var_func_var, {shape_heap_}), "_");
-      ret_mod_->Add(var_func_var, func);
+      builder_->Emit(Call(unbound_shape_func_var, {shape_heap_}), "_");
+      ret_mod_->Add(unbound_shape_func_var, func);
     }
 
     Type ret_type = this->VisitType(node->ret_type);
@@ -247,7 +247,7 @@ class VMShapeLowerMutator : public ExprMutator {
           if (ret.count(prim_e) == 0) {
             ret.Set(prim_e, cnt++);
           }
-          // additionally add slots for all used TIR vars
+          // additionally add slots for used but unbound TIR vars
           for (tir::Var v: tvm::tir::UndefinedVars(prim_e)) {
             if (ret.count(v) == 0) {
               ret.Set(v, cnt++);
