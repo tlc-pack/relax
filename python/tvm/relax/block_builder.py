@@ -22,7 +22,7 @@ from tvm.runtime import Object
 from tvm import relax as rx
 from tvm import tir
 from .expr import *
-from .op.base import call_dps
+from .op.base import call_tir
 from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
@@ -334,7 +334,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor:
                     # block 0
-                    gv = relax.call_dps((128, 128), "te_func", (x, y))
+                    gv = relax.call_tir((128, 128), "te_func", (x, y))
                     return gv
 
         Example
@@ -380,7 +380,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"]) -> Tensor[_, "float32"]:
                     # block 0
-                    gv: Tensor[((n + 1),), "float32"] = relax.call_dps(((n + 1),), te_func, (y,), (n,))
+                    gv: Tensor[((n + 1),), "float32"] = relax.call_tir(((n + 1),), te_func, (y,), (n,))
                     return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
@@ -404,9 +404,9 @@ class BlockBuilder(Object):
         call_args = [x.op.value for x in inputs[:-1]]
         # add arguments for extra parameters from unbound var
         if (len(unbound_tir_vars) > 0):
-            call = call_dps(inputs[-1].shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
+            call = call_tir(inputs[-1].shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
         else:
-            call = call_dps(inputs[-1].shape, gvar, call_args)
+            call = call_tir(inputs[-1].shape, gvar, call_args)
         return _ffi_api.BlockBuilderEmit(self, call)
 
 

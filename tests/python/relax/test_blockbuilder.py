@@ -302,7 +302,7 @@ def test_emit_te():
     # check TIR structure matches expected
     assert_structural_equal(mod["te_func"].body, get_tir_func().body)
 
-    # check Relax function calls TIR function with call_dps call
+    # check Relax function calls TIR function with call_tir call
     assert rx_func.params[0] == x
     assert rx_func.params[1] == y
     assert rx_func.params[2] == z
@@ -311,7 +311,7 @@ def test_emit_te():
     assert len(rx_func.body.blocks) == 1
     assert len(rx_func.body.blocks[0].bindings) == 1
     assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
-    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
     assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
     assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
     assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
@@ -354,12 +354,12 @@ def test_emit_te_extern():
     mod = bb.get()
     rx_func = mod["rx_cblas_matmul"]
     
-    # check Relax function calls TIR function with call_dps call
+    # check Relax function calls TIR function with call_tir call
     assert rx_func.params[0] == x
     assert rx_func.params[1] == y
     assert len(rx_func.body.blocks) == 1
     assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
-    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_dps")
+    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
     assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
     assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "matmul"
     assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
