@@ -421,7 +421,7 @@ def test_inline_tir():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        z = relax.call_dps((B, 128), my_matmul, (x, y))
+        z = relax.call_tir((B, 128), my_matmul, (x, y))
         return z
 
     x, y = f.params
@@ -433,7 +433,7 @@ def test_inline_tir():
 
     check_call(
         z_bind.value,
-        "relax.call_dps",
+        "relax.call_tir",
         [relax.ShapeExpr([B, tir.IntImm("int64", 128)]), mm_bind.var, relax.Tuple([x, y])],
     )
 
@@ -475,10 +475,10 @@ def test_primexpr_arithmetic():
     assert_structural_equal(sh_bind.value.values, [tir.Add(n, m), tir.FloorDiv(n, m)])
 
 
-def test_call_dps_extern():
+def test_call_tir_extern():
     @R.function
     def f(x: Tensor):
-        z = relax.call_dps((10,), "my_extern", (x,))
+        z = relax.call_tir((10,), "my_extern", (x,))
         return z
 
     x = f.params[0]
@@ -486,7 +486,7 @@ def test_call_dps_extern():
 
     check_call(
         z_bind.value,
-        "relax.call_dps",
+        "relax.call_tir",
         [
             relax.ShapeExpr([tir.IntImm("int64", 10)]),
             relax.ExternFunc("my_extern"),
@@ -517,7 +517,7 @@ def test_class_irmodule():
 
         @R.function
         def g(y: Tensor[(n, n), _]) -> Tensor:
-            return relax.call_dps((n, n), my_matmul, (y, y))
+            return relax.call_tir((n, n), my_matmul, (y, y))
 
         @R.function
         def h(x, y, z):
