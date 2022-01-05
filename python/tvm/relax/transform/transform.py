@@ -47,14 +47,14 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     return _ffi_api.ToNonDataflow()
 
 
-def CallDPSRewrite() -> tvm.ir.transform.Pass:
-    """Perform explicit tensor allocation for call_dps.
+def CallTIRRewrite() -> tvm.ir.transform.Pass:
+    """Perform explicit tensor allocation for call_tir.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.CallDPSRewrite()
+    return _ffi_api.CallTIRRewrite()
 
 
 def VMMemoryLower() -> tvm.ir.transform.Pass:
