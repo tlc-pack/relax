@@ -61,7 +61,7 @@ def _is_registered(op_name: str, op_set=None) -> bool:
     return op_name in op_set
 
 
-# NOTE: call_dps is an actual registered operator
+# NOTE: call_tir is an actual registered operator
 class SpecialOp(Enum):
     """Relax operators that have special semantics handled by the parser."""
 
@@ -845,7 +845,7 @@ class RelaxTransformer(Transformer):
                 relay.op.get("relax.shape_of"), [obj], span=self.to_tvm_span(expr.span)
             )
         else:
-            # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_dps)
+            # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_tir)
             op_name = self._parse_attrs_to_str(expr)
             # NOTE: at least for now, all special operators are namespaced
             try:
@@ -890,8 +890,8 @@ class RelaxTransformer(Transformer):
         elif isinstance(op, tvm.ir.Op):
             args = [self.transform_expr(arg) for arg in expr.params]
             # check call arity eagerly
-            if op.name == "relax.call_dps":
-                # call_dps is special case because last argument is optional
+            if op.name == "relax.call_tir":
+                # call_tir is special case because last argument is optional
                 if len(args) != 3 and len(args) != 4:
                     self.report_error(
                         f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
@@ -900,7 +900,7 @@ class RelaxTransformer(Transformer):
                 self.report_error(
                     f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
                 )
-            if op.name == "relax.call_dps" and isinstance(args[1], str):
+            if op.name == "relax.call_tir" and isinstance(args[1], str):
                 # extern function call case: rewrite identifier to an ExternFunc
                 args[1] = relax.ExternFunc(args[1], self.to_tvm_span(expr.params[1].span))
 

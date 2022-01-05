@@ -49,9 +49,9 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-// call_dps
+// call_tir
 
-RELAY_REGISTER_OP("relax.call_dps")
+RELAY_REGISTER_OP("relax.call_tir")
 .set_num_inputs(4)
 .add_argument("shape", "Expr", "The output shape.")
 .add_argument("func", "Expr", "The destination-passing-style function.")
@@ -59,8 +59,8 @@ RELAY_REGISTER_OP("relax.call_dps")
 .add_argument("packed_ints", "Expr", 
   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from args if unused");
 
-Expr MakeCallDPS(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
-  static const Op& op = Op::Get("relax.call_dps");
+Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
+  static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
@@ -73,8 +73,8 @@ Expr MakeCallDPS(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_dps")
-.set_body_typed(MakeCallDPS);
+TVM_REGISTER_GLOBAL("relax.op.call_tir")
+.set_body_typed(MakeCallTIR);
 
 // shape_of
 
