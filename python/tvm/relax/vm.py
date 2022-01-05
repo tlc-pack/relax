@@ -179,7 +179,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
         ex, lib = relax.vm.build(mod, target)
     """
     passes = [relax.transform.ToNonDataflow()]
-    passes.append(relax.transform.CallDPSRewrite())
+    passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.VMMemoryLower())
     passes.append(relax.transform.VMShapeLower())
     seq = tvm.transform.Sequential(passes)

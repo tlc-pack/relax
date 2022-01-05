@@ -99,8 +99,8 @@ def test_to_non_dataflow():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                lv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-                gv0 = relax.call_dps((m, n), "test.op.identity", (lv0,))
+                lv0 = relax.call_tir((m, n), "test.op.identity", (x,))
+                gv0 = relax.call_tir((m, n), "test.op.identity", (lv0,))
                 relax.output(gv0)
             return gv0
 
@@ -135,24 +135,24 @@ def test_to_non_dataflow():
     assert gv0 == new_vars[2]
 
 
-def test_call_dps_rewrite():
+def test_call_tir_rewrite():
     @tvm.script.ir_module
-    class TestCallDPSRewrite:
+    class TestCallTIRRewrite:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
-            gv0 = relax.call_dps((m, n), "test.op.identity", (x,))
+            gv0 = relax.call_tir((m, n), "test.op.identity", (x,))
             return gv0
 
-    mod = TestCallDPSRewrite
+    mod = TestCallTIRRewrite
 
     # before rewrite
     v0 = mod["foo"].body.blocks[0].bindings[0].var
     s0 = mod["foo"].body.blocks[0].bindings[0].value
     assert isinstance(s0, tvm.relay.Call)
-    assert s0.op.name == "relax.call_dps"
+    assert s0.op.name == "relax.call_tir"
 
     # after rewrite
-    new_mod = relax.transform.CallDPSRewrite()(mod)
+    new_mod = relax.transform.CallTIRRewrite()(mod)
     func = new_mod["foo"]
 
     block = func.body.blocks[0]
@@ -255,7 +255,7 @@ def test_vm_shape_lowering_func_param_with_shape():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         @R.function
         def foo(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
-            gv0 = R.call_dps((m, k), tir_matmul, (x, w))
+            gv0 = R.call_tir((m, k), tir_matmul, (x, w))
             return gv0
 
     mod = InputModule
@@ -322,8 +322,8 @@ def test_to_anf_no_op():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                lv0 = relax.call_dps((m, n), "test.op.identity", (x,))
-                gv0 = relax.call_dps((m, n), "test.op.identity", (lv0,))
+                lv0 = relax.call_tir((m, n), "test.op.identity", (x,))
+                gv0 = relax.call_tir((m, n), "test.op.identity", (lv0,))
                 relax.output(gv0)
             return gv0
 
@@ -337,7 +337,7 @@ if __name__ == "__main__":
     test_fma_rewrite()
     test_visit_shape()
     test_to_non_dataflow()
-    test_call_dps_rewrite()
+    test_call_tir_rewrite()
     test_vm_memory_lower()
     test_vm_shape_lowering()
     test_vm_shape_lowering_func_param_with_shape()
