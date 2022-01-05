@@ -65,11 +65,11 @@ TVM_DLL Pass FMARewrite();
 TVM_DLL Pass ToNonDataflow();
 
 /*!
- * \brief Perform explicit tensor allocation for call_dps.
+ * \brief Perform explicit tensor allocation for call_tir.
  *
  * \return The Pass.
  */
-TVM_DLL Pass CallDPSRewrite();
+TVM_DLL Pass CallTIRRewrite();
 
 /*!
  * \brief Transform Relax IR to A-normal form.
