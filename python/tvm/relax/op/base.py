@@ -19,7 +19,7 @@ from . import _ffi_api
 from typing import Union, List
 
 
-def call_dps(
+def call_tir(
     shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]],
     tir_vars: ShapeExpr = None
 ) -> Call:
@@ -43,10 +43,10 @@ def call_dps(
     Returns
     -------
     ret: Call
-        A call node for the call_dps operator.
+        A call node for the call_tir operator.
     """
     if isinstance(shape, (list, tuple, Array)):
         shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_dps(shape, func, args, tir_vars)
+    return _ffi_api.call_tir(shape, func, args, tir_vars)
