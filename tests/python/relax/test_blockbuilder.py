@@ -346,9 +346,8 @@ def test_emit_te_multiple_output():
     x = rx.Var("x", [n, m], type_anno)
 
     def te_func(A):
-        B = te.compute((n, m), lambda i, j: A[i, j] + 1)
-        C = te.compute((n, m), lambda i, j: A[i, j] + 2)
-        return (B, C)
+        B0, B1 = te.compute((n, m), lambda i, j: (A[i, j] + 1, A[i, j] * 2), name="B")
+        return (B0, B1)
 
     with bb.function("rx_func", [x]):
         y = bb.emit_te(te_func, x)
