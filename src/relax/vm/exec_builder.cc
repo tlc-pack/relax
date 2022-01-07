@@ -78,6 +78,22 @@ void ExecBuilderNode::EmitRet(RegName result) {
   exec->instr_data.push_back(result);
 }
 
+void ExecBuilderNode::EmitGoto(Index pc_offset) {
+  exec->instr_offset.push_back(exec->instr_data.size());
+  exec->instr_data.push_back(static_cast<ExecWord>(Opcode::Goto));
+  exec->instr_data.push_back(pc_offset);
+}
+
+void ExecBuilderNode::EmitIf(vm::RegName test, vm::RegName target, vm::Index true_offset,
+                             vm::Index false_offset){
+  exec->instr_offset.push_back(exec->instr_data.size());
+  exec->instr_data.push_back(static_cast<ExecWord>(Opcode::If));
+  exec->instr_data.push_back(test);
+  exec->instr_data.push_back(target);
+  exec->instr_data.push_back(true_offset);
+  exec->instr_data.push_back(false_offset);
+}
+
 // helper function to check if an executable is legal by checking if registers are used properly
 bool CheckExecutable(Executable exec) {
   for (auto it = exec->global_funcs.cbegin(); it != exec->global_funcs.cend(); ++it) {
@@ -118,6 +134,17 @@ bool CheckExecutable(Executable exec) {
                            << "\" is unused as input.\n";
             }
           }
+          break;
+        }
+        case Opcode::Goto: {
+          ICHECK_GT(instr.pc_offset, 0);
+          break;
+        }
+        case Opcode::If: {
+          ICHECK_GT(instr.true_offset, 0);
+          ICHECK_GT(instr.false_offset, 0);
+          arg_registers.emplace(instr.test);
+          arg_registers.emplace(instr.target);
           break;
         }
         default:
@@ -168,6 +195,12 @@ void ExecBuilderNode::Formalize() {
           }
           break;
         }
+        case Opcode::Goto: {
+          break;
+        }
+        case Opcode::If: {
+          break;
+        }
         default:
           LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
           break;
@@ -207,6 +240,17 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
 .set_body_typed([](ExecBuilder builder, int64_t result) {
   builder->EmitRet(result);
+});
+
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto")
+.set_body_typed([](ExecBuilder builder, int64_t pc_offset) {
+  builder->EmitGoto(pc_offset);
+});
+
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
+.set_body_typed([](ExecBuilder builder, int64_t test, int64_t target, int64_t true_offset,
+                   int64_t false_offset) {
+  builder->EmitIf(test, target, true_offset, false_offset);
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderR")

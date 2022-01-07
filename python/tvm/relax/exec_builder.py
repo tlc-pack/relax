@@ -106,6 +106,15 @@ class ExecBuilder(Object):
         self._check_scope()
         _ffi_api.ExecBuilderEmitRet(self, result)
 
+    def emit_goto(self, pc_offset):
+        """emit a goto instruction"""
+        self._check_scope()
+        _ffi_api.ExecBuilderEmitGoto(self, pc_offset)
+
+    def emit_if(self, test, target, true_offset, false_offset):
+        self._check_scope()
+        _ffi_api.ExecBuilderEmitIf(self, test, target, true_offset, false_offset)
+
     def get(self) -> Executable:
         """return the executable"""
         return _ffi_api.ExecBuilderGet(self)
