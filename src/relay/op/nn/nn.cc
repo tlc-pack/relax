@@ -1562,5 +1562,97 @@ Example::
     .set_attr<FTVMCompute>("FTVMCompute", BatchToSpaceNDCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+
+Expr MakeEmbedding(Expr table, Expr indices) {
+  static const Op& op = Op::Get("nn.embedding");
+  return Call(op, {table, indices});
+}
+
+bool EmbeddingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  // TODO: use diagnostic context
+  CHECK_EQ(types.size(), 3) << "nn.embedding has two inputs and one output";
+
+  if (types[0].as<IncompleteTypeNode>() || types[1].as<IncompleteTypeNode>()) {
+    return false;
+  }
+
+  const TensorTypeNode* table_ty = types[0].as<TensorTypeNode>();
+  const TensorTypeNode* indices_ty = types[1].as<TensorTypeNode>();
+
+  CHECK(table_ty && indices_ty) << "embedding table and indices should be tensors";
+  CHECK_EQ(table_ty->shape.size(), 2) << "embedding table should be 2D";
+  CHECK_EQ(indices_ty->shape.size(), 1) << "embedding indices should be 1D";
+  CHECK(indices_ty->dtype.is_int() || indices_ty->dtype.is_uint())
+      << "embedding indices should be int or uint";
+
+  reporter->Assign(
+      types[2],
+      TensorType(Array<IndexExpr>({indices_ty->shape[0], table_ty->shape[1]}), table_ty->dtype));
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.embedding").set_body_typed(MakeEmbedding);
+
+RELAY_REGISTER_OP("nn.embedding")
+    .describe(R"code(Lookup of indices in an embedding table.
+ - **table**: M x N tensor
+ - **indices**: K long tensor of indices into `table`
+ - **out**: K x N tensor
+ )code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("table", "Tensor", "The embedding table.")
+    .add_argument("indices", "Tensor", "The indices to look up.")
+    .set_support_level(1)
+    .add_type_rel("Embedding", EmbeddingRel);
+
+bool EmbeddingGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 4) << "EmbeddingGrad shape relation takes four arguments: the embedding "
+                               "table, the indices, the gradient, and the output";
+
+  if (types[0].as<IncompleteTypeNode>() || types[1].as<IncompleteTypeNode>() ||
+      types[2].as<IncompleteTypeNode>()) {
+    return false;
+  }
+
+  const auto* table = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  const auto* grad = types[2].as<TensorTypeNode>();
+
+  CHECK(table && indices && grad) << "embedding table, indices, and grad should be tensors";
+  CHECK_EQ(table->shape.size(), 2) << "embedding table should be 2D";
+  CHECK_EQ(indices->shape.size(), 1) << "embedding indices should be 1D";
+  CHECK_EQ(grad->shape.size(), 2) << "embedding grad should be 2D";
+  CHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "embedding indices should be int or uint";
+
+  reporter->AssertEQ(table->shape[0], grad->shape[0]);
+  reporter->AssertEQ(table->shape[1], grad->shape[1]);
+  reporter->Assign(types[3], TensorType(table->shape, table->dtype));
+  return true;
+}
+
+Expr MakeEmbeddingGrad(Expr table, Expr indices, Expr grad) {
+  static const Op& op = Op::Get("nn.embedding_grad");
+  return Call(op, {table, indices, grad}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.embedding_grad").set_body_typed(MakeEmbeddingGrad);
+
+RELAY_REGISTER_OP("nn.embedding_grad")
+     .describe(R"code(gradient of embedding
+ - **table**: M x N tensor
+ - **indices**: K long tensor of indices into `table`
+ - **grad**: K x N tensor of the gradient
+ - **out**: M x N tensor
+ )code" TVM_ADD_FILELINE)
+     .set_num_inputs(3)
+     .add_argument("table", "2D Tensor", "The embedding table.")
+     .add_argument("indices", "1D Tensor", "The indices to lookup.")
+     .add_argument("grad", "2D Tensor", "The downstream gradient.")
+     .set_support_level(1)
+     .add_type_rel("EmbeddingGrad", EmbeddingGradRel);
+
 }  // namespace relay
 }  // namespace tvm

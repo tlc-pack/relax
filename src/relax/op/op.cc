@@ -80,9 +80,13 @@ Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
     call->checked_type_ = TupleType(types);
   } else {
     // TODO(@yuchen): fix checked_type_ inference
-    call->checked_type_ = args->fields[0]->checked_type_;
+    if (!args->fields.empty()) {
+      call->checked_type_ = args->fields[0]->checked_type_;
+    } else {
+      call->checked_type_ = DynTensorType(-1, DataType::Float(32));
+    }
+    return call;
   }
-  return call;
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);

@@ -975,3 +975,8 @@ def one_hot_grad(orig, grad):
     grad_off = _sum(where(on_mask, g_zeros, grad))
 
     return [zeros_like(indices), cast_like(grad_on, on_value), cast_like(grad_off, off_value)]
+
+@register_gradient("nn.embedding")
+def embedding_grad(orig, grad):
+    table, indices = orig.args
+    return [_nn.embedding_grad(table, indices, grad), zeros_like(indices)]

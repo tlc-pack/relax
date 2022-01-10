@@ -239,7 +239,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   static bool IsLeaf(const Expr& expr) {
     // NB: tuples are treated as leaf nodes for ergonomics
     // TODO(@altanh, @yuchen): remove TupleNode from leaf
-    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<relay::ConstantNode>() ||
+    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
            expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
            expr.as<TupleNode>();
   }
@@ -368,6 +368,21 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
     }
     cur_frame->bindings.push_back(VarBinding(var, lhs_var));
     this->binding_table_[var->vid] = lhs_var;
+  } else if (const TupleGetItemNode* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
+    if (const TupleNode* tuple = tuple_get_item_node->tuple.as<TupleNode>()) {
+      const Expr& field = tuple->fields[tuple_get_item_node->index];
+      if (field->shape_.defined()) {
+        var->shape_ = field->shape_;
+      }
+      if (field->checked_type_.defined()) {
+        var->checked_type_ = field->checked_type_;
+      }
+      cur_frame->bindings.push_back(VarBinding(var, expr));
+      this->binding_table_[var->vid] = expr;
+    } else {
+      LOG(FATAL) << "TypeError: Invalid type as the tuple field of TupleGetItemNode: "
+                 << tuple_get_item_node->tuple->GetTypeKey();
+    }
   } else {
     cur_frame->bindings.push_back(VarBinding(var, expr));
     binding_table_[var->vid] = expr;
