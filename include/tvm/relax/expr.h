@@ -27,6 +27,7 @@
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>
+#include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
@@ -35,8 +36,6 @@ using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
 using relay::Call;
 using relay::CallNode;
-using relay::Constant;
-using relay::ConstantNode;
 using relay::Id;
 using relay::If;
 using relay::IfNode;
@@ -82,6 +81,59 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
+
+
+/*!
+ * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
+ *
+ * \note Scalar constants are represented by rank-0 const tensor.
+ *  Constant folding are handled uniformly via Tensor types.
+ */
+class Constant;
+/*!
+ * \brief Constant tensor type.
+ */
+class ConstantNode : public ExprNode {
+ public:
+  /*! \brief The data of the tensor */
+  runtime::NDArray data;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("data", &data);
+    v->Visit("span", &span);
+    v->Visit("checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+  }
+
+  bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
+    return equal(data, other->data) && equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(checked_type_);
+    hash_reduce(data);
+    hash_reduce(shape_);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.Constant";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
+};
+
+class Constant : public Expr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param data The data of the constant tensor.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit Constant(const runtime::NDArray& data, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
+};
+
 
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {

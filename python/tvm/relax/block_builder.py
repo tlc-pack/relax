@@ -18,7 +18,9 @@
 """Developer API of constructing Relax AST."""
 import typing
 
+import tvm
 from typing import List, Optional, Union, Any, Callable
+from tvm.relay.expr import Tuple
 from tvm.runtime import Object
 from tvm import relax as rx, tir
 import tvm
@@ -199,7 +201,7 @@ class BlockBuilder(Object):
                         key, str
                     ), "emit_te only supports dict with string as the key currently"
                 return {k: _convert_te_arg_helper(arg[k]) for k in arg}
-            elif isinstance(arg, (int, float, str)):
+            elif isinstance(arg, (int, float, str, tir.IntImm)) or arg is None:
                 return arg
             raise TypeError("not supported type in emit_te: {}".format(type(arg)))
 
