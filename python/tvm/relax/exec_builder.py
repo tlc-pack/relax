@@ -112,6 +112,7 @@ class ExecBuilder(Object):
         _ffi_api.ExecBuilderEmitGoto(self, pc_offset)
 
     def emit_if(self, test, target, true_offset, false_offset):
+        """emit an if instruction"""
         self._check_scope()
         _ffi_api.ExecBuilderEmitIf(self, test, target, true_offset, false_offset)
 
