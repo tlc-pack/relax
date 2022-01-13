@@ -222,9 +222,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitConstant")
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderFunction")
-.set_body_typed([](ExecBuilder builder, String name, int64_t num_inputs) {
-  return builder->EmitFunction(name, num_inputs);
-});
+.set_body_method<ExecBuilder>(&ExecBuilderNode::EmitFunction);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
 .set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
@@ -238,20 +236,13 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
-.set_body_typed([](ExecBuilder builder, int64_t result) {
-  builder->EmitRet(result);
-});
+.set_body_method<ExecBuilder>(&ExecBuilderNode::EmitRet);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto")
-.set_body_typed([](ExecBuilder builder, int64_t pc_offset) {
-  builder->EmitGoto(pc_offset);
-});
+.set_body_method<ExecBuilder>(&ExecBuilderNode::EmitGoto);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
-.set_body_typed([](ExecBuilder builder, int64_t test, int64_t target, int64_t true_offset,
-                   int64_t false_offset) {
-  builder->EmitIf(test, target, true_offset, false_offset);
-});
+.set_body_method<ExecBuilder>(&ExecBuilderNode::EmitIf);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderR")
 .set_body_typed([](ExecBuilder builder, int64_t value) {
@@ -269,9 +260,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderC")
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderGet")
-.set_body_typed([](ExecBuilder builder) {
-  return builder->Get();
-});
+.set_body_method<ExecBuilder>(&ExecBuilderNode::Get);
 
 }  // namespace relax
 }  // namespace tvm
