@@ -157,6 +157,22 @@ void VirtualMachine::RunLoop() {
         WriteRegister(caller_return_register, return_value_);
         break;
       }
+      case Opcode::Goto: {
+        pc_ += instr.pc_offset;
+        break;
+      }
+      case Opcode::If: {
+        int64_t test_val = ReadRegister(instr.test);
+        int64_t target_val = ReadRegister(instr.target);
+        if (test_val == target_val) {
+          ICHECK_NE(instr.true_offset, 0);
+          pc_ += instr.true_offset;
+        } else {
+          ICHECK_NE(instr.false_offset, 0);
+          pc_ += instr.false_offset;
+        }
+        break;
+      }
     }
   }
 }
