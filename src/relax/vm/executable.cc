@@ -138,6 +138,17 @@ Instruction ExecutableNode::GetInstruction(Index i) const {
       RegName result = instr_data[offset + 1];
       return Instruction::Ret(result);
     }
+    case Opcode::Goto: {
+      Index pc_offset = instr_data[offset + 1];
+      return Instruction::Goto(pc_offset);
+    }
+    case Opcode::If: {
+      RegName test = instr_data[offset + 1];
+      RegName target = instr_data[offset + 2];
+      Index true_branch = instr_data[offset + 3];
+      Index false_branch = instr_data[offset + 4];
+      return Instruction::If(test, target, true_branch, false_branch);
+    }
     default:
       LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
       break;
@@ -448,6 +459,19 @@ String ExecutableNode::AsText() const {
              << "ret " << RegNameToStr(instr.result) << "\n";
           break;
         }
+        case Opcode::Goto: {
+          os << std::setw(6) << std::left << "goto"
+             << "goto " << instr.pc_offset << "\n";
+          break;
+        }
+        case Opcode::If: {
+          os << std::setw(6) << std::left << "If"
+             << RegNameToStr(instr.test) << ", "
+             << RegNameToStr(instr.target) << ", "
+             << instr.true_offset << ", "
+             << instr.false_offset << "\n";
+          break;
+        }
         default:
           LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
           break;
@@ -483,6 +507,17 @@ String ExecutableNode::AsPython() const {
         }
         case Opcode::Ret: {
           os << "    ib.emit_ret(ib.r(" << instr.result << "))\n";
+          break;
+        }
+        case Opcode::Goto: {
+          os << "    ib.emit_goto(" << instr.pc_offset << ")\n";
+          break;
+        }
+        case Opcode::If: {
+          os << "    ib.emit_if(ib.r(" << instr.test
+          << "), ib.r(" << instr.target
+          << "), " << instr.true_offset
+          << ", " << instr.false_offset << ")\n";
           break;
         }
         default:

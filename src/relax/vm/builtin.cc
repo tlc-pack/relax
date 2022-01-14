@@ -133,7 +133,7 @@ TVM_REGISTER_GLOBAL("vm.call_tir_dyn")
   }
 
   ShapeTuple to_unpack = args[args.size() - 1];
-  int num_tensor_args = args.size() - 3;
+  size_t num_tensor_args = args.size() - 3;
   std::vector<TVMValue> values(num_tensor_args + to_unpack.size());
   std::vector<int> tcodes(num_tensor_args + to_unpack.size());
   runtime::TVMArgsSetter setter(values.data(), tcodes.data());
