@@ -50,6 +50,22 @@ Instruction Instruction::Ret(RegName result) {
   return instr;
 }
 
+Instruction Instruction::Goto(Index pc_offset) {
+  Instruction instr;
+  instr.op = Opcode::Goto;
+  instr.pc_offset = pc_offset;
+  return instr;
+}
+
+Instruction Instruction::If(RegName test, RegName target, Index true_branch, Index false_branch) {
+  Instruction instr;
+  instr.op = Opcode::If;
+  instr.test = test;
+  instr.target = target;
+  instr.true_offset = true_branch;
+  instr.false_offset = false_branch;
+  return instr;
+}
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm
