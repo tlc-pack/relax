@@ -57,6 +57,8 @@ using Index = ExecWord;
 enum class Opcode {
   Call = 1U,
   Ret = 2U,
+  Goto = 3U,
+  If = 4U,
 };
 
 
@@ -135,6 +137,20 @@ struct Instruction {
       /*! \brief The return result. */
       RegName result;
     };
+    struct /* Goto */ {
+      /*! \brief The jump offset. */
+      Index pc_offset;
+    };
+    struct /* If */ {
+      /*! \brief The register containing the test value. */
+      RegName test;
+      /*! \brief The register containing the target value. */
+      RegName target;
+      /*! \brief The program counter offset for the true branch. */
+      Index true_offset;
+      /*! \brief The program counter offset for the false branch. */
+      Index false_offset;
+    };
   };
   /*!
    * \brief Construct a Call instruction.
@@ -153,6 +169,21 @@ struct Instruction {
    * \return The return instruction.
    */
   static Instruction Ret(RegName result);
+  /*!
+   * \brief Construct a goto instruction.
+   * \param pc_offset The register containing the jump offset.
+   * \return The goto instruction.
+   */
+  static Instruction Goto(RegName pc_offset);
+  /*!
+   * \brief Construct an If instruction.
+   * \param test The register containing the test value.
+   * \param target The register containing the target value.
+   * \param true_offset The program counter offset for the true branch.
+   * \param false_offset The program counter offset for the false branch.
+   * \return The If instruction.
+   */
+  static Instruction If(RegName test, RegName target, Index true_offset, Index false_offset);
 };
 
 }  // namespace relax_vm
