@@ -363,6 +363,45 @@ def test_unbound_var():
     func(tvm.nd.array(a_np), b, 9)
     tvm.testing.assert_allclose(a_np, b.numpy())
 
+def test_argmax():
+    # x and y are the operands of reduction, both of them is a tuple of index
+    # and value.
+    def fcombine(x, y):
+        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
+        return lhs, rhs
+
+    # our identity element also need to be a tuple, so `fidentity` accepts
+    # two types as inputs.
+    def fidentity(t0, t1):
+        return tvm.tir.const(-1, t0), tvm.te.min_value(t1)
+
+    argmax = te.comm_reducer(fcombine, fidentity, name="argmax")
+
+    # describe the reduction computation
+    m = te.var("m")
+    n = te.var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="int32")
+    k = te.reduce_axis((0, n), "k")
+    T0, T1 = te.compute((m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="T")
+    func = te.create_prim_func([idx, val, T0, T1])
+    assert(len(func.params) == 4)
+
+    func = tvm.build(func)
+
+    idx_np = np.arange(100, dtype=idx.dtype).reshape((10, 10))
+    val_np = np.random.permutation(100).reshape((10, 10)).astype(val.dtype)
+    c = tvm.nd.array(np.zeros(10, dtype=idx.dtype)) # argmax index
+    d = tvm.nd.array(np.zeros(10, dtype=val.dtype)) # max value
+    func(tvm.nd.array(idx_np), tvm.nd.array(val_np), c, d)
+
+    c_expected = idx_np[np.arange(10), np.argmax(val_np, axis=1)]
+    d_expected = np.amax(val_np, axis=1)
+
+    tvm.testing.assert_allclose(c_expected, c.numpy())
+    tvm.testing.assert_allclose(d_expected, d.numpy())
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -375,3 +414,4 @@ if __name__ == "__main__":
     test_constant()
     test_loop_var_datatype()
     test_unbound_var()
+    test_argmax()
