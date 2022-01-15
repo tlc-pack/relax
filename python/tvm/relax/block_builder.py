@@ -389,6 +389,8 @@ class BlockBuilder(Object):
         te_args = te_arg_list + te_kwarg_list
 
         te_out = func(*new_args, **new_kwargs)
+        assert (isinstance(te_out, tvm.te.tensor.Tensor) or \
+            (isinstance(te_out, (tuple, list) and all(isinstance(t, tvm.te.tensor.Tensor) for t in te_out)))), "only support te.tensor or tuple/list of te.tensor as function output"
         outs = [te_out] if isinstance(te_out, tvm.te.tensor.Tensor) else list(te_out)
         unbound_tir_vars = self._get_unbound_tir_vars(te_args + outs)
 

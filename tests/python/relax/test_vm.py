@@ -18,8 +18,7 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import os
 import numpy as np
 import tvm
-from tvm.relay import Call
-from tvm import relax, tir, te, relay
+from tvm import relax, tir, te
 from tvm.runtime import container
 import numpy as np
 
@@ -614,9 +613,9 @@ def test_vm_tuple():
     with bb.function("rx_func"):
         x = nn.Placeholder((n,), dtype="float32", name="x")
         y = nn.Placeholder((n,), dtype="float32", name="y")
-        tup = relay.Tuple([x, y])
-        getitem = relay.TupleGetItem(tup, 0)
-        bb.emit_func_output([tup, getitem], params=[x, y])
+        tup = relax.Tuple([x, y])
+        item = tup[0]
+        bb.emit_func_output([tup, item], params=[x, y])
 
     mod = bb.get()
     
