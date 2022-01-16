@@ -58,7 +58,7 @@ class EwiseFMARewriter : public ExprMutator {
       const CallNode* mul = value.as<CallNode>();
       if (mul && mul->op == multiply_op) {
         Call fma_call = Call(ewise_fma_op, {mul->args[0], mul->args[1], call->args[1]}, {}, {});
-        return fma_call;
+        return std::move(fma_call);
       }
     }
 
