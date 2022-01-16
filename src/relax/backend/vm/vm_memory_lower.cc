@@ -95,7 +95,7 @@ class VMMemLowerMutator : public ExprMutator {
       Expr shape = call->args[0];
       Var tensor =
           builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
-      return tensor;
+      return std::move(tensor);
     }
 
     return GetRef<Expr>(call);
