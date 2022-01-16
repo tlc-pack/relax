@@ -69,7 +69,7 @@ class CallTIRMutator : public ExprMutator {
       } else {
         builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
       }
-      return tensor;
+      return std::move(tensor);
     }
 
     return GetRef<Expr>(call);
