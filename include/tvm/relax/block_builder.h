@@ -25,8 +25,8 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/relax/utils.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>

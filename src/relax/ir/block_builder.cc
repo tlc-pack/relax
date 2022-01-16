@@ -530,32 +530,29 @@ BlockBuilder BlockBuilder::Create() { return BlockBuilder(make_object<BlockBuild
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilder::Create);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginDataflowBlock")
-    .set_body_typed([](BlockBuilder builder) { builder->BeginDataflowBlock(); });
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginDataflowBlock);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBindingBlock").set_body_typed([](BlockBuilder builder) {
-  builder->BeginBindingBlock();
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBindingBlock")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginBindingBlock);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::EndBlock);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::Normalize);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder builder, Call call) {
+  return builder->Emit(call);
 });
-
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock").set_body_typed([](BlockBuilder builder) {
-  return builder->EndBlock();
-});
-
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit")
-    .set_body_typed([](BlockBuilder builder, const Call& call) { return builder->Emit(call); });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
-    .set_body_typed([](BlockBuilder builder, const Expr& value, const Array<PrimExpr>& pattern) {
+    .set_body_typed([](BlockBuilder builder, Expr value, Array<PrimExpr> pattern) {
       return builder->EmitMatchShape(value, pattern);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
     .set_body_typed([](BlockBuilder builder, const Expr& output) {
       return builder->EmitOutput(output);
-    });
-
-TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
-    .set_body_typed([](BlockBuilder builder, const Expr& expr) {
-      return builder->Normalize(expr);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
