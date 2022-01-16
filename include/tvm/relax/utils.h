@@ -24,8 +24,8 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
-#include <string>
 #include <algorithm>
+#include <string>
 #include <unordered_map>
 
 namespace tvm {

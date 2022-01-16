@@ -214,7 +214,7 @@ TVM_REGISTER_GLOBAL("relax.VirtualMachine")
       return CreateVirtualMachine(exec, mod);
     });
 
-// initilize the VirtualMachine, takes variable-length arguments
+// initialize the VirtualMachine, takes variable-length arguments
 // first argument is a runtime::Module, followed by one or more device_type, device_id,
 // and the AllocatorType associated with the device.
 TVM_REGISTER_GLOBAL("relax.VirtualMachineInit").set_body([](TVMArgs args, TVMRetValue* rv) {

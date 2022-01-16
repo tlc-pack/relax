@@ -218,8 +218,7 @@ class MatchShapeNode : public BindingNode {
   }
 
   bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
-    return equal(value, other->value) && equal(pattern, other->pattern)
-      && equal(var, other->var);
+    return equal(value, other->value) && equal(pattern, other->pattern) && equal(var, other->var);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -236,8 +235,7 @@ class MatchShapeNode : public BindingNode {
 
 class MatchShape : public Binding {
  public:
-  TVM_DLL explicit MatchShape(Expr value, Array<PrimExpr> pattern,
-                              Var var, Span span = Span());
+  TVM_DLL explicit MatchShape(Expr value, Array<PrimExpr> pattern, Var var, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(MatchShape, Binding, MatchShapeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchShapeNode);
 };

@@ -237,7 +237,7 @@ class RelaxTransformer(Transformer):
 
         # annotation with type arguments/shape annotation
         if isinstance(ty, ast.TypeApply):
-            if ty.id.name == "Tensor":
+            if ty.func_name.id.name == "Tensor":
                 # TODO(@altanh): forgetting dtype like "Tensor[(n, m)]" ends up getting parsed as
                 #                Tensor[n, m] which makes correct errors difficult here...
                 if len(ty.params) != 2:
@@ -295,7 +295,7 @@ class RelaxTransformer(Transformer):
                     )
 
                 return (relax.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
-            elif ty.id.name == "Tuple":
+            elif ty.func_name.id.name == "Tuple":
                 field_types = []
                 field_shapes = []
                 for field in ty.params:
