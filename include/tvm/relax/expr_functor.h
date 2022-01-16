@@ -136,7 +136,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
 };
 
-
 /*!
  * \brief A simple visitor wrapper around ExprFunctor.
  *  Recursively visit the content.
@@ -192,7 +191,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitVarDef_(const DataflowVarNode* var);
 
   virtual void VisitType(const Type& t);
-  virtual void VisitSpan(const Span& span);  
+  virtual void VisitSpan(const Span& span);
 };
 
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
@@ -206,9 +205,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
  */
 class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
-  ExprMutator() {
-    builder_ = BlockBuilder::Create();
-  }
+  ExprMutator() { builder_ = BlockBuilder::Create(); }
 
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
@@ -293,12 +290,9 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   }
 
   /*!
-   * \brief Create a new var with specified shape and type if the original var's shape or type does not
-   * match with the specified ones.
-   * \param var The var to be updated.
-   * \param shape The specified shape.
-   * \param type The specified type.
-   * \return The var filled with \p shape and \p type.
+   * \brief Create a new var with specified shape and type if the original var's shape or type does
+   * not match with the specified ones. \param var The var to be updated. \param shape The specified
+   * shape. \param type The specified type. \return The var filled with \p shape and \p type.
    */
   Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
 

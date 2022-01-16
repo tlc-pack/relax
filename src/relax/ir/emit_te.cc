@@ -20,18 +20,19 @@
 /*!
  * \file relax/src/ir/emit_te.cc
  */
-#include <tvm/relax/type.h>
 #include "./emit_te.h"
+
+#include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
 
 // RXPlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<RXPlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-  auto* op = static_cast<const RXPlaceholderOpNode*>(node.get());
-  p->stream << "rxplaceholder(" << op->name << ", " << op << ")";
-});
+    .set_dispatch<RXPlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const RXPlaceholderOpNode*>(node.get());
+      p->stream << "rxplaceholder(" << op->name << ", " << op << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(RXPlaceholderOpNode);
 
@@ -42,23 +43,20 @@ te::Tensor TETensor(Expr value, std::string name) {
 
   Expr shape_expr = value->shape();
   CHECK(shape_expr->IsInstance<ShapeExprNode>())
-    << "ValueError: Expression does not have an known symbolic shape, please consider use match_shape "
-    << "to constrain the shape before passing into te_tensor";
+      << "ValueError: Expression does not have an known symbolic shape, please consider use "
+         "match_shape "
+      << "to constrain the shape before passing into te_tensor";
   Array<PrimExpr> shape = Downcast<ShapeExpr>(shape_expr)->values;
   n->shape = shape;
   Type type = value->checked_type();
   ICHECK(type->IsInstance<DynTensorTypeNode>())
-    << "ValueError: Expression should have a inferred DynTensorType: "
-    << type->GetTypeKey();
+      << "ValueError: Expression should have a inferred DynTensorType: " << type->GetTypeKey();
   DataType dtype = Downcast<DynTensorType>(type)->dtype;
   n->dtype = dtype;
   return te::PlaceholderOp(n).output(0);
 }
 
-TVM_REGISTER_GLOBAL("relax.TETensor")
-.set_body_typed([](Expr value, std::string name) {
-  return TETensor(value, name);
-});
+TVM_REGISTER_GLOBAL("relax.TETensor").set_body_typed(TETensor);
 
 }  // namespace relax
 }  // namespace tvm

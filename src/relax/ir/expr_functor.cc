@@ -55,14 +55,10 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
 }
 
 // Visit the use-site of a defined Var
-void ExprVisitor::VisitExpr_(const VarNode* op) {
-  this->VisitSpan(op->span);
-}
+void ExprVisitor::VisitExpr_(const VarNode* op) { this->VisitSpan(op->span); }
 
 // Visit the use-site of a defined DataflowVar
-void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
-  this->VisitSpan(op->span);
-}
+void ExprVisitor::VisitExpr_(const DataflowVarNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const FunctionNode* op) {
   this->VisitSpan(op->span);
@@ -502,7 +498,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
     } else {
       new_var->shape_ = new_shape;
     }
-    
+
     this->var_remap_[var->vid] = new_var;
     return new_var;
   }
@@ -538,7 +534,7 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
     } else {
       new_var->shape_ = new_shape;
     }
-    
+
     this->var_remap_[var->vid] = new_var;
     return new_var;
   }
