@@ -39,14 +39,9 @@ namespace relax {
 
 class ShapeTypeNode : public TypeNode {
  public:
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
-    return true;
-  }
+  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const { return true; }
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
 
@@ -111,13 +106,9 @@ class DynTensorType : public Type {
 
 class DimTypeNode : public TypeNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("span", &span);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
 
-  bool SEqualReduce(const DimTypeNode* other, SEqualReducer equal) const {
-    return true;
-  }
+  bool SEqualReduce(const DimTypeNode* other, SEqualReducer equal) const { return true; }
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
 
