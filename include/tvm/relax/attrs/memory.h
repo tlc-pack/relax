@@ -51,9 +51,7 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
   DataType dtype;
 
   TVM_DECLARE_ATTRS(AllocTensorAttrs, "relax.attrs.AllocTensorAttrs") {
-    TVM_ATTR_FIELD(offset)
-        .describe("Storage offset to allocate the tensor.")
-        .set_default(0);
+    TVM_ATTR_FIELD(offset).describe("Storage offset to allocate the tensor.").set_default(0);
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));

@@ -24,12 +24,12 @@
 
 #include "codegen_vm.h"
 
-#include <tvm/target/target.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/function.h>
-#include <tvm/driver/driver_api.h>
 
 #include <string>
 #include <unordered_map>
@@ -46,16 +46,15 @@ using namespace relax;
  */
 class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
  public:
-  explicit CodeGenVM(ExecBuilderNode* builder) {
-    builder_ = GetRef<ExecBuilder>(builder);
-  }
+  explicit CodeGenVM(ExecBuilderNode* builder) { builder_ = GetRef<ExecBuilder>(builder); }
 
  protected:
   size_t NewRegister() { return registers_num_++; }
 
-  // TODO(@yuchen): add visitors for IfNode when goto and if instructions are introduced to relax vm.
+  // TODO(@yuchen): add visitors for IfNode when goto and if instructions are introduced to relax
+  // vm.
 
-  // TODO(@yuchen): when we support closure, this visitor should return a register that 
+  // TODO(@yuchen): when we support closure, this visitor should return a register that
   // contains the closure object.
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     if (func_node->name.defined()) {
@@ -94,7 +93,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   Instruction::Arg VisitExpr_(const CallNode* op) {
     if (op->op.as<OpNode>()) {
-      // special case generate for the intrinsics whose attribute fields 
+      // special case generate for the intrinsics whose attribute fields
       // cannot be represented by args in the CallNode
       const Call& call = GetRef<Call>(op);
       if (op->op == alloc_storage_op_) {
@@ -106,8 +105,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       } else if (op->op == call_tir_dyn_op_) {
         return EmitTirDynOp(call);
       } else {
-        // every "normal" operator is lowered to a global var in the IR module. The Attrs for those ops 
-        // are handled in a pass when lowering them to TIR.
+        // every "normal" operator is lowered to a global var in the IR module. The Attrs for those
+        // ops are handled in a pass when lowering them to TIR.
         LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << op->op;
       }
     }
@@ -140,9 +139,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   Instruction::Arg VisitExpr_(const ShapeExprNode* op) {
     ShapeExpr sh = GetRef<ShapeExpr>(op);
-    ICHECK(IsConstantShape(sh))
-      << "should only use constant shape after shape lowering: "
-      << sh->values;
+    ICHECK(IsConstantShape(sh)) << "should only use constant shape after shape lowering: "
+                                << sh->values;
     std::vector<int64_t> shape;
     for (PrimExpr e : sh->values) {
       shape.push_back(Downcast<IntImm>(e)->value);
@@ -158,7 +156,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Handle args of the call
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
-    for (Expr arg: call_node->args) {
+    for (Expr arg : call_node->args) {
       args.push_back(ConvertArg(arg));
     }
 
@@ -179,23 +177,24 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg EmitAllocTensor(const Call& call_node) {
-    // Handle args of the call
+    ICHECK_EQ(call_node->args.size(), 2);
     std::vector<Instruction::Arg> args;
-    for (Expr arg: call_node->args) {
-      args.push_back(ConvertArg(arg));
-    }
-
-    // Handle attrs of the call
+    args.reserve(4);
+    // Handle `self`
+    args.push_back(ConvertArg(call_node->args[0]));
+    // Handle `offset`
     auto alloc_attrs = call_node->attrs.as<AllocTensorAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
     int offset = alloc_attrs->offset;
     args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
+    // Handle `shape`
+    args.push_back(ConvertArg(call_node->args[1]));
+    // Handle `dtype`
     DataType dtype = alloc_attrs->dtype;
     TVMRetValue data_type;
     data_type = dtype;
     Index index = this->builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-
     size_t arg_register = NewRegister();
     builder_->EmitCall("vm.builtin.alloc_tensor", args, arg_register);
     return Instruction::Arg(Instruction::kRegister, arg_register);
@@ -204,7 +203,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg EmitShape(const Call& call_node) {
     // Handle args of the call
     std::vector<Instruction::Arg> args;
-    for (Expr arg: call_node->args) {
+    for (Expr arg : call_node->args) {
       args.push_back(ConvertArg(arg));
     }
 
@@ -246,7 +245,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
     args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
-    for (Expr arg: tir_args->fields) {
+    for (Expr arg : tir_args->fields) {
       args.push_back(ConvertArg(arg));
     }
 
@@ -269,14 +268,13 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     if (arg->IsInstance<VarNode>()) {
       Var var = Downcast<Var>(arg);
       auto reg = this->var_register_map_.find(Downcast<Var>(arg));
-      ICHECK(reg != this->var_register_map_.end())
-        << var->name_hint() << "(" << var << ")" << " not in the register map.";
+      ICHECK(reg != this->var_register_map_.end()) << var->name_hint() << "(" << var << ")"
+                                                   << " not in the register map.";
       return Instruction::Arg(Instruction::kRegister, reg->second);
     } else if (arg->IsInstance<ShapeExprNode>()) {
       ShapeExpr sh = Downcast<ShapeExpr>(arg);
-      ICHECK(IsConstantShape(sh))
-        << "should only use constant shape after shape lowering: "
-        << sh->values;
+      ICHECK(IsConstantShape(sh)) << "should only use constant shape after shape lowering: "
+                                  << sh->values;
       std::vector<int64_t> shape;
       for (PrimExpr e : sh->values) {
         shape.push_back(Downcast<IntImm>(e)->value);
@@ -325,9 +323,7 @@ void VMCodeGen::CodeGen(IRModule rx_mod) {
   }
 }
 
-Executable VMCodeGen::GetExec() { 
-  return builder_->Get();
-}
+Executable VMCodeGen::GetExec() { return builder_->Get(); }
 
 Executable CodeGen(IRModule mod) {
   auto codegen = make_object<VMCodeGen>();
@@ -336,8 +332,7 @@ Executable CodeGen(IRModule mod) {
   return exec;
 }
 
-TVM_REGISTER_GLOBAL("relax.VMCodeGen")
-.set_body_typed(CodeGen);
+TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(CodeGen);
 
 }  // namespace relax_vm
 }  // namespace relax
