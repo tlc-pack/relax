@@ -177,23 +177,24 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg EmitAllocTensor(const Call& call_node) {
-    // Handle args of the call
+    ICHECK_EQ(call_node->args.size(), 2);
     std::vector<Instruction::Arg> args;
-    for (Expr arg : call_node->args) {
-      args.push_back(ConvertArg(arg));
-    }
-
-    // Handle attrs of the call
+    args.reserve(4);
+    // Handle `self`
+    args.push_back(ConvertArg(call_node->args[0]));
+    // Handle `offset`
     auto alloc_attrs = call_node->attrs.as<AllocTensorAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
     int offset = alloc_attrs->offset;
     args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
+    // Handle `shape`
+    args.push_back(ConvertArg(call_node->args[1]));
+    // Handle `dtype`
     DataType dtype = alloc_attrs->dtype;
     TVMRetValue data_type;
     data_type = dtype;
     Index index = this->builder_->EmitConstant(data_type);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-
     size_t arg_register = NewRegister();
     builder_->EmitCall("vm.builtin.alloc_tensor", args, arg_register);
     return Instruction::Arg(Instruction::kRegister, arg_register);
