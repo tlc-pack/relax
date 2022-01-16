@@ -269,7 +269,7 @@ void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
     if (it.IsObjectRef<runtime::NDArray>()) {
       strm->Write(ConstantType::kNDArray);
       runtime::SaveDLTensor(strm, it.operator DLTensor*());
-    } else if (it.IsObjectRef<ShapeTuple>()){
+    } else if (it.IsObjectRef<ShapeTuple>()) {
       ShapeTuple shape = it.operator ShapeTuple();
       strm->Write(ConstantType::kShapeTuple);
       strm->Write(shape.size());
@@ -465,10 +465,8 @@ String ExecutableNode::AsText() const {
           break;
         }
         case Opcode::If: {
-          os << std::setw(6) << std::left << "If"
-             << RegNameToStr(instr.test) << ", "
-             << RegNameToStr(instr.target) << ", "
-             << instr.true_offset << ", "
+          os << std::setw(6) << std::left << "If" << RegNameToStr(instr.test) << ", "
+             << RegNameToStr(instr.target) << ", " << instr.true_offset << ", "
              << instr.false_offset << "\n";
           break;
         }
@@ -514,10 +512,8 @@ String ExecutableNode::AsPython() const {
           break;
         }
         case Opcode::If: {
-          os << "    ib.emit_if(ib.r(" << instr.test
-          << "), ib.r(" << instr.target
-          << "), " << instr.true_offset
-          << ", " << instr.false_offset << ")\n";
+          os << "    ib.emit_if(ib.r(" << instr.test << "), ib.r(" << instr.target << "), "
+             << instr.true_offset << ", " << instr.false_offset << ")\n";
           break;
         }
         default:
@@ -531,26 +527,17 @@ String ExecutableNode::AsPython() const {
 
 TVM_REGISTER_GLOBAL("relax.Executable").set_body_typed([]() { return Executable(); });
 
-TVM_REGISTER_GLOBAL("relax.ExecutableStats").set_body_typed([](Executable exec) {
-  return exec->Stats();
-});
+TVM_REGISTER_GLOBAL("relax.ExecutableStats").set_body_method<Executable>(&ExecutableNode::Stats);
 
-TVM_REGISTER_GLOBAL("relax.ExecutableAsText").set_body_typed([](Executable exec) {
-  return exec->AsText();
-});
+TVM_REGISTER_GLOBAL("relax.ExecutableAsText").set_body_method<Executable>(&ExecutableNode::AsText);
 
-TVM_REGISTER_GLOBAL("relax.ExecutableAsPython").set_body_typed([](Executable exec) {
-  return exec->AsPython();
-});
+TVM_REGISTER_GLOBAL("relax.ExecutableAsPython")
+    .set_body_method<Executable>(&ExecutableNode::AsPython);
 
 TVM_REGISTER_GLOBAL("relax.ExecutableSaveToFile")
-    .set_body_typed([](Executable exec, std::string file_name) {
-      exec->SaveToFile(file_name);
-    });
+    .set_body_method<Executable>(&ExecutableNode::SaveToFile);
 
-TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed([](std::string file_name) {
-  return ExecutableNode::LoadFromFile(file_name);
-});
+TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(ExecutableNode::LoadFromFile);
 
 }  // namespace relax_vm
 }  // namespace runtime
