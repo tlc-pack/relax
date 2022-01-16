@@ -34,11 +34,10 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-
 /*!
  * \brief The storage type for the bytecode in the VM.
  */
-using ExecWord = int64_t; 
+using ExecWord = int64_t;
 
 /*! \brief A register name. */
 using RegName = ExecWord;
@@ -60,7 +59,6 @@ enum class Opcode {
   Goto = 3U,
   If = 4U,
 };
-
 
 /*! \brief A single virtual machine instruction.
  *
@@ -99,8 +97,7 @@ struct Instruction {
     /*! \brief Construct from the kind and value. */
     Arg(ArgKind kind, Index value) {
       // TODO(ziheng): check value?
-      this->data = (static_cast<ExecWord>(kind) << kValueBit) |
-                   (value & kValueMask);
+      this->data = (static_cast<ExecWord>(kind) << kValueBit) | (value & kValueMask);
     }
     /*!
      * \brief Get the kind of argument..
@@ -114,16 +111,14 @@ struct Instruction {
      * \brief Get the value of argument..
      * \return The value of argument.
      */
-    ExecWord value() const {
-      return data & ((static_cast<ExecWord>(1) << kValueBit) - 1);
-    }
+    ExecWord value() const { return data & ((static_cast<ExecWord>(1) << kValueBit) - 1); }
     /*! \brief The underlying stored data. */
     ExecWord data;
   };
   /*! \brief The instruction opcode. */
   Opcode op;
   /*! \brief The destination register. */
-  RegName dst; 
+  RegName dst;
   union {
     struct /* Call */ {
       /*! \brief The index into the packed function table. */
@@ -160,9 +155,7 @@ struct Instruction {
    * \param dst The destination register.
    * \return The call instruction.
    */
-  static Instruction Call(Index func_idx, Index num_args,
-                          Arg* args,
-                          RegName dst);
+  static Instruction Call(Index func_idx, Index num_args, Arg* args, RegName dst);
   /*!
    * \brief Construct a return instruction.
    * \param result The register containing the return value.

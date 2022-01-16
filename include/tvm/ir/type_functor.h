@@ -25,9 +25,9 @@
 #define TVM_IR_TYPE_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/relax/type.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relax/type.h>
 
 #include <string>
 #include <utility>

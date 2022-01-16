@@ -22,18 +22,17 @@
  * \brief The bytecode for Relax virtual machine.
  */
 
-#include <tvm/runtime/logging.h>
 #include <tvm/relax/vm/bytecode.h>
-#include <functional>
+#include <tvm/runtime/logging.h>
 
+#include <functional>
 #include <sstream>
 
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-Instruction Instruction::Call(Index func_idx, Index num_args, 
-                              Instruction::Arg* args, RegName dst) {
+Instruction Instruction::Call(Index func_idx, Index num_args, Instruction::Arg* args, RegName dst) {
   Instruction instr;
   instr.op = Opcode::Call;
   instr.dst = dst;

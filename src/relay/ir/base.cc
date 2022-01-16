@@ -39,9 +39,7 @@ Id::Id(String name_hint) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relay.ir.Id").set_body_typed([](String name_hint) {
-  return Id(name_hint);
-});
+TVM_REGISTER_GLOBAL("relay.ir.Id").set_body_typed([](String name_hint) { return Id(name_hint); });
 
 TVM_REGISTER_GLOBAL("ir.NodeSetSpan").set_body_typed([](ObjectRef node_ref, Span sp) {
   if (auto* rn = node_ref.as<RelayNode>()) {
