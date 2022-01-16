@@ -52,12 +52,13 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 // call_tir
 
 RELAY_REGISTER_OP("relax.call_tir")
-.set_num_inputs(4)
-.add_argument("shape", "Expr", "The output shape.")
-.add_argument("func", "Expr", "The destination-passing-style function.")
-.add_argument("args", "Tuple", "The input arguments.")
-.add_argument("packed_ints", "Expr", 
-  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from args if unused");
+    .set_num_inputs(4)
+    .add_argument("shape", "Expr", "The output shape.")
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("packed_ints", "Expr",
+                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
+                  "args if unused");
 
 Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
   static const Op& op = Op::Get("relax.call_tir");
@@ -73,104 +74,97 @@ Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_tir")
-.set_body_typed(MakeCallTIR);
+TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 // shape_of
 
 RELAY_REGISTER_OP("relax.shape_of")
-.set_num_inputs(1)
-.add_argument("input", "Expr", "The input expression");
+    .set_num_inputs(1)
+    .add_argument("input", "Expr", "The input expression");
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");
   return Call(op, {expr}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.shape_of")
-.set_body_typed(MakeShapeOf);
+TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 
 // alloc_tensor
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
-.set_num_inputs(1)
-.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+    .set_num_inputs(1)
+    .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
 Expr MakeAllocTensor(Expr shape) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
   return Call(op, {shape}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor")
-.set_body_typed(MakeAllocTensor);
+TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
 
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
-.set_attrs_type<AllocStorageAttrs>()
-.set_num_inputs(1)
-.add_argument("size", "Expr", "The size of the storage to allocate.");
+    .set_attrs_type<AllocStorageAttrs>()
+    .set_num_inputs(1)
+    .add_argument("size", "Expr", "The size of the storage to allocate.");
 
 Expr MakeVMAllocStorage(Expr size) {
   static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
   return Call(op, {size}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage")
-.set_body_typed(MakeVMAllocStorage);
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAllocStorage);
 
 // vm alloc_tensor
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
-.set_attrs_type<AllocTensorAttrs>()
-.set_num_inputs(1)
-.add_argument("shape", "Expr", "The shape of the tensor to allocate.");
+    .set_attrs_type<AllocTensorAttrs>()
+    .set_num_inputs(1)
+    .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
 Expr MakeVMAllocTensor(Expr shape) {
   static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
   return Call(op, {shape}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor")
-.set_body_typed(MakeVMAllocTensor);
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
 // vm store_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
-.set_attrs_type<ShapeHeapAttrs>()
-.set_num_inputs(2)
-.add_argument("shape", "Expr", "The shape to be stored.")
-.add_argument("heap", "Expr", "The heap to store the shape.");
+    .set_attrs_type<ShapeHeapAttrs>()
+    .set_num_inputs(2)
+    .add_argument("shape", "Expr", "The shape to be stored.")
+    .add_argument("heap", "Expr", "The heap to store the shape.");
 
 Expr MakeStoreShape(Expr shape, Expr heap) {
   static const Op& op = Op::Get("relax.vm.builtin.store_shape");
   return Call(op, {shape, heap}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.store_shape")
-.set_body_typed(MakeStoreShape);
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.store_shape").set_body_typed(MakeStoreShape);
 
 // vm load_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
-.set_attrs_type<ShapeHeapAttrs>()
-.set_num_inputs(1)
-.add_argument("heap", "Expr", "The heap to load the shape from.");
+    .set_attrs_type<ShapeHeapAttrs>()
+    .set_num_inputs(1)
+    .add_argument("heap", "Expr", "The heap to load the shape from.");
 
 Expr MakeLoadShape(Expr heap) {
   static const Op& op = Op::Get("relax.vm.builtin.load_shape");
   return Call(op, {heap}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape")
-.set_body_typed(MakeLoadShape);
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape").set_body_typed(MakeLoadShape);
 
 // vm call_tir_dyn
 RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
-.set_num_inputs(2)
-.add_argument("func", "Expr", "The destination-passing-style function.")
-.add_argument("args", "Tuple", "The input arguments (list of tensors and last argument is ShapeExpr)");
+    .set_num_inputs(2)
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple",
+                  "The input arguments (list of tensors and last argument is ShapeExpr)");
 
-
-} // namespace relax
-} // namespace tvm
+}  // namespace relax
+}  // namespace tvm
