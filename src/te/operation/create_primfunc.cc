@@ -235,7 +235,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
 }
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list, const Optional<Array<tir::Var>> tir_var_list) {
+PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
+                        const Optional<Array<tir::Var>> tir_var_list) {
   // Step 1. Create tensor read graph.
   Array<te::Operation> arg_ops;
   for (const te::Tensor& arg : arg_list) {
@@ -293,7 +294,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list, const Optional<Array<
 
   // add additional arguments for tir vars that are left unbound by match buffer
   if (tir_var_list) {
-    for (const Var& v: tir_var_list.value()) {
+    for (const Var& v : tir_var_list.value()) {
       parameters.push_back(v);
     }
   }

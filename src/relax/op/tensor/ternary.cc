@@ -28,20 +28,19 @@ namespace tvm {
 namespace relax {
 
 RELAY_REGISTER_OP("relax.ewise_fma")
-.set_num_inputs(3)
-.add_argument("e1", "Expr", "The input expression")
-.add_argument("e2", "Expr", "The input expression")
-.add_argument("e3", "Expr", "The input expression")
-.set_attr<FInferShape>("FInferShape", InferShapeEwiseFMA)
-.set_attr<FInferType>("FInferType", InferTypeEwiseFMA);
+    .set_num_inputs(3)
+    .add_argument("e1", "Expr", "The input expression")
+    .add_argument("e2", "Expr", "The input expression")
+    .add_argument("e3", "Expr", "The input expression")
+    .set_attr<FInferShape>("FInferShape", InferShapeEwiseFMA)
+    .set_attr<FInferType>("FInferType", InferTypeEwiseFMA);
 
 Expr MakeEwiseFma(Expr expr1, Expr expr2, Expr expr3) {
   static const Op& op = Op::Get("relax.ewise_fma");
   return Call(op, {expr1, expr2, expr3}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ewise_fma")
-.set_body_typed(MakeEwiseFma);
+TVM_REGISTER_GLOBAL("relax.op.ewise_fma").set_body_typed(MakeEwiseFma);
 
 }  // namespace relax
 }  // namespace tvm
