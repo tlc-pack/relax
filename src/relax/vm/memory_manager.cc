@@ -79,7 +79,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 runtime::NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
-  // crtical zone: allocate header, cannot throw
+  // critical zone: allocate header, cannot throw
   runtime::NDArray::Container* container =
       new runtime::NDArray::Container(nullptr, shape, dtype, this->buffer.device);
 
