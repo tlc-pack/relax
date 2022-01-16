@@ -19,14 +19,15 @@
 
 /*!
  * \file tvm/relax/vm/executable.h
- * \brief 
+ * \brief
  */
 #ifndef TVM_RELAX_VM_EXECUTABLE_H_
 #define TVM_RELAX_VM_EXECUTABLE_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/ir/expr.h>
+
 #include "./bytecode.h"
 
 namespace tvm {
@@ -43,7 +44,7 @@ class Executable;
  */
 struct VMFunction {
   /*! \brief The function's name. */
-  std::string name; 
+  std::string name;
   /*! \brief The start instruction index of the function. */
   Index start_instr;
   /*! \brief The number of arguments of the function. */
@@ -116,7 +117,7 @@ class ExecutableNode : public Object {
   std::vector<ExecWord> instr_data;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.Executable"; 
+  static constexpr const char* _type_key = "relax.Executable";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
 
  private:
@@ -167,7 +168,6 @@ class Executable : public ObjectRef {
  public:
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Executable, ObjectRef, ExecutableNode);
 };
-
 
 }  // namespace relax_vm
 }  // namespace runtime

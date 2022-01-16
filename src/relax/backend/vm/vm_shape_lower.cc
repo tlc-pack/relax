@@ -59,7 +59,7 @@ class VMShapeLowerMutator : public ExprMutator {
 
   void VisitBinding_(const MatchShapeNode* binding) override {
     Expr value = ExprMutator::VisitExpr(binding->value);
-    
+
     // TODO(@yuchen): match_shape overloaded semantic: value is ShapeType
     Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {value}), "sh");
     StoreShape(shape, binding->pattern);
@@ -171,7 +171,7 @@ class VMShapeLowerMutator : public ExprMutator {
     return ret;
   }
 
-  /*! \brief Store symbolic shape into indices of the VM shape heap. */  
+  /*! \brief Store symbolic shape into indices of the VM shape heap. */
   void StoreShape(Expr shape, Array<PrimExpr> pattern) {
     static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
     auto store_shape_attr = make_object<ShapeHeapAttrs>();
