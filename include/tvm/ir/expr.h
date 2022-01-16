@@ -370,12 +370,12 @@ class RelayExprNode : public BaseExprNode {
   mutable Type checked_type_ = Type(nullptr);
 
   /*!
-  * \brief Stores the result of static shape analysis. It must be a RelayExpr
-  * and ObjectRef is used here to avoid cyclic typing.
-  *
-  * \note The value will be optional if a static shape can not be inferred.
-  * use .shape() instead to acesss an always defined shape expression.
-  */
+   * \brief Stores the result of static shape analysis. It must be a RelayExpr
+   * and ObjectRef is used here to avoid cyclic typing.
+   *
+   * \note The value will be optional if a static shape can not be inferred.
+   * use .shape() instead to acesss an always defined shape expression.
+   */
   mutable Optional<ObjectRef> shape_ = Optional<ObjectRef>();
 
   /*!

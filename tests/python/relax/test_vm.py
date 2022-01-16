@@ -133,7 +133,7 @@ def test_vm_constant_serialize():
             "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(1), dtype], dst=ib.r(1)
         )
         ib.emit_call(
-            "vm.builtin.alloc_tensor", args=[ib.r(1), shape, ib.imm(0), dtype], dst=ib.r(2)
+            "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)
         )
         ib.emit_call("test.vm.identity", args=[ib.r(0), ib.r(2)])
         ib.emit_ret(ib.r(2))
@@ -227,7 +227,7 @@ def test_vm_storage():
             "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(1), dtype], dst=ib.r(1)
         )
         ib.emit_call(
-            "vm.builtin.alloc_tensor", args=[ib.r(1), shape, ib.imm(0), dtype], dst=ib.r(2)
+            "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)
         )
         ib.emit_ret(ib.r(2))
     ex = ib.get()
@@ -257,7 +257,7 @@ def test_vm_goto():
         )
     )
     res = vm["main"](a, b)
-    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy())
+    np.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy())
 
 
 def test_vm_if():
@@ -281,9 +281,9 @@ def test_vm_if():
         )
     )
     res = vm["main"](True, False, a, b)
-    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() * b.asnumpy())
+    np.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy())
     res = vm["main"](1, 1, a, b)
-    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy())
+    np.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy())
 
 
 def test_vm_compile_stage0():
@@ -604,7 +604,7 @@ def test_vm_relax_dyn_tir_shape():
 
     res = vm["rx_func"](inp, inp2)
 
-    np.testing.assert_allclose(res.asnumpy(), inp2.asnumpy())
+    np.testing.assert_allclose(res.numpy(), inp2.numpy())
     os.remove("exec.tmp")
 
 
