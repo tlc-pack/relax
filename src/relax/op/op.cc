@@ -70,7 +70,18 @@ Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
     call = Call(op, {shape, func, args, packed_ints.value()}, {}, {});
   }
   call->shape_ = shape;
-  call->checked_type_ = args->fields[0]->checked_type_;
+  if (shape->IsInstance<TupleNode>()) {
+    // multiple output tensors
+    Array<Type> types;
+    for (size_t i = 0; i < Downcast<Tuple>(shape)->fields.size(); i++) {
+      // TODO: fix checked_type_ inference
+      types.push_back(args->fields[0]->checked_type_);
+    }
+    call->checked_type_ = TupleType(types);
+  } else {
+    // TODO: fix checked_type_ inference
+    call->checked_type_ = args->fields[0]->checked_type_;
+  }
   return call;
 }
 
