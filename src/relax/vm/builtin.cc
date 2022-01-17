@@ -23,6 +23,7 @@
 #include <tvm/relax/vm/bytecode.h>
 #include <tvm/relax/vm/memory_manager.h>
 #include <tvm/relax/vm/vm.h>
+#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
@@ -138,6 +139,14 @@ TVM_REGISTER_GLOBAL("vm.call_tir_dyn").set_body([](TVMArgs args, TVMRetValue* rv
 
   TVMArgs func_args(values.data(), tcodes.data(), values.size());
   func.CallPacked(func_args, rv);
+});
+
+TVM_REGISTER_GLOBAL("vm.runtime.TupleGetItem")
+.set_body_typed([](runtime::ADT adt, ShapeTuple index) {
+  ICHECK_EQ(index.size(), 1);
+  int idx = index[0];
+  ICHECK_LT(idx, adt.size());
+  return adt[idx];
 });
 
 }  // namespace relax_vm
