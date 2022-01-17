@@ -152,6 +152,35 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return Instruction::Arg(Instruction::kConstIdx, index);
   }
 
+  Instruction::Arg VisitExpr_(const TupleNode* op) {
+    Tuple tuple = GetRef<Tuple>(op);
+    std::vector<Instruction::Arg> args;
+    for (auto arg : tuple->fields) {
+      args.push_back(this->VisitExpr(arg));
+    }
+    size_t arg_register = NewRegister();
+    builder_->EmitCall("runtime.Tuple", args, arg_register);
+
+    return Instruction::Arg(Instruction::kRegister, arg_register);
+  }
+
+  Instruction::Arg VisitExpr_(const TupleGetItemNode* op) {
+    TupleGetItem expr = GetRef<TupleGetItem>(op);
+    std::vector<Instruction::Arg> args = {this->VisitExpr(expr->tuple)};
+
+    std::vector<int64_t> tuple_index = {expr->index};
+    auto shape_tuple = ShapeTuple(tuple_index);
+    TVMRetValue shape_tuple_value;
+    shape_tuple_value = shape_tuple;
+    Index index = builder_->EmitConstant(shape_tuple_value);
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    
+    size_t arg_register = NewRegister();
+    builder_->EmitCall("vm.runtime.TupleGetItem", args, arg_register);
+
+    return Instruction::Arg(Instruction::kRegister, arg_register);
+  }
+
   Instruction::Arg EmitAllocStorage(const Call& call_node) {
     // Handle args of the call
     std::vector<Instruction::Arg> args;

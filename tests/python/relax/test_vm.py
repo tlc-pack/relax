@@ -18,7 +18,6 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import os
 import numpy as np
 import tvm
-from tvm.relay import Call
 from tvm import relax, tir, te
 from tvm.runtime import container
 import numpy as np
@@ -607,6 +606,31 @@ def test_vm_relax_dyn_tir_shape():
     np.testing.assert_allclose(res.numpy(), inp2.numpy())
     os.remove("exec.tmp")
 
+def test_vm_tuple():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+
+    with bb.function("rx_func"):
+        x = nn.Placeholder((n,), dtype="float32", name="x")
+        y = nn.Placeholder((n,), dtype="float32", name="y")
+        tup = relax.Tuple([x, y])
+        item = tup[0]
+        bb.emit_func_output([tup, item], params=[x, y])
+
+    mod = bb.get()
+    
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    shape = (5, 5)
+    inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    inp2 = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
+    (res1, res2), res3 = vm["rx_func"](inp, inp2)
+
+    np.testing.assert_allclose(res1.numpy(), inp.numpy())
+    np.testing.assert_allclose(res2.numpy(), inp2.numpy())
+    np.testing.assert_allclose(res3.numpy(), inp.numpy())
 
 if __name__ == "__main__":
     test_vm_execute()
@@ -631,3 +655,4 @@ if __name__ == "__main__":
     test_vm_emit_te_floor_symbolic_shape()
     test_vm_relax_symbolic_shape()
     test_vm_relax_dyn_tir_shape()
+    test_vm_tuple()

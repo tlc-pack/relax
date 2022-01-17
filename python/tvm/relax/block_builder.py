@@ -388,25 +388,26 @@ class BlockBuilder(Object):
 
         te_args = te_arg_list + te_kwarg_list
 
-        # TODO(hypercubestart, ziheng) handle multiple output case
         te_out = func(*new_args, **new_kwargs)
-        assert isinstance(te_out, tvm.te.tensor.Tensor), "only support te tensor as function output"
+        assert (isinstance(te_out, tvm.te.tensor.Tensor) or \
+            (isinstance(te_out, (tuple, list) and all(isinstance(t, tvm.te.tensor.Tensor) for t in te_out)))), "only support te.tensor or tuple/list of te.tensor as function output"
+        outs = [te_out] if isinstance(te_out, tvm.te.tensor.Tensor) else list(te_out)
+        unbound_tir_vars = self._get_unbound_tir_vars(te_args + outs)
 
-        unbound_tir_vars = self._get_unbound_tir_vars(te_args + [te_out])
-
-        inputs = [*te_args, te_out]
+        inputs = [*te_args] + outs
         tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
         func_name = self.get_unique_name(func.__name__)
         tir_func = tir_func.with_attr("global_symbol", func_name)
         gvar = GlobalVar(func_name)
         self._context_mod[gvar] = tir_func
 
-        call_args = [x.op.value for x in inputs[:-1]]
+        call_args = [x.op.value for x in te_args]
+        output_shape = outs[0].shape if isinstance(te_out, tvm.te.tensor.Tensor) else Tuple([ShapeExpr(x.shape) for x in outs])
         # add arguments for extra parameters from unbound var
         if (len(unbound_tir_vars) > 0):
-            call = call_tir(inputs[-1].shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
+            call = call_tir(output_shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
         else:
-            call = call_tir(inputs[-1].shape, gvar, call_args)
+            call = call_tir(output_shape, gvar, call_args)
         return _ffi_api.BlockBuilderEmit(self, call)
 
 
@@ -488,6 +489,7 @@ class BlockBuilder(Object):
         if len(block.bindings) > 0:
             self._blocks.append(block)
         seqe = rx.SeqExpr(self._blocks, self._func_ret)
+        # TODO: rx function can return Tuple as well, need to infer ret type
         func = rx.Function(
             self._func_params, seqe, rx.DynTensorType(-1), rx.GlobalVar(self._func_name)
         )
