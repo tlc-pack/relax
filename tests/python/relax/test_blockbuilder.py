@@ -23,7 +23,7 @@ from tvm import relay
 from tvm import relax as rx
 
 from tvm.ir.base import assert_structural_equal
-from tvm.relax import ExternFunc, op
+from tvm.relax import ExternFunc, ShapeExpr, op
 
 
 @tvm.register_func("test.blockbuilder.nop")
@@ -339,6 +339,32 @@ def test_emit_te_multiple():
     assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
     assert func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func1"
 
+def test_emit_te_multiple_output():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+
+    def te_func(A):
+        B0, B1 = te.compute((n, m), lambda i, j: (A[i, j] + 1, A[i, j] * 2), name="B")
+        return (B0, B1)
+
+    with bb.function("rx_func", [x]):
+        y = bb.emit_te(te_func, x)
+        z = relay.TupleGetItem(y, 0)
+        bb.emit_func_output([y, z])
+
+    rx_func = bb.get()["rx_func"]
+
+    # check call tir output shape is a Tuple of ShapeExpr
+    assert rx_func.params[0] == x
+    assert rx_func.name.name_hint == "rx_func"
+    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
+    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], relay.Tuple)
+    assert len(rx_func.body.blocks[0].bindings[0].value.args[0]) == 2
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][0], rx.ShapeExpr)
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][1], rx.ShapeExpr)
 
 def test_emit_te_extern():
     bb = rx.BlockBuilder()
@@ -439,8 +465,10 @@ if __name__ == "__main__":
     test_normalize()
     test_emit_te()
     test_emit_te_multiple()
+    test_emit_te_multiple_output()
     test_emit_te_extern()
     test_nested_function_fail()
     test_emit_func_output_twice_fail()
     test_func_params_twice_fail()
     test_no_func_params_fail()
+
