@@ -20,7 +20,7 @@ from typing import Union, List
 
 
 def call_tir(
-    shape: Union[ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]],
+    shape: Union[Tuple, ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]],
     tir_vars: ShapeExpr = None
 ) -> Call:
     """
@@ -28,8 +28,8 @@ def call_tir(
 
     Parameters
     ----------
-    shape: ShapeExpr
-        The output shape.
+    shape: Tuple[ShapeExpr] or ShapeExpr
+        The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr is single output.
 
     func : ExternFunc or PrimFunc
         The destination-passing-style function.
