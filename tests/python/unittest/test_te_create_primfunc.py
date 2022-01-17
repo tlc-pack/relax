@@ -363,7 +363,7 @@ def test_unbound_var():
     func(tvm.nd.array(a_np), b, 9)
     tvm.testing.assert_allclose(a_np, b.numpy())
 
-def test_argmax():
+def te_argmax():
     # x and y are the operands of reduction, both of them is a tuple of index
     # and value.
     def fcombine(x, y):
@@ -385,15 +385,40 @@ def test_argmax():
     val = te.placeholder((m, n), name="val", dtype="int32")
     k = te.reduce_axis((0, n), "k")
     T0, T1 = te.compute((m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="T")
-    func = te.create_prim_func([idx, val, T0, T1])
+    return [idx, val, T0, T1]
+
+@T.prim_func
+def tir_argmax(var_idx: T.handle, var_val: T.handle, var_T_v0: T.handle, var_T_v1: T.handle) -> None:
+    m = T.var("int32")
+    n = T.var("int32")
+    idx = T.match_buffer(var_idx, [m, n], dtype="int32")
+    val = T.match_buffer(var_val, [m, n], dtype="int32")
+    T_v0 = T.match_buffer(var_T_v0, [m], dtype="int32")
+    T_v1 = T.match_buffer(var_T_v1, [m], dtype="int32")
+    # body
+    # with T.block("root")
+    for i0, i1 in T.grid(m, n):
+        with T.block("T.v0"):
+            i, k = T.axis.remap("SR", [i0, i1])
+            with T.init():
+                T_v0[i] = -1
+                T_v1[i] = -2147483648
+            T_v0[i] = T.Select(T_v1[i] >= val[i, k], T_v0[i], idx[i, k])
+            T_v1[i] = T.Select(T_v1[i] >= val[i, k], T_v1[i], val[i, k])
+
+def test_argmax():
+    _check_workload(te_argmax, tir_argmax)
+
+    dtype = "int32"
+    func = te.create_prim_func(te_argmax())
     assert(len(func.params) == 4)
 
     func = tvm.build(func)
 
-    idx_np = np.arange(100, dtype=idx.dtype).reshape((10, 10))
-    val_np = np.random.permutation(100).reshape((10, 10)).astype(val.dtype)
-    c = tvm.nd.array(np.zeros(10, dtype=idx.dtype)) # argmax index
-    d = tvm.nd.array(np.zeros(10, dtype=val.dtype)) # max value
+    idx_np = np.arange(100, dtype=dtype).reshape((10, 10))
+    val_np = np.random.permutation(100).reshape((10, 10)).astype(dtype)
+    c = tvm.nd.array(np.zeros(10, dtype=dtype)) # argmax index
+    d = tvm.nd.array(np.zeros(10, dtype=dtype)) # max value
     func(tvm.nd.array(idx_np), tvm.nd.array(val_np), c, d)
 
     c_expected = idx_np[np.arange(10), np.argmax(val_np, axis=1)]
