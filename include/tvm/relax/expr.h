@@ -197,9 +197,15 @@ class BindingNode : public Object {
 };
 
 class Binding : public ObjectRef {
+ protected:
+  Binding() = default;
+
  public:
-  TVM_DLL explicit Binding(Span span);
-  TVM_DEFINE_OBJECT_REF_METHODS(Binding, ObjectRef, BindingNode);
+  explicit Binding(ObjectPtr<Object> n) : ObjectRef(n) {}
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(Binding);
+  const BindingNode* operator->() const { return static_cast<const BindingNode*>(data_.get()); }
+  const BindingNode* get() const { return operator->(); }
+  using ContainerType = BindingNode;
 };
 
 /*! \brief Symbolic shape match, binds the variables of the LHS with the rhs. */

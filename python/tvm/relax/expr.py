@@ -97,8 +97,7 @@ class DataflowVar(Var):
 
 @tvm._ffi.register_object("relax.expr.Binding")
 class Binding(Node):
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Binding, span)
+    ...
 
 
 @tvm._ffi.register_object("relax.expr.MatchShape")
