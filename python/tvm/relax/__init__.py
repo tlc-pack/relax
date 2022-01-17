@@ -41,6 +41,7 @@ DataflowBlock = expr.DataflowBlock
 SeqExpr = expr.SeqExpr
 ShapeExpr = expr.ShapeExpr
 Tuple = expr.Tuple
+TupleGetItem = expr.TupleGetItem
 Function = expr.Function
 ExternFunc = expr.ExternFunc
 Call = expr.Call

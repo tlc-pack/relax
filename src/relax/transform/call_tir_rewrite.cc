@@ -52,12 +52,25 @@ class CallTIRMutator : public ExprMutator {
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
     if (call->op == call_tir_op) {
-      ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-      Var tensor = builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc");
+      Array<Expr> outs;
+      if (call->args[0]->IsInstance<ShapeExprNode>()) {
+        // single output case
+        ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
+        outs.push_back(builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc"));
+      } else {
+        // multiple output case
+        CHECK(call->args[0]->IsInstance<TupleNode>()) << "call_dps expects ShapeExpr or Tuple as first argument, got " << call->args[0];
+        Tuple output_shapes = Downcast<Tuple>(call->args[0]);
+        for (const auto& shape: output_shapes->fields) {
+          CHECK(shape->IsInstance<ShapeExprNode>()) << "call_dps exoects Tuple of ShapeExprs, got " << shape << " as an element of tuple";
+          outs.push_back(builder_->Emit(Call(alloc_tensor_op, {Downcast<ShapeExpr>(shape)}), "alloc"));
+        }
+      }
+
       Array<Expr> args;
       if (call->args[2].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[2])->fields;
-        args.push_back(tensor);
+        args.insert(args.end(), outs.begin(), outs.end());
 
         if (call->args.size() == 3) {
           builder_->Emit(Call(call->args[1], args), "_");
@@ -67,9 +80,15 @@ class CallTIRMutator : public ExprMutator {
           builder_->Emit(Call(call_tir_dyn_op, {call->args[1], Tuple(args)}), "_");
         }
       } else {
-        builder_->Emit(Call(call->args[1], {call->args[2], tensor}), "_");
+        args = outs;
+        args.insert(args.begin(), call->args[2]);
+        builder_->Emit(Call(call->args[1], args), "_");
       }
-      return std::move(tensor);
+
+      if (outs.size() == 1) {
+        return outs[0];
+      }
+      return std::move(Tuple(outs));
     }
 
     return GetRef<Expr>(call);
