@@ -85,15 +85,7 @@ TVM_REGISTER_GLOBAL("relax.DataflowVar")
       return DataflowVar(name_hint, shape_annotation, type_annotation, span);
     });
 
-Binding::Binding(Span span) {
-  ObjectPtr<BindingNode> n = make_object<BindingNode>();
-  n->span = span;
-  data_ = std::move(n);
-}
-
 TVM_REGISTER_NODE_TYPE(BindingNode);
-
-TVM_REGISTER_GLOBAL("relax.Binding").set_body_typed([](Span span) { return Binding(span); });
 
 TVM_REGISTER_NODE_TYPE(MatchShapeNode);
 
