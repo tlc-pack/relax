@@ -116,12 +116,13 @@ def test_match_shape():
     check_call(value, "relax.shape_of", [f.params[0]])
 
 
-@pytest.mark.xfail
 def test_dim_var_intro_fail():
-    @R.function
-    def f(x: Tensor[_, _]):
-        y: Tensor[(n, m), "float32"] = x
-        return y
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor[_, _]):
+            y: Tensor[(n, m), "float32"] = x
+            return y
 
 
 def test_if():
@@ -165,61 +166,66 @@ def test_if():
 # TODO: figure out if-else binding type and shape
 
 
-@pytest.mark.xfail
 def test_var_redefine_fail():
-    @R.function
-    def f(x, y):
-        z = add(x, y)
-        y = z
-        return y
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x, y):
+            z = add(x, y)
+            y = z
+            return y
 
 
-@pytest.mark.xfail
 def test_var_redefine_fail_if():
-    @R.function
-    def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
-        y = x
-        if cond:
-            w = add(x, x)
-            y = multiply(w, w)
-        else:
-            w = multiply(x, x)
-            y = add(w, w)
-        return y
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
+            y = x
+            if cond:
+                w = add(x, x)
+                y = multiply(w, w)
+            else:
+                w = multiply(x, x)
+                y = add(w, w)
+            return y
 
 
 @pytest.mark.xfail
 def test_var_if_scoping_fail():
-    @R.function
-    def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
-        if cond:
-            w = add(x, x)
-            y = multiply(w, w)
-        else:
-            w = multiply(x, x)
-            y = add(w, w)
-        return w
+    # TODO: fix this
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
+            if cond:
+                w = add(x, x)
+                y = multiply(w, w)
+            else:
+                w = multiply(x, x)
+                y = add(w, w)
+            return w
 
 
-@pytest.mark.xfail
 def test_if_mismatch_var_fail():
-    @R.function
-    def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
-        if cond:
-            w = add(x, x)
-            y = multiply(w, w)
-        else:
-            w = multiply(x, x)
-            z = add(w, w)
-        return z
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
+            if cond:
+                w = add(x, x)
+                y = multiply(w, w)
+            else:
+                w = multiply(x, x)
+                z = add(w, w)
+            return z
 
 
-@pytest.mark.xfail
 def test_unassigned_call_fail():
-    @R.function
-    def f(x: Tensor[_, _]):
-        add(x, x)
-        return x
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor[_, _]):
+            add(x, x)
+            return x
 
 
 def test_tuple():
@@ -330,79 +336,81 @@ def test_dataflow_match_shape():
 
 @pytest.mark.xfail
 def test_dataflow_scope_fail():
-    @R.function
-    def f(x: Tensor[_, _]):
-        with relax.dataflow():
-            y = add(x, x)
-            z = multiply(y, x)
-            w = subtract(z, x)
-            relax.output(y, w)
-        t = divide(y, z)
-        return t
+    with pytest.raises(tvm.error.DiagnosticError):
+        # TODO
+        @R.function
+        def f(x: Tensor[_, _]):
+            with relax.dataflow():
+                y = add(x, x)
+                z = multiply(y, x)
+                w = subtract(z, x)
+                relax.output(y, w)
+            t = divide(y, z)
+            return t
 
 
-@pytest.mark.xfail
 def test_dataflow_syntax_fail_pattern():
-    @R.function
-    def f(x: Tensor[_, _]):
-        with relax.dataflow() as df:
-            y = add(x, x)
-            z = multiply(y, x)
-            w = subtract(z, x)
-            relax.output(y, z)
-        t = divide(y, z)
-        return t
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(x: Tensor[_, _]):
+            with relax.dataflow() as df:
+                y = add(x, x)
+                z = multiply(y, x)
+                w = subtract(z, x)
+                relax.output(y, z)
+            t = divide(y, z)
+            return t
 
 
-@pytest.mark.xfail
 def test_dataflow_syntax_fail_params():
-    @R.function
-    def f(x: Tensor[_, _]):
-        with relax.dataflow(x) as df:
-            y = add(x, x)
-            z = multiply(y, x)
-            w = subtract(z, x)
-            relax.output(y, w)
-        t = divide(y, z)
-        return t
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(x: Tensor[_, _]):
+            with relax.dataflow(x) as df:
+                y = add(x, x)
+                z = multiply(y, x)
+                w = subtract(z, x)
+                relax.output(y, w)
+            t = divide(y, z)
+            return t
 
 
-@pytest.mark.xfail
 def test_dataflow_unbound_outputs():
-    @R.function
-    def f(x: Tensor[_, _]):
-        with relax.dataflow():
-            y = add(x, x)
-            z = multiply(y, x)
-            w = subtract(z, x)
-            relax.output(x, y, w, q)
-        t = divide(y, z)
-        return t
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(x: Tensor[_, _]):
+            with relax.dataflow():
+                y = add(x, x)
+                z = multiply(y, x)
+                w = subtract(z, x)
+                relax.output(x, y, w, q)
+            t = divide(y, z)
+            return t
 
 
-@pytest.mark.xfail
 def test_invalid_special_op_dataflow():
-    @R.function
-    def f(x: Tensor):
-        y = add(x, x)
-        z = relax.dataflow()
-        return z
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(x: Tensor):
+            y = add(x, x)
+            z = relax.dataflow()
+            return z
 
 
-@pytest.mark.xfail
 def test_invalid_special_op_output():
-    @R.function
-    def f(x: Tensor):
-        y = add(x, x)
-        z = relax.output(y)
-        return z
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(x: Tensor):
+            y = add(x, x)
+            z = relax.output(y)
+            return z
 
 
-@pytest.mark.xfail
 def test_func_no_return_fail():
-    @R.function
-    def f(x: Tensor[_, _]):
-        y = add(x, x)
+    with pytest.raises(tvm.error.DiagnosticError):
+        @R.function
+        def f(x: Tensor[_, _]):
+            y = add(x, x)
 
 
 def test_inline_tir():
