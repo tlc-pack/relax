@@ -541,8 +541,8 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock")
 TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::Normalize);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder builder, Call call) {
-  return builder->Emit(call);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder builder, Expr expr) {
+  return builder->Emit(expr);
 });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
