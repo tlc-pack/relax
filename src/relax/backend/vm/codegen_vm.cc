@@ -50,10 +50,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
  protected:
   size_t NewRegister() { return registers_num_++; }
-
-  // TODO(@yuchen): add visitors for IfNode when goto and if instructions are introduced to relax
-  // vm.
-
   // TODO(@yuchen): when we support closure, this visitor should return a register that
   // contains the closure object.
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
@@ -124,8 +120,48 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     size_t arg_register = NewRegister();
     builder_->EmitCall(name, args, arg_register);
-
     return Instruction::Arg(Instruction::kRegister, arg_register);
+  }
+
+  Instruction::Arg VisitExpr_(const IfNode* op) {
+    const If& ife = GetRef<If>(op);
+    // Get the executable from exec_builder
+    Executable exec_ = builder_->Get();
+    // Visit the condition expression
+    this->VisitExpr(ife->cond);
+
+    // Record the offset of If instruction
+    size_t if_offset = exec_->instr_offset.size();
+
+    size_t cond_register = registers_num_;
+    builder_->EmitIf(cond_register, 1, 3);
+    size_t num_instr = exec_->instr_offset.size();
+    this->VisitExpr(ife->true_branch);
+    // Number of instructions emmitted in the if-else branch
+    size_t true_size = exec_->instr_offset.size() - num_instr;
+
+    // Create a merge register to record the last register of if-else and else-then branch
+    // TODO(yongwww): move the value of true register or false register to merge
+    // size_t merge_register = NewRegister();
+
+    // Record the offset of Goto instruction
+    size_t goto_offset = exec_->instr_offset.size();
+
+    builder_->EmitGoto(1);
+
+    this->VisitExpr(ife->false_branch);
+    // Number of instructions emmitted in the else-then branch
+    size_t false_size = exec_->instr_offset.size() - goto_offset - 1;
+
+    // Update the offsets of the If instruction emmited above
+    Index offset = exec_->instr_offset[if_offset];
+    // Jump to the behind of the next goto instruction
+    exec_->instr_data[offset + 3] = true_size + 2;
+    // Update the pc_offset of Goto instruction
+    offset = exec_->instr_offset[goto_offset];
+    // Jump over the else-then branch
+    exec_->instr_data[offset + 1] = false_size + 1;
+    return Instruction::Arg(Instruction::kRegister, NewRegister());
   }
 
   Instruction::Arg VisitExpr_(const VarNode* op) {
@@ -314,7 +350,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       Index index = builder_->EmitConstant(shape_tuple_value);
       return Instruction::Arg(Instruction::kConstIdx, index);
     } else {
-      LOG(FATAL) << "CodeGenVM does not this argument type:\n" << arg->GetTypeKey();
+      LOG(FATAL) << "CodeGenVM does not support this argument type:\n" << arg->GetTypeKey();
     }
     return Instruction::Arg();
   }
@@ -328,7 +364,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   /*! \brief A counter for naming local functions. */
-  int local_func_counter_ = 0;
+  size_t local_func_counter_ = 0;
   /*! \brief Internal ExecBuilder. */
   relax::ExecBuilder builder_;
   /*! \brief Total number of virtual registers allocated. */
@@ -340,7 +376,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
   const Op& store_shape_op_ = Op::Get("relax.vm.builtin.store_shape");
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
-
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
 };
 

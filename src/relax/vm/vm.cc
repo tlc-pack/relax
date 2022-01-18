@@ -161,9 +161,8 @@ void VirtualMachine::RunLoop() {
         break;
       }
       case Opcode::If: {
-        int64_t test_val = ReadRegister(instr.test);
-        int64_t target_val = ReadRegister(instr.target);
-        if (test_val == target_val) {
+        int64_t cond_val = ReadRegister(instr.cond);
+        if (cond_val != 0) {
           ICHECK_NE(instr.true_offset, 0);
           pc_ += instr.true_offset;
         } else {
