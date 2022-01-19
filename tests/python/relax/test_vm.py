@@ -261,12 +261,12 @@ def test_vm_goto():
 
 def test_vm_if():
     ib = relax.ExecBuilder()
-    with ib.function("main", num_inputs=4):
-        ib.emit_if(ib.r(0), ib.r(1), 1, 3)
-        ib.emit_call("test.vm.add", args=[ib.r(2), ib.r(3)], dst=ib.r(4))
+    with ib.function("main", num_inputs=3):
+        ib.emit_if(ib.r(0), 1, 3)
+        ib.emit_call("test.vm.add", args=[ib.r(1), ib.r(2)], dst=ib.r(3))
         ib.emit_goto(2)
-        ib.emit_call("test.vm.mul", args=[ib.r(2), ib.r(3)], dst=ib.r(4))
-        ib.emit_ret(ib.r(4))
+        ib.emit_call("test.vm.mul", args=[ib.r(1), ib.r(2)], dst=ib.r(3))
+        ib.emit_ret(ib.r(3))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
     a = tvm.nd.array(
@@ -279,10 +279,10 @@ def test_vm_if():
             4,
         )
     )
-    res = vm["main"](True, False, a, b)
-    np.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy())
-    res = vm["main"](1, 1, a, b)
-    np.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy())
+    res = vm["main"](False, a, b)
+    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() * b.asnumpy())
+    res = vm["main"](1, a, b)
+    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy())
 
 
 def test_vm_if_codegen():
@@ -305,8 +305,8 @@ def test_vm_if_codegen():
             4,
         )
     )
-    cond1  = tvm.nd.array(True)
-    cond2  = tvm.nd.array(False)
+    cond1 = tvm.nd.array(True)
+    cond2 = tvm.nd.array(False)
 
     res = vm["ife"](cond1, inp)
     np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() + inp.asnumpy())
@@ -635,6 +635,7 @@ def test_vm_relax_dyn_tir_shape():
     np.testing.assert_allclose(res.numpy(), inp2.numpy())
     os.remove("exec.tmp")
 
+
 def test_vm_tuple():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -647,7 +648,7 @@ def test_vm_tuple():
         bb.emit_func_output([tup, item], params=[x, y])
 
     mod = bb.get()
-    
+
     target = tvm.target.Target("llvm", host="llvm")
     ex, lib = relax.vm.build(mod, target)
 
@@ -660,6 +661,7 @@ def test_vm_tuple():
     np.testing.assert_allclose(res1.numpy(), inp.numpy())
     np.testing.assert_allclose(res2.numpy(), inp2.numpy())
     np.testing.assert_allclose(res3.numpy(), inp.numpy())
+
 
 if __name__ == "__main__":
     test_vm_execute()
