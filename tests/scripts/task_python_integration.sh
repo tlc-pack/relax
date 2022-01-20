@@ -74,3 +74,7 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
 
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
+
+# forked is needed because the global registry gets contaminated
+TVM_TEST_TARGETS="llvm" \
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relax tests/python/relax

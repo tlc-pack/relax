@@ -172,7 +172,7 @@ def make(docker_type, path, make_flag) {
     try {
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
       // always run cpp test when build
-      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
+      // sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
@@ -226,16 +226,16 @@ stage('Build') {
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib_tsim)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+        // timeout(time: max_time, unit: 'MINUTES') {
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
-          junit "build/pytest-results/*.xml"
-        }
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+          // junit "build/pytest-results/*.xml"
+        // }
       }
     }
   } else {
