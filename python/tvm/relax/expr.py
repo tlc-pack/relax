@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
+"""The expression nodes of Relax."""
 from typing import List, Optional, Union, Dict
 import tvm._ffi
 from ..ir import Node, Span, SourceName, BaseFunc
@@ -50,8 +52,7 @@ class ShapeExpr(Expr):
 def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
-    else:
-        raise ValueError("Wrong type")
+    raise ValueError("Wrong type")
 
 
 @tvm._ffi.register_object("relax.expr.Var")

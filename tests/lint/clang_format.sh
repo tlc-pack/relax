@@ -17,7 +17,7 @@
 # under the License.
 
 
-# check lastest change, for squash merge into main
-./tests/lint/git-clang-format.sh HEAD~1
+# check lastest 5 change, for squash merge into relax
+./tests/lint/git-clang-format.sh HEAD~5
 # check against origin/relax for PRs.
 # ./tests/lint/git-clang-format.sh origin/relax

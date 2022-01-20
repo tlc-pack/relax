@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name
+"""TVM Script Parser For Relax"""
 from __future__ import annotations
 
 import inspect
@@ -232,8 +233,7 @@ class RelaxTransformer(Transformer):
                 return (relax.ShapeType(span), None)
             elif ty.id.name == "Dim":
                 return (relax.DimType(span), None)
-            else:
-                self.report_error("unknown type in annotation", span)
+            self.report_error("unknown type in annotation", span)
 
         # annotation with type arguments/shape annotation
         if isinstance(ty, ast.TypeApply):
@@ -894,7 +894,8 @@ class RelaxTransformer(Transformer):
                 # call_tir is special case because last argument is optional
                 if len(args) != 3 and len(args) != 4:
                     self.report_error(
-                        f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
+                        f"{op.name} expects {op.num_inputs} arguments but got {len(args)}",
+                        expr.span,
                     )
             elif op.num_inputs != -1 and len(args) != op.num_inputs:
                 self.report_error(
@@ -1172,7 +1173,8 @@ def from_source(
         raise TypeError("Only function definitions are supported.")
 
 
-# def fromtext(source: str, source_name: str = "from_string") -> Union[relax.Function, tvm.IRModule]:
+# def fromtext(source: str, source_name: str = "from_string")
+# -> Union[relax.Function, tvm.IRModule]:
 #     """Parses the given input string (in the Relax text format) to a Relax AST.
 
 #     Parameters
