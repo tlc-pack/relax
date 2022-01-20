@@ -224,7 +224,7 @@ stage('Build') {
       ws(per_exec_ws('tvm/build-cpu')) {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
-        make(ci_cpu, 'build', '-j2')
+        make(ci_cpu, 'build', '-j20')
         pack_lib('cpu', tvm_multilib_tsim)
         // timeout(time: max_time, unit: 'MINUTES') {
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
