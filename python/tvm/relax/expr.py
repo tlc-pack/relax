@@ -135,7 +135,8 @@ class VarBinding(Binding):
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
 class BindingBlock(Node):
-    """base class of binding block, bindings inside can be impure (with side effect or control flow)"""
+    """base class of binding block, bindings inside can be impure
+    (with side effect or control flow)"""
 
     bindings: List[Binding]
 

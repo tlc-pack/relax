@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, redefined-builtin
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
 import tvm

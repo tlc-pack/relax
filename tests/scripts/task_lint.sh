@@ -47,5 +47,5 @@ tests/lint/pylint.sh
 tests/lint/flake8.sh
 
 #TODO(@yuchen) fix mypy in relax
-# echo "Type checking with MyPy ..."
-# tests/scripts/task_mypy.sh
+echo "Type checking with MyPy ..."
+tests/scripts/task_mypy.sh

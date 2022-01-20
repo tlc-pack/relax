@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,no-else-return, inconsistent-return-statements
+# pylint: disable=invalid-name, no-else-return
+# pylint: disable=inconsistent-return-statements, ungrouped-imports
 """TVM Script Parser For Relax"""
 from __future__ import annotations
 
@@ -26,12 +27,11 @@ import tvm
 import tvm.script
 from tvm.ir.module import IRModule
 from tvm.ir import diagnostics
-from tvm import tir
 
 import synr
 from synr import ast, Transformer
 
-from tvm import relay, relax
+from tvm import relay, relax, tir
 
 import tvm.script.relax as relax_namespace
 import tvm.script.tir as tir_namespace
@@ -1038,7 +1038,7 @@ class RelaxTransformer(Transformer):
                 assert isinstance(parsed_stmt, relax.Binding)
                 current_block.append(parsed_stmt)
         if len(current_block) > 0:
-            blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
+            blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(block.stmts[-1].span)))
 
         ret_stmt = block.stmts[-1]
         if not isinstance(ret_stmt, ast.Return):
