@@ -66,7 +66,14 @@ class ExecBuilderNode : public Object {
    */
   void EmitRet(vm::RegName result);
   /*!
-   * \brief Emit a goto instruction.
+   * \brief Emit a Move instruction.
+   * \param src The register from which to move.
+   * \param dst The destination register.
+   */
+  void EmitMove(vm::RegName src, vm::RegName dst);
+  /*!
+   * \brief Emit an Goto instruction.
+   * \param cond The register containing the cond value.
    * \param pc_offset The program counter offset as the jump offset.
    */
   void EmitGoto(vm::Index pc_offset);

@@ -106,6 +106,12 @@ class ExecBuilder(Object):
         self._check_scope()
         _ffi_api.ExecBuilderEmitRet(self, result)
 
+
+    def emit_move(self, src, dst):
+        """emit a move instruction"""
+        self._check_scope()
+        _ffi_api.ExecBuilderEmitMove(self, src, dst)
+
     def emit_goto(self, pc_offset):
         """emit a goto instruction"""
         self._check_scope()

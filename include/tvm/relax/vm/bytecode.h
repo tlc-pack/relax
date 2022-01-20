@@ -58,6 +58,7 @@ enum class Opcode {
   Ret = 2U,
   Goto = 3U,
   If = 4U,
+  Move = 5U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -146,6 +147,12 @@ struct Instruction {
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
     };
+    struct /* Move */ {
+      /*! \brief The source register for a move operation. */
+      RegName src_register;
+      /*! \brief The destination register for a move operation. */
+      RegName dst_register;
+    };
   };
   /*!
    * \brief Construct a Call instruction.
@@ -163,7 +170,7 @@ struct Instruction {
    */
   static Instruction Ret(RegName result);
   /*!
-   * \brief Construct a goto instruction.
+   * \brief Construct a Goto instruction.
    * \param pc_offset The register containing the jump offset.
    * \return The goto instruction.
    */
@@ -177,6 +184,13 @@ struct Instruction {
    * \return The If instruction.
    */
   static Instruction If(RegName test, RegName target, Index true_offset, Index false_offset);
+  /*!
+   * \brief Construct a Move instruction.
+   * \param src_register The source register.
+   * \param dst_register The destination register.
+   * \return The Move instruction.
+   */
+  static Instruction Move(RegName src_register, RegName dst_register);
 };
 
 }  // namespace relax_vm

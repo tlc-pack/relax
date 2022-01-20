@@ -138,6 +138,11 @@ Instruction ExecutableNode::GetInstruction(Index i) const {
       RegName result = instr_data[offset + 1];
       return Instruction::Ret(result);
     }
+    case Opcode::Move: {
+      RegName src = instr_data[offset + 1];
+      RegName dst = instr_data[offset + 2];
+      return Instruction::Move(src, dst);
+    }
     case Opcode::Goto: {
       Index pc_offset = instr_data[offset + 1];
       return Instruction::Goto(pc_offset);
@@ -459,6 +464,12 @@ String ExecutableNode::AsText() const {
              << "ret " << RegNameToStr(instr.result) << "\n";
           break;
         }
+        case Opcode::Move: {
+          os << std::setw(6) << std::left << "move"
+             << "move " << RegNameToStr(instr.src_register) << ", "
+             <<RegNameToStr(instr.dst_register)<<"\n";
+          break;
+        }
         case Opcode::Goto: {
           os << std::setw(6) << std::left << "goto"
              << "goto " << instr.pc_offset << "\n";
@@ -505,6 +516,11 @@ String ExecutableNode::AsPython() const {
         }
         case Opcode::Ret: {
           os << "    ib.emit_ret(ib.r(" << instr.result << "))\n";
+          break;
+        }
+        case Opcode::Move: {
+          os << "    ib.emit_move(ib.r(" << instr.src_register
+          << "), ib.r(" << instr.dst_register << "))\n";
           break;
         }
         case Opcode::Goto: {

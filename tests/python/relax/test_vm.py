@@ -236,6 +236,27 @@ def test_vm_storage():
     assert res.shape == shape
 
 
+def test_vm_move():
+    ib = relax.ExecBuilder()
+    with ib.function("main", num_inputs=2):
+        ib.emit_move(ib.r(0), ib.r(1))
+        ib.emit_ret(ib.r(1))
+    ex = ib.get()
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    a = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
+    b = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
+    res = vm["main"](a, b)
+    np.testing.assert_allclose(res.asnumpy(), a.asnumpy())
+
+
 def test_vm_goto():
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=2):
@@ -642,6 +663,7 @@ if __name__ == "__main__":
     test_vm_constant_serialize()
     test_vm_shapeof()
     test_vm_storage()
+    test_vm_move()
     test_vm_goto()
     test_vm_if()
     test_vm_compile_stage0()

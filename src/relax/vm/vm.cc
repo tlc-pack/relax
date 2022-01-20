@@ -157,6 +157,12 @@ void VirtualMachine::RunLoop() {
         WriteRegister(caller_return_register, return_value_);
         break;
       }
+      case Opcode::Move: {
+        RegType src = ReadRegister(instr.src_register);
+        WriteRegister(instr.dst_register, src);
+        pc_++;
+        break;
+      }
       case Opcode::Goto: {
         pc_ += instr.pc_offset;
         break;

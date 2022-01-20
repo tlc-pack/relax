@@ -78,6 +78,13 @@ void ExecBuilderNode::EmitRet(RegName result) {
   exec->instr_data.push_back(result);
 }
 
+void ExecBuilderNode::EmitMove(RegName src, RegName dst) {
+  exec->instr_offset.push_back(exec->instr_data.size());
+  exec->instr_data.push_back(static_cast<ExecWord>(Opcode::Move));
+  exec->instr_data.push_back(src);
+  exec->instr_data.push_back(dst);
+}
+
 void ExecBuilderNode::EmitGoto(Index pc_offset) {
   exec->instr_offset.push_back(exec->instr_data.size());
   exec->instr_data.push_back(static_cast<ExecWord>(Opcode::Goto));
@@ -136,8 +143,13 @@ bool CheckExecutable(Executable exec) {
           }
           break;
         }
+        case Opcode::Move: {
+          arg_registers.emplace(instr.src_register);
+          arg_registers.emplace(instr.dst_register);
+          break;
+        }
         case Opcode::Goto: {
-          ICHECK_GT(instr.pc_offset, 0);
+          ICHECK_NE(instr.pc_offset, 0);
           break;
         }
         case Opcode::If: {
@@ -195,6 +207,9 @@ void ExecBuilderNode::Formalize() {
           }
           break;
         }
+        case Opcode::Move: {
+          break;
+        }
         case Opcode::Goto: {
           break;
         }
@@ -235,6 +250,9 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
     .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitRet);
+
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitMove")
+.set_body_method<ExecBuilder>(&ExecBuilderNode::EmitMove);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto")
     .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitGoto);

@@ -65,6 +65,14 @@ Instruction Instruction::If(RegName test, RegName target, Index true_branch, Ind
   instr.false_offset = false_branch;
   return instr;
 }
+
+Instruction Instruction::Move(RegName src_register, RegName dst_register) {
+  Instruction instr;
+  instr.op = Opcode::Move;
+  instr.src_register = src_register;
+  instr.dst_register = dst_register;
+  return instr;
+}
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm
