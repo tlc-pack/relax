@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=no-else-return
 """Developer API of constructing Relax AST."""
 import typing
-import tvm
+
 from typing import List, Optional, Union, Any, Callable
 from tvm.runtime import Object
-from tvm import relax as rx
-from tvm import tir
+from tvm import relax as rx, tir
+import tvm
 from .expr import Expr, te_tensor, Var, ShapeExpr, GlobalVar, PrimExpr, Call, BindingBlock, Tuple
 from .op.base import call_tir
 from . import _ffi_api

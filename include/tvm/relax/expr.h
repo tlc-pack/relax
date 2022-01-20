@@ -208,7 +208,7 @@ class Binding : public ObjectRef {
   using ContainerType = BindingNode;
 };
 
-/*! \brief Symbolic shape match, binds the variables of the LHS with the rhs. */
+/*! \brief Symbolic shape match, binds the variable of the lhs with the rhs. */
 class MatchShape;
 class MatchShapeNode : public BindingNode {
  public:

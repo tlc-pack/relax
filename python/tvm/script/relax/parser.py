@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,no-else-return, inconsistent-return-statements
 """TVM Script Parser For Relax"""
 from __future__ import annotations
 
@@ -31,13 +31,11 @@ from tvm import tir
 import synr
 from synr import ast, Transformer
 
-import tvm.relax as relax
-import tvm.relay as relay
+from tvm import relay, relax
 
 import tvm.script.relax as relax_namespace
 import tvm.script.tir as tir_namespace
 
-from ..diagnostics import TVMDiagnosticCtx as _TIRDiagnosticCtx
 from ..parser import TVMScriptParser as _TIRScriptParser
 
 
@@ -100,6 +98,8 @@ PRIMEXPR_ARITHMETIC_OP_MAP = {
 
 
 class RelaxTransformer(Transformer):
+    """A visitor to handle transformations on the Relax AST"""
+
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
         self.module = ir_mod
@@ -612,10 +612,7 @@ class RelaxTransformer(Transformer):
         var = self._get_lhs(stmt)
         rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
-        if isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc):
-            bind_free_vars = True
-        else:
-            bind_free_vars = False
+        bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
         lhs = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
         return relax.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
@@ -1055,6 +1052,8 @@ class RelaxTransformer(Transformer):
 
 
 class RelaxDiagnosticContext(synr.DiagnosticContext):
+    """Relax diagnostic context"""
+
     def __init__(self, ir_mod):
         self.tvm_diag_ctx = diagnostics.DiagnosticContext(ir_mod, diagnostics.get_renderer())
         self.str_to_source_name = {}
