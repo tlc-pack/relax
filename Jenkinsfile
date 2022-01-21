@@ -149,20 +149,21 @@ stage('Prepare') {
   }
 }
 
-stage('Sanity Check') {
-  timeout(time: max_time, unit: 'MINUTES') {
-    node('CPU') {
-      ws(per_exec_ws('tvm/sanity')) {
-        init_git()
-        is_docs_only_build = sh (returnStatus: true, script: '''
-        ./tests/scripts/git_change_docs.sh
-        '''
-        )
-        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
-      }
-    }
-  }
-}
+//TODO: add back
+// stage('Sanity Check') {
+//   timeout(time: max_time, unit: 'MINUTES') {
+//     node('CPU') {
+//       ws(per_exec_ws('tvm/sanity')) {
+//         init_git()
+//         is_docs_only_build = sh (returnStatus: true, script: '''
+//         ./tests/scripts/git_change_docs.sh
+//         '''
+//         )
+//         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+//       }
+//     }
+//   }
+// }
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something wrong, clean the workspace and then
@@ -223,6 +224,7 @@ stage('Build') {
     node('CPU') {
       ws(per_exec_ws('tvm/build-cpu')) {
         init_git()
+        sh "docker pull ${ci_cpu}"
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib_tsim)
