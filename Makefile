@@ -120,7 +120,7 @@ doc:
 
 # Cython build
 cython cython3:
-	cd python; python3 setup.py build_ext --inplace
+	cd python; python3.7 setup.py build_ext --inplace
 
 cyclean:
 	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.dylib python/tvm/*/*/*.cpp

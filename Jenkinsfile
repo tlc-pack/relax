@@ -47,7 +47,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.67"
 ci_gpu = "tlcpack/ci-gpu:v0.78"
-ci_cpu = "yuchenjin/ci-cpu:lastest"
+ci_cpu = "yuchenjin/ci-cpu"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.74"
 ci_qemu = "tlcpack/ci-qemu:v0.08"
@@ -149,21 +149,20 @@ stage('Prepare') {
   }
 }
 
-//TODO: add back
-// stage('Sanity Check') {
-//   timeout(time: max_time, unit: 'MINUTES') {
-//     node('CPU') {
-//       ws(per_exec_ws('tvm/sanity')) {
-//         init_git()
-//         is_docs_only_build = sh (returnStatus: true, script: '''
-//         ./tests/scripts/git_change_docs.sh
-//         '''
-//         )
-//         sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
-//       }
-//     }
-//   }
-// }
+stage('Sanity Check') {
+  timeout(time: max_time, unit: 'MINUTES') {
+    node('CPU') {
+      ws(per_exec_ws('tvm/sanity')) {
+        init_git()
+        is_docs_only_build = sh (returnStatus: true, script: '''
+        ./tests/scripts/git_change_docs.sh
+        '''
+        )
+        // sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+      }
+    }
+  }
+}
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something wrong, clean the workspace and then
@@ -205,7 +204,7 @@ def unpack_lib(name, libs) {
      """
 }
 
-stage('Build') {
+stage('Build and Test') {
   //   parallel 'BUILD: GPU': {
   //     node('GPUBUILD') {
   //       ws(per_exec_ws('tvm/build-gpu')) {
@@ -224,10 +223,10 @@ stage('Build') {
     node('CPU') {
       ws(per_exec_ws('tvm/build-cpu')) {
         init_git()
-        sh "docker pull ${ci_cpu}"
-        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+      sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
-        pack_lib('cpu', tvm_multilib_tsim)
+        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+        // pack_lib('cpu', tvm_multilib_tsim)
         // timeout(time: max_time, unit: 'MINUTES') {
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
@@ -309,7 +308,7 @@ stage('Build') {
   // }
 }
 
-stage('Unit Test') {
+// stage('Unit Test') {
     // parallel 'python3: GPU': {
     //   if (is_docs_only_build != 1) {
     //     node('TensorCore') {
@@ -330,21 +329,21 @@ stage('Unit Test') {
     //   }
     // },
     // 'python3: CPU': {
-    if (is_docs_only_build != 1) {
-      node('CPU') {
-        ws(per_exec_ws("tvm/ut-python-cpu")) {
-          init_git()
-          unpack_lib('cpu', tvm_multilib_tsim)
-          timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-            junit "build/pytest-results/*.xml"
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('python3: i386')
-    }
+    // if (is_docs_only_build != 1) {
+    //   node('CPU') {
+    //     ws(per_exec_ws("tvm/ut-python-cpu")) {
+    //       init_git()
+    //       // unpack_lib('cpu', tvm_multilib_tsim)
+    //       timeout(time: max_time, unit: 'MINUTES') {
+    //         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+    //         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+    //         // junit "build/pytest-results/*.xml"
+    //       }
+    //     }
+    //   }
+    // } else {
+    //   Utils.markStageSkippedForConditional('python3: i386')
+    // }
     // }
     // 'python3: i386': {
     //   if (is_docs_only_build != 1) {
@@ -400,7 +399,7 @@ stage('Unit Test') {
     //      Utils.markStageSkippedForConditional('java: GPU')
     //   }
     // }
-}
+// }
 
 // stage('Integration Test') {
 //   parallel 'topi: GPU': {
