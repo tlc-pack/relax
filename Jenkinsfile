@@ -47,7 +47,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.67"
 ci_gpu = "tlcpack/ci-gpu:v0.78"
-ci_cpu = "tlcpack/ci-cpu:v0.79"
+ci_cpu = "yuchenjin/ci-cpu:lastest"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.74"
 ci_qemu = "tlcpack/ci-qemu:v0.08"
@@ -224,7 +224,7 @@ stage('Build') {
       ws(per_exec_ws('tvm/build-cpu')) {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
-        make(ci_cpu, 'build', '-j20')
+        make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_multilib_tsim)
         // timeout(time: max_time, unit: 'MINUTES') {
           // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
