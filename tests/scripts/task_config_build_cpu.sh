@@ -30,6 +30,7 @@ cp ../cmake/config.cmake .
 # echo set\(USE_DNNL_CODEGEN ON\) >> config.cmake
 # echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-11\) >> config.cmake
+echo set\(USE_BLAS openblas\) >> config.cmake
 # echo set\(USE_NNPACK ON\) >> config.cmake
 # echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
 # echo set\(USE_ANTLR ON\) >> config.cmake

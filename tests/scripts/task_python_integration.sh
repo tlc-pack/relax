@@ -27,16 +27,19 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
+# Run Relax tests
+TVM_TEST_TARGETS="llvm" pytest tests/python/relax
+
 # NOTE: also set by task_python_integration_gpuonly.sh.
-if [ -z "${TVM_INTEGRATION_TESTSUITE_NAME:-}" ]; then
-    TVM_INTEGRATION_TESTSUITE_NAME=python-integration
-fi
+# if [ -z "${TVM_INTEGRATION_TESTSUITE_NAME:-}" ]; then
+#     TVM_INTEGRATION_TESTSUITE_NAME=python-integration
+# fi
 
 # cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
+# find . -type f -path "*.pyc" | xargs rm -f
 
 # Test TVM
-make cython3
+# make cython3
 
 # Test extern package
 # cd apps/extension
@@ -74,7 +77,3 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
 
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
-
-# forked is needed because the global registry gets contaminated
-TVM_TEST_TARGETS="llvm" \
-    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relax tests/python/relax
