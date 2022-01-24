@@ -22,7 +22,17 @@ from typing import List, Optional, Union, Any, Callable
 from tvm.runtime import Object
 from tvm import relax as rx, tir
 import tvm
-from .expr import Expr, te_tensor, Var, ShapeExpr, GlobalVar, PrimExpr, Call, BindingBlock, Tuple
+from .expr import (
+    Expr,
+    te_tensor,
+    Var,
+    ShapeExpr,
+    GlobalVar,
+    PrimExpr,
+    BindingBlock,
+    Tuple,
+    BaseFunc,
+)
 from .op.base import call_tir
 from . import _ffi_api
 
