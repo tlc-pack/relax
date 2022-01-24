@@ -123,7 +123,6 @@ class BlockBuilder(Object):
 
     def __init__(self):
         self._blocks = []
-        self._context_mod = tvm.IRModule()
         # a boolean flag that tracks if emit_func_output has been called
         self._is_emit_func_output_called = False
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
@@ -259,22 +258,22 @@ class BlockBuilder(Object):
         """
         return DataflowScope(self)
 
-    def emit(self, call: relay.Call) -> Var:
-        """Emit a call node.
-        This infers the shape and type of the CallNode, create a variable,
-        and bind the CallNode to the variable.
+    def emit(self, expr: Expr) -> Var:
+        """Emit an expr.
+        This infers the shape and type of the expr, create a variable,
+        and bind the expr to the variable.
 
         Parameters
         ----------
-        call : tvm.relax.Call
-            The call node to be emitted.
+        expr : tvm.relax.Expr
+            The Expr to be emitted.
 
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the call code.
+            A newly created variable that gets binded to the input expr.
         """
-        return _ffi_api.BlockBuilderEmit(self, call)
+        return _ffi_api.BlockBuilderEmit(self, expr)
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
@@ -403,9 +402,7 @@ class BlockBuilder(Object):
         inputs = [*te_args] + outs
         tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
         func_name = self.get_unique_name(func.__name__)
-        tir_func = tir_func.with_attr("global_symbol", func_name)
-        gvar = GlobalVar(func_name)
-        self._context_mod[gvar] = tir_func
+        gvar = self.add_func(tir_func, func_name)
 
         call_args = [x.op.value for x in te_args]
         output_shape = (
@@ -418,7 +415,7 @@ class BlockBuilder(Object):
             call = call_tir(output_shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
         else:
             call = call_tir(output_shape, gvar, call_args)
-        return _ffi_api.BlockBuilderEmit(self, call)
+        return self.emit(call)
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
         """Emit a MatchShape.
@@ -506,8 +503,7 @@ class BlockBuilder(Object):
         func = rx.Function(
             self._func_params, seqe, rx.DynTensorType(-1), rx.GlobalVar(self._func_name)
         )
-        gvar = rx.GlobalVar(self._func_name)
-        self._context_mod[gvar] = func
+        self.add_func(func, self._func_name)
 
     def normalize(self, expr: Expr) -> Expr:
         """Normalize an Expr to complete its shape and type.
@@ -532,7 +528,7 @@ class BlockBuilder(Object):
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        return self._context_mod
+        return _ffi_api.BlockBuilderGetContextIRModule(self)
 
     def get_unique_name(self, name_prefix: str) -> str:
         """Generate a unique name with a specified prefix.
@@ -548,3 +544,21 @@ class BlockBuilder(Object):
             The generated name.
         """
         return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)
+
+    def add_func(self, func: BaseFunc, func_name: str) -> GlobalVar:
+        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
+
+        Parameters
+        ----------
+        func : BaseFunc
+            The function to be added.
+
+        func_name : str
+            The name of the function to be added.
+
+        Returns
+        -------
+        gvar : GlobalVar
+            The global var bound to the added function.
+        """
+        return _ffi_api.BlockBuilderAddFuncToContext(self, func, func_name)
