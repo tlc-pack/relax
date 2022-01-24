@@ -21,6 +21,7 @@ import tvm
 from tvm import tir, te
 from tvm import relay
 from tvm import relax as rx
+from tvm.tir.function import PrimFunc
 
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc, ShapeExpr, op
@@ -277,18 +278,18 @@ def test_emit_te():
     x = rx.Var("x", [n, m], type_anno)
     y = rx.Var("y", [n, m], type_anno)
     z = rx.Var("z", [n, m], type_anno)
-    
+
     def te_func(args, args_dict, msg):
         A, B = args
         C = args_dict["C"]
         D = te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
         E = te.compute((128, 128), lambda i, j: D[i, j] - C[i, j])
         return E
-    
+
     with bb.function("rx_func", [x, y, z]):
         out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
         bb.emit_func_output(out)
-    
+
     mod = bb.get()
     rx_func = mod["rx_func"]
 
@@ -334,10 +335,20 @@ def test_emit_te_multiple():
         x1 = bb.emit_te(te_func, x)
         y1 = bb.emit_te(te_func, y)
         bb.emit_func_output(y1)
-    
-    func = bb.get()["rx_func"]
-    assert func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func1"
+
+    mod = bb.get()
+    rx_func = mod["rx_func"]
+
+    prim_func = []
+    for gv in mod.get_global_vars():
+        if isinstance(mod[gv], PrimFunc):
+            prim_func.append(mod[gv])
+
+    # only one PrimFunc is generated
+    assert len(prim_func) == 1
+    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func"
+
 
 def test_emit_te_multiple_output():
     bb = rx.BlockBuilder()
@@ -366,6 +377,7 @@ def test_emit_te_multiple_output():
     assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][0], rx.ShapeExpr)
     assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][1], rx.ShapeExpr)
 
+
 def test_emit_te_extern():
     bb = rx.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
@@ -376,10 +388,10 @@ def test_emit_te_extern():
     with bb.function("rx_cblas_matmul", [x, y]):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
         bb.emit_func_output(out)
-    
+
     mod = bb.get()
     rx_func = mod["rx_cblas_matmul"]
-    
+
     # check Relax function calls TIR function with call_tir call
     assert rx_func.params[0] == x
     assert rx_func.params[1] == y
@@ -471,4 +483,3 @@ if __name__ == "__main__":
     test_emit_func_output_twice_fail()
     test_func_params_twice_fail()
     test_no_func_params_fail()
-

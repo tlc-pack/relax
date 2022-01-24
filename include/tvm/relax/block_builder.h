@@ -141,6 +141,22 @@ class BlockBuilderNode : public Object {
    */
   NameTable* name_table();
 
+  /*!
+   * \brief Add a Relax function or a TIR PrimFunc to \p context_mod_.
+   * \param func The function to be added.
+   * \param func_name The name of the function to be added.
+   * \note If the function to be added already exists in \p context_mod_, return its
+   * GlobalVar directly.
+   * \return The global var bound to the added function.
+   */
+  GlobalVar AddFuncToContext(const BaseFunc& func, const String& func_name);
+
+  /*!
+   * \brief Get the context IRModule being built.
+   * \return The IRModule being built by BlockBuilder.
+   */
+  IRModule GetContextIRModule() const;
+
   void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
@@ -149,6 +165,15 @@ class BlockBuilderNode : public Object {
 
  private:
   Var Emit(const Expr& expr, bool is_dataflow, std::string name_hint);
+
+  /*! \brief The IRModule being built by the BlockBuilder. */
+  IRModule context_mod_;
+
+  /*!
+   * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
+   * in \p _context_mod to their GlobalVar to avoid generating duplicated functions.
+   */
+  std::unordered_map<BaseFunc, GlobalVar, StructuralHash, StructuralEqual> func_map_;
 
  protected:
   /*!
