@@ -212,7 +212,6 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
     info->tensor2buffers[tensor] = buffer;
     buffers.push_back(buffer);
-
     if (!info->IsArg(tensor)) {
       info->root_alloc.push_back(info->tensor2buffers[tensor]);
     }
@@ -338,6 +337,12 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
                             /*alloc_buffers=*/{},
                             /*match_buffers=*/{},
                             /*annotations=*/std::move(annotations)));
+}
+
+inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
+  return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) && (a->condition.same_as(b->condition)) &&
+         ((a->init.empty() && b->init.empty()) || (a->init.same_as(b->init)));
 }
 
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
