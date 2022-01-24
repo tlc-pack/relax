@@ -27,6 +27,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/function.h>
 
 namespace tvm {
 namespace relax {
@@ -525,6 +526,26 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 
 NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 
+GlobalVar BlockBuilderNode::AddFuncToContext(const BaseFunc& func, const String& func_name) {
+  auto it = func_map_.find(func);
+  if (it == func_map_.end()) {
+    GlobalVar gvar = GlobalVar(func_name);
+    if (const tir::PrimFuncNode* prim_func = func.as<tir::PrimFuncNode>()) {
+      tir::PrimFunc fn = GetRef<tir::PrimFunc>(prim_func);
+      fn = WithAttr(std::move(fn), "global_symbol", runtime::String(func_name));
+      context_mod_->Add(gvar, fn);
+    } else {
+      context_mod_->Add(gvar, func);
+    }
+    func_map_.emplace(func, gvar);
+    return gvar;
+  } else {
+    return it->second;
+  }
+}
+
+IRModule BlockBuilderNode::GetContextIRModule() const { return context_mod_; }
+
 BlockBuilder BlockBuilder::Create() { return BlockBuilder(make_object<BlockBuilderNode>()); }
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilder::Create);
@@ -541,8 +562,8 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock")
 TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::Normalize);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder builder, Call call) {
-  return builder->Emit(call);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder builder, Expr expr) {
+  return builder->Emit(expr);
 });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
@@ -559,6 +580,12 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
     .set_body_typed([](BlockBuilder builder, String name_hint) {
       return builder->name_table()->GetUniqueName(name_hint);
     });
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFuncToContext")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFuncToContext);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
 
 }  // namespace relax
 }  // namespace tvm
