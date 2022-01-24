@@ -149,13 +149,13 @@ class BlockBuilderNode : public Object {
    * GlobalVar directly.
    * \return The global var bound to the added function.
    */
-  GlobalVar AddFunc(const BaseFunc& func, const std::string& func_name);
+  GlobalVar AddFuncToContext(const BaseFunc& func, const String& func_name);
 
   /*!
    * \brief Get the context IRModule being built.
    * \return The IRModule being built by BlockBuilder.
    */
-  IRModule GetIRModule() const;
+  IRModule GetContextIRModule() const;
 
   void VisitAttrs(AttrVisitor* v) {}
 

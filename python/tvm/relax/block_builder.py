@@ -528,7 +528,7 @@ class BlockBuilder(Object):
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        return _ffi_api.BlockBuilderGetIRModule(self)
+        return _ffi_api.BlockBuilderGetContextIRModule(self)
 
     def get_unique_name(self, name_prefix: str) -> str:
         """Generate a unique name with a specified prefix.
@@ -561,4 +561,4 @@ class BlockBuilder(Object):
         gvar : GlobalVar
             The global var bound to the added function.
         """
-        return _ffi_api.BlockBuilderAddFunc(self, func, func_name)
+        return _ffi_api.BlockBuilderAddFuncToContext(self, func, func_name)

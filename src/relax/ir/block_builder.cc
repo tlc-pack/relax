@@ -526,7 +526,7 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 
 NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 
-GlobalVar BlockBuilderNode::AddFunc(const BaseFunc& func, const std::string& func_name) {
+GlobalVar BlockBuilderNode::AddFuncToContext(const BaseFunc& func, const String& func_name) {
   auto it = func_map_.find(func);
   if (it == func_map_.end()) {
     GlobalVar gvar = GlobalVar(func_name);
@@ -544,7 +544,7 @@ GlobalVar BlockBuilderNode::AddFunc(const BaseFunc& func, const std::string& fun
   }
 }
 
-IRModule BlockBuilderNode::GetIRModule() const { return context_mod_; }
+IRModule BlockBuilderNode::GetContextIRModule() const { return context_mod_; }
 
 BlockBuilder BlockBuilder::Create() { return BlockBuilder(make_object<BlockBuilderNode>()); }
 
@@ -581,11 +581,11 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
       return builder->name_table()->GetUniqueName(name_hint);
     });
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunc")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFunc);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFuncToContext")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFuncToContext);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderGetIRModule")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::GetIRModule);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
 
 }  // namespace relax
 }  // namespace tvm
