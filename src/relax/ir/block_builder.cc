@@ -27,6 +27,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/function.h>
 
 namespace tvm {
 namespace relax {
@@ -525,6 +526,26 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 
 NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 
+GlobalVar BlockBuilderNode::AddFunc(const BaseFunc& func, const std::string& func_name) {
+  auto it = func_map_.find(func);
+  if (it == func_map_.end()) {
+    GlobalVar gvar = GlobalVar(func_name);
+    if (const tir::PrimFuncNode* prim_func = func.as<tir::PrimFuncNode>()) {
+      tir::PrimFunc fn = GetRef<tir::PrimFunc>(prim_func);
+      fn = WithAttr(std::move(fn), "global_symbol", runtime::String(func_name));
+      context_mod_->Add(gvar, fn);
+    } else {
+      context_mod_->Add(gvar, func);
+    }
+    func_map_.emplace(func, gvar);
+    return gvar;
+  } else {
+    return it->second;
+  }
+}
+
+IRModule BlockBuilderNode::GetIRModule() const { return context_mod_; }
+
 BlockBuilder BlockBuilder::Create() { return BlockBuilder(make_object<BlockBuilderNode>()); }
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilder::Create);
@@ -559,6 +580,12 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
     .set_body_typed([](BlockBuilder builder, String name_hint) {
       return builder->name_table()->GetUniqueName(name_hint);
     });
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunc")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFunc);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderGetIRModule")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::GetIRModule);
 
 }  // namespace relax
 }  // namespace tvm

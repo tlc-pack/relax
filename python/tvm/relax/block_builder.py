@@ -123,10 +123,6 @@ class BlockBuilder(Object):
 
     def __init__(self):
         self._blocks = []
-        self._context_mod = tvm.IRModule()
-        # a dict to store the mapping of structrual_hash of prim_func in _context_mod to its GlobalVar
-        # to avoid generating duplicated PrimFuncs
-        self._prim_func_map = {}
         # a boolean flag that tracks if emit_func_output has been called
         self._is_emit_func_output_called = False
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
@@ -262,7 +258,7 @@ class BlockBuilder(Object):
         """
         return DataflowScope(self)
 
-    def emit(self, expr: relay.Expr) -> Var:
+    def emit(self, expr: Expr) -> Var:
         """Emit an expr.
         This infers the shape and type of the expr, create a variable,
         and bind the expr to the variable.
@@ -405,7 +401,8 @@ class BlockBuilder(Object):
 
         inputs = [*te_args] + outs
         tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
-        gvar = self.add_primfunc(tir_func, func.__name__)
+        func_name = self.get_unique_name(func.__name__)
+        gvar = self.add_func(tir_func, func_name)
 
         call_args = [x.op.value for x in te_args]
         output_shape = (
@@ -506,8 +503,7 @@ class BlockBuilder(Object):
         func = rx.Function(
             self._func_params, seqe, rx.DynTensorType(-1), rx.GlobalVar(self._func_name)
         )
-        gvar = rx.GlobalVar(self._func_name)
-        self._context_mod[gvar] = func
+        self.add_func(func, self._func_name)
 
     def normalize(self, expr: Expr) -> Expr:
         """Normalize an Expr to complete its shape and type.
@@ -532,7 +528,7 @@ class BlockBuilder(Object):
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        return self._context_mod
+        return _ffi_api.BlockBuilderGetIRModule(self)
 
     def get_unique_name(self, name_prefix: str) -> str:
         """Generate a unique name with a specified prefix.
@@ -549,31 +545,20 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)
 
-    def add_primfunc(self, tir_func: tir.PrimFunc, func_name: str) -> GlobalVar:
-        """Add a PrimFunc to the IRModule being built.
+    def add_func(self, func: BaseFunc, func_name: str) -> GlobalVar:
+        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
 
         Parameters
         ----------
-        tir_func : tir.PrimFunc
-            The TIR PrimFunc to be added.
+        func : BaseFunc
+            The function to be added.
 
         func_name : str
-            The name of the tir_func.
+            The name of the function to be added.
 
         Returns
         -------
         gvar : GlobalVar
-            The global var bound to the tir_func.
+            The global var bound to the added function.
         """
-        prim_func_hash = tvm.ir.structural_hash(tir_func)
-
-        # Avoid generating duplicated PrimFunc if it's already in the IRModule
-        if prim_func_hash in self._prim_func_map:
-            gvar = self._prim_func_map[prim_func_hash]
-        else:
-            func_name = self.get_unique_name(func_name)
-            tir_func = tir_func.with_attr("global_symbol", func_name)
-            gvar = GlobalVar(func_name)
-            self._prim_func_map[prim_func_hash] = gvar
-            self._context_mod[gvar] = tir_func
-        return gvar
+        return _ffi_api.BlockBuilderAddFunc(self, func, func_name)
