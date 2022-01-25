@@ -91,7 +91,7 @@ struct Instruction {
     /*! \brief The bit mask of the value part. */
     static constexpr ExecWord kValueMask = (static_cast<ExecWord>(1) << kValueBit) - 1;
     /*! \brief Construct a void argument. */
-    explicit Arg() : data(Instruction::kVoidArg) {}
+    Arg() : data(Instruction::kVoidArg) {}
     /*! \brief Construct from the data. */
     explicit Arg(ExecWord data) : data(data) {}
     /*! \brief Construct from the kind and value. */

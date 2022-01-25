@@ -446,8 +446,8 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
   }
 
   // TODO(@altanh, @yuchen): shape and type inference here too...
-  // TODO: when value's shape/type changed, create new var
-  // TODO: group the can prove shape/type logic and replace var into a function
+  // TODO(@yuchen): when value's shape/type changed, create new var
+  // TODO(@yuchen): group the can prove shape/type logic and replace var into a function
   builder_->EmitMatchShape(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
