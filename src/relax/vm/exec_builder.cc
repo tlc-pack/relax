@@ -84,11 +84,11 @@ void ExecBuilderNode::EmitGoto(Index pc_offset) {
   exec->instr_data.push_back(pc_offset);
 }
 
-void ExecBuilderNode::EmitIf(vm::RegName cond, vm::Index offset) {
+void ExecBuilderNode::EmitIf(vm::RegName cond, vm::Index false_offset) {
   exec->instr_offset.push_back(exec->instr_data.size());
   exec->instr_data.push_back(static_cast<ExecWord>(Opcode::If));
   exec->instr_data.push_back(cond);
-  exec->instr_data.push_back(offset);
+  exec->instr_data.push_back(false_offset);
 }
 
 // helper function to check if an executable is legal by checking if registers are used properly
@@ -138,7 +138,7 @@ bool CheckExecutable(Executable exec) {
           break;
         }
         case Opcode::If: {
-          ICHECK_GT(instr.offset, 0);
+          ICHECK_GT(instr.false_offset, 1);
           arg_registers.emplace(instr.cond);
           break;
         }

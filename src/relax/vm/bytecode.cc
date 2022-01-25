@@ -56,11 +56,11 @@ Instruction Instruction::Goto(Index pc_offset) {
   return instr;
 }
 
-Instruction Instruction::If(RegName cond, Index offset) {
+Instruction Instruction::If(RegName cond, Index false_offset) {
   Instruction instr;
   instr.op = Opcode::If;
   instr.cond = cond;
-  instr.offset = offset;
+  instr.false_offset = false_offset;
   return instr;
 }
 }  // namespace relax_vm

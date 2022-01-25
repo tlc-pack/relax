@@ -138,7 +138,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     Instruction::Arg true_reg = this->VisitExpr(ife->true_branch);
     // Reserve a register for return
     size_t merge_register = NewRegister();
-    // Copy the output from if branch to merge register
+    // Copy the output from true branch to merge register
     builder_->EmitCall("vm.builtin.copy", {true_reg}, merge_register);
 
     // Record the offset of Goto instruction
@@ -150,14 +150,14 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     size_t false_offset = exec_->instr_offset.size() - num_instr + 1;
 
     Instruction::Arg false_reg = this->VisitExpr(ife->false_branch);
-    // Copy the output data of else branch to merge register
+    // Copy the output data of false branch to merge register
     builder_->EmitCall("vm.builtin.copy", {false_reg}, merge_register);
 
-    // Update the offsets of the If instruction emmited above
+    // Update the offsets of the If instruction emitted above
     // Jump to the behind of the next goto instruction
     exec_->SetInstructionData(if_offset, 2, static_cast<ExecWord>(false_offset));
     // Update the pc_offset of Goto instruction
-    // Jump over the else-then branch
+    // Jump over the false branch
     size_t pc_offset = exec_->instr_offset.size() - goto_offset;
     exec_->SetInstructionData(goto_offset, 1, static_cast<ExecWord>(pc_offset));
     return Instruction::Arg(Instruction::kRegister, merge_register);

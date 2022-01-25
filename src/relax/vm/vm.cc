@@ -165,8 +165,8 @@ void VirtualMachine::RunLoop() {
         if (cond_val != 0) {
           pc_++;
         } else {
-          ICHECK_NE(instr.offset, 0);
-          pc_ += instr.offset;
+          ICHECK_GT(instr.false_offset, 1);
+          pc_ += instr.false_offset;
         }
         break;
       }

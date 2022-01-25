@@ -140,7 +140,7 @@ struct Instruction {
       /*! \brief The register containing the cond value. */
       RegName cond;
       /*! \brief The program counter offset for the false branch. */
-      Index offset;
+      Index false_offset;
     };
   };
   /*!
@@ -167,7 +167,7 @@ struct Instruction {
   /*!
    * \brief Construct an If instruction.
    * \param cond The register containing the cond value.
-   * \param offset The program counter offset for the false branch.
+   * \param false_offset The program counter offset for the false branch.
    * \return The If instruction.
    */
   static Instruction If(RegName cond, Index false_offset);
