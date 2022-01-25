@@ -76,10 +76,9 @@ class ExecBuilderNode : public Object {
   /*!
    * \brief Emit an If instruction.
    * \param cond The register containing the cond value.
-   * \param true_offset The program counter offset for the true branch.
-   * \param false_offset The program counter offset for the false branch.
+   * \param offset The program counter offset for the false branch.
    */
-  void EmitIf(vm::RegName cond, vm::Index true_offset, vm::Index false_offset);
+  void EmitIf(vm::RegName cond, vm::Index offset);
   /*!
    * \brief Emit a constant value to the constant pool.
    * \return The index that represents the constant.

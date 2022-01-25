@@ -149,9 +149,8 @@ Instruction ExecutableNode::GetInstruction(Index i) const {
     }
     case Opcode::If: {
       RegName cond = instr_data[offset + 1];
-      Index true_branch = instr_data[offset + 2];
-      Index false_branch = instr_data[offset + 3];
-      return Instruction::If(cond, true_branch, false_branch);
+      Index false_branch = instr_data[offset + 2];
+      return Instruction::If(cond, false_branch);
     }
     default:
       LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
@@ -470,7 +469,7 @@ String ExecutableNode::AsText() const {
         }
         case Opcode::If: {
           os << std::setw(6) << std::left << "If" << RegNameToStr(instr.cond) << ", "
-             << instr.true_offset << ", " << instr.false_offset << "\n";
+             << instr.offset << "\n";
           break;
         }
         default:
@@ -515,8 +514,7 @@ String ExecutableNode::AsPython() const {
           break;
         }
         case Opcode::If: {
-          os << "    ib.emit_if(ib.r(" << instr.cond << "), " << instr.true_offset << ", "
-             << instr.false_offset << ")\n";
+          os << "    ib.emit_if(ib.r(" << instr.cond << "), " << instr.offset << ")\n";
           break;
         }
         default:

@@ -279,7 +279,7 @@ def test_vm_goto():
 def test_vm_if():
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=3):
-        ib.emit_if(ib.r(0), 1, 3)
+        ib.emit_if(ib.r(0), 3)
         ib.emit_call("test.vm.add", args=[ib.r(1), ib.r(2)], dst=ib.r(3))
         ib.emit_goto(2)
         ib.emit_call("test.vm.mul", args=[ib.r(1), ib.r(2)], dst=ib.r(3))

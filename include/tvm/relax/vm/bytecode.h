@@ -139,10 +139,8 @@ struct Instruction {
     struct /* If */ {
       /*! \brief The register containing the cond value. */
       RegName cond;
-      /*! \brief The program counter offset for the true branch. */
-      Index true_offset;
       /*! \brief The program counter offset for the false branch. */
-      Index false_offset;
+      Index offset;
     };
   };
   /*!
@@ -169,11 +167,10 @@ struct Instruction {
   /*!
    * \brief Construct an If instruction.
    * \param cond The register containing the cond value.
-   * \param true_offset The program counter offset for the true branch.
-   * \param false_offset The program counter offset for the false branch.
+   * \param offset The program counter offset for the false branch.
    * \return The If instruction.
    */
-  static Instruction If(RegName cond, Index true_offset, Index false_offset);
+  static Instruction If(RegName cond, Index false_offset);
 };
 
 }  // namespace relax_vm

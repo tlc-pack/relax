@@ -133,7 +133,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Record the offset of If instruction
     size_t if_offset = exec_->instr_offset.size();
 
-    builder_->EmitIf(cond_reg.value(), 1, 3);
+    builder_->EmitIf(cond_reg.value(), 3);
     size_t num_instr = exec_->instr_offset.size();
     Instruction::Arg true_reg = this->VisitExpr(ife->true_branch);
     // Reserve a register for return
@@ -155,7 +155,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     // Update the offsets of the If instruction emmited above
     // Jump to the behind of the next goto instruction
-    exec_->SetInstructionData(if_offset, 3, static_cast<ExecWord>(false_offset));
+    exec_->SetInstructionData(if_offset, 2, static_cast<ExecWord>(false_offset));
     // Update the pc_offset of Goto instruction
     // Jump over the else-then branch
     size_t pc_offset = exec_->instr_offset.size() - goto_offset;
