@@ -14,24 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name
+"""A builder to build Relax VM executable."""
 from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
 from tvm._ffi._ctypes.packed_func import TVMRetValueHandle
 from tvm.runtime import Object
 from tvm.runtime.container import ShapeTuple
-from tvm._ffi.base import _LIB, check_call
-from . vm import Executable
+from .vm import Executable
 from . import _ffi_api
+
 
 class SpecialReg(IntEnum):
     """Magic numbers that represent special registers in vm."""
+
     VOID_ARG = 0x00EC66FE0321975A
     VM_STATE = 0x008D14FA4379015C
 
+
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
+
     stack = []
 
     def __enter__(self):
@@ -40,6 +44,7 @@ class VMFuncScope(object):
 
     def __exit__(self, ptype, value, trace):
         VMFuncScope.stack.pop()
+
 
 @tvm._ffi.register_object("relax.ExecBuilder")
 class ExecBuilder(Object):
@@ -81,7 +86,7 @@ class ExecBuilder(Object):
     def emit_call(
         self,
         name: str,
-        args: Optional[List[Union[tvm.nd.NDArray, tvm.DataType]]] = [],
+        args: Optional[List[Union[tvm.nd.NDArray, tvm.DataType]]] = None,
         dst: int = None,
     ) -> None:
         """emit a call instruction which calls a packed function."""
@@ -89,16 +94,17 @@ class ExecBuilder(Object):
         if dst is None:
             dst = SpecialReg.VOID_ARG
         args_ = []
-        for arg in args:
-            if isinstance(arg, tuple):
-                shape_tuple = ShapeTuple(arg)
-                new_arg = self.emit_constant(shape_tuple)
-                args_.append(new_arg)
-            elif isinstance(arg, (tvm.nd.NDArray, tvm.DataType, ShapeTuple)):
-                new_arg = self.emit_constant(arg)
-                args_.append(new_arg)
-            else:
-                args_.append(arg)
+        if args is not None:
+            for arg in args:
+                if isinstance(arg, tuple):
+                    shape_tuple = ShapeTuple(arg)
+                    new_arg = self.emit_constant(shape_tuple)
+                    args_.append(new_arg)
+                elif isinstance(arg, (tvm.nd.NDArray, tvm.DataType, ShapeTuple)):
+                    new_arg = self.emit_constant(arg)
+                    args_.append(new_arg)
+                else:
+                    args_.append(arg)
         _ffi_api.ExecBuilderEmitCall(self, name, args_, dst)
 
     def emit_ret(self, result: int) -> None:
