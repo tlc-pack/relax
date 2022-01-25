@@ -30,8 +30,7 @@ namespace relax_vm {
 
 class DummyModule : public runtime::ModuleNode {
  public:
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     return nullptr;
   }
 

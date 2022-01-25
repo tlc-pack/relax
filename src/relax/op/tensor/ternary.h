@@ -21,8 +21,14 @@
  * \file ternary.h
  * \brief shape and type deduction for ternary operators.
  */
+
+#ifndef TVM_RELAX_OP_TENSOR_TERNARY_H_
+#define TVM_RELAX_OP_TENSOR_TERNARY_H_
+
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+
+#include <vector>
 
 #include "../op_common.h"
 
@@ -105,3 +111,5 @@ Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
 
 }  // namespace relax
 }  // namespace tvm
+
+#endif  // TVM_RELAX_OP_TENSOR_TERNARY_H_

@@ -24,6 +24,9 @@
 #ifndef TVM_RELAX_VM_VM_H_
 #define TVM_RELAX_VM_VM_H_
 
+#include <string>
+#include <vector>
+
 #include "./bytecode.h"
 #include "./executable.h"
 #include "./memory_manager.h"
@@ -109,10 +112,9 @@ class VirtualMachine : public runtime::ModuleNode {
    *   If the function needs resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
-  virtual ~VirtualMachine() final {}
+  ~VirtualMachine() final {}
 
   const char* type_key() const final { return "relax.VirtualMachine"; }
   /*! \brief The state of the virtual machine, which can be referred by
