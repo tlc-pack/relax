@@ -27,6 +27,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/te/operation.h>
 
+#include <string>
+
 namespace tvm {
 namespace relax {
 

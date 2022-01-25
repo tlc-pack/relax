@@ -34,7 +34,7 @@ namespace relax {
 
 class VMShapeLowerMutator : public ExprMutator {
  public:
-  static DataType ShapeDType() { return DataType::Int(64); };
+  static DataType ShapeDType() { return DataType::Int(64); }
 
   explicit VMShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
@@ -73,7 +73,7 @@ class VMShapeLowerMutator : public ExprMutator {
     std::string shape_func_name = builder_->name_table()->GetUniqueName("shape_func");
     func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
     GlobalVar shape_func_var(shape_func_name);
-    // TODO make sure shape_heap doesnt get redefined by local funcs?
+    // TODO(@ziheng) make sure shape_heap doesnt get redefined by local funcs?
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
     ret_mod_->Add(shape_func_var, func);
 
