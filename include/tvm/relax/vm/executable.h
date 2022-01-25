@@ -76,8 +76,8 @@ class ExecutableNode : public Object {
    */
   Instruction GetInstruction(Index i) const;
   /*!
-  * \brief Set j-th byte data of i-th instruction to val.
-  */
+   * \brief Set j-th byte data of i-th instruction to val.
+   */
   void SetInstructionData(Index i, Index j, ExecWord val);
   /*!
    * \brief Print the instructions as text format.

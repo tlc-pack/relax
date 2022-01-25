@@ -515,8 +515,8 @@ String ExecutableNode::AsPython() const {
           break;
         }
         case Opcode::If: {
-          os << "    ib.emit_if(ib.r(" << instr.cond << "), "
-             << instr.true_offset << ", " << instr.false_offset << ")\n";
+          os << "    ib.emit_if(ib.r(" << instr.cond << "), " << instr.true_offset << ", "
+             << instr.false_offset << ")\n";
           break;
         }
         default:

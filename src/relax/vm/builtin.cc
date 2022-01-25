@@ -40,9 +40,7 @@ using tvm::runtime::NDArray;
 
 TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_method(&NDArray::Shape);
 
-TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](NDArray src) {
-  return src;
-});
+TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](NDArray src) { return src; });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap").set_body_typed([](ShapeTuple size) {
   return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
