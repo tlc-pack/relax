@@ -123,6 +123,11 @@ std::string ExecutableNode::Stats() const {
   return oss.str();
 }
 
+void ExecutableNode::SetInstructionData(Index i, Index j, ExecWord val) {
+  Index instr_idx = instr_offset[i];
+  instr_data[instr_idx + j] = val;
+}
+
 Instruction ExecutableNode::GetInstruction(Index i) const {
   size_t offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);

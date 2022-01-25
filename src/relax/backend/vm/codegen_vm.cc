@@ -127,41 +127,40 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     const If& ife = GetRef<If>(op);
     // Get the executable from exec_builder
     Executable exec_ = builder_->Get();
-    // Visit the condition expression
-    this->VisitExpr(ife->cond);
 
+    // Visit the condition expression
+    Instruction::Arg cond_reg = this->VisitExpr(ife->cond);
     // Record the offset of If instruction
     size_t if_offset = exec_->instr_offset.size();
 
-    size_t cond_register = registers_num_;
-    builder_->EmitIf(cond_register, 1, 3);
+    builder_->EmitIf(cond_reg.value(), 1, 3);
     size_t num_instr = exec_->instr_offset.size();
-    this->VisitExpr(ife->true_branch);
-    // Number of instructions emmitted in the if-else branch
-    size_t true_size = exec_->instr_offset.size() - num_instr;
-
-    // Create a merge register to record the last register of if-else and else-then branch
-    // TODO(yongwww): move the value of true register or false register to merge
-    // size_t merge_register = NewRegister();
+    Instruction::Arg true_reg = this->VisitExpr(ife->true_branch);
+    // Reserve a register for return
+    size_t merge_register = NewRegister();
+    // Copy the output from if branch to merge register
+    builder_->EmitCall("vm.builtin.copy", {true_reg}, merge_register);
 
     // Record the offset of Goto instruction
     size_t goto_offset = exec_->instr_offset.size();
 
     builder_->EmitGoto(1);
 
-    this->VisitExpr(ife->false_branch);
-    // Number of instructions emmitted in the else-then branch
-    size_t false_size = exec_->instr_offset.size() - goto_offset - 1;
+    // Calculate the false offset of If
+    size_t false_offset = exec_->instr_offset.size() - num_instr + 1;
+
+    Instruction::Arg false_reg = this->VisitExpr(ife->false_branch);
+    // Copy the output data of else branch to merge register
+    builder_->EmitCall("vm.builtin.copy", {false_reg}, merge_register);
 
     // Update the offsets of the If instruction emmited above
-    Index offset = exec_->instr_offset[if_offset];
     // Jump to the behind of the next goto instruction
-    exec_->instr_data[offset + 3] = true_size + 2;
+    exec_->SetInstructionData(if_offset, 3, static_cast<ExecWord>(false_offset));
     // Update the pc_offset of Goto instruction
-    offset = exec_->instr_offset[goto_offset];
     // Jump over the else-then branch
-    exec_->instr_data[offset + 1] = false_size + 1;
-    return Instruction::Arg(Instruction::kRegister, NewRegister());
+    size_t pc_offset = exec_->instr_offset.size() - goto_offset;
+    exec_->SetInstructionData(goto_offset, 1, static_cast<ExecWord>(pc_offset));
+    return Instruction::Arg(Instruction::kRegister, merge_register);
   }
 
   Instruction::Arg VisitExpr_(const VarNode* op) {

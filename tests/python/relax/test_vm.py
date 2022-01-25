@@ -236,6 +236,23 @@ def test_vm_storage():
     assert res.shape == shape
 
 
+def test_vm_copy():
+    @tvm.script.ir_module
+    class TestVMMove:
+        @R.function
+        def foo(x: Tensor[(3, 4), "float32"]):
+            z = R.call_packed("vm.builtin.copy", x)
+            return z
+
+    mod = TestVMMove
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    res = vm["foo"](inp)
+    np.testing.assert_allclose(res.asnumpy(), inp.asnumpy())
+
+
 def test_vm_goto():
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=2):
@@ -285,32 +302,25 @@ def test_vm_if():
     np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy())
 
 
-def test_vm_if_codegen():
+def test_vm_compile_if():
     @tvm.script.ir_module
-    class TestVMCodegenIf:
+    class TestVMCompileIf:
         @R.function
-        def ife(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
+        def ife(cond: Tensor[(), "bool"], x: Tensor[(3, 4), "float32"]):
             if cond:
                 w = relax.call_packed("test.vm.add", x, x)
             else:
                 w = relax.call_packed("test.vm.mul", x, x)
             return w
 
-    mod = TestVMCodegenIf
+    mod = TestVMCompileIf
     target = tvm.target.Target("llvm", host="llvm")
     ex, lib = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
-    inp = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    cond1 = tvm.nd.array(True)
-    cond2 = tvm.nd.array(False)
-
-    res = vm["ife"](cond1, inp)
+    inp = tvm.nd.array(np.random.rand(3, 4))
+    res = vm["ife"](True, inp)
     np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() + inp.asnumpy())
-    res = vm["ife"](cond2, inp)
+    res = vm["ife"](0, inp)
     np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() * inp.asnumpy())
 
 
@@ -673,9 +683,10 @@ if __name__ == "__main__":
     test_vm_constant_serialize()
     test_vm_shapeof()
     test_vm_storage()
+    test_vm_copy()
     test_vm_goto()
     test_vm_if()
-    test_vm_if_codegen()
+    test_vm_compile_if()
     test_vm_compile_stage0()
     test_vm_compile_stage1()
     test_vm_compile_stage2()

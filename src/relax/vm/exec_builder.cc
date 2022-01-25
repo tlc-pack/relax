@@ -84,7 +84,7 @@ void ExecBuilderNode::EmitGoto(Index pc_offset) {
   exec->instr_data.push_back(pc_offset);
 }
 
-void ExecBuilderNode::EmitIf(vm::RegName cond, vm::Index true_offset, vm::Index false_offset){
+void ExecBuilderNode::EmitIf(vm::RegName cond, vm::Index true_offset, vm::Index false_offset) {
   exec->instr_offset.push_back(exec->instr_data.size());
   exec->instr_data.push_back(static_cast<ExecWord>(Opcode::If));
   exec->instr_data.push_back(cond);
@@ -135,7 +135,7 @@ bool CheckExecutable(Executable exec) {
           break;
         }
         case Opcode::Goto: {
-          ICHECK_GT(instr.pc_offset, 0);
+          ICHECK_NE(instr.pc_offset, 0);
           break;
         }
         case Opcode::If: {
