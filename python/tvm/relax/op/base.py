@@ -13,15 +13,18 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-from ...ir import BaseFunc, Array
-from ..expr import Expr, ShapeExpr, Tuple, Call
-from . import _ffi_api
+"""The base Relax operators."""
 from typing import Union, List
+from . import _ffi_api
+from ..expr import Expr, ShapeExpr, Tuple, Call
+from ...ir import Array
 
 
 def call_tir(
-    shape: Union[Tuple, ShapeExpr, List[int]], func: Expr, args: Union[Tuple, List[Expr]],
-    tir_vars: ShapeExpr = None
+    shape: Union[Tuple, ShapeExpr, List[int]],
+    func: Expr,
+    args: Union[Tuple, List[Expr]],
+    tir_vars: ShapeExpr = None,
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.

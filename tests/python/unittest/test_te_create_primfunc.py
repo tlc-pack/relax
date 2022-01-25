@@ -326,6 +326,7 @@ def test_data_dependent_access():
     func(c, tvm.nd.array(a_np), tvm.nd.array(b_np))
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
+
 def test_loop_var_datatype():
     def test_helper(dtype):
         n = te.var("n", dtype)
@@ -348,13 +349,14 @@ def test_loop_var_datatype():
     test_helper("int32")
     test_helper("int64")
 
+
 def test_unbound_var():
     n = tir.Var("n", "int32")
     A = te.placeholder((n + 1,), name="A")
     B = te.compute((n + 1,), lambda i: A[i], name="B")
     func = te.create_prim_func([A, B], [n])
-    assert(len(func.params) == 3)
-    assert(func.params[2] == n)
+    assert len(func.params) == 3
+    assert func.params[2] == n
 
     func = tvm.build(func)
 
@@ -362,6 +364,7 @@ def test_unbound_var():
     b = tvm.nd.array(np.zeros(10, dtype=B.dtype))
     func(tvm.nd.array(a_np), b, 9)
     tvm.testing.assert_allclose(a_np, b.numpy())
+
 
 def te_argmax():
     # x and y are the operands of reduction, both of them is a tuple of index
@@ -387,8 +390,11 @@ def te_argmax():
     T0, T1 = te.compute((m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="T")
     return [idx, val, T0, T1]
 
+
 @T.prim_func
-def tir_argmax(var_idx: T.handle, var_val: T.handle, var_T_v0: T.handle, var_T_v1: T.handle) -> None:
+def tir_argmax(
+    var_idx: T.handle, var_val: T.handle, var_T_v0: T.handle, var_T_v1: T.handle
+) -> None:
     m = T.var("int32")
     n = T.var("int32")
     idx = T.match_buffer(var_idx, [m, n], dtype="int32")
@@ -406,19 +412,20 @@ def tir_argmax(var_idx: T.handle, var_val: T.handle, var_T_v0: T.handle, var_T_v
             T_v0[i] = T.Select(T_v1[i] >= val[i, k], T_v0[i], idx[i, k])
             T_v1[i] = T.Select(T_v1[i] >= val[i, k], T_v1[i], val[i, k])
 
+
 def test_argmax():
     _check_workload(te_argmax, tir_argmax)
 
     dtype = "int32"
     func = te.create_prim_func(te_argmax())
-    assert(len(func.params) == 4)
+    assert len(func.params) == 4
 
     func = tvm.build(func)
 
     idx_np = np.arange(100, dtype=dtype).reshape((10, 10))
     val_np = np.random.permutation(100).reshape((10, 10)).astype(dtype)
-    c = tvm.nd.array(np.zeros(10, dtype=dtype)) # argmax index
-    d = tvm.nd.array(np.zeros(10, dtype=dtype)) # max value
+    c = tvm.nd.array(np.zeros(10, dtype=dtype))  # argmax index
+    d = tvm.nd.array(np.zeros(10, dtype=dtype))  # max value
     func(tvm.nd.array(idx_np), tvm.nd.array(val_np), c, d)
 
     c_expected = idx_np[np.arange(10), np.argmax(val_np, axis=1)]
@@ -426,6 +433,7 @@ def test_argmax():
 
     tvm.testing.assert_allclose(c_expected, c.numpy())
     tvm.testing.assert_allclose(d_expected, d.numpy())
+
 
 if __name__ == "__main__":
     test_unique_name()

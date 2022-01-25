@@ -17,5 +17,5 @@
 # under the License.
 
 
-./tests/lint/git-black.sh HEAD~1
-./tests/lint/git-black.sh origin/main
+./tests/lint/git-black.sh HEAD~5
+# ./tests/lint/git-black.sh origin/relax

@@ -81,9 +81,9 @@ struct CreateFuncInfo {
   }
 };
 
-BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op, const Array<te::Tensor>& tensors,
-                                     Array<PrimExpr> bindings, PrimExpr expr_body,
-                                     CreateFuncInfo* info) {
+BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
+                                      const Array<te::Tensor>& tensors, Array<PrimExpr> bindings,
+                                      PrimExpr expr_body, CreateFuncInfo* info) {
   // Step 1. Push_back data_par axis and reduce_axis into block_vars.
   Array<IterVar> iter_vars;
   std::unordered_map<const VarNode*, PrimExpr> var_map;
@@ -105,14 +105,14 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op, const Arr
 
   // Step 2. Declare buffer and update op2buffers
   Array<Buffer> buffers;
-  for (const te::Tensor& tensor: tensors) {
+  for (const te::Tensor& tensor : tensors) {
     Buffer buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
     info->tensor2buffers[tensor] = buffer;
     buffers.push_back(buffer);
   }
 
   // Step 3. Add Buffer to root_alloc
-  for (const te::Tensor& tensor: tensors) {
+  for (const te::Tensor& tensor : tensors) {
     if (!info->IsArg(tensor)) {
       info->root_alloc.push_back(info->tensor2buffers[tensor]);
     }
@@ -149,7 +149,8 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op, const Arr
 
     for (size_t i = 0; i < buffers.size(); i++) {
       const Buffer& buffer = buffers[i];
-      body_stmts.push_back(BufferStore(buffer, reduce->combiner.get()->operator()(lhs, rhs)[i], indices));
+      body_stmts.push_back(
+          BufferStore(buffer, reduce->combiner.get()->operator()(lhs, rhs)[i], indices));
       init_stmts.push_back(BufferStore(buffer, reduce->combiner->identity_element[i], indices));
     }
 
@@ -158,7 +159,8 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op, const Arr
   } else {
     // Case 2. Data parallel compute
     ICHECK_EQ(tensors.size(), 1);
-    body = BufferStore(info->tensor2buffers[tensors[0]], Substitute(info->transformer(expr_body), var_map), indices);
+    body = BufferStore(info->tensor2buffers[tensors[0]],
+                       Substitute(info->transformer(expr_body), var_map), indices);
   }
 
   // Step 6. Add script_parsing_detect_access attr for auto complete the whole IR.
@@ -205,7 +207,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       const tir::ReduceNode* reduce_ = compute_op->body[k].as<tir::ReduceNode>();
       ICHECK(reduce_);
       ICHECK(ReduceEqual(reduce_, reduce)) << "The Reduce inputs of ComputeOp should "
-                                            << "have the same attribute except value_index";
+                                           << "have the same attribute except value_index";
       tensors.push_back(compute_op.output(k));
     }
 
