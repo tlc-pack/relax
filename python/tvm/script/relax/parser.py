@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name, no-else-return
+# pylint: disable=inconsistent-return-statements, ungrouped-imports
+"""TVM Script Parser For Relax"""
 from __future__ import annotations
 
 import inspect
@@ -25,18 +27,15 @@ import tvm
 import tvm.script
 from tvm.ir.module import IRModule
 from tvm.ir import diagnostics
-from tvm import tir
 
 import synr
 from synr import ast, Transformer
 
-import tvm.relax as relax
-import tvm.relay as relay
+from tvm import relay, relax, tir
 
 import tvm.script.relax as relax_namespace
 import tvm.script.tir as tir_namespace
 
-from ..diagnostics import TVMDiagnosticCtx as _TIRDiagnosticCtx
 from ..parser import TVMScriptParser as _TIRScriptParser
 
 
@@ -99,6 +98,8 @@ PRIMEXPR_ARITHMETIC_OP_MAP = {
 
 
 class RelaxTransformer(Transformer):
+    """A visitor to handle transformations on the Relax AST"""
+
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
         self.module = ir_mod
@@ -232,8 +233,7 @@ class RelaxTransformer(Transformer):
                 return (relax.ShapeType(span), None)
             elif ty.id.name == "Dim":
                 return (relax.DimType(span), None)
-            else:
-                self.report_error("unknown type in annotation", span)
+            self.report_error("unknown type in annotation", span)
 
         # annotation with type arguments/shape annotation
         if isinstance(ty, ast.TypeApply):
@@ -612,10 +612,7 @@ class RelaxTransformer(Transformer):
         var = self._get_lhs(stmt)
         rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
-        if isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc):
-            bind_free_vars = True
-        else:
-            bind_free_vars = False
+        bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
         lhs = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
         return relax.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
@@ -894,7 +891,8 @@ class RelaxTransformer(Transformer):
                 # call_tir is special case because last argument is optional
                 if len(args) != 3 and len(args) != 4:
                     self.report_error(
-                        f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
+                        f"{op.name} expects {op.num_inputs} arguments but got {len(args)}",
+                        expr.span,
                     )
             elif op.num_inputs != -1 and len(args) != op.num_inputs:
                 self.report_error(
@@ -1040,7 +1038,7 @@ class RelaxTransformer(Transformer):
                 assert isinstance(parsed_stmt, relax.Binding)
                 current_block.append(parsed_stmt)
         if len(current_block) > 0:
-            blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
+            blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(block.stmts[-1].span)))
 
         ret_stmt = block.stmts[-1]
         if not isinstance(ret_stmt, ast.Return):
@@ -1054,6 +1052,8 @@ class RelaxTransformer(Transformer):
 
 
 class RelaxDiagnosticContext(synr.DiagnosticContext):
+    """Relax diagnostic context"""
+
     def __init__(self, ir_mod):
         self.tvm_diag_ctx = diagnostics.DiagnosticContext(ir_mod, diagnostics.get_renderer())
         self.str_to_source_name = {}
@@ -1172,7 +1172,8 @@ def from_source(
         raise TypeError("Only function definitions are supported.")
 
 
-# def fromtext(source: str, source_name: str = "from_string") -> Union[relax.Function, tvm.IRModule]:
+# def fromtext(source: str, source_name: str = "from_string")
+# -> Union[relax.Function, tvm.IRModule]:
 #     """Parses the given input string (in the Relax text format) to a Relax AST.
 
 #     Parameters

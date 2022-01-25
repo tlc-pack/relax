@@ -28,6 +28,10 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "./bytecode.h"
 
 namespace tvm {

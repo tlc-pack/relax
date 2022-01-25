@@ -174,7 +174,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     shape_tuple_value = shape_tuple;
     Index index = builder_->EmitConstant(shape_tuple_value);
     args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-    
+
     size_t arg_register = NewRegister();
     builder_->EmitCall("vm.runtime.TupleGetItem", args, arg_register);
 

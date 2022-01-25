@@ -14,16 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=no-else-return
 """Developer API of constructing Relax AST."""
 import typing
-from typing import List, Optional, Union, Dict, Any, Callable
-from tvm.relay.expr import Tuple
+
+from typing import List, Optional, Union, Any, Callable
 from tvm.runtime import Object
-from tvm import relax as rx
-from tvm import tir
-from .expr import *
+from tvm import relax as rx, tir
+import tvm
+from .expr import (
+    Expr,
+    te_tensor,
+    Var,
+    ShapeExpr,
+    GlobalVar,
+    PrimExpr,
+    BindingBlock,
+    Tuple,
+    BaseFunc,
+)
 from .op.base import call_tir
-from tvm._ffi.base import _LIB, check_call
 from . import _ffi_api
 
 
@@ -40,7 +50,8 @@ class FunctionScope(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # __exit__ should properly handle the case where the with block exits with an exception
-        # when handling error case in exit, always check if there is already an exception been thrown in the with block
+        # when handling error case in exit, always check if there is already an exception
+        # been thrown in the with block
         self._bb._exit_function_scope(exc_type, exc_val, exc_tb)
 
 
@@ -154,7 +165,8 @@ class BlockBuilder(Object):
 
     def _convert_te_arg(self, te_args: Any) -> typing.Tuple[Any, List[tvm.te.Tensor]]:
         """Helper function to convert Relax expressions to te tensor.
-        In the common case, the type of te_args is a Relax expression and is converted into a te tensor.
+        In the common case, the type of te_args is a Relax expression and is converted
+        into a te tensor.
         If te_args is a nested or recursive datatype (i.e list, dict, tvm.ir.Map, tvm.ir.Array),
         we recursive and convert any value of type Relax expression into a te tensor.
         Common values of type int, float, and str are preserved.
@@ -167,7 +179,8 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : (Any, [tvm.te.Tensor])
-            A tuple of the converted te_args, and a list of te tensors for each converted Relax expression
+            A tuple of the converted te_args, and a list of te tensors for each converted
+            Relax expression
         """
         te_args_list = []
 
@@ -188,14 +201,14 @@ class BlockBuilder(Object):
                 return {k: _convert_te_arg_helper(arg[k]) for k in arg}
             elif isinstance(arg, (int, float, str)):
                 return arg
-            else:
-                raise TypeError("not supported type in emit_te: {}".format(type(arg)))
+            raise TypeError("not supported type in emit_te: {}".format(type(arg)))
 
         new_arg = _convert_te_arg_helper(te_args)
         return new_arg, te_args_list
 
     def _get_unbound_tir_vars(self, args: List[tvm.te.Tensor]) -> List[tvm.tir.Var]:
-        """get unbound TIR vars (i.e TIR vars used in the shape but is not itself a dimension of a shape)"""
+        """get unbound TIR vars (i.e TIR vars used in the shape but is not
+        itself a dimension of a shape)"""
         bound_vars = set()
         used_vars = set()
 
@@ -224,7 +237,8 @@ class BlockBuilder(Object):
 
         params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function.
-            If params is None, it means deferring initialization of function parameters until emit_func_output.
+            If params is None, it means deferring initialization of function parameters
+            until emit_func_output.
 
         Returns
         -------
@@ -317,7 +331,8 @@ class BlockBuilder(Object):
             @tvm.script.ir_module
             class Module:
                 @T.prim_func
-                def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_compute: T.handle) -> None:
+                def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
+                            var_compute: T.handle) -> None:
                     # function attr dict
                     T.func_attr({"global_symbol": "te_func"})
                     m = T.var("int64")
@@ -369,7 +384,8 @@ class BlockBuilder(Object):
                 def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
                     # function attr dict
                     T.func_attr({"global_symbol": "te_func"})
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)], dtype="float32")
+                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
+                                                   dtype="float32")
                     compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
                     # body
                     # with T.block("root")
@@ -381,9 +397,11 @@ class BlockBuilder(Object):
                             compute[i] = rxplaceholder[i]
 
                 @R.function
-                def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"]) -> Tensor[_, "float32"]:
+                def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"])
+                    -> Tensor[_, "float32"]:
                     # block 0
-                    gv: Tensor[((n + 1),), "float32"] = relax.call_tir(((n + 1),), te_func, (y,), (n,))
+                    gv: Tensor[((n + 1),), "float32"]
+                    = relax.call_tir(((n + 1),), te_func, (y,), (n,))
                     return gv
         """
         new_args, te_arg_list = self._convert_te_arg(args)
