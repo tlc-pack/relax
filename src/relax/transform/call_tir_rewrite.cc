@@ -59,11 +59,14 @@ class CallTIRMutator : public ExprMutator {
         outs.push_back(builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc"));
       } else {
         // multiple output case
-        CHECK(call->args[0]->IsInstance<TupleNode>()) << "call_dps expects ShapeExpr or Tuple as first argument, got " << call->args[0];
+        CHECK(call->args[0]->IsInstance<TupleNode>())
+            << "call_dps expects ShapeExpr or Tuple as first argument, got " << call->args[0];
         Tuple output_shapes = Downcast<Tuple>(call->args[0]);
-        for (const auto& shape: output_shapes->fields) {
-          CHECK(shape->IsInstance<ShapeExprNode>()) << "call_dps exoects Tuple of ShapeExprs, got " << shape << " as an element of tuple";
-          outs.push_back(builder_->Emit(Call(alloc_tensor_op, {Downcast<ShapeExpr>(shape)}), "alloc"));
+        for (const auto& shape : output_shapes->fields) {
+          CHECK(shape->IsInstance<ShapeExprNode>())
+              << "call_dps exoects Tuple of ShapeExprs, got " << shape << " as an element of tuple";
+          outs.push_back(
+              builder_->Emit(Call(alloc_tensor_op, {Downcast<ShapeExpr>(shape)}), "alloc"));
         }
       }
 
