@@ -33,6 +33,9 @@
 #include <tvm/support/with.h>
 
 #include <memory>
+#include <stack>
+#include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace relax {

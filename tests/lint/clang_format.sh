@@ -18,7 +18,7 @@
 
 set -e
 
-# check lastest change, for squash merge into main
-./tests/lint/git-clang-format.sh HEAD~1
-# chekc against origin/main for PRs.
-./tests/lint/git-clang-format.sh origin/main
+# check lastest 5 change, for squash merge into relax
+./tests/lint/git-clang-format.sh HEAD~5
+# check against origin/relax for PRs.
+# ./tests/lint/git-clang-format.sh origin/relax

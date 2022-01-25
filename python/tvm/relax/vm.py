@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name, redefined-builtin
+"""The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
-from tvm._ffi.base import _LIB, check_call
+
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
-from . import transform
 from ..rpc.base import RPC_SESS_MASK
 
 
