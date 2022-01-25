@@ -67,7 +67,9 @@ def get_param_list(
 
 def tvm_span_from_synr(span: synr.ast.Span) -> Span:
     """Convert a synr span to a TVM span"""
-    assert isinstance(span, synr.ast.Span), "Expected span to be synr.ast.Span, but got " + str(type(span))
+    assert isinstance(span, synr.ast.Span), "Expected span to be synr.ast.Span, but got " + str(
+        type(span)
+    )
     return Span(
         SourceName(span.filename),
         span.start_line,
@@ -79,7 +81,9 @@ def tvm_span_from_synr(span: synr.ast.Span) -> Span:
 
 def synr_span_from_tvm(span: Span) -> synr.ast.Span:
     """Convert a TVM span to a synr span"""
-    assert isinstance(span, synr.ast.Span), "Expected span to be tvm.ir.Span, but got " + str(type(span))
+    assert isinstance(span, synr.ast.Span), "Expected span to be tvm.ir.Span, but got " + str(
+        type(span)
+    )
     return synr.ast.Span(
         span.source_name.name,
         span.line,

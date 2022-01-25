@@ -30,6 +30,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relay/expr.h>
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
