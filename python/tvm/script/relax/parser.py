@@ -31,7 +31,6 @@ from tvm.ir.module import IRModule
 from tvm.script.tir.node import BufferSlice
 import tvm.script.tir as tir_namespace
 import tvm.script.relax as relax_namespace
-
 import synr
 from synr import ast, Transformer
 
