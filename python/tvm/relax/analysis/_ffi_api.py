@@ -13,6 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
+"""FFI APIs for tvm.analysis"""
 import tvm._ffi
 
 tvm._ffi._init_api("relax.analysis", __name__)

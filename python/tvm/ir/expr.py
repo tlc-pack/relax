@@ -60,8 +60,7 @@ class RelayExpr(BaseExpr):
         shape : tvm.ir.RelayExpr
             The expression that represents the shape.
         """
-        return _ffi_api.RelayExprShape(self) 
-
+        return _ffi_api.RelayExprShape(self)
 
 
 @tvm._ffi.register_object("GlobalVar")

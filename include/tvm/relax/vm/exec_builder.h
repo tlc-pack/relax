@@ -30,6 +30,9 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
+#include <string>
+#include <vector>
+
 #include "./bytecode.h"
 #include "./executable.h"
 

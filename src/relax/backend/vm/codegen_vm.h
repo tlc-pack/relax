@@ -22,8 +22,8 @@
  * \brief A codegen to generate VM executable from an IRModule with relax functions.
  */
 
-#ifndef TVM_RELAX_BACKEND_CODEGEN_VM_H_
-#define TVM_RELAX_BACKEND_CODEGEN_VM_H_
+#ifndef TVM_RELAX_BACKEND_VM_CODEGEN_VM_H_
+#define TVM_RELAX_BACKEND_VM_CODEGEN_VM_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/relax/vm/exec_builder.h>
@@ -65,4 +65,4 @@ class VMCodeGen : public Object {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_BACKEND_CODEGEN_VM_H_
+#endif  // TVM_RELAX_BACKEND_VM_CODEGEN_VM_H_

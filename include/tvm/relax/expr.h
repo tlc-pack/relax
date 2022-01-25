@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_TVM_RELAX_EXPR_H_
-#define TVM_TVM_RELAX_EXPR_H_
+#ifndef TVM_RELAX_EXPR_H_
+#define TVM_RELAX_EXPR_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/span.h>
@@ -208,7 +208,7 @@ class Binding : public ObjectRef {
   using ContainerType = BindingNode;
 };
 
-/*! \brief Symbolic shape match, binds the variables of the LHS with the rhs. */
+/*! \brief Symbolic shape match, binds the variable of the lhs with the rhs. */
 class MatchShape;
 class MatchShapeNode : public BindingNode {
  public:
@@ -460,4 +460,4 @@ class ExternFunc : public BaseFunc {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_TVM_RELAX_EXPR_H_
+#endif  // TVM_RELAX_EXPR_H_
