@@ -195,6 +195,7 @@ def test_var_redefine_fail_if():
 def test_var_if_scoping_fail():
     # TODO: fix this
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
             if cond:
@@ -208,6 +209,7 @@ def test_var_if_scoping_fail():
 
 def test_if_mismatch_var_fail():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
             if cond:
@@ -351,6 +353,7 @@ def test_dataflow_scope_fail():
 
 def test_dataflow_syntax_fail_pattern():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(x: Tensor[_, _]):
             with relax.dataflow() as df:
@@ -364,6 +367,7 @@ def test_dataflow_syntax_fail_pattern():
 
 def test_dataflow_syntax_fail_params():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(x: Tensor[_, _]):
             with relax.dataflow(x) as df:
@@ -377,6 +381,7 @@ def test_dataflow_syntax_fail_params():
 
 def test_dataflow_unbound_outputs():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(x: Tensor[_, _]):
             with relax.dataflow():
@@ -390,6 +395,7 @@ def test_dataflow_unbound_outputs():
 
 def test_invalid_special_op_dataflow():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(x: Tensor):
             y = add(x, x)
@@ -399,6 +405,7 @@ def test_invalid_special_op_dataflow():
 
 def test_invalid_special_op_output():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(x: Tensor):
             y = add(x, x)
@@ -408,6 +415,7 @@ def test_invalid_special_op_output():
 
 def test_func_no_return_fail():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def f(x: Tensor[_, _]):
             y = add(x, x)

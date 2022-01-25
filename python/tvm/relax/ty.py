@@ -29,8 +29,8 @@ class ShapeType(Type):
 
 
 @tvm._ffi.register_object("relax.DynTensorType")
-class DynTensorType(TensorType):
-    """A dynamic TensorType in Relax.
+class DynTensorType(Type):
+    """A dynamic tensor type in Relax.
 
     This is the type assigned to tensors with a known dtype and unknown shape.
 
@@ -50,5 +50,6 @@ class DynTensorType(TensorType):
 @tvm._ffi.register_object("relax.DimType")
 class DimType(Type):
     """The type of indices/shape dimensions in Relax."""
+
     def __init__(self, span: Span = None):
         self.__init_handle_by_constructor__(_ffi_api.DimType, span)

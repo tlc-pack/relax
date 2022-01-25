@@ -18,11 +18,5 @@
 
 set -e
 
-python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
-	include src \
-	examples/extension/src examples/graph_executor/src \
-	tests/cpp tests/crt \
-	--exclude_path  "src/runtime/hexagon/rpc/hexagon_rpc.h" \
-			"src/runtime/hexagon/rpc/hexagon_rpc_skel.c" \
-			"src/runtime/hexagon/rpc/hexagon_rpc_stub.c"
+	include/tvm/relax src/relax/

@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List, Optional, Union, Dict
+# pylint: disable=invalid-name, unused-import, super-init-not-called
+"""The expression nodes of Relax."""
+from typing import List, Optional
 import tvm._ffi
 from ..ir import Node, Span, SourceName, BaseFunc
 from ..runtime import String
@@ -33,6 +35,8 @@ const = relay.const
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(Expr):
+    """A shape expression which allows users to construct a shape containing PrimExpr."""
+
     values: List[PrimExpr]
 
     def __init__(self, values: List[PrimExpr], span: Span = None) -> None:
@@ -50,12 +54,13 @@ class ShapeExpr(Expr):
 def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
-    else:
-        raise ValueError("Wrong type")
+    raise ValueError("Wrong type")
 
 
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
+    """The variable class for all Relax bindings."""
+
     vid: Id
     type_annotation: Optional[Type]
 
@@ -81,6 +86,9 @@ class Var(Expr):
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
+    """A sub-type of the variable node used to mark dataflow variables from
+    normal visible "function local" bindings."""
+
     def __init__(
         self,
         name_hint: str,
@@ -97,11 +105,15 @@ class DataflowVar(Var):
 
 @tvm._ffi.register_object("relax.expr.Binding")
 class Binding(Node):
+    """The base class of a binding in Relax."""
+
     ...
 
 
 @tvm._ffi.register_object("relax.expr.MatchShape")
 class MatchShape(Binding):
+    """Symbolic shape match, binds the variable of the lhs with the rhs."""
+
     value: Expr
     pattern: List[PrimExpr]
     var: Var
@@ -112,6 +124,8 @@ class MatchShape(Binding):
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Binding):
+    """Variable binding, bind he variable of the lhs with the rhs."""
+
     var: Var
     value: Expr
 
@@ -121,6 +135,9 @@ class VarBinding(Binding):
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
 class BindingBlock(Node):
+    """base class of binding block, bindings inside can be impure
+    (with side effect or control flow)"""
+
     bindings: List[Binding]
 
     def __init__(self, bindings: List[Binding], span: Span = None) -> None:
@@ -129,12 +146,16 @@ class BindingBlock(Node):
 
 @tvm._ffi.register_object("relax.expr.DataflowBlock")
 class DataflowBlock(BindingBlock):
+    """dataflow block, bindings inside are pure (no side effect and no control flow)"""
+
     def __init__(self, bindings: List[Binding], span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)
 
 
 @tvm._ffi.register_object("relax.expr.SeqExpr")
 class SeqExpr(Expr):
+    """A sequence of binding blocks followed by an expression."""
+
     blocks: List[BindingBlock]
     body: Expr
 
@@ -144,6 +165,8 @@ class SeqExpr(Expr):
 
 @tvm._ffi.register_object("relax.expr.Function")
 class Function(BaseFunc):
+    """A Relax function."""
+
     name: Optional[GlobalVar]
     params: List[Var]
     body: Expr
@@ -162,6 +185,8 @@ class Function(BaseFunc):
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):
+    """extern function, which can represent a TIR PrimFunc or a PackedFunc."""
+
     global_symbol: String
 
     def __init__(self, global_symbol: String, span: Span = None) -> None:

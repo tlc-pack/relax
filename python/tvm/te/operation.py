@@ -475,7 +475,9 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     return tvm.tir.IterVar(dom, name, 2, thread_tag, span)
 
 
-def create_prim_func(ops: List[_tensor.Tensor], tir_var_list: List[tvm.tir.Var] = None) -> tvm.tir.PrimFunc:
+def create_prim_func(
+    ops: List[_tensor.Tensor], tir_var_list: List[tvm.tir.Var] = None
+) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 
     Parameters
