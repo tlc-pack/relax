@@ -75,12 +75,10 @@ class ExecBuilderNode : public Object {
   void EmitGoto(vm::Index pc_offset);
   /*!
    * \brief Emit an If instruction.
-   * \param test The register containing the test value.
-   * \param target The register containing the target value.
-   * \param true_offset The program counter offset for the true branch.
+   * \param cond The register containing the cond value.
    * \param false_offset The program counter offset for the false branch.
    */
-  void EmitIf(vm::RegName test, vm::RegName target, vm::Index true_offset, vm::Index false_offset);
+  void EmitIf(vm::RegName cond, vm::Index false_offset);
   /*!
    * \brief Emit a constant value to the constant pool.
    * \return The index that represents the constant.
