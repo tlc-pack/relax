@@ -137,12 +137,8 @@ struct Instruction {
       Index pc_offset;
     };
     struct /* If */ {
-      /*! \brief The register containing the test value. */
-      RegName test;
-      /*! \brief The register containing the target value. */
-      RegName target;
-      /*! \brief The program counter offset for the true branch. */
-      Index true_offset;
+      /*! \brief The register containing the cond value. */
+      RegName cond;
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
     };
@@ -170,13 +166,11 @@ struct Instruction {
   static Instruction Goto(RegName pc_offset);
   /*!
    * \brief Construct an If instruction.
-   * \param test The register containing the test value.
-   * \param target The register containing the target value.
-   * \param true_offset The program counter offset for the true branch.
+   * \param cond The register containing the cond value.
    * \param false_offset The program counter offset for the false branch.
    * \return The If instruction.
    */
-  static Instruction If(RegName test, RegName target, Index true_offset, Index false_offset);
+  static Instruction If(RegName cond, Index false_offset);
 };
 
 }  // namespace relax_vm
