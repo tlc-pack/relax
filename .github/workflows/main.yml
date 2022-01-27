@@ -48,13 +48,7 @@ jobs:
       run: >-
         conda build --output-folder=conda/pkg  conda/recipe &&
         conda install tvm -c ./conda/pkg
-<<<<<<< HEAD
     - name: Build iOS RPC
-=======
-<<<<<<< HEAD
-    - name: Build iOS RPC@MacOS
-      if: startsWith(matrix.os, 'macOS')
->>>>>>> Relax Virtual Machine
       run: |
         IOS_VERSION="14.0"
         CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release \
@@ -70,29 +64,11 @@ jobs:
         cd build-ios-simulator
         cmake .. ${CMAKE_FLAGS}
         cmake --build . --target ios_rpc
-<<<<<<< HEAD
     - name: Test
       shell: bash -l {0}
       run: >-
         python -m pytest -v tests/python/all-platform-minimal-test
     - name: Test iOS RPC
-=======
-=======
->>>>>>> Relax Virtual Machine
-    - name: Test@Win
-      if: startsWith(matrix.os, 'windows')
-      shell: cmd /C call {0}
-      run: >-
-        python -m pytest -v tests/python/all-platform-minimal-test
-    - name: Test@MacOS
-      if: startsWith(matrix.os, 'macOS')
-      shell: bash -l {0}
-      run: >-
-        python -m pytest -v tests/python/all-platform-minimal-test
-<<<<<<< HEAD
-    - name: Test iOS RPC@MacOS
-      if: startsWith(matrix.os, 'macOS')
->>>>>>> Relax Virtual Machine
       shell: bash -l {0}
       run: >-
         python -m pip install tornado psutil cloudpickle &&
@@ -100,7 +76,6 @@ jobs:
         export BUNDLE_ID=org.apache.tvmrpc &&
         export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app &&
         python -m pytest -v tests/python/contrib/test_rpc_server_device.py
-<<<<<<< HEAD
 
   Windows:
     runs-on: windows-2016
@@ -119,8 +94,3 @@ jobs:
       shell: cmd /C call {0}
       run: >-
         python -m pytest -v tests/python/all-platform-minimal-test
-
-=======
-=======
->>>>>>> Relax Virtual Machine
->>>>>>> Relax Virtual Machine
