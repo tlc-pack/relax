@@ -36,6 +36,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/te/tensor.h>
 
 #include <algorithm>
 #include <utility>

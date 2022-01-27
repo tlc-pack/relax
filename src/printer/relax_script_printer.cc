@@ -58,6 +58,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitNode_(const relay::TupleGetItemNode* op) override;
 
   // IR nodes introduced by Relax
+  Doc VisitNode_(const relax::ConstantNode* op) override;
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;
   Doc VisitNode_(const relax::ShapeExprNode* op) override;
@@ -218,7 +219,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
   Doc doc;
-  doc << "meta[relax.Constant][" << constant_counter_++ << "]";
+  doc << "relax.Constant";
+  // doc << "meta[relax.Constant][" << constant_counter_++ << "]";
   return doc;
 }
 
