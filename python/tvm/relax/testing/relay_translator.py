@@ -215,9 +215,7 @@ class EmbeddingGrad(RelayOpConverter):
         gvar = relax.GlobalVar(func_name)
         relax.BlockBuilder.current()._context_mod[gvar] = tir_func
         output_shape = inputs[0].shape
-        call = relax.call_dps(output_shape, gvar, inputs)
-        # dps = relax.call_dps(output_shape, embedding_grad, inputs)
-        # call = relax.Call(relax.ExternFunc("test.embeeding_grad"), inputs)
+        call = relax.call_tir(output_shape, gvar, inputs)
         return relax.BlockBuilder.current().emit(call)
 
 
