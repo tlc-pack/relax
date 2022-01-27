@@ -86,8 +86,8 @@ Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
     } else {
       call->checked_type_ = DynTensorType(-1, DataType::Float(32));
     }
-    return call;
   }
+  return call;
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
