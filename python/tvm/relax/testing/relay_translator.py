@@ -155,6 +155,27 @@ class Dense(RelayOpConverter):
         return nn.emit_te(topi.nn.dense, *inputs)
 
 
+class BatchNorm(RelayOpConverter):
+    """Operator converter for batch norm."""
+
+    @classmethod
+    def _impl(cls, inputs, attrs):
+        new_attrs = AttrCvt(attrs)
+        return nn.emit_te(topi.nn.batch_norm, *inputs, **new_attrs)
+
+
+class Conv2D(RelayOpConverter):
+    """Operator converter for conv2d."""
+
+    @classmethod
+    def _impl(cls, inputs, attrs):
+        print(inputs)
+
+        new_attrs = AttrCvt(attrs)
+        print(new_attrs)
+        return nn.emit_te(topi.nn.conv2d, *inputs, **new_attrs)
+
+
 class Reshape(RelayOpConverter):
     """Operator converter for dense."""
 
@@ -452,6 +473,8 @@ def _get_convert_map():
         "reshape": Reshape.get_converter(),
         "nn.embedding": Embedding.get_converter(),
         "nn.dense": Dense.get_converter(),
+        "nn.batch_norm": BatchNorm.get_converter(),
+        "nn.conv2d": Conv2D.get_converter(),
         "nn.batch_matmul": BatchMatmul.get_converter(),
         "zeros": Zeros.get_converter(),
         "mean": Mean.get_converter(),
@@ -529,6 +552,7 @@ def from_relay(func: relay.Function):
             )
             params.append(var_map[node])
         elif isinstance(node, relay.Call):
+            print(node.op)
             args = node.args
             new_args = []
             for arg in args:
@@ -562,7 +586,10 @@ def from_relay(func: relay.Function):
             last_var = new_tuple_var
         elif isinstance(node, relay.TupleGetItem):
             if node.tuple_value in var_map:
-                new_tuple = tuple_map[node.tuple_value]
+                if node.tuple_value in tuple_map:
+                    new_tuple = tuple_map[node.tuple_value]
+                else:
+                    new_tuple = var_map[node.tuple_value]
                 new_tuple_get_item_node = TupleGetItem(new_tuple, node.index)
                 new_tuple_get_item_var = relax.BlockBuilder.current().emit(new_tuple_get_item_node)
                 var_map[node] = new_tuple_get_item_var
