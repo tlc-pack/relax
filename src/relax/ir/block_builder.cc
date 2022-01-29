@@ -369,17 +369,7 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
     cur_frame->bindings.push_back(VarBinding(var, lhs_var));
     this->binding_table_[var->vid] = lhs_var;
   } else if (const TupleGetItemNode* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    if (const TupleNode* tuple = tuple_get_item_node->tuple.as<TupleNode>()) {
-      const Expr& field = tuple->fields[tuple_get_item_node->index];
-      if (field->shape_.defined()) {
-        var->shape_ = field->shape_;
-      }
-      if (field->checked_type_.defined()) {
-        var->checked_type_ = field->checked_type_;
-      }
-      cur_frame->bindings.push_back(VarBinding(var, expr));
-      this->binding_table_[var->vid] = expr;
-    } else if (const VarNode* tuple = tuple_get_item_node->tuple.as<VarNode>()) {
+    if (const VarNode* tuple = tuple_get_item_node->tuple.as<VarNode>()) {
       if (tuple->shape_.defined()) {
         if (const TupleNode* shape = tuple->shape_.as<TupleNode>()) {
           var->shape_ = shape->fields[tuple_get_item_node->index];
