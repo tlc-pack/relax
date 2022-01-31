@@ -51,11 +51,11 @@ class Module:
     """Base class for all model modules.
 
     A neural network or a layer can subclass this class.
-    
+
     Example
     -------
     .. code-block:: python
-        
+
         # Define a linear layer
         class Linear(Module)
             def __init__(self, in_features, out_features, bias=True):
@@ -122,7 +122,8 @@ def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
                     shape.append(int(i))
                 else:
                     raise TypeError("cannot initialize for unknown-shape parameters.")
-            params.append(tvm.nd.array(np.random.rand(*shape).astype(np.float32)))
+            # params.append(tvm.nd.array(np.random.rand(*shape).astype(np.float32)))
+            params.append(tvm.nd.array(np.zeros(shape).astype(np.float32)))
         else:
             raise TypeError("cannot initialize for unknown-shape parameters.")
     return params

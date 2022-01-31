@@ -169,11 +169,26 @@ class Conv2D(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        print(inputs)
+        new_inputs = [*inputs]
+        # print(new_inputs)
+        # print(AttrCvt(attrs))
+        if attrs is not None:
+            new_inputs.append(attrs["strides"])
+            new_inputs.append(attrs["padding"])
+            new_inputs.append(attrs["dilation"])
+        else:
+            raise RuntimeError("attrs must be provided to conv2d op.")
+        return nn.emit_te(topi.nn.conv2d_nchw, *new_inputs)
+        # with tvm.target.Target("llvm"):
+        #     return nn.emit_te(topi.generic.schedule_conv2d_nchw(topi.nn.conv2d_nchw), *new_inputs)
 
-        new_attrs = AttrCvt(attrs)
-        print(new_attrs)
-        return nn.emit_te(topi.nn.conv2d, *inputs, **new_attrs)
+
+class Relu(RelayOpConverter):
+    """Operator converter for relu."""
+
+    @classmethod
+    def _impl(cls, inputs, attrs):
+        return nn.emit_te(topi.nn.relu, *inputs)
 
 
 class Reshape(RelayOpConverter):
@@ -453,6 +468,47 @@ class Squeeze(RelayOpConverter):
         return nn.emit_te(topi.squeeze, *inputs, **new_attrs)
 
 
+class MaxPool2D(RelayOpConverter):
+    """Operator converter for max_pool2d."""
+
+    @classmethod
+    def _impl(cls, inputs, attrs):
+        new_inputs = [*inputs]
+        if attrs is not None:
+            new_inputs.append(attrs["pool_size"])
+            new_inputs.append(attrs["strides"])
+            new_inputs.append(attrs["dilation"])
+            new_inputs.append(attrs["padding"])
+            new_inputs.append("max")
+            new_inputs.append(attrs["ceil_mode"])
+            new_inputs.append(attrs["layout"])
+        else:
+            raise RuntimeError("attrs must be provided to max_pool2d op.")
+        return nn.emit_te(topi.nn.pool2d, *new_inputs)
+
+
+class GlobalAvgPool2D(RelayOpConverter):
+    """Operator converter for global_avg_pool2d."""
+
+    @classmethod
+    def _impl(cls, inputs, attrs):
+        new_inputs = [*inputs]
+        if attrs is not None:
+            new_inputs.append("avg")
+            new_inputs.append(attrs["layout"])
+        else:
+            raise RuntimeError("attrs must be provided to global_avg_pool2d op.")
+        return nn.emit_te(topi.nn.global_pool, *new_inputs)
+
+
+class BatchFlatten(RelayOpConverter):
+    """Operator converter for batch_flatten."""
+
+    @classmethod
+    def _impl(cls, inputs, attrs):
+        return nn.emit_te(topi.nn.flatten, inputs[0])
+
+
 # _convert_map defines maps of name to converter functor(callable)
 # use AttrCvt if attributes need to be converted
 # for 1 to N mapping(composed), use custom callable functions
@@ -475,6 +531,7 @@ def _get_convert_map():
         "nn.dense": Dense.get_converter(),
         "nn.batch_norm": BatchNorm.get_converter(),
         "nn.conv2d": Conv2D.get_converter(),
+        "nn.relu": Relu.get_converter(),
         "nn.batch_matmul": BatchMatmul.get_converter(),
         "zeros": Zeros.get_converter(),
         "mean": Mean.get_converter(),
@@ -494,6 +551,9 @@ def _get_convert_map():
         "cast_like": CastLike.get_converter(),
         "squeeze": Squeeze.get_converter(),
         "nn.embedding_grad": EmbeddingGrad.get_converter(),
+        "nn.max_pool2d": MaxPool2D.get_converter(),
+        "nn.global_avg_pool2d": GlobalAvgPool2D.get_converter(),
+        "nn.batch_flatten": BatchFlatten.get_converter(),
     }
 
 
@@ -552,7 +612,6 @@ def from_relay(func: relay.Function):
             )
             params.append(var_map[node])
         elif isinstance(node, relay.Call):
-            print(node.op)
             args = node.args
             new_args = []
             for arg in args:
