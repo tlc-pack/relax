@@ -194,19 +194,19 @@ def test_binary_shape_type_deduction():
             assert lv1.checked_type.dtype == "float16"
 
             lv2 = bb.emit(rx.op.multiply(z, w))
-            assert isinstance(lv2.shape, tvm.relay.Call)
+            assert isinstance(lv2.shape, rx.Call)
             assert isinstance(lv2.checked_type, rx.DynTensorType)
             assert lv2.checked_type.rank == 1
             assert lv2.checked_type.dtype == "float16"
 
             lv3 = bb.emit(rx.op.multiply(y, w))
-            assert isinstance(lv3.shape, tvm.relay.Call)
+            assert isinstance(lv3.shape, rx.Call)
             assert isinstance(lv3.checked_type, rx.DynTensorType)
             assert lv3.checked_type.rank == 1
             assert lv3.checked_type.dtype == "float16"
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
-        assert isinstance(gv0.shape, tvm.relay.Call)
+        assert isinstance(gv0.shape, rx.Call)
         assert isinstance(gv0.checked_type, rx.DynTensorType)
         assert gv0.checked_type.rank == 1
         assert gv0.checked_type.dtype == "float16"
@@ -265,7 +265,7 @@ def test_normalize():
     bb = rx.BlockBuilder()
 
     add_call = rx.op.multiply(x, y)
-    assert isinstance(add_call.shape, relay.Call)
+    assert isinstance(add_call.shape, rx.Call)
 
     bb.normalize(add_call)
     assert isinstance(add_call.shape, rx.ShapeExpr)
@@ -364,7 +364,7 @@ def test_emit_te_multiple_output():
 
     with bb.function("rx_func", [x]):
         y = bb.emit_te(te_func, x)
-        z = relay.TupleGetItem(y, 0)
+        z = rx.TupleGetItem(y, 0)
         bb.emit_func_output([y, z])
 
     rx_func = bb.get()["rx_func"]
@@ -374,7 +374,7 @@ def test_emit_te_multiple_output():
     assert rx_func.name.name_hint == "rx_func"
     assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
     assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], relay.Tuple)
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], rx.Tuple)
     assert len(rx_func.body.blocks[0].bindings[0].value.args[0]) == 2
     assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][0], rx.ShapeExpr)
     assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][1], rx.ShapeExpr)
@@ -418,7 +418,7 @@ def test_emit_tuple_get_item():
         moving_var = nn.Parameter((m,))
         y = bb.emit_te(topi.nn.batch_norm, data, gamma, beta, moving_mean, moving_var)
 
-        z = bb.emit(relay.TupleGetItem(y, 0))
+        z = bb.emit(rx.TupleGetItem(y, 0))
         assert z.shape[0] == n
         assert z.shape[1] == m
         assert z.shape[2] == 224
@@ -426,11 +426,11 @@ def test_emit_tuple_get_item():
         assert z.checked_type.rank == 4
         assert z.checked_type.dtype == "float32"
 
-        w = bb.emit(relay.TupleGetItem(y, 1))
+        w = bb.emit(rx.TupleGetItem(y, 1))
         assert w.shape[0] == m
         assert w.checked_type.dtype == "float32"
 
-        o = bb.emit(relay.TupleGetItem(y, 2))
+        o = bb.emit(rx.TupleGetItem(y, 2))
         assert o.shape[0] == m
         assert o.checked_type.dtype == "float32"
         bb.emit_func_output([y, w], params=[data, gamma, beta, moving_mean, moving_var])
