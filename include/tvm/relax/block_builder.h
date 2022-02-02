@@ -147,12 +147,12 @@ class BlockBuilderNode : public Object {
   /*!
    * \brief Add a Relax function or a TIR PrimFunc to \p context_mod_.
    * \param func The function to be added.
-   * \param func_name The name of the function to be added.
+   * \param func_name_hint The name hint of the function to be added.
    * \note If the function to be added already exists in \p context_mod_, return its
    * GlobalVar directly.
    * \return The global var bound to the added function.
    */
-  GlobalVar AddFuncToContext(const BaseFunc& func, const String& func_name);
+  GlobalVar AddFuncToContext(const BaseFunc& func, const String& func_name_hint);
 
   /*!
    * \brief Get the context IRModule being built.
