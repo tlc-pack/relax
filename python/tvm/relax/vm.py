@@ -181,14 +181,9 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.VMMemoryLower())
-    # passes.append(relax.transform.VMShapeLower())
+    passes.append(relax.transform.VMShapeLower())
     seq = tvm.transform.Sequential(passes)
     new_mod = seq(mod)
-
-    from tvm.script import relax as R
-
-    code = R.parser.astext(new_mod)
-    # print(code)
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)

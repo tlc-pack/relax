@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-# Example ResNet workload by converting the Relay graph to Relax
+"""Example ResNet workload by converting the Relay program to Relax"""
 
 import tvm
 from tvm.relay import testing
@@ -23,49 +22,26 @@ from tvm import relax
 from tvm.relax.testing import relay_translator, nn
 from tvm.script import relax as R
 import numpy as np
-import time
-from tvm import relay
-import tvm.runtime.vm as vm_rt
-
 
 if __name__ == "__main__":
     net, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
 
+    # translate the ResNet model from Relay to Relax
     bb = relax.BlockBuilder()
     with bb.function("main"):
         relay_translator.from_relay(net["main"])
 
+    # get and print the ResNet IRmodule got translated
     mod = bb.get()
-    # print(R.parser.astext(mod["main"]))
+    print(R.parser.astext(mod))
 
+    # build the IRModule and create relax vm
     target = tvm.target.Target("llvm", host="llvm")
     ex, lib = relax.vm.build(mod, target)
-    # print(ex.astext())
-    vm = relax.VirtualMachine(ex, tvm.cpu(0), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
+    # init weights and run the model on relax vm
     shape = (1, 3, 224, 224)
     data = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     params = nn.init_params(mod)
-
-    # start_time = time.time()
-    # for i in range(10):
-    #     print("round", i)
-    #     vm["main"](data, *params)
-    # end_time = time.time()
-    # tvm_time = end_time - start_time
-    # print("Relax time elapsed", tvm_time)
-
-    # # print(net)
-    exe = relay.vm.compile(net, target=target)
-    # # print(exe.bytecode)
-    # vm = vm_rt.VirtualMachine(exe, tvm.cpu(0))
-
-    # executor = relay.build_module.create_executor("vm", net, tvm.cpu(0), target="llvm").evaluate()
-    # start_time = time.time()
-    # for i in range(1):
-    #     print("round", i)
-    #     # executor(data, *params)
-    #     vm.run(data, *params)
-    # end_time = time.time()
-    # tvm_time = end_time - start_time
-    # print("Relay time elapsed", tvm_time)
+    res = vm["main"](data, *params)

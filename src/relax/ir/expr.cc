@@ -66,8 +66,7 @@ Constant::Constant(const runtime::NDArray& data, Span span) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.Constant")
-.set_body_typed([](runtime::NDArray data, Span span = Span()) {
+TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, Span span = Span()) {
   return Constant(data, span);
 });
 

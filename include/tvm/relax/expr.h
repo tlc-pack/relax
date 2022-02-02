@@ -22,12 +22,12 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/span.h>
 #include <tvm/node/node.h>
+#include <tvm/relax/type.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>
-#include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
@@ -82,7 +82,6 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
-
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
  *
@@ -106,7 +105,7 @@ class ConstantNode : public ExprNode {
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
-    return equal(data, other->data) && equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);;
+    return equal(data, other->data);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -133,7 +132,6 @@ class Constant : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
-
 
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {

@@ -20,8 +20,8 @@
 /*!
  * \file relax/topi.h
  */
-#ifndef TVM_RELAX_TOPI__H_
-#define TVM_RELAX_TOPI__H_
+#ifndef TVM_RELAX_TOPI_H_
+#define TVM_RELAX_TOPI_H_
 
 #include <tvm/te/operation.h>
 #include <tvm/topi/broadcast.h>
@@ -37,6 +37,7 @@
 #include <limits>
 #include <numeric>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace tvm {
@@ -341,4 +342,4 @@ inline te::Tensor collapse_sum(const te::Tensor& data, Array<PrimExpr> target_sh
 }  // namespace topi
 }  // namespace relax
 }  // namespace tvm
-#endif  // TVM_RELAX_TOPI__H_
+#endif  // TVM_RELAX_TOPI_H_

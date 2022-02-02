@@ -14,30 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument, invalid-name, no-else-return
 """Relay to Relax translator."""
 
 from __future__ import annotations
 from typing import Dict
 import tvm
-from tvm.relay import Call, TupleGetItem
-from tvm.relax.testing.topi import *
-from tvm import relax, relay, topi, te
+from tvm.ir.module import IRModule
+from tvm.relax.testing.topi import mean, variance, reshape, reverse_reshape, bias_add, collapse_sum
+from tvm import relax, relay, topi
 from tvm.relax.testing import nn
-from tvm.relay.op.transform import broadcast_to, unique
-import os
-from tvm.script import relax as R, tir as T
-
-
-# load a relay program in text format to an IRModule
-def load_text(file_path: str) -> tvm.IRModule:
-    if os.path.isfile(file_path):
-        text_file = open(file_path, "r")
-        data = text_file.read()
-        text_file.close()
-        mod = tvm.parser.fromtext(data)
-        return mod
-    else:
-        raise RuntimeError(f"File at path {file_path} does not exist")
 
 
 class RelayOpConverter(object):
@@ -52,19 +38,7 @@ class RelayOpConverter(object):
 
         if hasattr(cls, "_impl"):
             return getattr(cls, "_impl")
-        raise tvm.error.OpNotImplemented(
-            "Operator {} is not supported in frontend Relay.".format(cls.__name__)
-        )
-
-
-def AttrCvt(attrs) -> Dict:
-    """Convert attributes to a dict."""
-    attrs_dict = {}
-
-    for k in attrs.keys():
-        attrs_dict[k] = attrs[k]
-
-    return attrs_dict
+        raise tvm.error.OpNotImplemented("Operator {} is not supported.".format(cls.__name__))
 
 
 class Unary(RelayOpConverter):
@@ -160,7 +134,7 @@ class BatchNorm(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(topi.nn.batch_norm, *inputs, **new_attrs)
 
 
@@ -170,8 +144,6 @@ class Conv2D(RelayOpConverter):
     @classmethod
     def _impl(cls, inputs, attrs):
         new_inputs = [*inputs]
-        # print(new_inputs)
-        # print(AttrCvt(attrs))
         if attrs is not None:
             new_inputs.append(attrs["strides"])
             new_inputs.append(attrs["padding"])
@@ -179,8 +151,6 @@ class Conv2D(RelayOpConverter):
         else:
             raise RuntimeError("attrs must be provided to conv2d op.")
         return nn.emit_te(topi.nn.conv2d_nchw, *new_inputs)
-        # with tvm.target.Target("llvm"):
-        #     return nn.emit_te(topi.generic.schedule_conv2d_nchw(topi.nn.conv2d_nchw), *new_inputs)
 
 
 class Relu(RelayOpConverter):
@@ -209,58 +179,12 @@ class Reshape(RelayOpConverter):
         return nn.emit_te(reshape, *new_inputs)
 
 
-class Embedding(RelayOpConverter):
-    """Operator converter for nn.embedding."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        def embedding(table, indices):
-            oshape = list(indices.shape) + [table.shape[1]]
-            return te.compute(oshape, lambda *i: table(indices(*i[:-1]), i[-1]), name="embedding")
-
-        return nn.emit_te(embedding, *inputs)
-
-
-@T.prim_func
-def embedding_grad(table: T.handle, indices: T.handle, grad_in: T.handle, grad_out: T.handle):
-    T.func_attr({"global_symbol": "embedding_grad"})
-    m = T.var("int32")
-    n = T.var("int32")
-    k = T.var("int32")
-    A = T.match_buffer(table, (m, n))
-    B = T.match_buffer(indices, (k), "int32")
-    C = T.match_buffer(grad_in, (k, n))
-    D = T.match_buffer(grad_out, (m, n))
-
-    for i in range(m):
-        for j in range(n):
-            D[i, j] = 0.0
-    for i in range(k):
-        for j in range(n):
-            D[B[i], j] += C[i, j]
-
-
-class EmbeddingGrad(RelayOpConverter):
-    """Operator converter for nn.embedding_grad."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        tir_func = embedding_grad
-        func_name = relax.BlockBuilder.current().get_unique_name(tir_func.__name__)
-        tir_func = tir_func.with_attr("global_symbol", func_name)
-        gvar = relax.GlobalVar(func_name)
-        relax.BlockBuilder.current()._context_mod[gvar] = tir_func
-        output_shape = inputs[0].shape
-        call = relax.call_tir(output_shape, gvar, inputs)
-        return relax.BlockBuilder.current().emit(call)
-
-
 class BatchMatmul(RelayOpConverter):
     """Operator converter for nn.batch_matmul."""
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         if "out_dtype" in new_attrs:
             new_attrs["out_dtype"] = None
         if "transpose_a" in new_attrs:
@@ -288,7 +212,7 @@ class Mean(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(mean, *inputs, **new_attrs)
 
 
@@ -297,7 +221,7 @@ class Variance(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(variance, *inputs, **new_attrs)
 
 
@@ -320,16 +244,16 @@ class ReverseReshape(RelayOpConverter):
 
 
 class BiasAdd(RelayOpConverter):
-    """Operator converter for nn.bias_add."""
+    """Operator converter for bias_add."""
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(bias_add, *inputs, **new_attrs)
 
 
 class Transpose(RelayOpConverter):
-    """Operator converter for Transpose."""
+    """Operator converter for transpose."""
 
     @classmethod
     def _impl(cls, inputs, attrs):
@@ -376,7 +300,7 @@ class Softmax(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(topi.nn.softmax, *inputs, **new_attrs)
 
 
@@ -399,7 +323,7 @@ class LogSoftmax(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(topi.nn.log_softmax, *inputs, **new_attrs)
 
 
@@ -464,7 +388,7 @@ class Squeeze(RelayOpConverter):
 
     @classmethod
     def _impl(cls, inputs, attrs):
-        new_attrs = AttrCvt(attrs)
+        new_attrs = attr_convert(attrs)
         return nn.emit_te(topi.squeeze, *inputs, **new_attrs)
 
 
@@ -509,13 +433,13 @@ class BatchFlatten(RelayOpConverter):
         return nn.emit_te(topi.nn.flatten, inputs[0])
 
 
-# _convert_map defines maps of name to converter functor(callable)
-# use AttrCvt if attributes need to be converted
+# convert_map defines maps of name to converter functor(callable)
+# use attr_convert if attributes need to be converted
 # for 1 to N mapping(composed), use custom callable functions
 # for N to 1 mapping (fusion), write custom topi func
 
 # Minimal set of ops for transformer
-def _get_convert_map():
+def get_convert_map():
     return {
         "add": Add.get_converter(),
         "subtract": Subtract.get_converter(),
@@ -527,7 +451,6 @@ def _get_convert_map():
         "erf": Erf.get_converter(),
         "negative": Negative.get_converter(),
         "reshape": Reshape.get_converter(),
-        "nn.embedding": Embedding.get_converter(),
         "nn.dense": Dense.get_converter(),
         "nn.batch_norm": BatchNorm.get_converter(),
         "nn.conv2d": Conv2D.get_converter(),
@@ -550,14 +473,13 @@ def _get_convert_map():
         "collapse_sum_to": CollapseSumTo.get_converter(),
         "cast_like": CastLike.get_converter(),
         "squeeze": Squeeze.get_converter(),
-        "nn.embedding_grad": EmbeddingGrad.get_converter(),
         "nn.max_pool2d": MaxPool2D.get_converter(),
         "nn.global_avg_pool2d": GlobalAvgPool2D.get_converter(),
         "nn.batch_flatten": BatchFlatten.get_converter(),
     }
 
 
-def _convert_operator(op_type, inputs, attrs=None):
+def convert_operator(op_type, inputs, attrs=None):
     """Convert from Relay operator to Relax operator/topi function.
     The converter must specify conversions explicitly for incompatible name, and
     apply handlers to operator attributes.
@@ -576,7 +498,7 @@ def _convert_operator(op_type, inputs, attrs=None):
     func : tvm.relay.function.Function
         Converted relay function
     """
-    convert_map = _get_convert_map()
+    convert_map = get_convert_map()
     if op_type in convert_map:
         func = convert_map[op_type](inputs, attrs)
     else:
@@ -584,8 +506,18 @@ def _convert_operator(op_type, inputs, attrs=None):
     return func
 
 
-def from_relay(func: relay.Function):
-    """Convert a Relay model into an equivalent Relax Function.
+def attr_convert(attrs) -> Dict:
+    """Convert attributes to a dict."""
+    attrs_dict = {}
+
+    for k in attrs.keys():
+        attrs_dict[k] = attrs[k]
+
+    return attrs_dict
+
+
+def from_relay(func: relay.Function) -> IRModule:
+    """Convert a Relay function into a Relax program.
 
     Parameters
     ----------
@@ -597,15 +529,15 @@ def from_relay(func: relay.Function):
     mod : tvm.IRModule
         The Relax IRModule for compilation
     """
+    # A map to store the mapping of Relay Expr to its corresponding Relax var
     var_map = {}
-    # old tuple -> new tuple
-    tuple_map = {}
-    last_var = None
+    # The output of the function
+    output_var = None
     params = []
-    convert_map = _get_convert_map()
+    convert_map = get_convert_map()
 
     def visit_func(node):
-        nonlocal last_var
+        nonlocal output_var
         if isinstance(node, relay.Var):
             var_map[node] = nn.Placeholder(
                 tuple(node.type_annotation.shape), node.type_annotation.dtype, node.name_hint
@@ -625,8 +557,8 @@ def from_relay(func: relay.Function):
                 raise tvm.error.OpNotImplemented("Operator {} is not supported.".format(op_name))
 
             attrs = node.attrs
-            var = _convert_operator(op_name, new_args, attrs)
-            last_var = var
+            var = convert_operator(op_name, new_args, attrs)
+            output_var = var
             var_map[node] = var
         elif isinstance(node, relay.Constant):
             new_constant = relax.expr.Constant(node.data)
@@ -639,24 +571,20 @@ def from_relay(func: relay.Function):
                 else:
                     raise RuntimeError("field is not in var_map")
             new_tuple = relax.Tuple(new_fields)
-            tuple_map[node] = new_tuple
             new_tuple_var = relax.BlockBuilder.current().emit(new_tuple)
             var_map[node] = new_tuple_var
-            last_var = new_tuple_var
-        elif isinstance(node, relay.TupleGetItem):
+            output_var = new_tuple_var
+        elif isinstance(node, relax.TupleGetItem):
             if node.tuple_value in var_map:
-                if node.tuple_value in tuple_map:
-                    new_tuple = tuple_map[node.tuple_value]
-                else:
-                    new_tuple = var_map[node.tuple_value]
-                new_tuple_get_item_node = TupleGetItem(new_tuple, node.index)
+                new_tuple = var_map[node.tuple_value]
+                new_tuple_get_item_node = relax.TupleGetItem(new_tuple, node.index)
                 new_tuple_get_item_var = relax.BlockBuilder.current().emit(new_tuple_get_item_node)
                 var_map[node] = new_tuple_get_item_var
-                last_var = new_tuple_get_item_var
+                output_var = new_tuple_get_item_var
             else:
                 raise RuntimeError("tuple is not in var_map")
         elif isinstance(node, relay.Function):
-            relax.BlockBuilder.current().emit_func_output(last_var, params)
+            relax.BlockBuilder.current().emit_func_output(output_var, params)
 
     relay.analysis.post_order_visit(func, visit_func)
 
@@ -673,8 +601,6 @@ if __name__ == "__main__":
     """
 
     mod = tvm.parser.fromtext(RELAY_MODEL)
-
-    mod = load_text("bert_16_128.txt")
 
     bb = relax.BlockBuilder()
     with bb.function("main"):

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""PyTorch-like nn.Module API for constructing workloads."""
 
 import tvm
 from typing import List, Optional, Union, Dict, Any, Callable
@@ -67,7 +68,8 @@ class Module:
                 else:
                     self.bias = None
 
-            # All submodules should implement forward. Defines the forward computation performed at every call.
+            # All submodules should implement forward.
+            # Defines the forward computation performed at every call.
             def forward(self, input: relax.Expr) -> relax.Var:
                 y = emit_te(topi.matmul, input, self.weight)
                 if self.bias is not None:
@@ -122,7 +124,6 @@ def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
                     shape.append(int(i))
                 else:
                     raise TypeError("cannot initialize for unknown-shape parameters.")
-            # params.append(tvm.nd.array(np.random.rand(*shape).astype(np.float32)))
             params.append(tvm.nd.array(np.zeros(shape).astype(np.float32)))
         else:
             raise TypeError("cannot initialize for unknown-shape parameters.")
