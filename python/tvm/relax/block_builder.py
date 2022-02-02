@@ -259,7 +259,6 @@ class BlockBuilder(Object):
                         )
                     )
 
-        name = self.get_unique_name(name)
         return FunctionScope(self, name, params)
 
     def dataflow(self) -> DataflowScope:
@@ -419,8 +418,7 @@ class BlockBuilder(Object):
 
         inputs = [*te_args] + outs
         tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
-        func_name = self.get_unique_name(func.__name__)
-        gvar = self.add_func(tir_func, func_name)
+        gvar = self.add_func(tir_func, func.__name__)
 
         call_args = [x.op.value for x in te_args]
         output_shape = (
