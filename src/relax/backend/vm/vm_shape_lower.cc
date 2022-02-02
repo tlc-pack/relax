@@ -39,7 +39,6 @@ class VMShapeLowerMutator : public ExprMutator {
   explicit VMShapeLowerMutator(IRModule mod) { mod_ = mod; }
 
   IRModule Lower() {
-    ret_mod_ = IRModule();
     for (auto& p : mod_->functions) {
       Expr func = p.second;
       if (p.second->IsInstance<FunctionNode>()) {
@@ -52,9 +51,9 @@ class VMShapeLowerMutator : public ExprMutator {
         // mutate
         func = this->VisitExpr(func);
       }
-      ret_mod_->Add(p.first, Downcast<BaseFunc>(func));
+      builder_->AddFuncToContext(Downcast<BaseFunc>(func), p.first->name_hint);
     }
-    return ret_mod_;
+    return builder_->GetContextIRModule();
   }
 
   void VisitBinding_(const MatchShapeNode* binding) override {
@@ -70,12 +69,9 @@ class VMShapeLowerMutator : public ExprMutator {
       return ExprMutator::VisitExpr_(node);
     }
     tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
-    std::string shape_func_name = builder_->name_table()->GetUniqueName("shape_func");
-    func = WithAttr(std::move(func), "global_symbol", runtime::String(shape_func_name));
-    GlobalVar shape_func_var(shape_func_name);
-    // TODO(@ziheng) make sure shape_heap doesnt get redefined by local funcs?
+
+    GlobalVar shape_func_var = builder_->AddFuncToContext(func, "shape_func");
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
-    ret_mod_->Add(shape_func_var, func);
 
     // construct shape
     Array<Integer> indices;
@@ -90,15 +86,18 @@ class VMShapeLowerMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* node) override {
-    builder_->BeginBindingBlock();
-    builder_->Emit(VarBinding(
-        shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
-    for (Var param : node->params) {
-      if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
-        if (auto* param_type = param->checked_type_.as<DynTensorTypeNode>()) {
-          if (param_type->rank != 0) {
-            Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
-            StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
+    if (heap_size_->value > 0) {
+      builder_->BeginBindingBlock();
+      builder_->Emit(VarBinding(
+          shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
+
+      for (Var param : node->params) {
+        if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
+          if (auto* param_type = param->checked_type_.as<DynTensorTypeNode>()) {
+            if (param_type->rank != 0) {
+              Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
+              StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
+            }
           }
         }
       }
@@ -109,15 +108,15 @@ class VMShapeLowerMutator : public ExprMutator {
     Array<BindingBlock> blocks;
 
     if (const SeqExprNode* seq = new_body.as<SeqExprNode>()) {
-      blocks.push_back(builder_->EndBlock());
+      if (heap_size_->value > 0) {
+        blocks.push_back(builder_->EndBlock());
+      }
       blocks.insert(blocks.end(), seq->blocks.begin(), seq->blocks.end());
-      builder_->BeginBindingBlock();
       new_body = seq->body;
     }
 
     // FIXME(@yuchen): Implement vm.builtin.free_shape_heap.
     // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
-    blocks.push_back(builder_->EndBlock());
     new_body = SeqExpr(blocks, new_body);
 
     return Function(node->name, node->params, new_body, ret_type);
@@ -164,9 +163,11 @@ class VMShapeLowerMutator : public ExprMutator {
     auto func = [&](const Expr& e) {
       if (e->IsInstance<ShapeExprNode>()) {
         ShapeExpr shape = Downcast<ShapeExpr>(e);
-        for (auto prim_e : shape->values) {
-          if (ret.count(prim_e) == 0) {
-            ret.Set(prim_e, cnt++);
+        if (!IsConstantShape(shape)) {
+          for (auto prim_e : shape->values) {
+            if (ret.count(prim_e) == 0) {
+              ret.Set(prim_e, cnt++);
+            }
           }
         }
       }
@@ -200,7 +201,6 @@ class VMShapeLowerMutator : public ExprMutator {
 
  private:
   IRModule mod_;
-  IRModule ret_mod_;
 
   // function-wise members
   IntImm heap_size_;
