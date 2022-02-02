@@ -544,13 +544,14 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 
 NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 
-GlobalVar BlockBuilderNode::AddFuncToContext(const BaseFunc& func, const String& func_name) {
+GlobalVar BlockBuilderNode::AddFuncToContext(const BaseFunc& func, const String& func_name_hint) {
   auto it = func_map_.find(func);
   if (it == func_map_.end()) {
+    String func_name = name_table_->GetUniqueName(func_name_hint);
     GlobalVar gvar = GlobalVar(func_name);
     if (const tir::PrimFuncNode* prim_func = func.as<tir::PrimFuncNode>()) {
       tir::PrimFunc fn = GetRef<tir::PrimFunc>(prim_func);
-      fn = WithAttr(std::move(fn), "global_symbol", runtime::String(func_name));
+      fn = WithAttr(std::move(fn), "global_symbol", func_name);
       context_mod_->Add(gvar, fn);
     } else {
       context_mod_->Add(gvar, func);
