@@ -24,7 +24,9 @@ from tvm import relax as rx
 from tvm.tir.function import PrimFunc
 
 from tvm.ir.base import assert_structural_equal
-from tvm.relax import ExternFunc, ShapeExpr, op
+from tvm.relax import ExternFunc, ShapeExpr, Tuple
+from tvm import topi
+from tvm.relax.testing import nn
 
 
 @tvm.register_func("test.blockbuilder.nop")
@@ -39,20 +41,20 @@ def test_block_builder():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
-    ib._begin_binding_block()
-    gv0 = ib.emit(rx.op.add(x, y))
-    ib._begin_dataflow_block()
-    lv0 = ib.emit(rx.op.multiply(gv0, y))
-    gv1 = ib.emit_output(rx.op.multiply(lv0, lv0))
-    b0 = ib._end_block()
-    ib._begin_dataflow_block()
-    lv1 = ib.emit(rx.op.multiply(gv0, y))
-    gv2 = ib.emit_output(rx.op.multiply(lv1, lv1))
-    b1 = ib._end_block()
-    gv3 = ib.emit(rx.op.add(x, y))
-    b2 = ib._end_block()
+    bb._begin_binding_block()
+    gv0 = bb.emit(rx.op.add(x, y))
+    bb._begin_dataflow_block()
+    lv0 = bb.emit(rx.op.multiply(gv0, y))
+    gv1 = bb.emit_output(rx.op.multiply(lv0, lv0))
+    b0 = bb._end_block()
+    bb._begin_dataflow_block()
+    lv1 = bb.emit(rx.op.multiply(gv0, y))
+    gv2 = bb.emit_output(rx.op.multiply(lv1, lv1))
+    b1 = bb._end_block()
+    gv3 = bb.emit(rx.op.add(x, y))
+    b2 = bb._end_block()
 
     assert isinstance(b0, rx.DataflowBlock)
     assert isinstance(b1, rx.DataflowBlock)
@@ -66,19 +68,19 @@ def test_function_single_block():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
-    with ib.function("func", [x, y]):
-        with ib.dataflow() as df:
-            lv0 = ib.emit(rx.op.add(x, y))
+    with bb.function("func", [x, y]):
+        with bb.dataflow() as df:
+            lv0 = bb.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
-            lv1 = ib.emit(rx.op.multiply(lv0, y))
+            lv1 = bb.emit(rx.op.multiply(lv0, y))
             assert lv1.name_hint == "lv1"
-            gv0 = ib.emit_output(lv1)
+            gv0 = bb.emit_output(lv1)
         assert gv0.name_hint == "gv"
-        ib.emit_func_output(gv0)
+        bb.emit_func_output(gv0)
 
-    func = ib.get()["func"]
+    func = bb.get()["func"]
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
@@ -97,23 +99,23 @@ def test_function_multi_blocks():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
-    with ib.function("func", [x, y]):
-        with ib.dataflow() as df:
-            lv0 = ib.emit(rx.op.add(x, y))
+    with bb.function("func", [x, y]):
+        with bb.dataflow() as df:
+            lv0 = bb.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
-            gv0 = ib.emit_output(lv0)
+            gv0 = bb.emit_output(lv0)
         assert gv0.name_hint == "gv"
-        gv1 = ib.emit(rx.op.add(gv0, gv0))
+        gv1 = bb.emit(rx.op.add(gv0, gv0))
         assert gv1.name_hint == "gv1"
-        with ib.dataflow() as df:
-            lv1 = ib.emit(rx.op.add(gv1, gv1))
+        with bb.dataflow() as df:
+            lv1 = bb.emit(rx.op.add(gv1, gv1))
             assert lv1.name_hint == "lv1"
-            gv2 = ib.emit_output(gv1)
-        ib.emit_func_output(gv2)
+            gv2 = bb.emit_output(gv1)
+        bb.emit_func_output(gv2)
 
-    func = ib.get()["func"]
+    func = bb.get()["func"]
     assert gv2.shape[0] == m
     assert gv2.shape[1] == n
     assert gv2.checked_type.rank == 2
@@ -135,24 +137,24 @@ def test_multi_functions():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
-    with ib.function("func1", [x, y]):
-        with ib.dataflow() as df:
-            lv0 = ib.emit(rx.op.add(x, y))
+    with bb.function("func1", [x, y]):
+        with bb.dataflow() as df:
+            lv0 = bb.emit(rx.op.add(x, y))
             assert lv0.name_hint == "lv"
-            gv0 = ib.emit_output(lv0)
-        ib.emit_func_output(gv0)
+            gv0 = bb.emit_output(lv0)
+        bb.emit_func_output(gv0)
 
-    with ib.function("func2", [x, y]):
-        with ib.dataflow() as df:
-            lv0 = ib.emit(rx.op.add(x, y))
+    with bb.function("func2", [x, y]):
+        with bb.dataflow() as df:
+            lv0 = bb.emit(rx.op.add(x, y))
             # TODO(@yuchen): enable block builder to reset local var unique name map
             assert lv0.name_hint == "lv1"
-            gv0 = ib.emit_output(lv0)
-        ib.emit_func_output(gv0)
+            gv0 = bb.emit_output(lv0)
+        bb.emit_func_output(gv0)
 
-    mod = ib.get()
+    mod = bb.get()
     func1 = mod["func1"]
     assert func1.params[0] == x
     assert func1.params[1] == y
@@ -173,38 +175,38 @@ def test_binary_shape_type_deduction():
     y = rx.Var("y", [n], dtype1)
     z = rx.Var("z", [5], dtype1)
     w = rx.Var("w", [k], dtype1)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
-    with ib.function("func", [x, y, z, w]):
-        with ib.dataflow() as df:
-            lv0 = ib.emit(rx.op.add(x, y))
+    with bb.function("func", [x, y, z, w]):
+        with bb.dataflow() as df:
+            lv0 = bb.emit(rx.op.add(x, y))
             assert lv0.shape[0] == m
             assert lv0.shape[1] == n
             assert isinstance(lv0.checked_type, rx.DynTensorType)
             assert lv0.checked_type.rank == 2
             assert lv0.checked_type.dtype == "float16"
 
-            lv1 = ib.emit(rx.op.multiply(x, z))
+            lv1 = bb.emit(rx.op.multiply(x, z))
             assert lv1.shape[0] == m
             assert lv1.shape[1] == 5
             assert isinstance(lv1.checked_type, rx.DynTensorType)
             assert lv1.checked_type.rank == 2
             assert lv1.checked_type.dtype == "float16"
 
-            lv2 = ib.emit(rx.op.multiply(z, w))
-            assert isinstance(lv2.shape, tvm.relay.Call)
+            lv2 = bb.emit(rx.op.multiply(z, w))
+            assert isinstance(lv2.shape, rx.Call)
             assert isinstance(lv2.checked_type, rx.DynTensorType)
             assert lv2.checked_type.rank == 1
             assert lv2.checked_type.dtype == "float16"
 
-            lv3 = ib.emit(rx.op.multiply(y, w))
-            assert isinstance(lv3.shape, tvm.relay.Call)
+            lv3 = bb.emit(rx.op.multiply(y, w))
+            assert isinstance(lv3.shape, rx.Call)
             assert isinstance(lv3.checked_type, rx.DynTensorType)
             assert lv3.checked_type.rank == 1
             assert lv3.checked_type.dtype == "float16"
-            gv0 = ib.emit_output(lv3)
-        ib.emit_func_output(gv0)
-        assert isinstance(gv0.shape, tvm.relay.Call)
+            gv0 = bb.emit_output(lv3)
+        bb.emit_func_output(gv0)
+        assert isinstance(gv0.shape, rx.Call)
         assert isinstance(gv0.checked_type, rx.DynTensorType)
         assert gv0.checked_type.rank == 1
         assert gv0.checked_type.dtype == "float16"
@@ -217,13 +219,13 @@ def test_emit_match_shape():
     x = rx.Var("tensor_value", type_annotation=type_anno0)
     shape_anno = [16, 8]
     y = rx.Var("shape_value", type_annotation=rx.ShapeType(), shape_annotation=shape_anno)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
-    with ib.function("func", [x, y]):
-        with ib.dataflow() as df:
+    with bb.function("func", [x, y]):
+        with bb.dataflow() as df:
             # lv0: Tensor[(m, n), "float32"] =
             #   match_shape(x: Tensor[_, "float32"], [m, n])
-            lv0 = ib.match_shape(x, [m, n])
+            lv0 = bb.match_shape(x, [m, n])
             assert isinstance(lv0, rx.DataflowVar)
             assert lv0.shape[0] == m
             assert lv0.shape[1] == n
@@ -231,12 +233,12 @@ def test_emit_match_shape():
             assert lv0.checked_type.dtype == "float32"
 
             # lv1: Shape = match_shape(shape, [m, n])
-            lv1 = ib.match_shape(y, [m, n])
+            lv1 = bb.match_shape(y, [m, n])
             assert lv1.checked_type == rx.ShapeType()
-            gv0 = ib.emit_output(lv1)
+            gv0 = bb.emit_output(lv1)
 
-        ib.emit_func_output(gv0)
-    func = ib.get()["func"]
+        bb.emit_func_output(gv0)
+    func = bb.get()["func"]
     block = func.body.blocks[0]
     b0, b1 = block.bindings[:2]
     assert isinstance(b0, rx.MatchShape)
@@ -260,12 +262,12 @@ def test_normalize():
     dtype1 = rx.DynTensorType(rank=1, dtype="float16")
     x = rx.Var("x", [m, n], dtype0)
     y = rx.Var("y", [n], dtype1)
-    ib = rx.BlockBuilder()
+    bb = rx.BlockBuilder()
 
     add_call = rx.op.multiply(x, y)
-    assert isinstance(add_call.shape, relay.Call)
+    assert isinstance(add_call.shape, rx.Call)
 
-    ib.normalize(add_call)
+    bb.normalize(add_call)
     assert isinstance(add_call.shape, rx.ShapeExpr)
     assert add_call.shape[0] == m
     assert add_call.shape[1] == n
@@ -362,7 +364,7 @@ def test_emit_te_multiple_output():
 
     with bb.function("rx_func", [x]):
         y = bb.emit_te(te_func, x)
-        z = relay.TupleGetItem(y, 0)
+        z = rx.TupleGetItem(y, 0)
         bb.emit_func_output([y, z])
 
     rx_func = bb.get()["rx_func"]
@@ -372,7 +374,7 @@ def test_emit_te_multiple_output():
     assert rx_func.name.name_hint == "rx_func"
     assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
     assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], relay.Tuple)
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], rx.Tuple)
     assert len(rx_func.body.blocks[0].bindings[0].value.args[0]) == 2
     assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][0], rx.ShapeExpr)
     assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][1], rx.ShapeExpr)
@@ -402,6 +404,39 @@ def test_emit_te_extern():
     assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "matmul"
     assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
     assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
+
+
+def test_emit_tuple_get_item():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+
+    with bb.function("rx_func"):
+        data = nn.Placeholder((n, m, 224, 224), name="x")
+        gamma = nn.Parameter((m,))
+        beta = nn.Parameter((m,))
+        moving_mean = nn.Parameter((m,))
+        moving_var = nn.Parameter((m,))
+        y = bb.emit_te(topi.nn.batch_norm, data, gamma, beta, moving_mean, moving_var)
+
+        z = bb.emit(rx.TupleGetItem(y, 0))
+        assert z.shape[0] == n
+        assert z.shape[1] == m
+        assert z.shape[2] == 224
+        assert z.shape[3] == 224
+        assert z.checked_type.rank == 4
+        assert z.checked_type.dtype == "float32"
+
+        w = bb.emit(rx.TupleGetItem(y, 1))
+        assert w.shape[0] == m
+        assert w.checked_type.dtype == "float32"
+
+        o = bb.emit(rx.TupleGetItem(y, 2))
+        assert o.shape[0] == m
+        assert o.checked_type.dtype == "float32"
+        bb.emit_func_output([y, w], params=[data, gamma, beta, moving_mean, moving_var])
+
+    func = bb.get()["rx_func"]
+    assert len(func.body.blocks[0].bindings) == 4
 
 
 def test_nested_function_fail():
@@ -479,6 +514,7 @@ if __name__ == "__main__":
     test_emit_te_multiple()
     test_emit_te_multiple_output()
     test_emit_te_extern()
+    test_emit_tuple_get_item()
     test_nested_function_fail()
     test_emit_func_output_twice_fail()
     test_func_params_twice_fail()
