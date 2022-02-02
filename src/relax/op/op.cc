@@ -81,11 +81,7 @@ Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
     call->checked_type_ = TupleType(types);
   } else {
     // TODO(@yuchen): fix checked_type_ inference
-    if (!args->fields.empty()) {
-      call->checked_type_ = args->fields[0]->checked_type_;
-    } else {
-      call->checked_type_ = DynTensorType(-1, DataType::Float(32));
-    }
+    call->checked_type_ = args->fields[0]->checked_type_;
   }
   return call;
 }

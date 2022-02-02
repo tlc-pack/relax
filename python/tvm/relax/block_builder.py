@@ -18,11 +18,10 @@
 """Developer API of constructing Relax AST."""
 import typing
 
-import tvm
 from typing import List, Optional, Union, Any, Callable
-from tvm.relay.expr import Tuple
 from tvm.runtime import Object
 from tvm import relax as rx, tir
+import tvm
 from .expr import (
     Expr,
     te_tensor,

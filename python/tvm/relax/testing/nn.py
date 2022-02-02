@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=redefined-builtin
 """PyTorch-like nn.Module API for constructing workloads."""
 
+
+from typing import List, Any, Callable
 import tvm
-from typing import List, Optional, Union, Dict, Any, Callable
 from tvm import relax, topi, tir
 import numpy as np
 
@@ -81,7 +83,7 @@ class Module:
         """Return the list of parameters in the module."""
         return _unpack_params(self.__dict__)
 
-    def forward(self):
+    def forward(self, input: relax.Expr):
         """Define the computation performed at every call."""
         raise NotImplementedError()
 
@@ -92,22 +94,21 @@ class Module:
 def _unpack_params(value: object) -> List[relax.Var]:
     if isinstance(value, Parameter):
         return [value]
-    elif isinstance(value, Module):
+    if isinstance(value, Module):
         return value.parameters()
-    elif isinstance(value, dict):
+    if isinstance(value, dict):
         params = []
-        for k, v in value.items():
+        for v in value.values():
             params += _unpack_params(v)
         return params
-    elif isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple)):
         params = []
         for v in value:
             params += _unpack_params(v)
         return params
-    elif isinstance(value, (int, float, str)):
+    if isinstance(value, (int, float, str)):
         return []
-    else:
-        raise TypeError("not supported type when unpacking parameters: {}".format(type(value)))
+    raise TypeError("not supported type when unpacking parameters: {}".format(type(value)))
 
 
 def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:

@@ -216,6 +216,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
   return doc;
 }
 
+// FIXME(@yongwww): Use metadata section
 Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
   Doc doc;
   doc << "relax.Constant";
