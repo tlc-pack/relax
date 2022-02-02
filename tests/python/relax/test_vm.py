@@ -250,7 +250,7 @@ def test_vm_copy():
     inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     res = vm["foo"](inp)
-    np.testing.assert_allclose(res.asnumpy(), inp.asnumpy())
+    np.testing.assert_allclose(res.numpy(), inp.numpy())
 
 
 def test_vm_goto():
@@ -297,9 +297,9 @@ def test_vm_if():
         )
     )
     res = vm["main"](False, a, b)
-    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() * b.asnumpy())
+    np.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy())
     res = vm["main"](1, a, b)
-    np.testing.assert_allclose(res.asnumpy(), a.asnumpy() + b.asnumpy())
+    np.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy())
 
 
 def test_vm_compile_if():
@@ -319,9 +319,9 @@ def test_vm_compile_if():
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
     inp = tvm.nd.array(np.random.rand(3, 4))
     res = vm["ife"](True, inp)
-    np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() + inp.asnumpy())
+    np.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy())
     res = vm["ife"](0, inp)
-    np.testing.assert_allclose(res.asnumpy(), inp.asnumpy() * inp.asnumpy())
+    np.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy())
 
 
 def test_vm_compile_stage0():
