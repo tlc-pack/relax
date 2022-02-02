@@ -328,6 +328,7 @@ def test_emit_te_multiple():
     type_anno = rx.DynTensorType(2, "float32")
     x = rx.Var("x", [n, m], type_anno)
     y = rx.Var("y", [n, m], type_anno)
+    z = rx.Var("z", [128, m], type_anno)
 
     def te_func(A):
         B = te.compute((128, 128), lambda i, j: A[i, j] + 1)
@@ -336,7 +337,8 @@ def test_emit_te_multiple():
     with bb.function("rx_func", [x, y]):
         x1 = bb.emit_te(te_func, x)
         y1 = bb.emit_te(te_func, y)
-        bb.emit_func_output(y1)
+        z1 = bb.emit_te(te_func, z)
+        bb.emit_func_output(z1)
 
     mod = bb.get()
     rx_func = mod["rx_func"]
@@ -346,10 +348,11 @@ def test_emit_te_multiple():
         if isinstance(mod[gv], PrimFunc):
             prim_func.append(mod[gv])
 
-    # only one PrimFunc is generated
-    assert len(prim_func) == 1
+    # only two PrimFuncs were generated since two of them are equal so got deduped
+    assert len(prim_func) == 2
     assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
     assert rx_func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[2].value.args[1].name_hint == "te_func1"
 
 
 def test_emit_te_multiple_output():

@@ -28,6 +28,7 @@ namespace relax {
 
 TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
+TVM_REGISTER_NODE_TYPE(ShapeHeapAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
