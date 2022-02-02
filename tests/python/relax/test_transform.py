@@ -67,6 +67,7 @@ def test_fma_rewrite():
     assert gv0 == v0
     assert type(new_func.body.blocks[0].bindings[1].var) == relax.Var
 
+
 def test_visit_shape():
     @tvm.script.ir_module
     class TestVisitShape:
@@ -74,17 +75,18 @@ def test_visit_shape():
         def foo(x: Tensor[(m, n), "float32"]):
             gv0 = R.add(x, x)
             return gv0
-    
+
     mod = TestVisitShape
-    
+
     shape_expr = []
+
     def fvisit(e):
         if isinstance(e, relax.ShapeExpr):
             nonlocal shape_expr
             shape_expr.append(e)
 
     relax.analysis.post_order_visit(mod["foo"], fvisit)
-    
+
     # should have visited ShapeExpr 3 times
     # the first time being visited is x.shape
     # the last two times are the call node's shape and gv0's shape
@@ -119,10 +121,12 @@ def test_to_non_dataflow():
     new_mod = relax.transform.ToNonDataflow()(mod)
 
     new_vars = []
+
     def fvisit(e):
         if isinstance(e, relax.Var):
             nonlocal new_vars
             new_vars.append(e)
+
     relax.analysis.post_order_visit(new_mod["foo"], fvisit)
 
     assert x == new_vars[0]
@@ -176,7 +180,7 @@ def test_vm_memory_lower():
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
             return gv0
-    
+
     mod = TestVMMemoryLower
 
     # after vm memory lowering
@@ -234,6 +238,26 @@ def test_vm_shape_lowering():
     assert s5.op.name == "relax.vm.builtin.load_shape"
 
 
+def test_vm_static_shape_lowering():
+    @tvm.script.ir_module
+    class TestVMStaticShapeLower:
+        @R.function
+        def foo(x: Tensor[(2, 3), "float32"]) -> Tensor:
+            with relax.dataflow():
+                y = R.call_tir((2, 6), "test.vm.tile", (x))
+                relax.output(y)
+            return y
+
+    mod = TestVMStaticShapeLower
+
+    # after vm shape lowering
+    new_mod = relax.transform.VMShapeLower()(mod)
+
+    # before and after programs should be structurally equal
+    # since the program only has static shapes
+    assert_structural_equal(mod, new_mod)
+
+
 def test_vm_shape_lowering_func_param_with_shape():
     @tvm.script.ir_module
     class InputModule:
@@ -243,9 +267,9 @@ def test_vm_shape_lowering_func_param_with_shape():
             m = T.var("int32")
             n = T.var("int32")
             k = T.var("int32")
-            A = T.match_buffer(x, (m,n))
-            B = T.match_buffer(y, (n,k))
-            C = T.match_buffer(z, (m,k))
+            A = T.match_buffer(x, (m, n))
+            B = T.match_buffer(y, (n, k))
+            C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
                 with T.block("matmul"):
@@ -253,8 +277,9 @@ def test_vm_shape_lowering_func_param_with_shape():
                     with T.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
         @R.function
-        def foo(x:Tensor[(m, n), "float32"], w:Tensor[(n, k), "float32"]) -> Tensor:
+        def foo(x: Tensor[(m, n), "float32"], w: Tensor[(n, k), "float32"]) -> Tensor:
             gv0 = R.call_tir((m, k), tir_matmul, (x, w))
             return gv0
 
@@ -340,6 +365,7 @@ if __name__ == "__main__":
     test_call_tir_rewrite()
     test_vm_memory_lower()
     test_vm_shape_lowering()
+    test_vm_static_shape_lowering()
     test_vm_shape_lowering_func_param_with_shape()
     test_to_anf()
     test_to_anf_no_op()
