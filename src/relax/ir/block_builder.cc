@@ -368,6 +368,24 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
     }
     cur_frame->bindings.push_back(VarBinding(var, lhs_var));
     this->binding_table_[var->vid] = lhs_var;
+  } else if (const TupleGetItemNode* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
+    if (const VarNode* tuple = tuple_get_item_node->tuple.as<VarNode>()) {
+      if (tuple->shape_.defined()) {
+        if (const TupleNode* shape = tuple->shape_.as<TupleNode>()) {
+          var->shape_ = shape->fields[tuple_get_item_node->index];
+        }
+      }
+      if (tuple->checked_type_.defined()) {
+        if (const TupleTypeNode* type = tuple->checked_type_.as<TupleTypeNode>()) {
+          var->checked_type_ = type->fields[tuple_get_item_node->index];
+        }
+      }
+      cur_frame->bindings.push_back(VarBinding(var, expr));
+      this->binding_table_[var->vid] = expr;
+    } else {
+      LOG(FATAL) << "TypeError: Invalid type as the tuple field of TupleGetItemNode: "
+                 << tuple_get_item_node->tuple->GetTypeKey();
+    }
   } else {
     cur_frame->bindings.push_back(VarBinding(var, expr));
     binding_table_[var->vid] = expr;
