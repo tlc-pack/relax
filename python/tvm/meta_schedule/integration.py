@@ -25,11 +25,7 @@ from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
 
-<<<<<<< HEAD
 from .database import Database
-from tvm.relax import Function as RelaxFunc, DynTensorType, vm
-=======
->>>>>>> [WIP] For gradual integration with Relay pipeline, meta_schedule/integration.py is created for relax to avoid potential conflict.
 from . import _ffi_api
 
 
@@ -188,7 +184,7 @@ class ApplyHistoryBest(MetaScheduleContext):
         self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
-def extract_task(
+def extract_task_from_relay(
     mod: Union[IRModule, RelayFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,

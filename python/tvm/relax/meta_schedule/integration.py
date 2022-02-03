@@ -17,7 +17,7 @@
 """Meta schedule integration with high-level IR"""
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Union
-
+import tvm
 from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
 from tvm.runtime import NDArray, Object
@@ -27,6 +27,7 @@ from tvm.meta_schedule import _ffi_api
 from tvm.relax import vm
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.ty import DynTensorType
+from tvm.meta_schedule.database import Database
 
 
 @register_object("meta_schedule.ExtractedTask")
@@ -146,6 +147,7 @@ class MetaScheduleContext(Object):
             3) relax::Function if `mod` should be dispatched to BYOC workflow;
             4) IRModule for unified dispatch
         """
+
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
@@ -175,10 +177,16 @@ class TaskExtraction(MetaScheduleContext):
 
 @register_object("meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
-    pass
+    """An integration context that allows application of historically best record from database"""
+
+    database: Database
+    """ The database to be queried from"""
+
+    def __init__(self, database) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
-def extract_task(
+def extract_task_from_relax(
     mod: Union[IRModule, RelaxFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,
@@ -234,13 +242,28 @@ def extract_task(
     if not isinstance(target, Target):
         target = Target(target)
 
+    # Simply extracts tir PrimFuncs from the input IRModule
+    def _base_partitioner(mod: tvm.IRModule) -> List[tvm.IRModule]:
+        partitions = []
+        for gv in mod.get_global_vars():
+            if isinstance(mod[gv], PrimFunc):
+                tir_mod = IRModule({})
+                tir_mod[gv] = mod[gv]
+                partitions.append(tir_mod)
+        return partitions
+
     def _func():
         with env, _autotvm_silencer(), transform.PassContext(
             config=pass_config,
             disabled_pass=disabled_pass,
             opt_level=opt_level,
         ):
-            vm.build(mod, Target(target))
+            tir_partitions = _base_partitioner(mod)
+            for i, tir_mod in enumerate(tir_partitions):
+                func_name = tir_mod.get_global_vars()[0].name_hint
+                tvm.relax.meta_schedule.integration.MetaScheduleContext.query_inside_with_scope(
+                    func_name, tir_mod, [tir_mod]
+                )
 
     _thread_run(_func)
     return env.tasks

@@ -187,29 +187,9 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
-
-    tir_partitions = _base_partitioner(tir_mod)
-    for i, tir_mod in enumerate(tir_partitions):
-        func_name = tir_mod.get_global_vars()[0].name_hint
-        tvm.meta_schedule.integration.MetaScheduleContext.query_inside_with_scope(
-            func_name, tir_mod, [tir_mod]
-        )
-
     lib = tvm.build(tir_mod, target)
     ex = _ffi_api.VMCodeGen(rx_mod)
     return ex, lib
-
-
-def _base_partitioner(mod: tvm.IRModule) -> List[tvm.IRModule]:
-    partitions = []
-    for gv in mod.get_global_vars():
-        if isinstance(mod[gv], PrimFunc):
-            tir_mod = IRModule({})
-            tir_mod[gv] = mod[gv]
-            partitions.append(tir_mod)
-        else:
-            raise ValueError("An IRModule should contain contain TIR primfunc.")
-    return partitions
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
