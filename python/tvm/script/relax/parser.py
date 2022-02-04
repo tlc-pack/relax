@@ -69,6 +69,8 @@ class SpecialOp(Enum):
     DATAFLOW_OUTPUT = "relax.output"
     TUPLE = "relax.Tuple"
     TUPLE_GET_ITEM = "relax.TupleGetItem"
+    CONST = "relax.const"
+    CONSTANT = "relax.expr.Constant"
 
 
 class ArithmeticOp(Enum):
@@ -611,6 +613,7 @@ class RelaxTransformer(Transformer):
             The parsed Relax variable binding
         """
         var = self._get_lhs(stmt)
+
         rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
         bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
@@ -889,6 +892,9 @@ class RelaxTransformer(Transformer):
             args = [self.transform_expr(arg) for arg in expr.params]
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
             return relax.TupleGetItem(args[0], args[1].value)
+        elif op == SpecialOp.CONSTANT or op == SpecialOp.CONST:
+            args = [self.transform_expr(arg) for arg in expr.params]
+            return args[0]
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]
@@ -941,11 +947,44 @@ class RelaxTransformer(Transformer):
         attrs = None
         if kwargs or not is_default:
             attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
-
         return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
 
+    def parse_arrayliteral(self, expr: ast.ArrayLiteral) -> relax.const:
+        """Parses the given synr ArrayLiteral node to a Relax constant.
+
+        Parameters
+        ----------
+        expr : ast.ArrayLiteral
+            The synr ArrayLiteral to be parsed.
+
+        Returns
+        -------
+        relax.const
+            The parsed relex expression. It will be a relax.const or relax.expr.Constant.
+        """
+
+        def _get_values(expr: ast.ArrayLiteral, vals: List[Any]) -> List[Any]:
+            # todo(@yongwww): the generic parsing util for ArrayLiteral should be in synr
+            if isinstance(expr, ast.Constant):
+                vals.append(expr.value)
+            elif isinstance(expr, ast.ArrayLiteral):
+                for elem in expr.values:
+                    # recursive call to get the nested list
+                    nested_vals = _get_values(elem, [])
+                    # avoid nested list for every element
+                    if len(nested_vals) == 1 and not isinstance(nested_vals[0], list):
+                        vals.append(nested_vals[0])
+                    else:
+                        vals.append(nested_vals)
+            else:
+                self.report_error(f"unsupported ast expression {expr.name}")
+            return vals
+
+        const_values = _get_values(expr, [])
+        return relax.const(const_values)
+
     # Exprs:
-    # - ArrayLiteral: unsupported for now?
+    # - ArrayLiteral
     # - Attr: use for .shape, and intrinsic/special operator namespace
     # - Call
     # - Constant
@@ -998,21 +1037,10 @@ class RelaxTransformer(Transformer):
             return relay.GlobalVar(var_name)
 
         elif isinstance(expr, ast.Constant):
-            # FIXME(@altanh): use internal representation that doesn't have precision limits here
-            if isinstance(expr.value, int):
-                return tir.IntImm("int64", expr.value, self.to_tvm_span(expr.span))
-            elif isinstance(expr.value, float):
-                return tir.FloatImm("float32", expr.value, self.to_tvm_span(expr.span))
-            elif isinstance(expr.value, str):
-                # FIXME(@altanh): using StringImm seems to cause problems, but this loses span
-                return expr.value
-            elif expr.value is None:
-                return None
-            else:
-                self.report_error(
-                    f"unsupported constant expression: {expr}",
-                    expr.span,
-                )
+            return relax.const(expr.value)
+
+        elif isinstance(expr, ast.ArrayLiteral):
+            return self.parse_arrayliteral(expr)
 
         elif isinstance(expr, ast.Op):
             # TODO(@altanh): might need to generalize from ArithmeticOp if we decide to support
@@ -1021,7 +1049,6 @@ class RelaxTransformer(Transformer):
                 return ArithmeticOp(expr.name)
             except ValueError:
                 self.report_error(f"unsupported built-in operator: {expr.name}", expr.span)
-
         else:
             self.report_error(f"unsupported expression: {expr}", expr.span)
 

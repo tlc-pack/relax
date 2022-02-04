@@ -31,6 +31,12 @@
 
 #include "doc.h"
 #include "text_printer.h"
+#include "../ir/attr_functor.h"
+#include "../parser/meta_ref.h"
+#include "../relay/analysis/dependency_graph.h"
+#include "doc.h"
+#include "meta_data.h"
+
 
 namespace tvm {
 namespace relax {
@@ -47,6 +53,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   int constant_counter_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
   std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
+  /*! \brief meta data context */
+  TextMetaDataContext* meta_;
 
   // IR nodes inherited from Relay
   Doc VisitNode_(const relay::ConstantNode* op) override;
@@ -58,7 +66,6 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitNode_(const relay::TupleGetItemNode* op) override;
 
   // IR nodes introduced by Relax
-  Doc VisitNode_(const relax::ConstantNode* op) override;
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;
   Doc VisitNode_(const relax::ShapeExprNode* op) override;
@@ -95,6 +102,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc PrintAttr(const ObjectRef& attr);
   std::vector<Doc> PrintAttrs(const Attrs& attrs);
   Doc VisitAttrDefault_(const Object* op) override;
+  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info = true);
   Doc VisitAttr_(const ArrayNode* op) override;
   Doc VisitAttr_(const tir::IntImmNode* op) override;
   Doc VisitAttr_(const tir::FloatImmNode* op) override;
@@ -230,6 +238,84 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarNode* op) {
   }
 
   return var_id_map_[op->vid];
+}
+
+/*!
+ * \brief special method to print out const scalar
+ * \param dtype The data type
+ * \param value The value to be printed.
+ */
+template <typename T>
+Doc ScalarLiteral(DataType dtype, const T& value) {
+  std::ostringstream os;
+  if (dtype == DataType::Int(32)) {
+    os << value;
+  } else if (dtype == DataType::Float(32)) {
+    os << value << 'f';
+  } else if (dtype == DataType::Float(64)) {
+    os << value << "f64";
+  } else if (dtype == DataType::Bool()) {
+    return Doc::PyBoolLiteral(value != 0);
+  } else {
+    os << value;
+  }
+  return Doc::Text(os.str());
+}
+
+
+//------------------------------------
+// Overload of Expr printing functions
+//------------------------------------
+Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
+  // Exploit memoization to print GNF.
+  // The first time we visit an expression, we need to allocate a temp var
+  // for it. Every subsequent time we can just use its assigned variable.
+  // This works since hashing uses pointer equality.
+
+  // determine whether to inline
+
+  Doc printed_expr;
+
+  if (meta) {
+    LOG(INFO) << "in meta scope, expr.get(): " << expr.get();
+    LOG(INFO) << " GetRef<ObjectRef>(expr.get(): " << GetRef<ObjectRef>(expr.get());
+    //LOG(INFO) << " meta_.GetMetaSection(): " <<  meta_->GetMetaSection();
+    LOG(INFO) << "meta_->empty(): " << meta_->empty();
+    LOG(INFO) << "meta_->InMeta(GetRef<ObjectRef>(expr.get())): " << meta_->InMeta(GetRef<ObjectRef>(expr.get()));
+    printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
+    LOG(INFO) << "printed_expr: " << printed_expr.str();
+  } else {
+    // printed_expr = VisitExpr(expr);
+    return printed_expr;
+  }
+  return printed_expr;
+}
+
+Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
+  Doc doc;
+  // Print out simple scalars directly.
+  if (op->data->ndim == 0) {
+    std::ostringstream os;
+    DataType dtype = DataType(op->data->dtype);
+    ICHECK_EQ(op->data->device.device_type, kDLCPU);
+    auto scalar_val = ScalarLiteral(dtype, 0);
+    if (dtype == DataType::Int(32)) {
+      scalar_val = ScalarLiteral(dtype, static_cast<const int32_t*>(op->data->data)[0]);
+    } else if (dtype == DataType::Int(64)) {
+      scalar_val = ScalarLiteral(dtype, static_cast<const int64_t*>(op->data->data)[0]);
+    } else if (dtype == DataType::Float(32)) {
+      scalar_val = ScalarLiteral(dtype, static_cast<const float*>(op->data->data)[0]);
+    } else if (dtype == DataType::Float(64)) {
+      scalar_val = ScalarLiteral(dtype, static_cast<const double*>(op->data->data)[0]);
+    } else if (dtype == DataType::Bool()) {
+      scalar_val = ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
+    }
+    return doc << "relax.const(" << scalar_val << ")";
+  }
+  // default fall-back, record it as meta node.
+  // Don't append optional_info. Because the entry function is Print,
+  // and it will append the optional_info afterwards.
+  return doc << PrintExpr(GetRef<Expr>(op), true, false, false);
 }
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowVarNode* op) {

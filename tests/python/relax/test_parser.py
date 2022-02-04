@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
+from __future__ import annotations
+from audioop import mul  # must import to defer parsing of annotations
 import pytest
 import tvm
+import numpy as np
 
 from tvm import tir, relay, relax
 from tvm.ir import assert_structural_equal
@@ -503,6 +505,16 @@ def test_call_packed():
     assert_structural_equal(z_bind.value.args, [x, x])
 
     assert isinstance(w_bind.value.attrs, relay.op.op_attrs.ShapeOfAttrs)
+
+
+def test_constant():
+    @R.function
+    def f(x: Tensor[(2, 3), "float32"]):
+        y1 = relax.const(2, dtype="float32")
+        y2 = relax.expr.Constant(3)
+        z = add(x, y1)
+        r = mul(z, y2)
+        return r
 
 
 def test_primexpr_arithmetic():
