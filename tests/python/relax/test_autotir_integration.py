@@ -146,12 +146,10 @@ class InputModule:
     target = Target("llvm --num-cores=16")
     target_host = Target("llvm")
 
-    # Question: Why don't we add target field to ExtractedTask?
-    # observer mode (task extraction):
     database = DummyDatabase()
     tasks = ms.integration.extract_task_from_relax(mod, target=target)
     for task in tasks:
-        print(f"Extracted task: {task.task_name}, {task.mod}")
+        print(f"Extracted task: {task.task_name}, {task.target}")
         with tempfile.TemporaryDirectory() as work_dir:
             sch: Schedule = tune_tir(
                 mod=task.mod,

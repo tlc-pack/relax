@@ -40,6 +40,8 @@ class ExtractedTask(Object):
         The name of the task extracted
     mod : IRModule
         The high-level IR
+    target: Target
+        Target information
     dispatched : List[IRModule]
         A list of low-level IRs that the high-level IR could potentially dispatch to
     """
@@ -52,12 +54,14 @@ class ExtractedTask(Object):
         self,
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: List[IRModule],
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExtractedTask,  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -115,6 +119,7 @@ class MetaScheduleContext(Object):
     def query_inside_with_scope(
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: Optional[List[IRModule]],
     ) -> Union[IRModule, RelaxFunc, PrimFunc, None]:
         """The entry point of the integration workflow. The compilation process of the high-level
@@ -135,6 +140,8 @@ class MetaScheduleContext(Object):
             The name of the task
         mod : IRModule
             The high-level IR
+        target: Target
+            Target
         dispatched : Optional[List[IRModule]]
             A list of low-level IRs that the high-level IR could potentially dispatch to
 
@@ -151,6 +158,7 @@ class MetaScheduleContext(Object):
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -261,8 +269,10 @@ def extract_task_from_relax(
             tir_partitions = _base_partitioner(mod)
             for i, tir_mod in enumerate(tir_partitions):
                 func_name = tir_mod.get_global_vars()[0].name_hint
+                # @sunggg: Currently, add target field as Optional<Target> to avoid conflict with other APIs like ApplyHistoryBest.
+                #          Discuss with Xiyou and Junru to escalate it to MetaScheduleContext.
                 tvm.relax.meta_schedule.integration.MetaScheduleContext.query_inside_with_scope(
-                    func_name, tir_mod, [tir_mod]
+                    func_name, tir_mod, target, [tir_mod]
                 )
 
     _thread_run(_func)
