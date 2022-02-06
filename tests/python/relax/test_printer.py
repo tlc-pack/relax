@@ -80,6 +80,20 @@ def test_tuple():
     check_roundtrip(foo)
 
 
+def test_tuplegetitem():
+    @R.function
+    def foo(x: Tensor[_, _]):
+        y = add(x, x)
+        z = multiply(y, x)
+        t = relax.Tuple((y, z))
+        a = relax.TupleGetItem(t, 0)
+        b = relax.TupleGetItem(t, 1)
+        c = divide(a, b)
+        return c
+
+    check_roundtrip(foo)
+
+
 def test_local_func():
     @R.function
     def foo(x: Tensor[_, _]):
