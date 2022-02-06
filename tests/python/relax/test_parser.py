@@ -274,8 +274,10 @@ def test_tuplegetitem():
     assert isinstance(bind_0.value, relax.expr.Tuple)
     assert isinstance(bind_1.value, relax.TupleGetItem)
     assert isinstance(bind_2.value, relax.TupleGetItem)
-    assert bind_1.var.name_hint == "a"
+    assert bind_1.value.index == 0
     assert bind_2.value.index == 1
+    assert bind_1.var.name_hint == "a"
+    assert bind_2.var.name_hint == "b"
     check_call(bind_3.value, "add", [bind_1.var, bind_2.var])
 
 

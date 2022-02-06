@@ -886,6 +886,7 @@ class RelaxTransformer(Transformer):
             return relax.Tuple(args)
 
         elif op == SpecialOp.TUPLEGETITEM:
+            assert len(expr.params) == 2, "TupleGetItem expects to get two parameters."
             args = [self.transform_expr(arg) for arg in expr.params]
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
             return relax.TupleGetItem(args[0], args[1].value)
