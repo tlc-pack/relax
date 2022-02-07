@@ -10,6 +10,9 @@ import tempfile
 from typing import List
 from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
+import time
+import pytest
+import sys
 
 # Test case with dynamic shape.
 # Tuning with dynamic shape is not supported yet.
@@ -96,7 +99,11 @@ class DummyDatabase(PyDatabase):
         print("\n".join([str(r) for r in self.records]))
 
 
-def test_class_irmodule():
+@pytest.mark.parametrize(
+    "dev",
+    ["cpu", "gpu"],
+)
+def test_class_irmodule(dev: str):
     src = """
 class InputModule:
     @T.prim_func
@@ -105,11 +112,11 @@ class InputModule:
         m = T.var("int32")
         n = T.var("int32")
         k = T.var("int32")
-        A = T.match_buffer(x, (16,16))
-        B = T.match_buffer(y, (16,16))
-        C = T.match_buffer(z, (16,16))
+        A = T.match_buffer(x, (32,32))
+        B = T.match_buffer(y, (32,32))
+        C = T.match_buffer(z, (32,32))
 
-        for (i0, j0, k0) in T.grid(16,16,16):
+        for (i0, j0, k0) in T.grid(32,32,32):
             with T.block():
                 i,j,k = T.axis.remap("SSR", [i0,j0,k0])
                 with T.init():
@@ -121,30 +128,32 @@ class InputModule:
         T.func_attr({"global_symbol": "tir_relu"})
         m = T.var("int32")
         n = T.var("int32")
-        A = T.match_buffer(x, (16,16))
-        B = T.match_buffer(y, (16,16))
-        for (i,j) in T.grid(16,16):
+        A = T.match_buffer(x, (32,32))
+        B = T.match_buffer(y, (32,32))
+        for (i,j) in T.grid(32,32):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @R.function
-    def main(x:Tensor[(16,16), "float32"], w:Tensor[(16,16), "float32"]) -> Tensor:
-        with R.dataflow():
-            sh = relax.call_packed("vm.builtin.shape_of", x)
-            x0 = relax.match_shape(sh, (16, 16))
-            sh1 = relax.call_packed("vm.builtin.shape_of", w)
-            x1 = relax.match_shape(sh1, (16, 16))
-            lv0 = R.call_tir((16,16), tir_matmul, (x,w))
-            lv1 = R.call_tir((16,16), tir_relu, (lv0))
+    def main(x:Tensor[(32,32), "float32"], w:Tensor[(32,32), "float32"]) -> Tensor:
+        with R.dataflow():  
+            x0 = relax.match_shape(x, (32, 32))
+            x1 = relax.match_shape(w, (32, 32))
+            lv0 = R.call_tir((32,32), tir_matmul, (x,w))
+            lv1 = R.call_tir((32,32), tir_relu, (lv0))
             relax.output(lv1)
         return lv1
 """
     mod = tvm.script.relax.parser.from_source(src)
     assert isinstance(mod, tvm.IRModule)
 
-    target = Target("llvm --num-cores=16")
-    target_host = Target("llvm")
+    if dev == "cpu":
+        target = Target("llvm --num-cores=16")
+        dev = tvm.cpu()
+    else:
+        target = Target("nvidia/geforce-rtx-3070")
+        dev = tvm.cuda()
 
     database = DummyDatabase()
     tasks = ms.integration.extract_task_from_relax(mod, target=target)
@@ -161,16 +170,36 @@ class InputModule:
                 work_dir=work_dir,
                 database=database,
             )
-        if sch is None:
-            print("No valid schedule found!")
-        else:
-            print(sch.mod.script())
-            print(sch.trace)
+
+    with tvm.transform.PassContext(opt_level=3):
+        ex0, lib0 = relax.vm.build(mod, target)
 
     with ms.integration.ApplyHistoryBest(database):
         with tvm.transform.PassContext(opt_level=3):
-            relax.vm.build(mod, target)
+            ex1, lib1 = relax.vm.build(mod, target)
+
+    vm0 = relax.VirtualMachine(ex0, dev, mod=lib0)
+    vm1 = relax.VirtualMachine(ex1, dev, mod=lib1)
+    data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+
+    # Measure the performance w/o tuning log
+    tic = time.time()
+    vm0["main"](data, weight)
+    toc = time.time()
+    e0 = toc - tic
+
+    # Measure the performance w/ tuning log
+    tic = time.time()
+    vm1["main"](data, weight)
+    toc = time.time()
+    e1 = toc - tic
+
+    print(f"w/o tuning: {e0}")
+    print(f"w/  tuning: {e1}")
 
 
 if __name__ == "__main__":
-    test_class_irmodule()
+    test_class_irmodule(dev="cpu")
+    test_class_irmodule(dev="gpu")
+    # sys.exit(pytest.main([__file__] + sys.argv[1:]))

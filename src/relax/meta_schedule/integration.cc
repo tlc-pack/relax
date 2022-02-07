@@ -121,7 +121,7 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
                                                 Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
-  ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
+  // ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
   // Unify func name to make sure it can be found in database
@@ -132,7 +132,11 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {
       LOG(INFO) << "Applied history best for " << task_name << ".";
-      return records[0]->workload->mod;
+      tir::Schedule sch =
+          tir::Schedule::Traced(records[0]->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+                                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+      records[0]->trace->ApplyToSchedule(sch, false);
+      return sch->mod();
     }
   }
   return NullOpt;

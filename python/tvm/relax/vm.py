@@ -187,8 +187,25 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
+    tir_partitions = tvm.relax.meta_schedule.integration._base_partitioner(mod)
+    # Replace tir function based on the tuning history
+    tir_mod = IRModule({})
+    for tir_partition in tir_partitions:
+        res = tvm.relax.meta_schedule.integration.MetaScheduleContext.query_inside_with_scope(
+            "", tir_partition, target, [tir_partition]
+        )
 
-    # tir_mod = tvm.relax.meta_schedule.MetaScheduleContext.ApplyHistoryBest.query("", tir_mod, target)
+        # if there is no history found, keep the original tir function
+        if res is None:
+            res = tir_partition
+        else:
+            print(res.script())
+        assert len(tir_partition.get_global_vars()) == 1
+        assert len(res.get_global_vars()) == 1
+        gv = tir_partition.get_global_vars()[0]
+        tir_mod[gv] = res[res.get_global_vars()[0]]
+
+    print(tir_mod)
     lib = tvm.build(tir_mod, target)
     ex = _ffi_api.VMCodeGen(rx_mod)
     return ex, lib

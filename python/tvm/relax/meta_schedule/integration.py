@@ -23,7 +23,7 @@ from tvm.ir import IRModule, transform
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
-from tvm.meta_schedule import _ffi_api
+from tvm.relax.meta_schedule import _ffi_api
 from tvm.relax import vm
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.ty import DynTensorType
@@ -158,7 +158,6 @@ class MetaScheduleContext(Object):
             3) relax::Function if `mod` should be dispatched to BYOC workflow;
             4) IRModule for unified dispatch
         """
-
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
@@ -185,6 +184,17 @@ class TaskExtraction(MetaScheduleContext):
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TaskExtraction)  # type: ignore # pylint: disable=no-member
+
+
+# Simply extracts tir PrimFuncs from the input IRModule
+def _base_partitioner(mod: tvm.IRModule) -> List[tvm.IRModule]:
+    partitions = []
+    for gv in mod.get_global_vars():
+        if isinstance(mod[gv], PrimFunc):
+            tir_mod = IRModule({})
+            tir_mod[gv] = mod[gv]
+            partitions.append(tir_mod)
+    return partitions
 
 
 @register_object("relax.meta_schedule.ApplyHistoryBest")
@@ -253,16 +263,6 @@ def extract_task_from_relax(
         mod = IRModule.from_expr(mod)
     if not isinstance(target, Target):
         target = Target(target)
-
-    # Simply extracts tir PrimFuncs from the input IRModule
-    def _base_partitioner(mod: tvm.IRModule) -> List[tvm.IRModule]:
-        partitions = []
-        for gv in mod.get_global_vars():
-            if isinstance(mod[gv], PrimFunc):
-                tir_mod = IRModule({})
-                tir_mod[gv] = mod[gv]
-                partitions.append(tir_mod)
-        return partitions
 
     def _func():
         with env, _autotvm_silencer(), transform.PassContext(
