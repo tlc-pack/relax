@@ -14,34 +14,40 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Example ResNet workload by converting the Relay program to Relax"""
+"""Example ResNet workload by translating the Relay program to Relax"""
 
 import tvm
+import tvm.testing
 from tvm.relay import testing
-from tvm import relax
+from tvm import relax, relay
 from tvm.relax.testing import relay_translator, nn
+from tvm.runtime import vm as vm_rt
 from tvm.script import relax as R
 import numpy as np
 
 if __name__ == "__main__":
-    net, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
+    relay_mod, _ = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
 
     # translate the ResNet model from Relay to Relax
-    bb = relax.BlockBuilder()
-    with bb.function("main"):
-        relay_translator.from_relay(net["main"])
+    relax_mod = relay_translator.from_relay(relay_mod["main"])
 
-    # get and print the ResNet IRmodule got translated
-    mod = bb.get()
-    print(R.parser.astext(mod))
+    # print the ResNet IRmodule got translated
+    print(R.parser.astext(relax_mod))
 
     # build the IRModule and create relax vm
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex, lib = relax.vm.build(relax_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
 
     # init weights and run the model on relax vm
     shape = (1, 3, 224, 224)
     data = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    params = nn.init_params(mod)
+    params = nn.init_params(relax_mod)
     res = vm["main"](data, *params)
+
+    # check correctness by comparing with relay result
+    exe = relay.vm.compile(relay_mod, target)
+    relay_vm = vm_rt.VirtualMachine(exe, tvm.cpu())
+    inputs = [data] + params
+    expected_output = relay_vm.run(*inputs)
+    tvm.testing.assert_allclose(res.numpy(), expected_output.numpy(), rtol=1e-4, atol=1e-4)

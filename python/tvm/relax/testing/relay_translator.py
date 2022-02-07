@@ -539,18 +539,19 @@ def from_relay(func: relay.Function) -> IRModule:
     def visit_func(node):
         nonlocal output_var
         if isinstance(node, relay.Var):
-            var_map[node] = nn.Placeholder(
-                tuple(node.type_annotation.shape), node.type_annotation.dtype, node.name_hint
-            )
-            params.append(var_map[node])
+            if isinstance(node.type_annotation, relay.TensorType):
+                var_map[node] = nn.Placeholder(
+                    tuple(node.type_annotation.shape), node.type_annotation.dtype, node.name_hint
+                )
+                params.append(var_map[node])
+            else:
+                raise TypeError("The type of relay.Var to be translated must be of TensorType.")
         elif isinstance(node, relay.Call):
             args = node.args
             new_args = []
             for arg in args:
                 if arg in var_map:
                     new_args.append(var_map[arg])
-                else:
-                    new_args.append(arg)
 
             op_name = node.op.name
             if node.op.name not in convert_map:
@@ -569,12 +570,12 @@ def from_relay(func: relay.Function) -> IRModule:
                 if field in var_map:
                     new_fields.append(var_map[field])
                 else:
-                    raise RuntimeError("field is not in var_map")
+                    raise RuntimeError("field is not in var_map.")
             new_tuple = relax.Tuple(new_fields)
             new_tuple_var = relax.BlockBuilder.current().emit(new_tuple)
             var_map[node] = new_tuple_var
             output_var = new_tuple_var
-        elif isinstance(node, relax.TupleGetItem):
+        elif isinstance(node, relay.TupleGetItem):
             if node.tuple_value in var_map:
                 new_tuple = var_map[node.tuple_value]
                 new_tuple_get_item_node = relax.TupleGetItem(new_tuple, node.index)
@@ -585,8 +586,16 @@ def from_relay(func: relay.Function) -> IRModule:
                 raise RuntimeError("tuple is not in var_map")
         elif isinstance(node, relay.Function):
             relax.BlockBuilder.current().emit_func_output(output_var, params)
+        elif isinstance(node, tvm.ir.Op):
+            pass
+        else:
+            raise TypeError("{} is not supported yet.".format(str(type(node))))
 
-    relay.analysis.post_order_visit(func, visit_func)
+    bb = relax.BlockBuilder()
+    with bb.function("main"):
+        relay.analysis.post_order_visit(func, visit_func)
+
+    return bb.get()
 
 
 if __name__ == "__main__":
@@ -599,13 +608,9 @@ if __name__ == "__main__":
         subtract(%0, %1)
     }
     """
+    relay_mod = tvm.parser.fromtext(RELAY_MODEL)
 
-    mod = tvm.parser.fromtext(RELAY_MODEL)
+    mod = from_relay(relay_mod["main"])
 
-    bb = relax.BlockBuilder()
-    with bb.function("main"):
-        from_relay(mod["main"])
-
-    mod = bb.get()
     target = tvm.target.Target("llvm", host="llvm")
     ex, lib = relax.vm.build(mod, target)
