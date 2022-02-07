@@ -27,6 +27,7 @@
 
 namespace tvm {
 namespace meta_schedule {
+namespace relax {
 
 /**************** ExtractedTask ****************/
 
@@ -51,7 +52,7 @@ class ExtractedTaskNode : public runtime::Object {
     v->Visit("dispatched", &dispatched);
   }
 
-  static constexpr const char* _type_key = "meta_schedule.ExtractedTask";
+  static constexpr const char* _type_key = "relax.meta_schedule.ExtractedTask";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExtractedTaskNode, runtime::Object);
 };
 
@@ -95,7 +96,7 @@ class MetaScheduleContextNode : public runtime::Object {
   virtual Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
                                     Optional<Array<IRModule>> dispatched) = 0;
 
-  static constexpr const char* _type_key = "meta_schedule.MetaScheduleContext";
+  static constexpr const char* _type_key = "relax.meta_schedule.MetaScheduleContext";
   TVM_DECLARE_BASE_OBJECT_INFO(MetaScheduleContextNode, runtime::Object);
 };
 
@@ -161,7 +162,7 @@ class TaskExtractionNode : public MetaScheduleContextNode {
   Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
                             Optional<Array<IRModule>> dispatched) final;
 
-  static constexpr const char* _type_key = "meta_schedule.TaskExtraction";
+  static constexpr const char* _type_key = "relax.meta_schedule.TaskExtraction";
   TVM_DECLARE_FINAL_OBJECT_INFO(TaskExtractionNode, MetaScheduleContextNode);
 };
 
@@ -196,7 +197,7 @@ class ApplyHistoryBestNode : public MetaScheduleContextNode {
   Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
                             Optional<Array<IRModule>> dispatched) final;
 
-  static constexpr const char* _type_key = "meta_schedule.ApplyHistoryBest";
+  static constexpr const char* _type_key = "relax.meta_schedule.ApplyHistoryBest";
   TVM_DECLARE_FINAL_OBJECT_INFO(ApplyHistoryBestNode, MetaScheduleContextNode);
 };
 
@@ -215,6 +216,7 @@ class ApplyHistoryBest : public MetaScheduleContext {
                                                     ApplyHistoryBestNode);
 };
 
+}  // namespace relax
 }  // namespace meta_schedule
 }  // namespace tvm
 

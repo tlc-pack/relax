@@ -187,6 +187,8 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
+
+    # tir_mod = tvm.relax.meta_schedule.MetaScheduleContext.ApplyHistoryBest.query("", tir_mod, target)
     lib = tvm.build(tir_mod, target)
     ex = _ffi_api.VMCodeGen(rx_mod)
     return ex, lib

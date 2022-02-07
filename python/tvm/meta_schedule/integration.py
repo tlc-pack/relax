@@ -73,6 +73,7 @@ class MetaScheduleContext(Object):
         self,
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: Optional[List[IRModule]],
     ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
         """The entry point of the integration
@@ -83,6 +84,8 @@ class MetaScheduleContext(Object):
             The name of the task extracted
         mod : IRModule
             The high-level IR
+        target: Target
+            Target Info
         dispatched : Optional[List[IRModule]]
             A list of low-level IRs that the high-level IR could potentially dispatch to
 
@@ -99,6 +102,7 @@ class MetaScheduleContext(Object):
             self,
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -131,7 +135,7 @@ class MetaScheduleContext(Object):
             def query_inside_with_scope(task_name, mod, dispatched):
                 ctx = MetaScheduleContext.current()
                 assert ctx is not None
-                ctx.query(task_name, mod, dispatched)
+                ctx.query(task_name, mod, target, dispatched)
 
         Parameters
         ----------

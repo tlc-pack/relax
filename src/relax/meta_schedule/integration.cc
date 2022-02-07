@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/integration.h>
+#include <tvm/relax/meta_schedule/integration.h>
 #include <tvm/relay/function.h>
 #include <tvm/tir/function.h>
 
-#include "./utils.h"
+#include "../../meta_schedule/utils.h"
 
 namespace tvm {
 namespace meta_schedule {
+namespace relax {
 
 /**************** Utility functions ****************/
 
@@ -150,27 +151,29 @@ TVM_REGISTER_OBJECT_TYPE(MetaScheduleContextNode);
 TVM_REGISTER_NODE_TYPE(TaskExtractionNode);
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
+// Relax functions
+TVM_REGISTER_GLOBAL("relax.meta_schedule.ExtractedTask")
     .set_body_typed([](String task_name, IRModule mod, Target target,
                        Array<IRModule> dispatched) -> ExtractedTask {
       return ExtractedTask(task_name, mod, target, dispatched);
     });
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextEnterScope")
+TVM_REGISTER_GLOBAL("relax.meta_schedule.MetaScheduleContextEnterScope")
     .set_body_typed(MetaScheduleContextInternal::EnterScope);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextExitScope")
+TVM_REGISTER_GLOBAL("relax.meta_schedule.MetaScheduleContextExitScope")
     .set_body_typed(MetaScheduleContextInternal::ExitScope);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextCurrent")
+TVM_REGISTER_GLOBAL("relax.meta_schedule.MetaScheduleContextCurrent")
     .set_body_typed(MetaScheduleContext::Current);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQueryInsideWithScope")
+TVM_REGISTER_GLOBAL("relax.meta_schedule.MetaScheduleContextQueryInsideWithScope")
     .set_body_typed(MetaScheduleContext::QueryInsideWithScope);
-TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQuery")
+TVM_REGISTER_GLOBAL("relax.meta_schedule.MetaScheduleContextQuery")
     .set_body_method<MetaScheduleContext>(&MetaScheduleContextNode::Query);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskExtraction").set_body_typed([]() -> TaskExtraction {
+TVM_REGISTER_GLOBAL("relax.meta_schedule.TaskExtraction").set_body_typed([]() -> TaskExtraction {
   return TaskExtraction();
 });
-TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
+TVM_REGISTER_GLOBAL("relax.meta_schedule.ApplyHistoryBest")
     .set_body_typed([](Database database) -> ApplyHistoryBest {
       return ApplyHistoryBest(database);
     });
+}  // namespace relax
 }  // namespace meta_schedule
 }  // namespace tvm

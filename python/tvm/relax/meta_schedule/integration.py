@@ -30,7 +30,7 @@ from tvm.relax.ty import DynTensorType
 from tvm.meta_schedule.database import Database
 
 
-@register_object("meta_schedule.ExtractedTask")
+@register_object("relax.meta_schedule.ExtractedTask")
 class ExtractedTask(Object):
     """A tuning task extracted from the high-level IR
 
@@ -66,7 +66,7 @@ class ExtractedTask(Object):
         )
 
 
-@register_object("meta_schedule.MetaScheduleContext")
+@register_object("relax.meta_schedule.MetaScheduleContext")
 class MetaScheduleContext(Object):
     """A context manager interface for the integration"""
 
@@ -74,6 +74,7 @@ class MetaScheduleContext(Object):
         self,
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: Optional[List[IRModule]],
     ) -> Union[IRModule, RelaxFunc, PrimFunc, None]:
         """The entry point of the integration
@@ -84,6 +85,8 @@ class MetaScheduleContext(Object):
             The name of the task extracted
         mod : IRModule
             The high-level IR
+        target: Target
+            Target Info
         dispatched : Optional[List[IRModule]]
             A list of low-level IRs that the high-level IR could potentially dispatch to
 
@@ -100,6 +103,7 @@ class MetaScheduleContext(Object):
             self,
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -132,7 +136,7 @@ class MetaScheduleContext(Object):
             def query_inside_with_scope(task_name, mod, dispatched):
                 ctx = MetaScheduleContext.current()
                 assert ctx is not None
-                ctx.query(task_name, mod, dispatched)
+                ctx.query(task_name, mod, target, dispatched)
 
         Parameters
         ----------
@@ -172,7 +176,7 @@ class MetaScheduleContext(Object):
         _ffi_api.MetaScheduleContextExitScope(self)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("meta_schedule.TaskExtraction")
+@register_object("relax.meta_schedule.TaskExtraction")
 class TaskExtraction(MetaScheduleContext):
     """An integration context for task extraction"""
 
@@ -183,7 +187,7 @@ class TaskExtraction(MetaScheduleContext):
         self.__init_handle_by_constructor__(_ffi_api.TaskExtraction)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("meta_schedule.ApplyHistoryBest")
+@register_object("relax.meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
     """An integration context that allows application of historically best record from database"""
 
@@ -269,11 +273,7 @@ def extract_task_from_relax(
             tir_partitions = _base_partitioner(mod)
             for i, tir_mod in enumerate(tir_partitions):
                 func_name = tir_mod.get_global_vars()[0].name_hint
-                # @sunggg: Currently, add target field as Optional<Target> to avoid conflict with other APIs like ApplyHistoryBest.
-                #          Discuss with Xiyou and Junru to escalate it to MetaScheduleContext.
-                tvm.relax.meta_schedule.integration.MetaScheduleContext.query_inside_with_scope(
-                    func_name, tir_mod, target, [tir_mod]
-                )
+                MetaScheduleContext.query_inside_with_scope(func_name, tir_mod, target, [tir_mod])
 
     _thread_run(_func)
     return env.tasks
