@@ -69,7 +69,7 @@ class SpecialOp(Enum):
     DATAFLOW = "relax.dataflow"
     DATAFLOW_OUTPUT = "relax.output"
     TUPLE = "relax.Tuple"
-    TUPLEGETITEM = "relax.TupleGetItem"
+    TUPLE_GET_ITEM = "relax.TupleGetItem"
 
 
 class ArithmeticOp(Enum):
@@ -885,7 +885,7 @@ class RelaxTransformer(Transformer):
             args = [self.transform_expr(arg) for arg in expr.params[0].values]
             return relax.Tuple(args)
 
-        elif op == SpecialOp.TUPLEGETITEM:
+        elif op == SpecialOp.TUPLE_GET_ITEM:
             assert len(expr.params) == 2, "TupleGetItem expects to get two parameters."
             args = [self.transform_expr(arg) for arg in expr.params]
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
