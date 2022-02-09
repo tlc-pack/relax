@@ -673,6 +673,27 @@ def test_vm_tuple():
     np.testing.assert_allclose(res3.numpy(), inp.numpy())
 
 
+def test_vm_tuplegetitem():
+    @tvm.script.ir_module
+    class TestVMTupleGetItem:
+        @R.function
+        def tuple_get_item(x: Tensor[(_, _), "float32"], y: Tensor[(_, _), "float32"]):
+            t = relax.Tuple((x, y))
+            a = relax.TupleGetItem(t, 0)
+            b = relax.TupleGetItem(t, 1)
+            c = relax.call_packed("test.vm.add", a, b)
+            return c
+
+    mod = TestVMTupleGetItem
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    x_inp = tvm.nd.array(np.random.rand(2, 3))
+    y_inp = tvm.nd.array(np.random.rand(2, 3))
+    res = vm["tuple_get_item"](x_inp, y_inp)
+    np.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
+
+
 if __name__ == "__main__":
     test_vm_execute()
     test_vm_multiple_func()
@@ -699,3 +720,4 @@ if __name__ == "__main__":
     test_vm_relax_symbolic_shape()
     test_vm_relax_dyn_tir_shape()
     test_vm_tuple()
+    test_vm_tuplegetitem()
