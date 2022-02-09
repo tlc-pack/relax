@@ -10,6 +10,7 @@ import tempfile
 from typing import List
 from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
+from tvm.meta_schedule.integration import ApplyHistoryBest
 import time
 import pytest
 import sys
@@ -174,7 +175,7 @@ class InputModule:
     with tvm.transform.PassContext(opt_level=3):
         ex0, lib0 = relax.vm.build(mod, target)
 
-    with ms.integration.ApplyHistoryBest(database):
+    with ApplyHistoryBest(database):
         with tvm.transform.PassContext(opt_level=3):
             ex1, lib1 = relax.vm.build(mod, target)
 
@@ -200,6 +201,4 @@ class InputModule:
 
 
 if __name__ == "__main__":
-    test_class_irmodule(dev="cpu")
-    test_class_irmodule(dev="gpu")
-    # sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

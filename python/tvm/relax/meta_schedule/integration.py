@@ -18,172 +18,19 @@
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Union
 import tvm
-from tvm._ffi import register_object
+
+# from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
-from tvm.relax.meta_schedule import _ffi_api
+
+# from tvm.relax.meta_schedule import _ffi_api
 from tvm.relax import vm
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.ty import DynTensorType
 from tvm.meta_schedule.database import Database
-
-
-@register_object("relax.meta_schedule.ExtractedTask")
-class ExtractedTask(Object):
-    """A tuning task extracted from the high-level IR
-
-    Parameters
-    ----------
-    task_name : str
-        The name of the task extracted
-    mod : IRModule
-        The high-level IR
-    target: Target
-        Target information
-    dispatched : List[IRModule]
-        A list of low-level IRs that the high-level IR could potentially dispatch to
-    """
-
-    task_name: str
-    mod: IRModule
-    dispatched: List[IRModule]
-
-    def __init__(
-        self,
-        task_name: str,
-        mod: IRModule,
-        target: Target,
-        dispatched: List[IRModule],
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ExtractedTask,  # type: ignore # pylint: disable=no-member
-            task_name,
-            mod,
-            target,
-            dispatched,
-        )
-
-
-@register_object("relax.meta_schedule.MetaScheduleContext")
-class MetaScheduleContext(Object):
-    """A context manager interface for the integration"""
-
-    def query(
-        self,
-        task_name: str,
-        mod: IRModule,
-        target: Target,
-        dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelaxFunc, PrimFunc, None]:
-        """The entry point of the integration
-
-        Parameters
-        ----------
-        task_name : str
-            The name of the task extracted
-        mod : IRModule
-            The high-level IR
-        target: Target
-            Target Info
-        dispatched : Optional[List[IRModule]]
-            A list of low-level IRs that the high-level IR could potentially dispatch to
-
-        Returns
-        -------
-        result : Union[IRModule, RelaxFunc, PrimFunc, None]
-            There are different types of the output:
-            1) NullOpt if there is no feedback hint;
-            2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relax::Function if `mod` should be dispatched to BYOC workflow;
-            4) IRModule for unified dispatch
-        """
-        return _ffi_api.MetaScheduleContextQuery(  # type: ignore # pylint: disable=no-member
-            self,
-            task_name,
-            mod,
-            target,
-            dispatched,
-        )
-
-    @staticmethod
-    def current() -> Optional["MetaScheduleContext"]:
-        """The context manager in the current scope
-
-        Returns
-        -------
-        ctx : Optional[MetaScheduleContext]
-            The MetaScheduleContext in the current scope.
-            NullOpt if it's currently not under any MetaScheduleContext.
-        """
-        return _ffi_api.MetaScheduleContextCurrent()  # type: ignore # pylint: disable=no-member
-
-    @staticmethod
-    def query_inside_with_scope(
-        task_name: str,
-        mod: IRModule,
-        target: Target,
-        dispatched: Optional[List[IRModule]],
-    ) -> Union[IRModule, RelaxFunc, PrimFunc, None]:
-        """The entry point of the integration workflow. The compilation process of the high-level
-        IR should call this method for task extraction and for feedback hints
-
-        Basically, this method is equivalent to:
-
-        .. code-block:: python
-
-            def query_inside_with_scope(task_name, mod, dispatched):
-                ctx = MetaScheduleContext.current()
-                assert ctx is not None
-                ctx.query(task_name, mod, target, dispatched)
-
-        Parameters
-        ----------
-        task_name : str
-            The name of the task
-        mod : IRModule
-            The high-level IR
-        target: Target
-            Target
-        dispatched : Optional[List[IRModule]]
-            A list of low-level IRs that the high-level IR could potentially dispatch to
-
-        Returns
-        -------
-        result : Union[IRModule, RelaxFunc, PrimFunc, None]
-            There are different types of the output:
-            1) NullOpt if there is no feedback hint;
-            2) tir::PrimFunc if `mod` should be lowered to a PrimFunc;
-            3) relax::Function if `mod` should be dispatched to BYOC workflow;
-            4) IRModule for unified dispatch
-        """
-        return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
-            task_name,
-            mod,
-            target,
-            dispatched,
-        )
-
-    def __enter__(self) -> "MetaScheduleContext":
-        """Entering the scope of the context manager"""
-        _ffi_api.MetaScheduleContextEnterScope(self)  # type: ignore # pylint: disable=no-member
-        return self
-
-    def __exit__(self, ptype, value, trace) -> None:
-        """Exiting the scope of the context manager"""
-        _ffi_api.MetaScheduleContextExitScope(self)  # type: ignore # pylint: disable=no-member
-
-
-@register_object("relax.meta_schedule.TaskExtraction")
-class TaskExtraction(MetaScheduleContext):
-    """An integration context for task extraction"""
-
-    tasks: List[ExtractedTask]
-    """The extracted tasks"""
-
-    def __init__(self) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TaskExtraction)  # type: ignore # pylint: disable=no-member
+from tvm.meta_schedule.integration import ExtractedTask, TaskExtraction, MetaScheduleContext
 
 
 # Simply extracts tir PrimFuncs from the input IRModule
@@ -195,17 +42,6 @@ def _base_partitioner(mod: tvm.IRModule) -> List[tvm.IRModule]:
             tir_mod[gv] = mod[gv]
             partitions.append(tir_mod)
     return partitions
-
-
-@register_object("relax.meta_schedule.ApplyHistoryBest")
-class ApplyHistoryBest(MetaScheduleContext):
-    """An integration context that allows application of historically best record from database"""
-
-    database: Database
-    """ The database to be queried from"""
-
-    def __init__(self, database) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
 def extract_task_from_relax(
