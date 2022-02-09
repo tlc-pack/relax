@@ -18,11 +18,13 @@
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
 import tvm
+import tvm.meta_schedule as ms
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm.tir.function import PrimFunc
 from tvm.relax.utils import base_partitioner
+
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
 
@@ -178,10 +180,6 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
         target = tvm.target.Target("llvm", host="llvm")
         ex, lib = relax.vm.build(mod, target)
     """
-    from tvm.meta_schedule.integration import (
-        MetaScheduleContext,
-    )  # pylint: disable=import-outside-toplevel
-
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.VMMemoryLower())
@@ -196,7 +194,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
     tir_mod = IRModule({})
 
     for tir_partition in tir_partitions:
-        res = MetaScheduleContext.query_inside_with_scope(
+        res = ms.integration.MetaScheduleContext.query_inside_with_scope(
             "", tir_partition, target, [tir_partition]
         )
 
