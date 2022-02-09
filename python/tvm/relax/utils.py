@@ -14,4 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from . import integration
+"""Utility functions for Relax"""
+import tvm
+from tvm.tir import PrimFunc
+from typing import List
+from tvm import IRModule
+
+# Simply extracts tir PrimFuncs from the input IRModule
+def base_partitioner(mod: IRModule) -> List[IRModule]:
+    partitions = []
+    for gvar in mod.get_global_vars():
+        if isinstance(mod[gvar], PrimFunc):
+            tir_mod = IRModule({})
+            tir_mod[gvar] = mod[gvar]
+            partitions.append(tir_mod)
+    return partitions

@@ -25,6 +25,7 @@ from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
+from tvm.relax.utils import base_partitioner
 
 
 @tvm._ffi.register_object("relax.Executable")
@@ -178,6 +179,8 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
         target = tvm.target.Target("llvm", host="llvm")
         ex, lib = relax.vm.build(mod, target)
     """
+    from tvm.meta_schedule.integration import MetaScheduleContext
+
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.VMMemoryLower())
@@ -187,11 +190,12 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
-    tir_partitions = tvm.relax.meta_schedule.integration._base_partitioner(tir_mod)
+    tir_partitions = base_partitioner(tir_mod)
     # Replace tir function based on the tuning history
     tir_mod = IRModule({})
+
     for tir_partition in tir_partitions:
-        res = tvm.relax.meta_schedule.integration.MetaScheduleContext.query_inside_with_scope(
+        res = MetaScheduleContext.query_inside_with_scope(
             "", tir_partition, target, [tir_partition]
         )
 

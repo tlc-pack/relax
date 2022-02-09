@@ -19,7 +19,6 @@ import tvm
 from tvm.script import tir as T, relax as R
 from tvm import relax
 import numpy as np
-from tvm.relax import meta_schedule as ms
 from tvm.tir import Schedule
 from tvm.ir.module import IRModule
 from tvm.target.target import Target
@@ -27,7 +26,7 @@ import tempfile
 from typing import List
 from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
-from tvm.meta_schedule.integration import ApplyHistoryBest
+from tvm.meta_schedule.integration import extract_task_from_relax, ApplyHistoryBest
 import time
 import pytest
 
@@ -173,7 +172,7 @@ def test_class_irmodule(dev: str):
         dev = tvm.cuda()
 
     database = DummyDatabase()
-    tasks = ms.integration.extract_task_from_relax(mod, target=target)
+    tasks = extract_task_from_relax(mod, target=target)
     for task in tasks:
         print(f"Extracted task: {task.task_name}, {task.target}")
         with tempfile.TemporaryDirectory() as work_dir:

@@ -24,7 +24,6 @@ from . import block_builder
 from . import op
 from . import analysis
 from . import transform
-from . import meta_schedule
 
 # Expr
 Expr = expr.Expr
