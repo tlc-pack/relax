@@ -267,23 +267,10 @@ Doc ScalarLiteral(DataType dtype, const T& value) {
 // Overload of Expr printing functions
 //------------------------------------
 Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
-  // Exploit memoization to print GNF.
-  // The first time we visit an expression, we need to allocate a temp var
-  // for it. Every subsequent time we can just use its assigned variable.
-  // This works since hashing uses pointer equality.
-
-  // determine whether to inline
-
   Doc printed_expr;
 
   if (meta) {
-    LOG(INFO) << "in meta scope, expr.get(): " << expr.get();
-    LOG(INFO) << " GetRef<ObjectRef>(expr.get(): " << GetRef<ObjectRef>(expr.get());
-    //LOG(INFO) << " meta_.GetMetaSection(): " <<  meta_->GetMetaSection();
-    LOG(INFO) << "meta_->empty(): " << meta_->empty();
-    LOG(INFO) << "meta_->InMeta(GetRef<ObjectRef>(expr.get())): " << meta_->InMeta(GetRef<ObjectRef>(expr.get()));
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
-    LOG(INFO) << "printed_expr: " << printed_expr.str();
   } else {
     // printed_expr = VisitExpr(expr);
     return printed_expr;
@@ -643,9 +630,13 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
   return Doc::Text(name_table_.GetUniqueName(prefix));
 }
 
-String AsRelaxScript(const ObjectRef& mod) {
+String AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
   ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
-  return RelaxScriptPrinter().Print(mod).str();
+  Doc doc;
+  doc << "#[relax, version = \"" << "\"]" << Doc::NewLine();
+  runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
+  doc << TextPrinter(show_meta_data, ftyped).PrintFinal(mod);
+  return doc.str();
 }
 
 TVM_REGISTER_GLOBAL("script.AsRelaxScript").set_body_typed(AsRelaxScript);

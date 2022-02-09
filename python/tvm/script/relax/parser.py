@@ -1339,7 +1339,7 @@ def pretty_print(node):
 
 
 # TODO(@altanh): printer stuff should probably live elsewhere?
-def astext(node) -> str:
+def astext(node, show_meta_data=True) -> str:
     """Returns the Relax text format representation of the given Relax IR node.
 
     Parameters
@@ -1347,9 +1347,13 @@ def astext(node) -> str:
     node : Union[relax.Type, relax.Expr, relax.Binding, relax.BindingBlock]
         The Relax IR node to print.
 
+    show_meta_data : bool
+        Whether to include meta data section in the text
+        if there is meta data.
+
     Returns
     -------
     str
         The text format representation of the given Relax IR node.
     """
-    return tvm.script._ffi_api.AsRelaxScript(node)
+    return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
