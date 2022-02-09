@@ -18,18 +18,12 @@
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Union
 import tvm
-
-# from tvm._ffi import register_object
 from tvm.ir import IRModule, transform
-from tvm.runtime import NDArray, Object
+from tvm.runtime import NDArray
 from tvm.target import Target
 from tvm.tir import PrimFunc
-
-# from tvm.relax.meta_schedule import _ffi_api
-from tvm.relax import vm
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.ty import DynTensorType
-from tvm.meta_schedule.database import Database
 from tvm.meta_schedule.integration import ExtractedTask, TaskExtraction, MetaScheduleContext
 
 
