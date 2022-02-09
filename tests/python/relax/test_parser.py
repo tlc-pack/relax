@@ -256,6 +256,35 @@ def test_tuple():
     check_shape(tup.fields[1], (32,))
 
 
+def test_tuplegetitem():
+    @R.function
+    def f(x: Tensor[_, _], y: Tensor[_, _]):
+        t1 = relax.Tuple((x, y))
+        t2 = (x, y)
+        a = t1[0]
+        b = relax.TupleGetItem(t2, 1)
+        c = add(a, b)
+        return c
+
+    x, y = f.params
+    bind_0 = f.body.blocks[0].bindings[0]
+    bind_1 = f.body.blocks[0].bindings[1]
+    bind_2 = f.body.blocks[0].bindings[2]
+    bind_3 = f.body.blocks[0].bindings[3]
+    bind_4 = f.body.blocks[0].bindings[4]
+    assert_structural_equal(bind_0.value.fields, [x, y])
+    assert_structural_equal(bind_1.value.fields, [x, y])
+    assert isinstance(bind_0.value, relax.expr.Tuple)
+    assert isinstance(bind_1.value, relax.expr.Tuple)
+    assert isinstance(bind_2.value, relax.TupleGetItem)
+    assert isinstance(bind_3.value, relax.TupleGetItem)
+    assert bind_2.value.index == 0
+    assert bind_3.value.index == 1
+    assert bind_2.var.name_hint == "a"
+    assert bind_3.var.name_hint == "b"
+    check_call(bind_4.value, "add", [bind_2.var, bind_3.var])
+
+
 def test_local_func():
     @R.function
     def f(x: Tensor[_, _]):
