@@ -21,11 +21,10 @@ import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
-
 from tvm.tir.function import PrimFunc
+from tvm.relax.utils import base_partitioner
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
-from tvm.relax.utils import base_partitioner
 
 
 @tvm._ffi.register_object("relax.Executable")
@@ -179,7 +178,9 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
         target = tvm.target.Target("llvm", host="llvm")
         ex, lib = relax.vm.build(mod, target)
     """
-    from tvm.meta_schedule.integration import MetaScheduleContext
+    from tvm.meta_schedule.integration import (
+        MetaScheduleContext,
+    )  # pylint: disable=import-outside-toplevel
 
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())

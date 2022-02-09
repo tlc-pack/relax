@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility functions for Relax"""
-import tvm
-from tvm.tir import PrimFunc
 from typing import List
+from tvm.tir import PrimFunc
 from tvm import IRModule
 
 # Simply extracts tir PrimFuncs from the input IRModule

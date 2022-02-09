@@ -24,12 +24,12 @@ from tvm.relay import Any, Function as RelayFunc, vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
-
-from .database import Database
-from . import _ffi_api
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.utils import base_partitioner
 from tvm.relax.ty import DynTensorType
+
+from .database import Database
+from . import _ffi_api
 
 
 @register_object("meta_schedule.ExtractedTask")
