@@ -20,23 +20,23 @@
 from __future__ import annotations
 
 import inspect
-from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 from enum import Enum
+from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 
 import tvm
+from tvm import relay, relax, tir
 import tvm.script
-from tvm.ir.module import IRModule
 from tvm.ir import diagnostics
+from tvm.ir.module import IRModule
+from tvm.script.tir.node import BufferSlice
+import tvm.script.tir as tir_namespace
+import tvm.script.relax as relax_namespace
 
 import synr
 from synr import ast, Transformer
 
-from tvm import relay, relax, tir
-
-import tvm.script.relax as relax_namespace
-import tvm.script.tir as tir_namespace
-
 from ..parser import TVMScriptParser as _TIRScriptParser
+from ..utils import tvm_span_from_synr, call_with_error_reporting
 
 
 def _is_registered(op_name: str, op_set=None) -> bool:
@@ -68,6 +68,8 @@ class SpecialOp(Enum):
     CALL_PACKED = "relax.call_packed"
     DATAFLOW = "relax.dataflow"
     DATAFLOW_OUTPUT = "relax.output"
+    TUPLE = "relax.Tuple"
+    TUPLE_GET_ITEM = "relax.TupleGetItem"
 
 
 class ArithmeticOp(Enum):
@@ -520,7 +522,7 @@ class RelaxTransformer(Transformer):
         if isinstance(stmt, ast.UnassignedCall):
             call_op = self.transform_expr(stmt.call.func_name)
         elif isinstance(stmt, ast.Assign) and isinstance(stmt.rhs, ast.Call):
-            call_op = self.transform_expr(stmt.rhs.func_name)
+            call_op = self.transform_expr(stmt.rhs)
         return call_op == SpecialOp.MATCH_SHAPE
 
     def parse_binding(self, stmt: ast.Stmt, is_dataflow: bool = False) -> relax.Binding:
@@ -865,6 +867,8 @@ class RelaxTransformer(Transformer):
             The parsed expression. It will be a PrimExpr if expr is an arithmetic operation on
             PrimExprs.
         """
+        if isinstance(expr.func_name, ast.Op) and expr.func_name.name == ast.BuiltinOp.Subscript:
+            return self.transform_Subscript(expr)
         op = self.transform_expr(expr.func_name)
 
         if op == SpecialOp.CALL_PACKED:
@@ -876,6 +880,16 @@ class RelaxTransformer(Transformer):
                 )
             op = relax.ExternFunc(extern_func.value, self.to_tvm_span(extern_func.span))
             args = [self.transform_expr(arg) for arg in expr.params[1:]]
+
+        elif op == SpecialOp.TUPLE:
+            args = [self.transform_expr(arg) for arg in expr.params[0].values]
+            return relax.Tuple(args)
+
+        elif op == SpecialOp.TUPLE_GET_ITEM:
+            assert len(expr.params) == 2, "TupleGetItem expects to get two parameters."
+            args = [self.transform_expr(arg) for arg in expr.params]
+            # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
+            return relax.TupleGetItem(args[0], args[1].value)
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]
@@ -953,10 +967,13 @@ class RelaxTransformer(Transformer):
         relax.Expr
             The corresponding Relax expression
         """
+
         if isinstance(expr, ast.Attr):
             return self.parse_attr(expr)
 
         elif isinstance(expr, ast.Call):
+            if hasattr(expr.func_name, "field") and expr.func_name.field.name == "match_shape":
+                return self.transform_expr(expr.func_name)
             return self.parse_call(expr)
 
         elif isinstance(expr, ast.Tuple):
@@ -1008,6 +1025,92 @@ class RelaxTransformer(Transformer):
 
         else:
             self.report_error(f"unsupported expression: {expr}", expr.span)
+
+    def transform_Subscript(self, expr):
+        """Array access visitor."""
+
+        symbol = self.transform(expr.params[0])
+        if symbol is None:
+            self.report_error(
+                f"Variable {expr.params[0].id.name} is not defined.", expr.params[0].span
+            )
+        indexes = [self.transform(x) for x in expr.params[1].values]
+        if isinstance(symbol, relax.expr.Var):
+            if len(indexes) > 1:
+                self.report_error(
+                    "Only a single index can be provided when indexing into a `var`.",
+                    expr.params[1].span,
+                )
+            index = indexes[0].value
+            if not isinstance(index, (tvm.tir.PrimExpr, int)):
+                self.report_error(
+                    "Var load index should be an int or PrimExpr, but it is a" + type(index),
+                    expr.span,
+                )
+            return call_with_error_reporting(
+                self.report_error,
+                expr.span,
+                relax.TupleGetItem,
+                symbol,
+                index,
+            )
+        elif isinstance(symbol, tvm.tir.expr.Var):
+            if symbol.dtype == "handle":
+                self.report_error(
+                    "Cannot read directly from a handle, use `T.match_buffer` "
+                    "to create a buffer to read from.",
+                    expr.params[0].span,
+                )
+            if len(indexes) > 1:
+                self.report_error(
+                    "Only a single index can be provided when indexing into a `var`.",
+                    expr.params[1].span,
+                )
+            index = indexes[0]
+            if not isinstance(index, (tvm.tir.PrimExpr, int)):
+                self.report_error(
+                    "Var load index should be an int or PrimExpr, but it is a" + type(index),
+                    expr.span,
+                )
+
+            return call_with_error_reporting(
+                self.report_error,
+                expr.span,
+                tvm.tir.Load,
+                "float32",
+                symbol,
+                index,
+                True,
+                span=tvm_span_from_synr(expr.span),
+            )
+        elif isinstance(symbol, tvm.tir.Buffer):
+            return BufferSlice(
+                symbol, indexes, self.report_error, span=tvm_span_from_synr(expr.span)
+            )
+        elif isinstance(symbol, tvm.container.Array):
+            if len(indexes) > 1:
+                self.report_error(
+                    "Array access should be one-dimension access, but the indices are "
+                    + str(indexes),
+                    expr.span,
+                )
+            index = indexes[0]
+            if not isinstance(index, (int, tvm.tir.expr.IntImm)):
+                self.report_error(
+                    "Array access index expected int or IntImm, but got " + type(index),
+                    expr.span,
+                )
+            if int(index) >= len(symbol):
+                self.report_error(
+                    f"Array access out of bound, size: {len(symbol)}, got index {index}.",
+                    expr.span,
+                )
+            return symbol[int(index)]
+        else:
+            self.report_error(
+                f"Cannot subscript from a {type(symbol).__name__}.",
+                expr.params[0].span,
+            )
 
     def transform_block(self, block: ast.Block) -> relax.SeqExpr:
         """Transforms the given synr block to a Relax SeqExpr (sequence of Blocks with a final
