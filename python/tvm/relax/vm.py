@@ -23,7 +23,7 @@ from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
 from tvm.tir.function import PrimFunc
-from tvm.relax.utils import base_partitioner
+from tvm.relax.utils import tir_partitioner
 
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
@@ -189,7 +189,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
-    tir_partitions = base_partitioner(tir_mod)
+    tir_partitions = tir_partitioner(tir_mod)
     # Replace tir function based on the tuning history
     tir_mod = IRModule({})
 
@@ -201,8 +201,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
         # if there is no history found, keep the original tir function
         if res is None:
             res = tir_partition
-        else:
-            print(res.script())
+
         assert len(tir_partition.get_global_vars()) == 1
         assert len(res.get_global_vars()) == 1
         gv = tir_partition.get_global_vars()[0]

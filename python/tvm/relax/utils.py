@@ -20,7 +20,7 @@ from tvm.tir import PrimFunc
 from tvm import IRModule
 
 # Simply extracts tir PrimFuncs from the input IRModule
-def base_partitioner(mod: IRModule) -> List[IRModule]:
+def tir_partitioner(mod: IRModule) -> List[IRModule]:
     partitions = []
     for gvar in mod.get_global_vars():
         if isinstance(mod[gvar], PrimFunc):

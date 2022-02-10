@@ -55,7 +55,6 @@ class MockModule:
 
 def _check_mock_task(tasks: List[ExtractedTask], mod: IRModule):
     (task,) = tasks
-    print(type(task))
     assert isinstance(task, ExtractedTask)
     assert task.task_name == "mock-task"
     tvm.ir.assert_structural_equal(task.mod, mod)

@@ -25,7 +25,7 @@ from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
 from tvm.relax.expr import Function as RelaxFunc
-from tvm.relax.utils import base_partitioner
+from tvm.relax.utils import tir_partitioner
 from tvm.relax.ty import DynTensorType
 
 from .database import Database
@@ -331,7 +331,7 @@ def extract_task_from_relax(
             disabled_pass=disabled_pass,
             opt_level=opt_level,
         ):
-            tir_partitions = base_partitioner(mod)
+            tir_partitions = tir_partitioner(mod)
             for tir_mod in tir_partitions:
                 func_name = tir_mod.get_global_vars()[0].name_hint
                 MetaScheduleContext.query_inside_with_scope(func_name, tir_mod, target, [tir_mod])

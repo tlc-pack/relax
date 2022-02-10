@@ -28,7 +28,6 @@ from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
 from tvm.meta_schedule.integration import extract_task_from_relax, ApplyHistoryBest
 import time
-import pytest
 
 # Test case with dynamic shape.
 # Tuning with dynamic shape is not supported yet.
@@ -115,10 +114,6 @@ class DummyDatabase(PyDatabase):
         print("\n".join([str(r) for r in self.records]))
 
 
-@pytest.mark.parametrize(
-    "dev",
-    ["cpu", "gpu"],
-)
 def test_class_irmodule(dev: str):
     @tvm.script.ir_module
     class InputModule:
@@ -154,8 +149,6 @@ def test_class_irmodule(dev: str):
         @R.function
         def main(x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]) -> Tensor:
             with R.dataflow():
-                x0 = relax.match_shape(x, (32, 32))
-                x1 = relax.match_shape(w, (32, 32))
                 lv0 = R.call_tir((32, 32), tir_matmul, (x, w))
                 lv1 = R.call_tir((32, 32), tir_relu, (lv0))
                 relax.output(lv1)
@@ -213,8 +206,3 @@ def test_class_irmodule(dev: str):
 
     print(f"w/o tuning: {e0}")
     print(f"w/  tuning: {e1}")
-
-
-if __name__ == "__main__":
-    test_class_irmodule(dev="cpu")
-    # sys.exit(pytest.main([__file__] + sys.argv[1:]))
