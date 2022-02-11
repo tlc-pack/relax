@@ -100,9 +100,6 @@ Optional<ObjectRef> TaskExtractionNode::Query(runtime::String task_name, IRModul
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   IRModule prim_mod = dispatched.value()[0];
-  //@sunggg: [TODO] Temporarily disabled. Need to figure out.
-  // ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
-  // ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
   tasks.push_back(ExtractedTask(task_name, mod, target, {prim_mod}));
   return NullOpt;
 }
@@ -120,7 +117,6 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
                                                 Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
-  // ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
   // Unify func name to make sure it can be found in database
