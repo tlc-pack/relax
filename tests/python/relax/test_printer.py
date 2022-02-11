@@ -16,6 +16,7 @@
 # under the License.
 
 from __future__ import annotations  # must import to defer parsing of annotations
+
 import pytest
 import tvm
 
@@ -28,7 +29,7 @@ from tvm.script import tir as T, relax as R
 
 
 def check_roundtrip(f_pre):
-    f_post = R.parser.from_source(R.parser.astext(f_pre))
+    f_post = R.parser.from_source(R.parser.astext(f_pre, True))
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         f_post = f_post()
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
@@ -203,22 +204,15 @@ def test_constant():
         return z
 
     check_roundtrip(foo)
-    """
-        y = relax.const(
-            [
-                [
-                    [0.0918546, 0.70533017, 0.2758973, 0.65076263],
-                    [0.95485454, 0.24877819, 0.03718754, 0.6901073],
-                    [0.76788918, 0.08199215, 0.10022994, 0.32669202],
-                ],
-                [
-                    [0.9824157, 0.92497572, 0.29694632, 0.34076601],
-                    [0.6954044, 0.5347427, 0.80002867, 0.38060174],
-                    [0.49386504, 0.5651179, 0.35715682, 0.97217424],
-                ],
-            ]
-        )
-    """
+
+
+def test_relay_constant():
+    x = relay.var("x", "float32")
+    y = relay.const([[1, 2, 3], [4, 5, 6]])
+    z = relay.add(x, y)
+
+    f = relay.Function([x], z)
+    text = f.astext()
 
 
 def test_class_irmodule():

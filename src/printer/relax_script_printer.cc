@@ -41,113 +41,6 @@
 namespace tvm {
 namespace relax {
 
-class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
-                           public tir::ExprFunctor<Doc(const PrimExpr&)>,
-                           public TypeFunctor<Doc(const Type&)>,
-                           public AttrFunctor<Doc(const ObjectRef&)> {
- public:
-  TVM_DLL Doc Print(const ObjectRef& node);
-
- private:
-  NameTable name_table_;
-  int constant_counter_;
-  std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
-  std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
-  /*! \brief meta data context */
-  TextMetaDataContext* meta_;
-
-  // IR nodes inherited from Relay
-  Doc VisitNode_(const relay::ConstantNode* op) override;
-  Doc VisitNode_(const relay::TupleNode* op) override;
-  Doc VisitNode_(const relay::GlobalVarNode* op) override;
-  Doc VisitNode_(const relay::CallNode* op) override;
-  // Doc VisitNode_(const relay::IfNode* op) override;
-  Doc VisitNode_(const OpNode* op) override;
-  Doc VisitNode_(const relay::TupleGetItemNode* op) override;
-
-  // IR nodes introduced by Relax
-  Doc VisitNode_(const relax::VarNode* op) override;
-  Doc VisitNode_(const relax::DataflowVarNode* op) override;
-  Doc VisitNode_(const relax::ShapeExprNode* op) override;
-  Doc VisitNode_(const relax::MatchShapeNode* op) override;
-  Doc VisitNode_(const relax::VarBindingNode* op) override;
-  Doc VisitNode_(const relax::BindingBlockNode* op) override;
-  Doc VisitNode_(const relax::DataflowBlockNode* op) override;
-  Doc VisitNode_(const relax::SeqExprNode* op) override;
-  Doc VisitNode_(const relax::FunctionNode* op) override;
-  Doc VisitNode_(const relax::ExternFuncNode* op) override;
-
-  // PrimExpr nodes allowed in Relax
-  Doc VisitExpr_(const tir::VarNode* op) override;
-  Doc VisitExpr_(const tir::IntImmNode* op) override;
-  Doc VisitExpr_(const tir::AddNode* op) override;
-  Doc VisitExpr_(const tir::SubNode* op) override;
-  Doc VisitExpr_(const tir::MulNode* op) override;
-  Doc VisitExpr_(const tir::DivNode* op) override;
-  Doc VisitExpr_(const tir::FloorDivNode* op) override;
-
-  Doc PrintIRModule(const IRModule& mod);
-  Doc PrintPrimFunc(const String& name, const tir::PrimFunc& func);
-
-  Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
-  Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
-
-  Doc PrintVarAnnotation(const relax::Var& var);
-  Doc PrintTensorAnnotation(const relax::DynTensorType& ty, const Optional<ObjectRef>& shape);
-
-  Doc VisitType_(const relax::ShapeTypeNode* node) override;
-  Doc VisitType_(const relax::DynTensorTypeNode* node) override;
-  Doc VisitType_(const relay::TupleTypeNode* node) override;
-
-  Doc PrintAttr(const ObjectRef& attr);
-  std::vector<Doc> PrintAttrs(const Attrs& attrs);
-  Doc VisitAttrDefault_(const Object* op) override;
-  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info = true);
-  Doc VisitAttr_(const ArrayNode* op) override;
-  Doc VisitAttr_(const tir::IntImmNode* op) override;
-  Doc VisitAttr_(const tir::FloatImmNode* op) override;
-
-  Doc GetUniqueName(std::string prefix, std::string fallback);
-
-  /*!
-   * \brief Attribute printer which prints the attributes as kwargs in a call.
-   */
-  class AttrPrinter : public AttrVisitor {
-   public:
-    AttrPrinter(std::vector<Doc>* docs, RelaxScriptPrinter* parent) : docs(docs), parent_(parent) {}
-
-    template <typename T>
-    void PrintKV(const char* key, const T& value) {
-      Doc doc;
-      doc << key << "=" << value;
-      docs->push_back(doc);
-    }
-
-    void Visit(const char* key, double* value) final { PrintKV(key, *value); }
-    void Visit(const char* key, int64_t* value) final { PrintKV(key, *value); }
-    void Visit(const char* key, uint64_t* value) final { PrintKV(key, *value); }
-    void Visit(const char* key, int* value) final { PrintKV(key, *value); }
-    void Visit(const char* key, bool* value) final { PrintKV(key, Doc::PyBoolLiteral(*value)); }
-    void Visit(const char* key, std::string* value) final { PrintKV(key, Doc::StrLiteral(*value)); }
-    void Visit(const char* key, void** value) final {
-      LOG(FATAL) << "do not allow void as argument";
-    }
-    void Visit(const char* key, DataType* value) final {
-      PrintKV(key, Doc::StrLiteral(runtime::DLDataType2String(*value)));
-    }
-    void Visit(const char* key, runtime::NDArray* value) final {
-      LOG(FATAL) << "do not allow NDarray as argument";
-    }
-    void Visit(const char* key, runtime::ObjectRef* obj) final {
-      PrintKV(key, parent_->PrintAttr(*obj));
-    }
-
-   private:
-    std::vector<Doc>* docs;
-    RelaxScriptPrinter* parent_;
-  };
-};
-
 Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   if (node->IsInstance<IRModuleNode>()) {
     return PrintIRModule(Downcast<IRModule>(node));
@@ -225,13 +118,6 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
   return doc;
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
-  Doc doc;
-  doc << "relax.Constant";
-  // doc << "meta[relax.Constant][" << constant_counter_++ << "]";
-  return doc;
-}
-
 Doc RelaxScriptPrinter::VisitNode_(const relax::VarNode* op) {
   if (!var_id_map_.count(op->vid)) {
     var_id_map_[op->vid] = GetUniqueName(op->name_hint(), "v");
@@ -262,23 +148,29 @@ Doc ScalarLiteral(DataType dtype, const T& value) {
   return Doc::Text(os.str());
 }
 
-
 //------------------------------------
 // Overload of Expr printing functions
 //------------------------------------
 Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
   Doc printed_expr;
-
   if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
   } else {
-    // printed_expr = VisitExpr(expr);
-    return printed_expr;
+    printed_expr = VisitNode(expr);
   }
   return printed_expr;
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
+/*
+Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
+  Doc doc;
+  doc << "relax.Constant";
+  // doc << "meta[relax.Constant][" << constant_counter_++ << "]";
+  return doc;
+}
+*/
+
+Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
   Doc doc;
   // Print out simple scalars directly.
   if (op->data->ndim == 0) {
