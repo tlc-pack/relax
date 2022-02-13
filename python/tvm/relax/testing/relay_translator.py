@@ -18,10 +18,9 @@
 """Relay to Relax translator."""
 
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, List
 import tvm
 from tvm.ir.module import IRModule
-from tvm.relax.testing.topi import mean, variance, reshape, reverse_reshape, bias_add, collapse_sum
 from tvm import relax, relay, topi
 from tvm.relax.testing import nn
 
@@ -41,88 +40,8 @@ class RelayOpConverter(object):
         raise tvm.error.OpNotImplemented("Operator {} is not supported.".format(cls.__name__))
 
 
-class Unary(RelayOpConverter):
-    """A helper class for unary op converters."""
-
-    name = ""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        assert len(inputs) == 1, "Unary op takes 1 inputs, but {} given".format(len(inputs))
-        op_name = cls.name
-        topi_func = getattr(topi, op_name)
-        return nn.emit_te(topi_func, *inputs)
-
-
-class Elemwise(RelayOpConverter):
-    """A helper class for elemwise op converters."""
-
-    name = ""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        assert len(inputs) == 2, "Elemwise op takes 2 inputs, but {} given".format(len(inputs))
-        op_name = cls.name
-        topi_func = getattr(topi, op_name)
-        return nn.emit_te(topi_func, *inputs)
-
-
-class Add(Elemwise):
-    """Operator converter for add."""
-
-    name = "add"
-
-
-class Subtract(Elemwise):
-    """Operator converter for subtract."""
-
-    name = "subtract"
-
-
-class Divide(Elemwise):
-    """Operator converter for divide."""
-
-    name = "divide"
-
-
-class Multiply(Elemwise):
-    """Operator converter for multiply."""
-
-    name = "multiply"
-
-
-class Power(Elemwise):
-    """Operator converter for power."""
-
-    name = "power"
-
-
-class Sqrt(Unary):
-    """Operator converter for sqrt."""
-
-    name = "sqrt"
-
-
-class Exp(Unary):
-    """Operator converter for exp."""
-
-    name = "exp"
-
-
-class Negative(Unary):
-    """Operator converter for negative."""
-
-    name = "negative"
-
-
-class Erf(Unary):
-    """Operator converter for erf."""
-
-    name = "erf"
-
-
 class Dense(RelayOpConverter):
-    """Operator converter for dense."""
+    """Operator converter for nn.dense."""
 
     @classmethod
     def _impl(cls, inputs, attrs):
@@ -130,7 +49,7 @@ class Dense(RelayOpConverter):
 
 
 class BatchNorm(RelayOpConverter):
-    """Operator converter for batch norm."""
+    """Operator converter for nn.batch_norm."""
 
     @classmethod
     def _impl(cls, inputs, attrs):
@@ -139,7 +58,7 @@ class BatchNorm(RelayOpConverter):
 
 
 class Conv2D(RelayOpConverter):
-    """Operator converter for conv2d."""
+    """Operator converter for nn.conv2d."""
 
     @classmethod
     def _impl(cls, inputs, attrs):
@@ -151,32 +70,6 @@ class Conv2D(RelayOpConverter):
         else:
             raise RuntimeError("attrs must be provided to conv2d op.")
         return nn.emit_te(topi.nn.conv2d_nchw, *new_inputs)
-
-
-class Relu(RelayOpConverter):
-    """Operator converter for relu."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        return nn.emit_te(topi.nn.relu, *inputs)
-
-
-class Reshape(RelayOpConverter):
-    """Operator converter for dense."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            new_shape = []
-            attr_newshape = attrs["newshape"]
-            for dim in attr_newshape:
-                new_shape.append(int(dim))
-
-            new_inputs.append(new_shape)
-        else:
-            raise RuntimeError("attrs must be provided to reshape op.")
-        return nn.emit_te(reshape, *new_inputs)
 
 
 class BatchMatmul(RelayOpConverter):
@@ -194,107 +87,6 @@ class BatchMatmul(RelayOpConverter):
         return nn.emit_te(topi.nn.batch_matmul, *inputs, **new_attrs)
 
 
-class Zeros(RelayOpConverter):
-    """Operator converter for zeros."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        if attrs is not None:
-            shape = attrs["shape"]
-            dtype = attrs["dtype"]
-            return nn.emit_te(topi.full, shape, dtype, 0.0)
-        else:
-            raise RuntimeError("attrs must be provided to zeros op.")
-
-
-class Mean(RelayOpConverter):
-    """Operator converter for mean."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(mean, *inputs, **new_attrs)
-
-
-class Variance(RelayOpConverter):
-    """Operator converter for variance."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(variance, *inputs, **new_attrs)
-
-
-class ReverseReshape(RelayOpConverter):
-    """Operator converter for contrib_reverse_reshape."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            new_shape = []
-            attr_newshape = attrs["newshape"]
-            for dim in attr_newshape:
-                new_shape.append(int(dim))
-
-            new_inputs.append(new_shape)
-        else:
-            raise RuntimeError("attrs must be provided to contrib_reverse_reshape op.")
-        return nn.emit_te(reverse_reshape, *new_inputs)
-
-
-class BiasAdd(RelayOpConverter):
-    """Operator converter for bias_add."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(bias_add, *inputs, **new_attrs)
-
-
-class Transpose(RelayOpConverter):
-    """Operator converter for transpose."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            axes = attrs["axes"]
-            new_inputs.append(axes)
-        else:
-            raise RuntimeError("attrs must be provided to transpose op.")
-        return nn.emit_te(topi.transpose, *new_inputs)
-
-
-class ExpandDims(RelayOpConverter):
-    """Operator converter for expand_dims."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            axis = attrs["axis"]
-            num_newaxis = attrs["num_newaxis"]
-            new_inputs += [axis, num_newaxis]
-        else:
-            raise RuntimeError("attrs must be provided to expand_dims op.")
-        return nn.emit_te(topi.expand_dims, *new_inputs)
-
-
-class Cast(RelayOpConverter):
-    """Operator converter for cast."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            dtype = attrs["dtype"]
-            new_inputs.append(dtype)
-        else:
-            raise RuntimeError("attrs must be provided to cast op.")
-        return nn.emit_te(topi.cast, *new_inputs)
-
-
 class Softmax(RelayOpConverter):
     """Operator converter for softmax."""
 
@@ -302,135 +94,6 @@ class Softmax(RelayOpConverter):
     def _impl(cls, inputs, attrs):
         new_attrs = attr_convert(attrs)
         return nn.emit_te(topi.nn.softmax, *inputs, **new_attrs)
-
-
-class Sum(RelayOpConverter):
-    """Operator converter for sum."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            axis = attrs["axis"]
-            keepdims = attrs["keepdims"]
-            new_inputs += [axis, keepdims]
-
-        return nn.emit_te(topi.sum, *new_inputs)
-
-
-class LogSoftmax(RelayOpConverter):
-    """Operator converter for log_softmax."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(topi.nn.log_softmax, *inputs, **new_attrs)
-
-
-class Onehot(RelayOpConverter):
-    """Operator converter for onehot."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            depth = attrs["depth"]
-            axis = attrs["axis"]
-            dtype = attrs["dtype"]
-            new_inputs += [depth, axis, dtype]
-        else:
-            raise RuntimeError("attrs must be provided to one_hot op.")
-        return nn.emit_te(topi.one_hot, *new_inputs)
-
-
-class NotEqual(RelayOpConverter):
-    """Operator converter for not_equal."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        return nn.emit_te(topi.not_equal, *inputs)
-
-
-class CollapseSumTo(RelayOpConverter):
-    """Operator converter for collapse_sum_to."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        if attrs is not None:
-            shape = attrs["shape"]
-            return nn.emit_te(collapse_sum, inputs[0], shape)
-        else:
-            raise RuntimeError("attrs must be provided to collapse_sum_to op.")
-
-
-class BroadcastTo(RelayOpConverter):
-    """Operator converter for broadcast_to."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        if attrs is not None:
-            shape = attrs["shape"]
-            return nn.emit_te(topi.broadcast_to, inputs[0], shape)
-        else:
-            raise RuntimeError("attrs must be provided to broadcast_to op.")
-
-
-class CastLike(RelayOpConverter):
-    """Operator converter for cast_like."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        return nn.emit_te(topi.cast, inputs[0], inputs[1].checked_type.dtype)
-
-
-class Squeeze(RelayOpConverter):
-    """Operator converter for squeeze."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(topi.squeeze, *inputs, **new_attrs)
-
-
-class MaxPool2D(RelayOpConverter):
-    """Operator converter for max_pool2d."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            new_inputs.append(attrs["pool_size"])
-            new_inputs.append(attrs["strides"])
-            new_inputs.append(attrs["dilation"])
-            new_inputs.append(attrs["padding"])
-            new_inputs.append("max")
-            new_inputs.append(attrs["ceil_mode"])
-            new_inputs.append(attrs["layout"])
-        else:
-            raise RuntimeError("attrs must be provided to max_pool2d op.")
-        return nn.emit_te(topi.nn.pool2d, *new_inputs)
-
-
-class GlobalAvgPool2D(RelayOpConverter):
-    """Operator converter for global_avg_pool2d."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            new_inputs.append("avg")
-            new_inputs.append(attrs["layout"])
-        else:
-            raise RuntimeError("attrs must be provided to global_avg_pool2d op.")
-        return nn.emit_te(topi.nn.global_pool, *new_inputs)
-
-
-class BatchFlatten(RelayOpConverter):
-    """Operator converter for batch_flatten."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        return nn.emit_te(topi.nn.flatten, inputs[0])
 
 
 # convert_map defines maps of name to converter functor(callable)
@@ -441,45 +104,15 @@ class BatchFlatten(RelayOpConverter):
 # Minimal set of ops for transformer
 def get_convert_map():
     return {
-        "add": Add.get_converter(),
-        "subtract": Subtract.get_converter(),
-        "divide": Divide.get_converter(),
-        "multiply": Multiply.get_converter(),
-        "power": Power.get_converter(),
-        "sqrt": Sqrt.get_converter(),
-        "exp": Exp.get_converter(),
-        "erf": Erf.get_converter(),
-        "negative": Negative.get_converter(),
-        "reshape": Reshape.get_converter(),
         "nn.dense": Dense.get_converter(),
         "nn.batch_norm": BatchNorm.get_converter(),
         "nn.conv2d": Conv2D.get_converter(),
-        "nn.relu": Relu.get_converter(),
         "nn.batch_matmul": BatchMatmul.get_converter(),
-        "zeros": Zeros.get_converter(),
-        "mean": Mean.get_converter(),
-        "variance": Variance.get_converter(),
-        "contrib_reverse_reshape": ReverseReshape.get_converter(),
-        "nn.bias_add": BiasAdd.get_converter(),
-        "transpose": Transpose.get_converter(),
-        "expand_dims": ExpandDims.get_converter(),
-        "cast": Cast.get_converter(),
-        "broadcast_to": BroadcastTo.get_converter(),
-        "nn.log_softmax": LogSoftmax.get_converter(),
         "nn.softmax": Softmax.get_converter(),
-        "one_hot": Onehot.get_converter(),
-        "sum": Sum.get_converter(),
-        "not_equal": NotEqual.get_converter(),
-        "collapse_sum_to": CollapseSumTo.get_converter(),
-        "cast_like": CastLike.get_converter(),
-        "squeeze": Squeeze.get_converter(),
-        "nn.max_pool2d": MaxPool2D.get_converter(),
-        "nn.global_avg_pool2d": GlobalAvgPool2D.get_converter(),
-        "nn.batch_flatten": BatchFlatten.get_converter(),
     }
 
 
-def convert_operator(op_type, inputs, attrs=None):
+def convert_operator(op_type: str, inputs: List[relax.Expr], attrs: Dict = None):
     """Convert from Relay operator to Relax operator/topi function.
     The converter must specify conversions explicitly for incompatible name, and
     apply handlers to operator attributes.
@@ -506,7 +139,7 @@ def convert_operator(op_type, inputs, attrs=None):
     return func
 
 
-def attr_convert(attrs) -> Dict:
+def attr_convert(attrs: tvm.ir.Attrs) -> Dict:
     """Convert attributes to a dict."""
     attrs_dict = {}
 
@@ -554,15 +187,26 @@ def from_relay(func: relay.Function) -> IRModule:
                     new_args.append(var_map[arg])
 
             op_name = node.op.name
-            if node.op.name not in convert_map:
-                raise tvm.error.OpNotImplemented("Operator {} is not supported.".format(op_name))
-
             attrs = node.attrs
-            var = convert_operator(op_name, new_args, attrs)
+            compute_func = node.op.get_attr("FTVMCompute")
+            if compute_func is None:
+                if node.op.name not in convert_map:
+                    raise tvm.error.OpNotImplemented(
+                        "Operator {} is not supported.".format(op_name)
+                    )
+                else:
+                    var = convert_operator(op_name, new_args, attrs)
+            else:
+                name_hint = op_name.split(".")[-1]
+                var = bb.emit_te(
+                    compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
+                )
+
             output_var = var
             var_map[node] = var
         elif isinstance(node, relay.Constant):
-            new_constant = relax.expr.Constant(node.data)
+            # fill the shape and checked_type fields of the Constant
+            new_constant = relay.Constant(node.data)
             var_map[node] = new_constant
         elif isinstance(node, relay.Tuple):
             new_fields = []
@@ -596,21 +240,3 @@ def from_relay(func: relay.Function) -> IRModule:
         relay.analysis.post_order_visit(func, visit_func)
 
     return bb.get()
-
-
-if __name__ == "__main__":
-    RELAY_MODEL = """
-    #[version = "0.0.5"]
-    def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32]) {
-        %0 = add(%a, %b);
-        %1 = add(%c, %d);
-        subtract(%0, %1)
-    }
-    """
-    relay_mod = tvm.parser.fromtext(RELAY_MODEL)
-
-    mod = from_relay(relay_mod["main"])
-
-    target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)

@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin
-"""The Relax testing namespace containing the topi, nn, and translator."""
+"""The Relax testing namespace containing nn and translator."""
 
-from .topi import *
 from .nn import *
 from .relay_translator import *

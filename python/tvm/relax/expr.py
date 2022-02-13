@@ -57,12 +57,6 @@ def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     raise ValueError("Wrong type")
 
 
-@tvm._ffi.register_object("relax.expr.Constant")
-class Constant(Expr):
-    def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)
-
-
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
     """The variable class for all Relax bindings."""

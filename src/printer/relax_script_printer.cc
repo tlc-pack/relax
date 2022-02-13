@@ -44,11 +44,12 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
 
  private:
   NameTable name_table_;
+  int constant_counter_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
   std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
 
   // IR nodes inherited from Relay
-  // Doc VisitNode_(const relay::ConstantNode* op) override;
+  Doc VisitNode_(const relay::ConstantNode* op) override;
   Doc VisitNode_(const relay::TupleNode* op) override;
   Doc VisitNode_(const relay::GlobalVarNode* op) override;
   Doc VisitNode_(const relay::CallNode* op) override;
@@ -57,7 +58,6 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitNode_(const relay::TupleGetItemNode* op) override;
 
   // IR nodes introduced by Relax
-  Doc VisitNode_(const relax::ConstantNode* op) override;
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;
   Doc VisitNode_(const relax::ShapeExprNode* op) override;
@@ -216,10 +216,9 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
   return doc;
 }
 
-// FIXME(@yongwww): Use metadata section
-Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
   Doc doc;
-  doc << "relax.Constant";
+  doc << "meta[relax.Constant][" << constant_counter_++ << "]";
   return doc;
 }
 

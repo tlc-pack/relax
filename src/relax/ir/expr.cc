@@ -47,29 +47,6 @@ TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values,
   return ShapeExpr(values, span);
 });
 
-TVM_REGISTER_NODE_TYPE(ConstantNode);
-
-Constant::Constant(const runtime::NDArray& data, Span span) {
-  ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
-  n->data = std::move(data);
-  n->span = std::move(span);
-  auto shape_tuple = data.Shape();
-  Array<PrimExpr> values;
-  for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
-    values.push_back(IntImm(DataType::Int(32), shape_tuple[dim]));
-  }
-  n->shape_ = ShapeExpr(values);
-
-  DataType dtype = data.DataType();
-  Type type = DynTensorType(shape_tuple.size(), dtype);
-  n->checked_type_ = type;
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, Span span = Span()) {
-  return Constant(data, span);
-});
-
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation, Span span) {
