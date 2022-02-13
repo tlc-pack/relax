@@ -194,8 +194,7 @@ def from_relay(func: relay.Function) -> IRModule:
                     raise tvm.error.OpNotImplemented(
                         "Operator {} is not supported.".format(op_name)
                     )
-                else:
-                    var = convert_operator(op_name, new_args, attrs)
+                var = convert_operator(op_name, new_args, attrs)
             else:
                 name_hint = op_name.split(".")[-1]
                 var = bb.emit_te(
