@@ -239,7 +239,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   static bool IsLeaf(const Expr& expr) {
     // NB: tuples are treated as leaf nodes for ergonomics
     // TODO(@altanh, @yuchen): remove TupleNode from leaf
-    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<relay::ConstantNode>() ||
+    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
            expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
            expr.as<TupleNode>();
   }
