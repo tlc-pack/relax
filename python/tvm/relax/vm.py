@@ -18,7 +18,6 @@
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
 import tvm
-import tvm.meta_schedule as ms
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
