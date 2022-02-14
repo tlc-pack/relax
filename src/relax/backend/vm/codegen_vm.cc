@@ -172,6 +172,13 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
   }
 
+  Instruction::Arg VisitExpr_(const ConstantNode* op) {
+    TVMRetValue constant_data;
+    constant_data = op->data;
+    Index index = this->builder_->EmitConstant(constant_data);
+    return Instruction::Arg(Instruction::kConstIdx, index);
+  }
+
   Instruction::Arg VisitExpr_(const ShapeExprNode* op) {
     ShapeExpr sh = GetRef<ShapeExpr>(op);
     ICHECK(IsConstantShape(sh)) << "should only use constant shape after shape lowering: "
