@@ -184,9 +184,8 @@ def test_class_irmodule(dev: str):
     with transform.PassContext(opt_level=3):
         ex0, lib0 = relax.vm.build(mod, target)
 
-    seq = transform.Sequential([relax.transform.MetaScheduleApplyHistoryBest(database, target)])
     with transform.PassContext(opt_level=3):
-        mod = seq(mod)
+        mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
         ex1, lib1 = relax.vm.build(mod, target)
 
     vm0 = relax.VirtualMachine(ex0, dev, mod=lib0)

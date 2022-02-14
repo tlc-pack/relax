@@ -22,7 +22,6 @@
  * \brief Pass for applying the best schedule from tuning database.
  */
 
-#include <tvm/meta_schedule/integration.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
@@ -32,7 +31,7 @@ class MetaScheduleAHB {
  public:
   explicit MetaScheduleAHB(IRModule mod, const tvm::meta_schedule::Database& db, Target target)
       : mod_(mod), db_(db), target_(target) {}
-  IRModule apply() {
+  IRModule Apply() {
     ret_mod_ = IRModule();
     tvm::meta_schedule::ApplyHistoryBest ahb(db_);
     for (auto& p : mod_->functions) {
@@ -66,7 +65,7 @@ namespace transform {
 
 Pass MetaScheduleApplyHistoryBest(const tvm::meta_schedule::Database& database, Target target) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return MetaScheduleAHB(m, database, target).apply(); };
+      [=](IRModule m, PassContext pc) { return MetaScheduleAHB(m, database, target).Apply(); };
   return CreateModulePass(/*pass function*/ pass_func, /*opt level*/ 0,
                           /*pass name*/ "MetaScheduleApplyHistoryBest",
                           /*required*/ {});
