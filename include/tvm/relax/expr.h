@@ -22,6 +22,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/span.h>
 #include <tvm/node/node.h>
+#include <tvm/relax/type.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
