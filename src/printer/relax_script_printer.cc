@@ -44,11 +44,12 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
 
  private:
   NameTable name_table_;
+  int constant_counter_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
   std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
 
   // IR nodes inherited from Relay
-  // Doc VisitNode_(const relay::ConstantNode* op) override;
+  Doc VisitNode_(const relay::ConstantNode* op) override;
   Doc VisitNode_(const relay::TupleNode* op) override;
   Doc VisitNode_(const relay::GlobalVarNode* op) override;
   Doc VisitNode_(const relay::CallNode* op) override;
@@ -212,6 +213,12 @@ Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) { return Doc::Text(op->name
 Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
   Doc doc;
   doc << Print(op->tuple) << "[" << op->index << "]";
+  return doc;
+}
+
+Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
+  Doc doc;
+  doc << "meta[relax.Constant][" << constant_counter_++ << "]";
   return doc;
 }
 

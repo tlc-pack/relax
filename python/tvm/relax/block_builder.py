@@ -199,7 +199,10 @@ class BlockBuilder(Object):
                         key, str
                     ), "emit_te only supports dict with string as the key currently"
                 return {k: _convert_te_arg_helper(arg[k]) for k in arg}
-            elif isinstance(arg, (int, float, str)):
+            elif (
+                isinstance(arg, (int, float, str, tir.IntImm, tvm.ir.Type, tvm.ir.Attrs))
+                or arg is None
+            ):
                 return arg
             raise TypeError("not supported type in emit_te: {}".format(type(arg)))
 
@@ -291,12 +294,20 @@ class BlockBuilder(Object):
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
         This function converts arguments from relax expression to te tensor,
-        The callback func should return a te tensor.
+        The callback func should return a te tensor or a list of te tensors.
 
         Parameters
         ----------
         func : Callable
-            A function that return a te tensor.
+            A function that returns a te tensor or a list of te tensors.
+
+        args : Any, optional
+            arguments passed to the function.
+
+        kwargs : Any, optional
+            The keyword arguments passed to the function.
+            Note that the key "primfunc_name_hint" is reserved for passing name hint
+            to the PrimFunc that gets generated.
 
         Returns
         -------
@@ -403,6 +414,7 @@ class BlockBuilder(Object):
                     = relax.call_tir(((n + 1),), te_func, (y,), (n,))
                     return gv
         """
+        primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
         new_args, te_arg_list = self._convert_te_arg(args)
         new_kwargs, te_kwarg_list = self._convert_te_arg(kwargs)
 
@@ -410,15 +422,23 @@ class BlockBuilder(Object):
 
         te_out = func(*new_args, **new_kwargs)
         assert isinstance(te_out, tvm.te.tensor.Tensor) or (
-            isinstance(te_out, (tuple, list))
+            isinstance(te_out, (tuple, list, tvm.ir.Array))
             and all(isinstance(t, tvm.te.tensor.Tensor) for t in te_out)
-        ), "only support te.tensor or tuple/list of te.tensor as function output"
+        ), "only support te.tensor or tuple/list/Array of te.tensor as function output"
+
+        if isinstance(te_out, (tuple, list, tvm.ir.Array)) and len(te_out) == 1:
+            te_out = te_out[0]
+
         outs = [te_out] if isinstance(te_out, tvm.te.tensor.Tensor) else list(te_out)
         unbound_tir_vars = self._get_unbound_tir_vars(te_args + outs)
 
         inputs = [*te_args] + outs
         tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
-        gvar = self.add_func(tir_func, func.__name__)
+
+        if primfunc_name_hint:
+            gvar = self.add_func(tir_func, primfunc_name_hint)
+        else:
+            gvar = self.add_func(tir_func, func.__name__)
 
         call_args = [x.op.value for x in te_args]
         output_shape = (
