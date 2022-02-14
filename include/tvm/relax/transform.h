@@ -78,6 +78,13 @@ TVM_DLL Pass CallTIRRewrite();
  */
 TVM_DLL Pass ToANF();
 
+/*!
+ * \brief Apply the best schedule from tuning database.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass MetaScheduleHistoryApplyBest();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

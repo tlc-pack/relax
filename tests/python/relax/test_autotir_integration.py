@@ -26,7 +26,8 @@ import tempfile
 from typing import List
 from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
-from tvm.meta_schedule.integration import extract_task_from_relax, ApplyHistoryBest
+from tvm.meta_schedule.integration import extract_task_from_relax
+from tvm import transform
 import time
 
 # Test case with dynamic shape.
@@ -180,12 +181,15 @@ def test_class_irmodule(dev: str):
                 database=database,
             )
 
-    with tvm.transform.PassContext(opt_level=3):
+    with transform.PassContext(opt_level=3):
         ex0, lib0 = relax.vm.build(mod, target)
 
-    with ApplyHistoryBest(database):
-        with tvm.transform.PassContext(opt_level=3):
-            ex1, lib1 = relax.vm.build(mod, target)
+    seq = transform.Sequential([relax.transform.MetaScheduleApplyHistoryBest(database, target)])
+    with transform.PassContext(opt_level=3):
+        print(mod)
+        mod = seq(mod)
+        print(mod)
+        ex1, lib1 = relax.vm.build(mod, target)
 
     vm0 = relax.VirtualMachine(ex0, dev, mod=lib0)
     vm1 = relax.VirtualMachine(ex1, dev, mod=lib1)
@@ -206,3 +210,7 @@ def test_class_irmodule(dev: str):
 
     print(f"w/o tuning: {e0}")
     print(f"w/  tuning: {e1}")
+
+
+if __name__ == "__main__":
+    test_class_irmodule(dev="cpu")
