@@ -27,6 +27,7 @@
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -707,6 +708,10 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintCommReducer(node.as<CommReducerNode>());
   } else if (node->IsInstance<TargetNode>()) {
     return PrintTarget(node.as<TargetNode>());
+  } else if (node->IsInstance<tvm::te::TensorNode>()) {
+    Doc doc;
+    doc << "te.Tensor";
+    return doc;
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
     return Doc();
