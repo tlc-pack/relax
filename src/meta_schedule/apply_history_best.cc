@@ -108,7 +108,6 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
                                                FDirectDispatch f_direct_dispatch) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
-  ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
 
