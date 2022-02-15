@@ -25,6 +25,7 @@
 #define TVM_RELAX_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/meta_schedule/integration.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -77,6 +78,14 @@ TVM_DLL Pass CallTIRRewrite();
  * \return The Pass.
  */
 TVM_DLL Pass ToANF();
+
+/*!
+ * \brief Apply the best schedule from tuning database.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass MetaScheduleApplyHistoryBest(const tvm::meta_schedule::Database& database,
+                                          Target target);
 
 }  // namespace transform
 }  // namespace relax
