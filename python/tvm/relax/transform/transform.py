@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name
 """Relax transformation passes."""
 import tvm.ir
+from tvm.target import Target
+from tvm.meta_schedule.database import PyDatabase
 from . import _ffi_api
 
 
@@ -98,3 +100,21 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
     return _ffi_api.ResolveGlobals()
+
+
+def MetaScheduleApplyHistoryBest(
+    database: PyDatabase,
+    target: Target,
+) -> tvm.ir.transform.Pass:
+    """Apply the best schedule from tuning database.
+    Parameters
+    ----------
+    database : metaschedule tuning database
+    target: target info
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.MetaScheduleApplyHistoryBest(database, target)

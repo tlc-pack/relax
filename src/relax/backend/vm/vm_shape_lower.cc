@@ -41,7 +41,7 @@ class VMShapeLowerMutator : public ExprMutator {
   IRModule Lower() {
     for (auto& p : mod_->functions) {
       Expr func = p.second;
-      if (p.second->IsInstance<FunctionNode>()) {
+      if (func->IsInstance<FunctionNode>()) {
         // prepare mapping and heap var
         expr2slot_ = PrepareExpr2Slot(Downcast<Function>(func));
         heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
