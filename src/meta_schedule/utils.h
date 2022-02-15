@@ -350,7 +350,6 @@ inline int GetTargetNumCores(const Target& target) {
   }
   return num_cores;
 }
-
 }  // namespace meta_schedule
 }  // namespace tvm
 
