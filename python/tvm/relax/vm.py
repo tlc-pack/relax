@@ -21,7 +21,6 @@ import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Object, Device, Module, PackedFunc
-
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
@@ -187,7 +186,6 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
-
     lib = tvm.build(tir_mod, target)
     ex = _ffi_api.VMCodeGen(rx_mod)
     return ex, lib
