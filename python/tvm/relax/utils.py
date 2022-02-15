@@ -14,24 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import arg_info
-from . import database
-from . import builder
-from . import runner
-from . import mutator
-from . import postproc
-from . import schedule_rule
-from . import space_generator
-from . import search_strategy
-from . import integration
-from . import feature_extractor
-from . import cost_model
-from .search_strategy import (
-    EvolutionarySearchConfig,
-    MeasureCandidate,
-    ReplayFuncConfig,
-    ReplayTraceConfig,
-)
-from .tune import tune_te, tune_tir, tune_relay
-from .tune_context import TuneContext
+"""Utility functions for Relax"""
+from typing import List
+from tvm.tir import PrimFunc
+from tvm import IRModule
+
+# Simply extracts tir PrimFuncs from the input IRModule
+def tir_partitioner(mod: IRModule) -> List[IRModule]:
+    partitions = []
+    for gvar in mod.get_global_vars():
+        if isinstance(mod[gvar], PrimFunc):
+            tir_mod = IRModule({})
+            tir_mod[gvar] = mod[gvar]
+            partitions.append(tir_mod)
+    return partitions

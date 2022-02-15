@@ -24,6 +24,9 @@ from tvm.relay import Any, Function as RelayFunc, vm
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
+from tvm.relax.expr import Function as RelaxFunc
+from tvm.relax.utils import tir_partitioner
+from tvm.relax.ty import DynTensorType
 
 from .database import Database
 from . import _ffi_api
@@ -39,6 +42,8 @@ class ExtractedTask(Object):
         The name of the task extracted
     mod : IRModule
         The high-level IR
+    target: Target
+        Target information
     dispatched : List[IRModule]
         A list of low-level IRs that the high-level IR could potentially dispatch to
     """
@@ -51,12 +56,14 @@ class ExtractedTask(Object):
         self,
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: List[IRModule],
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExtractedTask,  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -69,6 +76,7 @@ class MetaScheduleContext(Object):
         self,
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: Optional[List[IRModule]],
     ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
         """The entry point of the integration
@@ -79,6 +87,8 @@ class MetaScheduleContext(Object):
             The name of the task extracted
         mod : IRModule
             The high-level IR
+        target: Target
+            Target Info
         dispatched : Optional[List[IRModule]]
             A list of low-level IRs that the high-level IR could potentially dispatch to
 
@@ -95,6 +105,7 @@ class MetaScheduleContext(Object):
             self,
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -114,6 +125,7 @@ class MetaScheduleContext(Object):
     def query_inside_with_scope(
         task_name: str,
         mod: IRModule,
+        target: Target,
         dispatched: Optional[List[IRModule]],
     ) -> Union[IRModule, RelayFunc, PrimFunc, None]:
         """The entry point of the integration workflow. The compilation process of the high-level
@@ -126,7 +138,7 @@ class MetaScheduleContext(Object):
             def query_inside_with_scope(task_name, mod, dispatched):
                 ctx = MetaScheduleContext.current()
                 assert ctx is not None
-                ctx.query(task_name, mod, dispatched)
+                ctx.query(task_name, mod, target, dispatched)
 
         Parameters
         ----------
@@ -134,6 +146,8 @@ class MetaScheduleContext(Object):
             The name of the task
         mod : IRModule
             The high-level IR
+        target: Target
+            Target
         dispatched : Optional[List[IRModule]]
             A list of low-level IRs that the high-level IR could potentially dispatch to
 
@@ -149,6 +163,7 @@ class MetaScheduleContext(Object):
         return _ffi_api.MetaScheduleContextQueryInsideWithScope(  # type: ignore # pylint: disable=no-member
             task_name,
             mod,
+            target,
             dispatched,
         )
 
@@ -184,7 +199,7 @@ class ApplyHistoryBest(MetaScheduleContext):
         self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
-def extract_task(
+def extract_task_from_relay(
     mod: Union[IRModule, RelayFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,
@@ -252,6 +267,74 @@ def extract_task(
             if params:
                 compiler.set_params(params)
             compiler.lower(mod, target)
+
+    _thread_run(_func)
+    return env.tasks
+
+
+def extract_task_from_relax(
+    mod: Union[IRModule, RelaxFunc],
+    target: Target,
+    *,
+    opt_level: int = 3,
+    pass_config: Dict[str, DynTensorType] = {},
+    disabled_pass: List[str] = [],
+) -> List[ExtractedTask]:
+    """Extract tuning tasks from a relax program.
+
+    Parameters
+    ----------
+    mod : Union[tvm.IRModule, tvm.relax.Function]
+        The module or function to tune
+    target : tvm.target.Target
+        The compilation target
+    opt_level : int
+        The optimization level of the compiler
+    pass_config : Dict[str, DynTensorType]
+        The pass config of the compiler
+    disabled_pass : List[str]
+        The list of disabled passes of the compiler
+
+    Returns
+    -------
+    tasks: List[ExtractedTask]
+        The tasks extracted from this network
+    """
+
+    @contextmanager
+    def _autotvm_silencer():
+        from tvm import autotvm  # pylint: disable=import-outside-toplevel
+
+        silent = autotvm.GLOBAL_SCOPE.silent
+        autotvm.GLOBAL_SCOPE.silent = True
+        try:
+            yield
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = silent
+
+    def _thread_run(func: Callable[[], None]) -> None:
+        import threading  # pylint: disable=import-outside-toplevel
+
+        thread = threading.Thread(target=func)
+        thread.start()
+        thread.join()
+
+    env = TaskExtraction()
+    if isinstance(mod, RelaxFunc):
+        mod = IRModule.from_expr(mod)
+    if not isinstance(target, Target):
+        target = Target(target)
+
+    def _func():
+        with env, _autotvm_silencer(), transform.PassContext(
+            config=pass_config,
+            disabled_pass=disabled_pass,
+            opt_level=opt_level,
+        ):
+            tir_partitions = tir_partitioner(mod)
+            for tir_mod in tir_partitions:
+                func_name = tir_mod.get_global_vars()[0].name_hint
+                MetaScheduleContext.query_inside_with_scope(func_name, tir_mod, target, [tir_mod])
 
     _thread_run(_func)
     return env.tasks
