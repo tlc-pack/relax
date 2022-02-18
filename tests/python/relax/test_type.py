@@ -36,28 +36,6 @@ def test_dyn_tensor_type():
     assert t1.rank == 3
     assert t1.dtype == "int32"
 
-def test_emit_te():
-    bb = rx.BlockBuilder()
-    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-    type_anno = rx.DynTensorType(2, "float32")
-    x = rx.Var("x", [n, m], type_anno)
-    y = rx.Var("y", [n, m], type_anno)
-    z = rx.Var("z", [n, m], type_anno)
-
-    def te_func(args, args_dict, msg):
-        A, B = args
-        C = args_dict["C"]
-        D = te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
-        E = te.compute((128, 128), lambda i, j: D[i, j] - C[i, j])
-        return E
-
-    with bb.function("rx_func", [x, y, z]):
-        out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
-        bb.emit_func_output(out)
-
-    mod = bb.get()
-    print(R.parser.astext(mod))
-
 
 @T.prim_func
 def identity_tir(a: T.handle, b: T.handle) -> None:
