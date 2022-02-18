@@ -52,4 +52,5 @@ def call_tir(
         shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
+    print(type(func))
     return _ffi_api.call_tir(shape, func, args, tir_vars)

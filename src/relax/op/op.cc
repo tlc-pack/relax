@@ -20,6 +20,7 @@
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/function.h>
 
 #include "op_common.h"
 
@@ -61,6 +62,13 @@ RELAY_REGISTER_OP("relax.call_tir")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused");
 
+DynTensorType GetOutTypeFromPrimFunc(tir::PrimFunc func) {
+  // assume that the last parameter in tir func is the output
+  int num_params = func->params.size();
+  tir::Buffer out_buffer = func->buffer_map.at(func->params[num_params - 1]);
+  return DynTensorType(out_buffer->shape.size(), out_buffer->dtype);
+}
+
 Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
@@ -75,13 +83,11 @@ Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) 
     // multiple output tensors
     Array<Type> types;
     for (size_t i = 0; i < Downcast<Tuple>(shape)->fields.size(); i++) {
-      // TODO(@yuchen): fix checked_type_ inference
       types.push_back(args->fields[0]->checked_type_);
     }
     call->checked_type_ = TupleType(types);
   } else {
-    // TODO(@yuchen): fix checked_type_ inference
-    call->checked_type_ = args->fields[0]->checked_type_;
+    call->checked_type_ = GetOutTypeFromPrimFunc(Downcast<tir::PrimFunc>(func));
   }
   return call;
 }
