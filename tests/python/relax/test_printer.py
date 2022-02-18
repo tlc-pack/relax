@@ -225,3 +225,19 @@ def test_class_irmodule():
 
     my_module = MyModule
     check_roundtrip(my_module)
+
+
+if __name__ == "__main__":
+    test_annotations()
+    test_match_shape()
+    test_if()
+    test_tuple()
+    test_tuplegetitem()
+    test_local_func()
+    test_dataflow()
+    test_dataflow_match_shape()
+    test_inline_tir()
+    test_call_packed()
+    test_primexpr_arithmetic()
+    test_call_tir_extern()
+    test_class_irmodule()

@@ -368,7 +368,7 @@ def test_dataflow_match_shape():
 @pytest.mark.xfail
 def test_dataflow_scope_fail():
     with pytest.raises(tvm.error.DiagnosticError):
-        # TODO
+        # FIXME
         @R.function
         def f(x: Tensor[_, _]):
             with relax.dataflow():
@@ -580,3 +580,31 @@ def test_class_irmodule():
 
     assert f.body.body.op == var_g
     assert g.body.body.args[1] == var_my_matmul
+
+
+if __name__ == "__main__":
+    test_annotations()
+    test_match_shape()
+    test_dim_var_intro_fail()
+    test_if()
+    test_var_redefine_fail()
+    test_var_redefine_fail_if()
+    test_if_mismatch_var_fail()
+    test_unassigned_call_fail()
+    test_tuple()
+    test_tuplegetitem()
+    test_local_func()
+    test_dataflow()
+    test_dataflow_match_shape()
+    # test_dataflow_scope_fail()
+    test_dataflow_syntax_fail_pattern()
+    test_dataflow_syntax_fail_params()
+    test_dataflow_unbound_outputs()
+    test_invalid_special_op_dataflow()
+    test_invalid_special_op_output()
+    test_func_no_return_fail()
+    test_inline_tir()
+    test_call_packed()
+    test_primexpr_arithmetic()
+    test_call_tir_extern()
+    test_class_irmodule()
