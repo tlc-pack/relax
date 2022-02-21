@@ -43,4 +43,4 @@ def test_call_tir() -> None:
 
 
 if __name__ == "__main__":
-    test_call_tir()
+    pytest.main([__file__])

@@ -164,13 +164,4 @@ def test_shape_of():
 
 
 if __name__ == "__main__":
-    test_var()
-    test_dataflow_var()
-    test_match_shape()
-    test_var_binding()
-    test_binding_block()
-    test_dataflow_block()
-    test_seq_expr()
-    test_shape_expr()
-    test_func()
-    test_shape_of()
+    pytest.main([__file__])

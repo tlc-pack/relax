@@ -31,5 +31,4 @@ def test_dyn_tensor_type():
     assert t1.dtype == "int32"
 
 if __name__ == "__main__":
-    test_shape_type()
-    test_dyn_tensor_type()
+    pytest.main([__file__])
