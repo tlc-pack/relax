@@ -84,7 +84,6 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
-
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:

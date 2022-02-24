@@ -20,6 +20,8 @@
 from __future__ import annotations
 
 import inspect
+import base64
+import numpy as np
 from enum import Enum
 from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 
@@ -106,6 +108,7 @@ class RelaxTransformer(Transformer):
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
         self.module = ir_mod
+        print("b64ndarrays: ", self.module.get_attr("b64ndarrays"))
         self.relax_prefix = relax_prefix
         self.tir_prefix = tir_prefix
         self._scopes = [{}]  # str -> Var
@@ -845,6 +848,8 @@ class RelaxTransformer(Transformer):
             return relay.Call(
                 relay.op.get("relax.shape_of"), [obj], span=self.to_tvm_span(expr.span)
             )
+        # elif expr.field.name == "Constant":
+        #     return relax.Tuple((relax.const(1), relax.const(2)))
         else:
             # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_tir)
             op_name = self._parse_attrs_to_str(expr)
@@ -870,7 +875,20 @@ class RelaxTransformer(Transformer):
             PrimExprs.
         """
         if isinstance(expr.func_name, ast.Op) and expr.func_name.name == ast.BuiltinOp.Subscript:
-            return self.transform_Subscript(expr)
+            if (
+                hasattr(expr.params[0], "params")
+                and hasattr(expr.params[0].params[0], "id")
+                and expr.params[0].params[0].id.name == "meta"
+            ):
+                # Get the index of constant in b64ndarrays in metadata
+                const_idx = 0
+                if hasattr(expr.params[-1], "values"):
+                    const_idx = expr.params[-1].values[0].value
+                const_vals = self.module.get_attr("b64ndarrays")
+                base64_dec = base64.decodebytes(const_vals[const_idx].encode("utf-8"))
+                np_const = np.frombuffer(base64_dec, dtype=np.float32)
+                return relax.const(np_const)
+
         op = self.transform_expr(expr.func_name)
 
         if op == SpecialOp.CALL_PACKED:
@@ -1132,6 +1150,9 @@ class RelaxTransformer(Transformer):
                     expr.span,
                 )
             return symbol[int(index)]
+        # symbol: @meta
+        # elif isinstance(symbol, relax.GlobalVar):
+        #    return relax.Tuple((relax.Tuple((relax.const(1),)),))
         else:
             self.report_error(
                 f"Cannot subscript from a {type(symbol).__name__}.",
@@ -1259,6 +1280,7 @@ class RelaxDiagnosticContext(synr.DiagnosticContext):
 
 def from_source(
     input_func: Union[str, Callable],
+    meta_data: Optional[str] = None,
     relax_prefix: Optional[List[str]] = None,
     tir_prefix: Optional[List[str]] = None,
 ) -> Union[relax.Function, IRModule]:
@@ -1269,8 +1291,11 @@ def from_source(
 
     Parameters
     ----------
-    input_module : Union[str, Callable]
+    input_func : Union[str, Callable]
         The python function to be parsed.
+
+    meta_data : Optional[str]
+        The meta_data section to be parsed.
 
     relax_prefix : Optional[List[str]]
         The relax prefix list. Only works for str input, default by "relax" and "R".
@@ -1280,10 +1305,10 @@ def from_source(
 
     Returns
     -------
-    output : Union[Function, Module]
-        The Function or Module in IR.
+    output : Union[Function, IRModule]
+        The relax Function or IRModule.
     """
-    mod = IRModule()
+    mod = IRModule(attrs=meta_data)
     if isinstance(input_func, str):
         relax_prefix = ["R", "relax"] if relax_prefix is None else relax_prefix
         tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
@@ -1353,7 +1378,9 @@ def astext(node, show_meta_data=True) -> str:
 
     Returns
     -------
-    str
+    relax_text
         The text format representation of the given Relax IR node.
+    metadata
+        The text format of the metadata section.
     """
     return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)

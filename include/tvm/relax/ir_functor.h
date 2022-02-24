@@ -77,7 +77,6 @@ class IRFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitNode_(const relay::TupleGetItemNode* op, Args... args) IR_FUNCTOR_DEFAULT;
 
   // IR nodes introduced by Relax
-  //virtual R VisitNode_(const relax::ConstantNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::VarNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::DataflowVarNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::ShapeExprNode* op, Args... args) IR_FUNCTOR_DEFAULT;

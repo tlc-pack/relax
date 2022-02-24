@@ -38,7 +38,7 @@ def function(input_func: Callable) -> Function:
         The parsed Relax Function.
     """
     if inspect.isfunction(input_func):
-        result = from_source(input_func)
+        result = from_source(input_func, None)
         result.__name__ = input_func.__name__
         result.__qualname__ = input_func.__qualname__
         return result

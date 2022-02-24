@@ -400,7 +400,7 @@ class IRModule : public ObjectRef {
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module.
    * \param map The module source map.
-   * \param attrs The module attributes.
+   * \param attrs The module meta-data attributes.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},

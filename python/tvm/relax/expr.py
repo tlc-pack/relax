@@ -17,11 +17,9 @@
 # pylint: disable=invalid-name, unused-import, super-init-not-called
 """The expression nodes of Relax."""
 from typing import List, Optional
-import numpy as _np
 import tvm._ffi
-from tvm._ffi import base as _base
 from ..ir import Node, Span, SourceName, BaseFunc
-from ..runtime import String, ndarray as _nd
+from ..runtime import String
 from ..relay import Id, Tuple, TupleGetItem
 from ..tir import PrimExpr
 from . import _ffi_api

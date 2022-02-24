@@ -134,13 +134,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarNode* op) {
 template <typename T>
 Doc ScalarLiteral(DataType dtype, const T& value) {
   std::ostringstream os;
-  if (dtype == DataType::Int(32)) {
-    os << value;
-  } else if (dtype == DataType::Float(32)) {
-    os << value << 'f';
-  } else if (dtype == DataType::Float(64)) {
-    os << value << "f64";
-  } else if (dtype == DataType::Bool()) {
+  if (dtype == DataType::Bool()) {
     return Doc::PyBoolLiteral(value != 0);
   } else {
     os << value;
@@ -148,9 +142,7 @@ Doc ScalarLiteral(DataType dtype, const T& value) {
   return Doc::Text(os.str());
 }
 
-//------------------------------------
 // Overload of Expr printing functions
-//------------------------------------
 Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
   Doc printed_expr;
   if (meta) {
@@ -161,16 +153,7 @@ Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, 
   return printed_expr;
 }
 
-/*
-Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
-  Doc doc;
-  doc << "relax.Constant";
-  // doc << "meta[relax.Constant][" << constant_counter_++ << "]";
-  return doc;
-}
-*/
-
-Doc RelaxScriptPrinter::VisitNode_(const relay::ConstantNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
   Doc doc;
   // Print out simple scalars directly.
   if (op->data->ndim == 0) {
@@ -522,13 +505,23 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
   return Doc::Text(name_table_.GetUniqueName(prefix));
 }
 
-String AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
+Array<String> AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
   ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
   Doc doc;
-  doc << "#[relax, version = \"" << "\"]" << Doc::NewLine();
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
-  doc << TextPrinter(show_meta_data, ftyped).PrintFinal(mod);
-  return doc.str();
+  doc << TextPrinter(true, ftyped).PrintFinal(mod);
+
+  std::string func_str = doc.str();
+  std::string meta_str = "";
+  std::size_t meta_loc = func_str.find("#[metadata]");
+  if (meta_loc != std::string::npos) {
+    if (show_meta_data) {
+      meta_str = func_str.substr(meta_loc + 12);
+    }
+    func_str = func_str.substr(0, meta_loc);
+  }
+  Array<String> res = {func_str, meta_str};
+  return res;
 }
 
 TVM_REGISTER_GLOBAL("script.AsRelaxScript").set_body_typed(AsRelaxScript);

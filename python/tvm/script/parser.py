@@ -1237,26 +1237,18 @@ def from_source(
         raise TypeError("Only function definitions are supported.")
 
 
-def ir_module(input_module: type) -> IRModule:
-    """Decorate a python class as tvm IRModule.
+def ir_module(meta_data=None) -> IRModule:
+    def _ir_module(input_module: type) -> IRModule:
+        if inspect.isclass(input_module):
+            func_dict = {
+                name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
+            }
 
-    Parameters
-    ----------
-    input_module : type
-        The python class to be parsed.
+            mod = IRModule(func_dict, attrs=meta_data)
+            mod = relax.transform.ResolveGlobals()(mod)
+            # FIXME(@altanh): where is the source map?
+            return mod
 
-    Returns
-    -------
-    output : IRModule
-        The result IRModule.
-    """
-    if inspect.isclass(input_module):
-        func_dict = {
-            name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
-        }
-        mod = IRModule(func_dict)
-        mod = relax.transform.ResolveGlobals()(mod)
-        # FIXME(@altanh): where is the source map?
-        return mod
+        raise TypeError("Only class definitions are supported.")
 
-    raise TypeError("Only class definitions are supported.")
+    return _ir_module

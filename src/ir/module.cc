@@ -455,8 +455,9 @@ TVM_REGISTER_NODE_TYPE(IRModuleNode);
 
 TVM_REGISTER_GLOBAL("ir.IRModule")
     .set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs,
-                       tvm::Map<GlobalTypeVar, TypeData> types) {
-      return IRModule(funcs, types, {});
+                       tvm::Map<GlobalTypeVar, TypeData> types,
+                       tvm::DictAttrs attrs) {
+      return IRModule(funcs, types, {}, {}, attrs);
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_Add").set_body([](TVMArgs args, TVMRetValue* ret) {
