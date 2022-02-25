@@ -159,20 +159,27 @@ class VMShapeLowerMutator : public ExprMutator {
 
   Map<PrimExpr, Integer> PrepareExpr2Slot(Function expr) const {
     int cnt = 0;
+    bool is_dyn_shape = false;
     Map<PrimExpr, Integer> ret;
     auto func = [&](const Expr& e) {
       if (e->IsInstance<ShapeExprNode>()) {
         ShapeExpr shape = Downcast<ShapeExpr>(e);
-        if (!IsConstantShape(shape)) {
-          for (auto prim_e : shape->values) {
-            if (ret.count(prim_e) == 0) {
-              ret.Set(prim_e, cnt++);
-            }
+        for (auto prim_e : shape->values) {
+          if (!prim_e->IsInstance<IntImmNode>()) {
+            is_dyn_shape = true;
+          }
+          if (ret.count(prim_e) == 0) {
+            ret.Set(prim_e, cnt++);
           }
         }
       }
     };
     PostOrderVisit(expr, func);
+
+    // Avoid allocating shape heap and do shape computation for static-shape program
+    if (!is_dyn_shape) {
+      ret.clear();
+    }
     return ret;
   }
 
