@@ -572,7 +572,7 @@ class TextPrinter {
 
   Doc PrintFinal(const ObjectRef& node) {
     Doc doc;
-    if (node.defined() && node->IsInstance<IRModuleNode>()) { // todo (yongwww): how to identify IRModule of Relax
+    if (node.defined() && node->IsInstance<IRModuleNode>()) {
       doc << PrintMod(Downcast<IRModule>(node));
     } else if (node.defined() &&
                (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||

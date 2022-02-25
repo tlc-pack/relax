@@ -615,7 +615,6 @@ class RelaxTransformer(Transformer):
             The parsed Relax variable binding
         """
         var = self._get_lhs(stmt)
-
         rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
         bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
@@ -847,8 +846,6 @@ class RelaxTransformer(Transformer):
             return relay.Call(
                 relay.op.get("relax.shape_of"), [obj], span=self.to_tvm_span(expr.span)
             )
-        # elif expr.field.name == "Constant":
-        #     return relax.Tuple((relax.const(1), relax.const(2)))
         else:
             # assume it's a hierarchical op identifier (e.g. nn.softmax, relax.call_tir)
             op_name = self._parse_attrs_to_str(expr)
