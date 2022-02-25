@@ -506,19 +506,4 @@ def test_no_func_params_fail():
 
 
 if __name__ == "__main__":
-    test_block_builder()
-    test_function_single_block()
-    test_function_multi_blocks()
-    test_multi_functions()
-    test_binary_shape_type_deduction()
-    test_emit_match_shape()
-    test_normalize()
-    test_emit_te()
-    test_emit_te_multiple()
-    test_emit_te_multiple_output()
-    test_emit_te_extern()
-    test_emit_tuple_get_item()
-    test_nested_function_fail()
-    test_emit_func_output_twice_fail()
-    test_func_params_twice_fail()
-    test_no_func_params_fail()
+    pytest.main([__file__])

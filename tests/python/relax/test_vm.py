@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
+import pytest
 import os
 import numpy as np
 import tvm
@@ -487,6 +488,9 @@ def test_vm_compile_e2e_func_param_with_shape():
 
 
 def test_vm_emit_te_extern():
+    if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
+        print("skip because extern function is not available")
+        return
     bb = relax.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     type_anno = relax.DynTensorType(2, "float32")
@@ -695,29 +699,4 @@ def test_vm_tuplegetitem():
 
 
 if __name__ == "__main__":
-    test_vm_execute()
-    test_vm_multiple_func()
-    test_vm_checker()
-    test_vm_formalize()
-    test_vm_operand()
-    test_vm_serialize()
-    test_vm_constant_serialize()
-    test_vm_shapeof()
-    test_vm_storage()
-    test_vm_copy()
-    test_vm_goto()
-    test_vm_if()
-    test_vm_compile_if()
-    test_vm_compile_stage0()
-    test_vm_compile_stage1()
-    test_vm_compile_stage2()
-    test_vm_compile_stage3()
-    test_vm_compile_e2e()
-    test_vm_compile_e2e_func_param_with_shape()
-    test_vm_emit_te_extern()
-    test_vm_emit_te_concat()
-    test_vm_emit_te_floor_symbolic_shape()
-    test_vm_relax_symbolic_shape()
-    test_vm_relax_dyn_tir_shape()
-    test_vm_tuple()
-    test_vm_tuplegetitem()
+    pytest.main([__file__])
