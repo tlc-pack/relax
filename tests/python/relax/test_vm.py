@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
+import pytest
 import os
 import numpy as np
 import tvm

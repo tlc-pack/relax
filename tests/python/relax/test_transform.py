@@ -16,6 +16,7 @@
 # under the License.
 
 from __future__ import annotations  # must import to defer parsing of annotations
+import pytest
 import tvm
 from tvm import relax
 from tvm import tir
