@@ -19,10 +19,12 @@ import numpy as np
 import tvm
 from tvm import relax as rx
 
+
 def test_shape_type():
     t0 = rx.ShapeType()
     t1 = rx.ShapeType()
     assert t0 == t1
+
 
 def test_dyn_tensor_type():
     t0 = rx.DynTensorType()
@@ -30,6 +32,7 @@ def test_dyn_tensor_type():
     t1 = rx.DynTensorType(3, "int32")
     assert t1.rank == 3
     assert t1.dtype == "int32"
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

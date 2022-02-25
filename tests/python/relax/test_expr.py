@@ -54,7 +54,7 @@ def test_match_shape() -> None:
     # match_shape([16, 8], [m, n])
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
-    shape = rx.const([16, 8], "int32") 
+    shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", type_annotation=rx.ShapeType())
     b0 = rx.MatchShape(shape, [m, n], var)
     assert b0.value == shape
@@ -92,7 +92,7 @@ def test_var_binding() -> None:
 def test_binding_block() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
-    shape = rx.const([16, 8], "int32") 
+    shape = rx.const([16, 8], "int32")
     b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
 
     v0 = rx.Var("v0")
@@ -107,7 +107,7 @@ def test_binding_block() -> None:
 def test_dataflow_block() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
-    shape = rx.const([16, 8], "int32") 
+    shape = rx.const([16, 8], "int32")
     b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
 
     v0 = rx.Var("v0")

@@ -20,9 +20,11 @@ from tvm import tir
 from tvm import relax as rx
 from tvm.script import tir as T
 
+
 @tvm.register_func("test.op.identity")
 def identity_packed(a):
     return tvm.nd.array(a.asnumpy())
+
 
 @T.prim_func
 def identity_tir(a: T.handle, b: T.handle) -> None:
