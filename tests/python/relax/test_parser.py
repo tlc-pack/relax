@@ -510,11 +510,16 @@ def test_call_packed():
 def test_constant():
     @R.function
     def f(x: Tensor[(2, 3), "float32"]):
-        y1 = relax.const(2, dtype="float32")
-        y2 = relax.expr.Constant(3)
-        z = add(x, y1)
-        r = mul(z, y2)
-        return r
+        y = relax.const(2, dtype="float32")
+        z = add(x, y)
+        return z
+
+    x = f.params
+    bind_0 = f.body.blocks[0].bindings[0]
+    assert bind_0.var.name_hint == "y"
+    bind_1 = f.body.blocks[0].bindings[1]
+    assert bind_1.var.name_hint == "z"
+    check_call(bind_1.value, "add", [bind_0.var, x])
 
 
 def test_primexpr_arithmetic():

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRModule that holds the functions and type definitions."""
+import ast
 from tvm._ffi.base import string_types
 import tvm._ffi
 
@@ -62,6 +63,7 @@ class IRModule(Node):
             type_definitions = mapped_type_defs
         if attrs is None:
             attrs = {}
+        attrs = ast.literal_eval(str(attrs))
         attrs = tvm.ir.make_node("DictAttrs", **attrs)
         self.__init_handle_by_constructor__(
             _ffi_api.IRModule,

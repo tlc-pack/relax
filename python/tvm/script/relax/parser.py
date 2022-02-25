@@ -108,7 +108,6 @@ class RelaxTransformer(Transformer):
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
         self.module = ir_mod
-        print("b64ndarrays: ", self.module.get_attr("b64ndarrays"))
         self.relax_prefix = relax_prefix
         self.tir_prefix = tir_prefix
         self._scopes = [{}]  # str -> Var
@@ -1150,9 +1149,6 @@ class RelaxTransformer(Transformer):
                     expr.span,
                 )
             return symbol[int(index)]
-        # symbol: @meta
-        # elif isinstance(symbol, relax.GlobalVar):
-        #    return relax.Tuple((relax.Tuple((relax.const(1),)),))
         else:
             self.report_error(
                 f"Cannot subscript from a {type(symbol).__name__}.",

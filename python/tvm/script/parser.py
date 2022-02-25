@@ -1243,7 +1243,6 @@ def ir_module(meta_data=None) -> IRModule:
             func_dict = {
                 name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
             }
-
             mod = IRModule(func_dict, attrs=meta_data)
             mod = relax.transform.ResolveGlobals()(mod)
             # FIXME(@altanh): where is the source map?

@@ -404,7 +404,8 @@ class IRModule : public ObjectRef {
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
+                            std::unordered_set<String> import_set = {},
+                            parser::SourceMap map = {},
                             DictAttrs attrs = {});
 
   /*! \brief default constructor */

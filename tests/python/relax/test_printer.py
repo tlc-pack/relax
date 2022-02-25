@@ -29,9 +29,11 @@ from tvm.script import tir as T, relax as R
 
 
 def check_roundtrip(f_pre):
-    f_post = R.parser.from_source(R.parser.astext(f_pre, True))
+    printed_ir, metadata = R.parser.astext(f_pre)
+    f_post = R.parser.from_source(input_func=printed_ir, meta_data=metadata)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
-        f_post = f_post()
+        global_vars = f_pre.get_global_vars()
+        f_post = tvm.IRModule({global_vars[0]: f_post})
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
@@ -194,25 +196,71 @@ def test_call_tir_extern():
     check_roundtrip(foo)
 
 
-def test_constant():
-    @R.function
-    def foo(x: Tensor[(n, m), "float32"]):
-        # y = relax.const(2, dtype="float32")
-        y = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+def test_const_irmodule():
+    json_str = """
+{
+  "root": 1,
+  "nodes": [
+    {
+      "type_key": ""
+    },
+    {
+      "type_key": "Map",
+      "keys": [
+        "relay.Constant"
+      ],
+      "data": [2]
+    },
+    {
+      "type_key": "Array",
+      "data": [3]
+    },
+    {
+      "type_key": "relay.Constant",
+      "attrs": {
+        "_checked_type_": "4",
+        "data": "0",
+        "span": "0",
+        "virtual_device_": "0"
+      }
+    },
+    {
+      "type_key": "relax.DynTensorType",
+      "attrs": {
+        "dtype": "float32",
+        "rank": "2",
+        "span": "0"
+      }
+    }
+  ],
+  "b64ndarrays": [
+    "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAADNzMw9zcyMP2ZmBkBmZkZAMzODQDMzo0A="
+  ],
+  "attrs": {"tvm_version": "0.9.dev0"}
+}
+"""
 
+    @tvm.script.ir_module(meta_data=json_str)
+    class MyModule:
+        @R.function
+        def my_const(x: Tensor[(2, 3), "float32"]):
+            y = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+            z = relax.add(x, y)
+            return z
+
+    my_module = MyModule
+
+    check_roundtrip(my_module)
+
+
+def test_const():
+    @R.function
+    def my_const(x: Tensor[(2, 3), "float32"]):
+        y1 = relax.const(2.1, dtype="float32")
         z = relax.add(x, y)
         return z
 
-    check_roundtrip(foo)
-
-
-def test_relay_constant():
-    x = relay.var("x", "float32")
-    y = relay.const([[1, 2, 3], [4, 5, 6]])
-    z = relay.add(x, y)
-
-    f = relay.Function([x], z)
-    text = f.astext()
+    check_roundtrip(my_const)
 
 
 def test_class_irmodule():
