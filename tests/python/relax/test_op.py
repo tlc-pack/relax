@@ -14,14 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import tir
 from tvm import relax as rx
 from tvm.script import tir as T
 
+
 @tvm.register_func("test.op.identity")
 def identity_packed(a):
     return tvm.nd.array(a.asnumpy())
+
 
 @T.prim_func
 def identity_tir(a: T.handle, b: T.handle) -> None:
@@ -43,4 +46,4 @@ def test_call_tir() -> None:
 
 
 if __name__ == "__main__":
-    test_call_tir()
+    pytest.main([__file__])
