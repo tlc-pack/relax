@@ -32,6 +32,7 @@ RelayExpr RelayExprNode::shape() const {
 TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNode::shape);
 
 namespace relax {
+using tvm::ReprPrinter;
 using tvm::runtime::Optional;
 
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
@@ -46,6 +47,19 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
 TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values, Span span) {
   return ShapeExpr(values, span);
 });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ShapeExprNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const ShapeExprNode* node = static_cast<const ShapeExprNode*>(ref.get());
+      p->stream << "ShapeExpr(";
+      for (auto it = node->values.begin(); it != node->values.end(); it++) {
+        if (it != node->values.begin()) {
+          p->stream << ", ";
+        }
+        p->stream << *it;
+      }
+      p->stream << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
