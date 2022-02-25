@@ -16,6 +16,7 @@
 # under the License.
 
 from __future__ import annotations  # must import to defer parsing of annotations
+import pytest
 import tvm
 from tvm import relax
 from tvm import tir
@@ -359,13 +360,4 @@ def test_to_anf_no_op():
 
 
 if __name__ == "__main__":
-    test_fma_rewrite()
-    test_visit_shape()
-    test_to_non_dataflow()
-    test_call_tir_rewrite()
-    test_vm_memory_lower()
-    test_vm_shape_lowering()
-    test_vm_static_shape_lowering()
-    test_vm_shape_lowering_func_param_with_shape()
-    test_to_anf()
-    test_to_anf_no_op()
+    pytest.main([__file__])
