@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import pytest
 import tvm
 from tvm import tir
 from tvm import relax as rx
@@ -54,7 +54,7 @@ def test_match_shape() -> None:
     # match_shape([16, 8], [m, n])
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
-    shape = rx.const([16, 8], "int32") 
+    shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", type_annotation=rx.ShapeType())
     b0 = rx.MatchShape(shape, [m, n], var)
     assert b0.value == shape
@@ -92,7 +92,7 @@ def test_var_binding() -> None:
 def test_binding_block() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
-    shape = rx.const([16, 8], "int32") 
+    shape = rx.const([16, 8], "int32")
     b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
 
     v0 = rx.Var("v0")
@@ -107,7 +107,7 @@ def test_binding_block() -> None:
 def test_dataflow_block() -> None:
     m = tir.Var("m", dtype="int32")
     n = tir.Var("n", dtype="int32")
-    shape = rx.const([16, 8], "int32") 
+    shape = rx.const([16, 8], "int32")
     b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
 
     v0 = rx.Var("v0")
@@ -164,13 +164,4 @@ def test_shape_of():
 
 
 if __name__ == "__main__":
-    test_var()
-    test_dataflow_var()
-    test_match_shape()
-    test_var_binding()
-    test_binding_block()
-    test_dataflow_block()
-    test_seq_expr()
-    test_shape_expr()
-    test_func()
-    test_shape_of()
+    pytest.main([__file__])
