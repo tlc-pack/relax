@@ -225,3 +225,7 @@ def test_class_irmodule():
 
     my_module = MyModule
     check_roundtrip(my_module)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
