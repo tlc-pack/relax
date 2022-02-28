@@ -35,7 +35,7 @@ namespace relax {
 // CallTIRMutator
 // Perform explicit tensor allocation for call_tir.
 // Example:
-// lv0: Tensor[n, m] = rx.call_tir((n, m), op.identity, (x))
+// lv0: Tensor[(n, m), "float32"] = rx.call_tir(op.identity, (x))
 // -->
 // gv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
 // rx.call_packed(op.identity, x, gv0)
@@ -53,39 +53,44 @@ class CallTIRMutator : public ExprMutator {
 
     if (call->op == call_tir_op) {
       Array<Expr> outs;
-      if (call->args[0]->IsInstance<ShapeExprNode>()) {
-        // single output case
-        ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-        outs.push_back(builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc"));
-      } else {
-        // multiple output case
-        CHECK(call->args[0]->IsInstance<TupleNode>())
-            << "call_tir expects ShapeExpr or Tuple as first argument, got " << call->args[0];
-        Tuple output_shapes = Downcast<Tuple>(call->args[0]);
-        for (const auto& shape : output_shapes->fields) {
-          CHECK(shape->IsInstance<ShapeExprNode>())
-              << "call_tir exoects Tuple of ShapeExprs, got " << shape << " as an element of tuple";
-          outs.push_back(
-              builder_->Emit(Call(alloc_tensor_op, {Downcast<ShapeExpr>(shape)}), "alloc"));
+      if (call->shape_) {
+        if (call->shape_.value()->IsInstance<ShapeExprNode>()) {
+          // single output case
+          ShapeExpr output_shape = Downcast<ShapeExpr>(call->shape_.value());
+          outs.push_back(builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc"));
+        } else {
+          // multiple output case
+          CHECK(call->shape_.value()->IsInstance<TupleNode>())
+              << "call_tir expects ShapeExpr or Tuple as its shape, but got " << call->shape_;
+          Tuple output_shapes = Downcast<Tuple>(call->shape_);
+          for (const auto& shape : output_shapes->fields) {
+            CHECK(shape->IsInstance<ShapeExprNode>())
+                << "call_tir expects Tuple of ShapeExprs, but got " << shape
+                << " as an element of tuple";
+            outs.push_back(
+                builder_->Emit(Call(alloc_tensor_op, {Downcast<ShapeExpr>(shape)}), "alloc"));
+          }
         }
+      } else {
+        LOG(FATAL) << "ValueError: the shape of call_tir is not populated.";
       }
 
       Array<Expr> args;
-      if (call->args[2].as<TupleNode>()) {
-        args = Downcast<Tuple>(call->args[2])->fields;
+      if (call->args[1].as<TupleNode>()) {
+        args = Downcast<Tuple>(call->args[1])->fields;
         args.insert(args.end(), outs.begin(), outs.end());
 
-        if (call->args.size() == 3) {
-          builder_->Emit(Call(call->args[1], args), "_");
+        if (call->args.size() == 2) {
+          builder_->Emit(Call(call->args[0], args), "_");
         } else {
           // unpack semantics
-          args.push_back(call->args[3]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[1], Tuple(args)}), "_");
+          args.push_back(call->args[2]);
+          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
         args = outs;
-        args.insert(args.begin(), call->args[2]);
-        builder_->Emit(Call(call->args[1], args), "_");
+        args.insert(args.begin(), call->args[1]);
+        builder_->Emit(Call(call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {

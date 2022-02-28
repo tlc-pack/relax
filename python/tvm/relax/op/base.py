@@ -21,7 +21,6 @@ from ...ir import Array
 
 
 def call_tir(
-    shape: Union[Tuple, ShapeExpr, List[int]],
     func: Expr,
     args: Union[Tuple, List[Expr]],
     tir_vars: ShapeExpr = None,
@@ -31,9 +30,6 @@ def call_tir(
 
     Parameters
     ----------
-    shape: Tuple[ShapeExpr] or ShapeExpr
-        The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr is single output.
-
     func : ExternFunc or PrimFunc
         The destination-passing-style function.
 
@@ -48,8 +44,6 @@ def call_tir(
     ret: Call
         A call node for the call_tir operator.
     """
-    if isinstance(shape, (list, tuple, Array)):
-        shape = ShapeExpr(shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_tir(shape, func, args, tir_vars)
+    return _ffi_api.call_tir(func, args, tir_vars)

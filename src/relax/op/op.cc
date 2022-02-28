@@ -53,35 +53,21 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 // call_tir
 
 RELAY_REGISTER_OP("relax.call_tir")
-    .set_num_inputs(4)
-    .add_argument("shape", "Expr", "The output shape.")
+    .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused");
 
-Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
+Expr MakeCallTIR(Expr func, Tuple args, Optional<Expr> packed_ints) {
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {shape, func, args}, {}, {});
+    call = Call(op, {func, args}, {}, {});
   } else {
-    call = Call(op, {shape, func, args, packed_ints.value()}, {}, {});
-  }
-  call->shape_ = shape;
-  if (shape->IsInstance<TupleNode>()) {
-    // multiple output tensors
-    Array<Type> types;
-    for (size_t i = 0; i < Downcast<Tuple>(shape)->fields.size(); i++) {
-      // TODO(@yuchen): fix checked_type_ inference
-      types.push_back(args->fields[0]->checked_type_);
-    }
-    call->checked_type_ = TupleType(types);
-  } else {
-    // TODO(@yuchen): fix checked_type_ inference
-    call->checked_type_ = args->fields[0]->checked_type_;
+    call = Call(op, {func, args, packed_ints.value()}, {}, {});
   }
   return call;
 }

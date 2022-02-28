@@ -523,7 +523,7 @@ def test_primexpr_arithmetic():
 def test_call_tir_extern():
     @R.function
     def f(x: Tensor):
-        z = relax.call_tir((10,), "my_extern", (x,))
+        z: Tensor[(10,), "float32"] = relax.call_tir("my_extern", (x,))
         return z
 
     x = f.params[0]
@@ -533,7 +533,6 @@ def test_call_tir_extern():
         z_bind.value,
         "relax.call_tir",
         [
-            relax.ShapeExpr([tir.IntImm("int64", 10)]),
             relax.ExternFunc("my_extern"),
             relax.Tuple([x]),
         ],

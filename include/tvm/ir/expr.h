@@ -175,6 +175,16 @@ class RelayExprNode : public BaseExprNode {
   RelayExpr shape() const;
 
   /*!
+   * \brief Set the shape_ of a RelayExpr.
+   */
+  void set_shape(ObjectRef shape) const;
+
+  /*!
+   * \brief Set the checked_type_ of a RelayExpr.
+   */
+  void set_type(Type type) const;
+
+  /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.
    *

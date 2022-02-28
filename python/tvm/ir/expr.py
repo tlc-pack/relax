@@ -61,6 +61,14 @@ class RelayExpr(BaseExpr):
         """
         return _ffi_api.RelayExprShape(self)
 
+    def _set_shape(self, shape):
+        """Set the shape of tvm.relay.Expr."""
+        _ffi_api.RelayExprSetShape(self, shape)
+
+    def _set_type(self, type):
+        """Set the checked type of tvm.relay.Expr."""
+        _ffi_api.RelayExprSetType(self, type)
+
 
 @tvm._ffi.register_object("GlobalVar")
 class GlobalVar(RelayExpr):

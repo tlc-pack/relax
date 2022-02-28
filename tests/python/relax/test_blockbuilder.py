@@ -315,11 +315,11 @@ def test_emit_te():
     assert len(rx_func.body.blocks[0].bindings) == 1
     assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
     assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
-    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][2] == z
+    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 2
+    assert rx_func.body.blocks[0].bindings[0].value.args[0].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[0].value.args[1][0] == x
+    assert rx_func.body.blocks[0].bindings[0].value.args[1][1] == y
+    assert rx_func.body.blocks[0].bindings[0].value.args[1][2] == z
 
 
 def test_emit_te_multiple():
@@ -350,9 +350,9 @@ def test_emit_te_multiple():
 
     # only two PrimFuncs were generated since two of them are equal so got deduped
     assert len(prim_func) == 2
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert rx_func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func"
-    assert rx_func.body.blocks[0].bindings[2].value.args[1].name_hint == "te_func1"
+    assert rx_func.body.blocks[0].bindings[0].value.args[0].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[1].value.args[0].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[2].value.args[0].name_hint == "te_func1"
 
 
 def test_emit_te_multiple_output():
@@ -376,11 +376,17 @@ def test_emit_te_multiple_output():
     assert rx_func.params[0] == x
     assert rx_func.name.name_hint == "rx_func"
     assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], rx.Tuple)
-    assert len(rx_func.body.blocks[0].bindings[0].value.args[0]) == 2
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][0], rx.ShapeExpr)
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][1], rx.ShapeExpr)
+    assert rx_func.body.blocks[0].bindings[0].value.args[0].name_hint == "te_func"
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.shape, rx.Tuple)
+    assert len(rx_func.body.blocks[0].bindings[0].value.shape) == 2
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.shape[0], rx.ShapeExpr)
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.shape[1], rx.ShapeExpr)
+    assert isinstance(rx_func.body.blocks[0].bindings[0].value.checked_type, rx.TupleType)
+    assert len(rx_func.body.blocks[0].bindings[0].value.checked_type.fields) == 2
+    assert rx_func.body.blocks[0].bindings[0].value.checked_type.fields[0].rank == 2
+    assert rx_func.body.blocks[0].bindings[0].value.checked_type.fields[0].dtype == "float32"
+    assert rx_func.body.blocks[0].bindings[0].value.checked_type.fields[1].rank == 2
+    assert rx_func.body.blocks[0].bindings[0].value.checked_type.fields[1].dtype == "float32"
 
 
 def test_emit_te_extern():
@@ -403,10 +409,10 @@ def test_emit_te_extern():
     assert len(rx_func.body.blocks) == 1
     assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
     assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
-    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "matmul"
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
+    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 2
+    assert rx_func.body.blocks[0].bindings[0].value.args[0].name_hint == "matmul"
+    assert rx_func.body.blocks[0].bindings[0].value.args[1][0] == x
+    assert rx_func.body.blocks[0].bindings[0].value.args[1][1] == y
 
 
 def test_emit_tuple_get_item():

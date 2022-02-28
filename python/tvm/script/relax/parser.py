@@ -616,6 +616,8 @@ class RelaxTransformer(Transformer):
         # an ExternFunc call comes from call_packed
         bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
+        rhs._set_shape(shape)
+        rhs._set_type(ty)
         lhs = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
         return relax.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
 
@@ -903,7 +905,7 @@ class RelaxTransformer(Transformer):
             # check call arity eagerly
             if op.name == "relax.call_tir":
                 # call_tir is special case because last argument is optional
-                if len(args) != 3 and len(args) != 4:
+                if len(args) != 2 and len(args) != 3:
                     self.report_error(
                         f"{op.name} expects {op.num_inputs} arguments but got {len(args)}",
                         expr.span,
@@ -912,9 +914,9 @@ class RelaxTransformer(Transformer):
                 self.report_error(
                     f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
                 )
-            if op.name == "relax.call_tir" and isinstance(args[1], str):
+            if op.name == "relax.call_tir" and isinstance(args[0], str):
                 # extern function call case: rewrite identifier to an ExternFunc
-                args[1] = relax.ExternFunc(args[1], self.to_tvm_span(expr.params[1].span))
+                args[0] = relax.ExternFunc(args[0], self.to_tvm_span(expr.params[0].span))
 
         elif isinstance(op, relay.Expr):
             args = [self.transform_expr(arg) for arg in expr.params]

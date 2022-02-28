@@ -21,7 +21,7 @@
 namespace tvm {
 
 RelayExpr RelayExprNode::shape() const {
-  if (this->shape_.defined()) {
+  if (this->shape_) {
     return Downcast<RelayExpr>(this->shape_);
   }
   static const Op& op = Op::Get("relax.shape_of");
@@ -29,7 +29,13 @@ RelayExpr RelayExprNode::shape() const {
   return relay::Call(op, {self}, {}, {});
 }
 
+void RelayExprNode::set_shape(ObjectRef shape) const { this->shape_ = shape; }
+
+void RelayExprNode::set_type(Type type) const { this->checked_type_ = type; }
+
 TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNode::shape);
+TVM_REGISTER_GLOBAL("ir.RelayExprSetShape").set_body_method<RelayExpr>(&RelayExprNode::set_shape);
+TVM_REGISTER_GLOBAL("ir.RelayExprSetType").set_body_method<RelayExpr>(&RelayExprNode::set_type);
 
 namespace relax {
 using tvm::ReprPrinter;

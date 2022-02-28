@@ -188,7 +188,7 @@ def test_primexpr_arithmetic():
 def test_call_tir_extern():
     @R.function
     def foo(x: Tensor):
-        z = relax.call_tir((10,), "my_extern", (x,))
+        z: Tensor[(10,), "float32"] = relax.call_tir("my_extern", (x,))
         return z
 
     check_roundtrip(foo)

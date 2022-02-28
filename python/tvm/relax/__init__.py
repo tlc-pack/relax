@@ -57,6 +57,7 @@ Type = ty.Type
 ShapeType = ty.ShapeType
 DynTensorType = ty.DynTensorType
 DimType = ty.DimType
+TupleType = ty.TupleType
 
 # VM
 ExecBuilder = exec_builder.ExecBuilder

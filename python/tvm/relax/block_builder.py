@@ -31,6 +31,7 @@ from .expr import (
     PrimExpr,
     BindingBlock,
     Tuple,
+    TupleType,
     BaseFunc,
 )
 from .op.base import call_tir
@@ -287,7 +288,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the input expr.
+            A newly created variable that gets bound to the input expr.
         """
         return _ffi_api.BlockBuilderEmit(self, expr)
 
@@ -312,7 +313,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the call code.
+            A newly created variable that gets bound to the call code.
 
         Example
         -------
@@ -362,7 +363,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor:
                     # block 0
-                    gv = relax.call_tir((128, 128), "te_func", (x, y))
+                    gv: Tensor[(128, 128), "float32"] = relax.call_tir("te_func", (x, y))
                     return gv
 
         Example
@@ -410,8 +411,7 @@ class BlockBuilder(Object):
                 def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"])
                     -> Tensor[_, "float32"]:
                     # block 0
-                    gv: Tensor[((n + 1),), "float32"]
-                    = relax.call_tir(((n + 1),), te_func, (y,), (n,))
+                    gv: Tensor[((n + 1),), "float32"] = relax.call_tir(te_func, (y,), (n,))
                     return gv
         """
         primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
@@ -441,16 +441,25 @@ class BlockBuilder(Object):
             gvar = self.add_func(tir_func, func.__name__)
 
         call_args = [x.op.value for x in te_args]
+        # add arguments for extra parameters from unbound var
+        if len(unbound_tir_vars) > 0:
+            call = call_tir(gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
+        else:
+            call = call_tir(gvar, call_args)
+
         output_shape = (
-            outs[0].shape
+            ShapeExpr(outs[0].shape)
             if isinstance(te_out, tvm.te.tensor.Tensor)
             else Tuple([ShapeExpr(x.shape) for x in outs])
         )
-        # add arguments for extra parameters from unbound var
-        if len(unbound_tir_vars) > 0:
-            call = call_tir(output_shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
-        else:
-            call = call_tir(output_shape, gvar, call_args)
+        call._set_shape(output_shape)
+
+        output_type = (
+            rx.DynTensorType(len(output_shape), te_out.dtype)
+            if isinstance(te_out, tvm.te.tensor.Tensor)
+            else TupleType([rx.DynTensorType(len(x.shape), x.dtype) for x in outs])
+        )
+        call._set_type(output_type)
         return self.emit(call)
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
@@ -467,7 +476,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the call code.
+            A newly created variable that gets bound to the call code.
         """
         return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)
 
@@ -482,7 +491,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            The return variable which gets binded to the output.
+            The return variable which gets bound to the output.
         """
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
@@ -507,7 +516,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            The return variable which gets binded to the output.
+            The return variable which gets bound to the output.
         """
         if self._is_emit_func_output_called:
             raise RuntimeError("emit_func_output must be called exactly once in a relax function.")

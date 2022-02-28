@@ -345,22 +345,31 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
   if (const CallNode* call_node = expr.as<CallNode>()) {
     // TypeInference::InferCall(...)
     const Call& call = GetRef<Call>(call_node);
-
-    Optional<Expr> inferred_shape = InferShape(call, this->diag_ctx_);
-    Type inferred_type = InferType(call, this->diag_ctx_);
-
-    var->shape_ = inferred_shape;
-    var->checked_type_ = inferred_type;
-
     Call new_call = Call(call->op, call->args, call->attrs, call->type_args, call->span);
-    new_call->checked_type_ = inferred_type;
-    new_call->shape_ = inferred_shape;
+
+    if (!call->shape_) {
+      Optional<Expr> inferred_shape = InferShape(call, this->diag_ctx_);
+      var->shape_ = inferred_shape;
+      new_call->shape_ = inferred_shape;
+    } else {
+      new_call->shape_ = call->shape_;
+      var->shape_ = call->shape_;
+    }
+
+    if (!call->checked_type_.defined()) {
+      Type inferred_type = InferType(call, this->diag_ctx_);
+      var->checked_type_ = inferred_type;
+      new_call->checked_type_ = inferred_type;
+    } else {
+      new_call->checked_type_ = call->checked_type_;
+      var->checked_type_ = call->checked_type_;
+    }
 
     cur_frame->bindings.push_back(VarBinding(var, new_call));
     this->binding_table_[var->vid] = new_call;
   } else if (const VarNode* var_node = expr.as<VarNode>()) {
     const Var& lhs_var = GetRef<Var>(var_node);
-    if (lhs_var->shape_.defined()) {
+    if (lhs_var->shape_) {
       var->shape_ = lhs_var->shape_;
     }
     if (lhs_var->checked_type_.defined()) {
@@ -370,7 +379,7 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
     this->binding_table_[var->vid] = lhs_var;
   } else if (const TupleGetItemNode* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
     if (const VarNode* tuple = tuple_get_item_node->tuple.as<VarNode>()) {
-      if (tuple->shape_.defined()) {
+      if (tuple->shape_) {
         if (const TupleNode* shape = tuple->shape_.as<TupleNode>()) {
           var->shape_ = shape->fields[tuple_get_item_node->index];
         }

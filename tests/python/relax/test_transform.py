@@ -102,8 +102,8 @@ def test_to_non_dataflow():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                lv0 = relax.call_tir((m, n), "test.op.identity", (x,))
-                gv0 = relax.call_tir((m, n), "test.op.identity", (lv0,))
+                lv0: Tensor[(m, n), "float32"] = relax.call_tir("test.op.identity", (x,))
+                gv0: Tensor[(m, n), "float32"] = relax.call_tir("test.op.identity", (lv0,))
                 relax.output(gv0)
             return gv0
 
@@ -145,7 +145,7 @@ def test_call_tir_rewrite():
     class TestCallTIRRewrite:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
-            gv0 = relax.call_tir((m, n), "test.op.identity", (x,))
+            gv0: Tensor[(m, n), "float32"] = relax.call_tir("test.op.identity", (x,))
             return gv0
 
     mod = TestCallTIRRewrite
@@ -167,7 +167,7 @@ def test_call_tir_rewrite():
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.args[0])
+    assert structural_equal(s1.args[0], s0.shape)
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
@@ -245,7 +245,7 @@ def test_vm_static_shape_lowering():
         @R.function
         def foo(x: Tensor[(2, 3), "float32"]) -> Tensor:
             with relax.dataflow():
-                y = R.call_tir((2, 6), "test.vm.tile", (x))
+                y: Tensor[(2, 6), "float32"] = R.call_tir("test.vm.tile", (x))
                 relax.output(y)
             return y
 
@@ -348,8 +348,8 @@ def test_to_anf_no_op():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                lv0 = relax.call_tir((m, n), "test.op.identity", (x,))
-                gv0 = relax.call_tir((m, n), "test.op.identity", (lv0,))
+                lv0: Tensor[(m, n), "float32"] = relax.call_tir("test.op.identity", (x,))
+                gv0: Tensor[(m, n), "float32"] = relax.call_tir("test.op.identity", (lv0,))
                 relax.output(gv0)
             return gv0
 

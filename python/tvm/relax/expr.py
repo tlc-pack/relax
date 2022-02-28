@@ -20,7 +20,7 @@ from typing import List, Optional
 import tvm._ffi
 from ..ir import Node, Span, SourceName, BaseFunc
 from ..runtime import String
-from ..relay import Id, Tuple, TupleGetItem
+from ..relay import Id, Tuple, TupleGetItem, TupleType
 from ..tir import PrimExpr
 from . import _ffi_api
 from .. import relay
