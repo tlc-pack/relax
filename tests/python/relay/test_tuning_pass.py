@@ -1,4 +1,3 @@
-from sqlite3 import OptimizedUnicode
 import tvm
 from tvm import relax, relay, ir
 from tvm.ir.transform import PassContext
@@ -55,15 +54,16 @@ class Pass:
         pass
 
 
-@ir.transform.module_pass(opt_level=1)
+@ir.transform.module_pass(opt_level=0)
 class MyHeuristicPass(Pass):
-    def __init__():
-        pass
+    def __init__(self):
+        super().__init__()
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
         return relay.transform.FoldConstant()(mod)
 
 
+# TODO: Integrate with metaschedule
 class TuningPass(Pass):
     def __init__(self, eval_passes):
         super().__init__()
@@ -146,12 +146,10 @@ mod = tvm.IRModule.from_expr(f)
 # Currently, joint-optimization is happening in tornament manner.
 # For example, if we have two tuning passes with two choices each, it will generate 4 candidates in total.
 # Then, total number of evals = 4 + 2 (re-evalauate the chosen candidate at outer tuning pass) = 6
-# These redundant evaluations can be avoided by passing a status flag later.
 # Due to the measurement noise, this re-evaluation may look quite different from original evaluation
+# TODO: 1. Avoid redundant evaluations  2. Stablize measurement
 
-custom_pass = MyTuningPass2(
-    eval_passes=[MyTuningPass1(eval_passes=[relay.transform.FoldConstant()])]
-)
+custom_pass = MyTuningPass2(eval_passes=[MyTuningPass1(eval_passes=[MyHeuristicPass()])])
 
 mod = custom_pass(mod)
 
