@@ -552,6 +552,36 @@ def test_vm_emit_te_concat():
     np.testing.assert_allclose(res.numpy(), np.append(inp.numpy(), inp2.numpy()))
 
 
+def test_vm_emit_te_dtype_change():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    type_anno = relax.DynTensorType(1, "float32")
+    x = relax.Var("x", [n], type_anno)
+
+    # convert a tensor with dtype of float32 to int16
+    def te_func(A):
+        B = te.compute((n,), lambda i: A[i].astype("int16"))
+        return B
+
+    with bb.function("rx_func", [x]):
+        y = bb.emit_te(te_func, x)
+        bb.emit_func_output(y)
+
+    mod = bb.get()
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    inp = tvm.nd.array(
+        np.random.rand(
+            1,
+        ).astype(np.float32)
+    )
+    res = vm["rx_func"](inp)
+    np.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
+
+
 def test_vm_emit_te_floor_symbolic_shape():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")

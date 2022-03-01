@@ -21,6 +21,7 @@
  * \brief Perform explicit tensor allocation for call_tir.
  */
 #include <tvm/relax/attrs/memory.h>
+#include <tvm/relax/attrs/tensor.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
@@ -57,18 +58,42 @@ class CallTIRMutator : public ExprMutator {
         if (call->shape_.value()->IsInstance<ShapeExprNode>()) {
           // single output case
           ShapeExpr output_shape = Downcast<ShapeExpr>(call->shape_.value());
-          outs.push_back(builder_->Emit(Call(alloc_tensor_op, {output_shape}), "alloc"));
+          auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
+
+          if (call->checked_type_.defined()) {
+            auto output_type = Downcast<DynTensorType>(call->checked_type_);
+            alloc_tensor_attr->dtype = output_type->dtype;
+            outs.push_back(builder_->Emit(
+                Call(alloc_tensor_op, {output_shape}, Attrs(alloc_tensor_attr)), "alloc"));
+          } else {
+            LOG(FATAL) << "ValueError: the checked_type_ of call_tir is not populated.";
+          }
         } else {
           // multiple output case
-          CHECK(call->shape_.value()->IsInstance<TupleNode>())
+          ICHECK(call->shape_.value()->IsInstance<TupleNode>())
               << "call_tir expects ShapeExpr or Tuple as its shape, but got " << call->shape_;
+          ICHECK(call->checked_type_->IsInstance<TupleTypeNode>())
+              << "call_tir expects DynTensorType or TupleType as its checked type, but got "
+              << call->checked_type_;
           Tuple output_shapes = Downcast<Tuple>(call->shape_);
-          for (const auto& shape : output_shapes->fields) {
-            CHECK(shape->IsInstance<ShapeExprNode>())
-                << "call_tir expects Tuple of ShapeExprs, but got " << shape
+          TupleType output_types = Downcast<TupleType>(call->checked_type_);
+          ICHECK(output_shapes->fields.size() == output_types->fields.size())
+              << "The output of call_tir should have the same amount of fields in its shape and "
+                 "checked type";
+          for (size_t i = 0; i < output_shapes->fields.size(); ++i) {
+            ICHECK(output_shapes->fields[i]->IsInstance<ShapeExprNode>())
+                << "call_tir expects Tuple of ShapeExprs, but got " << output_shapes->fields[i]
                 << " as an element of tuple";
-            outs.push_back(
-                builder_->Emit(Call(alloc_tensor_op, {Downcast<ShapeExpr>(shape)}), "alloc"));
+            ICHECK(output_types->fields[i]->IsInstance<DynTensorTypeNode>())
+                << "call_tir expects TupleType of DynTensorType, but got "
+                << output_types->fields[i] << " as an element of TupleType";
+            auto output_type = Downcast<DynTensorType>(output_types->fields[i]);
+            auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
+            alloc_tensor_attr->dtype = output_type->dtype;
+            outs.push_back(builder_->Emit(
+                Call(alloc_tensor_op, {Downcast<ShapeExpr>(output_shapes->fields[i])},
+                     Attrs(alloc_tensor_attr)),
+                "alloc"));
           }
         }
       } else {

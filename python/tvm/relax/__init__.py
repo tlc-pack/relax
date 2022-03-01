@@ -66,7 +66,7 @@ load_exec_from_file = vm.load_exec_from_file
 
 # Operator
 from .op.base import call_tir
-from .op.op_attrs import AllocStorageAttrs, AllocTensorAttrs
+from .op.op_attrs import VMAllocStorageAttrs, VMAllocTensorAttrs
 
 # IRBuilder
 BlockBuilder = block_builder.BlockBuilder

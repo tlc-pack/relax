@@ -70,8 +70,8 @@ class InputModule:
             x0 = relax.match_shape(sh, (m, n))
             sh1 = relax.call_packed("vm.builtin.shape_of", w)
             x1 = relax.match_shape(sh1, (n, k))
-            lv0:Tensor[(m,k), "float32"] = R.call_tir(tir_matmul, (x,w))
-            lv1:Tensor[(m,k), "float32"] = R.call_tir(tir_relu, (lv0))
+            lv0:Tensor[(m, k), "float32"] = R.call_tir(tir_matmul, (x,w))
+            lv1:Tensor[(m, k), "float32"] = R.call_tir(tir_relu, (lv0))
             relax.output(lv1)
         return lv1
 """

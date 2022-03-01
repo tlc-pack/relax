@@ -336,6 +336,7 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
   } else {
     Expr new_call = Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
     new_call->shape_ = new_shape;
+    new_call->checked_type_ = call_node->checked_type_;
     return new_call;
   }
 }

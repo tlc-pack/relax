@@ -18,6 +18,7 @@
  */
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
+#include <tvm/relax/attrs/tensor.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op.h>
 
@@ -26,8 +27,9 @@
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
+TVM_REGISTER_NODE_TYPE(VMAllocStorageAttrs);
+TVM_REGISTER_NODE_TYPE(VMAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeHeapAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
@@ -90,6 +92,7 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 // alloc_tensor
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+    .set_attrs_type<AllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
@@ -103,7 +106,7 @@ TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTen
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
-    .set_attrs_type<AllocStorageAttrs>()
+    .set_attrs_type<VMAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("size", "Expr", "The size of the storage to allocate.");
 
@@ -117,7 +120,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAl
 // vm alloc_tensor
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
-    .set_attrs_type<AllocTensorAttrs>()
+    .set_attrs_type<VMAllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
