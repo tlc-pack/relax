@@ -17,7 +17,6 @@
 from typing import Union, List
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call
-from ...ir import Array
 
 
 def call_tir(
