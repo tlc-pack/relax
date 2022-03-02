@@ -2023,7 +2023,7 @@ String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_met
 Doc AsTVMScriptDoc(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                    const PrimFunc& func) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  TVMScriptPrinter printer = TVMScriptPrinter(tir_prefix, show_meta);
+  TVMScriptPrinter printer(tir_prefix, show_meta);
   Doc mod_doc = printer.Print(mod);
   // TODO(altan, tqchen): change to the first argument only?
   Doc doc;
