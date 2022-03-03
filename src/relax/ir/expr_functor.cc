@@ -335,8 +335,15 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
     return GetRef<Expr>(call_node);
   } else {
     Expr new_call = Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
-    new_call->shape_ = new_shape;
-    new_call->checked_type_ = call_node->checked_type_;
+
+    // preserve the shape and checked type for call_tir
+    // for other ops, they should be deduced
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    if (call_node->op == call_tir_op) {
+      new_call->shape_ = new_shape;
+      new_call->checked_type_ = call_node->checked_type_;
+    }
+
     return new_call;
   }
 }
