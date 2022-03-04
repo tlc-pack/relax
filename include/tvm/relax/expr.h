@@ -110,8 +110,8 @@ class VarNode : public ExprNode {
       return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
              equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
     } else {
-       return equal(vid, other->vid) &&
-              equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+      return equal(vid, other->vid) && equal(checked_type_, other->checked_type_) &&
+             equal(shape_, other->shape_);
     }
   }
 

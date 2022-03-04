@@ -134,9 +134,7 @@ class IRModuleNode : public Object {
    * \brief Get the metadata attributes.
    * \returns The additional meta-data attributes
    */
-  DictAttrs GetAttrs() const {
-    return attrs;
-  }
+  DictAttrs GetAttrs() const { return attrs; }
 
   /*!
    * \brief Check whether the module has an non-zero integer attr.
@@ -412,8 +410,7 @@ class IRModule : public ObjectRef {
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {},
-                            parser::SourceMap map = {},
+                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
                             DictAttrs attrs = {});
 
   /*! \brief default constructor */

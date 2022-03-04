@@ -305,6 +305,14 @@ class IRModule(Node):
         return _ffi_api.Module_GetAttr(self, attr_key)
 
     def get_attrs(self):
+        """Get the meta_data attributes.
+
+        Returns
+        -------
+        meta_data : DictAttrs
+            meta_data attributes
+        """
+
         return _ffi_api.Module_GetAttrs(self)
 
     def with_attr(self, attr_key, attr_value):
