@@ -1403,7 +1403,3 @@ def astext(node, show_meta_data=True) -> str:
         The text format of the metadata section.
     """
     return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
-
-
-def decode_b64ndarray(b64_array):
-    return tvm.script._ffi_api.DecodeB64NDArray(b64_array)

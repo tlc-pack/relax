@@ -61,11 +61,11 @@ class IRModule(Node):
                     raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
                 mapped_type_defs[k] = v
             type_definitions = mapped_type_defs
-        if not attrs:
-            attrs = {}
-        if isinstance(attrs, str):
+
+        attrs = None if not attrs else attrs
+        if attrs is not None:
             attrs = ast.literal_eval(str(attrs))
-        attrs = tvm.ir.make_node("DictAttrs", **attrs)
+            attrs = tvm.ir.make_node("DictAttrs", **attrs)
         self.__init_handle_by_constructor__(
             _ffi_api.IRModule,
             functions,
