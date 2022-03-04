@@ -160,6 +160,7 @@ class BlockBuilder(Object):
             if not self._is_emit_func_output_called:
                 raise RuntimeError("emit_func_output must be called in a relax function.")
 
+        self._blocks = []
         self._is_emit_func_output_called = False
         BlockBuilder._current = None
 
