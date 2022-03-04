@@ -855,7 +855,7 @@ class RelaxTransformer(Transformer):
                 # TODO(@altanh): maybe diagnostics here in case this fails?
                 return relay.op.get(op_name)
 
-    def parse_arrayliteral(self, expr: ast.ArrayLiteral) -> relax.const:
+    def parse_arrayliteral(self, expr: ast.ArrayLiteral):
         """Parses the given synr ArrayLiteral node to a Relax constant.
 
         Parameters
@@ -883,7 +883,7 @@ class RelaxTransformer(Transformer):
                     else:
                         vals.append(nested_vals)
             else:
-                self.report_error(f"unsupported ast expression {expr.name}")
+                self.report_error(f"unsupported ast expression {expr.name}", expr.span)
             return vals
 
         const_values = _get_values(expr, [])
@@ -949,7 +949,7 @@ class RelaxTransformer(Transformer):
             args = [self.transform_expr(arg) for arg in expr.params]
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
             return relax.TupleGetItem(args[0], args[1].value)
-        elif op == SpecialOp.CONSTANT or op == SpecialOp.CONST:
+        elif op in (SpecialOp.CONSTANT, SpecialOp.CONST):
             # relax const/Constant
             arg = expr.params[0]
             if isinstance(arg, ast.Constant):
@@ -957,7 +957,7 @@ class RelaxTransformer(Transformer):
             elif isinstance(arg, ast.ArrayLiteral):
                 return self.parse_arrayliteral(arg)
             else:
-                self.report_error(f"unsupported ast for const: {arg}")
+                self.report_error(f"unsupported ast for const: {arg}", expr.span)
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]

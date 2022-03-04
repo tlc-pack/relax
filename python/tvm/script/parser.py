@@ -1239,6 +1239,21 @@ def from_source(
 
 
 def ir_module(input_module=None, meta_data=None) -> IRModule:
+    """Parse python function into IRModule.
+
+    Parameters
+    ----------
+    input_module : Callable
+        The python function to be parsed.
+
+    meta_data : Optional[Union[str, DictAttrs]]
+        The meta_data attributes to be parsed.
+
+    Returns
+    -------
+    mod : IRModule
+        The Module in IR.
+    """
     if input_module is None:
         return functools.partial(ir_module, meta_data=meta_data)
 
