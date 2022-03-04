@@ -509,7 +509,7 @@ Array<String> AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
   ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
   Doc doc;
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
-  doc << TextPrinter(true, ftyped).PrintFinal(mod);
+  doc << TextPrinter(true, ftyped).PrintRelax(mod);
 
   std::string func_str = doc.str();
   std::string meta_str = "";

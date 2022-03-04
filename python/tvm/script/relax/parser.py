@@ -20,8 +20,7 @@
 from __future__ import annotations
 
 import inspect
-import base64
-import numpy as np
+import json
 from enum import Enum
 from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 
@@ -856,6 +855,40 @@ class RelaxTransformer(Transformer):
                 # TODO(@altanh): maybe diagnostics here in case this fails?
                 return relay.op.get(op_name)
 
+    def parse_arrayliteral(self, expr: ast.ArrayLiteral) -> relax.const:
+        """Parses the given synr ArrayLiteral node to a Relax constant.
+
+        Parameters
+        ----------
+        expr : ast.ArrayLiteral
+            The synr ArrayLiteral to be parsed.
+
+        Returns
+        -------
+        relax.const
+            The parsed relex expression. It will be a relax.const or relax.expr.Constant.
+        """
+
+        def _get_values(expr: ast.ArrayLiteral, vals: List[Any]) -> List[Any]:
+            # todo(@yongwww): the generic parsing util for ArrayLiteral should be in synr
+            if isinstance(expr, ast.Constant):
+                vals.append(expr.value)
+            elif isinstance(expr, ast.ArrayLiteral):
+                for elem in expr.values:
+                    # recursive call to get the nested list
+                    nested_vals = _get_values(elem, [])
+                    # avoid nested list for every element
+                    if len(nested_vals) == 1 and not isinstance(nested_vals[0], list):
+                        vals.append(nested_vals[0])
+                    else:
+                        vals.append(nested_vals)
+            else:
+                self.report_error(f"unsupported ast expression {expr.name}")
+            return vals
+
+        const_values = _get_values(expr, [])
+        return relax.const(const_values)
+
     def parse_call(self, expr: ast.Call) -> Union[tir.PrimExpr, relax.Expr]:
         """Parses the given synr Call node to a Relax expression or PrimExpr.
 
@@ -880,10 +913,20 @@ class RelaxTransformer(Transformer):
                 const_idx = 0
                 if hasattr(expr.params[-1], "values"):
                     const_idx = expr.params[-1].values[0].value
-                const_vals = self.module.get_attr("b64ndarrays")
-                base64_dec = base64.decodebytes(const_vals[const_idx].encode("utf-8"))
-                np_const = np.frombuffer(base64_dec, dtype=np.float32)
-                return relax.const(np_const)
+
+                metadata = self.module.get_attrs()
+                attr_json = json.loads(str(metadata))
+                new_root = const_num = 0
+                for i, node in enumerate(attr_json["nodes"]):
+                    if "type_key" in node and "Constant" in node["type_key"]:
+                        if const_num == const_idx:
+                            new_root = i
+                            break
+                        const_num += 1
+                attr_json["root"] = new_root
+                return tvm.ir.load_json(json.dumps(attr_json))
+            else:
+                return self.transform_Subscript(expr)
 
         op = self.transform_expr(expr.func_name)
 
@@ -907,8 +950,14 @@ class RelaxTransformer(Transformer):
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
             return relax.TupleGetItem(args[0], args[1].value)
         elif op == SpecialOp.CONSTANT or op == SpecialOp.CONST:
-            args = [self.transform_expr(arg) for arg in expr.params]
-            return args[0]
+            # relax const/Constant
+            arg = expr.params[0]
+            if isinstance(arg, ast.Constant):
+                return relax.const(arg.value)
+            elif isinstance(arg, ast.ArrayLiteral):
+                return self.parse_arrayliteral(arg)
+            else:
+                self.report_error(f"unsupported ast for const: {arg}")
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]
@@ -962,40 +1011,6 @@ class RelaxTransformer(Transformer):
         if kwargs or not is_default:
             attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
         return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
-
-    def parse_arrayliteral(self, expr: ast.ArrayLiteral) -> relax.const:
-        """Parses the given synr ArrayLiteral node to a Relax constant.
-
-        Parameters
-        ----------
-        expr : ast.ArrayLiteral
-            The synr ArrayLiteral to be parsed.
-
-        Returns
-        -------
-        relax.const
-            The parsed relex expression. It will be a relax.const or relax.expr.Constant.
-        """
-
-        def _get_values(expr: ast.ArrayLiteral, vals: List[Any]) -> List[Any]:
-            # todo(@yongwww): the generic parsing util for ArrayLiteral should be in synr
-            if isinstance(expr, ast.Constant):
-                vals.append(expr.value)
-            elif isinstance(expr, ast.ArrayLiteral):
-                for elem in expr.values:
-                    # recursive call to get the nested list
-                    nested_vals = _get_values(elem, [])
-                    # avoid nested list for every element
-                    if len(nested_vals) == 1 and not isinstance(nested_vals[0], list):
-                        vals.append(nested_vals[0])
-                    else:
-                        vals.append(nested_vals)
-            else:
-                self.report_error(f"unsupported ast expression {expr.name}")
-            return vals
-
-        const_values = _get_values(expr, [])
-        return relax.const(const_values)
 
     # Exprs:
     # - ArrayLiteral
@@ -1051,7 +1066,18 @@ class RelaxTransformer(Transformer):
             return relay.GlobalVar(var_name)
 
         elif isinstance(expr, ast.Constant):
-            return relax.const(expr.value)
+            # FIXME(@altanh): use internal representation that doesn't have precision limits here
+            if isinstance(expr.value, int):
+                return tir.IntImm("int64", expr.value, self.to_tvm_span(expr.span))
+            elif isinstance(expr.value, float):
+                return tir.FloatImm("float32", expr.value, self.to_tvm_span(expr.span))
+            elif isinstance(expr.value, str):
+                # FIXME(@altanh): using StringImm seems to cause problems, but this loses span
+                return expr.value
+            elif expr.value is None:
+                return None
+            else:
+                return relax.const(expr.value)
 
         elif isinstance(expr, ast.ArrayLiteral):
             return self.parse_arrayliteral(expr)
@@ -1377,3 +1403,7 @@ def astext(node, show_meta_data=True) -> str:
         The text format of the metadata section.
     """
     return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
+
+
+def decode_b64ndarray(b64_array):
+    return tvm.script._ffi_api.DecodeB64NDArray(b64_array)

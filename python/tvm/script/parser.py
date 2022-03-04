@@ -24,6 +24,7 @@ use for error reporting.
 import json
 import operator
 import inspect
+import functools
 from typing import Any, Callable, Dict, List, Optional, Union
 from synr import ast, Transformer, to_ast
 
@@ -1237,7 +1238,10 @@ def from_source(
         raise TypeError("Only function definitions are supported.")
 
 
-def ir_module(meta_data=None) -> IRModule:
+def ir_module(input_module=None, meta_data=None) -> IRModule:
+    if input_module is None:
+        return functools.partial(ir_module, meta_data=meta_data)
+
     def _ir_module(input_module: type) -> IRModule:
         if inspect.isclass(input_module):
             func_dict = {
@@ -1250,4 +1254,4 @@ def ir_module(meta_data=None) -> IRModule:
 
         raise TypeError("Only class definitions are supported.")
 
-    return _ir_module
+    return _ir_module(input_module)

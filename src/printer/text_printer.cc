@@ -82,7 +82,6 @@ Doc TextPrinter::PrintMod(const IRModule& mod) {
       doc << "@" << var->name_hint;
       doc << " = " << tir_text_printer_.PrintPrimFunc(Downcast<tir::PrimFunc>(base_func));
     } else if (base_func.as<relax::FunctionNode>()) {
-      //doc << "def @" << var->name_hint << " = ";
       doc << relax_text_printer_.Print(base_func);
     }
     doc << Doc::NewLine();

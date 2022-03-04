@@ -597,6 +597,23 @@ class TextPrinter {
     return doc;
   }
 
+  Doc PrintRelax(const ObjectRef& node) {
+    Doc doc;
+    doc << relax_text_printer_.Print(node);
+    if (!meta_.empty()) {
+      doc << Doc::NewLine();
+      if (show_meta_data_) {
+        doc << "#[metadata]" << Doc::NewLine() << meta_.GetMetaSection();
+      } else if (show_warning_) {
+        doc << "/* For debugging purposes the metadata section has been omitted." << Doc::NewLine()
+            << " * If you would like to see the full metadata section you can set the "
+            << Doc::NewLine() << " * option to `True` when invoking `astext`. " << Doc::NewLine()
+            << " */";
+      }
+    }
+    return doc;
+  }
+
   Doc PrintMod(const IRModule& mod);
 };
 }  // namespace tvm

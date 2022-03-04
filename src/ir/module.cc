@@ -550,6 +550,11 @@ TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String 
   return mod->GetAttr<ObjectRef>(key);
 });
 
+
+TVM_REGISTER_GLOBAL("ir.Module_GetAttrs").set_body_typed([](IRModule mod) -> ObjectRef {
+  return mod->GetAttrs();
+});
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IRModuleNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const IRModuleNode*>(ref.get());

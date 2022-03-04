@@ -29,11 +29,11 @@ from tvm.script import tir as T, relax as R
 
 
 def check_roundtrip(f_pre):
-    printed_ir, metadata = R.parser.astext(f_pre)
-    f_post = R.parser.from_source(input_func=printed_ir, meta_data=metadata)
+    relax_text, metadata = R.parser.astext(f_pre)
+    f_post = R.parser.from_source(input_func=relax_text, meta_data=metadata)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
-        f_post = tvm.IRModule({global_vars[0]: f_post})
+        f_post = tvm.IRModule({global_vars[0]: f_post}, attrs=metadata)
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
@@ -218,11 +218,23 @@ def test_const_irmodule():
     {
       "type_key": "relay.Constant",
       "attrs": {
-        "_checked_type_": "4",
+        "_checked_type_": "6",
         "data": "0",
         "span": "0",
-        "virtual_device_": "0"
+        "virtual_device_": "4"
       }
+    },
+    {
+      "type_key": "VirtualDevice",
+      "attrs": {
+        "device_type_int": "-1",
+        "memory_scope": "5",
+        "target": "0",
+        "virtual_device_id": "-1"
+      }
+    },
+    {
+      "type_key": "runtime.String"
     },
     {
       "type_key": "relax.DynTensorType",
@@ -244,7 +256,7 @@ def test_const_irmodule():
     class MyModule:
         @R.function
         def my_const(x: Tensor[(2, 3), "float32"]):
-            y = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+            y = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32")
             z = relax.add(x, y)
             return z
 
@@ -256,9 +268,13 @@ def test_const_irmodule():
 def test_const():
     @R.function
     def my_const(x: Tensor[(2, 3), "float32"]):
-        y1 = relax.const(2.1, dtype="float32")
-        z = relax.add(x, y)
-        return z
+        y1 = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+        y2 = relax.const(2.1, dtype="float32")
+        y3 = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
+        z = relax.add(x, y1)
+        r = relax.add(z, y2)
+        w = relax.add(r, y3)
+        return w
 
     check_roundtrip(my_const)
 
