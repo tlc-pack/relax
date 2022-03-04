@@ -159,10 +159,12 @@ def test_multi_functions():
     assert func1.params[0] == x
     assert func1.params[1] == y
     assert func1.name.name_hint == "func1"
+    assert len(func1.body.blocks) == 1
     func2 = mod["func2"]
     assert func2.params[0] == x
     assert func2.params[1] == y
     assert func2.name.name_hint == "func2"
+    assert len(func2.body.blocks) == 1
 
 
 def test_binary_shape_type_deduction():
