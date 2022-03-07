@@ -256,8 +256,12 @@ def test_const_irmodule():
     class MyModule:
         @R.function
         def my_const(x: Tensor[(2, 3), "float32"]):
-            y = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32")
-            z = relax.add(x, y)
+            y: Tensor[(2, 3), "float32"] = relax.const(
+                [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
+            )
+            z: Tensor[(2, 3), "float32"] = relax.add(x, y)
+            # todo (@yongwww): add type_annotation in ConstantNode
+            #  use relax.add(x, meta[relay.Constant][0])
             return z
 
     my_module = MyModule

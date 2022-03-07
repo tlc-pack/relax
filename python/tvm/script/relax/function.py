@@ -24,7 +24,7 @@ from tvm.relax import Function
 from .parser import from_source
 
 
-def function(input_func: Callable) -> Function:
+def function(input_func: Callable, meta_data: str = None) -> Function:
     """Decorate a Python function as a Relax function in TVM script.
 
     Parameters
@@ -38,7 +38,7 @@ def function(input_func: Callable) -> Function:
         The parsed Relax Function.
     """
     if inspect.isfunction(input_func):
-        result = from_source(input_func, None)
+        result = from_source(input_func, meta_data)
         result.__name__ = input_func.__name__
         result.__qualname__ = input_func.__qualname__
         return result

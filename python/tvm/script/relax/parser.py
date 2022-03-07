@@ -104,6 +104,8 @@ PRIMEXPR_ARITHMETIC_OP_MAP = {
 class RelaxTransformer(Transformer):
     """A visitor to handle transformations on the Relax AST"""
 
+    meta_attr = None
+
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
         self.module = ir_mod
@@ -161,6 +163,29 @@ class RelaxTransformer(Transformer):
                 self.transformer._scopes.pop()
 
         return _Scope(self)
+
+    @classmethod
+    def update_meta(cls, meta_data: str):
+        """Update the meta_data attributes.
+
+        Parameters
+        ----------
+        meta_data : str
+            The meta_data to be parsed.
+        """
+
+        cls.meta_attr = meta_data
+
+    @classmethod
+    def get_meta(cls) -> str:
+        """Return the meta_data attribute.
+
+        Returns
+        -------
+        str:
+            The meta_data attributes
+        """
+        return cls.meta_attr
 
     @property
     def scope(self):
@@ -647,7 +672,6 @@ class RelaxTransformer(Transformer):
         if isinstance(stmt, ast.Assign):
             # dataflow bindings are handled separately in parse_dataflow
             return self.parse_binding(stmt)
-
         elif isinstance(stmt, ast.If):
             # check branches are non-empty
             if len(stmt.true.stmts) == 0 or len(stmt.false.stmts) == 0:
@@ -914,7 +938,16 @@ class RelaxTransformer(Transformer):
                 if hasattr(expr.params[-1], "values"):
                     const_idx = expr.params[-1].values[0].value
 
-                metadata = self.module.get_attrs()
+                if self.module.get_attrs():
+                    metadata = self.module.get_attrs()
+                else:
+                    metadata = RelaxTransformer.get_meta()
+
+                if not metadata:
+                    self.report_error(
+                        f"meta_data is not found, please feed it into ir_module", expr.span
+                    )
+
                 attr_json = json.loads(str(metadata))
                 new_root = const_num = 0
                 for i, node in enumerate(attr_json["nodes"]):
@@ -1383,7 +1416,7 @@ def pretty_print(node):
 
 
 # TODO(@altanh): printer stuff should probably live elsewhere?
-def astext(node, show_meta_data=True) -> str:
+def astext(node, show_meta_data=True) -> Union[str, List[str]]:
     """Returns the Relax text format representation of the given Relax IR node.
 
     Parameters
@@ -1400,6 +1433,7 @@ def astext(node, show_meta_data=True) -> str:
     relax_text
         The text format representation of the given Relax IR node.
     metadata
-        The text format of the metadata section.
+        The text format of the metadata section if show_meta_data is True.
     """
-    return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
+    out_texts = tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
+    return out_texts if show_meta_data else out_texts[0]

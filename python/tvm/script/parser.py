@@ -20,7 +20,7 @@ We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
 different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
-# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return
+# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, import-outside-toplevel
 import json
 import operator
 import inspect
@@ -1254,6 +1254,11 @@ def ir_module(input_module=None, meta_data=None) -> IRModule:
     mod : IRModule
         The Module in IR.
     """
+    if meta_data is not None:
+        from .relax.parser import RelaxTransformer as _RelaxTransformer
+
+        _RelaxTransformer.update_meta(meta_data)
+
     if input_module is None:
         return functools.partial(ir_module, meta_data=meta_data)
 
