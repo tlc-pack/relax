@@ -1239,12 +1239,12 @@ def from_source(
 
 
 def ir_module(input_module=None, meta_data=None) -> IRModule:
-    """Parse python function into IRModule.
+    """Decorate a python class as tvm IRModule.
 
     Parameters
     ----------
     input_module : Callable
-        The python function to be parsed.
+        The python class to be parsed.
 
     meta_data : Optional[Union[str, DictAttrs]]
         The meta_data attributes to be parsed.
@@ -1252,7 +1252,7 @@ def ir_module(input_module=None, meta_data=None) -> IRModule:
     Returns
     -------
     mod : IRModule
-        The Module in IR.
+        The IRModule.
     """
     if meta_data is not None:
         from .relax.parser import RelaxTransformer as _RelaxTransformer

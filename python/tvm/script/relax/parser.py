@@ -639,7 +639,10 @@ class RelaxTransformer(Transformer):
             The parsed Relax variable binding
         """
         var = self._get_lhs(stmt)
-        rhs = self.transform_expr(stmt.rhs)
+        if isinstance(stmt.rhs, ast.Constant):
+            rhs = relax.const(stmt.rhs.value)
+        else:
+            rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
         bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
@@ -879,7 +882,9 @@ class RelaxTransformer(Transformer):
                 # TODO(@altanh): maybe diagnostics here in case this fails?
                 return relay.op.get(op_name)
 
-    def parse_arrayliteral(self, expr: ast.ArrayLiteral):
+    def parse_array_literal(
+        self, expr: ast.ArrayLiteral
+    ) -> Union[relax.const, relax.expr.Constant]:
         """Parses the given synr ArrayLiteral node to a Relax constant.
 
         Parameters
@@ -889,8 +894,8 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        relax.const
-            The parsed relex expression. It will be a relax.const or relax.expr.Constant.
+        Union[relax.const, relax.expr.Constant]
+            The parsed relex expression.
         """
 
         def _get_values(expr: ast.ArrayLiteral, vals: List[Any]) -> List[Any]:
@@ -988,7 +993,7 @@ class RelaxTransformer(Transformer):
             if isinstance(arg, ast.Constant):
                 return relax.const(arg.value)
             elif isinstance(arg, ast.ArrayLiteral):
-                return self.parse_arrayliteral(arg)
+                return self.parse_array_literal(arg)
             else:
                 self.report_error(f"unsupported ast for const: {arg}", expr.span)
 
@@ -1113,7 +1118,7 @@ class RelaxTransformer(Transformer):
                 return relax.const(expr.value)
 
         elif isinstance(expr, ast.ArrayLiteral):
-            return self.parse_arrayliteral(expr)
+            return self.parse_array_literal(expr)
 
         elif isinstance(expr, ast.Op):
             # TODO(@altanh): might need to generalize from ArithmeticOp if we decide to support
@@ -1416,7 +1421,7 @@ def pretty_print(node):
 
 
 # TODO(@altanh): printer stuff should probably live elsewhere?
-def astext(node, show_meta_data=True) -> Union[str, List[str]]:
+def astext(node, show_meta_data=False) -> Union[str, List[str]]:
     """Returns the Relax text format representation of the given Relax IR node.
 
     Parameters

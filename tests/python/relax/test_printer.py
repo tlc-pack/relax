@@ -29,7 +29,7 @@ from tvm.script import tir as T, relax as R
 
 
 def check_roundtrip(f_pre):
-    relax_text, metadata = R.parser.astext(f_pre)
+    relax_text, metadata = R.parser.astext(f_pre, show_meta_data=True)
     f_post = R.parser.from_source(input_func=relax_text, meta_data=metadata)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
@@ -197,71 +197,28 @@ def test_call_tir_extern():
 
 
 def test_const_irmodule():
-    json_str = """
-{
-  "root": 1,
-  "nodes": [
-    {
-      "type_key": ""
-    },
-    {
-      "type_key": "Map",
-      "keys": [
-        "relay.Constant"
-      ],
-      "data": [2]
-    },
-    {
-      "type_key": "Array",
-      "data": [3]
-    },
-    {
-      "type_key": "relay.Constant",
-      "attrs": {
-        "_checked_type_": "6",
-        "data": "0",
-        "span": "0",
-        "virtual_device_": "4"
-      }
-    },
-    {
-      "type_key": "VirtualDevice",
-      "attrs": {
-        "device_type_int": "-1",
-        "memory_scope": "5",
-        "target": "0",
-        "virtual_device_id": "-1"
-      }
-    },
-    {
-      "type_key": "runtime.String"
-    },
-    {
-      "type_key": "relax.DynTensorType",
-      "attrs": {
-        "dtype": "float32",
-        "rank": "2",
-        "span": "0"
-      }
-    }
-  ],
-  "b64ndarrays": [
-    "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAADNzMw9zcyMP2ZmBkBmZkZAMzODQDMzo0A="
-  ],
-  "attrs": {"tvm_version": "0.9.dev0"}
-}
-"""
+    def _gen_meta_data():
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def my_const(x: Tensor[(2, 3), "float32"]):
+                y: Tensor[(2, 3), "float32"] = relax.const(
+                    [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
+                )
+                z: Tensor[(2, 3), "float32"] = relax.add(x, y)
+                return z
+
+        mod = Module
+        _, metadata = R.parser.astext(mod, show_meta_data=True)
+        return metadata
+
+    json_str = _gen_meta_data()
 
     @tvm.script.ir_module(meta_data=json_str)
     class MyModule:
         @R.function
         def my_const(x: Tensor[(2, 3), "float32"]):
-            y: Tensor[(2, 3), "float32"] = relax.const(
-                [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
-            )
-            z: Tensor[(2, 3), "float32"] = relax.add(x, y)
-            # todo (@yongwww): add type_annotation in ConstantNode
-            #  use relax.add(x, meta[relay.Constant][0])
+            z: Tensor[(2, 3), "float32"] = relax.add(x, meta[relay.Constant][0])
             return z
 
     my_module = MyModule

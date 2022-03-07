@@ -172,7 +172,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
     } else if (dtype == DataType::Bool()) {
       scalar_val = ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
     }
-    return doc << "relax.const(" << scalar_val << ")";
+    return doc << scalar_val;
   }
   // default fall-back, record it as meta node.
   // Don't append optional_info. Because the entry function is Print,
