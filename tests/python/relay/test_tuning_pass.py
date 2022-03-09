@@ -40,6 +40,9 @@ from tvm.runtime import Module
 import itertools
 from typing import List, Dict, Callable, Union, Tuple
 import copy
+from tvm.relay.analysis import post_order_visit
+from tvm.relay.expr import Call
+from tvm.relay.expr_functor import ExprMutator
 
 
 @tvm.instrument.pass_instrument
@@ -130,7 +133,7 @@ class Trace:
         return True
 
     def apply(self, in_mod, trace):
-        out_mod = in_mod
+        out_mod = copy.deepcopy(in_mod)
         for knob, decision in trace:
             if not knob.verify(decision):
                 raise Exception("Illegal decision in the trace")
@@ -164,7 +167,7 @@ class Pass:
 @ir.transform.module_pass(opt_level=0)
 class MyHeuristicPass(Pass):
     def __init__(self, required: List[Pass] = []):
-        super().__init__("HeuFoldConstant", kind=0, required=required)
+        super().__init__("MyHeuristicPass", kind=0, required=required)
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
         return relay.transform.FoldConstant()(mod)
@@ -179,11 +182,11 @@ class TuningPass(Pass):
         self.eval_passes = eval_passes
 
     # Each tuning pass needs to implement how it generates search space with its knobs
-    def generate_candidates(self, trace: Trace) -> List[Trace]:
+    def generate_candidates(self, trace: Trace, ctx: PassContext) -> List[Trace]:
         assert 0, "Need to implement"
 
     def consider_eval_passes(
-        self, seeds: List[Trace], eval_passes: List[Pass] = None
+        self, seeds: List[Trace], ctx: PassContext, eval_passes: List[Pass] = None
     ) -> List[Trace]:
         # If not provided, use the default passes
         if eval_passes is None:
@@ -201,13 +204,15 @@ class TuningPass(Pass):
                     candidates.append(trace)
                 # Tuning pass expands candidates by visiting its evaluation passes
                 else:
-                    traces = eval_pass.generate_candidates_with_eval_passes(trace)
+                    traces = eval_pass.generate_candidates(trace, ctx)
                     candidates.extend(traces)
         return candidates
 
-    def generate_candidates_with_eval_passes(self, trace, eval_passes=None):
-        seeds = self.generate_candidates(trace)
-        candidates = self.consider_eval_passes(seeds)
+    def generate_candidates_with_eval_passes(
+        self, trace: Trace, ctx: PassContext, eval_passes: List[Pass] = None
+    ):
+        seeds = self.generate_candidates(trace, ctx)
+        candidates = self.consider_eval_passes(seeds, ctx)
         return candidates
 
     def evaluate(self, ctx, candidates: List[Trace], num: int = 20, repeat: int = 20):
@@ -304,6 +309,7 @@ class TuningPass(Pass):
             _clean_build(builder_result.artifact_path)
 
             # Store transformed candidate
+            # TODO: Replace it with database
             scoreboard[candidate] = tuple([np.mean(perfs), np.std(perfs)])
             print(f"{candidate}")
             print(f"{mod}: {np.mean(perfs)}ms\n\n")
@@ -339,29 +345,84 @@ class MyTuningPass1(TuningPass):
     def __init__(self, eval_passes=[], required=[]):
         super().__init__("TuneLayoutPass", eval_passes=eval_passes, required=required)
 
-    def generate_candidates(self, trace):
-        def apply(mod):
-            new_mod = relay.transform.InferType()(mod)
-            new_mod = relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]})(new_mod)
-            return new_mod
+    def generate_candidates(self, trace, ctx):
+        def subgraph_tuning(mod):
+            def convert_conv2d_NHWC(mod):
+                new_mod = relay.transform.InferType()(mod)
+                new_mod = relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]})(new_mod)
+                return new_mod
 
-        def noapply(mod):
-            return mod
+            def convert_conv2d_NCHW(mod):
+                new_mod = relay.transform.InferType()(mod)
+                new_mod = relay.transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]})(new_mod)
+                return new_mod
 
-        choices = {"On": apply, "Off": noapply}
-        knob = Knob("MyTuningPass1 - Knob: LayoutTransform", choices)
+            def noapply(mod):
+                return mod
 
-        candidates = list()
-        for decision in choices.keys():
-            new_trace = copy.deepcopy(trace)
-            new_trace.add(knob, decision)
-            candidates.append(new_trace)
+            choices = {
+                "convert_conv2d_NHWC": convert_conv2d_NHWC,
+                "convert_conv2d_NCHW": convert_conv2d_NCHW,
+                "NoApply": noapply,
+            }
+            knob = Knob("Knob: LayoutTransform", choices)
 
+            lst = []
+
+            def fvisit(node):
+                if isinstance(node, Call) and node.op.name == "nn.conv2d":
+                    lst.append(node)
+
+            expr = mod["main"].body
+            post_order_visit(expr, fvisit)
+
+            class MyMutator(ExprMutator):
+                def __init__(self, decisions):
+                    self.decisions = decisions
+                    super().__init__()
+                    self.cnt = 0
+
+                def visit_call(self, call):
+                    fn = self.visit(call.op)
+                    args = []
+                    for arg in call.args:
+                        args.append(self.visit(arg))
+
+                    if call in self.decisions:
+                        self.cnt += 1
+                        return self.decisions[call].out_mod["main"].body
+
+                    return Call(fn, args, call.attrs)
+
+            subdecisions = dict()
+            for node in lst:
+                assert isinstance(node, Call)
+                if node.op.name == "nn.conv2d":
+                    submod = tvm.IRModule.from_expr(node)
+                    subcandidates = []
+                    for decision in choices.keys():
+                        subtrace = Trace(submod, trace=[(knob, decision)])
+                        subcandidates.append(subtrace)
+
+                    subcandidates = self.consider_eval_passes(subcandidates, ctx)
+                    scoreboard = self.evaluate(ctx, subcandidates)
+                    best_perf, best_subtrace = self.select_best_candidate(scoreboard)
+                    subdecisions[node] = best_subtrace
+
+            mutator = MyMutator(subdecisions)
+            expr = mutator.visit(expr)
+            return tvm.IRModule.from_expr(expr)
+
+        knob = Knob("MyTuningPass1 - SubgraphTuning", choices=[subgraph_tuning])
+        new_trace = copy.deepcopy(trace)
+        new_trace.add(knob, 0)
+        candidates = [new_trace]
+        candidates = self.consider_eval_passes(candidates, ctx)
         return candidates
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
         # Candidate generation
-        candidates = self.generate_candidates_with_eval_passes(Trace(mod))
+        candidates = self.generate_candidates_with_eval_passes(Trace(mod), ctx)
         scoreboard = self.evaluate(ctx, candidates)
         best_perf, best_trace = self.select_best_candidate(scoreboard)
         return best_trace.out_mod
@@ -376,7 +437,7 @@ class MyTuningPass2(TuningPass):
             required=required,
         )
 
-    def generate_candidates(self, trace):
+    def generate_candidates(self, trace, ctx):
         def apply(mod):
             new_mod = relay.transform.InferType()(mod)
             new_mod = relay.transform.CombineParallelConv2D(min_num_branches=2)(new_mod)
@@ -395,11 +456,14 @@ class MyTuningPass2(TuningPass):
             new_trace.add(knob, decision)
             candidates.append(new_trace)
 
+        candidates = self.consider_eval_passes(candidates, ctx)
+
         return candidates
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
         # Candidate generation
-        candidates = self.generate_candidates_with_eval_passes(Trace(mod))
+        candidates = self.generate_candidates(Trace(mod), ctx)
+        # candidates = self.generate_candidates_with_eval_passes(Trace(mod), ctx)
         scoreboard = self.evaluate(ctx, candidates)
         best_perf, best_trace = self.select_best_candidate(scoreboard)
 
@@ -413,10 +477,11 @@ f = example()
 mod = tvm.IRModule.from_expr(f)
 
 # Enable joint optimization
+# TODO: test with Collage-like gradual tuning approaches
 custom_pass = MyTuningPass2(
     eval_passes=[
         MyTuningPass1(eval_passes=[MyHeuristicPass()]),
-        MyTuningPass1(eval_passes=[]),
+        # MyTuningPass1(eval_passes=[]),
     ]
 )
 mod = custom_pass(mod)
