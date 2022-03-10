@@ -218,7 +218,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
         The left operand.
 
     rhs : Object
-        The left operand.
+        The right operand.
 
     map_free_vars : bool
         Whether or not shall we map free vars that does

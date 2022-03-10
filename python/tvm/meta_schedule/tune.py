@@ -56,6 +56,7 @@ SearchStrategyConfig = Union[
     ReplayTraceConfig,
     EvolutionarySearchConfig,
 ]
+
 FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
