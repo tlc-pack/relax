@@ -20,18 +20,19 @@
 from __future__ import annotations
 
 import inspect
+import json
 from enum import Enum
 from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 
 import tvm
 from tvm import relay, relax, tir
+from tvm.relax.utils import metadata_partitioner
 import tvm.script
 from tvm.ir import diagnostics
 from tvm.ir.module import IRModule
 from tvm.script.tir.node import BufferSlice
 import tvm.script.tir as tir_namespace
 import tvm.script.relax as relax_namespace
-
 import synr
 from synr import ast, Transformer
 
@@ -70,6 +71,8 @@ class SpecialOp(Enum):
     DATAFLOW_OUTPUT = "relax.output"
     TUPLE = "relax.Tuple"
     TUPLE_GET_ITEM = "relax.TupleGetItem"
+    CONST = "relax.const"
+    CONSTANT = "relax.expr.Constant"
 
 
 class ArithmeticOp(Enum):
@@ -101,6 +104,8 @@ PRIMEXPR_ARITHMETIC_OP_MAP = {
 
 class RelaxTransformer(Transformer):
     """A visitor to handle transformations on the Relax AST"""
+
+    meta_attr = None
 
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
@@ -159,6 +164,29 @@ class RelaxTransformer(Transformer):
                 self.transformer._scopes.pop()
 
         return _Scope(self)
+
+    @classmethod
+    def update_meta(cls, metadata: str):
+        """Update the metadata attributes.
+
+        Parameters
+        ----------
+        metadata : str
+            The metadata to be parsed.
+        """
+
+        cls.meta_attr = metadata
+
+    @classmethod
+    def get_meta(cls) -> str:
+        """Return the metadata attribute.
+
+        Returns
+        -------
+        str:
+            The metadata attributes
+        """
+        return cls.meta_attr
 
     @property
     def scope(self):
@@ -482,11 +510,16 @@ class RelaxTransformer(Transformer):
             self.report_error(
                 "functions must be decorated as a Relax Function or TIR PrimFunc", func.span
             )
+        decorator_name = None
+        if isinstance(func.decorators[0], ast.Call):
+            decorator_name = self._parse_attrs_to_str(func.decorators[0].func_name)
+        else:
+            decorator_name = self._parse_attrs_to_str(func.decorators[0])
 
-        if self._parse_attrs_to_str(func.decorators[0]) == "tir.prim_func":
+        if decorator_name == "tir.prim_func":
             return self._tir_from_synr(func)
 
-        if self._parse_attrs_to_str(func.decorators[0]) != "relax.function":
+        if decorator_name != "relax.function":
             self.report_error(
                 "functions must be decorated as a Relax Function or TIR PrimFunc", func.span
             )
@@ -612,7 +645,10 @@ class RelaxTransformer(Transformer):
             The parsed Relax variable binding
         """
         var = self._get_lhs(stmt)
-        rhs = self.transform_expr(stmt.rhs)
+        if isinstance(stmt.rhs, ast.Constant):
+            rhs = relax.const(stmt.rhs.value)
+        else:
+            rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
         bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
@@ -645,7 +681,6 @@ class RelaxTransformer(Transformer):
         if isinstance(stmt, ast.Assign):
             # dataflow bindings are handled separately in parse_dataflow
             return self.parse_binding(stmt)
-
         elif isinstance(stmt, ast.If):
             # check branches are non-empty
             if len(stmt.true.stmts) == 0 or len(stmt.false.stmts) == 0:
@@ -853,6 +888,42 @@ class RelaxTransformer(Transformer):
                 # TODO(@altanh): maybe diagnostics here in case this fails?
                 return relay.op.get(op_name)
 
+    def parse_array_literal(
+        self, expr: ast.ArrayLiteral
+    ) -> Union[relax.const, relax.expr.Constant]:
+        """Parses the given synr ArrayLiteral node to a Relax constant.
+
+        Parameters
+        ----------
+        expr : ast.ArrayLiteral
+            The synr ArrayLiteral to be parsed.
+
+        Returns
+        -------
+        Union[relax.const, relax.expr.Constant]
+            The parsed relex expression.
+        """
+
+        def _get_values(expr: ast.ArrayLiteral, vals: List[Any]) -> List[Any]:
+            # todo(@yongwww): the generic parsing util for ArrayLiteral should be in synr
+            if isinstance(expr, ast.Constant):
+                vals.append(expr.value)
+            elif isinstance(expr, ast.ArrayLiteral):
+                for elem in expr.values:
+                    # recursive call to get the nested list
+                    nested_vals = _get_values(elem, [])
+                    # avoid nested list for every element
+                    if len(nested_vals) == 1 and not isinstance(nested_vals[0], list):
+                        vals.append(nested_vals[0])
+                    else:
+                        vals.append(nested_vals)
+            else:
+                self.report_error(f"unsupported ast expression {expr.name}", expr.span)
+            return vals
+
+        const_values = _get_values(expr, [])
+        return relax.const(const_values)
+
     def parse_call(self, expr: ast.Call) -> Union[tir.PrimExpr, relax.Expr]:
         """Parses the given synr Call node to a Relax expression or PrimExpr.
 
@@ -868,7 +939,39 @@ class RelaxTransformer(Transformer):
             PrimExprs.
         """
         if isinstance(expr.func_name, ast.Op) and expr.func_name.name == ast.BuiltinOp.Subscript:
-            return self.transform_Subscript(expr)
+            if (
+                hasattr(expr.params[0], "params")
+                and hasattr(expr.params[0].params[0], "id")
+                and expr.params[0].params[0].id.name == "meta"
+            ):
+                # Get the index of constant in b64ndarrays in metadata
+                const_idx = 0
+                if hasattr(expr.params[-1], "values"):
+                    const_idx = expr.params[-1].values[0].value
+
+                if self.module.get_attrs():
+                    metadata = self.module.get_attrs()
+                else:
+                    metadata = RelaxTransformer.get_meta()
+
+                if not metadata:
+                    self.report_error(
+                        f"metadata is not found, please feed it into ir_module", expr.span
+                    )
+
+                attr_json = json.loads(str(metadata))
+                new_root = const_num = 0
+                for i, node in enumerate(attr_json["nodes"]):
+                    if "type_key" in node and "Constant" in node["type_key"]:
+                        if const_num == const_idx:
+                            new_root = i
+                            break
+                        const_num += 1
+                attr_json["root"] = new_root
+                return tvm.ir.load_json(json.dumps(attr_json))
+            else:
+                return self.transform_Subscript(expr)
+
         op = self.transform_expr(expr.func_name)
 
         if op == SpecialOp.CALL_PACKED:
@@ -890,6 +993,15 @@ class RelaxTransformer(Transformer):
             args = [self.transform_expr(arg) for arg in expr.params]
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
             return relax.TupleGetItem(args[0], args[1].value)
+        elif op in (SpecialOp.CONSTANT, SpecialOp.CONST):
+            # relax const/Constant
+            arg = expr.params[0]
+            if isinstance(arg, ast.Constant):
+                return relax.const(arg.value)
+            elif isinstance(arg, ast.ArrayLiteral):
+                return self.parse_array_literal(arg)
+            else:
+                self.report_error(f"unsupported ast for const: {arg}", expr.span)
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]
@@ -942,11 +1054,10 @@ class RelaxTransformer(Transformer):
         attrs = None
         if kwargs or not is_default:
             attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
-
         return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
 
     # Exprs:
-    # - ArrayLiteral: unsupported for now?
+    # - ArrayLiteral
     # - Attr: use for .shape, and intrinsic/special operator namespace
     # - Call
     # - Constant
@@ -1010,10 +1121,10 @@ class RelaxTransformer(Transformer):
             elif expr.value is None:
                 return None
             else:
-                self.report_error(
-                    f"unsupported constant expression: {expr}",
-                    expr.span,
-                )
+                return relax.const(expr.value)
+
+        elif isinstance(expr, ast.ArrayLiteral):
+            return self.parse_array_literal(expr)
 
         elif isinstance(expr, ast.Op):
             # TODO(@altanh): might need to generalize from ArithmeticOp if we decide to support
@@ -1022,7 +1133,6 @@ class RelaxTransformer(Transformer):
                 return ArithmeticOp(expr.name)
             except ValueError:
                 self.report_error(f"unsupported built-in operator: {expr.name}", expr.span)
-
         else:
             self.report_error(f"unsupported expression: {expr}", expr.span)
 
@@ -1243,7 +1353,7 @@ def from_source(
 
     Parameters
     ----------
-    input_module : Union[str, Callable]
+    input_func : Union[str, Callable]
         The python function to be parsed.
 
     relax_prefix : Optional[List[str]]
@@ -1254,10 +1364,14 @@ def from_source(
 
     Returns
     -------
-    output : Union[Function, Module]
-        The Function or Module in IR.
+    output : Union[Function, IRModule]
+        The relax Function or IRModule.
     """
-    mod = IRModule()
+    metadata = None
+    if isinstance(input_func, str) and "b64ndarrays" in input_func:
+        input_func, metadata = metadata_partitioner(input_func)
+
+    mod = IRModule(attrs=metadata)
     if isinstance(input_func, str):
         relax_prefix = ["R", "relax"] if relax_prefix is None else relax_prefix
         tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
@@ -1301,19 +1415,23 @@ def from_source(
 #     return mod
 
 
-def pretty_print(node):
+def pretty_print(node, show_meta_data=False):
     """Prints the given Relax IR node in the Relax text format.
 
     Parameters
     ----------
     node : Union[relax.Type, relax.Expr, relax.Binding, relax.BindingBlock]
         The Relax IR node to print.
+
+    show_meta_data : bool
+        Whether to include meta data section in the text
+        if there is meta data.
     """
-    print(tvm.script._ffi_api.AsRelaxScript(node))
+    print(tvm.script._ffi_api.AsRelaxScript(node, show_meta_data))
 
 
 # TODO(@altanh): printer stuff should probably live elsewhere?
-def astext(node) -> str:
+def astext(node, show_meta_data=False) -> str:
     """Returns the Relax text format representation of the given Relax IR node.
 
     Parameters
@@ -1321,9 +1439,15 @@ def astext(node) -> str:
     node : Union[relax.Type, relax.Expr, relax.Binding, relax.BindingBlock]
         The Relax IR node to print.
 
+    show_meta_data : bool
+        Whether to include meta data section in the text
+        if there is meta data.
+
     Returns
     -------
-    str
+    relax_text: str
         The text format representation of the given Relax IR node.
+        If show_meta_data is True, the meta data section will be printed in the beginning
+        of the the return string.
     """
-    return tvm.script._ffi_api.AsRelaxScript(node)
+    return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
