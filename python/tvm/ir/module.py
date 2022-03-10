@@ -16,7 +16,7 @@
 # under the License.
 """IRModule that holds the functions and type definitions."""
 from typing import Optional
-
+import ast
 from tvm._ffi.base import string_types
 import tvm._ffi
 
@@ -39,7 +39,7 @@ class IRModule(Node):
         Map of global var to BaseFunc
     """
 
-    def __init__(self, functions=None, type_definitions=None):
+    def __init__(self, functions=None, type_definitions=None, attrs=None):
         if functions is None:
             functions = {}
         elif isinstance(functions, dict):
@@ -62,7 +62,17 @@ class IRModule(Node):
                     raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
                 mapped_type_defs[k] = v
             type_definitions = mapped_type_defs
-        self.__init_handle_by_constructor__(_ffi_api.IRModule, functions, type_definitions)
+
+        attrs = None if not attrs else attrs
+        if attrs is not None:
+            attrs = ast.literal_eval(str(attrs))
+            attrs = tvm.ir.make_node("DictAttrs", **attrs)
+        self.__init_handle_by_constructor__(
+            _ffi_api.IRModule,
+            functions,
+            type_definitions,
+            attrs,
+        )
 
     def __setitem__(self, var, val):
         """Add a mapping to the module.
@@ -313,6 +323,17 @@ class IRModule(Node):
         """
 
         return _ffi_api.Module_GetAttr(self, attr_key)
+
+    def get_attrs(self):
+        """Get the meta_data attributes.
+
+        Returns
+        -------
+        meta_data : DictAttrs
+            meta_data attributes
+        """
+
+        return _ffi_api.Module_GetAttrs(self)
 
     def with_attr(self, attr_key, attr_value):
         """Copy the IRModule and add an attribute to it.
