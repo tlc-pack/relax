@@ -31,6 +31,7 @@ GlobalVar = relay.GlobalVar
 Call = relay.Call
 If = relay.If
 const = relay.const
+Constant = relay.Constant
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
