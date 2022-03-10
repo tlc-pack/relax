@@ -20,11 +20,12 @@ We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
 different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
-# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except
+# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except, import-outside-toplevel
 import types
 import json
 import operator
 import inspect
+import functools
 from typing import Any, Callable, Dict, List, Optional, Union
 from synr import ast, Transformer, to_ast
 
@@ -1371,7 +1372,7 @@ def from_source(
         raise TypeError("Only function definitions are supported.")
 
 
-def ir_module(input_module: type) -> IRModule:
+def ir_module(input_module=None, metadata=None) -> IRModule:
     """Decorate a python class as tvm IRModule.
 
     Parameters
@@ -1379,18 +1380,32 @@ def ir_module(input_module: type) -> IRModule:
     input_module : type
         The python class to be parsed.
 
+    metadata : Optional[Union[str, DictAttrs]]
+        The metadata attributes to be parsed.
+
     Returns
     -------
-    output : IRModule
+    mod : IRModule
         The result IRModule.
     """
-    if inspect.isclass(input_module):
-        func_dict = {
-            name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
-        }
-        mod = IRModule(func_dict)
-        mod = relax.transform.ResolveGlobals()(mod)
-        # FIXME(@altanh): where is the source map?
-        return mod
+    if metadata is not None:
+        from .relax.parser import RelaxTransformer as _RelaxTransformer
 
-    raise TypeError("Only class definitions are supported.")
+        _RelaxTransformer.update_meta(metadata)
+
+    if input_module is None:
+        return functools.partial(ir_module, metadata=metadata)
+
+    def _ir_module(input_module: type) -> IRModule:
+        if inspect.isclass(input_module):
+            func_dict = {
+                name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
+            }
+            mod = IRModule(func_dict, attrs=metadata)
+            mod = relax.transform.ResolveGlobals()(mod)
+            # FIXME(@altanh): where is the source map?
+            return mod
+
+        raise TypeError("Only class definitions are supported.")
+
+    return _ir_module(input_module)

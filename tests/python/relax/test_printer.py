@@ -16,6 +16,7 @@
 # under the License.
 
 from __future__ import annotations  # must import to defer parsing of annotations
+
 import pytest
 import tvm
 
@@ -24,14 +25,16 @@ from tvm import tir, relay
 from tvm.ir import structural_equal, assert_structural_equal
 
 import tvm.script
+from tvm.relax.utils import metadata_partitioner
 from tvm.script import tir as T, relax as R
 
 
 def check_roundtrip(f_pre):
-    print(R.parser.astext(f_pre))
-    f_post = R.parser.from_source(R.parser.astext(f_pre))
+    relax_text = R.parser.astext(f_pre, show_meta_data=True)
+    f_post = R.parser.from_source(input_func=relax_text)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
-        f_post = f_post()
+        global_vars = f_pre.get_global_vars()
+        f_post = tvm.IRModule({global_vars[0]: f_post}, attrs=metadata)
     assert_structural_equal(f_pre, f_post, map_free_vars=True)
 
 
@@ -192,6 +195,80 @@ def test_call_tir_extern():
         return z
 
     check_roundtrip(foo)
+
+
+def test_const_irmodule():
+    def _gen_meta_data():
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def my_const(x: Tensor[(2, 3), "float32"]):
+                y: Tensor[(2, 3), "float32"] = relax.const(
+                    [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
+                )
+                z: Tensor[(2, 3), "float32"] = relax.add(x, y)
+                return z
+
+        mod = Module
+        relax_text = R.parser.astext(mod, show_meta_data=True)
+        texts = metadata_partitioner(relax_text)
+        return texts[1]
+
+    json_str = _gen_meta_data()
+
+    @tvm.script.ir_module(metadata=json_str)
+    class MyModule:
+        @R.function
+        def my_const(x: Tensor[(2, 3), "float32"]):
+            z: Tensor[(2, 3), "float32"] = relax.add(x, meta[relay.Constant][0])
+            return z
+
+    my_module = MyModule
+
+    check_roundtrip(my_module)
+
+
+def test_const():
+    @R.function
+    def my_const(x: Tensor[(2, 3), "float32"]):
+        y1 = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+        y2 = relax.const(2.1, dtype="float32")
+        y3 = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
+        z = relax.add(x, y1)
+        r = relax.add(z, y2)
+        w = relax.add(r, y3)
+        return w
+
+    check_roundtrip(my_const)
+
+
+def test_const_meta():
+    def _get_meta_data():
+        @R.function
+        def my_const(x: Tensor[(2, 3), "float32"]):
+            y1: Tensor[(2, 3), "float32"] = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+            y2 = relax.const(2.1, dtype="float32")
+            y3: Tensor[(2, 3), "float32"] = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
+            z: Tensor[(2, 3), "float32"] = relax.add(x, y1)
+            r: Tensor[(2, 3), "float32"] = relax.add(z, y2)
+            w: Tensor[(2, 3), "float32"] = relax.add(r, y3)
+            return w
+
+        relax_text = R.parser.astext(my_const, show_meta_data=True)
+        texts = metadata_partitioner(relax_text)
+        return texts[1]
+
+    json_str = _get_meta_data()
+
+    @R.function(metadata=json_str)
+    def my_const(x: Tensor[(2, 3), "float32"]):
+        y2 = relax.const(2.1, dtype="float32")
+        z: Tensor[(2, 3), "float32"] = relax.add(x, meta[relay.Constant][0])
+        r: Tensor[(2, 3), "float32"] = relax.add(z, y2)
+        w: Tensor[(2, 3), "float32"] = relax.add(r, meta[relay.Constant][1])
+        return w
+
+    check_roundtrip(my_const)
 
 
 def test_class_irmodule():
