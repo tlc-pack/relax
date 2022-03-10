@@ -31,12 +31,6 @@
 
 #include "doc.h"
 #include "text_printer.h"
-#include "../ir/attr_functor.h"
-#include "../parser/meta_ref.h"
-#include "../relay/analysis/dependency_graph.h"
-#include "doc.h"
-#include "meta_data.h"
-
 
 namespace tvm {
 namespace relax {
@@ -143,7 +137,8 @@ Doc ScalarLiteral(DataType dtype, const T& value) {
 }
 
 // Overload of Expr printing functions
-Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
+Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline,
+                                  bool optional_info) {
   Doc printed_expr;
   if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
@@ -385,7 +380,11 @@ Doc RelaxScriptPrinter::VisitAttr_(const tir::FloatImmNode* op) {
 
 Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
   Doc doc;
-  doc << "@tvm.script.ir_module" << Doc::NewLine();
+  if (ShowMetaData()) {
+    doc << "@tvm.script.ir_module(metadata=metadata)" << Doc::NewLine();
+  } else {
+    doc << "@tvm.script.ir_module" << Doc::NewLine();
+  }
   doc << "class Module:";
   for (const std::pair<GlobalVar, BaseFunc>& pr : mod->functions) {
     Doc func;
@@ -435,8 +434,11 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     param << Print(var) << PrintVarAnnotation(var);
     params.push_back(param);
   }
-
-  doc << "@relax.function" << Doc::NewLine();
+  if (ShowMetaData()) {
+    doc << "@relax.function(metadata=metadata)" << Doc::NewLine();
+  } else {
+    doc << "@relax.function" << Doc::NewLine();
+  }
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
   if (func->ret_type.defined()) {
     doc << " -> " << Print(func->ret_type);
@@ -505,23 +507,14 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
   return Doc::Text(name_table_.GetUniqueName(prefix));
 }
 
-Array<String> AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
+bool RelaxScriptPrinter::ShowMetaData() { return show_meta_data_; }
+
+String AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
   ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
   Doc doc;
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
-  doc << TextPrinter(true, ftyped).PrintRelax(mod);
-
-  std::string func_str = doc.str();
-  std::string meta_str = "";
-  std::size_t meta_loc = func_str.find("#[metadata]");
-  if (meta_loc != std::string::npos) {
-    if (show_meta_data) {
-      meta_str = func_str.substr(meta_loc + 12);
-    }
-    func_str = func_str.substr(0, meta_loc);
-  }
-  Array<String> res = {func_str, meta_str};
-  return res;
+  doc << TextPrinter(show_meta_data, ftyped).PrintRelax(mod);
+  return doc.str();
 }
 
 TVM_REGISTER_GLOBAL("script.AsRelaxScript").set_body_typed(AsRelaxScript);

@@ -19,12 +19,66 @@ from typing import List
 from tvm.tir import PrimFunc
 from tvm import IRModule
 
-# Simply extracts tir PrimFuncs from the input IRModule
+
 def tir_partitioner(mod: IRModule) -> List[IRModule]:
+    """Extracts tir PrimFuncs from the input IRModule.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The input IRModule.
+
+    Returns
+    -------
+    output : List[IRModule]
+        The result tir PrimFuncs.
+    """
     partitions = []
     for gvar in mod.get_global_vars():
         if isinstance(mod[gvar], PrimFunc):
             tir_mod = IRModule({})
             tir_mod[gvar] = mod[gvar]
             partitions.append(tir_mod)
+    return partitions
+
+
+def metadata_partitioner(rx_txt: str) -> List[str]:
+    """Extract Relax program and metadata section.
+
+    Parameters
+    ----------
+    rx_txt : str
+        The input relax text.
+
+    Returns
+    -------
+    output : List[str]
+        The result list of partitioned text, the first element
+        is the relax program, and the second is metadata section.
+    """
+    partitions = []
+    left_curly = 0
+    meta_start = 0
+    meta_end = 0
+    for i, char in enumerate(rx_txt):
+        if i < 0:
+            raise ValueError("The program is invalid.")
+        if char == "{":
+            if meta_start == 0:
+                meta_start = i
+            left_curly += 1
+        elif char == "}":
+            left_curly -= 1
+            if left_curly == 0:
+                meta_end = i + 1
+                break
+
+    if meta_end == 0:
+        raise ValueError("The metadata section was not found.")
+    metadata = rx_txt[meta_start:meta_end]
+    rx_program = rx_txt[meta_end:-1]
+
+    partitions.append(rx_program)
+    partitions.append(metadata)
+
     return partitions

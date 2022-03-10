@@ -252,6 +252,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   explicit RelaxScriptPrinter(bool show_meta_data, TextMetaDataContext* meta)
       : show_meta_data_(show_meta_data), meta_(meta) {}
   TVM_DLL Doc Print(const ObjectRef& node);
+  bool ShowMetaData();
 
  private:
   NameTable name_table_;
@@ -353,8 +354,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
     RelaxScriptPrinter* parent_;
   };
 };
-} //namespace relax
-} //namespace tvm
+}  // namespace relax
+}  // namespace tvm
 
 namespace tvm {
 namespace tir {
@@ -598,19 +599,14 @@ class TextPrinter {
   }
 
   Doc PrintRelax(const ObjectRef& node) {
+    relax_text_printer_.Print(node);
     Doc doc;
-    doc << relax_text_printer_.Print(node);
-    if (!meta_.empty()) {
+    if (show_meta_data_ && !meta_.empty()) {
+      doc << "metadata = ";
+      doc << meta_.GetMetaSection();
       doc << Doc::NewLine();
-      if (show_meta_data_) {
-        doc << "#[metadata]" << Doc::NewLine() << meta_.GetMetaSection();
-      } else if (show_warning_) {
-        doc << "/* For debugging purposes the metadata section has been omitted." << Doc::NewLine()
-            << " * If you would like to see the full metadata section you can set the "
-            << Doc::NewLine() << " * option to `True` when invoking `astext`. " << Doc::NewLine()
-            << " */";
-      }
     }
+    doc << relax_text_printer_.Print(node);
     return doc;
   }
 

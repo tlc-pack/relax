@@ -26,6 +26,7 @@ from typing import Union, Dict, List, Tuple, Optional, Callable, Any
 
 import tvm
 from tvm import relay, relax, tir
+from tvm.relax.utils import metadata_partitioner
 import tvm.script
 from tvm.ir import diagnostics
 from tvm.ir.module import IRModule
@@ -165,25 +166,25 @@ class RelaxTransformer(Transformer):
         return _Scope(self)
 
     @classmethod
-    def update_meta(cls, meta_data: str):
-        """Update the meta_data attributes.
+    def update_meta(cls, metadata: str):
+        """Update the metadata attributes.
 
         Parameters
         ----------
-        meta_data : str
-            The meta_data to be parsed.
+        metadata : str
+            The metadata to be parsed.
         """
 
-        cls.meta_attr = meta_data
+        cls.meta_attr = metadata
 
     @classmethod
     def get_meta(cls) -> str:
-        """Return the meta_data attribute.
+        """Return the metadata attribute.
 
         Returns
         -------
         str:
-            The meta_data attributes
+            The metadata attributes
         """
         return cls.meta_attr
 
@@ -509,11 +510,16 @@ class RelaxTransformer(Transformer):
             self.report_error(
                 "functions must be decorated as a Relax Function or TIR PrimFunc", func.span
             )
+        decorator_name = None
+        if isinstance(func.decorators[0], ast.Call):
+            decorator_name = self._parse_attrs_to_str(func.decorators[0].func_name)
+        else:
+            decorator_name = self._parse_attrs_to_str(func.decorators[0])
 
-        if self._parse_attrs_to_str(func.decorators[0]) == "tir.prim_func":
+        if decorator_name == "tir.prim_func":
             return self._tir_from_synr(func)
 
-        if self._parse_attrs_to_str(func.decorators[0]) != "relax.function":
+        if decorator_name != "relax.function":
             self.report_error(
                 "functions must be decorated as a Relax Function or TIR PrimFunc", func.span
             )
@@ -950,7 +956,7 @@ class RelaxTransformer(Transformer):
 
                 if not metadata:
                     self.report_error(
-                        f"meta_data is not found, please feed it into ir_module", expr.span
+                        f"metadata is not found, please feed it into ir_module", expr.span
                     )
 
                 attr_json = json.loads(str(metadata))
@@ -1337,7 +1343,6 @@ class RelaxDiagnosticContext(synr.DiagnosticContext):
 
 def from_source(
     input_func: Union[str, Callable],
-    meta_data: Optional[str] = None,
     relax_prefix: Optional[List[str]] = None,
     tir_prefix: Optional[List[str]] = None,
 ) -> Union[relax.Function, IRModule]:
@@ -1351,9 +1356,6 @@ def from_source(
     input_func : Union[str, Callable]
         The python function to be parsed.
 
-    meta_data : Optional[str]
-        The meta_data section to be parsed.
-
     relax_prefix : Optional[List[str]]
         The relax prefix list. Only works for str input, default by "relax" and "R".
 
@@ -1365,7 +1367,11 @@ def from_source(
     output : Union[Function, IRModule]
         The relax Function or IRModule.
     """
-    mod = IRModule(attrs=meta_data)
+    metadata = None
+    if isinstance(input_func, str) and "b64ndarrays" in input_func:
+        input_func, metadata = metadata_partitioner(input_func)
+
+    mod = IRModule(attrs=metadata)
     if isinstance(input_func, str):
         relax_prefix = ["R", "relax"] if relax_prefix is None else relax_prefix
         tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
@@ -1409,19 +1415,23 @@ def from_source(
 #     return mod
 
 
-def pretty_print(node):
+def pretty_print(node, show_meta_data=False):
     """Prints the given Relax IR node in the Relax text format.
 
     Parameters
     ----------
     node : Union[relax.Type, relax.Expr, relax.Binding, relax.BindingBlock]
         The Relax IR node to print.
+
+    show_meta_data : bool
+        Whether to include meta data section in the text
+        if there is meta data.
     """
-    print(tvm.script._ffi_api.AsRelaxScript(node))
+    print(tvm.script._ffi_api.AsRelaxScript(node, show_meta_data))
 
 
 # TODO(@altanh): printer stuff should probably live elsewhere?
-def astext(node, show_meta_data=False) -> Union[str, List[str]]:
+def astext(node, show_meta_data=False) -> str:
     """Returns the Relax text format representation of the given Relax IR node.
 
     Parameters
@@ -1435,10 +1445,9 @@ def astext(node, show_meta_data=False) -> Union[str, List[str]]:
 
     Returns
     -------
-    relax_text
+    relax_text: str
         The text format representation of the given Relax IR node.
-    metadata
-        The text format of the metadata section if show_meta_data is True.
+        If show_meta_data is True, the meta data section will be printed in the beginning
+        of the the return string.
     """
-    out_texts = tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)
-    return out_texts if show_meta_data else out_texts[0]
+    return tvm.script._ffi_api.AsRelaxScript(node, show_meta_data)

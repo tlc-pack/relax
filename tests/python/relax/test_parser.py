@@ -15,12 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
-from audioop import mul  # must import to defer parsing of annotations
+from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
-import numpy as np
-
 from tvm import tir, relay, relax
 from tvm.ir import assert_structural_equal
 

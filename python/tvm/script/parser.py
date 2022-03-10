@@ -1238,36 +1238,36 @@ def from_source(
         raise TypeError("Only function definitions are supported.")
 
 
-def ir_module(input_module=None, meta_data=None) -> IRModule:
+def ir_module(input_module=None, metadata=None) -> IRModule:
     """Decorate a python class as tvm IRModule.
 
     Parameters
     ----------
-    input_module : Callable
+    input_module : type
         The python class to be parsed.
 
-    meta_data : Optional[Union[str, DictAttrs]]
-        The meta_data attributes to be parsed.
+    metadata : Optional[Union[str, DictAttrs]]
+        The metadata attributes to be parsed.
 
     Returns
     -------
     mod : IRModule
-        The IRModule.
+        The result IRModule.
     """
-    if meta_data is not None:
+    if metadata is not None:
         from .relax.parser import RelaxTransformer as _RelaxTransformer
 
-        _RelaxTransformer.update_meta(meta_data)
+        _RelaxTransformer.update_meta(metadata)
 
     if input_module is None:
-        return functools.partial(ir_module, meta_data=meta_data)
+        return functools.partial(ir_module, metadata=metadata)
 
     def _ir_module(input_module: type) -> IRModule:
         if inspect.isclass(input_module):
             func_dict = {
                 name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
             }
-            mod = IRModule(func_dict, attrs=meta_data)
+            mod = IRModule(func_dict, attrs=metadata)
             mod = relax.transform.ResolveGlobals()(mod)
             # FIXME(@altanh): where is the source map?
             return mod
