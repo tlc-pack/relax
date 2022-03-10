@@ -107,7 +107,6 @@ class VarNode : public ExprNode {
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
-           // Do we use the analysis information in equality?
            equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
   }
 

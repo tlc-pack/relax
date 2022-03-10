@@ -96,6 +96,12 @@ class IRModuleNode : public Object {
   }
 
   /*!
+   * \brief Get the metadata attributes.
+   * \returns The additional meta-data attributes
+   */
+  DictAttrs GetAttrs() const { return attrs; }
+
+  /*!
    * \brief Check whether the module has an non-zero integer attr.
    *
    * This function can be used to check whether an optional
@@ -357,7 +363,7 @@ class IRModule : public ObjectRef {
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module.
    * \param map The module source map.
-   * \param attrs The module attributes.
+   * \param attrs The module meta-data attributes.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
