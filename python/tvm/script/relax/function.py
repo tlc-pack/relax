@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script Interface for Relax Functions"""
+# pylint: disable=import-outside-toplevel
 
 import inspect
 from typing import Callable
+import functools
 
 from tvm.relax import Function
 
 from .parser import from_source
 
 
-def function(input_func: Callable) -> Function:
+def function(input_func=None, metadata=None) -> Function:
     """Decorate a Python function as a Relax function in TVM script.
 
     Parameters
@@ -32,15 +34,28 @@ def function(input_func: Callable) -> Function:
     input_func : Callable
         The function to be parsed.
 
+    metadata : Optional[Union[str, DictAttrs]]
+        The meta_data attributes to be parsed.
+
     Returns
     -------
     output : Function
         The parsed Relax Function.
     """
-    if inspect.isfunction(input_func):
-        result = from_source(input_func)
-        result.__name__ = input_func.__name__
-        result.__qualname__ = input_func.__qualname__
-        return result
+    if metadata is not None:
+        from .parser import RelaxTransformer as _RelaxTransformer
 
-    raise TypeError("Only function definitions are supported.")
+        _RelaxTransformer.update_meta(metadata)
+
+    if input_func is None:
+        return functools.partial(function, metadata=metadata)
+
+    def _function(input_func: Callable) -> Function:
+        if inspect.isfunction(input_func):
+            result = from_source(input_func)
+            result.__name__ = input_func.__name__
+            result.__qualname__ = input_func.__qualname__
+            return result
+        raise TypeError("Only function definitions are supported.")
+
+    return _function(input_func)

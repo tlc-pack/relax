@@ -18,7 +18,6 @@
 from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
-
 from tvm import tir, relay, relax
 from tvm.ir import assert_structural_equal
 
@@ -503,6 +502,28 @@ def test_call_packed():
     assert_structural_equal(z_bind.value.args, [x, x])
 
     assert isinstance(w_bind.value.attrs, relay.op.op_attrs.ShapeOfAttrs)
+
+
+def test_constant():
+    @R.function
+    def f(x: Tensor[(2, 3), "float32"]):
+        y1 = relax.const(2, dtype="float32")
+        y2 = relax.const([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+        z = add(x, y1)
+        r = add(z, y2)
+        return r
+
+    x = f.params[0]
+    bind_0 = f.body.blocks[0].bindings[0]
+    assert bind_0.var.name_hint == "y1"
+    bind_1 = f.body.blocks[0].bindings[1]
+    assert bind_1.var.name_hint == "y2"
+    bind_2 = f.body.blocks[0].bindings[2]
+    assert bind_2.var.name_hint == "z"
+    bind_3 = f.body.blocks[0].bindings[3]
+    assert bind_3.var.name_hint == "r"
+    check_call(bind_2.value, "add", [x, bind_0.var])
+    check_call(bind_3.value, "add", [bind_2.var, bind_1.var])
 
 
 def test_primexpr_arithmetic():

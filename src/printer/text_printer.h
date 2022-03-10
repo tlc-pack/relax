@@ -28,6 +28,8 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
+#include <tvm/relax/ir_functor.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/tir/expr_functor.h>
@@ -234,6 +236,121 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
 }  // namespace tvm
 
 namespace tvm {
+namespace relax {
+class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
+                           public tir::ExprFunctor<Doc(const PrimExpr&)>,
+                           public TypeFunctor<Doc(const Type&)>,
+                           public AttrFunctor<Doc(const ObjectRef&)> {
+ public:
+  explicit RelaxScriptPrinter(bool show_meta_data, TextMetaDataContext* meta)
+      : show_meta_data_(show_meta_data), meta_(meta) {}
+  TVM_DLL Doc Print(const ObjectRef& node);
+  bool ShowMetaData();
+
+ private:
+  NameTable name_table_;
+  /*! \brief Whether to print meta data. */
+  bool show_meta_data_;
+  /*! \brief meta data context */
+  TextMetaDataContext* meta_;
+  std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
+  std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
+
+  // IR nodes inherited from Relay
+  Doc VisitNode_(const relay::TupleNode* op) override;
+  Doc VisitNode_(const relay::GlobalVarNode* op) override;
+  Doc VisitNode_(const relay::ConstantNode* op) override;
+  Doc VisitNode_(const relay::CallNode* op) override;
+  // Doc VisitNode_(const relay::IfNode* op) override;
+  Doc VisitNode_(const OpNode* op) override;
+  Doc VisitNode_(const relay::TupleGetItemNode* op) override;
+
+  // IR nodes introduced by Relax
+  Doc VisitNode_(const relax::VarNode* op) override;
+  Doc VisitNode_(const relax::DataflowVarNode* op) override;
+  Doc VisitNode_(const relax::ShapeExprNode* op) override;
+  Doc VisitNode_(const relax::MatchShapeNode* op) override;
+  Doc VisitNode_(const relax::VarBindingNode* op) override;
+  Doc VisitNode_(const relax::BindingBlockNode* op) override;
+  Doc VisitNode_(const relax::DataflowBlockNode* op) override;
+  Doc VisitNode_(const relax::SeqExprNode* op) override;
+  Doc VisitNode_(const relax::FunctionNode* op) override;
+  Doc VisitNode_(const relax::ExternFuncNode* op) override;
+
+  // PrimExpr nodes allowed in Relax
+  Doc VisitExpr_(const tir::VarNode* op) override;
+  Doc VisitExpr_(const tir::IntImmNode* op) override;
+  Doc VisitExpr_(const tir::AddNode* op) override;
+  Doc VisitExpr_(const tir::SubNode* op) override;
+  Doc VisitExpr_(const tir::MulNode* op) override;
+  Doc VisitExpr_(const tir::DivNode* op) override;
+  Doc VisitExpr_(const tir::FloorDivNode* op) override;
+
+  Doc PrintIRModule(const IRModule& mod);
+  Doc PrintPrimFunc(const String& name, const tir::PrimFunc& func);
+
+  Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
+  Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
+
+  Doc PrintVarAnnotation(const relax::Var& var);
+  Doc PrintTensorAnnotation(const relax::DynTensorType& ty, const Optional<ObjectRef>& shape);
+
+  Doc VisitType_(const relax::ShapeTypeNode* node) override;
+  Doc VisitType_(const relax::DynTensorTypeNode* node) override;
+  Doc VisitType_(const relay::TupleTypeNode* node) override;
+
+  Doc PrintAttr(const ObjectRef& attr);
+  std::vector<Doc> PrintAttrs(const Attrs& attrs);
+  Doc VisitAttrDefault_(const Object* op) override;
+  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info = true);
+  Doc VisitAttr_(const ArrayNode* op) override;
+  Doc VisitAttr_(const tir::IntImmNode* op) override;
+  Doc VisitAttr_(const tir::FloatImmNode* op) override;
+
+  Doc GetUniqueName(std::string prefix, std::string fallback);
+
+  /*!
+   * \brief Attribute printer which prints the attributes as kwargs in a call.
+   */
+  class AttrPrinter : public AttrVisitor {
+   public:
+    AttrPrinter(std::vector<Doc>* docs, RelaxScriptPrinter* parent) : docs(docs), parent_(parent) {}
+
+    template <typename T>
+    void PrintKV(const char* key, const T& value) {
+      Doc doc;
+      doc << key << "=" << value;
+      docs->push_back(doc);
+    }
+
+    void Visit(const char* key, double* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, int64_t* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, uint64_t* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, int* value) final { PrintKV(key, *value); }
+    void Visit(const char* key, bool* value) final { PrintKV(key, Doc::PyBoolLiteral(*value)); }
+    void Visit(const char* key, std::string* value) final { PrintKV(key, Doc::StrLiteral(*value)); }
+    void Visit(const char* key, void** value) final {
+      LOG(FATAL) << "do not allow void as argument";
+    }
+    void Visit(const char* key, DataType* value) final {
+      PrintKV(key, Doc::StrLiteral(runtime::DLDataType2String(*value)));
+    }
+    void Visit(const char* key, runtime::NDArray* value) final {
+      LOG(FATAL) << "do not allow NDarray as argument";
+    }
+    void Visit(const char* key, runtime::ObjectRef* obj) final {
+      PrintKV(key, parent_->PrintAttr(*obj));
+    }
+
+   private:
+    std::vector<Doc>* docs;
+    RelaxScriptPrinter* parent_;
+  };
+};
+}  // namespace relax
+}  // namespace tvm
+
+namespace tvm {
 namespace tir {
 
 /*!
@@ -425,6 +542,7 @@ class TextPrinter {
         show_warning_(show_warning),
         annotate_(annotate),
         relay_text_printer_(show_meta_data, &meta_, annotate),
+        relax_text_printer_(show_meta_data, &meta_),
         tir_text_printer_(show_meta_data, &meta_) {}
 
   /*! \brief whether show meta data */
@@ -439,6 +557,8 @@ class TextPrinter {
   runtime::TypedPackedFunc<std::string(ObjectRef)> annotate_;
   /*! \brief Relay Text Printer */
   relay::RelayTextPrinter relay_text_printer_;
+  /*! \brief Relax Text Printer */
+  relax::RelaxScriptPrinter relax_text_printer_;
   /*! \brief TIR Text Printer */
   tir::TIRTextPrinter tir_text_printer_;
 
@@ -452,6 +572,8 @@ class TextPrinter {
                (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
                 node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
+    } else if (node.defined() && node->IsInstance<relax::FunctionNode>()) {
+      doc << relax_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);
     }
@@ -466,6 +588,18 @@ class TextPrinter {
             << " */";
       }
     }
+    return doc;
+  }
+
+  Doc PrintRelax(const ObjectRef& node) {
+    relax_text_printer_.Print(node);
+    Doc doc;
+    if (show_meta_data_ && !meta_.empty()) {
+      doc << "metadata = ";
+      doc << meta_.GetMetaSection();
+      doc << Doc::NewLine();
+    }
+    doc << relax_text_printer_.Print(node);
     return doc;
   }
 
