@@ -28,7 +28,6 @@ from tvm.target import Target
 from tvm.tir import PrimFunc
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.utils import tir_partitioner
-from tvm.relax.ty import DynTensorType
 
 from . import _ffi_api
 from .database import Database
@@ -274,10 +273,7 @@ def extract_task_from_relay(
     return env.tasks
 
 
-def extract_task_from_relax(
-    mod: Union[IRModule, RelaxFunc],
-    target: Target
-) -> List[ExtractedTask]:
+def extract_task_from_relax(mod: Union[IRModule, RelaxFunc], target: Target) -> List[ExtractedTask]:
     """Extract tuning tasks from a relax program.
 
     Parameters
