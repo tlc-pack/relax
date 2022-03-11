@@ -29,6 +29,7 @@ from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
 from tvm.meta_schedule.integration import extract_task_from_relax
 from tvm import transform
 import time
+import pytest
 
 # Test case with dynamic shape.
 # Tuning with dynamic shape is not supported yet.
@@ -115,6 +116,7 @@ class DummyDatabase(PyDatabase):
         print("\n".join([str(r) for r in self.records]))
 
 
+@pytest.mark.parametrize("dev", ["cpu"])
 def test_class_irmodule(dev: str):
     @tvm.script.ir_module
     class InputModule:
