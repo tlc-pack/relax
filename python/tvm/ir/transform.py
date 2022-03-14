@@ -25,6 +25,15 @@ import tvm.runtime
 
 from . import _ffi_transform_api
 
+# Dependency for tuning pass
+from tvm.runtime import Module
+import itertools
+from typing import List, Dict, Callable, Union, Tuple
+import copy
+from .module import IRModule
+import numpy as np
+import sys
+
 
 @tvm._ffi.register_object("transform.PassInfo")
 class PassInfo(tvm.runtime.Object):
@@ -139,6 +148,13 @@ class Pass(tvm.runtime.Object):
     conveniently interact with the base class.
     """
 
+    def __init__(self, name: str, kind: int, required=[]):
+        self.name = name
+        # TODO: This is temporary.
+        self.kind = kind
+        self.num_evals = 0
+        super().__init__()
+
     @property
     def info(self):
         """Get the pass meta."""
@@ -170,6 +186,260 @@ class ModulePass(Pass):
     addition, all members of a module pass can be accessed from the base class.
     The same rule applies to FunctionPass as well.
     """
+
+
+# Knob manages a set of optimization choices. Although it can apply certain decision, its object does not maintain a decision.
+class Knob:
+    def __init__(
+        self, name: str, choices: Union[Dict[str, Callable], Dict[int, Callable], List[Callable]]
+    ):
+        self.name = name
+        self.choices = choices
+
+    def verify(self, decision):
+        if isinstance(self.choices, dict):
+            return decision in self.choices
+        elif isinstance(self.choices, List):
+            return decision < len(self.choices)
+        else:
+            raise Exception("Invalid type for choices")
+
+    def get_choice(self, decision: Union[str, int]):
+        assert self.verify(decision)
+        return self.choices[decision]
+
+    def apply(self, mod, decision):
+        assert self.verify(decision)
+        return self.choices[decision](mod)
+
+    def __str__(self):
+        msg = f"{self.name} (# of choices: {len(self.choices)})\n"
+        if isinstance(self.choices, dict):
+            for name, choice in self.choices.items():
+                msg += f"  - {name}: {choice}\n"
+        elif isinstance(self.choices, List):
+            for idx, choice in enumerate(self.choices):
+                msg += f"  - {idx}: {choice}\n"
+        else:
+            raise Exception("Invalid type for choices")
+        return msg
+
+
+# Trace maintains a sequence of knobs and their decisions.
+# It maintains the input/output IRModule
+class Trace:
+    def __init__(self, in_mod: IRModule, trace: List[Tuple[Knob, Union[str, int]]] = []):
+        self.in_mod = in_mod
+        self.trace = trace
+        self.out_mod = self.apply(in_mod, trace)
+        self.perf = None
+
+    def verify(self):
+        for (knob, decision) in self.trace:
+            if not knob.verify(decision):
+                return False
+        return True
+
+    def apply(self, in_mod, trace):
+        out_mod = copy.deepcopy(in_mod)
+        for knob, decision in trace:
+            if not knob.verify(decision):
+                raise Exception("Illegal decision in the trace")
+            out_mod = knob.apply(in_mod, decision)
+        self.perf = None
+        return out_mod
+
+    def add(self, knob: Knob, decision: Union[str, int]):
+        self.out_mod = knob.apply(self.out_mod, decision)
+        self.trace.append((knob, decision))
+        self.perf = None
+
+    def __str__(self):
+        msg = f"Trace length: {len(self.trace)}\n"
+        for idx, (knob, decision) in enumerate(self.trace):
+            msg += f"[{idx+1}] {knob.name}: {decision}\n"
+        return msg
+
+
+class TuningPass(Pass):
+    # @sunggg: Debugging. static variable
+    total_num_evals = 0
+
+    def __init__(self, name: str, eval_passes: List[Pass], required: List[Pass]):
+        super().__init__(name, kind=1, required=required)
+        self.eval_passes = eval_passes
+        # For debugging
+        self.num_evals = 0
+        self.visited = set()
+
+    # Each tuning pass needs to implement how it generates search space with its knobs
+    def tune(self, trace: Trace, ctx: PassContext) -> List[Trace]:
+        assert 0, "Need to implement"
+
+    def consider_eval_passes(
+        self, seeds: List[Trace], ctx: PassContext, eval_passes: List[Pass] = None
+    ) -> List[Trace]:
+        # If not provided, use the default passes
+        if eval_passes is None:
+            eval_passes = self.eval_passes
+
+        candidates = list(seeds)
+        num = len(candidates)
+        for i in range(num):
+            trace = candidates.pop(0)
+            for eval_pass in eval_passes:
+                if eval_pass.kind == 0:
+                    knob = Knob(f"{eval_pass.name}", [eval_pass])
+                    trace.add(knob, 0)
+                # Tuning pass expands candidates by visiting its evaluation passes
+                else:
+                    trace = eval_pass.tune(trace, ctx)
+
+            candidates.append(trace)
+        return candidates
+
+    def tune_with_eval_passes(self, trace: Trace, ctx: PassContext, eval_passes: List[Pass] = None):
+        seeds = self.tune(trace, ctx)
+        candidates = self.consider_eval_passes(seeds, ctx)
+        return candidates
+
+    def evaluate(self, ctx, candidates: List[Trace], num: int = 20, repeat: int = 20):
+        # TODO: Temporary solution to avoid circular dependency
+        from tvm.meta_schedule.arg_info import TensorInfo
+        from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
+        from tvm.meta_schedule.utils import get_global_func_with_default_on_worker
+        from tvm.meta_schedule.runner import (
+            EvaluatorConfig,
+            LocalRunner,
+            RunnerInput,
+        )
+
+        # These targets will be retrieved from the ctx
+        target, target_host, device_id = (
+            ctx.config["target"],
+            ctx.config["target_host"],
+            ctx.config["device_id"],
+        )
+        device = tvm.device(target, device_id)
+
+        num_evals = 0
+        # Evaluation
+        for candidate in candidates:
+            if candidate.perf is not None:
+                continue
+
+            num_evals += 1
+            mod = candidate.out_mod
+            # Evaluate candidates
+            def _build(
+                mod: Module,
+                target: tvm.target.Target,
+                params: dict = {},
+            ):
+                return tvm.relay.build_module._build_module_no_factory(
+                    mod, target, target_host, params
+                )
+
+            # Build candidate
+            builder = LocalBuilder(f_build=_build)
+            (builder_result,) = builder.build([BuilderInput(mod, tvm.target.Target(target))])
+
+            assert builder_result.artifact_path is not None
+            assert builder_result.error_msg is None
+
+            runner_input = RunnerInput(
+                builder_result.artifact_path,
+                target,
+                [],  # ArgInfo
+            )
+
+            evaluator_config = EvaluatorConfig(
+                number=10,
+                repeat=10,
+                min_repeat_ms=0,
+                enable_cpu_cache_flush=False,
+            )
+
+            # Wrap with a executor and evaluator configs
+            def eval_func(rt_mod, device, evaluator_config, repeated_args):
+                rt_mod = tvm.contrib.graph_executor.GraphModule(rt_mod["default"](device))
+
+                eval = rt_mod.module.time_evaluator(
+                    func_name="run",
+                    dev=device,
+                    number=evaluator_config.number,
+                    repeat=evaluator_config.repeat,
+                    min_repeat_ms=evaluator_config.min_repeat_ms,
+                    f_preproc="cache_flush_cpu_non_first_arg"
+                    if evaluator_config.enable_cpu_cache_flush
+                    else "",
+                )
+                repeated_costs: List[List[float]] = []
+                for args in repeated_args:
+                    profile_result = eval(*args)
+                    repeated_costs.append(profile_result.results)
+
+                costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
+                return costs
+
+            runner = LocalRunner(
+                timeout_sec=100,
+                evaluator_config=evaluator_config,
+                f_run_evaluator=eval_func,
+            )
+
+            (runner_future,) = runner.run([runner_input])
+            runner_result = runner_future.result()
+
+            assert runner_result.error_msg is None
+            perfs = []
+            for result in runner_result.run_secs:
+                if isinstance(result, tvm.tir.FloatImm):
+                    result = result.value
+                assert isinstance(result, float)
+                assert result >= 0.0
+                perfs.append(result)
+
+            def _clean_build(artifact_path: str) -> None:
+                f_clean_build = get_global_func_with_default_on_worker(
+                    "meta_schedule.remove_build_dir", None
+                )
+                if f_clean_build is not None:
+                    f_clean_build(artifact_path)
+                else:
+                    raise RuntimeError("Unable to find remove_build_dir function.")
+
+            _clean_build(builder_result.artifact_path)
+
+            # Store transformed candidate
+            # TODO: Replace it with database
+            candidate.perf = tuple([np.mean(perfs), np.std(perfs)])
+
+        TuningPass.total_num_evals += num_evals
+
+    @staticmethod
+    def query_cost_model(candidates):
+        pass
+
+    # Predict optimized IRModule.
+    # This can be done by heuristic like AutoTVM or data-driven approach based on the tuning records.
+    @staticmethod
+    def predict(mod):
+        pass
+
+    # Extracts matching subgraph
+    def extract_subgraph(mod, pattern):
+        pass
+
+    def select_best_candidate(self, traces):
+        best_perf, best_trace = sys.maxsize, None
+        for candidate in traces:
+            (avg, std) = candidate.perf
+            # Select best one
+            if best_perf > avg:
+                best_perf = avg
+                best_trace = candidate
+        return best_trace
 
 
 @tvm._ffi.register_object("transform.Sequential")
