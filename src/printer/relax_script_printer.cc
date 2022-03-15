@@ -79,6 +79,36 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   Doc doc;
   std::vector<Doc> args;
 
+  static const Op& call_tir_op = Op::Get("relax.call_tir");
+  if (op->op == call_tir_op) {
+    doc << "relax.call_tir";
+
+    for (const Expr& arg : op->args) {
+      args.push_back(Print(arg));
+    }
+    doc << "(" << Doc::Concat(args, Doc::Text(", "));
+
+    Type output_type = op->type_args[0];
+    if (const auto* out_type = output_type.as<DynTensorTypeNode>()) {
+      doc << ", dtype=" << Doc::StrLiteral(runtime::DLDataType2String(out_type->dtype)) << ")";
+    } else if (const auto* out_type = output_type.as<TupleTypeNode>()) {
+      std::vector<Doc> dtypes;
+      for (auto field : out_type->fields) {
+        if (const auto* field_type = field.as<DynTensorTypeNode>()) {
+          Doc dtype;
+          dtype << Doc::StrLiteral(runtime::DLDataType2String(field_type->dtype));
+          dtypes.push_back(dtype);
+        } else {
+          LOG(FATAL) << "TypeError: Invalid type: " << field_type->GetTypeKey();
+        }
+      };
+      doc << ", dtype=(" << Doc::Concat(dtypes, Doc::Text(", ")) << "))";
+    } else {
+      LOG(FATAL) << "TypeError: Invalid type: " << output_type->GetTypeKey();
+    }
+    return doc;
+  }
+
   if (op->op.as<relax::ExternFuncNode>()) {
     doc << "relax.call_packed";
     args.push_back(Print(op->op));
@@ -466,6 +496,8 @@ Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
     doc << ": ";
     if (const relax::DynTensorTypeNode* tty = annotation.as<relax::DynTensorTypeNode>()) {
       doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
+    } else if (const TupleTypeNode* tty = annotation.as<TupleTypeNode>()) {
+      doc << PrintTupleAnnotation(GetRef<TupleType>(tty), var->shape_);
     } else {
       doc << Print(annotation);
     }
@@ -497,6 +529,29 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
     doc << Doc::StrLiteral(runtime::DLDataType2String(ty->dtype));
   }
   doc << "]";
+  return doc;
+}
+
+Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
+                                             const Optional<ObjectRef>& shape) {
+  Doc doc;
+  doc << "Tuple[";
+  std::vector<Doc> fields;
+  for (size_t i = 0; i < ty->fields.size(); i++) {
+    if (shape) {
+      if (const relay::TupleNode* shape_tuple = shape.value().as<relay::TupleNode>()) {
+        if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
+          fields.push_back(
+              PrintTensorAnnotation(GetRef<DynTensorType>(type_field), shape_tuple->fields[i]));
+        }
+      }
+    } else {
+      if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
+        fields.push_back(PrintTensorAnnotation(GetRef<DynTensorType>(type_field), NullOpt));
+      }
+    }
+  }
+  doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")]";
   return doc;
 }
 

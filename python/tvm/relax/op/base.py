@@ -15,13 +15,16 @@
 # specific language governing permissions and limitations
 """The base Relax operators."""
 from typing import Union, List
+
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call
+from ..ty import DynTensorType, TupleType
 from ...ir import Array
 
 
 def call_tir(
-    shape: Union[Tuple, ShapeExpr, List[int]],
+    output_shape: Union[Tuple, ShapeExpr, List[int]],
+    output_type: Union[TupleType, DynTensorType],
     func: Expr,
     args: Union[Tuple, List[Expr]],
     tir_vars: ShapeExpr = None,
@@ -31,8 +34,12 @@ def call_tir(
 
     Parameters
     ----------
-    shape: Tuple[ShapeExpr] or ShapeExpr
-        The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr is single output.
+    output_shape: Tuple[ShapeExpr] or ShapeExpr
+        The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr if single output.
+
+    output_type: TupleType[DynTensorType] or DynTensorType
+        The output type. TupleType[DynTensorType] if multiple outputs, DynTensorType
+        if single output.
 
     func : ExternFunc or PrimFunc
         The destination-passing-style function.
@@ -48,8 +55,8 @@ def call_tir(
     ret: Call
         A call node for the call_tir operator.
     """
-    if isinstance(shape, (list, tuple, Array)):
-        shape = ShapeExpr(shape)
+    if isinstance(output_shape, (list, tuple, Array)):
+        output_shape = ShapeExpr(output_shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_tir(shape, func, args, tir_vars)
+    return _ffi_api.call_tir(output_shape, output_type, func, args, tir_vars)

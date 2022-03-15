@@ -33,6 +33,7 @@ from .expr import (
     Tuple,
     BaseFunc,
 )
+from .ty import TupleType
 from .op.base import call_tir
 from . import _ffi_api
 
@@ -363,7 +364,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor:
                     # block 0
-                    gv = relax.call_tir((128, 128), "te_func", (x, y))
+                    gv = relax.call_tir((128, 128), "te_func", (x, y), dtype="float32")
                     return gv
 
         Example
@@ -412,7 +413,7 @@ class BlockBuilder(Object):
                     -> Tensor[_, "float32"]:
                     # block 0
                     gv: Tensor[((n + 1),), "float32"]
-                    = relax.call_tir(((n + 1),), te_func, (y,), (n,))
+                    = relax.call_tir(((n + 1),), te_func, (y,), (n,), dtype="float32")
                     return gv
         """
         primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
@@ -447,11 +448,18 @@ class BlockBuilder(Object):
             if isinstance(te_out, tvm.te.tensor.Tensor)
             else Tuple([ShapeExpr(x.shape) for x in outs])
         )
+        output_type = (
+            rx.DynTensorType(len(output_shape), te_out.dtype)
+            if isinstance(te_out, tvm.te.tensor.Tensor)
+            else TupleType([rx.DynTensorType(len(x.shape), x.dtype) for x in outs])
+        )
         # add arguments for extra parameters from unbound var
         if len(unbound_tir_vars) > 0:
-            call = call_tir(output_shape, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars))
+            call = call_tir(
+                output_shape, output_type, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars)
+            )
         else:
-            call = call_tir(output_shape, gvar, call_args)
+            call = call_tir(output_shape, output_type, gvar, call_args)
         return self.emit(call)
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:

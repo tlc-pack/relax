@@ -465,7 +465,7 @@ def test_inline_tir():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        z = relax.call_tir((B, 128), my_matmul, (x, y))
+        z = relax.call_tir((B, 128), my_matmul, (x, y), dtype="float32")
         return z
 
     x, y = f.params
@@ -544,7 +544,7 @@ def test_primexpr_arithmetic():
 def test_call_tir_extern():
     @R.function
     def f(x: Tensor):
-        z = relax.call_tir((10,), "my_extern", (x,))
+        z = relax.call_tir((10,), "my_extern", (x,), dtype="float32")
         return z
 
     x = f.params[0]
@@ -583,7 +583,7 @@ def test_class_irmodule():
 
         @R.function
         def g(y: Tensor[(n, n), _]) -> Tensor:
-            return relax.call_tir((n, n), my_matmul, (y, y))
+            return relax.call_tir((n, n), my_matmul, (y, y), dtype="float32")
 
         @R.function
         def h(x, y, z):

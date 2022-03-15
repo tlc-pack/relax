@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-else-return
+# pylint: disable=invalid-name, no-else-return, too-many-nested-blocks
 # pylint: disable=inconsistent-return-statements, ungrouped-imports
 """TVM Script Parser For Relax"""
 from __future__ import annotations
@@ -973,6 +973,7 @@ class RelaxTransformer(Transformer):
                 return self.transform_Subscript(expr)
 
         op = self.transform_expr(expr.func_name)
+        type_args = None
 
         if op == SpecialOp.CALL_PACKED:
             extern_func = expr.params[0]
@@ -1020,6 +1021,58 @@ class RelaxTransformer(Transformer):
                         f"{op.name} expects {op.num_inputs} arguments but got {len(args)}",
                         expr.span,
                     )
+
+                if len(expr.keyword_params) != 1:
+                    self.report_error(
+                        f"""{op.name} expects exact one keyword argument with dtype as the key but
+                        got {len(expr.keyword_params)} keyword arguements""",
+                        expr.span,
+                    )
+                for key, val in expr.keyword_params.items():
+                    assert isinstance(key, ast.Constant) and isinstance(key.value, str)
+                    if key.value == "dtype":
+                        val = self.transform_expr(val)
+                        # single output case
+                        if isinstance(val, str):
+                            if not isinstance(args[0], relax.ShapeExpr):
+                                self.report_error(
+                                    (
+                                        f"The number of output_shape and output_dtype of "
+                                        f"call_tir mismatch"
+                                    ),
+                                    expr.span,
+                                )
+                            type_args = [relax.DynTensorType(rank=len(args[0].values), dtype=val)]
+                        elif isinstance(val, Tuple):
+                            # multiple outputs case
+                            if not isinstance(args[0], Tuple) and len(args[0]) != len(val):
+                                self.report_error(
+                                    (
+                                        f"The number of output_shape and output_dtype of "
+                                        f"call_tir mismatch"
+                                    ),
+                                    expr.span,
+                                )
+                            types = []
+                            for i in range(len(args[0])):
+                                types.append(
+                                    relax.DynTensorType(rank=len(args[0][i].values), dtype=val[i])
+                                )
+                            type_args = [relax.TupleType(types)]
+                        else:
+                            self.report_error(
+                                f"call_tir expects the output_dtype to be a string or a tuple",
+                                expr.span,
+                            )
+                    else:
+                        self.report_error(
+                            (
+                                f"{op.name} expects one keyword argument with dtype as the key but "
+                                f"got {len(key.value)} as the key"
+                            ),
+                            expr.span,
+                        )
+
             elif op.num_inputs != -1 and len(args) != op.num_inputs:
                 self.report_error(
                     f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
@@ -1054,7 +1107,13 @@ class RelaxTransformer(Transformer):
         attrs = None
         if kwargs or not is_default:
             attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
-        return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
+
+        if type_args:
+            return relay.Call(
+                op, args, attrs=attrs, type_args=type_args, span=self.to_tvm_span(expr.span)
+            )
+        else:
+            return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
 
     # Exprs:
     # - ArrayLiteral
@@ -1089,6 +1148,9 @@ class RelaxTransformer(Transformer):
 
         elif isinstance(expr, ast.Tuple):
             fields = [self.transform_expr(field) for field in expr.values]
+
+            if all([isinstance(f, str) for f in fields]):
+                return tuple(fields)
 
             # TODO(@altanh): this check might be too weak; we really only accept integral PrimExprs
             #                (e.g. int constants, dim vars, and integer operations on these)
