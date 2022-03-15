@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass infrastructure across IR variants."""
+from __future__ import annotations
 import types
 import inspect
 import functools
+from xmlrpc.client import Boolean
 
 import tvm._ffi
 import tvm.runtime
@@ -28,11 +30,12 @@ from . import _ffi_transform_api
 # Dependency for tuning pass
 from tvm.runtime import Module
 import itertools
-from typing import List, Dict, Callable, Union, Tuple
+from typing import Optional, List, Dict, Callable, Union, Tuple
 import copy
 from .module import IRModule
 import numpy as np
 import sys
+import random
 
 
 @tvm._ffi.register_object("transform.PassInfo")
@@ -188,15 +191,30 @@ class ModulePass(Pass):
     """
 
 
-# Knob manages a set of optimization choices. Although it can apply certain decision, its object does not maintain a decision.
-class Knob:
+# Instruction manages a set of optimization choices. Although it can apply certain decision, its object does not maintain a decision.
+# TODO: We may probabilistically extend the search space at each tuning pass
+class Choice:
+    def __init__(self, func: Callable, prob: float = 1.0, constr=None):
+        self.func = func
+        self.prob = prob
+        # Default constraint always returns true.
+        def default_constr():
+            return True
+
+        self.constr = default_constr
+        if constr is not None:
+            self.constr = constr
+
+
+# TODO: Instruction soudns bit too generic
+class Instruction:
     def __init__(
-        self, name: str, choices: Union[Dict[str, Callable], Dict[int, Callable], List[Callable]]
+        self, name: str, choices: Union[List[Choice], Dict[str, Choice], Dict[int, Choice]]
     ):
         self.name = name
         self.choices = choices
 
-    def verify(self, decision):
+    def verify(self, decision: Union[str, int]) -> Boolean:
         if isinstance(self.choices, dict):
             return decision in self.choices
         elif isinstance(self.choices, List):
@@ -204,15 +222,26 @@ class Knob:
         else:
             raise Exception("Invalid type for choices")
 
-    def get_choice(self, decision: Union[str, int]):
+    def get_choice(self, decision: Union[str, int]) -> Choice:
         assert self.verify(decision)
         return self.choices[decision]
 
-    def apply(self, mod, decision):
+    def apply(self, mod: IRModule, decision: Union[str, int]) -> IRModule:
         assert self.verify(decision)
-        return self.choices[decision](mod)
+        return self.choices[decision].func(mod)
 
-    def __str__(self):
+    def generate_candidates(self, trace: Trace) -> List[Trace]:
+        candidates = list()
+        for decision in self.choices.keys():
+            choice = self.choices[decision]
+            # Generate new candidate when this condition satisfies
+            if choice.constr and choice.prob >= random.uniform(0, 1):
+                new_trace = copy.deepcopy(trace)
+                new_trace.add(self, decision)
+                candidates.append(new_trace)
+        return candidates
+
+    def __str__(self) -> str:
         msg = f"{self.name} (# of choices: {len(self.choices)})\n"
         if isinstance(self.choices, dict):
             for name, choice in self.choices.items():
@@ -228,7 +257,7 @@ class Knob:
 # Trace maintains a sequence of knobs and their decisions.
 # It maintains the input/output IRModule
 class Trace:
-    def __init__(self, in_mod: IRModule, trace: List[Tuple[Knob, Union[str, int]]] = []):
+    def __init__(self, in_mod: IRModule, trace: List[Tuple[Instruction, Union[str, int]]] = []):
         self.in_mod = in_mod
         self.trace = trace
         self.out_mod = self.apply(in_mod, trace)
@@ -240,7 +269,7 @@ class Trace:
                 return False
         return True
 
-    def apply(self, in_mod, trace):
+    def apply(self, in_mod: IRModule, trace: Trace) -> IRModule:
         out_mod = copy.deepcopy(in_mod)
         for knob, decision in trace:
             if not knob.verify(decision):
@@ -249,12 +278,12 @@ class Trace:
         self.perf = None
         return out_mod
 
-    def add(self, knob: Knob, decision: Union[str, int]):
+    def add(self, knob: Instruction, decision: Union[str, int]) -> None:
         self.out_mod = knob.apply(self.out_mod, decision)
         self.trace.append((knob, decision))
         self.perf = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         msg = f"Trace length: {len(self.trace)}\n"
         for idx, (knob, decision) in enumerate(self.trace):
             msg += f"[{idx+1}] {knob.name}: {decision}\n"
@@ -265,12 +294,18 @@ class TuningPass(Pass):
     # @sunggg: Debugging. static variable
     total_num_evals = 0
 
-    def __init__(self, name: str, eval_passes: List[Pass], required: List[Pass]):
+    def __init__(
+        self,
+        name: str,
+        eval_passes: List[Pass] = [],
+        required: List[Pass] = [],
+        database: Optional[tvm.meta_schedule.database.Database] = None,
+    ):
         super().__init__(name, kind=1, required=required)
         self.eval_passes = eval_passes
+        self.database = database
         # For debugging
         self.num_evals = 0
-        self.visited = set()
 
     # Each tuning pass needs to implement how it generates search space with its knobs
     def tune(self, trace: Trace, ctx: PassContext) -> List[Trace]:
@@ -288,8 +323,9 @@ class TuningPass(Pass):
         for i in range(num):
             trace = candidates.pop(0)
             for eval_pass in eval_passes:
+                # For heuristic pass, we create an know with single choice for tracking
                 if eval_pass.kind == 0:
-                    knob = Knob(f"{eval_pass.name}", [eval_pass])
+                    knob = Instruction(f"{eval_pass.name}", [Choice(eval_pass)])
                     trace.add(knob, 0)
                 # Tuning pass expands candidates by visiting its evaluation passes
                 else:
@@ -305,7 +341,7 @@ class TuningPass(Pass):
 
     def evaluate(self, ctx, candidates: List[Trace], num: int = 20, repeat: int = 20):
         # TODO: Temporary solution to avoid circular dependency
-        from tvm.meta_schedule.arg_info import TensorInfo
+        # from tvm.meta_schedule.arg_info import TensorInfo
         from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
         from tvm.meta_schedule.utils import get_global_func_with_default_on_worker
         from tvm.meta_schedule.runner import (
@@ -313,14 +349,16 @@ class TuningPass(Pass):
             LocalRunner,
             RunnerInput,
         )
+        from tvm.meta_schedule.database import TuningRecord
 
         # These targets will be retrieved from the ctx
-        target, target_host, device_id = (
+        target_str, target_host, device_id = (
             ctx.config["target"],
             ctx.config["target_host"],
             ctx.config["device_id"],
         )
-        device = tvm.device(target, device_id)
+        target = tvm.target.Target(target_str)
+        device = tvm.device(target_str, device_id)
 
         num_evals = 0
         # Evaluation
@@ -342,14 +380,14 @@ class TuningPass(Pass):
 
             # Build candidate
             builder = LocalBuilder(f_build=_build)
-            (builder_result,) = builder.build([BuilderInput(mod, tvm.target.Target(target))])
+            (builder_result,) = builder.build([BuilderInput(mod, target)])
 
             assert builder_result.artifact_path is not None
             assert builder_result.error_msg is None
 
             runner_input = RunnerInput(
                 builder_result.artifact_path,
-                target,
+                target_str,
                 [],  # ArgInfo
             )
 
@@ -414,6 +452,20 @@ class TuningPass(Pass):
             # Store transformed candidate
             # TODO: Replace it with database
             candidate.perf = tuple([np.mean(perfs), np.std(perfs)])
+
+            from tvm.tir import Schedule
+
+            if self.database is not None:
+                # TODO: Unify with MetaSchedule trace
+                workload = self.database.commit_workload(mod)
+                record = TuningRecord(
+                    Schedule(mod).trace,
+                    perfs,
+                    workload,
+                    target,
+                    [],  # pylint: disable=unsubscriptable-object
+                )
+                self.database.commit_tuning_record(record)
 
         TuningPass.total_num_evals += num_evals
 

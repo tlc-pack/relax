@@ -27,13 +27,18 @@ from tvm.relay.analysis import post_order_visit
 from tvm.relay.expr import Call
 from tvm.relay.expr_functor import ExprMutator
 
-from tvm.ir.transform import Pass, TuningPass, Trace, Knob, Sequential
+from tvm.ir.transform import Pass, TuningPass, Trace, Choice, Instruction, Sequential
+from tvm.meta_schedule.database import JSONDatabase
+import os, shutil
 
 
 @tvm.instrument.pass_instrument
 class PassTracker:
     def run_before_pass(self, module, info):
         print(f"pass name: {info.name}")
+
+
+CONFIG = {"target": "llvm", "target_host": "llvm", "device_id": 0}
 
 
 def example(x_shape=(1, 32, 16, 16), channels1=32, channels2=32, channels3=32, channels4=32):
@@ -77,11 +82,12 @@ class HeuristicPass(Pass):
 
 @ir.transform.module_pass(opt_level=0)
 class TuningLayoutPass(TuningPass):
-    def __init__(self, eval_passes=[], required=[]):
+    def __init__(self, eval_passes=[], required=[], database=None):
         super().__init__(
             "TuneLayout",
             eval_passes=eval_passes,
             required=required,
+            database=database,
         )
         self.num_evals = 0
 
@@ -94,15 +100,11 @@ class TuningLayoutPass(TuningPass):
         def noapply(mod):
             return mod
 
-        choices = {"On": apply, "Off": noapply}
+        choices = {"On": Choice(apply), "Off": Choice(noapply)}
         # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("KnobTuningLayout", choices)
+        knob = Instruction("InstructionTuningLayout", choices)
 
-        candidates = list()
-        for decision in choices.keys():
-            new_trace = copy.deepcopy(trace)
-            new_trace.add(knob, decision)
-            candidates.append(new_trace)
+        candidates = knob.generate_candidates(trace)
 
         candidates = self.consider_eval_passes(candidates, ctx)
         self.evaluate(ctx, candidates)
@@ -117,11 +119,12 @@ class TuningLayoutPass(TuningPass):
 
 @ir.transform.module_pass(opt_level=0)
 class TuningParallelConv2dPass(TuningPass):
-    def __init__(self, eval_passes=[], required=[]):
+    def __init__(self, eval_passes=[], required=[], database=None):
         super().__init__(
             "TuneCombineParallelConv2D",
             eval_passes=eval_passes,
             required=required,
+            database=database,
         )
 
     def tune(self, trace, ctx):
@@ -133,15 +136,11 @@ class TuningParallelConv2dPass(TuningPass):
         def noapply(mod):
             return mod
 
-        choices = {"On": apply, "Off": noapply}
+        choices = {"On": Choice(apply), "Off": Choice(noapply)}
         # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("KnobTuningParallelConv2D", choices)
+        knob = Instruction("InstructionTuningParallelConv2D", choices)
 
-        candidates = list()
-        for decision in choices.keys():
-            new_trace = copy.deepcopy(trace)
-            new_trace.add(knob, decision)
-            candidates.append(new_trace)
+        candidates = knob.generate_candidates(trace)
 
         candidates = self.consider_eval_passes(candidates, ctx)
         self.evaluate(ctx, candidates)
@@ -156,8 +155,13 @@ class TuningParallelConv2dPass(TuningPass):
 
 @ir.transform.module_pass(opt_level=0)
 class TuningSubgraphPass(TuningPass):
-    def __init__(self, eval_passes=[], required=[]):
-        super().__init__("SubgraphTuningPass", eval_passes=eval_passes, required=required)
+    def __init__(self, eval_passes=[], required=[], database=None):
+        super().__init__(
+            "SubgraphTuningPass",
+            eval_passes=eval_passes,
+            required=required,
+            database=database,
+        )
 
     def tune(self, trace, ctx):
         def subgraph_tuning(mod):
@@ -175,11 +179,11 @@ class TuningSubgraphPass(TuningPass):
                 return mod
 
             choices = {
-                "convert_conv2d_NHWC": convert_conv2d_NHWC,
-                "convert_conv2d_NCHW": convert_conv2d_NCHW,
-                "NoApply": noapply,
+                "convert_conv2d_NHWC": Choice(convert_conv2d_NHWC),
+                "convert_conv2d_NCHW": Choice(convert_conv2d_NCHW),
+                "NoApply": Choice(noapply),
             }
-            knob = Knob("LayoutTransform", choices)
+            subknob = Instruction("LayoutTransform", choices)
 
             # Collect nodes to traverse
             lst = []
@@ -217,8 +221,8 @@ class TuningSubgraphPass(TuningPass):
                 if node.op.name == "nn.conv2d":
                     submod = tvm.IRModule.from_expr(node)
                     subcandidates = []
-                    for decision in choices.keys():
-                        subtrace = Trace(submod, trace=[(knob, decision)])
+                    for decision in subknob.choices:
+                        subtrace = Trace(submod, trace=[(subknob, decision)])
                         subcandidates.append(subtrace)
 
                     subcandidates = self.consider_eval_passes(subcandidates, ctx)
@@ -232,7 +236,7 @@ class TuningSubgraphPass(TuningPass):
             return tvm.IRModule.from_expr(expr)
 
         # Higher-level knob wrapping subgraph tuning
-        knob = Knob("KnobTuningSubgraph", choices=[subgraph_tuning])
+        knob = Instruction("InstructionTuningSubgraph", choices=[Choice(subgraph_tuning)])
         best_trace = copy.deepcopy(trace)
         best_trace.add(knob, 0)
         return best_trace
@@ -246,11 +250,12 @@ class TuningSubgraphPass(TuningPass):
 
 @ir.transform.module_pass(opt_level=0)
 class MockTuningPass(TuningPass):
-    def __init__(self, eval_passes=[], required=[]):
+    def __init__(self, eval_passes=[], required=[], database=None):
         super().__init__(
             "MockTuningPass",
             eval_passes=eval_passes,
             required=required,
+            database=database,
         )
 
     def tune(self, trace, ctx):
@@ -258,15 +263,11 @@ class MockTuningPass(TuningPass):
             return mod
 
         # Create mock choices for testing
-        choices = {"c1": noapply, "c2": noapply, "c3": noapply}
+        choices = {"c1": Choice(noapply), "c2": Choice(noapply), "c3": Choice(noapply)}
         # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockTuning", choices)
+        knob = Instruction("MockTuning", choices)
 
-        candidates = list()
-        for decision in choices.keys():
-            new_trace = copy.deepcopy(trace)
-            new_trace.add(knob, decision)
-            candidates.append(new_trace)
+        candidates = knob.generate_candidates(trace)
 
         candidates = self.consider_eval_passes(candidates, ctx)
         self.evaluate(ctx, candidates)
@@ -348,7 +349,7 @@ def test_joint_optimization(
     with PassContext(opt_level=4, config=config):
         mod = custom_pass(mod)
 
-    assert TuningPass.total_num_evals == 3 * 2
+    assert TuningPass.total_num_evals == 2 * 3
 
     # Heurstic pass does not affect the search space
     mod = tvm.IRModule.from_expr(f)
@@ -385,7 +386,28 @@ def test_joint_optimization(
     assert TuningPass.total_num_evals == 3 * (2 * 3 + 3)
 
 
+def test_database(f=example(), config=CONFIG, remove_after=False):
+    def _create_json_database(tmpdir: str) -> JSONDatabase:
+        path_workload = os.path.join(tmpdir, "workloads.json")
+        path_tuning_record = os.path.join(tmpdir, "tuning_records.json")
+        return JSONDatabase(path_workload, path_tuning_record)
+
+    path = "./tmp"
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=False)
+    mod = tvm.IRModule.from_expr(f)
+    custom_pass = TuningParallelConv2dPass(database=_create_json_database(path))
+    TuningPass.total_num_evals = 0
+    with PassContext(opt_level=4, config=config):
+        mod = custom_pass(mod)
+
+    if remove_after:
+        if os.path.exists(path) and os.path.isdir(path):
+            shutil.rmtree(path)
+
+
 if __name__ == "__main__":
-    test_tuning_pass()
-    test_sequential()
-    test_joint_optimization()
+    # test_tuning_pass()
+    # test_sequential()
+    # test_joint_optimization()
+    test_database()
