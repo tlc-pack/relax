@@ -539,7 +539,7 @@ Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
   std::vector<Doc> fields;
   for (size_t i = 0; i < ty->fields.size(); i++) {
     if (shape) {
-      if (const relay::TupleNode* shape_tuple = shape.value().as<relay::TupleNode>()) {
+      if (const TupleNode* shape_tuple = shape.value().as<TupleNode>()) {
         if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
           fields.push_back(
               PrintTensorAnnotation(GetRef<DynTensorType>(type_field), shape_tuple->fields[i]));

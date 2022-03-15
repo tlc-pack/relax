@@ -29,7 +29,10 @@ from tvm.script import tir as T, relax as R
 
 
 def check_shape(e, s):
-    if isinstance(e, relax.Expr):
+
+    if isinstance(e, relax.Call):
+        e = e.shape
+    elif isinstance(e, relax.Expr):
         e = e.shape_
 
     if s is None:
@@ -586,6 +589,13 @@ def test_class_irmodule():
             return relax.call_tir((n, n), my_matmul, (y, y), dtype="float32")
 
         @R.function
+        def j(y: Tensor[(n, n), _]) -> Tensor:
+            with relax.dataflow():
+                gv = relax.call_tir((n, n), my_matmul, (y, y), dtype="float32")
+                relax.output(gv)
+            return gv
+
+        @R.function
         def h(x, y, z):
             _ = my_matmul(x, y, z)
             return z
@@ -595,12 +605,22 @@ def test_class_irmodule():
 
     var_f = my_module.get_global_var("f")
     var_g = my_module.get_global_var("g")
+    var_j = my_module.get_global_var("j")
     var_my_matmul = my_module.get_global_var("my_matmul")
     f = my_module[var_f]
     g = my_module[var_g]
+    j = my_module[var_j]
 
     assert f.body.body.op == var_g
     assert g.body.body.args[1] == var_my_matmul
+
+    gv_bind = j.body.blocks[0].bindings[0]
+    assert gv_bind.value.checked_type.rank == 2
+    assert gv_bind.value.checked_type.dtype == "float32"
+    assert gv_bind.var.checked_type.rank == 2
+    assert gv_bind.var.checked_type.dtype == "float32"
+    check_shape(gv_bind.value, ("n", "n"))
+    check_shape(gv_bind.var, ("n", "n"))
 
 
 if __name__ == "__main__":

@@ -1025,7 +1025,7 @@ class RelaxTransformer(Transformer):
                 if len(expr.keyword_params) != 1:
                     self.report_error(
                         f"""{op.name} expects exact one keyword argument with dtype as the key but
-                        got {len(expr.keyword_params)} keyword arguements""",
+                        got {len(expr.keyword_params)} keyword arguments""",
                         expr.span,
                     )
                 for key, val in expr.keyword_params.items():
