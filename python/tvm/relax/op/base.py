@@ -25,8 +25,8 @@ from ...ir import Array
 def call_tir(
     func: Expr,
     args: Union[Tuple, List[Expr]],
-    output_shape: Union[Tuple, ShapeExpr, List[int]],
-    output_type: Union[TupleType, DynTensorType],
+    shape: Union[Tuple, ShapeExpr, List[int]],
+    dtype: Union[str, List[str]],
     tir_vars: Optional[ShapeExpr] = None,
 ) -> Call:
     """
@@ -40,12 +40,11 @@ def call_tir(
     args : Union[Tuple, List[Expr]]
         The input arguments.
 
-    output_shape: Union[Tuple, ShapeExpr, List[int]]
+    shape: Union[Tuple, ShapeExpr, List[int]]
         The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr if single output.
 
-    output_type: Union[TupleType, DynTensorType]
-        The output type. TupleType[DynTensorType] if multiple outputs, DynTensorType
-        if single output.
+    dtype: Union[str, List[str]]
+        The output dtype. List[str] if multiple outputs, str if single output.
 
     tir_vars : ShapeExpr, optional
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
@@ -55,8 +54,19 @@ def call_tir(
     ret: Call
         A call node for the call_tir operator.
     """
-    if isinstance(output_shape, (list, tuple, Array)):
-        output_shape = ShapeExpr(output_shape)
+    if isinstance(shape, (list, tuple, Array)):
+        shape = ShapeExpr(shape)
+
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_tir(func, args, output_shape, output_type, tir_vars)
+
+    if isinstance(dtype, str):
+        output_type = DynTensorType(len(shape), dtype)
+    elif isinstance(dtype, (list, tuple)):
+        if len(shape) != len(dtype):
+            raise ValueError("The number of output_shape and output_dtype of call_tir mismatch")
+        output_type = TupleType([DynTensorType(len(x), y) for x, y in zip(shape, dtype)])
+    else:
+        raise TypeError("Not supported dtype for call_tir: " + str(type(dtype)))
+
+    return _ffi_api.call_tir(func, args, shape, output_type, tir_vars)

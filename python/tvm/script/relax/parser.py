@@ -1016,9 +1016,9 @@ class RelaxTransformer(Transformer):
             # check call arity eagerly
             if op.name == "relax.call_tir":
                 # call_tir is special case because last argument is optional
-                if len(args) != 3 and len(args) != 4:
+                if len(args) != op.num_inputs and len(args) != op.num_inputs - 1:
                     self.report_error(
-                        f"{op.name} expects {op.num_inputs} arguments but got {len(args)}",
+                        f"{op.name} expects {op.num_inputs} or {op.num_inputs - 1} arguments but got {len(args)}",
                         expr.span,
                     )
 
@@ -1028,6 +1028,11 @@ class RelaxTransformer(Transformer):
                         got {len(expr.keyword_params)} keyword arguments""",
                         expr.span,
                     )
+
+                if isinstance(args[0], str):
+                    # extern function call case: rewrite identifier to an ExternFunc
+                    args[0] = relax.ExternFunc(args[0], self.to_tvm_span(expr.params[1].span))
+
                 for key, val in expr.keyword_params.items():
                     assert isinstance(key, ast.Constant) and isinstance(key.value, str)
                     if key.value == "dtype":
@@ -1077,10 +1082,6 @@ class RelaxTransformer(Transformer):
                 self.report_error(
                     f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
                 )
-
-            if op.name == "relax.call_tir" and isinstance(args[0], str):
-                # extern function call case: rewrite identifier to an ExternFunc
-                args[0] = relax.ExternFunc(args[0], self.to_tvm_span(expr.params[1].span))
 
         elif isinstance(op, relay.Expr):
             args = [self.transform_expr(arg) for arg in expr.params]
