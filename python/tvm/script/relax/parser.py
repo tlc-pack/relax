@@ -1034,7 +1034,7 @@ class RelaxTransformer(Transformer):
                         val = self.transform_expr(val)
                         # single output case
                         if isinstance(val, str):
-                            if not isinstance(args[0], relax.ShapeExpr):
+                            if not isinstance(args[2], relax.ShapeExpr):
                                 self.report_error(
                                     (
                                         f"The number of output_shape and output_dtype of "
@@ -1042,10 +1042,10 @@ class RelaxTransformer(Transformer):
                                     ),
                                     expr.span,
                                 )
-                            type_args = [relax.DynTensorType(rank=len(args[0].values), dtype=val)]
+                            type_args = [relax.DynTensorType(rank=len(args[2].values), dtype=val)]
                         elif isinstance(val, Tuple):
                             # multiple outputs case
-                            if not isinstance(args[0], Tuple) and len(args[0]) != len(val):
+                            if not isinstance(args[2], Tuple) and len(args[2]) != len(val):
                                 self.report_error(
                                     (
                                         f"The number of output_shape and output_dtype of "
@@ -1054,9 +1054,9 @@ class RelaxTransformer(Transformer):
                                     expr.span,
                                 )
                             types = []
-                            for i in range(len(args[0])):
+                            for i in range(len(args[2])):
                                 types.append(
-                                    relax.DynTensorType(rank=len(args[0][i].values), dtype=val[i])
+                                    relax.DynTensorType(rank=len(args[2][i].values), dtype=val[i])
                                 )
                             type_args = [relax.TupleType(types)]
                         else:
@@ -1077,9 +1077,10 @@ class RelaxTransformer(Transformer):
                 self.report_error(
                     f"{op.name} expects {op.num_inputs} arguments but got {len(args)}", expr.span
                 )
-            if op.name == "relax.call_tir" and isinstance(args[1], str):
+
+            if op.name == "relax.call_tir" and isinstance(args[0], str):
                 # extern function call case: rewrite identifier to an ExternFunc
-                args[1] = relax.ExternFunc(args[1], self.to_tvm_span(expr.params[1].span))
+                args[0] = relax.ExternFunc(args[0], self.to_tvm_span(expr.params[1].span))
 
         elif isinstance(op, relay.Expr):
             args = [self.transform_expr(arg) for arg in expr.params]

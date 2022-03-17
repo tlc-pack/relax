@@ -456,10 +456,10 @@ class BlockBuilder(Object):
         # add arguments for extra parameters from unbound var
         if len(unbound_tir_vars) > 0:
             call = call_tir(
-                output_shape, output_type, gvar, call_args, tir_vars=ShapeExpr(unbound_tir_vars)
+                gvar, call_args, output_shape, output_type, tir_vars=ShapeExpr(unbound_tir_vars)
             )
         else:
-            call = call_tir(output_shape, output_type, gvar, call_args)
+            call = call_tir(gvar, call_args, output_shape, output_type)
         return self.emit(call)
 
     def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:

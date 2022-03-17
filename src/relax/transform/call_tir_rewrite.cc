@@ -35,10 +35,10 @@ namespace relax {
 // CallTIRMutator
 // Perform explicit tensor allocation for call_tir.
 // Example:
-// lv0: Tensor[n, m] = rx.call_tir((n, m), op.identity, (x))
+// lv0: Tensor[n, m] = rx.call_tir(func, (x), (n, m), dtype="float32")
 // -->
-// gv0 = rx.call("relax.builtin.alloc_tensor", [n, m])
-// rx.call_packed(op.identity, x, gv0)
+// gv0 = rx.call("relax.builtin.alloc_tensor", [n, m], dtype="float32")
+// rx.call_packed(func, x, gv0)
 
 class CallTIRMutator : public ExprMutator {
  public:
@@ -65,7 +65,7 @@ class CallTIRMutator : public ExprMutator {
             outs.push_back(builder_->Emit(
                 Call(alloc_tensor_op, {output_shape}, Attrs(alloc_tensor_attr)), "alloc"));
           } else {
-            LOG(FATAL) << "ValueError: the checked_type_ of call_tir is not populated.";
+            LOG(FATAL) << "ValueError: the checked_type_ of call_tir has not populated.";
           }
         } else {
           // multiple output case
@@ -100,21 +100,21 @@ class CallTIRMutator : public ExprMutator {
       }
 
       Array<Expr> args;
-      if (call->args[2].as<TupleNode>()) {
-        args = Downcast<Tuple>(call->args[2])->fields;
+      if (call->args[1].as<TupleNode>()) {
+        args = Downcast<Tuple>(call->args[1])->fields;
         args.insert(args.end(), outs.begin(), outs.end());
 
         if (call->args.size() == 3) {
-          builder_->Emit(Call(call->args[1], args), "_");
+          builder_->Emit(Call(call->args[0], args), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[3]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[1], Tuple(args)}), "_");
+          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
         args = outs;
-        args.insert(args.begin(), call->args[2]);
-        builder_->Emit(Call(call->args[1], args), "_");
+        args.insert(args.begin(), call->args[1]);
+        builder_->Emit(Call(call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {

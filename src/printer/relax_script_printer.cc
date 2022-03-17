@@ -252,7 +252,17 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
     return PrintPrimFunc(op->var->name_hint(), GetRef<tir::PrimFunc>(prim_func));
   } else {
     Doc doc;
-    doc << Print(op->var) << PrintVarAnnotation(op->var);
+    bool print_annotation = true;
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    if (const CallNode* value = op->value.as<CallNode>()) {
+      if (value->op == call_tir_op) {
+        print_annotation = false;
+      }
+    }
+    doc << Print(op->var);
+    if (print_annotation) {
+      doc << PrintVarAnnotation(op->var);
+    }
     doc << " = " << Print(op->value);
     return doc;
   }

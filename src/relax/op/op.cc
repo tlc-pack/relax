@@ -54,7 +54,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 // call_tir
 
 Optional<Expr> InferShapeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
-  Expr output_shape = call->args[0];
+  Expr output_shape = call->args[2];
   return output_shape;
 }
 
@@ -69,24 +69,24 @@ Type InferTypeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
 
 RELAY_REGISTER_OP("relax.call_tir")
     .set_num_inputs(4)
-    .add_argument("output_shape", "Expr", "The output shape.")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("output_shape", "Expr", "The output shape.")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferShape>("FInferShape", InferShapeCallTIR)
     .set_attr<FInferType>("FInferType", InferTypeCallTIR);
 
-Expr MakeCallTIR(Expr output_shape, Type output_type, Expr func, Tuple args,
+Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
                  Optional<Expr> packed_ints) {
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {output_shape, func, args}, {}, {output_type});
+    call = Call(op, {func, args, output_shape}, {}, {output_type});
   } else {
-    call = Call(op, {output_shape, func, args, packed_ints.value()}, {}, {output_type});
+    call = Call(op, {func, args, output_shape, packed_ints.value()}, {}, {output_type});
   }
   return call;
 }

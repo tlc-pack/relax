@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 """The base Relax operators."""
-from typing import Union, List
+from typing import Union, List, Optional
 
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call
@@ -23,31 +23,31 @@ from ...ir import Array
 
 
 def call_tir(
-    output_shape: Union[Tuple, ShapeExpr, List[int]],
-    output_type: Union[TupleType, DynTensorType],
     func: Expr,
     args: Union[Tuple, List[Expr]],
-    tir_vars: ShapeExpr = None,
+    output_shape: Union[Tuple, ShapeExpr, List[int]],
+    output_type: Union[TupleType, DynTensorType],
+    tir_vars: Optional[ShapeExpr] = None,
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.
 
     Parameters
     ----------
-    output_shape: Tuple[ShapeExpr] or ShapeExpr
+    func : Expr
+        The destination-passing-style function, can be ExternFunc or PrimFunc.
+
+    args : Union[Tuple, List[Expr]]
+        The input arguments.
+
+    output_shape: Union[Tuple, ShapeExpr, List[int]]
         The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr if single output.
 
-    output_type: TupleType[DynTensorType] or DynTensorType
+    output_type: Union[TupleType, DynTensorType]
         The output type. TupleType[DynTensorType] if multiple outputs, DynTensorType
         if single output.
 
-    func : ExternFunc or PrimFunc
-        The destination-passing-style function.
-
-    args : Tuple[Expr]
-        The input arguments.
-
-    tir_vars : ShapeExpr
+    tir_vars : ShapeExpr, optional
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -59,4 +59,4 @@ def call_tir(
         output_shape = ShapeExpr(output_shape)
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
-    return _ffi_api.call_tir(output_shape, output_type, func, args, tir_vars)
+    return _ffi_api.call_tir(func, args, output_shape, output_type, tir_vars)

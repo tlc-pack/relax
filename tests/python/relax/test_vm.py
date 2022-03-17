@@ -411,7 +411,7 @@ def test_vm_compile_stage3():
         @R.function
         def foo(x: Tensor[(32, 16), "float32"]) -> Tensor:
             with R.dataflow():
-                y = R.call_tir((32, 16), "test.vm.identity", (x), dtype="float32")
+                y = R.call_tir("test.vm.identity", (x), (32, 16), dtype="float32")
                 R.output(y)
             return y
 
@@ -433,7 +433,7 @@ def test_vm_compile_e2e():
         def foo(x: Tensor[_, "float32"]) -> Tensor:
             with R.dataflow():
                 R.match_shape(x, (n, m))
-                y = R.call_tir((n, m * 2), "test.vm.tile", (x), dtype="float32")
+                y = R.call_tir("test.vm.tile", (x), (n, m * 2), dtype="float32")
                 R.output(y)
             return y
 
@@ -471,7 +471,7 @@ def test_vm_compile_e2e_func_param_with_shape():
 
         @R.function
         def func(x: Tensor[(m, n), "float32"], w: Tensor[(n, k), "float32"]) -> Tensor:
-            gv0 = R.call_tir((m, k), tir_matmul, (x, w), dtype="float32")
+            gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
     mod = TestVMCompileE2E2
