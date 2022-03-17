@@ -29,7 +29,7 @@ from ..rpc.base import RPC_SESS_MASK
 class Executable(object):
     """The executable object emitted by the VM compiler or the ExecBuilder."""
 
-    def __init__(self, mod):
+    def __init__(self, mod: Module):
         self.mod = mod
         self._stats = self.mod["stats"]
         self._save_to_file = self.mod["save_to_file"]
@@ -167,7 +167,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
         mod = InputModule
         target = tvm.target.Target("llvm", host="llvm")
-        ex, lib = relax.vm.build(mod, target)
+        ex = relax.vm.build(mod, target)
     """
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
