@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name, redefined-builtin
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
+
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.runtime import Object, Device, Module, PackedFunc
+from tvm.runtime import Device, Module, PackedFunc
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
