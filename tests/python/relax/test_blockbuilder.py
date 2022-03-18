@@ -315,13 +315,15 @@ def test_emit_te():
     assert rx_func.body.body == out
     assert len(rx_func.body.blocks) == 1
     assert len(rx_func.body.blocks[0].bindings) == 1
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
-    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
-    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][2] == z
+
+    call_node = rx_func.body.blocks[0].bindings[0].value
+    assert isinstance(call_node, rx.Call)
+    assert call_node.op == relay.op.get("relax.call_tir")
+    assert len(call_node.args) == 3
+    assert call_node.args[0].name_hint == "te_func"
+    assert call_node.args[1][0] == x
+    assert call_node.args[1][1] == y
+    assert call_node.args[1][2] == z
 
 
 def test_emit_te_multiple():
@@ -352,9 +354,9 @@ def test_emit_te_multiple():
 
     # only two PrimFuncs were generated since two of them are equal so got deduped
     assert len(prim_func) == 2
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert rx_func.body.blocks[0].bindings[1].value.args[1].name_hint == "te_func"
-    assert rx_func.body.blocks[0].bindings[2].value.args[1].name_hint == "te_func1"
+    assert rx_func.body.blocks[0].bindings[0].value.args[0].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[1].value.args[0].name_hint == "te_func"
+    assert rx_func.body.blocks[0].bindings[2].value.args[0].name_hint == "te_func1"
 
 
 def test_emit_te_multiple_output():
@@ -377,12 +379,13 @@ def test_emit_te_multiple_output():
     # check call tir output shape is a Tuple of ShapeExpr
     assert rx_func.params[0] == x
     assert rx_func.name.name_hint == "rx_func"
-    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "te_func"
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0], rx.Tuple)
-    assert len(rx_func.body.blocks[0].bindings[0].value.args[0]) == 2
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][0], rx.ShapeExpr)
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value.args[0][1], rx.ShapeExpr)
+    call_node = rx_func.body.blocks[0].bindings[0].value
+    assert call_node.op == relay.op.get("relax.call_tir")
+    assert call_node.args[0].name_hint == "te_func"
+    assert isinstance(call_node.args[2], rx.Tuple)
+    assert len(call_node.args[2]) == 2
+    assert isinstance(call_node.args[2][0], rx.ShapeExpr)
+    assert isinstance(call_node.args[2][1], rx.ShapeExpr)
 
 
 def test_emit_te_extern():
@@ -403,12 +406,15 @@ def test_emit_te_extern():
     assert rx_func.params[0] == x
     assert rx_func.params[1] == y
     assert len(rx_func.body.blocks) == 1
-    assert isinstance(rx_func.body.blocks[0].bindings[0].value, rx.Call)
-    assert rx_func.body.blocks[0].bindings[0].value.op == relay.op.get("relax.call_tir")
-    assert len(rx_func.body.blocks[0].bindings[0].value.args) == 3
-    assert rx_func.body.blocks[0].bindings[0].value.args[1].name_hint == "matmul"
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][0] == x
-    assert rx_func.body.blocks[0].bindings[0].value.args[2][1] == y
+    call_node = rx_func.body.blocks[0].bindings[0].value
+    assert isinstance(call_node, rx.Call)
+    assert call_node.op == relay.op.get("relax.call_tir")
+    assert len(call_node.args) == 3
+    assert call_node.args[0].name_hint == "matmul"
+    assert call_node.args[1][0] == x
+    assert call_node.args[1][1] == y
+    assert call_node.args[2][0] == n
+    assert call_node.args[2][1] == n
 
 
 def test_emit_tuple_get_item():

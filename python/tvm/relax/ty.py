@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-import
 """The type nodes of the Relax language."""
 import tvm._ffi
-from tvm.ir import Type, TensorType, Span
+from tvm.ir import Type, TensorType, TupleType, Span
 
 from . import _ffi_api
 
