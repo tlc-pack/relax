@@ -102,8 +102,8 @@ def test_to_non_dataflow():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                lv0 = relax.call_tir((m, n), "test.op.identity", (x,))
-                gv0 = relax.call_tir((m, n), "test.op.identity", (lv0,))
+                lv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+                gv0 = relax.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
                 relax.output(gv0)
             return gv0
 
@@ -145,7 +145,7 @@ def test_call_tir_rewrite():
     class TestCallTIRRewrite:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
-            gv0 = relax.call_tir((m, n), "test.op.identity", (x,))
+            gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
             return gv0
 
     mod = TestCallTIRRewrite
@@ -167,7 +167,7 @@ def test_call_tir_rewrite():
     assert isinstance(s1, tvm.relay.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.args[0])
+    assert structural_equal(s1.args[0], s0.args[2])
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
@@ -177,7 +177,7 @@ def test_vm_memory_lower():
     class TestVMMemoryLower:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
-            alloc = relax.builtin.alloc_tensor((m, n))
+            alloc = relax.builtin.alloc_tensor((m, n), dtype="float32")
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
             return gv0
@@ -245,7 +245,7 @@ def test_vm_static_shape_lowering():
         @R.function
         def foo(x: Tensor[(2, 3), "float32"]) -> Tensor:
             with relax.dataflow():
-                y = R.call_tir((2, 6), "test.vm.tile", (x))
+                y = R.call_tir("test.vm.tile", (x), (2, 6), dtype="float32")
                 relax.output(y)
             return y
 
@@ -281,7 +281,7 @@ def test_vm_shape_lowering_func_param_with_shape():
 
         @R.function
         def foo(x: Tensor[(m, n), "float32"], w: Tensor[(n, k), "float32"]) -> Tensor:
-            gv0 = R.call_tir((m, k), tir_matmul, (x, w))
+            gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
     mod = InputModule
@@ -348,8 +348,8 @@ def test_to_anf_no_op():
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
             with relax.dataflow():
-                lv0 = relax.call_tir((m, n), "test.op.identity", (x,))
-                gv0 = relax.call_tir((m, n), "test.op.identity", (lv0,))
+                lv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+                gv0 = relax.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
                 relax.output(gv0)
             return gv0
 
