@@ -221,24 +221,7 @@ TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr ex
 // ==================
 // ExprMutator
 
-Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
-  Expr new_shape;
-  bool unchanged = true;
-  if (op->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-    if (!new_shape.same_as(op->shape_)) {
-      unchanged = false;
-    }
-  }
-
-  if (unchanged) {
-    return GetRef<Expr>(op);
-  } else {
-    Expr new_constant = Constant(op->data, op->span);
-    new_constant->shape_ = new_shape;
-    return new_constant;
-  }
-}
+Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
 
@@ -251,17 +234,10 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
     unchanged &= new_field.same_as(field);
   }
 
-  Expr new_shape;
-  if (op->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-    unchanged &= new_shape.same_as(op->shape_);
-  }
-
   if (unchanged) {
     return GetRef<Expr>(op);
   } else {
     Expr new_tuple = Tuple(fields, op->span);
-    new_tuple->shape_ = new_shape;
     return new_tuple;
   }
 }
@@ -325,17 +301,10 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
     unchanged &= new_arg.same_as(arg);
   }
 
-  Expr new_shape;
-  if (call_node->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(call_node->shape_.value()));
-    unchanged &= new_shape.same_as(call_node->shape_);
-  }
-
   if (unchanged) {
     return GetRef<Expr>(call_node);
   } else {
     Expr new_call = Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
-    new_call->shape_ = new_shape;
     return new_call;
   }
 }
