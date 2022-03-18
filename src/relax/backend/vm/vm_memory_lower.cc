@@ -37,14 +37,13 @@ namespace relax {
 // Example:
 // x = relax.builtin.alloc_tensor((m, n))
 // -->
-// gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n), relax.attrs.AllocStorageAttrs)
+// gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n),
+// relax.attrs.VMAllocStorageAttrs)
 // gv1 = relax.call_packed("relax.vm.builtin.alloc_tensor", gv0, (m, n),
-// relax.attrs.AllocTensorAttrs)
+// relax.attrs.VMAllocTensorAttrs)
 
 class VMMemLowerMutator : public ExprMutator {
-  Expr ComputeStorageSize(const Expr& shape, const Type& type) const {
-    DynTensorType tensor_type = Downcast<DynTensorType>(type);
-    DataType dtype = DataType(tensor_type->dtype);
+  Expr ComputeStorageSize(const Expr& shape, const DataType& dtype) const {
     // Question: what if the dtype of tensor_type is unknown?
     // Symbolic/static shape case
     if (auto* shape_expr = shape.as<ShapeExprNode>()) {
@@ -79,19 +78,19 @@ class VMMemLowerMutator : public ExprMutator {
     // TODO(@yuchen): memory planning
     if (call->op == alloc_tensor_op) {
       ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-
-      // TODO(@yuchen): Get the type of input x, options: add an attr to relax.builtin.alloc_tensor
-      Type tensor_type = DynTensorType(output_shape->values.size(), DataType::Float(32));
-      Expr storage_size = ComputeStorageSize(output_shape, tensor_type);
-      auto storage_attr = make_object<AllocStorageAttrs>();
-      storage_attr->dtype = DataType::Float(32);
+      auto alloc_attrs = call->attrs.as<AllocTensorAttrs>();
+      ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
+      DataType dtype = alloc_attrs->dtype;
+      Expr storage_size = ComputeStorageSize(output_shape, dtype);
+      auto storage_attr = make_object<VMAllocStorageAttrs>();
+      storage_attr->dtype = dtype;
       storage_attr->device_type = 1;
 
       Var storage =
           builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
-      auto tensor_attr = make_object<AllocTensorAttrs>();
+      auto tensor_attr = make_object<VMAllocTensorAttrs>();
       tensor_attr->offset = 0;
-      tensor_attr->dtype = DataType::Float(32);
+      tensor_attr->dtype = dtype;
       Expr shape = call->args[0];
       Var tensor =
           builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
