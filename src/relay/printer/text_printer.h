@@ -291,6 +291,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
 
   Doc PrintVarAnnotation(const relax::Var& var);
   Doc PrintTensorAnnotation(const relax::DynTensorType& ty, const Optional<ObjectRef>& shape);
+  Doc PrintTupleAnnotation(const TupleType& ty, const Optional<ObjectRef>& shape);
 
   Doc VisitType_(const relax::ShapeTypeNode* node) override;
   Doc VisitType_(const relax::DynTensorTypeNode* node) override;

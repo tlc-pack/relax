@@ -232,8 +232,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
 
     // Handle attrs of the call
-    auto alloc_attrs = call_node->attrs.as<AllocStorageAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be AllocStorageAttrs";
+    auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
+    ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
     int device_type = alloc_attrs->device_type;
     args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
     DataType dtype = alloc_attrs->dtype;
@@ -254,8 +254,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Handle `self`
     args.push_back(ConvertArg(call_node->args[0]));
     // Handle `offset`
-    auto alloc_attrs = call_node->attrs.as<AllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
+    auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
+    ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
     int offset = alloc_attrs->offset;
     args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
     // Handle `shape`
