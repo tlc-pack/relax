@@ -299,10 +299,6 @@ BindingBlock BlockBuilderNode::EndBlock() {
 }
 
 Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
-  // if the call node's shape_ is filled, return the shape directly.
-  if (call->shape_) {
-    return Downcast<Expr>(call->shape_.value());
-  }
   auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
   if (call->op.as<OpNode>()) {
     Op op = Downcast<Op>(call->op);
@@ -314,10 +310,6 @@ Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
 }
 
 Type InferType(const Call& call, DiagnosticContext diag_ctx) {
-  // if the call node's checked_type_ is filled, return the type directly.
-  if (call->checked_type_.defined()) {
-    return call->checked_type_;
-  }
   auto op_map = Op::GetAttrMap<FInferType>("FInferType");
   if (call->op.as<OpNode>()) {
     Op op = Downcast<Op>(call->op);
