@@ -19,11 +19,16 @@ from tvm.ir import Attrs
 import tvm._ffi
 
 
-@tvm._ffi.register_object("relax.attrs.AllocStorageAttrs")
-class AllocStorageAttrs(Attrs):
-    """Attributes used in alloc_storage operators"""
-
-
 @tvm._ffi.register_object("relax.attrs.AllocTensorAttrs")
 class AllocTensorAttrs(Attrs):
     """Attributes used in alloc_tensor operators"""
+
+
+@tvm._ffi.register_object("relax.attrs.VMAllocStorageAttrs")
+class VMAllocStorageAttrs(Attrs):
+    """Attributes used in VM alloc_storage operators"""
+
+
+@tvm._ffi.register_object("relax.attrs.VMAllocTensorAttrs")
+class VMAllocTensorAttrs(Attrs):
+    """Attributes used in VM alloc_tensor operators"""
