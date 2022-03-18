@@ -411,7 +411,7 @@ def test_vm_compile_stage3():
         @R.function
         def foo(x: Tensor[(32, 16), "float32"]) -> Tensor:
             with R.dataflow():
-                y = R.call_tir((32, 16), "test.vm.identity", (x))
+                y = R.call_tir("test.vm.identity", (x), (32, 16), dtype="float32")
                 R.output(y)
             return y
 
@@ -433,7 +433,7 @@ def test_vm_compile_e2e():
         def foo(x: Tensor[_, "float32"]) -> Tensor:
             with R.dataflow():
                 R.match_shape(x, (n, m))
-                y = R.call_tir((n, m * 2), "test.vm.tile", (x))
+                y = R.call_tir("test.vm.tile", (x), (n, m * 2), dtype="float32")
                 R.output(y)
             return y
 
@@ -471,7 +471,7 @@ def test_vm_compile_e2e_func_param_with_shape():
 
         @R.function
         def func(x: Tensor[(m, n), "float32"], w: Tensor[(n, k), "float32"]) -> Tensor:
-            gv0 = R.call_tir((m, k), tir_matmul, (x, w))
+            gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
     mod = TestVMCompileE2E2
@@ -549,6 +549,39 @@ def test_vm_emit_te_concat():
     res = vm["rx_func"](inp, inp2)
 
     np.testing.assert_allclose(res.numpy(), np.append(inp.numpy(), inp2.numpy()))
+
+
+def test_vm_emit_te_dtype_change():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    type_anno = relax.DynTensorType(1, "float32")
+    x = relax.Var("x", [n], type_anno)
+
+    # convert a tensor with dtype of float32 to int16
+    def te_func(A):
+        B = te.compute((n,), lambda i: A[i].astype("int16"))
+        return B
+
+    with bb.function("rx_func", [x]):
+        y = bb.emit_te(te_func, x)
+        bb.emit_func_output(y)
+
+    mod = bb.get()
+
+    new_mod = relax.transform.CallTIRRewrite()(mod)
+    assert new_mod["rx_func"].body.blocks[0].bindings[0].value.attrs.dtype == "int16"
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex, lib = relax.vm.build(mod, target)
+
+    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    inp = tvm.nd.array(
+        np.random.rand(
+            1,
+        ).astype(np.float32)
+    )
+    res = vm["rx_func"](inp)
+    np.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
 
 
 def test_vm_emit_te_floor_symbolic_shape():
