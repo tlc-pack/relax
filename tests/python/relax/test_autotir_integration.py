@@ -71,8 +71,8 @@ class InputModule:
             x0 = relax.match_shape(sh, (m, n))
             sh1 = relax.call_packed("vm.builtin.shape_of", w)
             x1 = relax.match_shape(sh1, (n, k))
-            lv0 = R.call_tir((m,k), tir_matmul, (x,w))
-            lv1 = R.call_tir((m,k), tir_relu, (lv0))
+            lv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
+            lv1 = R.call_tir(tir_relu, (lv0), (m, k), dtype="float32)
             relax.output(lv1)
         return lv1
 """
@@ -152,8 +152,8 @@ def test_class_irmodule(dev: str):
         @R.function
         def main(x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]) -> Tensor:
             with R.dataflow():
-                lv0 = R.call_tir((32, 32), tir_matmul, (x, w))
-                lv1 = R.call_tir((32, 32), tir_relu, (lv0))
+                lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+                lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
                 relax.output(lv1)
             return lv1
 
@@ -212,4 +212,4 @@ def test_class_irmodule(dev: str):
 
 
 if __name__ == "__main__":
-    test_class_irmodule(dev="cpu")
+    pytest.main([__file__])

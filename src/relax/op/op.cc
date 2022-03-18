@@ -26,8 +26,9 @@
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
+TVM_REGISTER_NODE_TYPE(VMAllocStorageAttrs);
+TVM_REGISTER_NODE_TYPE(VMAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeHeapAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
@@ -52,36 +53,40 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 
 // call_tir
 
+Optional<Expr> InferShapeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
+  Expr output_shape = call->args[2];
+  return output_shape;
+}
+
+Type InferTypeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->type_args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "type_args of call_tir should have exact 1 output type.");
+  }
+  Type output_type = call->type_args[0];
+  return output_type;
+}
+
 RELAY_REGISTER_OP("relax.call_tir")
     .set_num_inputs(4)
-    .add_argument("shape", "Expr", "The output shape.")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("output_shape", "Expr", "The output shape.")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused");
+                  "args if unused")
+    .set_attr<FInferShape>("FInferShape", InferShapeCallTIR)
+    .set_attr<FInferType>("FInferType", InferTypeCallTIR);
 
-Expr MakeCallTIR(Expr shape, Expr func, Tuple args, Optional<Expr> packed_ints) {
+Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
+                 Optional<Expr> packed_ints) {
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {shape, func, args}, {}, {});
+    call = Call(op, {func, args, output_shape}, {}, {output_type});
   } else {
-    call = Call(op, {shape, func, args, packed_ints.value()}, {}, {});
-  }
-  call->shape_ = shape;
-  if (shape->IsInstance<TupleNode>()) {
-    // multiple output tensors
-    Array<Type> types;
-    for (size_t i = 0; i < Downcast<Tuple>(shape)->fields.size(); i++) {
-      // TODO(@yuchen): fix checked_type_ inference
-      types.push_back(args->fields[0]->checked_type_);
-    }
-    call->checked_type_ = TupleType(types);
-  } else {
-    // TODO(@yuchen): fix checked_type_ inference
-    call->checked_type_ = args->fields[0]->checked_type_;
+    call = Call(op, {func, args, output_shape, packed_ints.value()}, {}, {output_type});
   }
   return call;
 }
@@ -104,6 +109,7 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 // alloc_tensor
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+    .set_attrs_type<AllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
@@ -117,7 +123,7 @@ TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTen
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
-    .set_attrs_type<AllocStorageAttrs>()
+    .set_attrs_type<VMAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("size", "Expr", "The size of the storage to allocate.");
 
@@ -131,7 +137,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAl
 // vm alloc_tensor
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
-    .set_attrs_type<AllocTensorAttrs>()
+    .set_attrs_type<VMAllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.");
 
