@@ -1018,7 +1018,8 @@ class RelaxTransformer(Transformer):
                 # call_tir is special case because last argument is optional
                 if len(args) != op.num_inputs and len(args) != op.num_inputs - 1:
                     self.report_error(
-                        f"{op.name} expects {op.num_inputs} or {op.num_inputs - 1} arguments but got {len(args)}",
+                        f"""{op.name} expects {op.num_inputs} or {op.num_inputs - 1}
+                        arguments but got {len(args)}""",
                         expr.span,
                     )
 

@@ -33,7 +33,6 @@ from .expr import (
     Tuple,
     BaseFunc,
 )
-from .ty import TupleType
 from .op.base import call_tir
 from . import _ffi_api
 
@@ -442,19 +441,17 @@ class BlockBuilder(Object):
             gvar = self.add_func(tir_func, func.__name__)
 
         call_args = [x.op.value for x in te_args]
+
         output_shape = (
             outs[0].shape
             if isinstance(te_out, tvm.te.tensor.Tensor)
             else Tuple([ShapeExpr(x.shape) for x in outs])
         )
-        # output_type = (
-        #     rx.DynTensorType(len(output_shape), te_out.dtype)
-        #     if isinstance(te_out, tvm.te.tensor.Tensor)
-        #     else TupleType([rx.DynTensorType(len(x.shape), x.dtype) for x in outs])
-        # )
+
         output_dtype = (
             te_out.dtype if isinstance(te_out, tvm.te.tensor.Tensor) else [x.dtype for x in outs]
         )
+
         # add arguments for extra parameters from unbound var
         if len(unbound_tir_vars) > 0:
             call = call_tir(
