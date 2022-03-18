@@ -29,7 +29,10 @@ from tvm.script import tir as T, relax as R
 
 
 def check_shape(e, s):
-    if isinstance(e, relax.Expr):
+
+    if isinstance(e, relax.Call):
+        e = e.shape
+    elif isinstance(e, relax.Expr):
         e = e.shape_
 
     if s is None:
@@ -465,7 +468,7 @@ def test_inline_tir():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        z = relax.call_tir((B, 128), my_matmul, (x, y))
+        z = relax.call_tir(my_matmul, (x, y), (B, 128), dtype="float32")
         return z
 
     x, y = f.params
@@ -478,7 +481,7 @@ def test_inline_tir():
     check_call(
         z_bind.value,
         "relax.call_tir",
-        [relax.ShapeExpr([B, tir.IntImm("int64", 128)]), mm_bind.var, relax.Tuple([x, y])],
+        [mm_bind.var, relax.Tuple([x, y]), relax.ShapeExpr([B, tir.IntImm("int64", 128)])],
     )
 
 
@@ -544,7 +547,7 @@ def test_primexpr_arithmetic():
 def test_call_tir_extern():
     @R.function
     def f(x: Tensor):
-        z = relax.call_tir((10,), "my_extern", (x,))
+        z = relax.call_tir("my_extern", (x,), (10,), dtype="float32")
         return z
 
     x = f.params[0]
@@ -554,9 +557,9 @@ def test_call_tir_extern():
         z_bind.value,
         "relax.call_tir",
         [
-            relax.ShapeExpr([tir.IntImm("int64", 10)]),
             relax.ExternFunc("my_extern"),
             relax.Tuple([x]),
+            relax.ShapeExpr([tir.IntImm("int64", 10)]),
         ],
     )
 
@@ -583,7 +586,14 @@ def test_class_irmodule():
 
         @R.function
         def g(y: Tensor[(n, n), _]) -> Tensor:
-            return relax.call_tir((n, n), my_matmul, (y, y))
+            return relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+
+        @R.function
+        def j(y: Tensor[(n, n), _]) -> Tensor:
+            with relax.dataflow():
+                gv = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+                relax.output(gv)
+            return gv
 
         @R.function
         def h(x, y, z):
@@ -595,12 +605,22 @@ def test_class_irmodule():
 
     var_f = my_module.get_global_var("f")
     var_g = my_module.get_global_var("g")
+    var_j = my_module.get_global_var("j")
     var_my_matmul = my_module.get_global_var("my_matmul")
     f = my_module[var_f]
     g = my_module[var_g]
+    j = my_module[var_j]
 
     assert f.body.body.op == var_g
-    assert g.body.body.args[1] == var_my_matmul
+    assert g.body.body.args[0] == var_my_matmul
+
+    gv_bind = j.body.blocks[0].bindings[0]
+    assert gv_bind.value.checked_type.rank == 2
+    assert gv_bind.value.checked_type.dtype == "float32"
+    assert gv_bind.var.checked_type.rank == 2
+    assert gv_bind.var.checked_type.dtype == "float32"
+    check_shape(gv_bind.value, ("n", "n"))
+    check_shape(gv_bind.var, ("n", "n"))
 
 
 if __name__ == "__main__":
