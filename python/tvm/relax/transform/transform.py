@@ -78,6 +78,14 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.CallTIRRewrite()
 
+def EmitTERewrite() -> tvm.ir.transform.Pass:
+    """Rewrite Relay Op to TIR call.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.EmitTERewrite()
 
 def VMMemoryLower() -> tvm.ir.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.

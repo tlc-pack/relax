@@ -35,5 +35,7 @@ RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
     .describe("Elementwise multiply with broadcasting")
     .set_support_level(1);
 
+RELAY_TO_RELAX_BINARY_ATTRS("multiply");
+
 }  // namespace relax
 }  // namespace tvm

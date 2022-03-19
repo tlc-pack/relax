@@ -96,6 +96,13 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
+ * \brief Rewrite Relay Op to TIR call.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass EmitTERewrite();
+
+/*!
  * \brief Transform Relax IR to A-normal form.
  *
  * \return The Pass.

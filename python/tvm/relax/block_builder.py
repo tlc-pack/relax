@@ -89,10 +89,10 @@ class BlockBuilder(Object):
         x = rx.Var("x", [m, n], type_anno0)
         y = rx.Var("y", [n], type_anno1)
         bb = rx.BlockBuilder()
-        with bb.function([x, y], "func"):
+        with bb.function("func", [x, y]):
             with bb.dataflow() as df:
-                lv0 = bb.emit(rx.add(x, y))
-                lv1 = bb.emit(rx.multiply(lv0, y))
+                lv0 = bb.emit(rx.op.add(x, y))
+                lv1 = bb.emit(rx.op.multiply(lv0, y))
                 gv0 = bb.emit_output(lv1)
             bb.emit_func_output(gv0)
         mod = bb.get()
