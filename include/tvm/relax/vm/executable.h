@@ -112,15 +112,15 @@ class Executable : public runtime::ModuleNode {
   static Module LoadFromBinary(void* stream);
   /*!
    * \brief Write the Executable to the provided path as a file containing its serialized content.
-   * \param path The path to write the serialized data to.
+   * \param file_name The name of the file to write the serialized data to.
    */
-  void SaveToFile(const std::string& path);
+  void SaveToFile(const std::string& file_name, const std::string& format);
   /*!
    * \brief Load Executable from the file.
-   * \param path The file that load the executable from.
+   * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Module LoadFromFile(const std::string& path);
+  static Module LoadFromFile(const std::string& file_name, const std::string& format = "");
 
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> global_funcs;

@@ -132,7 +132,7 @@ class VirtualMachine(object):
         return self.module[key]
 
 
-def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Module]:
+def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
     """
     Build an IRModule to VM executable.
 
@@ -179,7 +179,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
-    lib = tvm.build(tir_mod, target=target) if len(tir_mod.functions) > 0 else None
+    lib = tvm.build(tir_mod, target=target)
     return Executable(_ffi_api.VMCodeGen(rx_mod, lib))
 
 

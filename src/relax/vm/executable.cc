@@ -58,7 +58,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
       std::string path = args[0];
-      this->SaveToFile(path);
+      this->SaveToFile(path, /*format=*/"");
     });
   } else if (name == "as_text") {
     return PackedFunc(
@@ -226,12 +226,12 @@ void Executable::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(code);
 }
 
-void Executable::SaveToFile(const std::string& path) {
+void Executable::SaveToFile(const std::string& file_name, const std::string& format) {
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::SeekStream* strm = &writer;
   Executable::SaveToBinary(strm);
-  runtime::SaveBinaryToFile(path, data);
+  runtime::SaveBinaryToFile(file_name, data);
 }
 
 Module Executable::LoadFromBinary(void* stream) {
@@ -259,13 +259,19 @@ Module Executable::LoadFromBinary(void* stream) {
   return Module(exec);
 }
 
-Module Executable::LoadFromFile(const std::string& path) {
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_relax.Executable")
+    .set_body_typed(Executable::LoadFromBinary);
+
+Module Executable::LoadFromFile(const std::string& file_name, const std::string& format) {
   std::string data;
-  runtime::LoadBinaryFromFile(path, &data);
+  runtime::LoadBinaryFromFile(file_name, &data);
   dmlc::MemoryStringStream reader(&data);
   dmlc::Stream* strm = &reader;
   return Executable::LoadFromBinary(reinterpret_cast<void*>(strm));
 }
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_relax.Executable")
+    .set_body_typed(Executable::LoadFromFile);
 
 void SerializeVMFunc(const VMFunction& func, dmlc::Stream* strm) {
   strm->Write(func.name);

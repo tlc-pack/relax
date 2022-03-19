@@ -121,6 +121,28 @@ def test_vm_serialize():
     os.remove("exec.tmp")
 
 
+def test_vm_exec_serialize_export_library():
+    @tvm.script.ir_module
+    class TestVMMove:
+        @R.function
+        def foo(x: Tensor[(3, 4), "float32"]):
+            z = R.call_packed("vm.builtin.copy", x)
+            return z
+
+    mod = TestVMMove
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+
+    from tvm.contrib import utils
+
+    temp_dir = utils.tempdir()
+    path_exec = temp_dir.relpath("exec.so")
+    ex.mod.export_library(path_exec)
+
+    loaded_exec = relax.vm.Executable(tvm.runtime.load_module(path_exec))
+    assert ex.as_text() == loaded_exec.as_text()
+
+
 def test_vm_constant_serialize():
     dtype = tvm.DataType("float32")
     shape = (4, 6)
