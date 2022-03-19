@@ -93,7 +93,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \brief Load the executable for the virtual machine.
    * \param exec The executable.
    */
-  void Load(const Executable* exec);
+  void LoadExecutable(ObjectPtr<Executable> exec);
   /*!
    * \brief Get a PackedFunc from module.
    *
@@ -155,7 +155,7 @@ class VirtualMachine : public runtime::ModuleNode {
 
  private:
   /*! \brief The loaded executable. */
-  const Executable* exec_;
+  ObjectPtr<Executable> exec_;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The virtual machine PC. */

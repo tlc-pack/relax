@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/relax/vm/executable.h>
+#include <tvm/relax/vm/vm.h>
 #include <tvm/runtime/logging.h>
 
 #include <functional>
@@ -65,6 +66,13 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   } else if (name == "as_python") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsPython(); });
+  } else if (name == "vm_load_executable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ObjectPtr<VirtualMachine> vm = make_object<VirtualMachine>();
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
+      *rv = Module(vm);
+    });
   }
   return nullptr;
 }

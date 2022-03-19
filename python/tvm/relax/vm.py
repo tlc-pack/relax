@@ -89,7 +89,7 @@ class VirtualMachine(object):
             type specified in the dict, or pooled allocator if not specified in the
             dict.
         """
-        self.module = _ffi_api.VirtualMachine(exec.mod)
+        self.module = exec.mod["vm_load_executable"]()
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:

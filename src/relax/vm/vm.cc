@@ -46,7 +46,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachine::Load(const Executable* exec) {
+void VirtualMachine::LoadExecutable(ObjectPtr<Executable> exec) {
   this->exec_ = exec;
   CHECK_LE(exec_->imports().size(), 1);
   this->state.lib = exec_->imports().empty() ? Optional<Module>(NullOpt) : exec_->imports()[0];
@@ -191,16 +191,6 @@ inline void VirtualMachine::WriteRegister(Index r, const RegType& val) {
 inline RegType VirtualMachine::ReadRegister(Index r) const {
   return frames_.back().register_file[r];
 }
-
-runtime::Module CreateVirtualMachine(Module exec) {
-  ObjectPtr<VirtualMachine> vm = make_object<VirtualMachine>();
-  vm->Load(exec.as<Executable>());
-  return runtime::Module(vm);
-}
-
-TVM_REGISTER_GLOBAL("relax.VirtualMachine").set_body_typed([](Module exec) {
-  return CreateVirtualMachine(exec);
-});
 
 // initialize the VirtualMachine, takes variable-length arguments
 // first argument is a runtime::Module, followed by one or more device_type, device_id,
