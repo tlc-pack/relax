@@ -569,9 +569,9 @@ def test_vm_emit_te_dtype_change():
     assert new_mod["rx_func"].body.blocks[0].bindings[0].value.attrs.dtype == "int16"
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
         np.random.rand(
             1,
