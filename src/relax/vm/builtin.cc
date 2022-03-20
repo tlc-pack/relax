@@ -18,7 +18,6 @@
  */
 /*!
  * \file src/relax/vm/builtin.cc
- * \brief
  */
 #include <tvm/relax/vm/bytecode.h>
 #include <tvm/relax/vm/memory_manager.h>
@@ -117,13 +116,16 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
 TVM_REGISTER_GLOBAL("vm.call_tir_dyn").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* vm_state_ptr = args[0];
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
-  runtime::Module mod_ = vm_state->mod_;
-
   runtime::String func_name = args[1];
 
-  PackedFunc func = mod_->GetFunction(func_name, true);
-  if (func == nullptr) {
-    func = *(mod_->GetFuncFromEnv(func_name));
+  PackedFunc func{nullptr};
+  if (vm_state->lib.defined()) {
+    func = vm_state->lib.value()->GetFunction(func_name, true);
+  }
+  if (!func.defined()) {
+    const PackedFunc* p_func = Registry::Get(func_name);
+    CHECK(p_func != nullptr);
+    func = *(p_func);
   }
 
   ShapeTuple to_unpack = args[args.size() - 1];
@@ -144,12 +146,12 @@ TVM_REGISTER_GLOBAL("vm.call_tir_dyn").set_body([](TVMArgs args, TVMRetValue* rv
 });
 
 TVM_REGISTER_GLOBAL("vm.runtime.TupleGetItem")
-.set_body_typed([](runtime::ADT adt, ShapeTuple index) {
-  ICHECK_EQ(index.size(), 1);
-  int idx = index[0];
-  ICHECK_LT(idx, adt.size());
-  return adt[idx];
-});
+    .set_body_typed([](runtime::ADT adt, ShapeTuple index) {
+      ICHECK_EQ(index.size(), 1);
+      int idx = index[0];
+      ICHECK_LT(idx, adt.size());
+      return adt[idx];
+    });
 
 }  // namespace relax_vm
 }  // namespace runtime
