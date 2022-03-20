@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
-import pytest
 import os
-import numpy as np
-import tvm
-from tvm import relax, tir, te
-from tvm.runtime import container
-import numpy as np
 
-from tvm.ir.base import assert_structural_equal
+import numpy as np
+import pytest
+import tvm
 import tvm.script
-from tvm.script import tir as T, relax as R
+import tvm.testing
+from tvm import relax, te, tir, TVMError
 from tvm.relax.testing import nn
+from tvm.script import relax as R, tir as T
 
 
 @tvm.register_func("test.vm.move")
@@ -74,7 +72,7 @@ def test_vm_execute():
         )
     )
     add_res = vm["func0"](a, b)
-    np.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy())
+    tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_multiple_func():
@@ -99,8 +97,8 @@ def test_vm_multiple_func():
     )
     mul_res = vm["func1"](a, b)
     add_res = vm["func0"](a, b)
-    np.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy())
-    np.testing.assert_allclose(mul_res.numpy(), a.numpy() * b.numpy())
+    tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(mul_res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_serialize():
@@ -119,8 +117,30 @@ def test_vm_serialize():
     exec0 = ib.get()
     exec0.save_to_file("exec.tmp")
     exec1 = relax.load_exec_from_file("exec.tmp")
-    assert exec0.astext() == exec1.astext()
+    assert exec0.as_text() == exec1.as_text()
     os.remove("exec.tmp")
+
+
+def test_vm_exec_serialize_export_library():
+    @tvm.script.ir_module
+    class TestVMMove:
+        @R.function
+        def foo(x: Tensor[(3, 4), "float32"]):
+            z = R.call_packed("vm.builtin.copy", x)
+            return z
+
+    mod = TestVMMove
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+
+    from tvm.contrib import utils
+
+    temp_dir = utils.tempdir()
+    path_exec = temp_dir.relpath("exec.so")
+    ex.mod.export_library(path_exec)
+
+    loaded_exec = relax.vm.Executable(tvm.runtime.load_module(path_exec))
+    assert ex.as_text() == loaded_exec.as_text()
 
 
 def test_vm_constant_serialize():
@@ -140,22 +160,20 @@ def test_vm_constant_serialize():
     exec0 = ib.get()
     exec0.save_to_file("exec.tmp")
     exec1 = relax.load_exec_from_file("exec.tmp")
-    assert exec0.astext() == exec1.astext()
+    assert exec0.as_text() == exec1.as_text()
     vm = relax.VirtualMachine(exec0, tvm.cpu())
     res = vm["main"](inp)
-    np.testing.assert_allclose(inp.numpy(), res.numpy())
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
     os.remove("exec.tmp")
 
 
 def test_vm_checker():
     ib = relax.ExecBuilder()
-    try:
+    with pytest.raises(TVMError):
         with ib.function("func0", num_inputs=2):
             ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(2)], dst=ib.r(2))
             ib.emit_ret(ib.r(2))
         ib.get()
-    except ValueError as ex:
-        assert True
 
 
 def test_vm_formalize():
@@ -171,7 +189,7 @@ def test_vm_formalize():
         ib1.emit_ret(ib1.r(3))
     exec0 = ib0.get()
     exec1 = ib1.get()
-    assert exec0.astext() == exec1.astext()
+    assert exec0.as_text() == exec1.as_text()
 
 
 @tvm.register_func("test.vm.add_scalar")
@@ -247,11 +265,11 @@ def test_vm_copy():
 
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
     inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["foo"](inp)
-    np.testing.assert_allclose(res.numpy(), inp.numpy())
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_goto():
@@ -274,7 +292,7 @@ def test_vm_goto():
         )
     )
     res = vm["main"](a, b)
-    np.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy())
+    tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_if():
@@ -298,9 +316,9 @@ def test_vm_if():
         )
     )
     res = vm["main"](False, a, b)
-    np.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy())
+    tvm.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
     res = vm["main"](1, a, b)
-    np.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy())
+    tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_compile_if():
@@ -316,13 +334,13 @@ def test_vm_compile_if():
 
     mod = TestVMCompileIf
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(3, 4))
     res = vm["ife"](True, inp)
-    np.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy())
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
     res = vm["ife"](0, inp)
-    np.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy())
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_compile_stage0():
@@ -335,12 +353,12 @@ def test_vm_compile_stage0():
 
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
     inp1 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     vm["foo"](inp1, inp2)
-    np.testing.assert_allclose(inp2.numpy(), inp1.numpy())
+    tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_compile_stage1():
@@ -375,8 +393,8 @@ def test_vm_compile_stage1():
 
     mod = TestVMCompileStage1
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
     arr = tvm.nd.array(np.random.rand(*shape))
@@ -395,8 +413,8 @@ def test_vm_compile_stage2():
 
     mod = TestVMCompileStage2
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
     arr = tvm.nd.array(np.random.rand(*shape))
@@ -417,13 +435,13 @@ def test_vm_compile_stage3():
 
     mod = TestVMCompileStage3
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     res = vm["foo"](inp)
-    np.testing.assert_allclose(inp.numpy(), res.numpy())
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_compile_e2e():
@@ -440,13 +458,13 @@ def test_vm_compile_e2e():
     mod = TestVMCompileE2E
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     res = vm["foo"](inp)
-    np.testing.assert_allclose(np.tile(inp.numpy(), (1, 2)), res.numpy())
+    tvm.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_compile_e2e_func_param_with_shape():
@@ -477,14 +495,14 @@ def test_vm_compile_e2e_func_param_with_shape():
     mod = TestVMCompileE2E2
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
     res = vm["func"](data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
-    np.testing.assert_allclose(expected, res.numpy(), rtol=1e-4, atol=1e-4)
+    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
 def test_vm_emit_te_extern():
@@ -504,14 +522,14 @@ def test_vm_emit_te_extern():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     res = vm["rx_cblas_matmul"](data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
-    np.testing.assert_allclose(expected, res.numpy(), rtol=1e-4, atol=1e-4)
+    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
 
 
 def test_vm_emit_te_concat():
@@ -533,9 +551,9 @@ def test_vm_emit_te_concat():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
         np.random.rand(
             1,
@@ -547,8 +565,9 @@ def test_vm_emit_te_concat():
         ).astype(np.float32)
     )
     res = vm["rx_func"](inp, inp2)
-
-    np.testing.assert_allclose(res.numpy(), np.append(inp.numpy(), inp2.numpy()))
+    tvm.testing.assert_allclose(
+        res.numpy(), np.append(inp.numpy(), inp2.numpy()), rtol=1e-7, atol=1e-7
+    )
 
 
 def test_vm_emit_te_dtype_change():
@@ -572,9 +591,9 @@ def test_vm_emit_te_dtype_change():
     assert new_mod["rx_func"].body.blocks[0].bindings[0].value.attrs.dtype == "int16"
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
         np.random.rand(
             1,
@@ -601,9 +620,9 @@ def test_vm_emit_te_floor_symbolic_shape():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (9,)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     res = vm["rx_func"](inp)
@@ -612,7 +631,7 @@ def test_vm_emit_te_floor_symbolic_shape():
         output_shape = (shape[0] // 2,)
         return inp.numpy()[: output_shape[0]] + 1
 
-    np.testing.assert_allclose(res.numpy(), expected_output())
+    tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_relax_symbolic_shape():
@@ -633,9 +652,9 @@ def test_vm_relax_symbolic_shape():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     shape1 = (5,)
     shape2 = (3,)
     inp = tvm.nd.array(np.random.rand(*shape1).astype(np.float32))
@@ -645,7 +664,7 @@ def test_vm_relax_symbolic_shape():
     def expected_output():
         return inp.numpy() + np.repeat(inp2.numpy(), 2)[:5]
 
-    np.testing.assert_allclose(res.numpy(), expected_output())
+    tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_relax_dyn_tir_shape():
@@ -667,19 +686,19 @@ def test_vm_relax_dyn_tir_shape():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
     ex.save_to_file("exec.tmp")
     exec1 = relax.load_exec_from_file("exec.tmp")
-    assert ex.astext() == exec1.astext()
+    assert ex.as_text() == exec1.as_text()
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
 
     res = vm["rx_func"](inp, inp2)
 
-    np.testing.assert_allclose(res.numpy(), inp2.numpy())
+    tvm.testing.assert_allclose(res.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
     os.remove("exec.tmp")
 
 
@@ -697,17 +716,17 @@ def test_vm_tuple():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target)
 
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (5, 5)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     (res1, res2), res3 = vm["rx_func"](inp, inp2)
 
-    np.testing.assert_allclose(res1.numpy(), inp.numpy())
-    np.testing.assert_allclose(res2.numpy(), inp2.numpy())
-    np.testing.assert_allclose(res3.numpy(), inp.numpy())
+    tvm.testing.assert_allclose(res1.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(res2.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(res3.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_tuplegetitem():
@@ -723,12 +742,12 @@ def test_vm_tuplegetitem():
 
     mod = TestVMTupleGetItem
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3))
     y_inp = tvm.nd.array(np.random.rand(2, 3))
     res = vm["tuple_get_item"](x_inp, y_inp)
-    np.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
+    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
 if __name__ == "__main__":

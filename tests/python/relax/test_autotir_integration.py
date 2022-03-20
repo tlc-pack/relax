@@ -184,14 +184,14 @@ def test_class_irmodule(dev: str):
             )
 
     with transform.PassContext(opt_level=3):
-        ex0, lib0 = relax.vm.build(mod, target)
+        ex0 = relax.vm.build(mod, target)
 
     with transform.PassContext(opt_level=3):
         mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-        ex1, lib1 = relax.vm.build(mod, target)
+        ex1 = relax.vm.build(mod, target)
 
-    vm0 = relax.VirtualMachine(ex0, dev, mod=lib0)
-    vm1 = relax.VirtualMachine(ex1, dev, mod=lib1)
+    vm0 = relax.VirtualMachine(ex0, dev)
+    vm1 = relax.VirtualMachine(ex1, dev)
     data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
 

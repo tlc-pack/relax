@@ -66,8 +66,8 @@ struct VMFrame {
 struct VMState {
   /*! \brief The memory allocators. */
   std::vector<Allocator*> allocators;
-  /*! \brief The loaded module. */
-  runtime::Module mod_;
+  /*! \brief The kernel library. */
+  Optional<runtime::Module> lib;
 };
 
 /*!
@@ -90,11 +90,10 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
   /*!
-   * \brief load the executable and module for the virtual machine.
+   * \brief Load the executable for the virtual machine.
    * \param exec The executable.
-   * \param mod The library module.
    */
-  void Load(Executable exec, runtime::Module mod);
+  void LoadExecutable(ObjectPtr<Executable> exec);
   /*!
    * \brief Get a PackedFunc from module.
    *
@@ -117,17 +116,19 @@ class VirtualMachine : public runtime::ModuleNode {
   ~VirtualMachine() final {}
 
   const char* type_key() const final { return "relax.VirtualMachine"; }
-  /*! \brief The state of the virtual machine, which can be referred by
-   *  instructions.
-   */
+
+  /*! \brief The state of the virtual machine, which can be referred by instructions. */
   VMState state;
 
  protected:
-  /*! \brief Push a call frame on to the call stack. */
+  /*!
+   * \brief Push a call frame on to the call stack.
+   * \param ret_pc The program counter to return to.
+   * \param vm_func The function to be pushed to the call stack.
+   */
   void PushFrame(Index ret_pc, const VMFunction& vm_func);
   /*!
    * \brief Pop a frame off the call stack.
-   * \return The number of frames left.
    */
   void PopFrame();
   /*!
@@ -139,7 +140,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*!
    * \brief Read a VM register.
    * \param reg The register to read from.
-   * \return The read object.
+   * \return The value of the register.
    */
   inline RegType ReadRegister(RegName reg) const;
   /*!
@@ -154,7 +155,7 @@ class VirtualMachine : public runtime::ModuleNode {
 
  private:
   /*! \brief The loaded executable. */
-  Executable exec_;
+  ObjectPtr<Executable> exec_;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The virtual machine PC. */
