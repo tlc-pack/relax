@@ -28,15 +28,6 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-class DummyModule : public runtime::ModuleNode {
- public:
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    return nullptr;
-  }
-
-  const char* type_key() const final { return "relax.DummyModule"; }
-};
-
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   const auto& m = exec_->global_map;
@@ -55,9 +46,10 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachine::Load(Executable exec, runtime::Module mod) {
+void VirtualMachine::LoadExecutable(ObjectPtr<Executable> exec) {
   this->exec_ = exec;
-  this->state.mod_ = mod;
+  CHECK_LE(exec_->imports().size(), 1);
+  this->state.lib = exec_->imports().empty() ? Optional<Module>(NullOpt) : exec_->imports()[0];
 }
 
 RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
@@ -100,9 +92,15 @@ void VirtualMachine::RunLoop() {
       case Opcode::Call: {
         std::string func_name = exec_->func_names[instr.func_idx];
         DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << func_name;
-        PackedFunc func = state.mod_->GetFunction(func_name, true);
-        if (func == nullptr) {
-          func = *(state.mod_->GetFuncFromEnv(func_name));
+
+        PackedFunc func{nullptr};
+        if (state.lib.defined()) {
+          func = state.lib.value()->GetFunction(func_name, true);
+        }
+        if (!func.defined()) {
+          const PackedFunc* p_func = Registry::Get(func_name);
+          CHECK(p_func != nullptr);
+          func = *(p_func);
         }
 
         std::vector<TVMValue> values(instr.num_args);
@@ -193,23 +191,6 @@ inline void VirtualMachine::WriteRegister(Index r, const RegType& val) {
 inline RegType VirtualMachine::ReadRegister(Index r) const {
   return frames_.back().register_file[r];
 }
-
-runtime::Module CreateVirtualMachine(Executable exec, Optional<runtime::Module> mod) {
-  runtime::Module mod_;
-  if (!mod) {
-    mod_ = runtime::Module(make_object<DummyModule>());
-  } else {
-    mod_ = mod.value();
-  }
-  auto vm = make_object<VirtualMachine>();
-  vm->Load(exec, mod_);
-  return runtime::Module(vm);
-}
-
-TVM_REGISTER_GLOBAL("relax.VirtualMachine")
-    .set_body_typed([](Executable exec, Optional<runtime::Module> mod) {
-      return CreateVirtualMachine(exec, mod);
-    });
 
 // initialize the VirtualMachine, takes variable-length arguments
 // first argument is a runtime::Module, followed by one or more device_type, device_id,
