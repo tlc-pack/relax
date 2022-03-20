@@ -33,7 +33,7 @@ TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
 
 ExecBuilder ExecBuilderNode::Create() {
   ExecBuilder ret(make_object<ExecBuilderNode>());
-  ret->exec = make_object<ExecutableNode>();
+  ret->exec = make_object<Executable>();
   return ret;
 }
 
@@ -91,8 +91,7 @@ void ExecBuilderNode::EmitIf(vm::RegName cond, vm::Index false_offset) {
   exec->instr_data.push_back(false_offset);
 }
 
-// helper function to check if an executable is legal by checking if registers are used properly
-bool CheckExecutable(Executable exec) {
+void ExecBuilderNode::CheckExecutable() {
   for (auto it = exec->global_funcs.cbegin(); it != exec->global_funcs.cend(); ++it) {
     Index num_inputs = it->num_args;
     std::unordered_set<RegName> dst_registers;
@@ -111,10 +110,9 @@ bool CheckExecutable(Executable exec) {
             if (instr.args[i].kind() == Instruction::kRegister &&
                 instr.args[i].value() >= num_inputs &&
                 dst_registers.find(instr.args[i].value()) == dst_registers.end()) {
-              LOG(ERROR) << "register r(" << instr.args[i].value() << ") in VM function \""
+              LOG(FATAL) << "register r(" << instr.args[i].value() << ") in VM function \""
                          << it->name << "\" is used as input while the number of inputs is only "
                          << num_inputs << ".\n";
-              return false;
             }
             arg_registers.emplace(instr.args[i].value());
           }
@@ -148,13 +146,12 @@ bool CheckExecutable(Executable exec) {
       }
     }
   }
-  return true;
 }
 
-Executable ExecBuilderNode::Get() {
-  CheckExecutable(Executable(this->exec));
+ObjectPtr<Executable> ExecBuilderNode::Get() {
+  this->CheckExecutable();
   this->Formalize();
-  return Executable(this->exec);
+  return this->exec;
 }
 
 void ExecBuilderNode::Formalize() {
@@ -249,7 +246,10 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderC").set_body_typed([](ExecBuilder builder,
   return Instruction::Arg(Instruction::kConstIdx, value).data;
 });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_method<ExecBuilder>(&ExecBuilderNode::Get);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
+  ObjectPtr<Executable> p_exec = builder->Get();
+  return runtime::Module(p_exec);
+});
 
 }  // namespace relax
 }  // namespace tvm
