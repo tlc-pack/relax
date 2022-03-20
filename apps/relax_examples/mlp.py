@@ -48,8 +48,8 @@ if __name__ == "__main__":
 
     # build and create vm executor
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     # run the mlp model on relax vm
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))

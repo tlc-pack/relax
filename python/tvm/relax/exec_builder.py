@@ -124,4 +124,4 @@ class ExecBuilder(Object):
 
     def get(self) -> Executable:
         """return the executable"""
-        return _ffi_api.ExecBuilderGet(self)
+        return Executable(_ffi_api.ExecBuilderGet(self))
