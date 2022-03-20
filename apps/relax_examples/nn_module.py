@@ -48,7 +48,7 @@ if __name__ == "__main__":
         data = nn.Placeholder((n, input_size), name="data")
         output = model(data)
         params = [data] + model.parameters()
-        builder.emit_func_output(output, params=params) 
+        builder.emit_func_output(output, params=params)
 
     # get and print the IRmodule being built
     mod = builder.get()
@@ -56,8 +56,8 @@ if __name__ == "__main__":
 
     # build the IRModule and create relax vm
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     # init parameters
     params = nn.init_params(mod)
