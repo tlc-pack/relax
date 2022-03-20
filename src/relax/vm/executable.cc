@@ -58,7 +58,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
       std::string path = args[0];
-      this->SaveToFile(path);
+      this->SaveToFile(path, "");
     });
   } else if (name == "as_text") {
     return PackedFunc(
@@ -226,7 +226,7 @@ void Executable::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(code);
 }
 
-void Executable::SaveToFile(const std::string& file_name) {
+void Executable::SaveToFile(const std::string& file_name, const std::string& format) {
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::SeekStream* strm = &writer;

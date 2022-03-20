@@ -103,7 +103,7 @@ class Executable : public runtime::ModuleNode {
    * \brief Write the Executable to the binary stream in serialized form.
    * \param stream The binary stream to save the executable to.
    */
-  void SaveToBinary(dmlc::Stream* stream);
+  void SaveToBinary(dmlc::Stream* stream) final;
   /*!
    * \brief Load Executable from the binary stream in serialized form.
    * \param stream The binary stream that load the executable from.
@@ -113,8 +113,9 @@ class Executable : public runtime::ModuleNode {
   /*!
    * \brief Write the Executable to the provided path as a file containing its serialized content.
    * \param file_name The name of the file to write the serialized data to.
+   * \param format The target format of the saved file.
    */
-  void SaveToFile(const std::string& file_name);
+  void SaveToFile(const std::string& file_name, const std::string& format) final;
   /*!
    * \brief Load Executable from the file.
    * \param file_name The path of the file that load the executable from.
