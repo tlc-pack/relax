@@ -38,8 +38,6 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-class Executable;
-
 /*!
  * \brief A representation of a Relax function in the VM.
  *
@@ -63,50 +61,68 @@ struct VMFunction {
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
  */
-class ExecutableNode : public Object {
+class Executable : public runtime::ModuleNode {
  public:
   /*!
+   * \brief Get a PackedFunc from the executable module.
+   * \param name the name of the function.
+   * \param sptr_to_self The shared_ptr that points to this module node.
+   * \return PackedFunc or nullptr when it is not available.
+   */
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
-   * globls and constants, etc.
+   * globals and constants, etc.
+   * \return The statistics represented by a string.
    */
   std::string Stats() const;
   /*!
    * \brief Get the i-th instruction from the executable.
+   * \param i The index of the instruction to be fetched.
    * \return The instruction.
    */
   Instruction GetInstruction(Index i) const;
   /*!
    * \brief Set j-th byte data of i-th instruction to val.
+   * \param i The index of the instruction to be updated.
+   * \param j The index of the byte data of the instruction to be updated.
+   * \param val The value to be set
    */
   void SetInstructionData(Index i, Index j, ExecWord val);
   /*!
    * \brief Print the instructions as text format.
+   * \return The text format of the instructions.
    */
   String AsText() const;
   /*!
    * \brief Print the instructions as python program.
+   * \return The python program of the instructions, represented by a string.
    */
   String AsPython() const;
   /*!
    * \brief Write the Executable to the binary stream in serialized form.
    * \param stream The binary stream to save the executable to.
    */
-  void SaveToBinary(dmlc::Stream* stream);
+  void SaveToBinary(dmlc::Stream* stream) final;
   /*!
    * \brief Load Executable from the binary stream in serialized form.
    * \param stream The binary stream that load the executable from.
+   * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Executable LoadFromBinary(void* stream);
+  static Module LoadFromBinary(void* stream);
   /*!
-   * \brief Write the Executable to the provided path as a file contianing its serialized content.
-   * \param path The path to write the serialized data to.
+   * \brief Write the Executable to the provided path as a file containing its serialized content.
+   * \param file_name The name of the file to write the serialized data to.
+   * \param format The target format of the saved file.
    */
-  void SaveToFile(const std::string& path);
+  void SaveToFile(const std::string& file_name, const std::string& format) final;
   /*!
    * \brief Load Executable from the file.
-   * \param file_name The file that load the executable from.
+   * \param file_name The path of the file that load the executable from.
+   * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Executable LoadFromFile(const std::string& file_name);
+  static Module LoadFromFile(const std::string& file_name);
+
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> global_funcs;
   /*! \brief A map from globals (as strings) to their index in the function map. */
@@ -115,7 +131,8 @@ class ExecutableNode : public Object {
   std::vector<TVMRetValue> constants;
   /*! \brief The name of packed functions. */
   std::vector<std::string> func_names;
-  /*! \brief A mapping from the packed function (as string) to the index that
+  /*!
+   * \brief A mapping from the packed function (as string) to the index that
    * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
    */
   std::unordered_map<std::string, Index> func2idx;
@@ -124,9 +141,9 @@ class ExecutableNode : public Object {
   /*! \brief The byte data of instruction. */
   std::vector<ExecWord> instr_data;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.Executable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ExecutableNode, Object);
+  virtual ~Executable() {}
+
+  const char* type_key() const final { return "relax.Executable"; }
 
  private:
   /*!
@@ -169,12 +186,6 @@ class ExecutableNode : public Object {
    * \param strm The input stream.
    */
   void LoadPackedFuncNames(dmlc::Stream* strm);
-};
-
-/*! \brief Reference to Executable. */
-class Executable : public ObjectRef {
- public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Executable, ObjectRef, ExecutableNode);
 };
 
 }  // namespace relax_vm

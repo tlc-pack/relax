@@ -51,7 +51,7 @@ class VMCodeGen : public Object {
    * \brief Get the compiled executable.
    * \return The compiled executable.
    */
-  Executable GetExec();
+  ObjectPtr<Executable> GetExec();
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.VMCodeGen";

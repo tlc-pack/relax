@@ -36,8 +36,8 @@ if __name__ == "__main__":
 
     # build the IRModule and create relax vm
     target = tvm.target.Target("llvm", host="llvm")
-    ex, lib = relax.vm.build(relax_mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu(), mod=lib)
+    ex = relax.vm.build(relax_mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
 
     # init weights and run the model on relax vm
     shape = (1, 3, 224, 224)
