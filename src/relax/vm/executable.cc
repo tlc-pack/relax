@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/relax/vm/executable.h>
+#include <tvm/relax/vm/vm.h>
 #include <tvm/runtime/logging.h>
 
 #include <functional>
@@ -50,9 +51,33 @@ enum ConstantType : int {
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
 
-TVM_REGISTER_OBJECT_TYPE(ExecutableNode);
+PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  if (name == "stats") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
+  } else if (name == "save_to_file") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      std::string path = args[0];
+      this->SaveToFile(path, "");
+    });
+  } else if (name == "as_text") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsText(); });
+  } else if (name == "as_python") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsPython(); });
+  } else if (name == "vm_load_executable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ObjectPtr<VirtualMachine> vm = make_object<VirtualMachine>();
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
+      *rv = Module(vm);
+    });
+  }
+  return nullptr;
+}
 
-std::string ExecutableNode::Stats() const {
+std::string Executable::Stats() const {
   std::ostringstream oss;
   oss << "Relax VM executable statistics:" << std::endl;
 
@@ -123,12 +148,12 @@ std::string ExecutableNode::Stats() const {
   return oss.str();
 }
 
-void ExecutableNode::SetInstructionData(Index i, Index j, ExecWord val) {
+void Executable::SetInstructionData(Index i, Index j, ExecWord val) {
   Index instr_idx = instr_offset[i];
   instr_data[instr_idx + j] = val;
 }
 
-Instruction ExecutableNode::GetInstruction(Index i) const {
+Instruction Executable::GetInstruction(Index i) const {
   size_t offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
   switch (op) {
@@ -178,7 +203,7 @@ void LoadHeader(dmlc::Stream* strm) {
   STREAM_CHECK(version == TVM_VERSION, "version");
 }
 
-void ExecutableNode::SaveToBinary(dmlc::Stream* stream) {
+void Executable::SaveToBinary(dmlc::Stream* stream) {
   std::string code;
   // Initialize the stream object.
   dmlc::MemoryStringStream strm(&code);
@@ -201,20 +226,20 @@ void ExecutableNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(code);
 }
 
-void ExecutableNode::SaveToFile(const std::string& path) {
+void Executable::SaveToFile(const std::string& file_name, const std::string& format) {
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::SeekStream* strm = &writer;
-  ExecutableNode::SaveToBinary(strm);
-  runtime::SaveBinaryToFile(path, data);
+  Executable::SaveToBinary(strm);
+  runtime::SaveBinaryToFile(file_name, data);
 }
 
-Executable ExecutableNode::LoadFromBinary(void* stream) {
+Module Executable::LoadFromBinary(void* stream) {
   std::string code;
   static_cast<dmlc::Stream*>(stream)->Read(&code);
   dmlc::MemoryStringStream strm(&code);
 
-  auto exec = make_object<ExecutableNode>();
+  ObjectPtr<Executable> exec = make_object<Executable>();
 
   // Load header.
   LoadHeader(&strm);
@@ -231,17 +256,22 @@ Executable ExecutableNode::LoadFromBinary(void* stream) {
   // Code section.
   exec->LoadCodeSection(&strm);
 
-  return Executable(exec);
+  return Module(exec);
 }
 
-Executable ExecutableNode::LoadFromFile(const std::string& file_name) {
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_relax.Executable")
+    .set_body_typed(Executable::LoadFromBinary);
+
+Module Executable::LoadFromFile(const std::string& file_name) {
   std::string data;
   runtime::LoadBinaryFromFile(file_name, &data);
   dmlc::MemoryStringStream reader(&data);
   dmlc::Stream* strm = &reader;
-  auto exec = ExecutableNode::LoadFromBinary(reinterpret_cast<void*>(strm));
-  return exec;
+  return Executable::LoadFromBinary(reinterpret_cast<void*>(strm));
 }
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_relax.Executable")
+    .set_body_typed(Executable::LoadFromFile);
 
 void SerializeVMFunc(const VMFunction& func, dmlc::Stream* strm) {
   strm->Write(func.name);
@@ -259,14 +289,14 @@ VMFunction DeserializeVMFunc(dmlc::Stream* strm) {
   return func;
 }
 
-void ExecutableNode::SaveGlobalSection(dmlc::Stream* strm) {
+void Executable::SaveGlobalSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->global_funcs.size()));
   for (const auto& func : this->global_funcs) {
     SerializeVMFunc(func, strm);
   }
 }
 
-void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
+void Executable::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
     if (it.IsObjectRef<runtime::NDArray>()) {
@@ -298,14 +328,14 @@ void ExecutableNode::SaveConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
+void Executable::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
 
-void ExecutableNode::SaveCodeSection(dmlc::Stream* strm) {
+void Executable::SaveCodeSection(dmlc::Stream* strm) {
   strm->Write(instr_offset);
   strm->Write(instr_data);
 }
 
-void ExecutableNode::LoadGlobalSection(dmlc::Stream* strm) {
+void Executable::LoadGlobalSection(dmlc::Stream* strm) {
   uint64_t sz;
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
   size_t size = static_cast<size_t>(sz);
@@ -318,7 +348,7 @@ void ExecutableNode::LoadGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
+void Executable::LoadConstantSection(dmlc::Stream* strm) {
   uint64_t sz;
   // Load the number of constants.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
@@ -367,14 +397,14 @@ void ExecutableNode::LoadConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void ExecutableNode::LoadPackedFuncNames(dmlc::Stream* strm) {
+void Executable::LoadPackedFuncNames(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->func_names)), "packed func names");
   for (size_t i = 0; i < func_names.size(); ++i) {
     this->func2idx[func_names[i]] = i;
   }
 }
 
-void ExecutableNode::LoadCodeSection(dmlc::Stream* strm) {
+void Executable::LoadCodeSection(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->instr_offset)), "instr offset");
   STREAM_CHECK(strm->Read(&(this->instr_data)), "instr data");
 }
@@ -435,7 +465,7 @@ std::string InstrArgToPyStr(Instruction::Arg arg) {
   }
 }
 
-String ExecutableNode::AsText() const {
+String Executable::AsText() const {
   // print the text format
   std::ostringstream os;
   for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
@@ -482,7 +512,7 @@ String ExecutableNode::AsText() const {
   return String(os.str());
 }
 
-String ExecutableNode::AsPython() const {
+String Executable::AsPython() const {
   // print the python format
   std::ostringstream os;
   os << "ib = rx.Builder()\n";
@@ -526,19 +556,7 @@ String ExecutableNode::AsPython() const {
   return String(os.str());
 }
 
-TVM_REGISTER_GLOBAL("relax.Executable").set_body_typed([]() { return Executable(); });
-
-TVM_REGISTER_GLOBAL("relax.ExecutableStats").set_body_method<Executable>(&ExecutableNode::Stats);
-
-TVM_REGISTER_GLOBAL("relax.ExecutableAsText").set_body_method<Executable>(&ExecutableNode::AsText);
-
-TVM_REGISTER_GLOBAL("relax.ExecutableAsPython")
-    .set_body_method<Executable>(&ExecutableNode::AsPython);
-
-TVM_REGISTER_GLOBAL("relax.ExecutableSaveToFile")
-    .set_body_method<Executable>(&ExecutableNode::SaveToFile);
-
-TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(ExecutableNode::LoadFromFile);
+TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(Executable::LoadFromFile);
 
 }  // namespace relax_vm
 }  // namespace runtime
