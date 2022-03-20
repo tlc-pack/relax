@@ -17,41 +17,45 @@
 # pylint: disable=invalid-name, redefined-builtin
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
+
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.runtime import Object, Device, Module, PackedFunc
+from tvm.runtime import Device, Module, PackedFunc
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
 
 
-@tvm._ffi.register_object("relax.Executable")
-class Executable(Object):
+class Executable(object):
     """The executable object emitted by the VM compiler or the ExecBuilder."""
 
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.Executable)
+    def __init__(self, mod: Module):
+        self.mod = mod
+        self._stats = self.mod["stats"]
+        self._save_to_file = self.mod["save_to_file"]
+        self._as_text = self.mod["as_text"]
+        self._as_python = self.mod["as_python"]
 
     def stats(self) -> str:
         """print the detailed statistics of the executable."""
-        return _ffi_api.ExecutableStats(self)
+        return self._stats()
 
-    def save_to_file(self, file_name: str) -> None:
+    def save_to_file(self, path: str) -> None:
         """serialize and write the executable to a file."""
-        _ffi_api.ExecutableSaveToFile(self, file_name)
+        self._save_to_file(path)
 
-    def astext(self) -> str:
+    def as_text(self) -> str:
         """print the instructions as text format."""
-        return _ffi_api.ExecutableAsText(self)
+        return self._as_text()
 
-    def aspython(self) -> str:
+    def as_python(self) -> str:
         """print the instructions as python program."""
-        return _ffi_api.ExecutableAsPython(self)
+        return self._as_python()
 
 
-def load_exec_from_file(file_name: str) -> Executable:
-    return _ffi_api.ExecutableLoadFromFile(file_name)
+def load_exec_from_file(path: str) -> Executable:
+    return Executable(_ffi_api.ExecutableLoadFromFile(path))
 
 
 class VirtualMachine(object):
@@ -65,7 +69,6 @@ class VirtualMachine(object):
         exec: Executable,
         device: Union[Device, List[Device]],
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
-        mod: Optional[Module] = None,
     ) -> None:
         """
         Construct a VirtualMachine wrapper object.
@@ -75,26 +78,18 @@ class VirtualMachine(object):
         exec: Executable
             The VM executable.
 
-        device : tvm.runtime.Device or List[tvm.runtime.Device]
+        device : Union[Device, List[Device]]
             The device to deploy the module.
 
-        memory_cfg : str or Dict[tvm.runtime.Device, str], optional
+        memory_cfg : Optional[Union[str, Dict[Device, str]]]
             Config the type of memory allocator. The allocator type can be ["naive",
             "pooled"]. If memory_cfg is None, all devices will use pooled allocator
             by default. If memory_cfg is string, all devices will use the specified
             allocator type. If memory_cfg is a dict, each device uses the allocator
             type specified in the dict, or pooled allocator if not specified in the
             dict.
-
-        mod : tvm.runtime.Module, optional
-            Optional runtime module to load to the VM.
-
-        Returns
-        -------
-        vm: VirtualMachine
-            A VM wrapper object.
         """
-        self.module = _ffi_api.VirtualMachine(exec, mod)
+        self.module = exec.mod["vm_load_executable"]()
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
@@ -137,7 +132,7 @@ class VirtualMachine(object):
         return self.module[key]
 
 
-def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Module]:
+def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
     """
     Build an IRModule to VM executable.
 
@@ -154,14 +149,12 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
         to setup the dimensions and parameters correctly.
         host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
+        otherwise a stackvm interpreter is used.
 
     Returns
     -------
-    ex: tvm.relax.vm.Exectuable
+    ex: tvm.relax.vm.Executable
         An executable that can be loaded by virtual machine.
-    lib: tvm.runtime.Module
-        A runtime module that contains generated code.
 
     Example
     -------
@@ -175,7 +168,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
 
         mod = InputModule
         target = tvm.target.Target("llvm", host="llvm")
-        ex, lib = relax.vm.build(mod, target)
+        ex = relax.vm.build(mod, target)
     """
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
@@ -187,8 +180,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Tuple[Executable, Mod
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
     lib = tvm.build(tir_mod, target=target)
-    ex = _ffi_api.VMCodeGen(rx_mod)
-    return ex, lib
+    return Executable(_ffi_api.VMCodeGen(rx_mod, lib))
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:

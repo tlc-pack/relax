@@ -19,7 +19,6 @@
 
 /*!
  * \file tvm/relax/vm/exec_builder.h
- * \brief
  */
 #ifndef TVM_RELAX_VM_EXEC_BUILDER_H_
 #define TVM_RELAX_VM_EXEC_BUILDER_H_
@@ -48,8 +47,8 @@ class ExecBuilder;
  */
 class ExecBuilderNode : public Object {
  public:
-  /*! \brief The mutable internal executable node. */
-  ObjectPtr<vm::ExecutableNode> exec;  // mutable
+  /*! \brief The mutable internal executable. */
+  ObjectPtr<vm::Executable> exec;  // mutable
   /*!
    * \brief To annotate the start of a vm function.
    * \param func The function name.
@@ -81,6 +80,7 @@ class ExecBuilderNode : public Object {
   void EmitIf(vm::RegName cond, vm::Index false_offset);
   /*!
    * \brief Emit a constant value to the constant pool.
+   * \param obj The constant value to be emitted
    * \return The index that represents the constant.
    */
   vm::Index EmitConstant(TVMRetValue obj);
@@ -88,9 +88,9 @@ class ExecBuilderNode : public Object {
    * \brief Get the built executable.
    * \return The built executable.
    */
-  vm::Executable Get();
+  ObjectPtr<vm::Executable> Get();
   /*!
-   * \brief Create a ExecBuilder.
+   * \brief Create an ExecBuilder.
    * \return The ExecBuilder.
    */
   TVM_DLL static ExecBuilder Create();
@@ -102,6 +102,11 @@ class ExecBuilderNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
 
  private:
+  /*!
+   * \brief A helper function to check if an executable is legal by checking if registers are used
+   * properly
+   */
+  void CheckExecutable();
   /*!
    * \brief Formalize the executable.
    */
