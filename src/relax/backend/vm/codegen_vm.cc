@@ -126,7 +126,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const IfNode* op) {
     const If& ife = GetRef<If>(op);
     // Get the executable from exec_builder
-    Executable exec_ = builder_->Get();
+    ObjectPtr<Executable> exec_ = builder_->Get();
 
     // Visit the condition expression
     Instruction::Arg cond_reg = this->VisitExpr(ife->cond);
@@ -393,13 +393,23 @@ void VMCodeGen::CodeGen(IRModule rx_mod) {
   }
 }
 
-Executable VMCodeGen::GetExec() { return builder_->Get(); }
+ObjectPtr<Executable> VMCodeGen::GetExec() { return builder_->Get(); }
 
-Executable CodeGen(IRModule mod) {
-  auto codegen = make_object<VMCodeGen>();
-  codegen->CodeGen(mod);
-  Executable exec = codegen->GetExec();
-  return exec;
+/*!
+ * \brief Create the Relax VM executable from an IRModule of Relax function(s) and, possibly, a
+ * kernel library.
+ * \param mod The IRModule containing Relax function(s).
+ * \param lib The kernel library.
+ * \return The constructed Relax VM executable.
+ */
+Module CodeGen(IRModule mod, Optional<Module> lib) {
+  VMCodeGen codegen;
+  codegen.CodeGen(mod);
+  ObjectPtr<Executable> executable = codegen.GetExec();
+  if (lib.defined()) {
+    executable->Import(lib.value());
+  }
+  return Module(executable);
 }
 
 TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(CodeGen);
