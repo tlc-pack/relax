@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_VM_VM_H_
 #define TVM_RELAX_VM_VM_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,13 @@ struct VMFrame {
   std::vector<RegType> register_file;
   /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
+  // The following fields are used for PackedFunc call within
+  // a single function scope. The space is reused across multiple
+  // packed func calls to increase cache locality and avoid re-allocation
+  /*! \brief Temporary argument value stack for packed func call. */
+  std::vector<TVMValue> call_arg_values;
+  /*! \brief Temporary argument tcode stack for packed func call. */
+  std::vector<int> call_arg_tcodes;
 
   VMFrame(Index pc, Index register_file_size)
       : return_pc(pc), register_file(register_file_size), caller_return_register(0) {}
@@ -133,16 +141,23 @@ class VirtualMachine : public runtime::ModuleNode {
   void PopFrame();
   /*!
    * \brief Write to a VM register.
+   * \param frame current vm frame.
    * \param reg The register to write to.
    * \param obj The object to write to.
    */
-  inline void WriteRegister(RegName reg, const RegType& obj);
+  inline void WriteRegister(VMFrame* frame, RegName reg, const RegType& obj);
   /*!
    * \brief Read a VM register.
+   * \param frame current vm frame.
    * \param reg The register to read from.
    * \return The value of the register.
    */
-  inline RegType ReadRegister(RegName reg) const;
+  inline RegType ReadRegister(VMFrame* frame, RegName reg) const;
+  /*!
+   * \brief Prepare function table so that func_table_[func_index] is populated.
+   * \param func_index The function index.
+   */
+  inline void PrepareFuncTable(Index func_index);
   /*!
    * \brief Invoke a VM function.
    * \param fidx The function index.
@@ -152,12 +167,29 @@ class VirtualMachine : public runtime::ModuleNode {
   RegType Invoke(Index fidx, const std::vector<RegType>& args);
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
+  /*!
+   * \brief Run call instruction.
+   * \param curr_frame The current frame.
+   * \param inst The call instruction.
+   */
+  inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
  private:
   /*! \brief The loaded executable. */
   ObjectPtr<Executable> exec_;
-  /*! \brief The current stack of call frames. */
-  std::vector<VMFrame> frames_;
+  /*!
+   * \brief Internal function table cache to speedup execution.
+   * \note This is used to cache functions so we do not need
+   *       to look up by name every time.
+   *       It does mean that the definition of the function
+   *       cannot change when the vm get loaded.
+   */
+  std::vector<PackedFunc> func_table_;
+  /*!
+   * \brief The current stack of call frames.
+   * \note: Use unique ptr to avoid re-allocation and copy when frames_ get resized.
+   */
+  std::vector<std::unique_ptr<VMFrame>> frames_;
   /*! \brief The virtual machine PC. */
   Index pc_{0};
   /*! \brief The special return register. */
