@@ -304,6 +304,7 @@ list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
+  src/runtime/relax_vm/*.cc
 )
 
 if(BUILD_FOR_HEXAGON)
