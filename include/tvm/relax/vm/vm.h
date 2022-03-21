@@ -172,7 +172,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param curr_frame The current frame.
    * \param inst The call instruction.
    */
-  inline void RunInstCall(VMFrame* curr_frame, Instruction inst);
+  inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
  private:
   /*! \brief The loaded executable. */
@@ -180,7 +180,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*!
    * \brief Internal function table cache to speedup execution.
    * \note This is used to cache functions so we do not need
-   *       to loop up by name every time.
+   *       to look up by name every time.
    *       It does mean that the definition of the function
    *       cannot change when the vm get loaded.
    */

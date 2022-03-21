@@ -105,7 +105,7 @@ void VirtualMachine::PrepareFuncTable(Index func_index) {
   func_table_[func_index] = func;
 }
 
-void VirtualMachine::RunInstCall(VMFrame* curr_frame, Instruction instr) {
+void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << exec_->func_names[instr.func_idx];
 
   // Use the call arg stack from the current frame to increase reuse
@@ -164,7 +164,7 @@ void VirtualMachine::RunLoop() {
     Instruction instr = exec_->GetInstruction(pc_);
     switch (instr.op) {
       case Opcode::Call: {
-        this->RunInstCall(curr_frame, instr);
+        this->RunInstrCall(curr_frame, instr);
         break;
       }
       case Opcode::Ret: {
