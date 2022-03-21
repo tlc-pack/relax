@@ -529,7 +529,7 @@ def test_vm_emit_te_extern():
     weight = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     res = vm["rx_cblas_matmul"](data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
-    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
 def test_vm_emit_te_concat():
