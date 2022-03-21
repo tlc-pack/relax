@@ -103,6 +103,13 @@ TVM_DLL Pass CallTIRRewrite();
 TVM_DLL Pass EmitTERewrite();
 
 /*!
+ * \brief Reverse-mode auto-differentiation.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass ReverseModeAD();
+
+/*!
  * \brief Transform Relax IR to A-normal form.
  *
  * \return The Pass.

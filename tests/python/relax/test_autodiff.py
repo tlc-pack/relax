@@ -36,14 +36,17 @@ def matmul():
 
   with bb.function("func", [x, y]):
       with bb.dataflow() as df:
-          lv1 = bb.emit(rx.Call(op, [x, y]))
-          gv0 = bb.emit_output(lv1)
+          #lv1 = bb.emit(rx.Call(op, [x, y]))
+          gv0 = bb.emit_output(rx.Call(op, [x, y]))
+          #gv0 = bb.emit_output(lv1)
       bb.emit_func_output(gv0)
   mod = bb.get()
   print(mod)
 
-  new_mod = rx.transform.EmitTERewrite()(mod)
+  new_mod = rx.transform.ReverseModeAD()(mod)
+  # new_mod = rx.transform.EmitTERewrite()(mod)
   print(new_mod)
+  exit()
 
   target = tvm.target.Target("llvm", host="llvm")
   ex, lib = rx.vm.build(new_mod, target)

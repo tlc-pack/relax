@@ -87,6 +87,15 @@ def EmitTERewrite() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.EmitTERewrite()
 
+def ReverseModeAD() -> tvm.ir.transform.Pass:
+    """Reverse-mode auto-differentiation.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.ReverseModeAD()
+    
 def VMMemoryLower() -> tvm.ir.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 

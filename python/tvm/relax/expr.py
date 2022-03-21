@@ -20,7 +20,7 @@ from typing import List, Optional
 import tvm._ffi
 from ..ir import Node, Span, SourceName, BaseFunc
 from ..runtime import String
-from ..relay import Id, Tuple, TupleGetItem
+from ..relay import Id, Tuple, TupleGetItem, ExprWithOp
 from ..tir import PrimExpr
 from . import _ffi_api
 from .. import relay
@@ -67,7 +67,7 @@ class RuntimeDepShape(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.Var")
-class Var(Expr):
+class Var(ExprWithOp):
     """The variable class for all Relax bindings."""
 
     vid: Id
