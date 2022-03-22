@@ -18,11 +18,10 @@
  */
 
 /*!
- * \file src/relax/vm/vm.cc
- * \brief
+ * \file src/runtime/relax_vm/vm.cc
  */
 
-#include <tvm/relax/vm/vm.h>
+#include <tvm/runtime/relax_vm/vm.h>
 
 namespace tvm {
 namespace runtime {

@@ -26,8 +26,8 @@
 #define TVM_RELAX_BACKEND_VM_CODEGEN_VM_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/relax/vm/exec_builder.h>
-#include <tvm/relax/vm/executable.h>
+#include <tvm/relax/exec_builder.h>
+#include <tvm/runtime/relax_vm/executable.h>
 #include <tvm/target/target.h>
 
 #include <string>
