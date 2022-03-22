@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file tvm/relax/vm/pooled_allocator.h
+ * \file tvm/runtime/relax_vm/pooled_allocator.h
  */
-#ifndef TVM_RELAX_VM_POOLED_ALLOCATOR_H_
-#define TVM_RELAX_VM_POOLED_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_RELAX_VM_POOLED_ALLOCATOR_H_
+#define TVM_RUNTIME_RELAX_VM_POOLED_ALLOCATOR_H_
 
-#include <tvm/relax/vm/memory_manager.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <atomic>
 #include <mutex>
@@ -108,4 +108,4 @@ class PooledAllocator final : public Allocator {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_POOLED_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_RELAX_VM_POOLED_ALLOCATOR_H_

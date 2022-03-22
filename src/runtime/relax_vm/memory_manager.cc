@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file tvm/relax/vm/memory_manager.cc
+ * \file tvm/runtime/relax_vm/memory_manager.cc
  * \brief Allocate and manage memory for the Relay VM.
  */
-#include <tvm/relax/vm/memory_manager.h>
+#include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <memory>
 #include <utility>

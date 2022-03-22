@@ -18,19 +18,18 @@
  */
 
 /*!
- * \file src/relax/vm/executable.cc
- * \brief
+ * \file src/runtime/relax_vm/executable.cc
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/relax/vm/executable.h>
-#include <tvm/relax/vm/vm.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/relax_vm/executable.h>
+#include <tvm/runtime/relax_vm/vm.h>
 
 #include <functional>
 #include <sstream>
 
-#include "../../runtime/file_utils.h"
+#include "../file_utils.h"
 
 namespace tvm {
 namespace runtime {
