@@ -27,7 +27,7 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/relay/analysis.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relay/pattern_functor.h>
 
 namespace tvm {
@@ -658,6 +658,80 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
 
   return var;
 }
+
+
+// Implement bind.
+class ExprBinder : public ExprMutator {
+ public:
+  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map) : args_map_(args_map) {}
+
+  Expr VisitExpr_(const FunctionNode* op) final {
+    for (Var param : op->params) {
+      ICHECK(!args_map_.count(param)) << "Cannnot bind an internal function parameter";
+    }
+    return ExprMutator::VisitExpr_(op);
+  }
+
+  Expr VisitExpr_(const VarNode* op) final {
+    auto id = GetRef<Var>(op);
+    auto it = args_map_.find(id);
+    if (it != args_map_.end()) {
+      return (*it).second;
+    } else {
+      return std::move(id);
+    }
+  }
+
+ private:
+  const tvm::Map<Var, Expr>& args_map_;
+};
+
+// This function should be called SubstAndBind, since it assumes any variables introduced
+// in the substitution right hand side should be implicitly bound in the function.
+Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
+  if (const FunctionNode* func = expr.as<FunctionNode>()) {
+    Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
+    Array<Var> new_params;
+    for (size_t i = 0; i < func->params.size(); ++i) {
+      if (!args_map.count(func->params[i])) {
+        new_params.push_back(func->params[i]);
+      }
+    }
+    if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
+      return expr;
+    }
+
+    auto ret =
+        Function(func->name, new_params, new_body, func->ret_type, func->span);
+    ret->virtual_device_ = func->virtual_device();
+
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
+    for (const auto& v : FreeVars(expr)) {
+      set.insert(v);
+    }
+    for (const auto& v : FreeVars(ret)) {
+      if (set.count(v) == 0) {
+        new_params.push_back(v);
+      }
+    }
+
+    ret =
+        Function(func->name, new_params, new_body, func->ret_type, func->span);
+    ret->virtual_device_ = func->virtual_device();
+
+    ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
+    return std::move(ret);
+  } else {
+    return ExprBinder(args_map).VisitExpr(expr);
+  }
+}
+
+TVM_REGISTER_GLOBAL("relax.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef input = args[0];
+  if (input->IsInstance<ExprNode>()) {
+    *ret = Bind(Downcast<Expr>(input), args[1]);
+  }
+});
 
 }  // namespace relax
 }  // namespace tvm

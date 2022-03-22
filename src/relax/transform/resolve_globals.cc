@@ -32,8 +32,6 @@ class GlobalVarResolver : public ExprMutator {
 
   Expr VisitExpr_(const GlobalVarNode* gvar) {
     if (!mod_->ContainGlobalVar(gvar->name_hint)) {
-      diag_ctx_.Emit(Diagnostic::Error(gvar->span)
-                     << "undefined variable/global \"" << gvar->name_hint << "\"");
       return GetRef<GlobalVar>(gvar);
     }
     return mod_->GetGlobalVar(gvar->name_hint);
