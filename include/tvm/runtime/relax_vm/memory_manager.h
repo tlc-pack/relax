@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/vm/memory_manager.h
+ * \file tvm/runtime/relax_vm/memory_manager.h
  * \brief Abstract device memory management API
  */
-#ifndef TVM_RELAX_VM_MEMORY_MANAGER_H_
-#define TVM_RELAX_VM_MEMORY_MANAGER_H_
+#ifndef TVM_RUNTIME_RELAX_VM_MEMORY_MANAGER_H_
+#define TVM_RUNTIME_RELAX_VM_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/ndarray.h>
@@ -139,4 +139,4 @@ class Storage : public ObjectRef {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_MEMORY_MANAGER_H_
+#endif  // TVM_RUNTIME_RELAX_VM_MEMORY_MANAGER_H_

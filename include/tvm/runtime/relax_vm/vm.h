@@ -18,11 +18,10 @@
  */
 
 /*!
- * \file tvm/relax/vm/vm.h
- * \brief
+ * \file tvm/runtime/relax_vm/vm.h
  */
-#ifndef TVM_RELAX_VM_VM_H_
-#define TVM_RELAX_VM_VM_H_
+#ifndef TVM_RUNTIME_RELAX_VM_VM_H_
+#define TVM_RUNTIME_RELAX_VM_VM_H_
 
 #include <memory>
 #include <string>
@@ -202,4 +201,4 @@ class VirtualMachine : public runtime::ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_VM_H_
+#endif  // TVM_RUNTIME_RELAX_VM_VM_H_
