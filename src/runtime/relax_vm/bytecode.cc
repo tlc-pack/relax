@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/relax/vm/bytecode.cc
+ * \file src/runtime/relax_vm/bytecode.cc
  * \brief The bytecode for Relax virtual machine.
  */
 
-#include <tvm/relax/vm/bytecode.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/relax_vm/bytecode.h>
 
 #include <functional>
 #include <sstream>

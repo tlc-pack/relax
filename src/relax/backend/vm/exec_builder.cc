@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file src/relax/vm/exec_builder.cc
+ * \file src/relax/backend/vm/exec_builder.cc
  */
-#include <tvm/relax/vm/exec_builder.h>
+#include <tvm/relax/exec_builder.h>
 
 #include <sstream>
 
