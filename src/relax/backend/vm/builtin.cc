@@ -17,11 +17,8 @@
  * under the License.
  */
 /*!
- * \file src/relax/vm/builtin.cc
+ * \file src/relax/backend/vm/builtin.cc
  */
-#include <tvm/relax/vm/bytecode.h>
-#include <tvm/relax/vm/memory_manager.h>
-#include <tvm/relax/vm/vm.h>
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
@@ -30,6 +27,9 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/relax_vm/bytecode.h>
+#include <tvm/runtime/relax_vm/memory_manager.h>
+#include <tvm/runtime/relax_vm/vm.h>
 
 namespace tvm {
 namespace runtime {

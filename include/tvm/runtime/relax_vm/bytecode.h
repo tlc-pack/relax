@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/vm/bytecode.h
+ * \file tvm/runtime/relax_vm/bytecode.h
  * \brief The bytecode for the virtual machine.
  */
-#ifndef TVM_RELAX_VM_BYTECODE_H_
-#define TVM_RELAX_VM_BYTECODE_H_
+#ifndef TVM_RUNTIME_RELAX_VM_BYTECODE_H_
+#define TVM_RUNTIME_RELAX_VM_BYTECODE_H_
 
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
@@ -177,4 +177,4 @@ struct Instruction {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_BYTECODE_H_
+#endif  // TVM_RUNTIME_RELAX_VM_BYTECODE_H_
