@@ -18,11 +18,10 @@
  */
 
 /*!
- * \file tvm/relax/vm/executable.h
- * \brief
+ * \file tvm/runtime/relax_vm/executable.h
  */
-#ifndef TVM_RELAX_VM_EXECUTABLE_H_
-#define TVM_RELAX_VM_EXECUTABLE_H_
+#ifndef TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
+#define TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/object.h>
@@ -192,4 +191,4 @@ class Executable : public runtime::ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAX_VM_EXECUTABLE_H_
+#endif  // TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
