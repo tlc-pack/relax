@@ -135,7 +135,7 @@ class VMShapeLowerMutator : public ExprMutator {
       Map<tir::Var, PrimExpr> var_mapping = BuildVarMapping(e, buffer);
       PrimExpr value = tir::Substitute(e, var_mapping);
       int idx = expr2slot_.at(e);
-      seq.push_back(tir::Store(buffer->data, value, idx, tir::const_true()));
+      seq.push_back(tir::BufferStore(buffer, value, {idx}));
     }
     tir::Stmt body = tir::SeqStmt(seq);
     Array<tir::Var> params{heap};
@@ -149,7 +149,7 @@ class VMShapeLowerMutator : public ExprMutator {
     auto func = [&](const ObjectRef& e) {
       if (e->IsInstance<tir::VarNode>()) {
         PrimExpr prim_e = Downcast<PrimExpr>(e);
-        tir::Load load(ShapeDType(), buffer->data, expr2slot_.at(prim_e), tir::const_true());
+        tir::BufferLoad load(buffer, {expr2slot_.at(prim_e)});
         ret.Set(Downcast<tir::Var>(e), load);
       }
     };
