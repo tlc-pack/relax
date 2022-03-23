@@ -80,11 +80,9 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
-docker_build = 'docker/build.sh'
+docker_run = 'docker/bash.sh'
 // timeout in minutes
-max_time = 180
-rebuild_docker_images = false
+max_time = 240
 
 // Filenames for stashing between build and test steps
 s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
@@ -204,18 +202,6 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
-  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
-    // never skip CI on build sourced from a branch
-    return false
-  }
-  glob_skip_ci_code = sh (
-    returnStatus: true,
-    script: "./tests/scripts/git_skip_ci_globs.py",
-    label: 'Check if CI should be skipped due to changed files',
-  )
-  if (glob_skip_ci_code == 0) {
-    return true
-  }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
     variable: 'TOKEN',
@@ -227,14 +213,38 @@ def should_skip_ci(pr_number) {
       script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
-  }
+    }
   return git_skip_ci_code == 0
 }
 
-def prepare() {
-  stage('Prepare') {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
+cancel_previous_build()
+
+def lint() {
+stage('Lint') {
+  node('CPU') {
+    timeout(time: max_time, unit: 'MINUTES') {
+      ci_lint = params.ci_lint_param ?: ci_lint
+      ci_cpu = params.ci_cpu_param ?: ci_cpu
+      ci_gpu = params.ci_gpu_param ?: ci_gpu
+      ci_wasm = params.ci_wasm_param ?: ci_wasm
+      ci_i386 = params.ci_i386_param ?: ci_i386
+      ci_qemu = params.ci_qemu_param ?: ci_qemu
+      ci_arm = params.ci_arm_param ?: ci_arm
+      ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
+
+      sh (script: """
+        echo "Docker images being used in this build:"
+        echo " ci_lint = ${ci_lint}"
+        echo " ci_cpu  = ${ci_cpu}"
+        echo " ci_gpu  = ${ci_gpu}"
+        echo " ci_wasm = ${ci_wasm}"
+        echo " ci_i386 = ${ci_i386}"
+        echo " ci_qemu = ${ci_qemu}"
+        echo " ci_arm  = ${ci_arm}"
+        echo " ci_hexagon  = ${ci_hexagon}"
+      """, label: 'Docker image names')
+
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
         init_git()
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
@@ -313,250 +323,20 @@ def prepare() {
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-        rebuild_docker_images = sh (
-          returnStatus: true,
-          script: './tests/scripts/git_change_docker.sh',
-          label: 'Check for any docker changes',
+        sh (
+          script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
+          label: 'Run lint',
         )
-        if (skip_ci) {
-          // Don't rebuild when skipping CI
-          rebuild_docker_images = false
-        }
       }
     }
   }
 }
-def ecr_push(full_name) {
-  aws_account_id = sh(
-    returnStdout: true,
-    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
-    label: 'Get AWS ID'
-  ).trim()
-
-  def ecr_name = "${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com/${full_name}"
-  try {
-    withEnv([
-      "AWS_ACCOUNT_ID=${aws_account_id}",
-      'AWS_DEFAULT_REGION=us-west-2',
-      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
-      sh(
-        script: '''
-          set -eux
-          aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REPO
-        ''',
-        label: 'Log in to ECR'
-      )
-      sh(
-        script: """
-          set -x
-          docker tag ${full_name} \$AWS_ECR_REPO/${full_name}
-          docker push \$AWS_ECR_REPO/${full_name}
-        """,
-        label: 'Upload image to ECR'
-      )
-    }
-  } finally {
-    withEnv([
-      "AWS_ACCOUNT_ID=${aws_account_id}",
-      'AWS_DEFAULT_REGION=us-west-2',
-      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
-      sh(
-        script: 'docker logout $AWS_ECR_REPO',
-        label: 'Clean up login credentials'
-      )
-    }
-  }
-  return ecr_name
 }
 
-def ecr_pull(full_name) {
-  aws_account_id = sh(
-    returnStdout: true,
-    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
-    label: 'Get AWS ID'
-  ).trim()
-
-  try {
-    withEnv([
-      "AWS_ACCOUNT_ID=${aws_account_id}",
-      'AWS_DEFAULT_REGION=us-west-2',
-      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
-      sh(
-        script: '''
-          set -eux
-          aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REPO
-        ''',
-        label: 'Log in to ECR'
-      )
-      sh(
-        script: """
-          set -eux
-          docker pull ${full_name}
-        """,
-        label: 'Pull image from ECR'
-      )
-    }
-  } finally {
-    withEnv([
-      "AWS_ACCOUNT_ID=${aws_account_id}",
-      'AWS_DEFAULT_REGION=us-west-2',
-      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
-      sh(
-        script: 'docker logout $AWS_ECR_REPO',
-        label: 'Clean up login credentials'
-      )
-    }
-  }
-}
-
-def build_image(image_name) {
-  hash = sh(
-    returnStdout: true,
-    script: 'git log -1 --format=\'%h\''
-  ).trim()
-  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}-${env.BUILD_NUMBER}"
-  sh(
-    script: "${docker_build} ${image_name} --spec ${full_name}",
-    label: 'Build docker image'
-  )
-  return ecr_push(full_name)
-}
-
-
-def build_docker_images() {
-  stage('Docker Image Build') {
-    parallel(
-      'ci_arm': {
-        node('ARM') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_arm = build_image('ci_arm')
-            build_image('ci_arm')
-          }
-        }
-      },
-      'ci_cpu': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_cpu = build_image('ci_cpu')
-            build_image('ci_cpu')
-          }
-        }
-      },
-      'ci_gpu': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_gpu = build_image('ci_gpu')
-            build_image('ci_gpu')
-          }
-        }
-      },
-      'ci_hexagon': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_hexagon = build_image('ci_hexagon')
-            build_image('ci_hexagon')
-          }
-        }
-      },
-      'ci_i386': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_i386 = build_image('ci_i386')
-            build_image('ci_i386')
-          }
-        }
-      },
-      'ci_lint': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_lint = build_image('ci_lint')
-            build_image('ci_lint')
-          }
-        }
-      },
-      'ci_qemu': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_qemu = build_image('ci_qemu')
-            build_image('ci_qemu')
-          }
-        }
-      },
-      'ci_wasm': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_wasm = build_image('ci_wasm')
-            build_image('ci_wasm')
-          }
-        }
-      },
-    )
-  }
-}
-def lint() {
-  stage('Lint') {
-    parallel(
-  'Lint 1 of 2': {
-    node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/lint") {
-        docker_init(ci_lint)
-        init_git()
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=0'], {
-            sh (
-                script: "${docker_run} ${ci_lint} ./tests/scripts/task_lint.sh",
-                label: 'Run lint',
-              )
-          })
-        }
-      }
-    }
-  }
-  // // TODO: Once we are able to use the built images, enable this step
-  // // If the docker images changed, we need to run the image build before the lint
-  // // can run since it requires a base docker image. Most of the time the images
-  // // aren't build though so it's faster to use the same node that checks for
-  // // docker changes to run the lint in the usual case.
-  // stage('Sanity Check (re-run)') {
-  //   timeout(time: max_time, unit: 'MINUTES') {
-  //     node('CPU') {
-  //       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
-  //         init_git()
-  //         sh (
-  //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-  //           label: 'Run lint',
-  //         )
-  //       }
-  //     }
-  //   }
-  // }
-}
+// [note: method size]
+// This has to be extracted into a method due to JVM limitations on the size of
+// a method (so the code can't all be inlined)
+lint()
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something is wrong, clean the workspace and then
@@ -572,6 +352,13 @@ def make(docker_type, path, make_flag) {
       if (ae.getMessage().contains('script returned exit code 143')) {
         throw ae
       }
+      echo 'Incremental compilation failed. Fall back to build from scratch'
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
+        label: 'Clear old cmake workspace',
+      )
+      cmake_build(docker_type, path, make_flag)
+      cpp_unittest(docker_type)
     }
   },
     )
@@ -607,7 +394,7 @@ def cmake_build(image, path, make_flag) {
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Build and run C++ tests',
   )
 }
@@ -617,7 +404,7 @@ stage('Build and Test') {
     node('CPU') {
       ws(per_exec_ws('tvm/build-cpu')) {
         init_git()
-        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
         make(ci_cpu, 'build', '-j2')
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
       }
@@ -632,11 +419,11 @@ stage('Build and Test') {
 //       node('GPUBUILD') {
 //         ws(per_exec_ws('tvm/build-gpu')) {
 //           init_git()
-//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
 //           make(ci_gpu, 'build', '-j2')
 //           pack_lib('gpu', tvm_multilib)
 //           // compiler test
-//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
+//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
 //           make(ci_gpu, 'build2', '-j2')
 //       }
 //     }
@@ -646,7 +433,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-cpu')) {
 //           init_git()
-//           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+//           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
 //           make(ci_cpu, 'build', '-j2')
 //           pack_lib('cpu', tvm_multilib_tsim)
 //           timeout(time: max_time, unit: 'MINUTES') {
@@ -670,7 +457,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-wasm')) {
 //           init_git()
-//           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
+//           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build"
 //           make(ci_wasm, 'build', '-j2')
 //           timeout(time: max_time, unit: 'MINUTES') {
 //             sh "${docker_run} ${ci_wasm} ./tests/scripts/task_ci_setup.sh"
@@ -687,7 +474,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-i386')) {
 //           init_git()
-//           sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
+//           sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build"
 //           make(ci_i386, 'build', '-j2')
 //           pack_lib('i386', tvm_multilib_tsim)
 //         }
@@ -701,7 +488,7 @@ stage('Build and Test') {
 //       node('ARM') {
 //         ws(per_exec_ws('tvm/build-arm')) {
 //           init_git()
-//           sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
+//           sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build"
 //           make(ci_arm, 'build', '-j4')
 //           pack_lib('arm', tvm_multilib)
 //         }
@@ -715,7 +502,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-qemu')) {
 //           init_git()
-//           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+//           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build"
 //           make(ci_qemu, 'build', '-j2')
 //           timeout(time: max_time, unit: 'MINUTES') {
 //             sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
