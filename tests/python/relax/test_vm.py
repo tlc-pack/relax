@@ -751,4 +751,5 @@ def test_vm_tuplegetitem():
 
 
 if __name__ == "__main__":
+    # pytest for all cases
     pytest.main([__file__])
