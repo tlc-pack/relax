@@ -776,6 +776,12 @@ Doc RelayTextPrinter::VisitType_(const TypeDataNode* node) {
   return doc;
 }
 
+Doc RelayTextPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
+  Doc doc;
+  doc << "Tensor[rank=" << node->rank << ", dtype=\"" << PrintDType(node->dtype) << "\"]";
+  return doc;
+}
+
 //------------------------------------
 // Overload of Attr printing functions
 //------------------------------------
