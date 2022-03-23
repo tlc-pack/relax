@@ -27,6 +27,7 @@ from typing import List
 from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
 from tvm.meta_schedule.integration import extract_task_from_relax
+from tvm.meta_schedule.utils import derived_object
 from tvm import transform
 import time
 import pytest
@@ -78,6 +79,7 @@ class InputModule:
 """
 
 
+@derived_object
 class DummyDatabase(PyDatabase):
     def __init__(self):
         super().__init__()
