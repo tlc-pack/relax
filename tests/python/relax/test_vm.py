@@ -377,8 +377,8 @@ def test_vm_compile_stage1():
                 offset_factor=1,
             )
             # body
-            T.store(H.data, T.int64(2), (T.load("int64", H.data, T.int64(0)) * T.int64(2)), True)
-            T.store(H.data, T.int64(3), (T.load("int64", H.data, T.int64(1)) * T.int64(3)), True)
+            H[2] = H[0] * T.int64(2)
+            H[3] = H[1] * T.int64(3)
 
         @R.function
         def foo(x: Tensor[_, "float32"]) -> Shape:

@@ -26,7 +26,6 @@ from tvm.relay import Any
 from tvm.relay import Function as RelayFunc
 from tvm.runtime import NDArray, Object
 from tvm.target import Target
-from tvm.tir import PrimFunc
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.utils import tir_partitioner
 
