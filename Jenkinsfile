@@ -83,10 +83,8 @@ tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
-docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 240
-rebuild_docker_images = false
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -134,18 +132,6 @@ def cancel_previous_build() {
 }
 
 def should_skip_ci(pr_number) {
-  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
-    // never skip CI on build sourced from a branch
-    return false
-  }
-  glob_skip_ci_code = sh (
-    returnStatus: true,
-    script: "./tests/scripts/git_skip_ci_globs.py",
-    label: 'Check if CI should be skipped due to changed files',
-  )
-  if (glob_skip_ci_code == 0) {
-    return true
-  }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
     variable: 'TOKEN',
@@ -157,16 +143,8 @@ def should_skip_ci(pr_number) {
       script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
       label: 'Check if CI should be skipped',
     )
-  }
+    }
   return git_skip_ci_code == 0
-}
-
-// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
-// execute this before anything else, including requesting any time on an agent
-if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
 }
 
 cancel_previous_build()
@@ -207,16 +185,6 @@ stage('Sanity Check') {
         )
         skip_ci = should_skip_ci(env.CHANGE_ID)
         skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-        rebuild_docker_images = sh (
-          returnStatus: true,
-          script: './tests/scripts/git_change_docker.sh',
-          label: 'Check for any docker changes',
-        )
-        if (rebuild_docker_images) {
-          // Exit before linting so we can use the newly created Docker images
-          // to run the lint
-          return
-        }
         sh (
           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
           label: 'Run lint',
@@ -224,105 +192,6 @@ stage('Sanity Check') {
       }
     }
   }
-}
-
-def build_image(image_name) {
-  hash = sh(
-    returnStdout: true,
-    script: 'git log -1 --format=\'%h\''
-  ).trim()
-  def full_name = "${image_name}:${env.BRANCH_NAME}-${hash}"
-  sh(
-    script: "${docker_build} ${image_name} --spec ${full_name}",
-    label: 'Building docker image'
-  )
-  sh(
-    script: "docker rmi ${full_name}",
-    label: 'Removing docker image'
-  )
-  sh "echo NYI: Uploading docker image to registry..."
-}
-
-if (rebuild_docker_images) {
-  stage('Docker Image Build') {
-    // TODO in a follow up PR: Upload to ECR, find tag and use in
-    // subsequent builds
-    parallel 'ci-lint': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_lint')
-        }
-      }
-    }, 'ci-cpu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_cpu')
-        }
-      }
-    }, 'ci-gpu': {
-      node('GPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_gpu')
-        }
-      }
-    }, 'ci-qemu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_qemu')
-        }
-      }
-    }, 'ci-i386': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_i386')
-        }
-      }
-    }, 'ci-arm': {
-      node('ARM') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_arm')
-        }
-      }
-    }, 'ci-wasm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_wasm')
-        }
-      }
-    }, 'ci-hexagon': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          init_git()
-          build_image('ci_hexagon')
-        }
-      }
-    }
-  }
-  // // TODO: Once we are able to use the built images, enable this step
-  // // If the docker images changed, we need to run the image build before the lint
-  // // can run since it requires a base docker image. Most of the time the images
-  // // aren't build though so it's faster to use the same node that checks for
-  // // docker changes to run the lint in the usual case.
-  // stage('Sanity Check (re-run)') {
-  //   timeout(time: max_time, unit: 'MINUTES') {
-  //     node('CPU') {
-  //       ws(per_exec_ws('tvm/sanity')) {
-  //         init_git()
-  //         sh (
-  //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-  //           label: 'Run lint',
-  //         )
-  //       }
-  //     }
-  //   }
-  // }
 }
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
@@ -345,6 +214,7 @@ def make(docker_type, path, make_flag) {
         label: 'Clear old cmake workspace',
       )
       cmake_build(docker_type, path, make_flag)
+      cpp_unittest(docker_type)
     }
   }
 }
@@ -397,7 +267,7 @@ def cmake_build(image, path, make_flag) {
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Build and run C++ tests',
   )
 }
@@ -407,7 +277,7 @@ stage('Build and Test') {
     node('CPU') {
       ws(per_exec_ws('tvm/build-cpu')) {
         init_git()
-        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
         make(ci_cpu, 'build', '-j2')
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
       }
@@ -422,11 +292,11 @@ stage('Build and Test') {
 //       node('GPUBUILD') {
 //         ws(per_exec_ws('tvm/build-gpu')) {
 //           init_git()
-//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
 //           make(ci_gpu, 'build', '-j2')
 //           pack_lib('gpu', tvm_multilib)
 //           // compiler test
-//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh"
+//           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
 //           make(ci_gpu, 'build2', '-j2')
 //       }
 //     }
@@ -436,7 +306,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-cpu')) {
 //           init_git()
-//           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+//           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
 //           make(ci_cpu, 'build', '-j2')
 //           pack_lib('cpu', tvm_multilib_tsim)
 //           timeout(time: max_time, unit: 'MINUTES') {
@@ -460,7 +330,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-wasm')) {
 //           init_git()
-//           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
+//           sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build"
 //           make(ci_wasm, 'build', '-j2')
 //           timeout(time: max_time, unit: 'MINUTES') {
 //             sh "${docker_run} ${ci_wasm} ./tests/scripts/task_ci_setup.sh"
@@ -477,7 +347,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-i386')) {
 //           init_git()
-//           sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
+//           sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build"
 //           make(ci_i386, 'build', '-j2')
 //           pack_lib('i386', tvm_multilib_tsim)
 //         }
@@ -491,7 +361,7 @@ stage('Build and Test') {
 //       node('ARM') {
 //         ws(per_exec_ws('tvm/build-arm')) {
 //           init_git()
-//           sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
+//           sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build"
 //           make(ci_arm, 'build', '-j4')
 //           pack_lib('arm', tvm_multilib)
 //         }
@@ -505,7 +375,7 @@ stage('Build and Test') {
 //       node('CPU') {
 //         ws(per_exec_ws('tvm/build-qemu')) {
 //           init_git()
-//           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+//           sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build"
 //           make(ci_qemu, 'build', '-j2')
 //           timeout(time: max_time, unit: 'MINUTES') {
 //             sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"

@@ -60,7 +60,7 @@ Array<ExtractedTask> ExtractTask(IRModule mod, Target target,
         std::string fused_name;
         std::tie(inputs_outputs, fused_name) =
             tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
-        auto prim_func = tir::CreatePrimFunc(inputs_outputs);
+        auto prim_func = tir::CreatePrimFunc(inputs_outputs, {});
         GlobalVar prim_fn_var(fused_name);
         IRModule relay_mod({{prim_fn_var, relay_func}});
         IRModule tir_mod({{prim_fn_var, prim_func}});
