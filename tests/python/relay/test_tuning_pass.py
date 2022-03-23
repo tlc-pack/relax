@@ -112,7 +112,6 @@ class TuningLayoutPass(TuningPass):
         return best_trace
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        # Candidate generation
         best_trace = self.tune(Trace(mod), ctx)
         return best_trace.out_mod
 
@@ -148,7 +147,6 @@ class TuningParallelConv2dPass(TuningPass):
         return best_trace
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        # Candidate generation
         best_trace = self.tune(Trace(mod), ctx)
         return best_trace.out_mod
 
@@ -242,9 +240,7 @@ class TuningSubgraphPass(TuningPass):
         return best_trace
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        # Candidate generation
         best_trace = self.tune(Trace(mod), ctx)
-
         return best_trace.out_mod
 
 
@@ -275,9 +271,7 @@ class MockTuningPass(TuningPass):
         return best_trace
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        # Candidate generation
         best_trace = self.tune(Trace(mod), ctx)
-
         return best_trace.out_mod
 
 
@@ -290,28 +284,28 @@ def apply_sequential(seq, mod):
     return mod, cnt
 
 
-def test_tuning_pass(f=example(), config={"target": "llvm", "target_host": "llvm", "device_id": 0}):
-    mod = tvm.IRModule.from_expr(f)
+def test_tuning_pass(
+    mod=tvm.IRModule.from_expr(example()),
+    config=CONFIG,
+):
     custom_pass = TuningParallelConv2dPass()
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     assert TuningPass.total_num_evals == 2
 
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = MockTuningPass()
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     assert TuningPass.total_num_evals == 3
 
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = TuningSubgraphPass()
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     # 4 conv * 3 choices each
     assert TuningPass.total_num_evals == 12
@@ -319,13 +313,14 @@ def test_tuning_pass(f=example(), config={"target": "llvm", "target_host": "llvm
 
 # Sequential applies each pass one-by-one
 # In this case, search space grows in additive manner
-def test_sequential(f=example(), config={"target": "llvm", "target_host": "llvm", "device_id": 0}):
-
-    mod = tvm.IRModule.from_expr(f)
+def test_sequential(
+    mod=tvm.IRModule.from_expr(example()),
+    config=CONFIG,
+):
     seq = [MockTuningPass(eval_passes=[]), TuningLayoutPass(eval_passes=[])]
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod, cnt = apply_sequential(seq, mod)
+        new_mod, cnt = apply_sequential(seq, mod)
 
     assert TuningPass.total_num_evals == 3 + 2
 
@@ -333,60 +328,69 @@ def test_sequential(f=example(), config={"target": "llvm", "target_host": "llvm"
 # Joint-optimization expands each candidate with its eval_passes
 # In this case, search space grows in combinatorial manner
 def test_joint_optimization(
-    f=example(), config={"target": "llvm", "target_host": "llvm", "device_id": 0}
+    mod=tvm.IRModule.from_expr(example()),
+    config=CONFIG,
 ):
-    mod = tvm.IRModule.from_expr(f)
+
     custom_pass = MockTuningPass(eval_passes=[TuningLayoutPass(eval_passes=[])])
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
+    assert 0
     assert TuningPass.total_num_evals == 3 * 2
 
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = TuningLayoutPass(eval_passes=[MockTuningPass(eval_passes=[])])
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     assert TuningPass.total_num_evals == 2 * 3
 
     # Heurstic pass does not affect the search space
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = TuningLayoutPass(eval_passes=[MockTuningPass(eval_passes=[HeuristicPass()])])
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     assert TuningPass.total_num_evals == 3 * 2
 
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = MockTuningPass(eval_passes=[TuningLayoutPass(eval_passes=[MockTuningPass()])])
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     assert TuningPass.total_num_evals == 3 * 2 * 3
 
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = MockTuningPass(eval_passes=[TuningLayoutPass(), MockTuningPass()])
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     assert TuningPass.total_num_evals == 3 * (2 + 3)
 
-    mod = tvm.IRModule.from_expr(f)
     custom_pass = MockTuningPass(
         eval_passes=[TuningLayoutPass(eval_passes=[MockTuningPass()]), MockTuningPass()]
     )
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
     assert TuningPass.total_num_evals == 3 * (2 * 3 + 3)
 
+    custom_pass = TuningParallelConv2dPass(
+        eval_passes=[
+            MockTuningPass(
+                eval_passes=[TuningLayoutPass(eval_passes=[MockTuningPass()]), MockTuningPass()]
+            )
+        ]
+    )
+    TuningPass.total_num_evals = 0
+    with PassContext(opt_level=4, config=config):
+        new_mod = custom_pass(mod)
+    assert TuningPass.total_num_evals == 2 * 3 * (2 * 3 + 3)
 
-def test_database(f=example(), config=CONFIG, remove_after=False):
+
+def test_database(mod=tvm.IRModule.from_expr(example()), config=CONFIG, remove_after=True):
     def _create_json_database(tmpdir: str) -> JSONDatabase:
         path_workload = os.path.join(tmpdir, "workloads.json")
         path_tuning_record = os.path.join(tmpdir, "tuning_records.json")
@@ -395,11 +399,11 @@ def test_database(f=example(), config=CONFIG, remove_after=False):
     path = "./tmp"
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=False)
-    mod = tvm.IRModule.from_expr(f)
+
     custom_pass = TuningParallelConv2dPass(database=_create_json_database(path))
     TuningPass.total_num_evals = 0
     with PassContext(opt_level=4, config=config):
-        mod = custom_pass(mod)
+        new_mod = custom_pass(mod)
 
     if remove_after:
         if os.path.exists(path) and os.path.isdir(path):
@@ -409,5 +413,5 @@ def test_database(f=example(), config=CONFIG, remove_after=False):
 if __name__ == "__main__":
     # test_tuning_pass()
     # test_sequential()
-    # test_joint_optimization()
-    test_database()
+    test_joint_optimization()
+    # test_database()
