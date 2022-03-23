@@ -304,5 +304,15 @@ def test_class_irmodule():
     check_roundtrip(my_module)
 
 
+def test_dyntensortype():
+    x = relax.DynTensorType(rank=3, dtype="float32")
+    assert x.__str__() == 'Tensor[rank=3, dtype="float32"]'
+
+
+def test_shapeexpr():
+    x = relax.ShapeExpr([tir.IntImm("int64", 10), tir.IntImm("int64", 5)])
+    assert x.__str__() == "(10, 5)"
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
