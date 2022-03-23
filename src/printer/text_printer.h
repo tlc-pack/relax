@@ -194,6 +194,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc VisitType_(const FuncTypeNode* node) final;
   Doc VisitType_(const RelayRefTypeNode* node) final;
   Doc VisitType_(const TypeDataNode* node) final;
+  Doc VisitType_(const relax::DynTensorTypeNode* node) final;
   //------------------------------------
   // Overload of Attr printing functions
   //------------------------------------
@@ -580,7 +581,8 @@ class TextPrinter {
                (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
                 node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
-    } else if (node.defined() && node->IsInstance<relax::FunctionNode>()) {
+    } else if (node.defined() && (node->IsInstance<relax::FunctionNode>() ||
+                                  node->IsInstance<relax::ShapeExprNode>())) {
       doc << relax_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);
