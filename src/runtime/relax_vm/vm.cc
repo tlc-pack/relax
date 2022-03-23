@@ -29,6 +29,27 @@ namespace relax_vm {
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
+  if (name == "vm_initialization") {
+    // initialize the VirtualMachine, takes variable-length arguments
+    // first argument is a runtime::Module, followed by one or more device_type, device_id,
+    // and the AllocatorType associated with the device.
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_EQ(args.size() % 3, 0);
+      std::vector<Device> devices;
+      std::vector<AllocatorType> alloc_types;
+      for (int i = 0; i < args.size(); i += 3) {
+        Device dev;
+        int device_type = args[i];
+        dev.device_type = DLDeviceType(device_type);
+        dev.device_id = args[i + 1];
+        int type = args[i + 2];
+        devices.push_back(dev);
+        alloc_types.push_back(AllocatorType(type));
+      }
+      this->Init(devices, alloc_types);
+    });
+  }
+
   const auto& m = exec_->global_map;
   if (m.find(name) != m.end()) {
     Index gf_idx = m.at(name);
@@ -219,27 +240,6 @@ inline void VirtualMachine::WriteRegister(VMFrame* frame, Index r, const RegType
 inline RegType VirtualMachine::ReadRegister(VMFrame* frame, Index r) const {
   return frame->register_file[r];
 }
-
-// initialize the VirtualMachine, takes variable-length arguments
-// first argument is a runtime::Module, followed by one or more device_type, device_id,
-// and the AllocatorType associated with the device.
-TVM_REGISTER_GLOBAL("relax.VirtualMachineInit").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ICHECK_EQ(args.size() % 3, 1);
-  runtime::Module mod = args[0];
-  auto vm = static_cast<VirtualMachine*>(mod.operator->());
-  std::vector<Device> devices;
-  std::vector<AllocatorType> alloc_types;
-  for (int i = 0; i < args.size() / 3; ++i) {
-    Device dev;
-    int device_type = args[i * 3 + 1];
-    dev.device_type = DLDeviceType(device_type);
-    dev.device_id = args[i * 3 + 2];
-    int type = args[i * 3 + 3];
-    devices.push_back(dev);
-    alloc_types.push_back(AllocatorType(type));
-  }
-  vm->Init(devices, alloc_types);
-});
 
 }  // namespace relax_vm
 }  // namespace runtime
