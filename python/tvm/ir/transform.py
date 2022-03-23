@@ -369,7 +369,8 @@ class TuningPass(Pass):
             num_evals += 1
             mod = candidate.out_mod
             # Evaluate candidates
-            def _build(
+            # We need to pass a bulid function for relay since MetaSchedule expects tir as an input
+            def relay_build(
                 mod: Module,
                 target: tvm.target.Target,
                 params: dict = {},
@@ -378,8 +379,17 @@ class TuningPass(Pass):
                     mod, target, target_host, params
                 )
 
+            # TODO: Make this work. Recent PR may resolve this.
+            def relax_build(
+                mod: Module,
+                target: tvm.target.Target,
+                params: dict = {},
+            ):
+                ex0, lib0 = tvm.relax.vm.build(mod, target)
+                return ex0
+
             # Build candidate
-            builder = LocalBuilder(f_build=_build)
+            builder = LocalBuilder(f_build=relay_build)
             (builder_result,) = builder.build([BuilderInput(mod, target)])
 
             assert builder_result.artifact_path is not None
@@ -399,6 +409,7 @@ class TuningPass(Pass):
             )
 
             # Wrap with a executor and evaluator configs
+            # Evaluation function for Relay
             def eval_func(rt_mod, device, evaluator_config, repeated_args):
                 rt_mod = tvm.contrib.graph_executor.GraphModule(rt_mod["default"](device))
 
@@ -459,7 +470,7 @@ class TuningPass(Pass):
                 # TODO: Unify with MetaSchedule trace
                 workload = self.database.commit_workload(mod)
                 record = TuningRecord(
-                    Schedule(mod).trace,
+                    Schedule(mod).trace,  # Random trace to make it work for now
                     perfs,
                     workload,
                     target,
