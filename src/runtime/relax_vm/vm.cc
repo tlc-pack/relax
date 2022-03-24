@@ -88,27 +88,17 @@ RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
 
 void VirtualMachine::Init(const std::vector<Device>& devices,
                           const std::vector<AllocatorType>& alloc_types) {
-  // TODO(@yuchen): support heterogeneous execution
+  // TODO(@yuchen): support multi-device heterogeneous execution
   ICHECK_LT(devices.size(), 3)
       << "Currently relax vm only supports at most 2 devices (host + device)";
   ICHECK_EQ(devices.size(), alloc_types.size());
 
-  devices_.reserve(devices.size());
+  state.devices.reserve(devices.size());
   state.allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
-    auto dev_type = static_cast<int>(devices[i].device_type);
-    // kDLCPU is the smallest among all device types, so state.device_type will be the device type
-    // (instead of host) if there is any, otherwise it will be kDLCPU
-    if (dev_type >= state.device_type) {
-      state.device_type = dev_type;
-    }
     auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
-    if (devices_.size() <= static_cast<size_t>(dev_type)) {
-      devices_.resize(dev_type + 1);
-      state.allocators.resize(dev_type + 1);
-    }
-    devices_[dev_type] = devices[i];
-    state.allocators[dev_type] = alloc;
+    state.devices.push_back(devices[i]);
+    state.allocators.push_back(alloc);
   }
 }
 
