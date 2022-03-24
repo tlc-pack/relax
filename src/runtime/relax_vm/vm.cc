@@ -96,7 +96,9 @@ void VirtualMachine::Init(const std::vector<Device>& devices,
   state.devices.reserve(devices.size());
   state.allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
-    auto dev_type = static_cast<size_t>(devices[i].device_type);
+    auto dev_type = static_cast<int>(devices[i].device_type);
+    // kDLCPU is the smallest among all device types, so state.device_type will be the device type
+    // (instead of host) if there is any, otherwise it will be kDLCPU
     if (dev_type >= state.device_type) {
       state.device_type = dev_type;
     }

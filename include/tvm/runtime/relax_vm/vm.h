@@ -78,7 +78,7 @@ struct VMState {
   /*! \brief The devices. */
   std::vector<Device> devices;
   /*! \brief Phsical device type. */
-  int device_type = kDLCPU;
+  int device_type = -1;
 };
 
 /*!
