@@ -120,7 +120,7 @@ class DummyDatabase(PyDatabase):
         print("\n".join([str(r) for r in self.records]))
 
 
-@pytest.mark.parametrize("dev", ["cpu", "cuda"])
+@pytest.mark.parametrize("dev", ["cpu"])
 def test_autotir(dev: str):
     @tvm.script.ir_module
     class InputModule:
@@ -168,8 +168,7 @@ def test_autotir(dev: str):
         target = Target("llvm --num-cores=16")
         dev = tvm.cpu()
     else:
-        target = Target("nvidia/geforce-rtx-2080-ti")
-        # target = Target("cuda", host="llvm")
+        target = Target("nvidia/geforce-rtx-3070")
         dev = tvm.cuda()
 
     database = DummyDatabase()
@@ -188,34 +187,33 @@ def test_autotir(dev: str):
                 database=database,
             )
 
-    # with transform.PassContext(opt_level=3):
-    #     ex0 = relax.vm.build(mod, target)
+    with transform.PassContext(opt_level=3):
+        ex0 = relax.vm.build(mod, target)
 
-    # with transform.PassContext(opt_level=3):
-    #     mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-    #     ex1 = relax.vm.build(mod, target)
+    with transform.PassContext(opt_level=3):
+        mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
+        ex1 = relax.vm.build(mod, target)
 
-    # vm0 = relax.VirtualMachine(ex0, dev)
-    # vm1 = relax.VirtualMachine(ex1, dev)
-    # data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
-    # weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    vm0 = relax.VirtualMachine(ex0, dev)
+    vm1 = relax.VirtualMachine(ex1, dev)
+    data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32), dev)
+    weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32), dev)
 
-    # # Measure the performance w/o tuning log
-    # tic = time.time()
-    # vm0["main"](data, weight)
-    # toc = time.time()
-    # e0 = toc - tic
+    # Measure the performance w/o tuning log
+    tic = time.time()
+    vm0["main"](data, weight)
+    toc = time.time()
+    e0 = toc - tic
 
-    # # Measure the performance w/ tuning log
-    # tic = time.time()
-    # vm1["main"](data, weight)
-    # toc = time.time()
-    # e1 = toc - tic
+    # Measure the performance w/ tuning log
+    tic = time.time()
+    vm1["main"](data, weight)
+    toc = time.time()
+    e1 = toc - tic
 
-    # print(f"w/o tuning: {e0}")
-    # print(f"w/  tuning: {e1}")
+    print(f"w/o tuning: {e0}")
+    print(f"w/  tuning: {e1}")
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_autotir("cuda")
+    pytest.main([__file__])
