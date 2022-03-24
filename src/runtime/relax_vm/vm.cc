@@ -93,7 +93,7 @@ void VirtualMachine::Init(const std::vector<Device>& devices,
       << "Currently relax vm only supports at most 2 devices (host + device)";
   ICHECK_EQ(devices.size(), alloc_types.size());
 
-  state.devices.reserve(devices.size());
+  devices_.reserve(devices.size());
   state.allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
     auto dev_type = static_cast<int>(devices[i].device_type);
@@ -103,11 +103,11 @@ void VirtualMachine::Init(const std::vector<Device>& devices,
       state.device_type = dev_type;
     }
     auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
-    if (state.devices.size() <= dev_type) {
-      state.devices.resize(dev_type + 1);
+    if (devices_.size() <= static_cast<size_t>(dev_type)) {
+      devices_.resize(dev_type + 1);
       state.allocators.resize(dev_type + 1);
     }
-    state.devices[dev_type] = devices[i];
+    devices_[dev_type] = devices[i];
     state.allocators[dev_type] = alloc;
   }
 }
