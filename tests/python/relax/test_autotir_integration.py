@@ -28,9 +28,11 @@ from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
 from tvm.meta_schedule.integration import extract_task_from_relax
 from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.search_strategy import EvolutionarySearchConfig
 from tvm import transform
 import time
 import pytest
+
 
 # Test case with dynamic shape.
 # Tuning with dynamic shape is not supported yet.
@@ -118,8 +120,8 @@ class DummyDatabase(PyDatabase):
         print("\n".join([str(r) for r in self.records]))
 
 
-@pytest.mark.parametrize("dev", ["cpu"])
-def test_class_irmodule(dev: str):
+@pytest.mark.parametrize("dev", ["cpu", "cuda"])
+def test_autotir(dev: str):
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
@@ -166,7 +168,8 @@ def test_class_irmodule(dev: str):
         target = Target("llvm --num-cores=16")
         dev = tvm.cpu()
     else:
-        target = Target("nvidia/geforce-rtx-3070")
+        target = Target("nvidia/geforce-rtx-2080-ti")
+        # target = Target("cuda", host="llvm")
         dev = tvm.cuda()
 
     database = DummyDatabase()
@@ -174,10 +177,10 @@ def test_class_irmodule(dev: str):
     for task in tasks:
         print(f"Extracted task: {task.task_name}, {task.target}")
         with tempfile.TemporaryDirectory() as work_dir:
-            sch: Schedule = tune_tir(
+            sch = tune_tir(
                 mod=task.mod,
                 target=target,
-                config=ReplayTraceConfig(
+                config=EvolutionarySearchConfig(
                     num_trials_per_iter=32,
                     num_trials_total=32,
                 ),
@@ -185,33 +188,34 @@ def test_class_irmodule(dev: str):
                 database=database,
             )
 
-    with transform.PassContext(opt_level=3):
-        ex0 = relax.vm.build(mod, target)
+    # with transform.PassContext(opt_level=3):
+    #     ex0 = relax.vm.build(mod, target)
 
-    with transform.PassContext(opt_level=3):
-        mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-        ex1 = relax.vm.build(mod, target)
+    # with transform.PassContext(opt_level=3):
+    #     mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
+    #     ex1 = relax.vm.build(mod, target)
 
-    vm0 = relax.VirtualMachine(ex0, dev)
-    vm1 = relax.VirtualMachine(ex1, dev)
-    data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
-    weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    # vm0 = relax.VirtualMachine(ex0, dev)
+    # vm1 = relax.VirtualMachine(ex1, dev)
+    # data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    # weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
 
-    # Measure the performance w/o tuning log
-    tic = time.time()
-    vm0["main"](data, weight)
-    toc = time.time()
-    e0 = toc - tic
+    # # Measure the performance w/o tuning log
+    # tic = time.time()
+    # vm0["main"](data, weight)
+    # toc = time.time()
+    # e0 = toc - tic
 
-    # Measure the performance w/ tuning log
-    tic = time.time()
-    vm1["main"](data, weight)
-    toc = time.time()
-    e1 = toc - tic
+    # # Measure the performance w/ tuning log
+    # tic = time.time()
+    # vm1["main"](data, weight)
+    # toc = time.time()
+    # e1 = toc - tic
 
-    print(f"w/o tuning: {e0}")
-    print(f"w/  tuning: {e1}")
+    # print(f"w/o tuning: {e0}")
+    # print(f"w/  tuning: {e1}")
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_autotir("cuda")

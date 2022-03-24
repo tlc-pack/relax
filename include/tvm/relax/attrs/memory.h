@@ -34,9 +34,11 @@ namespace relax {
  */
 struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
   DataType dtype;
+  bool is_device;
 
   TVM_DECLARE_ATTRS(AllocTensorAttrs, "relax.attrs.AllocTensorAttrs") {
     TVM_ATTR_FIELD(dtype).describe("The datatype of the tensor to be allocated.");
+    TVM_ATTR_FIELD(is_device).describe("Whether the tensor to be allocated is on device or host.");
   }
 };
 
@@ -44,14 +46,14 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
  * \brief Attributes for allocating storage on Relax VM.
  */
 struct VMAllocStorageAttrs : public tvm::AttrsNode<VMAllocStorageAttrs> {
-  int device_type;
   DataType dtype;
+  bool is_device;
 
   TVM_DECLARE_ATTRS(VMAllocStorageAttrs, "relax.attrs.VMAllocStorageAttrs") {
-    TVM_ATTR_FIELD(device_type).describe("The device type on which to allocate memory.");
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));
+    TVM_ATTR_FIELD(is_device).describe("Whether the tensor to be allocated is on device or host.");
   }
 };
 

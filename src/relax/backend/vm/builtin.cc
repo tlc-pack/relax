@@ -67,7 +67,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.load_shape").set_body_typed([](NDArray heap, Sha
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
-    .set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, Index device_type,
+    .set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, Index is_device,
                        DLDataType dtype_hint) {
       int alignment = runtime::kAllocAlignment;
       ICHECK_EQ(buffer_size.size(), 1);
@@ -75,11 +75,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
       int64_t size_imm = buffer_size[0];
       DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
                  << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
-                 << ", device_type=" << device_type;
+                 << ", is_device=" << is_device;
 
       auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
-      ICHECK_LT(static_cast<size_t>(device_type), vm_state->allocators.size())
-          << "Memory allocator for device " << device_type << " has not been initialized";
+      int device_type;
+      if (is_device) {
+        device_type = vm_state->device_type;
+      } else {
+        device_type = kDLCPU;
+      }
       auto* alloc = vm_state->allocators[device_type];
       ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
       storage_obj->buffer = alloc->Alloc(size_imm, alignment, dtype_hint);

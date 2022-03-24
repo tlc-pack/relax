@@ -84,7 +84,7 @@ class VMMemLowerMutator : public ExprMutator {
       Expr storage_size = ComputeStorageSize(output_shape, dtype);
       auto storage_attr = make_object<VMAllocStorageAttrs>();
       storage_attr->dtype = dtype;
-      storage_attr->device_type = 1;
+      storage_attr->is_device = alloc_attrs->is_device;
 
       Var storage =
           builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");

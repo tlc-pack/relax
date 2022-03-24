@@ -75,6 +75,10 @@ struct VMState {
   std::vector<Allocator*> allocators;
   /*! \brief The kernel library. */
   Optional<runtime::Module> lib;
+  /*! \brief The devices. */
+  std::vector<Device> devices;
+  /*! \brief Phsical device type. */
+  int device_type = kDLCPU;
 };
 
 /*!
@@ -193,8 +197,6 @@ class VirtualMachine : public runtime::ModuleNode {
   Index pc_{0};
   /*! \brief The special return register. */
   RegType return_value_;
-  /*! \brief The devices. */
-  std::vector<Device> devices_;
 };
 
 }  // namespace relax_vm

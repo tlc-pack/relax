@@ -234,8 +234,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Handle attrs of the call
     auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
-    int device_type = alloc_attrs->device_type;
-    args.push_back(Instruction::Arg(Instruction::kImmediate, device_type));
+    bool is_device = alloc_attrs->is_device;
+    args.push_back(Instruction::Arg(Instruction::kImmediate, is_device));
     DataType dtype = alloc_attrs->dtype;
     TVMRetValue data_type;
     data_type = dtype;
