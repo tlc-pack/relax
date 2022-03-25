@@ -177,7 +177,7 @@ def test_vm_memory_lower():
     class TestVMMemoryLower:
         @R.function
         def foo(x: Tensor[(m, n), "float32"]):
-            alloc = relax.builtin.alloc_tensor((m, n), dtype="float32")
+            alloc = relax.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
             return gv0
