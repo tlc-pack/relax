@@ -47,6 +47,17 @@ class ReverseModeADMutator : public ExprMutator {
       return builder_->GetContextIRModule();
     }
 
+    void Emit(const Var& v, const Expr& e) {
+      e->checked_type_ = v->checked_type();
+      e->shape_ = v->shape();
+      VarBinding node = VarBinding(v, e);
+      if (node->var->IsInstance<DataflowVarNode>()) {
+        this->builder_->Emit(node);
+      } else {
+        this->builder_->EmitOutput(node);
+      }
+    }
+
     Expr VisitExpr_(const FunctionNode* node) override {
       adjoint_map.clear();
       gradient_map.clear();
@@ -84,9 +95,9 @@ class ReverseModeADMutator : public ExprMutator {
           // so it should be an output
           ICHECK(!var_binding->var->IsInstance<DataflowVarNode>());
 
-          const Op ones_like_op = Op::Get("ones_like");
+          Op op = var_binding->var == body->body ? Op::Get("ones_like") : Op::Get("zeros_like");
 
-          builder_->EmitOutput(VarBinding(adjoint_map[var_binding->var], Call(ones_like_op, {var_binding->var})));
+          this->Emit(adjoint_map[var_binding->var], Call(op, {var_binding->var}));
         } else {
           Array<Expr> partials = gradient_map[var_binding->var];
           ICHECK(partials.size() != 0);
@@ -99,7 +110,7 @@ class ReverseModeADMutator : public ExprMutator {
             sum = Call(add_op, {sum, partials[i]});
           }
 
-          builder_->EmitOutput(VarBinding(adjoint_map[var_binding->var], sum));
+          this->Emit(adjoint_map[var_binding->var], sum);
         }
       }
       for (const auto& v: node->params) {
@@ -114,11 +125,28 @@ class ReverseModeADMutator : public ExprMutator {
             sum = Call(add_op, {sum, partials[i]});
           }
 
-          builder_->EmitOutput(VarBinding(adjoint_map[v], sum));
+          this->Emit(adjoint_map[v], sum);
 			}
-      BindingBlock block = builder_->EndBlock();
 
-      return Function(node->name, node->params, SeqExpr({block}, body->body), node->ret_type);
+      Array<Expr> body_out;
+      Array<Expr> shape;
+      Array<Type> func_ret_type;
+      body_out.push_back(body->body);
+      shape.push_back(body->body->shape());
+      func_ret_type.push_back(node->ret_type);
+      for (const auto& v: node->params) {
+        const auto& adjoint_v = adjoint_map[v];
+        body_out.push_back(adjoint_v);
+        shape.push_back(v->shape());
+        func_ret_type.push_back(adjoint_v->checked_type());
+      }
+
+      Var out = Var("out", Tuple(shape), TupleType(func_ret_type));
+      
+      this->Emit(out, Tuple(body_out));
+
+      BindingBlock block = builder_->EndBlock();
+      return Function(node->name, node->params, SeqExpr({block}, out), TupleType(func_ret_type));
     }
 
     void VisitBinding_(const VarBindingNode* binding) override {
@@ -135,7 +163,7 @@ class ReverseModeADMutator : public ExprMutator {
       ICHECK(rev_map.count(op_ref) != 0);
 
       if (adjoint_map.count(v) == 0) {
-        Var adjoint_v = Var(v->name_hint() + "`", v->shape(), v->type_annotation);
+        Var adjoint_v = DataflowVar(v->name_hint() + "`", v->shape(), v->type_annotation);
 				adjoint_v->checked_type_ = v->checked_type();
 				adjoint_map.Set(v, adjoint_v);
       }

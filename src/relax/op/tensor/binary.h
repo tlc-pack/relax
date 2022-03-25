@@ -112,6 +112,23 @@ Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
   return DynTensorType(output_rank, output_dtype);
 }
 
+Optional<Expr> InferShapeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary broadcast op should have 2 arguments");
+  }
+
+  return call->args[1]->shape();
+}
+
+Type InferTypeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary broadcast op should have 2 arguments");
+  }
+  return call->args[1]->checked_type();
+}
+
 }  // namespace relax
 }  // namespace tvm
 

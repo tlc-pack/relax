@@ -37,5 +37,9 @@ RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
 
 RELAY_TO_RELAX_BINARY_ATTRS("multiply");
 
+RELAY_REGISTER_OP("collapse_sum_like")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryLike)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryLike);
+
 }  // namespace relax
 }  // namespace tvm

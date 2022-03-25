@@ -59,8 +59,7 @@ class EmitTEMutator : public ExprMutator {
       call = expr.as<CallNode>();
 
       const OpNode* op = call->op.as<OpNode>();
-      // TODO: find better way to differentiate relay op and relax op
-      const OpAttrMap<relay::FTVMCompute> relay_op_map = Op::GetAttrMap<relay::FTVMCompute>("FTVMCompute");
+      // TODO: find better way to check if either relay op and relax op
       if (op != nullptr && relay_op_map.count(GetRef<Op>(op)) != 0) {
         Op op_ref = GetRef<Op>(op);
 
@@ -74,7 +73,7 @@ class EmitTEMutator : public ExprMutator {
         Expr output_shape = call->shape();
         Type out_type = call->checked_type();
 
-        Array<te::Tensor> te_out = relay_op_map[op_ref](call->attrs, te_args, out_type);
+        Array<te::Tensor> te_out = CallToTE(op_ref, call->attrs, te_args, output_shape, out_type);
         te_args.insert(te_args.end(), te_out.begin(), te_out.end());
 
         const auto* f_create_func = runtime::Registry::Get("te.CreatePrimFunc");
@@ -91,6 +90,19 @@ class EmitTEMutator : public ExprMutator {
     }
   private:
     IRModule mod_;
+    const OpAttrMap<relay::FTVMCompute> relay_op_map = Op::GetAttrMap<relay::FTVMCompute>("FTVMCompute");
+
+    Array<te::Tensor> CallToTE(const Op& op, const Attrs& attrs, const Array<te::Tensor> te_args, const Expr& shape, const Type& out_type) {
+      if (op == Op::Get("collapse_sum_like")) {
+        // TODO: needs special case because CollapseSumLikeCompute expects out_type to be a TensorTypeNode
+        const ShapeExprNode* shape_expr = shape.as<ShapeExprNode>();
+        ICHECK(shape_expr != nullptr);
+        const DynTensorTypeNode* dyn_type = out_type.as<DynTensorTypeNode>();
+        return relay_op_map[op](attrs, te_args, TensorType(shape_expr->values, dyn_type->dtype));
+      } else {
+        return relay_op_map[op](attrs, te_args, out_type);
+      }
+    }
 };
 
 namespace transform {

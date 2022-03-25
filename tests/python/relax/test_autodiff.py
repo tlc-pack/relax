@@ -24,8 +24,10 @@ from tvm.script import tir as T
 import numpy as np
 
 def matmul():
-  m = tir.Var("m", "int64")
-  n = tir.Var("n", "int64")
+  # m = tir.Var("m", "int64")
+  # n = tir.Var("n", "int64")
+  m = 5
+  n = 5
   dtype0 = rx.DynTensorType(rank=2, dtype="float16")
   dtype1 = rx.DynTensorType(rank=1, dtype="float16")
   x = rx.Var("x", [m, n], dtype0)
@@ -44,19 +46,23 @@ def matmul():
   print(mod)
 
   new_mod = rx.transform.ReverseModeAD()(mod)
-  # new_mod = rx.transform.EmitTERewrite()(mod)
+
   print(new_mod)
-  exit()
+  # exit()
+
+  new_mod = rx.transform.EmitTERewrite()(new_mod)
+
+  print(new_mod)
 
   target = tvm.target.Target("llvm", host="llvm")
-  ex, lib = rx.vm.build(new_mod, target)
+  ex = rx.vm.build(new_mod, target)
 
-  vm = rx.VirtualMachine(ex, tvm.cpu(), mod=lib)
+  vm = rx.VirtualMachine(ex, tvm.cpu())
   inp = tvm.nd.array(np.random.rand(5, 5).astype(np.float16))
   inp2 = tvm.nd.array(np.random.rand(5, ).astype(np.float16))
-  res = vm["func"](inp, inp2)
+  res, res1, res2 = vm["func"](inp, inp2)
 
-  np.testing.assert_allclose(inp.numpy() * inp2.numpy(), res.numpy())
+  # np.testing.assert_allclose(inp.numpy() * inp2.numpy(), res.numpy())
 
 if __name__ == "__main__":
   matmul()
