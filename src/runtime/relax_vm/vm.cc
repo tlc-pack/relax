@@ -88,16 +88,17 @@ RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
 
 void VirtualMachine::Init(const std::vector<Device>& devices,
                           const std::vector<AllocatorType>& alloc_types) {
+  // TODO(@yuchen): support multi-device heterogeneous execution
+  ICHECK_LT(devices.size(), 3)
+      << "Currently relax vm only supports at most 2 devices (host + device)";
   ICHECK_EQ(devices.size(), alloc_types.size());
+
+  state.devices.reserve(devices.size());
+  state.allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
-    auto dev_type = static_cast<size_t>(devices[i].device_type);
     auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
-    if (devices_.size() <= dev_type) {
-      devices_.resize(dev_type + 1);
-      state.allocators.resize(dev_type + 1);
-    }
-    devices_[dev_type] = devices[i];
-    state.allocators[dev_type] = alloc;
+    state.devices.push_back(devices[i]);
+    state.allocators.push_back(alloc);
   }
 }
 
