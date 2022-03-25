@@ -103,8 +103,13 @@ class VirtualMachine(object):
                 )
             devs = [dev]
 
+        if any(dev.device_type % RPC_SESS_MASK == tvm.cpu().device_type for dev in devs[:-1]):
+            raise RuntimeError(
+                "CPU host is required to be the last element of the device list if provided."
+            )
+
         # CPU is required for executing shape functions
-        if not any(c.device_type % RPC_SESS_MASK == tvm.cpu().device_type for c in devs):
+        if devs[-1].device_type % RPC_SESS_MASK != tvm.cpu().device_type:
             devs.append(tvm.cpu())
 
         default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
