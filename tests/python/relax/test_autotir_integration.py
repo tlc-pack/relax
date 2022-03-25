@@ -28,9 +28,11 @@ from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
 from tvm.meta_schedule.integration import extract_task_from_relax
 from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.search_strategy import EvolutionarySearchConfig
 from tvm import transform
 import time
 import pytest
+
 
 # Test case with dynamic shape.
 # Tuning with dynamic shape is not supported yet.
@@ -119,7 +121,7 @@ class DummyDatabase(PyDatabase):
 
 
 @pytest.mark.parametrize("dev", ["cpu"])
-def test_class_irmodule(dev: str):
+def test_autotir(dev: str):
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
@@ -174,10 +176,10 @@ def test_class_irmodule(dev: str):
     for task in tasks:
         print(f"Extracted task: {task.task_name}, {task.target}")
         with tempfile.TemporaryDirectory() as work_dir:
-            sch: Schedule = tune_tir(
+            sch = tune_tir(
                 mod=task.mod,
                 target=target,
-                config=ReplayTraceConfig(
+                config=EvolutionarySearchConfig(
                     num_trials_per_iter=32,
                     num_trials_total=32,
                 ),
@@ -194,8 +196,8 @@ def test_class_irmodule(dev: str):
 
     vm0 = relax.VirtualMachine(ex0, dev)
     vm1 = relax.VirtualMachine(ex1, dev)
-    data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
-    weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32), dev)
+    weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32), dev)
 
     # Measure the performance w/o tuning log
     tic = time.time()
