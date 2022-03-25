@@ -924,6 +924,41 @@ class RelaxTransformer(Transformer):
         const_values = _get_values(expr, [])
         return relax.const(const_values)
 
+    def parse_call_attr(self, expr: ast.Call) -> Union[tvm.ir.Attrs, None]:
+        """Parses keyword parameters as call attributes.
+
+        Parameters
+        ----------
+        expr : ast.Call
+            The synr Call to be parsed.
+
+        Returns
+        -------
+        Union[tvm.ir.Attrs, None]
+            The parsed call attributes.
+        """
+        op = self.transform_expr(expr.func_name)
+        kwargs = {}
+        for key, val in expr.keyword_params.items():
+            assert isinstance(key, ast.Constant) and isinstance(key.value, str)
+            # TODO(@altanh): might need separate attribute parsing eventually
+            kwargs[key.value] = self.transform_expr(val)
+
+        is_default = False
+        if "attrs_type_key" in kwargs:
+            attrs_type_key = kwargs["attrs_type_key"]
+            kwargs.pop("attrs_type_key")
+        elif isinstance(op, tvm.ir.Op) and op.attrs_type_key != "":
+            attrs_type_key = op.attrs_type_key
+        else:
+            attrs_type_key = "DictAttrs"
+            is_default = True
+
+        attrs = None
+        if kwargs or not is_default:
+            attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
+        return attrs
+
     def parse_call(self, expr: ast.Call) -> Union[tir.PrimExpr, relax.Expr]:
         """Parses the given synr Call node to a Relax expression or PrimExpr.
 
@@ -1090,33 +1125,14 @@ class RelaxTransformer(Transformer):
         else:
             self.report_error(f"unsupported function in call: {op}", expr.func_name.span)
 
-        # parse call attributes if applicable
-        kwargs = {}
-        for key, val in expr.keyword_params.items():
-            assert isinstance(key, ast.Constant) and isinstance(key.value, str)
-            # TODO(@altanh): might need separate attribute parsing eventually
-            kwargs[key.value] = self.transform_expr(val)
-
-        is_default = False
-        if "attrs_type_key" in kwargs:
-            attrs_type_key = kwargs["attrs_type_key"]
-            kwargs.pop("attrs_type_key")
-        elif isinstance(op, tvm.ir.Op) and op.attrs_type_key != "":
-            attrs_type_key = op.attrs_type_key
+        if isinstance(op, tvm.ir.Op) and op.name == "relax.call_tir":
+            attrs = None
         else:
-            attrs_type_key = "DictAttrs"
-            is_default = True
+            attrs = self.parse_call_attr(expr)
 
-        attrs = None
-        if kwargs or not is_default:
-            attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
-
-        if type_args:
-            return relay.Call(
-                op, args, attrs=attrs, type_args=type_args, span=self.to_tvm_span(expr.span)
-            )
-        else:
-            return relay.Call(op, args, attrs=attrs, span=self.to_tvm_span(expr.span))
+        return relax.Call(
+            op, args, attrs=attrs, type_args=type_args, span=self.to_tvm_span(expr.span)
+        )
 
     # Exprs:
     # - ArrayLiteral
