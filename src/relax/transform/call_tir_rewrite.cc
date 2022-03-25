@@ -62,6 +62,7 @@ class CallTIRMutator : public ExprMutator {
           if (call->checked_type_.defined()) {
             auto output_type = Downcast<DynTensorType>(call->checked_type_);
             alloc_tensor_attr->dtype = output_type->dtype;
+            alloc_tensor_attr->runtime_device_index = 0;
             outs.push_back(builder_->Emit(
                 Call(alloc_tensor_op, {output_shape}, Attrs(alloc_tensor_attr)), "alloc"));
           } else {
@@ -89,6 +90,7 @@ class CallTIRMutator : public ExprMutator {
             auto output_type = Downcast<DynTensorType>(output_types->fields[i]);
             auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
             alloc_tensor_attr->dtype = output_type->dtype;
+            alloc_tensor_attr->runtime_device_index = 0;
             outs.push_back(builder_->Emit(
                 Call(alloc_tensor_op, {Downcast<ShapeExpr>(output_shapes->fields[i])},
                      Attrs(alloc_tensor_attr)),

@@ -67,20 +67,26 @@ TVM_REGISTER_GLOBAL("vm.builtin.load_shape").set_body_typed([](NDArray heap, Sha
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
-    .set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, Index device_type,
+    .set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, Index device_index,
                        DLDataType dtype_hint) {
-      int alignment = runtime::kAllocAlignment;
       ICHECK_EQ(buffer_size.size(), 1);
+      int alignment = runtime::kAllocAlignment;
       VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
+      ICHECK_LT(device_index, vm_state->devices.size())
+          << "The device index is out of VM physical devices list";
+
+      if (device_index == -1) {
+        // Allocate on host. Host is always the last element of vm_state->devices.
+        device_index = vm_state->devices.size() - 1;
+      }
+
       int64_t size_imm = buffer_size[0];
       DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
                  << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
-                 << ", device_type=" << device_type;
+                 << ", device_index=" << device_index;
 
       auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
-      ICHECK_LT(static_cast<size_t>(device_type), vm_state->allocators.size())
-          << "Memory allocator for device " << device_type << " has not been initialized";
-      auto* alloc = vm_state->allocators[device_type];
+      auto* alloc = vm_state->allocators[device_index];
       ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
       storage_obj->buffer = alloc->Alloc(size_imm, alignment, dtype_hint);
       Storage storage(storage_obj);
