@@ -1118,7 +1118,6 @@ class RelaxTransformer(Transformer):
         else:
             attrs = self.parse_call_attr(expr, op)
 
-        # if type_args:
         return relax.Call(
             op, args, attrs=attrs, type_args=type_args, span=self.to_tvm_span(expr.span)
         )
