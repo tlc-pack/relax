@@ -452,6 +452,19 @@ def test_func_no_return_fail():
             y = add(x, x)
 
 
+def test_call_tir():
+    @R.function
+    def foo(x: Tensor[(m, n), "float32"]):
+        gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+        return gv0
+
+    call_tir_node = foo.body.blocks[0].bindings[0].value
+    assert call_tir_node.attrs is None
+    assert_structural_equal(
+        call_tir_node.type_args[0], relax.DynTensorType(rank=2, dtype="float32")
+    )
+
+
 def test_inline_tir():
     @R.function
     def f(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
