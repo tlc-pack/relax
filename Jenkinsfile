@@ -45,14 +45,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.67"
-ci_gpu = "tlcpack/ci-gpu:v0.82"
-ci_cpu = "tlcpack/ci-cpu:v0.82"
-ci_wasm = "tlcpack/ci-wasm:v0.71"
-ci_i386 = "tlcpack/ci-i386:v0.74"
-ci_qemu = "tlcpack/ci-qemu:v0.10"
-ci_arm = "tlcpack/ci-arm:v0.07"
-ci_hexagon = "tlcpack/ci-hexagon:v0.01"
+ci_lint = 'tlcpack/ci-lint:v0.69'
+ci_gpu = 'tlcpack/ci-gpu:v0.82'
+ci_cpu = 'tlcpack/ci-cpu:v0.82'
+ci_wasm = 'tlcpack/ci-wasm:v0.72'
+ci_i386 = 'tlcpack/ci-i386:v0.75'
+ci_qemu = 'tlcpack/ci-qemu:v0.11'
+ci_arm = 'tlcpack/ci-arm:v0.08'
+ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -278,9 +278,10 @@ stage('Build and Test') {
       node('GPU') {
         ws(per_exec_ws('tvm/build-gpu')) {
           init_git()
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-          make("${ci_gpu} --no-gpu", 'build', '-j2')
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+          sh "${docker_run} ${ci_gpu} nvidia-smi"
+          sh "${docker_run}  ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+          make("${ci_gpu}", 'build', '-j2')
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
         }
       }
     },
