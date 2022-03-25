@@ -34,9 +34,15 @@ namespace relax {
  */
 struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
   DataType dtype;
+  int64_t runtime_device_index;
 
   TVM_DECLARE_ATTRS(AllocTensorAttrs, "relax.attrs.AllocTensorAttrs") {
     TVM_ATTR_FIELD(dtype).describe("The datatype of the tensor to be allocated.");
+    TVM_ATTR_FIELD(runtime_device_index)
+        .describe(
+            "The device index indicating on which device the tensor is to be allocated at runtime. "
+            "Index -1 is reserved for the host device.")
+        .set_default(-1);
   }
 };
 
@@ -44,14 +50,18 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
  * \brief Attributes for allocating storage on Relax VM.
  */
 struct VMAllocStorageAttrs : public tvm::AttrsNode<VMAllocStorageAttrs> {
-  int device_type;
   DataType dtype;
+  int64_t runtime_device_index;
 
   TVM_DECLARE_ATTRS(VMAllocStorageAttrs, "relax.attrs.VMAllocStorageAttrs") {
-    TVM_ATTR_FIELD(device_type).describe("The device type on which to allocate memory.");
     TVM_ATTR_FIELD(dtype)
         .describe("The dtype of the tensor to allocate.")
         .set_default(DataType::Float(32, 1));
+    TVM_ATTR_FIELD(runtime_device_index)
+        .describe(
+            "The device index indicating on which device the tensor is to be allocated at runtime. "
+            "Index -1 is reserved for the host device.")
+        .set_default(-1);
   }
 };
 

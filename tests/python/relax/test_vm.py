@@ -150,7 +150,7 @@ def test_vm_constant_serialize():
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=1):
         ib.emit_call(
-            "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(1), dtype], dst=ib.r(1)
+            "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(0), dtype], dst=ib.r(1)
         )
         ib.emit_call(
             "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)
@@ -242,7 +242,7 @@ def test_vm_storage():
     ib = relax.ExecBuilder()
     with ib.function("main", num_inputs=0):
         ib.emit_call(
-            "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(1), dtype], dst=ib.r(1)
+            "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(0), dtype], dst=ib.r(1)
         )
         ib.emit_call(
             "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)

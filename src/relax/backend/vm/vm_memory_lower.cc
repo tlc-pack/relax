@@ -35,7 +35,7 @@ namespace relax {
 // MemLowerMutator
 // Lower the relax.builtin.alloc_tensor op to VM builtin functions.
 // Example:
-// x = relax.builtin.alloc_tensor((m, n))
+// x = relax.builtin.alloc_tensor((m, n), relax.attrs.AllocTensorAttrs)
 // -->
 // gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n),
 // relax.attrs.VMAllocStorageAttrs)
@@ -84,7 +84,7 @@ class VMMemLowerMutator : public ExprMutator {
       Expr storage_size = ComputeStorageSize(output_shape, dtype);
       auto storage_attr = make_object<VMAllocStorageAttrs>();
       storage_attr->dtype = dtype;
-      storage_attr->device_type = 1;
+      storage_attr->runtime_device_index = alloc_attrs->runtime_device_index;
 
       Var storage =
           builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
