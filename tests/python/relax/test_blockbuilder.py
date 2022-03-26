@@ -148,7 +148,7 @@ def test_multi_functions():
 
     with bb.function("func2", [x, y]):
         with bb.dataflow() as df:
-            lv0 = bb.emit(rx.op.add(x, y))
+            lv0 = bb.emit(rx.op.add(y, x))
             # TODO(@yuchen): enable block builder to reset local var unique name map
             assert lv0.name_hint == "lv1"
             gv0 = bb.emit_output(lv0)

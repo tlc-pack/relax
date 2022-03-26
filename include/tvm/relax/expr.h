@@ -224,13 +224,14 @@ class MatchShapeNode : public BindingNode {
   }
 
   bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
-    return equal(value, other->value) && equal(pattern, other->pattern) && equal(var, other->var);
+    return equal(value, other->value) && equal(pattern, other->pattern) &&
+           equal.DefEqual(var, other->var);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(value);
     hash_reduce(pattern);
-    hash_reduce(var);
+    hash_reduce.DefHash(var);
   }
 
   static constexpr const char* _type_key = "relax.expr.MatchShape";
@@ -259,10 +260,10 @@ class VarBindingNode : public BindingNode {
   }
 
   bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
-    return equal(var, other->var) && equal(value, other->value);
+    return equal.DefEqual(var, other->var) && equal(value, other->value);
   }
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(var);
+    hash_reduce.DefHash(var);
     hash_reduce(value);
   }
   static constexpr const char* _type_key = "relax.expr.VarBinding";
@@ -315,6 +316,8 @@ class DataflowBlockNode : public BindingBlockNode {
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
 
   static constexpr const char* _type_key = "relax.expr.DataflowBlock";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -405,8 +408,7 @@ class FunctionNode : public BaseFuncNode {
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce->MarkGraphNode();
-    hash_reduce(name);
-    hash_reduce(params);
+    hash_reduce.DefHash(params);
     hash_reduce(body);
     hash_reduce(ret_type);
     hash_reduce(checked_type_);
