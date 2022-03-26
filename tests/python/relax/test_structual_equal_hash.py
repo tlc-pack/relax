@@ -21,12 +21,12 @@ import tvm
 from tvm import relax as rx, tir
 
 
-def _check_equal(x, y, map_free_vars=False):
-    tvm.ir.assert_structural_equal(x, y, map_free_vars)
-    tvm.ir.assert_structural_equal(y, x, map_free_vars)
+def _check_equal(x, y):
+    tvm.ir.assert_structural_equal(x, y)
+    tvm.ir.assert_structural_equal(y, x)
 
-    xhash = tvm.ir.structural_hash(x, map_free_vars)
-    yhash = tvm.ir.structural_hash(y, map_free_vars)
+    xhash = tvm.ir.structural_hash(x)
+    yhash = tvm.ir.structural_hash(y)
 
     assert xhash == yhash
 
