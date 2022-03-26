@@ -63,22 +63,32 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
 }
 
 bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
-  if (functions.size() != other->functions.size()) return false;
   if (!equal(this->attrs, other->attrs)) return false;
+
+  if (functions.size() != other->functions.size()) return false;
+  // Update GlobalVar remap
+  for (const auto& gv : this->GetGlobalVars()) {
+    if (!other->ContainGlobalVar(gv->name_hint)) return false;
+    if (!equal.DefEqual(gv, other->GetGlobalVar(gv->name_hint))) return false;
+  }
   for (const auto& kv : this->functions) {
-    if (!other->ContainGlobalVar(kv.first->name_hint)) return false;
     if (!equal(kv.second, other->Lookup(kv.first->name_hint))) return false;
   }
+
   if (type_definitions.size() != other->type_definitions.size()) return false;
+  // Update GlobalTypeVar remap
+  for (const auto& gtv : this->GetGlobalTypeVars()) {
+    if (!other->ContainGlobalTypeVar(gtv->name_hint)) return false;
+    if (!equal.DefEqual(gtv, other->GetGlobalTypeVar(gtv->name_hint))) return false;
+  }
   for (const auto& kv : this->type_definitions) {
-    if (!other->ContainGlobalTypeVar(kv.first->name_hint)) return false;
     if (!equal(kv.second, other->LookupTypeDef(kv.first->name_hint))) return false;
   }
   return true;
 }
 
 void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
-  using KV = std::pair<std::string, ObjectRef>;
+  using KV = std::pair<std::string, std::pair<ObjectRef, ObjectRef>>;
   // hash the functions.
   std::vector<KV> temp;
 
@@ -88,21 +98,24 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
               [](const KV& lhs, const KV& rhs) { return lhs.first < rhs.first; });
 
     hash_reduce(static_cast<uint64_t>(temp.size()));
+    // Defhash the GlobalVar/GlobalTypeVar
+    for (size_t i = 0; i < temp.size(); ++i) {
+      hash_reduce.DefHash(temp[i].second.first);
+    }
     // hash the content
     for (size_t i = 0; i < temp.size(); ++i) {
-      hash_reduce(temp[i].first);
-      hash_reduce(temp[i].second);
+      hash_reduce(temp[i].second.second);
     }
   };
 
   for (const auto& kv : this->functions) {
-    temp.emplace_back(kv.first->name_hint, kv.second);
+    temp.emplace_back(kv.first->name_hint, std::make_pair(kv.first, kv.second));
   }
   reduce_temp();
 
   temp.clear();
   for (const auto& kv : this->type_definitions) {
-    temp.emplace_back(kv.first->name_hint, kv.second);
+    temp.emplace_back(kv.first->name_hint, std::make_pair(kv.first, kv.second));
   }
   reduce_temp();
   hash_reduce(this->attrs);
