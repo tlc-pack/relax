@@ -356,6 +356,9 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
     RelaxScriptPrinter* parent_;
   };
 };
+
+String AsRelaxScript(const ObjectRef& mod, bool show_meta_data);
+
 }  // namespace relax
 }  // namespace tvm
 
