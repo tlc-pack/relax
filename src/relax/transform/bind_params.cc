@@ -1,29 +1,29 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*   http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
+#include <tvm/driver/driver_api.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/tir/op.h>
-#include <tvm/driver/driver_api.h>
 
 #include <utility>
 
@@ -76,8 +76,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
  * \param params params dict
  * \return Function
  */
-inline Function BindParamsByName(Function func,
-                                 const Map<String, runtime::NDArray>& params) {
+inline Function BindParamsByName(Function func, const Map<String, runtime::NDArray>& params) {
   std::unordered_map<std::string, Var> name_dict;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
   for (auto arg : func->params) {
@@ -113,8 +112,7 @@ IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> p
   for (const auto& func_pr : functions) {
     if (const auto* relax_f = func_pr.second.as<FunctionNode>()) {
       if (relax_f->name.value()->name_hint == func_name) {
-        Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f),
-                                                 param);
+        Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
         new_module->Update(func_pr.first, f_after_bind);
       }
     }
