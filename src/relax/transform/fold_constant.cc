@@ -31,7 +31,7 @@ namespace relax {
 
 class ConstantFolder : public ExprMutator {
  public:
-  ConstantFolder(IRModule ctx_module) : ctx_module_(ctx_module) {}
+  explicit ConstantFolder(IRModule ctx_module) : ctx_module_(ctx_module) {}
 
  private:
   /*!
