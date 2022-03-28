@@ -104,7 +104,6 @@ TVM_DLL Pass BindParams(String name, Map<String, runtime::NDArray> params);
  */
 TVM_DLL Pass FoldConstant();
 
-
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
