@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import sys
 import tvm
 from tvm import relax as rx, tir
+from tvm.script import tir as T, relax as R
 
 
 def _check_equal(x, y):
@@ -29,6 +31,11 @@ def _check_equal(x, y):
     yhash = tvm.ir.structural_hash(y)
 
     assert xhash == yhash
+
+
+def _check_save_roundtrip(x):
+    y = tvm.ir.load_json(tvm.ir.save_json(x))
+    _check_equal(x, y)
 
 
 def test_var_binding():
@@ -104,6 +111,17 @@ def test_ir_module():
     mod0 = generator()
     mod1 = generator()
     _check_equal(mod0, mod1)
+
+
+def test_match_shape_symbolic():
+    @tvm.script.ir_module
+    class InputModule:
+        @R.function
+        def f(x: Tensor[(_, _), "float32"]):
+            x0 = R.match_shape(x, (n, m))
+            return (x0, (n + 1, m))
+
+    _check_save_roundtrip(InputModule)
 
 
 if __name__ == "__main__":
