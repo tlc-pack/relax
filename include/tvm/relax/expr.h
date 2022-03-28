@@ -224,13 +224,15 @@ class MatchShapeNode : public BindingNode {
   }
 
   bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
-    return equal(value, other->value) && equal(pattern, other->pattern) &&
+    // NOTE: pattern can contain ShapeExpr which defines the vars
+    return equal(value, other->value) && equal.DefEqual(pattern, other->pattern) &&
            equal.DefEqual(var, other->var);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    // NOTE: pattern can contain ShapeExpr which defines the vars
     hash_reduce(value);
-    hash_reduce(pattern);
+    hash_reduce.DefHash(pattern);
     hash_reduce.DefHash(var);
   }
 
