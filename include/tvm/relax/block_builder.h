@@ -119,8 +119,9 @@ class BlockBuilderNode : public Object {
    * \brief Lookup a var in the binding table \p binding_table_.
    * \param var The input var.
    * \return The Expr bound to the input \p var.
+   * \note For function parameters, this function returns NullOpt.
    */
-  Expr LookupBinding(const Var& var);
+  Optional<Expr> LookupBinding(const Var& var);
 
   /*!
    * \brief Check if two shape expressions can be proven equal at compile time.

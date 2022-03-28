@@ -118,3 +118,32 @@ def MetaScheduleApplyHistoryBest(
 
     """
     return _ffi_api.MetaScheduleApplyHistoryBest(database, target)
+
+
+def BindParams(func_name, params) -> tvm.ir.transform.Pass:
+    """Bind params of main function of the module to constant tensors.
+
+    Parameters
+    ----------
+
+    func_name: str
+        The function name to be bound
+
+    params : dict from str to ndarray
+        The map from param name to constant tensors.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.BindParams(func_name, params)
+
+
+def FoldConstant() -> tvm.ir.transform.Pass:
+    """Fold constant expressions
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FoldConstant()
