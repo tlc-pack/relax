@@ -9,6 +9,7 @@ import numpy as np
 import tvm.script
 from tvm.script import tir as T, relax as R
 
+
 def test_bind_params():
     @tvm.script.ir_module
     class InputModule:
@@ -20,22 +21,24 @@ def test_bind_params():
             C = T.match_buffer(z, (16, 16))
             for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
                 with T.block("matmul"):
-                    vi = T.axis.S(16, i0*4+i1)
+                    vi = T.axis.S(16, i0 * 4 + i1)
                     vj = T.axis.S(16, j)
-                    vk = T.axis.R(16, k0*4+k1)
+                    vk = T.axis.R(16, k0 * 4 + k1)
                     with T.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def main(x: Tensor[(16, 16), "float32"], w: Tensor[(16, 16), "float32"]) -> Tensor[(16, 16), "float32"]:
+        def main(
+            x: Tensor[(16, 16), "float32"], w: Tensor[(16, 16), "float32"]
+        ) -> Tensor[(16, 16), "float32"]:
             gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
             return gv0
 
     w_tvm = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
     x_tvm = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
-    mod = relax.transform.BindParams({"x": x_tvm})(InputModule)
-    assert len(mod["main"].params)==1
+    mod = relax.transform.BindParams("main", {"x": x_tvm})(InputModule)
+    assert len(mod["main"].params) == 1
 
     target = tvm.target.Target("llvm", host="llvm")
     ex_after = relax.vm.build(mod, target)
@@ -47,6 +50,7 @@ def test_bind_params():
     res_before = vm_before["main"](x_tvm, w_tvm)
 
     tvm.testing.assert_allclose(res_before.numpy(), res_after.numpy())
+
 
 if __name__ == "__main__":
     test_bind_params()

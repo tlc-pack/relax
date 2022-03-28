@@ -25,6 +25,7 @@ import numpy as np
 import tvm.script
 from tvm.script import tir as T, relax as R
 
+
 def gen_mod(mod, name, binding):
     """Select relax function with name, rename to main and and bind constant.
 
@@ -89,7 +90,7 @@ def test_one_fold_transpose():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def transpose(A: T.Buffer[(2, 3), "float32"], B: T.Buffer[(3, 2), "float32"]) -> None:
+        def func(A: T.Buffer[(2, 3), "float32"], B: T.Buffer[(3, 2), "float32"]) -> None:
             for i, j in T.grid(3, 2):
                 with T.block("transpose"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -97,7 +98,7 @@ def test_one_fold_transpose():
 
         @R.function
         def before(c0: Tensor[(2, 3), "float32"]):
-            lv0 = relax.call_tir(transpose, (c0,), (3, 2), dtype="float32")
+            lv0 = relax.call_tir(func, (c0,), (3, 2), dtype="float32")
             return lv0
 
         @R.function
