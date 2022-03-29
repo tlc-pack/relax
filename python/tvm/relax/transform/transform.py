@@ -31,8 +31,7 @@ class FunctionPass(tvm.ir.transform.Pass):
 
 @tvm._ffi.register_object("relax.DataflowBlockPass")
 class DataflowBlockPass(tvm.ir.transform.Pass):
-    """A pass that works on each tvm.relax.DataflowBlock in a module.
-    """
+    """A pass that works on each tvm.relax.DataflowBlock in a module."""
 
 
 def FMARewrite() -> tvm.ir.transform.Pass:
@@ -108,7 +107,10 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
     return _ffi_api.ResolveGlobals()
 
 
-def MetaScheduleApplyHistoryBest(database: PyDatabase, target: Target,) -> tvm.ir.transform.Pass:
+def MetaScheduleApplyHistoryBest(
+    database: PyDatabase,
+    target: Target,
+) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
     Parameters
     ----------
