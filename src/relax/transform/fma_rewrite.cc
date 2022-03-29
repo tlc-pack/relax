@@ -77,7 +77,7 @@ Pass FMARewrite() {
       [=](DataflowBlock block, IRModule m, PassContext pc) {
         return Downcast<DataflowBlock>(FMARewrite(block));
       };
-  return CreateDataflowBlockPass(pass_func, 2, "df_FMARewrite", {});
+  return CreateDataflowBlockPass(pass_func, 2, "FMARewrite", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.FMARewrite").set_body_typed(FMARewrite);
