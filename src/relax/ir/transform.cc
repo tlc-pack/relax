@@ -216,16 +216,6 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
 
   static constexpr const char* _type_key = "relax.DataflowBlockPass";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockPassNode, PassNode);
-
- private:
-  /*
-   * \brief Check if a DataflowBlock should be skipped for optimization.
-   *
-   * \param dataflowblock The target DataflowBlock to be checked.
-   *
-   * \return Return true if the DataflowBlock will be skipped, otherwise false.
-   */
-  // bool SkipDataflowBlock(const DataflowBlock& dataflowblock) const;
 };
 
 class DataflowBlockMutator : public ExprMutator {
@@ -237,7 +227,7 @@ class DataflowBlockMutator : public ExprMutator {
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
     DataflowBlock block = GetRef<DataflowBlock>(n);
-    auto updated_block = SkipDataflowBlock(block) ? block : pass_func_(block, mod_, pass_ctx_);
+    auto updated_block = pass_func_(block, mod_, pass_ctx_);
     return std::move(updated_block);
   }
 
@@ -245,10 +235,6 @@ class DataflowBlockMutator : public ExprMutator {
   runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;
   IRModule mod_;
   PassContext pass_ctx_;
-  bool SkipDataflowBlock(const DataflowBlock& block) const {
-    // TODO
-    return false;
-  }
 };
 
 class DataflowBlockPass : public Pass {
