@@ -40,11 +40,12 @@ def test_fma_rewrite():
         with ib.dataflow() as df:
             lv0 = ib.emit(relax.op.multiply(x, y))
             gv0 = ib.emit_output(relax.op.add(lv0, y))
+        gv1 = ib.emit(relax.op.multiply(x, y))
+        gv2 = ib.emit(relax.op.add(gv1, y))
         ib.emit_func_output(gv0)
     mod = ib.get()
     func = mod["func"]
 
-    # before rewrite
     v0 = func.body.blocks[0].bindings[1].var
     s0 = func.body.blocks[0].bindings[1].value
     assert isinstance(s0, tvm.relay.Call)
@@ -67,6 +68,20 @@ def test_fma_rewrite():
     # and type of var are unchanged after rewriting
     assert gv0 == v0
     assert type(new_func.body.blocks[0].bindings[1].var) == relax.Var
+
+    # outside DataflowBlock
+    v2 = func.body.blocks[1].bindings[1].var
+    s2 = func.body.blocks[1].bindings[1].value
+    assert isinstance(s2, tvm.relay.Call)
+    assert s2.op.name == "relax.add"
+    assert structural_equal(v2.shape, relax.ShapeExpr([m, n]))
+    assert structural_equal(s2.shape, relax.ShapeExpr([m, n]))
+
+    # Th var outside DataflowBlock should not be rewritten
+    v3 = new_func.body.blocks[1].bindings[1].var
+    s3 = new_func.body.blocks[1].bindings[1].value
+    assert v2 == v3
+    assert s2 == s3
 
 
 def test_visit_shape():
