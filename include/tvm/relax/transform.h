@@ -36,6 +36,7 @@ using Pass = tvm::transform::Pass;
 using PassInfo = tvm::transform::PassInfo;
 using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
+using DataflowBlock = tvm::relax::DataflowBlock;
 
 /*!
  * \brief Create a function pass.
@@ -49,6 +50,10 @@ using Function = tvm::relax::Function;
  */
 TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
+    int opt_level, String name, tvm::Array<String> required);
+
+TVM_DLL Pass CreateDataflowBlockPass(
+    const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
 
 /*!

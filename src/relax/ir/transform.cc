@@ -23,6 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relay/function.h>
 #include <tvm/runtime/registry.h>
@@ -191,6 +192,160 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << info->opt_level;
     });
 
+class DataflowBlockPass;
+
+class DataflowBlockPassNode : public tvm::transform::PassNode {
+ public:
+  /* \brief The pass meta data.*/
+  PassInfo pass_info;
+
+  /*! \brief The packed pass function sketches the real optimization. For
+   * instance, we can implement a pass that works on a Relax DataflowBlock as a
+   * `pass_func` and let it run on a given module. The same `pass_func` will
+   * then be applied on each DataflowBlock in the module.
+   */
+  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func;
+
+  DataflowBlockPassNode() = default;
+
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
+
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
+
+  PassInfo Info() const override { return pass_info; }
+
+  static constexpr const char* _type_key = "relax.DataflowBlockPass";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockPassNode, PassNode);
+
+ private:
+  /*
+   * \brief Check if a DataflowBlock should be skipped for optimization.
+   *
+   * \param dataflowblock The target DataflowBlock to be checked.
+   *
+   * \return Return true if the DataflowBlock will be skipped, otherwise false.
+   */
+  // bool SkipDataflowBlock(const DataflowBlock& dataflowblock) const;
+};
+
+class DataflowBlockMutator : public ExprMutator {
+ public:
+  DataflowBlockMutator(
+      runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+      IRModule mod, PassContext pass_ctx)
+      : pass_func_(pass_func), mod_(mod), pass_ctx_(pass_ctx) {}
+
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
+    DataflowBlock block = GetRef<DataflowBlock>(n);
+    auto updated_block = SkipDataflowBlock(block) ? block : pass_func_(block, mod_, pass_ctx_);
+    return std::move(updated_block);
+  }
+
+ private:
+  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;
+  IRModule mod_;
+  PassContext pass_ctx_;
+  bool SkipDataflowBlock(const DataflowBlock& block) const {
+    // TODO
+    return false;
+  }
+};
+
+class DataflowBlockPass : public Pass {
+ public:
+  /*!
+   * \brief The constructor
+   * \param pass_func The packed function which implements a pass.
+   * \param pass_info The pass info.
+   */
+  TVM_DLL DataflowBlockPass(
+      runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+      PassInfo pass_info);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlockPass, Pass, DataflowBlockPassNode);
+};
+
+DataflowBlockPass::DataflowBlockPass(
+    runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+    PassInfo pass_info) {
+  auto n = make_object<DataflowBlockPassNode>();
+  n->pass_func = std::move(pass_func);
+  n->pass_info = std::move(pass_info);
+  data_ = std::move(n);
+}
+
+// Perform Module -> Module optimizations at the DataflowBlock level.
+IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  DiagnosticContext previous = DiagnosticContext::Default(mod);
+
+  if (pass_ctx->diag_ctx) {
+    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
+    pass_ctx->diag_ctx = previous;
+    previous = tmp;
+  } else {
+    pass_ctx->diag_ctx = previous;
+  }
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
+  const PassInfo& pass_info = Info();
+
+  ICHECK(mod.defined());
+
+  VLOG_CONTEXT << pass_info->name;
+  VLOG(0) << "Executing DataflowBlock pass with opt level: " << pass_info->opt_level;
+  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
+
+  IRModule updated_mod = mod->ShallowCopy();
+
+  DataflowBlockMutator dataflowblockmutator(pass_func, updated_mod, pass_ctx);
+  std::vector<std::pair<GlobalVar, Function> > updates;
+  for (const auto& it : updated_mod->functions) {
+    // only picks up relax::Function
+    if (auto* n = it.second.as<FunctionNode>()) {
+      Function func = GetRef<Function>(n);
+      Function updated_func = Downcast<Function>(dataflowblockmutator.VisitExpr(func));
+      updates.push_back({it.first, updated_func});
+    }
+  }
+
+  for (const auto& pair : updates) {
+    updated_mod->Add(pair.first, pair.second, true);
+  }
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
+  pass_ctx->diag_ctx.value().Render();
+  pass_ctx->diag_ctx = previous;
+
+  VLOG(1) << "Output module:" << std::endl << PrettyPrint(updated_mod);
+
+  return updated_mod;
+}
+
+Pass CreateDataflowBlockPass(
+    const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
+    int opt_level, String name, tvm::Array<String> required) {
+  PassInfo pass_info = PassInfo(opt_level, name, required);
+  return DataflowBlockPass(pass_func, pass_info);
+}
+
+TVM_REGISTER_NODE_TYPE(DataflowBlockPassNode);
+
+TVM_REGISTER_GLOBAL("relax._transform.MakeDataflowBlockPass")
+    .set_body_typed(
+        [](runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+           PassInfo pass_info) { return DataflowBlockPass(pass_func, pass_info); });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<DataflowBlockPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const DataflowBlockPassNode*>(ref.get());
+      const PassInfo info = node->Info();
+      p->stream << "Run DataflowBlock pass: " << info->name << " at the optimization level "
+                << info->opt_level;
+    });
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
