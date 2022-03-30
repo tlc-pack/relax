@@ -558,6 +558,13 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   if (const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>()) {
     doc << Doc::Indent(4, Print(func->body));
     doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
+  } else if (const relax::FunctionNode* body = func->body.as<relax::FunctionNode>()) {
+    // nested function, note anonymous function is not supported.
+    ICHECK(body->name.defined());
+    Doc nested_func =
+        PrintFunctionDef(Doc::Text(body->name.value()->name_hint), GetRef<relax::Function>(body));
+    doc << Doc::Indent(4, nested_func);
+    doc << Doc::Indent(4, Doc::Text("return ") << Print(body->name)) << Doc::NewLine();
   } else {
     doc << Doc::Indent(4, Doc::Text("return ") << Print(func->body)) << Doc::NewLine();
   }

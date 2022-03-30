@@ -33,7 +33,6 @@
 #include <tvm/runtime/logging.h>
 
 #include <string>
-#include <unordered_map>
 
 namespace tvm {
 namespace relax {
@@ -91,6 +90,24 @@ TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
  * \return List of all vars, in the PostDFS order in the expression.
  */
 TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
+
+/*!
+ * \brief Get all glabal variables for recursive call from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all global variables for recursive all.
+ */
+TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
+
+/*!
+ * \brief Get all glabal variables from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all global variables, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm

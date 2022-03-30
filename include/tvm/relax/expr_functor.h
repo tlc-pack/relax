@@ -338,22 +338,6 @@ class ExprMutator : public ExprMutatorBase {
   std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
-/*!
- * \brief Bind the free variables to a Relax expression. This is a helper
- * function usually called by other pass functions to help optimizations.
- * If any free variables are introduced into a function, those are added
- * to the function parameters.
- * Additionally this may change the order of parameters if you map a variable
- * to a variable.
- *
- * \param expr The input expression.
- * \param binds The variable to expression map that will be used to help the
- *        binding.
- *
- * \return The updated expression.
- */
-TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
-
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_EXPR_FUNCTOR_H_

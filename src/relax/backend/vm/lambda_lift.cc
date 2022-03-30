@@ -50,13 +50,12 @@ class LambdaLifter : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
-    if (auto var_node = call_node->op.as<VarNode>()) {
-      auto var = GetRef<Var>(var_node);
-      if (!letrec_.empty() && var == letrec_.back()) {
-        auto it = lambda_map_.find(var);
-        ICHECK(it != lambda_map_.end());
-        return Call(it->second, call->args, call_node->attrs, call_node->type_args);
-      }
+    if (auto global_var_node = call_node->op.as<GlobalVarNode>()) {
+      String rec_name = global_var_node->name_hint;
+      auto global_var = GetRef<GlobalVar>(global_var_node);
+      auto it = lambda_map_.find(global_var);
+      ICHECK(it != lambda_map_.end());
+      return Call(it->second, call->args, call_node->attrs, call_node->type_args);
     }
     return std::move(call);
   }
@@ -72,17 +71,21 @@ class LambdaLifter : public ExprMutator {
     auto name = std::string("lifted_func_") + std::to_string(lift_func_num_++);
     auto global = GlobalVar(name);
     auto free_vars = FreeVars(func);
+    auto rec_vars = RecGlobalVars(func);
+    auto all_global_vars = AllGlobalVars(func);
+
+    for (const auto& var : rec_vars) {
+      recur_vars_.push_back(var);
+    }
 
     Array<Var> captured_vars;
     bool recursive = false;
     for (const auto& var : free_vars) {
-      if (!letrec_.empty() && var == letrec_.back()) {
-        recursive = true;
-        continue;
-      }
       captured_vars.push_back(var);
     }
-
+    if (!rec_vars.empty()) {
+      recursive = true;
+    }
     Array<Var> typed_captured_vars;
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
@@ -90,16 +93,17 @@ class LambdaLifter : public ExprMutator {
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
-
     if (recursive) {
       if (!captured_vars.empty()) {
         Array<Expr> fvs;
         for (auto fv : captured_vars) {
           fvs.push_back(fv);
         }
-        lambda_map_.emplace(letrec_.back(), Call(global, fvs));
+        lambda_map_.emplace(recur_vars_.back(), Call(global, fvs));
       } else {
-        lambda_map_.emplace(letrec_.back(), global);
+        if (recur_vars_.size() > 0) {
+          lambda_map_.emplace(recur_vars_.back(), global);
+        }
       }
     }
 
@@ -107,15 +111,16 @@ class LambdaLifter : public ExprMutator {
 
     Function lifted_func;
     if (captured_vars.size() == 0) {
-      lifted_func = Function(global, body->params, body->body, body->ret_type);
+      lifted_func = Function(global, body->params, body->body, body->ret_type, body->span);
     } else {
       auto before = Downcast<Function>(body)->params.size();
-      auto rebound_body = Function(func->name, func->params, Bind(body->body, rebinding_map),
-                                   func->ret_type, func->span);
+      auto inner_name = std::string("inner_func_") + std::to_string(inner_func_num_++);
+      auto rebound_body =
+          Function(GlobalVar(inner_name), func->params, body->body, func->ret_type, func->span);
       auto after = Downcast<Function>(rebound_body)->params.size();
       CHECK_EQ(before, after);
-      lifted_func = Function(global, captured_vars, rebound_body, func->ret_type);
-      //todo(yongwww): add make_closure
+      lifted_func = Function(global, captured_vars, rebound_body, func->checked_type_);
+      // todo (@yongwww): call make_closure intrinsic here
     }
 
     ICHECK(lifted_func.defined());
@@ -145,7 +150,6 @@ class LambdaLifter : public ExprMutator {
   }
 
   IRModule Lift() {
-    // There is an ordering bug here.
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
@@ -158,10 +162,11 @@ class LambdaLifter : public ExprMutator {
   }
 
  private:
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> lambda_map_;
-  std::vector<Var> letrec_;
+  std::unordered_map<GlobalVar, Expr, ObjectPtrHash, ObjectPtrEqual> lambda_map_;
+  std::vector<GlobalVar> recur_vars_;
   IRModule module_;
   size_t lift_func_num_ = 0;
+  size_t inner_func_num_ = 0;
 };
 
 }  // namespace relax_vm

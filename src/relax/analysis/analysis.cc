@@ -23,10 +23,9 @@
  *
  * \brief Utility functions for Relax.
  */
-#include <tvm/ir/type_functor.h>
+
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op_attr_types.h>
 
 namespace tvm {
 namespace relax {
@@ -41,82 +40,6 @@ struct InsertionSet {
       data.push_back(t);
     }
   }
-};
-
-class TypeVarEVisitor : private ExprVisitor {
- public:
-  explicit TypeVarEVisitor(const IRModule& mod) : mod_(mod) {}
-
-  Array<TypeVar> CollectFree() {
-    Array<TypeVar> ret;
-    for (const auto& v : type_vars_.data) {
-      if (bound_type_vars_.set.count(v) == 0) {
-        ret.push_back(v);
-      }
-    }
-    return ret;
-  }
-
-  Array<TypeVar> CollectBound() {
-    Array<TypeVar> ret;
-    for (const auto& v : bound_type_vars_.data) {
-      ret.push_back(v);
-    }
-    return ret;
-  }
-
-  Array<TypeVar> CollectAll() {
-    Array<TypeVar> ret;
-    for (const auto& v : type_vars_.data) {
-      ret.push_back(v);
-    }
-    return ret;
-  }
-
-  Array<TypeVar> Free(const Expr& expr) {
-    VisitExpr(expr);
-    return CollectFree();
-  }
-
-  Array<TypeVar> Free(const Type& type) {
-    VisitType(type);
-    return CollectFree();
-  }
-
-  Array<TypeVar> Bound(const Expr& expr) {
-    VisitExpr(expr);
-    return CollectBound();
-  }
-
-  Array<TypeVar> Bound(const Type& type) {
-    VisitType(type);
-    return CollectBound();
-  }
-
-  Array<TypeVar> All(const Expr& expr) {
-    VisitExpr(expr);
-    return CollectAll();
-  }
-
-  Array<TypeVar> All(const Type& type) {
-    VisitType(type);
-    return CollectAll();
-  }
-
-  void VisitExpr_(const FunctionNode* f) final {
-    /*
-    for (const auto& tp : f->type_params) {
-      type_vars_.Insert(tp);
-      bound_type_vars_.Insert(tp);
-    }
-    */
-    ExprVisitor::VisitExpr_(f);
-  }
-
- private:
-  InsertionSet<TypeVar> type_vars_;
-  InsertionSet<TypeVar> bound_type_vars_;
-  const IRModule& mod_;
 };
 
 class VarVisitor : protected ExprVisitor {
@@ -154,6 +77,24 @@ class VarVisitor : protected ExprVisitor {
     return ret;
   }
 
+  Array<GlobalVar> AllGlobalVars(const Expr& expr) {
+    this->VisitExpr(expr);
+    Array<GlobalVar> ret;
+    for (const auto& v : global_vars_.data) {
+      ret.push_back(v);
+    }
+    return ret;
+  }
+
+  Array<GlobalVar> RecGlobalVars(const Expr& expr) {
+    this->VisitExpr(expr);
+    Array<GlobalVar> ret;
+    for (const auto& v : rec_global_vars_.data) {
+      ret.push_back(v);
+    }
+    return ret;
+  }
+
   void MarkBounded(const Var& v) {
     bound_vars_.Insert(v);
     vars_.Insert(v);
@@ -167,6 +108,28 @@ class VarVisitor : protected ExprVisitor {
     }
     VisitExpr(op->body);
   }
+  void VisitExpr_(const GlobalVarNode* op) final { global_vars_.Insert(GetRef<GlobalVar>(op)); }
+
+  void VisitExpr_(const CallNode* call_node) final {
+    VisitSpan(call_node->span);
+    VisitExpr(call_node->op);
+
+    for (Type ty_arg : call_node->type_args) {
+      VisitType(ty_arg);
+    }
+
+    for (Expr arg : call_node->args) {
+      VisitExpr(arg);
+    }
+
+    if (call_node->shape_) {
+      VisitExpr(Downcast<Expr>(call_node->shape_.value()));
+    }
+
+    if (const GlobalVarNode* global_var_node = call_node->op.as<GlobalVarNode>()) {
+      rec_global_vars_.Insert(GetRef<GlobalVar>(global_var_node));
+    }
+  }
 
   void VisitBinding_(const VarBindingNode* binding) final {
     MarkBounded(binding->var);
@@ -177,6 +140,8 @@ class VarVisitor : protected ExprVisitor {
  private:
   InsertionSet<Var> vars_;
   InsertionSet<Var> bound_vars_;
+  InsertionSet<GlobalVar> global_vars_;
+  InsertionSet<GlobalVar> rec_global_vars_;
 };
 
 tvm::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
@@ -184,6 +149,10 @@ tvm::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
 tvm::Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
 
 tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
+
+tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
+
+tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr) { return VarVisitor().RecGlobalVars(expr); }
 
 TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
 
@@ -195,6 +164,10 @@ TVM_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body([](TVMArgs args, TVMRe
 });
 
 TVM_REGISTER_GLOBAL("relax.analysis.all_vars").set_body_typed(AllVars);
+
+TVM_REGISTER_GLOBAL("relax.analysis.all_global_vars").set_body_typed(AllGlobalVars);
+
+TVM_REGISTER_GLOBAL("relax.analysis.rec_global_vars").set_body_typed(RecGlobalVars);
 
 }  // namespace relax
 }  // namespace tvm
