@@ -635,6 +635,18 @@ def test_class_irmodule():
     check_shape(gv_bind.value, ("n", "n"))
     check_shape(gv_bind.var, ("n", "n"))
 
+    # check function type
+    assert j.checked_type.dtype == "float32"
+    assert j.checked_type.rank == 2
+    # check function shape
+    check_shape(j, ("n", "n"))
+    # check SeqExpr type
+    assert isinstance(j.body, relax.SeqExpr)
+    assert j.body.checked_type.dtype == "float32"
+    assert j.body.checked_type.rank == 2
+    # check SeqExpr shape
+    check_shape(j.body, ("n", "n"))
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

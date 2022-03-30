@@ -510,8 +510,8 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
       return call;
     }
 
-    // Shape inference
     if (!call->shape_) {
+      // shape inference
       auto inferred_shape = InferShape(call, this->diag_ctx_);
       if (inferred_shape) {
         call->shape_ = this->Normalize(inferred_shape.value());
@@ -519,12 +519,125 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
     }
 
     if (!call->checked_type_.defined()) {
-      // Type inference
+      // type inference
       auto inferred_type = InferType(call, this->diag_ctx_);
       call->checked_type_ = inferred_type;
     }
 
     return call;
+  } else if (normalized.as<TupleNode>()) {
+    Tuple tuple = Downcast<Tuple>(normalized);
+
+    // only do shape/type inference if the tuple does not have shape/type
+    if (tuple->shape_ && tuple->checked_type_.defined()) {
+      return tuple;
+    }
+
+    if (!tuple->shape_) {
+      Array<Expr> tuple_shape;
+      for (Expr field : tuple->fields) {
+        if (field->shape_) {
+          tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
+        } else {
+          break;
+        }
+      }
+      if (tuple_shape.size() == tuple->fields.size()) {
+        tuple->shape_ = Tuple(tuple_shape);
+      }
+    }
+
+    if (!tuple->checked_type_.defined()) {
+      Array<Type> tuple_type;
+      for (Expr field : tuple->fields) {
+        if (field->checked_type_.defined()) {
+          tuple_type.push_back(field->checked_type_);
+        } else {
+          break;
+        }
+      }
+      if (tuple_type.size() == tuple->fields.size()) {
+        tuple->checked_type_ = TupleType(tuple_type);
+      }
+    }
+
+    return tuple;
+  } else if (normalized.as<TupleGetItemNode>()) {
+    TupleGetItem node = Downcast<TupleGetItem>(normalized);
+    // only do shape/type inference if the TupleGetItem does not have shape/type
+    if (node->shape_ && node->checked_type_.defined()) {
+      return node;
+    }
+
+    if (!node->shape_ && node->tuple->shape_) {
+      if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
+        node->shape_ = shape->fields[node->index];
+      }
+    }
+
+    if (!node->checked_type_.defined() && node->tuple->checked_type_.defined()) {
+      if (const TupleTypeNode* type = node->tuple->checked_type_.as<TupleTypeNode>()) {
+        node->checked_type_ = type->fields[node->index];
+      }
+    }
+
+    return node;
+  } else if (normalized.as<ConstantNode>()) {
+    Constant constant = Downcast<Constant>(normalized);
+    // only do shape/type inference if the TupleGetItem does not have shape/type
+    if (constant->shape_ && constant->checked_type_.defined()) {
+      return constant;
+    }
+
+    auto shape_tuple = constant->data.Shape();
+    if (!constant->shape_) {
+      Array<PrimExpr> values;
+      for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
+        values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
+      }
+      constant->shape_ = relax::ShapeExpr(values);
+    }
+
+    if (!constant->checked_type_.defined()) {
+      DataType dtype = constant->data.DataType();
+      Type type = relax::DynTensorType(shape_tuple.size(), dtype);
+      constant->checked_type_ = type;
+    }
+
+    return constant;
+  } else if (normalized.as<FunctionNode>()) {
+    Function func = Downcast<Function>(normalized);
+
+    // only do shape/type inference if the function does not have shape/type
+    if (func->shape_ && func->checked_type_.defined()) {
+      return func;
+    }
+
+    if (!func->shape_ && func->body->shape_) {
+      func->shape_ = func->body->shape_;
+    }
+
+    if (!func->checked_type_.defined() && func->body->checked_type_.defined()) {
+      func->checked_type_ = func->body->checked_type_;
+    }
+
+    return func;
+  } else if (normalized.as<SeqExprNode>()) {
+    SeqExpr seq_expr = Downcast<SeqExpr>(normalized);
+
+    if (seq_expr->shape_ && seq_expr->checked_type_.defined()) {
+      return seq_expr;
+    }
+
+    if (!seq_expr->shape_ && seq_expr->body->shape_) {
+      seq_expr->shape_ = seq_expr->body->shape_;
+    }
+
+    if (!seq_expr->checked_type_.defined() && seq_expr->body->checked_type_.defined()) {
+      seq_expr->checked_type_ = seq_expr->body->checked_type_;
+    }
+
+    return seq_expr;
   }
   return normalized;
 }
