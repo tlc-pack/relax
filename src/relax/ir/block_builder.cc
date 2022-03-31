@@ -505,7 +505,7 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
     // FIXME(@altanh): potentially breaks idempotency
     Call call = Downcast<Call>(normalized);
 
-    // only do shape/type inference if the call does not have shape/type
+    // only do shape/type inference if the Call does not have shape/type
     if (call->shape_ && call->checked_type_.defined()) {
       return call;
     }
@@ -523,12 +523,11 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
       auto inferred_type = InferType(call, this->diag_ctx_);
       call->checked_type_ = inferred_type;
     }
-
     return call;
   } else if (normalized.as<TupleNode>()) {
     Tuple tuple = Downcast<Tuple>(normalized);
 
-    // only do shape/type inference if the tuple does not have shape/type
+    // only do shape/type inference if the Tuple does not have shape/type
     if (tuple->shape_ && tuple->checked_type_.defined()) {
       return tuple;
     }
@@ -560,10 +559,10 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
         tuple->checked_type_ = TupleType(tuple_type);
       }
     }
-
     return tuple;
   } else if (normalized.as<TupleGetItemNode>()) {
     TupleGetItem node = Downcast<TupleGetItem>(normalized);
+
     // only do shape/type inference if the TupleGetItem does not have shape/type
     if (node->shape_ && node->checked_type_.defined()) {
       return node;
@@ -580,11 +579,11 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
         node->checked_type_ = type->fields[node->index];
       }
     }
-
     return node;
   } else if (normalized.as<ConstantNode>()) {
     Constant constant = Downcast<Constant>(normalized);
-    // only do shape/type inference if the TupleGetItem does not have shape/type
+
+    // only do shape/type inference if the Constant does not have shape/type
     if (constant->shape_ && constant->checked_type_.defined()) {
       return constant;
     }
@@ -603,12 +602,11 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
       Type type = relax::DynTensorType(shape_tuple.size(), dtype);
       constant->checked_type_ = type;
     }
-
     return constant;
   } else if (normalized.as<FunctionNode>()) {
     Function func = Downcast<Function>(normalized);
 
-    // only do shape/type inference if the function does not have shape/type
+    // only do shape/type inference if the Function does not have shape/type
     if (func->shape_ && func->checked_type_.defined()) {
       return func;
     }
@@ -620,11 +618,11 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
     if (!func->checked_type_.defined() && func->body->checked_type_.defined()) {
       func->checked_type_ = func->body->checked_type_;
     }
-
     return func;
   } else if (normalized.as<SeqExprNode>()) {
     SeqExpr seq_expr = Downcast<SeqExpr>(normalized);
 
+    // only do shape/type inference if the SeqExpr does not have shape/type
     if (seq_expr->shape_ && seq_expr->checked_type_.defined()) {
       return seq_expr;
     }
@@ -636,7 +634,6 @@ Expr BlockBuilderNode::Normalize(const Expr& expr) {
     if (!seq_expr->checked_type_.defined() && seq_expr->body->checked_type_.defined()) {
       seq_expr->checked_type_ = seq_expr->body->checked_type_;
     }
-
     return seq_expr;
   }
   return normalized;

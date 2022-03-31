@@ -322,7 +322,7 @@ def test_to_anf():
     @tvm.script.ir_module
     class TestToANFInputModule:
         @R.function
-        def f(x: Tensor[(_), "float32"]):
+        def f(x: Tensor[_, "float32"]):
             gv = relax.add(x, x)
             gv1 = relax.add(gv, gv)
             gv2 = relax.add(gv, gv1)
