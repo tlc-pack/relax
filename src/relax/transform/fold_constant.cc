@@ -41,7 +41,7 @@ class ConstantFolder : public ExprMutator {
   static Optional<runtime::ShapeTuple> MatchConstShape(const Expr& expr) {
     auto* shape = expr.as<ShapeExprNode>();
     if (!shape) return NullOpt;
-    
+
     std::vector<int64_t> shape_values;
     for (const auto v : shape->values) {
       auto* ptr = v.as<IntImmNode>();
