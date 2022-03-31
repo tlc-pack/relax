@@ -96,6 +96,10 @@ class ConstantFolder : public ExprMutator {
     Optional<PackedFunc> build_func = NullOpt;
 
     try {
+      // Not all the primfunc can be directly built via llvm, for example, if a function is
+      // already scheduled to only work on GPU, we will need to skip this in the const folder for
+      // now
+      // TODO(Hongyi): further check and narrow the scope of foldable function
       runtime::Module rt_module =
           build(LowerPrimFunc(func, "tir_function"), eval_cpu_target, eval_cpu_target);
       build_func = rt_module.GetFunction("tir_function");

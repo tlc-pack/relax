@@ -79,11 +79,11 @@ def test_one_fold_addone():
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
     c1_np = c0_np + 1
-    input_module = gen_mod(Module, "before", {"c0": c0_np})
-    expected_module = gen_mod(Module, "after", {"c1": c1_np})
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
 
-    output_module = relax.transform.FoldConstant()(input_module)
-    tvm.ir.assert_structural_equal(output_module, expected_module)
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_one_fold_transpose():
@@ -109,11 +109,11 @@ def test_one_fold_transpose():
 
     c0_np = np.arange(2 * 3).astype("float32").reshape(2, 3)
     c1_np = c0_np.T
-    input_module = gen_mod(Module, "before", {"c0": c0_np})
-    expected_module = gen_mod(Module, "after", {"c1": c1_np})
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
 
-    output_module = relax.transform.FoldConstant()(input_module)
-    tvm.ir.assert_structural_equal(output_module, expected_module)
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_two_hop_addone():
@@ -141,11 +141,11 @@ def test_two_hop_addone():
     c0_np = np.arange((2 * 2)).astype("float32").reshape(2, 2)
     c1_np = c0_np + 1
     c2_np = c1_np + 1
-    input_module = gen_mod(Module, "before", {"c0": c0_np})
-    expected_module = gen_mod(Module, "after", {"c1": c1_np, "c2": c2_np})
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np, "c2": c2_np})
 
-    output_module = relax.transform.FoldConstant()(input_module)
-    tvm.ir.assert_structural_equal(output_module, expected_module)
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_dataflow_fold():
@@ -174,10 +174,10 @@ def test_dataflow_fold():
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
     c1_np = c0_np
-    input_module = gen_mod(Module, "before", {"c0": c0_np})
-    expected_module = gen_mod(Module, "after", {"c1": c1_np})
-    output_module = relax.transform.FoldConstant()(input_module)
-    tvm.ir.assert_structural_equal(output_module, expected_module)
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_fold_mixed_case():
@@ -241,10 +241,10 @@ def test_fold_mixed_case():
     c1_np = c0_np + 1
     c2_np = c0_np - c1_np
 
-    input_module = gen_mod(Module, "before", {"c0": c0_np})
-    expected_module = gen_mod(Module, "after", {"c0": c0_np, "c1": c1_np, "c2": c2_np})
-    output_module = relax.transform.FoldConstant()(input_module)
-    tvm.ir.assert_structural_equal(output_module, expected_module)
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c0": c0_np, "c1": c1_np, "c2": c2_np})
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":
