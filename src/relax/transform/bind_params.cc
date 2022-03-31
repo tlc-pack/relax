@@ -30,7 +30,7 @@
 namespace tvm {
 namespace relax {
 
-// Implement bind.
+/*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
  public:
   explicit ExprBinder(const tvm::Map<Var, Expr>& args_map) : args_map_(args_map) {}
@@ -64,7 +64,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     auto ret = runtime::make_object<FunctionNode>(*func);
     ret->params = new_params;
     ret->body = new_body;
-    return std::move(Function(ret));
+    return Function(ret);
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
   }
@@ -95,7 +95,7 @@ inline Function BindParamsByName(Function func, const Map<String, runtime::NDArr
     }
     auto arg = name_dict.at(kv.first);
     if (repeat_var.count(arg)) {
-      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
+      LOG(FATAL) << "ValueError: Multiple args in the function have name " << kv.first;
     }
     bind_dict[arg] = Constant(kv.second);
   }

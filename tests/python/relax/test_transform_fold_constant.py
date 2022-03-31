@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
+import sys
 import tvm
 import tvm.testing
 from tvm import relax, relay
@@ -58,7 +59,7 @@ def gen_mod(mod, name, binding):
 def test_one_fold_addone():
     # put before after in a single module
     @tvm.script.ir_module
-    class InputModule:
+    class Module:
         @T.prim_func
         def addone(A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16, 16), "float32"]) -> None:
             for i, j in T.grid(16, 16):
@@ -78,17 +79,17 @@ def test_one_fold_addone():
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
     c1_np = c0_np + 1
-    mod_before = gen_mod(InputModule, "before", {"c0": c0_np})
-    mod_after = gen_mod(InputModule, "after", {"c1": c1_np})
+    input_module = gen_mod(Module, "before", {"c0": c0_np})
+    expected_module = gen_mod(Module, "after", {"c1": c1_np})
 
-    mod_res = relax.transform.FoldConstant()(mod_before)
-    tvm.ir.assert_structural_equal(mod_res, mod_after)
+    output_module = relax.transform.FoldConstant()(input_module)
+    tvm.ir.assert_structural_equal(output_module, expected_module)
 
 
 def test_one_fold_transpose():
     # put before after in a single module
     @tvm.script.ir_module
-    class InputModule:
+    class Module:
         @T.prim_func
         def func(A: T.Buffer[(2, 3), "float32"], B: T.Buffer[(3, 2), "float32"]) -> None:
             for i, j in T.grid(3, 2):
@@ -108,16 +109,16 @@ def test_one_fold_transpose():
 
     c0_np = np.arange(2 * 3).astype("float32").reshape(2, 3)
     c1_np = c0_np.T
-    mod_before = gen_mod(InputModule, "before", {"c0": c0_np})
-    mod_after = gen_mod(InputModule, "after", {"c1": c1_np})
+    input_module = gen_mod(Module, "before", {"c0": c0_np})
+    expected_module = gen_mod(Module, "after", {"c1": c1_np})
 
-    mod_res = relax.transform.FoldConstant()(mod_before)
-    tvm.ir.assert_structural_equal(mod_res, mod_after)
+    output_module = relax.transform.FoldConstant()(input_module)
+    tvm.ir.assert_structural_equal(output_module, expected_module)
 
 
 def test_two_hop_addone():
     @tvm.script.ir_module
-    class InputModule:
+    class Module:
         @T.prim_func
         def addone(A: T.Buffer[(2, 2), "float32"], B: T.Buffer[(2, 2), "float32"]) -> None:
             for i, j in T.grid(2, 2):
@@ -140,16 +141,16 @@ def test_two_hop_addone():
     c0_np = np.arange((2 * 2)).astype("float32").reshape(2, 2)
     c1_np = c0_np + 1
     c2_np = c1_np + 1
-    mod_before = gen_mod(InputModule, "before", {"c0": c0_np})
-    mod_after = gen_mod(InputModule, "after", {"c1": c1_np, "c2": c2_np})
+    input_module = gen_mod(Module, "before", {"c0": c0_np})
+    expected_module = gen_mod(Module, "after", {"c1": c1_np, "c2": c2_np})
 
-    mod_res = relax.transform.FoldConstant()(mod_before)
-    tvm.ir.assert_structural_equal(mod_res, mod_after)
+    output_module = relax.transform.FoldConstant()(input_module)
+    tvm.ir.assert_structural_equal(output_module, expected_module)
 
 
 def test_dataflow_fold():
     @tvm.script.ir_module
-    class InputModule:
+    class Module:
         @T.prim_func
         def identity(A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16, 16), "float32"]) -> None:
             for i, j in T.grid(16, 16):
@@ -173,15 +174,15 @@ def test_dataflow_fold():
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
     c1_np = c0_np
-    mod_before = gen_mod(InputModule, "before", {"c0": c0_np})
-    mod_after = gen_mod(InputModule, "after", {"c1": c1_np})
-    mod_res = relax.transform.FoldConstant()(mod_before)
-    tvm.ir.assert_structural_equal(mod_res, mod_after)
+    input_module = gen_mod(Module, "before", {"c0": c0_np})
+    expected_module = gen_mod(Module, "after", {"c1": c1_np})
+    output_module = relax.transform.FoldConstant()(input_module)
+    tvm.ir.assert_structural_equal(output_module, expected_module)
 
 
 def test_fold_mixed_case():
     @tvm.script.ir_module
-    class InputModule:
+    class Module:
         # TIR function can handle different cases.
         @T.prim_func
         def addone(a: T.handle, b: T.handle) -> None:
@@ -240,15 +241,11 @@ def test_fold_mixed_case():
     c1_np = c0_np + 1
     c2_np = c0_np - c1_np
 
-    mod_before = gen_mod(InputModule, "before", {"c0": c0_np})
-    mod_after = gen_mod(InputModule, "after", {"c0": c0_np, "c1": c1_np, "c2": c2_np})
-    mod_res = relax.transform.FoldConstant()(mod_before)
-    tvm.ir.assert_structural_equal(mod_res, mod_after)
+    input_module = gen_mod(Module, "before", {"c0": c0_np})
+    expected_module = gen_mod(Module, "after", {"c0": c0_np, "c1": c1_np, "c2": c2_np})
+    output_module = relax.transform.FoldConstant()(input_module)
+    tvm.ir.assert_structural_equal(output_module, expected_module)
 
 
 if __name__ == "__main__":
-    test_one_fold_addone()
-    test_one_fold_transpose()
-    test_two_hop_addone()
-    test_dataflow_fold()
-    test_fold_mixed_case()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

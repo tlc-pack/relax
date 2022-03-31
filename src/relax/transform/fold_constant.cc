@@ -39,40 +39,35 @@ class ConstantFolder : public ExprMutator {
    * \return The runtime shape tuple, or nullopt if it is not a constant shape.
    */
   static Optional<runtime::ShapeTuple> MatchConstShape(const Expr& expr) {
-    if (auto* shape = expr.as<ShapeExprNode>()) {
-      std::vector<int64_t> shape_values;
-      for (const auto v : shape->values) {
-        if (auto* ptr = v.as<IntImmNode>()) {
-          shape_values.push_back(ptr->value);
-        } else {
-          return NullOpt;
-        }
-      }
-      return runtime::ShapeTuple(shape_values.begin(), shape_values.end());
-    } else {
-      return NullOpt;
+    auto* shape = expr.as<ShapeExprNode>();
+    if (!shape) return NullOpt;
+    
+    std::vector<int64_t> shape_values;
+    for (const auto v : shape->values) {
+      auto* ptr = v.as<IntImmNode>();
+      if (!ptr) return NullOpt;
+      shape_values.push_back(ptr->value);
     }
+    return runtime::ShapeTuple(shape_values.begin(), shape_values.end());
   }
 
   /*!
    * \brief Pattern match op to constant array arguments.
-   * \return The constant array arguments, or nullopt if match fails.o
+   * \return The constant array arguments, or nullopt if match fails.
    */
   static Optional<Array<runtime::NDArray>> MatchConstArrayArgs(const Array<Expr>& args) {
     Array<runtime::NDArray> res;
     for (auto arg : args) {
-      if (auto* ptr = arg.as<relay::ConstantNode>()) {
-        res.push_back(ptr->data);
-      } else {
-        return NullOpt;
-      }
+      auto* ptr = arg.as<relax::ConstantNode>();
+      if (!ptr) return NullOpt;
+      res.push_back(ptr->data);
     }
     return res;
   }
 
   /*!
    * \brief Pattern match op to a TIR function and look it up.
-   * \return The TIR function, or nullopt if patter match fails.
+   * \return The TIR function, or nullopt if pattern match fails.
    */
   Optional<tir::PrimFunc> MatchPrimFunc(const Expr& op) {
     if (auto* ptr = op.as<GlobalVarNode>()) {
@@ -161,38 +156,33 @@ class ConstantFolder : public ExprMutator {
     return std::move(call);
   }
 
-  Expr VisitExpr_(const CallNode* call) override {
+  Expr VisitExpr_(const CallNode* call) final {
     // post-order mutation
     Call post_call = Downcast<Call>(VisitExprPostOrder_(call));
     static const Op& call_tir_op = Op::Get("relax.call_tir");
 
     if (call->op.same_as(call_tir_op)) {
       return VisitCallTIR(post_call);
-    } else {
-      return std::move(post_call);
     }
+    return std::move(post_call);
   }
 
   Expr VisitExpr_(const DataflowVarNode* op) final {
     Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
-    // NOTE: opt can be nullptr, in which case opt is nullptr
     // as check checks if opt is not null and is instance of constant
-    if (opt.as<relay::ConstantNode>()) {
+    if (opt.as<relax::ConstantNode>()) {
       return opt.value();
-    } else {
-      return ExprMutator::VisitExpr_(op);
     }
+    return ExprMutator::VisitExpr_(op);
   }
 
   Expr VisitExpr_(const VarNode* op) final {
     Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
-    // NOTE: opt can be nullptr, in which case opt is nullptr
     // as check checks if opt is not null and is instance of constant
-    if (opt.as<relay::ConstantNode>()) {
+    if (opt.as<relax::ConstantNode>()) {
       return opt.value();
-    } else {
-      return ExprMutator::VisitExpr_(op);
     }
+    return ExprMutator::VisitExpr_(op);
   }
 
   // the context module to lookup functions
