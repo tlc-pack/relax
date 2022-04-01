@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, and builder."""
+from tvm.relay import FuncType
 from . import exec_builder
 from . import expr
 from . import ty
@@ -58,6 +59,7 @@ ShapeType = ty.ShapeType
 DynTensorType = ty.DynTensorType
 DimType = ty.DimType
 TupleType = ty.TupleType
+FuncType = ty.FuncType
 
 # VM
 ExecBuilder = exec_builder.ExecBuilder
