@@ -16,10 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """Relax transformation passes."""
+from typing import Dict
 import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase
-from typing import Dict
 
 from . import _ffi_api
 
