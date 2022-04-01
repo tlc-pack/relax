@@ -105,7 +105,7 @@ class ConstantFolder : public ExprMutator {
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
-      DLOG(WARNING) << "Build failure for function " << func;
+      DLOG(WARNING) << "Build failure for function " << func << ", Error message: " << err.what();
     }
     func_build_cache_[func] = build_func;
     return build_func;
@@ -119,6 +119,7 @@ class ConstantFolder : public ExprMutator {
     Optional<PackedFunc> func = GetCachedBuild(tir_func);
     if (!func) return NullOpt;
 
+    // here the vector size has an additional + 1 because we need to put ret_tensor at the end
     std::vector<TVMValue> values(arr_args.size() + 1);
     std::vector<int> type_codes(arr_args.size() + 1);
 
@@ -146,7 +147,7 @@ class ConstantFolder : public ExprMutator {
     // call_tir needs to have at least three arguments
     ICHECK_GE(call->args.size(), 3);
     Optional<tir::PrimFunc> func = MatchPrimFunc(call->args[0]);
-    ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] requires to be Tuple";
+    ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
     Optional<Array<runtime::NDArray>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
     Optional<runtime::ShapeTuple> shape = MatchConstShape(call->args[2]);
@@ -173,7 +174,7 @@ class ConstantFolder : public ExprMutator {
 
   Expr VisitExpr_(const DataflowVarNode* op) final {
     Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
-    // as check checks if opt is not null and is instance of constant
+    // `as` check checks if opt is not null and is instance of constant
     if (opt.as<relax::ConstantNode>()) {
       return opt.value();
     }
@@ -182,7 +183,7 @@ class ConstantFolder : public ExprMutator {
 
   Expr VisitExpr_(const VarNode* op) final {
     Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
-    // as check checks if opt is not null and is instance of constant
+    // `as` check checks if opt is not null and is instance of constant
     if (opt.as<relax::ConstantNode>()) {
       return opt.value();
     }

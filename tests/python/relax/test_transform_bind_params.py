@@ -18,7 +18,7 @@
 from __future__ import annotations  # must import to defer parsing of annotations
 import tvm
 import tvm.testing
-from tvm import relax, relay
+from tvm import relax
 import numpy as np
 
 import tvm.script
@@ -68,4 +68,4 @@ def test_bind_params():
 
 
 if __name__ == "__main__":
-    test_bind_params()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

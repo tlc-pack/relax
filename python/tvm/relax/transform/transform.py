@@ -19,6 +19,8 @@
 import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase
+from typing import Dict
+
 from . import _ffi_api
 
 
@@ -120,8 +122,8 @@ def MetaScheduleApplyHistoryBest(
     return _ffi_api.MetaScheduleApplyHistoryBest(database, target)
 
 
-def BindParams(func_name, params) -> tvm.ir.transform.Pass:
-    """Bind params of main function of the module to constant tensors.
+def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors.
 
     Parameters
     ----------

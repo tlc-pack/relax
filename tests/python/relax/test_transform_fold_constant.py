@@ -19,7 +19,7 @@ import pytest
 import sys
 import tvm
 import tvm.testing
-from tvm import relax, relay
+from tvm import relax
 from tvm.ir.base import assert_structural_equal
 import numpy as np
 
@@ -73,7 +73,7 @@ def test_one_fold_addone():
             return lv0
 
         @R.function
-        def after(c1: Tensor[(16, 16), "float32"]):
+        def expected(c1: Tensor[(16, 16), "float32"]):
             lv0 = c1
             return c1
 
@@ -103,7 +103,7 @@ def test_one_fold_transpose():
             return lv0
 
         @R.function
-        def after(c1: Tensor[(3, 2), "float32"]):
+        def expected(c1: Tensor[(3, 2), "float32"]):
             lv0 = c1
             return c1
 
@@ -133,7 +133,7 @@ def test_two_hop_addone():
             return lv1
 
         @R.function
-        def after(c1: Tensor[(2, 2), "float32"], c2: Tensor[(2, 2), "float32"]):
+        def expected(c1: Tensor[(2, 2), "float32"], c2: Tensor[(2, 2), "float32"]):
             lv0 = c1
             lv1 = c2
             return c2
@@ -166,7 +166,7 @@ def test_dataflow_fold():
             return gv0
 
         @R.function
-        def after(c1: Tensor[(16, 16), "float32"]):
+        def expected(c1: Tensor[(16, 16), "float32"]):
             with R.dataflow():
                 gv0 = c1
                 R.output(gv0)
@@ -220,7 +220,7 @@ def test_fold_mixed_case():
             return lv3
 
         @R.function
-        def after(
+        def expected(
             c0: Tensor[(16, 16), "float32"],
             c1: Tensor[(16, 16), "float32"],
             c2: Tensor[(16, 16), "float32"],

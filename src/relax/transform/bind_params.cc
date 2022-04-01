@@ -49,6 +49,12 @@ class ExprBinder : public ExprMutator {
   const tvm::Map<Var, Expr>& args_map_;
 };
 
+/*!
+ * \brief Bind params on expr
+ * \param expr The expr where to bind params
+ * \param args_map The map from param var to the expr it binds to
+ * \return The result expr after bind params
+ */
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
@@ -106,6 +112,13 @@ inline Function BindParamsByName(Function func, const Map<String, runtime::NDArr
   return ret;
 }
 
+/*!
+ * \brief Bind params to a specific function in a module
+ * \param m The module
+ * \param func_name The name of the specific function
+ * \param param The param dict
+ * \return The module after binding params.
+ */
 IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> param) {
   IRModuleNode* new_module = m.CopyOnWrite();
   Map<GlobalVar, BaseFunc> functions = m->functions;
