@@ -73,6 +73,8 @@ class BlockBuilderNode : public Object {
    * \brief Emits an Expr, and returns the variable it is bound to.
    * \param expr The Expr to be emitted.
    * \param name_hint Name hint for the bound variable.
+   * \note This Emit function normalizes the \p expr, and performs shape and type deductions by
+   * calling Normalize.
    * \return The new variable that \p expr is bound to.
    */
   virtual Var Emit(const Expr& expr, std::string name_hint = "");
@@ -167,6 +169,15 @@ class BlockBuilderNode : public Object {
   TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
 
  private:
+  /*!
+   * \brief Emits an Expr, and returns the variable it is bound to.
+   * \param expr The Expr to be emitted.
+   * \param is_dataflow Is the bound variable a DataflowVar or not(i.e. Var).
+   * \param name_hint Name hint for the bound variable.
+   * \note This Emit function normalizes the \p expr, and performs shape and type deductions by
+   * calling Normalize.
+   * \return The new variable that \p expr is bound to.
+   */
   Var Emit(const Expr& expr, bool is_dataflow, std::string name_hint);
 
   /*! \brief The IRModule being built by the BlockBuilder. */
