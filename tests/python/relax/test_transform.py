@@ -319,19 +319,8 @@ def test_vm_shape_lowering_func_param_with_shape():
 
 
 def test_to_anf():
-    x = relax.Var("x", type_annotation=relax.DynTensorType())
-    gv = relax.op.add(x, x)
-    gv1 = relax.op.add(gv, gv)
-    gv2 = relax.op.add(gv, gv1)
-    body = relax.Tuple([gv, gv2])
-    gvar = relax.GlobalVar("f")
-    func = relax.Function([x], body, None, gvar)
-
-    mod: tvm.IRModule = tvm.IRModule({gvar: func})
-    new_mod = relax.transform.ToANF()(mod)
-
     @tvm.script.ir_module
-    class TestToANFExpected:
+    class TestToANFInputModule:
         @R.function
         def f(x: Tensor[_, "float32"]):
             gv = relax.add(x, x)
@@ -339,7 +328,9 @@ def test_to_anf():
             gv2 = relax.add(gv, gv1)
             return (gv, gv2)
 
-    assert_structural_equal(new_mod, TestToANFExpected, map_free_vars=True)
+    before_mod = TestToANFInputModule
+    after_mod = relax.transform.ToANF()(before_mod)
+    assert_structural_equal(before_mod, after_mod, map_free_vars=True)
 
 
 def test_to_anf_no_op():

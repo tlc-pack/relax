@@ -29,8 +29,9 @@ from tvm.script import tir as T, relax as R
 
 
 def check_shape(e, s):
-
-    if isinstance(e, relax.Call):
+    if isinstance(e, relax.ShapeExpr):
+        pass
+    elif isinstance(e, relax.Call):
         e = e.shape
     elif isinstance(e, relax.Expr):
         e = e.shape_
@@ -605,8 +606,10 @@ def test_class_irmodule():
         def j(y: Tensor[(n, n), _]) -> Tensor:
             with relax.dataflow():
                 gv = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
-                relax.output(gv)
-            return gv
+                gv1 = (gv, gv)
+                gv2 = gv1[1]
+                relax.output(gv2)
+            return gv2
 
         @R.function
         def h(x, y, z):
@@ -634,6 +637,41 @@ def test_class_irmodule():
     assert gv_bind.var.checked_type.dtype == "float32"
     check_shape(gv_bind.value, ("n", "n"))
     check_shape(gv_bind.var, ("n", "n"))
+
+    # check function type
+    assert isinstance(j.checked_type, relax.FuncType)
+    assert j.checked_type.ret_type.dtype == "float32"
+    assert j.checked_type.ret_type.rank == 2
+
+    # check SeqExpr type/shape
+    assert isinstance(j.body, relax.SeqExpr)
+    assert j.body.checked_type.dtype == "float32"
+    assert j.body.checked_type.rank == 2
+    check_shape(j.body, ("n", "n"))
+
+    # check tuple type/shape
+    gv1_bind = j.body.blocks[0].bindings[1]
+    isinstance(gv1_bind.value, relax.Tuple)
+    isinstance(gv1_bind.value.checked_type, relax.TupleType)
+    isinstance(gv1_bind.var.checked_type, relax.TupleType)
+    assert gv1_bind.var.checked_type.fields[0].rank == 2
+    assert gv1_bind.var.checked_type.fields[0].dtype == "float32"
+    isinstance(gv1_bind.var.shape, relax.Tuple)
+    isinstance(gv1_bind.value.shape, relax.Tuple)
+    check_shape(gv1_bind.value.shape.fields[0], ("n", "n"))
+    check_shape(gv1_bind.value.shape.fields[1], ("n", "n"))
+    check_shape(gv1_bind.var.shape.fields[0], ("n", "n"))
+    check_shape(gv1_bind.var.shape.fields[1], ("n", "n"))
+
+    # check TupleGetItem type/shape
+    gv2_bind = j.body.blocks[0].bindings[2]
+    isinstance(gv2_bind.value, relax.TupleGetItem)
+    assert gv2_bind.value.checked_type.rank == 2
+    assert gv2_bind.value.checked_type.dtype == "float32"
+    assert gv2_bind.var.checked_type.rank == 2
+    assert gv2_bind.var.checked_type.dtype == "float32"
+    check_shape(gv2_bind.value.shape, ("n", "n"))
+    check_shape(gv2_bind.var, ("n", "n"))
 
 
 if __name__ == "__main__":
