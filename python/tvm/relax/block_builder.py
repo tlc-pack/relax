@@ -288,7 +288,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the input expr.
+            A newly created variable that gets bound to the input expr.
         """
         return _ffi_api.BlockBuilderEmit(self, expr)
 
@@ -385,7 +385,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the call code.
+            A newly created variable that gets bound to the call code.
 
         Example
         -------
@@ -502,7 +502,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets binded to the call code.
+            A newly created variable that gets bound to the call code.
         """
         return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)
 
@@ -517,7 +517,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            The return variable which gets binded to the output.
+            The return variable which gets bound to the output.
         """
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
@@ -542,7 +542,7 @@ class BlockBuilder(Object):
         Returns
         -------
         ret : tvm.relax.Var
-            The return variable which gets binded to the output.
+            The return variable which gets bound to the output.
         """
         if self._is_emit_func_output_called:
             raise RuntimeError("emit_func_output must be called exactly once in a relax function.")

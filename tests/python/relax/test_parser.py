@@ -638,10 +638,10 @@ def test_class_irmodule():
     check_shape(gv_bind.value, ("n", "n"))
     check_shape(gv_bind.var, ("n", "n"))
 
-    # check function type/shape
-    assert j.checked_type.dtype == "float32"
-    assert j.checked_type.rank == 2
-    check_shape(j, ("n", "n"))
+    # check function type
+    assert isinstance(j.checked_type, relax.FuncType)
+    assert j.checked_type.ret_type.dtype == "float32"
+    assert j.checked_type.ret_type.rank == 2
 
     # check SeqExpr type/shape
     assert isinstance(j.body, relax.SeqExpr)
