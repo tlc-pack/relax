@@ -117,7 +117,7 @@ class VMShapeLowerMutator : public ExprMutator {
 
     // FIXME(@yuchen): Implement vm.builtin.free_shape_heap.
     // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
-    new_body = SeqExpr(blocks, new_body);
+    new_body = builder_->Normalize(SeqExpr(blocks, new_body));
 
     return Function(node->name, node->params, new_body, ret_type);
   }
