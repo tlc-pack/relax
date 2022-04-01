@@ -56,6 +56,22 @@ Type InferType(const Call& call, DiagnosticContext diag_ctx) {
   return Type();
 }
 
+// Helper function to get the shape of a Tuple based on its fields
+Optional<Expr> GetTupleShape(const Tuple& tuple) {
+  Array<Expr> tuple_shape;
+  for (Expr field : tuple->fields) {
+    if (field->checked_type_.as<DynTensorTypeNode>() && field->shape_) {
+      tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
+    } else {
+      break;
+    }
+  }
+  if (tuple_shape.size() == tuple->fields.size()) {
+    return Tuple(tuple_shape);
+  }
+  return NullOpt;
+}
+
 // ================================
 // BlockBuilderNode::ExprNormalizer
 
@@ -100,32 +116,21 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       return tuple;
     }
 
+    // Tuple's shape can be null, when a tuple consists of all DynTensorType, it has a shape
     if (!tuple->shape_) {
-      Array<Expr> tuple_shape;
-      for (Expr field : tuple->fields) {
-        if (field->shape_) {
-          tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
-        } else {
-          break;
-        }
-      }
-      if (tuple_shape.size() == tuple->fields.size()) {
-        tuple->shape_ = Tuple(tuple_shape);
-      }
+      tuple->shape_ = GetTupleShape(tuple);
     }
 
+    // Tuple's checked_type must not be null
     if (!tuple->checked_type_.defined()) {
       Array<Type> tuple_type;
       for (Expr field : tuple->fields) {
-        if (field->checked_type_.defined()) {
-          tuple_type.push_back(field->checked_type_);
-        } else {
-          break;
-        }
+        // TODO(@yuchen): add this check after we add ty_args to call_packed
+        // ICHECK(field->checked_type_.defined())
+        //     << "The checked_type_ of the field " << field << " of Tuple has not propagated.";
+        tuple_type.push_back(field->checked_type_);
       }
-      if (tuple_type.size() == tuple->fields.size()) {
-        tuple->checked_type_ = TupleType(tuple_type);
-      }
+      tuple->checked_type_ = TupleType(tuple_type);
     }
     return tuple;
   }
@@ -289,17 +294,22 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       return node;
     }
 
+    if (!node->checked_type_.defined()) {
+      const TupleTypeNode* tuple_type = node->tuple->checked_type_.as<TupleTypeNode>();
+      ICHECK(tuple_type) << "The checked_type_ of Tuple must be TupleTypeNode.";
+      node->checked_type_ = tuple_type->fields[node->index];
+    }
+
     if (!node->shape_ && node->tuple->shape_) {
-      if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
-        node->shape_ = shape->fields[node->index];
+      if (node->checked_type_.as<DynTensorTypeNode>()) {
+        // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
+        // field
+        if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
+          node->shape_ = shape->fields[node->index];
+        }
       }
     }
 
-    if (!node->checked_type_.defined() && node->tuple->checked_type_.defined()) {
-      if (const TupleTypeNode* type = node->tuple->checked_type_.as<TupleTypeNode>()) {
-        node->checked_type_ = type->fields[node->index];
-      }
-    }
     return node;
   }
 
