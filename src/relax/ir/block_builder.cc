@@ -32,6 +32,46 @@
 namespace tvm {
 namespace relax {
 
+// Helper function to infer the shape of a Call.
+Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
+  auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
+  if (call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(call->op);
+    if (op_map.count(op)) {
+      return op_map[op](call, diag_ctx);
+    }
+  }
+  return NullOpt;
+}
+
+// Helper function to infer the type of a Call.
+Type InferType(const Call& call, DiagnosticContext diag_ctx) {
+  auto op_map = Op::GetAttrMap<FInferType>("FInferType");
+  if (call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(call->op);
+    if (op_map.count(op)) {
+      return op_map[op](call, diag_ctx);
+    }
+  }
+  return Type();
+}
+
+// Helper function to get the shape of a Tuple based on its fields
+Optional<Expr> GetTupleShape(const Tuple& tuple) {
+  Array<Expr> tuple_shape;
+  for (Expr field : tuple->fields) {
+    if (field->checked_type_.as<DynTensorTypeNode>() && field->shape_) {
+      tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
+    } else {
+      break;
+    }
+  }
+  if (tuple_shape.size() == tuple->fields.size()) {
+    return Tuple(tuple_shape);
+  }
+  return NullOpt;
+}
+
 // ================================
 // BlockBuilderNode::ExprNormalizer
 
@@ -43,7 +83,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
 
-  RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
   RELAX_EXPR_NORMALIZER_LEAF(VarNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataflowVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
@@ -70,15 +109,56 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       new_fields.push_back(new_field);
       unchanged &= new_field.same_as(field);
     }
-    return unchanged ? GetRef<Expr>(op) : Tuple(new_fields);
+    Tuple tuple = unchanged ? GetRef<Tuple>(op) : Tuple(new_fields);
+
+    // only do shape/type inference if the Tuple does not have shape/type
+    if (tuple->shape_ && tuple->checked_type_.defined()) {
+      return tuple;
+    }
+
+    // Tuple's shape can be null, when a tuple consists of all DynTensorType, it has a shape
+    if (!tuple->shape_) {
+      tuple->shape_ = GetTupleShape(tuple);
+    }
+
+    // Tuple's checked_type must not be null
+    if (!tuple->checked_type_.defined()) {
+      Array<Type> tuple_type;
+      for (Expr field : tuple->fields) {
+        // TODO(@yuchen): add this check after we add ty_args to call_packed
+        // ICHECK(field->checked_type_.defined())
+        //     << "The checked_type_ of the field " << field << " of Tuple has not propagated.";
+        tuple_type.push_back(field->checked_type_);
+      }
+      tuple->checked_type_ = TupleType(tuple_type);
+    }
+    return tuple;
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {
     Expr new_body = this->VisitWithNewScope(op->body);
+    Function func;
     if (new_body.same_as(op->body)) {
-      return GetRef<Expr>(op);
+      func = GetRef<Function>(op);
+    } else {
+      func = Function(op->name, op->params, new_body, op->ret_type);
     }
-    return Function(op->name, op->params, new_body, op->ret_type);
+
+    // only do shape/type inference if the Function does not have shape/type
+    if (func->shape_ && func->checked_type_.defined()) {
+      return func;
+    }
+
+    // Note: the shape_ of Function is left as Null for now, to be consitent with
+    // Function->checked_type_, which is a FuncType
+    if (!func->checked_type_.defined() && func->body->checked_type_.defined()) {
+      Array<Type> param_types;
+      for (auto param : func->params) {
+        param_types.push_back(param->checked_type_);
+      }
+      func->checked_type_ = FuncType(param_types, func->body->checked_type_, {}, {});
+    }
+    return func;
   }
 
   Expr VisitExpr_(const CallNode* op) final {
@@ -86,16 +166,40 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     bool unchanged = new_op.same_as(op->op);
 
     Array<Expr> new_args;
-    for (const Expr& arg : op->args) {
-      Expr new_arg = this->Bind(arg);
-      new_args.push_back(new_arg);
-      unchanged &= new_arg.same_as(arg);
+    if (!op->args.empty()) {
+      for (const Expr& arg : op->args) {
+        Expr new_arg = this->Bind(arg);
+        new_args.push_back(new_arg);
+        unchanged &= new_arg.same_as(arg);
+      }
     }
 
+    Call call;
     if (unchanged) {
-      return GetRef<Expr>(op);
+      call = GetRef<Call>(op);
+    } else {
+      call = Call(new_op, new_args, op->attrs, op->type_args);
     }
-    return Call(new_op, new_args, op->attrs, op->type_args);
+
+    // only do shape/type inference if the Call does not have shape/type
+    if (call->shape_ && call->checked_type_.defined()) {
+      return call;
+    }
+
+    if (!call->shape_) {
+      // shape inference
+      auto inferred_shape = InferShape(call, this->builder_->diag_ctx_);
+      if (inferred_shape) {
+        call->shape_ = inferred_shape.value();
+      }
+    }
+
+    if (!call->checked_type_.defined()) {
+      // type inference
+      auto inferred_type = InferType(call, this->builder_->diag_ctx_);
+      call->checked_type_ = inferred_type;
+    }
+    return call;
   }
 
   Expr VisitExpr_(const SeqExprNode* op) final {
@@ -120,10 +224,50 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       unchanged = false;
     }
 
+    SeqExpr seq_expr;
     if (unchanged) {
-      return GetRef<Expr>(op);
+      seq_expr = GetRef<SeqExpr>(op);
     }
-    return SeqExpr(new_blocks, new_body);
+    seq_expr = SeqExpr(new_blocks, new_body);
+
+    // only do shape/type inference if the SeqExpr does not have shape/type
+    if (seq_expr->shape_ && seq_expr->checked_type_.defined()) {
+      return seq_expr;
+    }
+
+    if (!seq_expr->shape_ && seq_expr->body->shape_) {
+      seq_expr->shape_ = seq_expr->body->shape_;
+    }
+
+    if (!seq_expr->checked_type_.defined() && seq_expr->body->checked_type_.defined()) {
+      seq_expr->checked_type_ = seq_expr->body->checked_type_;
+    }
+    return seq_expr;
+  }
+
+  Expr VisitExpr_(const ConstantNode* op) final {
+    Constant constant = GetRef<Constant>(op);
+
+    // only do shape/type inference if the Constant does not have shape/type
+    if (constant->shape_ && constant->checked_type_.defined()) {
+      return constant;
+    }
+
+    auto shape_tuple = constant->data.Shape();
+    if (!constant->shape_) {
+      Array<PrimExpr> values;
+      for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
+        values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
+      }
+      constant->shape_ = relax::ShapeExpr(values);
+    }
+
+    if (!constant->checked_type_.defined()) {
+      DataType dtype = constant->data.DataType();
+      Type type = relax::DynTensorType(shape_tuple.size(), dtype);
+      constant->checked_type_ = type;
+    }
+    return constant;
   }
 
   Expr VisitExpr_(const IfNode* op) final {
@@ -139,10 +283,34 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   Expr VisitExpr_(const TupleGetItemNode* op) final {
     Expr new_tuple = this->VisitExpr(op->tuple);
+    TupleGetItem node;
     if (new_tuple.same_as(op->tuple)) {
-      return GetRef<Expr>(op);
+      node = GetRef<TupleGetItem>(op);
     }
-    return TupleGetItem(new_tuple, op->index);
+    node = TupleGetItem(new_tuple, op->index);
+
+    // only do shape/type inference if the TupleGetItem does not have shape/type
+    if (node->shape_ && node->checked_type_.defined()) {
+      return node;
+    }
+
+    if (!node->checked_type_.defined()) {
+      const TupleTypeNode* tuple_type = node->tuple->checked_type_.as<TupleTypeNode>();
+      ICHECK(tuple_type) << "The checked_type_ of Tuple must be TupleTypeNode.";
+      node->checked_type_ = tuple_type->fields[node->index];
+    }
+
+    if (!node->shape_ && node->tuple->shape_) {
+      if (node->checked_type_.as<DynTensorTypeNode>()) {
+        // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
+        // field
+        if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
+          node->shape_ = shape->fields[node->index];
+        }
+      }
+    }
+
+    return node;
   }
 
   Binding VisitBinding(const Binding& binding) {
@@ -298,90 +466,24 @@ BindingBlock BlockBuilderNode::EndBlock() {
   return ret;
 }
 
-Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
-  auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
-  if (call->op.as<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    if (op_map.count(op)) {
-      return op_map[op](call, diag_ctx);
-    }
-  }
-  return NullOpt;
-}
-
-Type InferType(const Call& call, DiagnosticContext diag_ctx) {
-  auto op_map = Op::GetAttrMap<FInferType>("FInferType");
-  if (call->op.as<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    if (op_map.count(op)) {
-      return op_map[op](call, diag_ctx);
-    }
-  }
-  return Type();
-}
-
 Var BlockBuilderNode::Emit(const Expr& expr, std::string name_hint) {
   return Emit(expr, CurrentFrame()->is_dataflow, name_hint);
 }
 
 Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_hint) {
   BlockFrame* cur_frame = CurrentFrame();
+  Expr normalized = Normalize(expr);
 
   if (name_hint.empty()) {
     name_hint = is_dataflow ? "lv" : "gv";
   }
   Id vid = Id(name_table_->GetUniqueName(name_hint));
   Var var = is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
+  var->checked_type_ = normalized->checked_type_;
+  var->shape_ = normalized->shape_;
 
-  // do eager inference for Calls
-  if (const CallNode* call_node = expr.as<CallNode>()) {
-    // TypeInference::InferCall(...)
-    const Call& call = GetRef<Call>(call_node);
-
-    Optional<Expr> inferred_shape = InferShape(call, this->diag_ctx_);
-    Type inferred_type = InferType(call, this->diag_ctx_);
-
-    var->shape_ = inferred_shape;
-    var->checked_type_ = inferred_type;
-
-    Call new_call = Call(call->op, call->args, call->attrs, call->type_args, call->span);
-    new_call->checked_type_ = inferred_type;
-    new_call->shape_ = inferred_shape;
-
-    cur_frame->bindings.push_back(VarBinding(var, new_call));
-    this->binding_table_[var->vid] = new_call;
-  } else if (const VarNode* var_node = expr.as<VarNode>()) {
-    const Var& lhs_var = GetRef<Var>(var_node);
-    if (lhs_var->shape_.defined()) {
-      var->shape_ = lhs_var->shape_;
-    }
-    if (lhs_var->checked_type_.defined()) {
-      var->checked_type_ = lhs_var->checked_type_;
-    }
-    cur_frame->bindings.push_back(VarBinding(var, lhs_var));
-    this->binding_table_[var->vid] = lhs_var;
-  } else if (const TupleGetItemNode* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    if (const VarNode* tuple = tuple_get_item_node->tuple.as<VarNode>()) {
-      if (tuple->shape_.defined()) {
-        if (const TupleNode* shape = tuple->shape_.as<TupleNode>()) {
-          var->shape_ = shape->fields[tuple_get_item_node->index];
-        }
-      }
-      if (tuple->checked_type_.defined()) {
-        if (const TupleTypeNode* type = tuple->checked_type_.as<TupleTypeNode>()) {
-          var->checked_type_ = type->fields[tuple_get_item_node->index];
-        }
-      }
-      cur_frame->bindings.push_back(VarBinding(var, expr));
-      this->binding_table_[var->vid] = expr;
-    } else {
-      LOG(FATAL) << "TypeError: Invalid type as the tuple field of TupleGetItemNode: "
-                 << tuple_get_item_node->tuple->GetTypeKey();
-    }
-  } else {
-    cur_frame->bindings.push_back(VarBinding(var, expr));
-    binding_table_[var->vid] = expr;
-  }
+  cur_frame->bindings.push_back(VarBinding(var, expr));
+  binding_table_[var->vid] = expr;
 
   return var;
 }
@@ -501,31 +603,6 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
   // TODO(@altanh): fast path
   Expr normalized = normalizer_->VisitExpr(expr);
-  if (normalized.as<CallNode>()) {
-    // FIXME(@altanh): potentially breaks idempotency
-    Call call = Downcast<Call>(normalized);
-
-    // only do shape/type inference if the call does not have shape/type
-    if (call->shape_ && call->checked_type_.defined()) {
-      return call;
-    }
-
-    // Shape inference
-    if (!call->shape_) {
-      auto inferred_shape = InferShape(call, this->diag_ctx_);
-      if (inferred_shape) {
-        call->shape_ = this->Normalize(inferred_shape.value());
-      }
-    }
-
-    if (!call->checked_type_.defined()) {
-      // Type inference
-      auto inferred_type = InferType(call, this->diag_ctx_);
-      call->checked_type_ = inferred_type;
-    }
-
-    return call;
-  }
   return normalized;
 }
 
