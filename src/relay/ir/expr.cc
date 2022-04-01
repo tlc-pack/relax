@@ -65,17 +65,6 @@ using namespace tvm::runtime;
 
 Constant::Constant(runtime::NDArray data, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
-  auto shape_tuple = data.Shape();
-  Array<PrimExpr> values;
-  for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
-    values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
-  }
-  n->shape_ = relax::ShapeExpr(values);
-
-  DataType dtype = data.DataType();
-  Type type = relax::DynTensorType(shape_tuple.size(), dtype);
-  n->checked_type_ = type;
-
   n->data = std::move(data);
   n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
