@@ -114,7 +114,7 @@ class ConstantFolder : public ExprMutator {
   // Try constant evaluate the function call
   // if failed return NullOpt
   Optional<Expr> ConstEvaluateCallTIR(tir::PrimFunc tir_func, Array<runtime::NDArray> arr_args,
-                                      runtime::ShapeTuple shape) {
+                                      runtime::ShapeTuple shape, DataType ret_type) {
     // obtain function from the cache.
     Optional<PackedFunc> func = GetCachedBuild(tir_func);
     if (!func) return NullOpt;
@@ -124,7 +124,7 @@ class ConstantFolder : public ExprMutator {
     std::vector<int> type_codes(arr_args.size() + 1);
 
     DLDevice cpu_dev = {DLDeviceType::kDLCPU, 0};
-    runtime::NDArray ret_tensor = runtime::NDArray::Empty(shape, DataType::Float(32), cpu_dev);
+    runtime::NDArray ret_tensor = runtime::NDArray::Empty(shape, ret_type, cpu_dev);
 
     // avoid set rvalue ref which get de-allocated later, store args in a vector
     // where temp_args[i] are lvalue ref that is stable
@@ -151,11 +151,13 @@ class ConstantFolder : public ExprMutator {
     Optional<Array<runtime::NDArray>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
     Optional<runtime::ShapeTuple> shape = MatchConstShape(call->args[2]);
-
+    bool output_not_tuple = call->type_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
-    if (func && arr_args && shape) {
+    if (func && arr_args && shape && output_not_tuple) {
+      DynTensorType ret_type = Downcast<DynTensorType>(call->checked_type());
       // value_or will return value if it is not null, otherwise return or
-      return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value()).value_or(call);
+      return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_type->dtype)
+          .value_or(call);
     }
     // TODO(hongyi): support const-fold tuple outputs
     return std::move(call);

@@ -247,5 +247,34 @@ def test_fold_mixed_case():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_int32_fold():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def addone(A: T.Buffer[(16, 16), "int32"], B: T.Buffer[(16, 16), "int32"]) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("addone"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + T.int32(1)
+
+        @R.function
+        def before(c0: Tensor[(16, 16), "int32"]):
+            lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="int32")
+            return lv0
+
+        @R.function
+        def expected(c1: Tensor[(16, 16), "int32"]):
+            lv0 = c1
+            return c1
+
+    c0_np = np.arange((16 * 16)).astype("int32").reshape(16, 16)
+    c1_np = c0_np + 1
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
