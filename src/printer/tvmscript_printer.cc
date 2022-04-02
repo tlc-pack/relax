@@ -1821,6 +1821,14 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
 }
 
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
+  // Temporary redirect possibly relax related printing to relax script
+  // TODO(tvm-team): make relax script printer handle all possible cases and
+  // make that as a default of TVMScript printer
+  if (mod->IsInstance<IRModuleNode>() || mod->IsInstance<relax::FunctionNode>()) {
+    // TODO(tvm-team) support tir_prefix in relax printer
+    return relax::AsRelaxScript(mod, show_meta);
+  }
+
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
   Doc doc;
   doc << TVMScriptPrinter::PrintHeader(tir_prefix)

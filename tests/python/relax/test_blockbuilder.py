@@ -148,7 +148,7 @@ def test_multi_functions():
 
     with bb.function("func2", [x, y]):
         with bb.dataflow() as df:
-            lv0 = bb.emit(rx.op.add(x, y))
+            lv0 = bb.emit(rx.op.add(y, x))
             # TODO(@yuchen): enable block builder to reset local var unique name map
             assert lv0.name_hint == "lv1"
             gv0 = bb.emit_output(lv0)
@@ -273,6 +273,38 @@ def test_normalize():
     assert isinstance(add_call.shape, rx.ShapeExpr)
     assert add_call.shape[0] == m
     assert add_call.shape[1] == n
+
+
+def test_call_te():
+    bb = rx.BlockBuilder()
+    dtype = rx.DynTensorType(rank=2, dtype="float32")
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    x = rx.Var("x", [n, m], dtype)
+    y = rx.Var("y", [n, m], dtype)
+    z = rx.Var("z", [n, m], dtype)
+
+    def te_func(args, args_dict, msg):
+        A, B = args
+        C = args_dict["C"]
+        D = te.compute((128, 128), lambda i, j: A[i, j] + B[i, j])
+        E = te.compute((128, 128), lambda i, j: D[i, j] - C[i, j])
+        return E
+
+    with bb.function("rx_func", [x, y, z]):
+        with bb.dataflow():
+            out = bb.emit_output(bb.call_te(te_func, [x, y], {"C": z}, msg="hello"))
+        bb.emit_func_output(out)
+
+    mod = bb.get()
+    rx_func = mod["rx_func"]
+
+    assert rx_func.params[0] == x
+    assert rx_func.params[1] == y
+    assert rx_func.params[2] == z
+    assert rx_func.name.name_hint == "rx_func"
+    assert rx_func.body.body == out
+    assert len(rx_func.body.blocks) == 1
+    assert len(rx_func.body.blocks[0].bindings) == 1
 
 
 def test_emit_te():
