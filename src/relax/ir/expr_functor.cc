@@ -557,7 +557,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
   return ret;
 }
 
-Expr ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
+Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
 
 Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type) {
   // shape/type changes if it goes from defined -> undefined or the other way, hence xor
