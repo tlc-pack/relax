@@ -555,12 +555,9 @@ Var BlockBuilderNode::EmitOutput(const VarBinding& binding) {
   return binding->var;
 }
 
-Expr BlockBuilderNode::LookupBinding(const Var& var) {
+Optional<Expr> BlockBuilderNode::LookupBinding(const Var& var) {
   auto it = binding_table_.find(var->vid);
-  if (it == binding_table_.end()) {
-    this->diag_ctx_.EmitFatal(Diagnostic::Error(var->span)
-                              << "The var to be looked up is not in the binding table.");
-  }
+  if (it == binding_table_.end()) return NullOpt;
   return it->second;
 }
 
