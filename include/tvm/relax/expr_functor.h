@@ -275,8 +275,9 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * \brief Look up the value bound to a variable.
    * \param var The var to be looked up.
    * \return The value bound to the input \p var.
+   * \note For function parameters, this function returns NullOpt.
    */
-  Expr LookupBinding(const Var& var);
+  Optional<Expr> LookupBinding(const Var& var);
 
   /*!
    * \brief Post-order rewrite a node and normalize.
