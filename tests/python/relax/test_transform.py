@@ -29,59 +29,34 @@ from tvm.script import tir as T, relax as R
 
 
 def test_fma_rewrite():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
-    dtype0 = relax.DynTensorType(rank=2, dtype="float16")
-    dtype1 = relax.DynTensorType(rank=2, dtype="float16")
-    x = relax.Var("x", [m, n], dtype0)
-    y = relax.Var("y", [m, n], dtype1)
-    ib = relax.BlockBuilder()
-    with ib.function("func", [x, y]):
-        with ib.dataflow() as df:
-            lv0 = ib.emit(relax.op.multiply(x, y))
-            gv0 = ib.emit_output(relax.op.add(lv0, y))
-        gv1 = ib.emit(relax.op.multiply(x, y))
-        gv2 = ib.emit(relax.op.add(gv1, y))
-        ib.emit_func_output(gv0)
-    mod = ib.get()
-    func = mod["func"]
+    @tvm.script.ir_module
+    class TestFMARewrite:
+        @R.function
+        def main(x: Tensor[(m, n), "float32"], y: Tensor[(m, n), "float32"]):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, y)
+                gv0 = relax.add(lv0, y)
+                relax.output(gv0)
+            gv1 = relax.multiply(x, y)
+            gv2 = relax.add(gv1, y)
+            return (gv0, gv1, gv2)
 
-    v0 = func.body.blocks[0].bindings[1].var
-    s0 = func.body.blocks[0].bindings[1].value
-    assert isinstance(s0, tvm.relay.Call)
-    assert s0.op.name == "relax.add"
-    assert structural_equal(v0.shape, relax.ShapeExpr([m, n]))
-    assert structural_equal(s0.shape, relax.ShapeExpr([m, n]))
-    assert structural_equal(gv0.shape, relax.ShapeExpr([m, n]))
+        @R.function
+        def expected(x: Tensor[(m, n), "float32"], y: Tensor[(m, n), "float32"]):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, y)
+                gv0 = relax.ewise_fma(x, y, y)
+                relax.output(gv0)
+            gv1 = relax.multiply(x, y)
+            gv2 = relax.add(gv1, y)
+            return (gv0, gv1, gv2)
 
-    # after rewrite
+    mod = TestFMARewrite
     new_mod = relax.transform.FMARewrite()(mod)
-    new_func = new_mod["func"]
-    v1 = new_func.body.blocks[0].bindings[1].var
-    s1 = new_func.body.blocks[0].bindings[1].value
-    assert isinstance(s1, tvm.relay.Call)
-    assert s1.op.name == "relax.ewise_fma"
-    assert structural_equal(v1.shape, relax.ShapeExpr([m, n]))
-    assert structural_equal(s1.shape, relax.ShapeExpr([m, n]))
+    func = new_mod["main"]
+    expected = mod["expected"]
 
-    # The var binded to the fma call is reused because the shape
-    # and type of var are unchanged after rewriting
-    assert gv0 == v0
-    assert type(new_func.body.blocks[0].bindings[1].var) == relax.Var
-
-    # outside DataflowBlock
-    v2 = func.body.blocks[1].bindings[1].var
-    s2 = func.body.blocks[1].bindings[1].value
-    assert isinstance(s2, tvm.relay.Call)
-    assert s2.op.name == "relax.add"
-    assert structural_equal(v2.shape, relax.ShapeExpr([m, n]))
-    assert structural_equal(s2.shape, relax.ShapeExpr([m, n]))
-
-    # Th var outside DataflowBlock should not be rewritten
-    v3 = new_func.body.blocks[1].bindings[1].var
-    s3 = new_func.body.blocks[1].bindings[1].value
-    assert v2 == v3
-    assert s2 == s3
+    assert_structural_equal(func, expected)
 
 
 def test_visit_shape():
