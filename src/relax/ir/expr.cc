@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/node/structural_equal.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -179,12 +180,38 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body, Type ret_type,
                    Span span) {
+  // Set the function type based on the annotations
+  // For function, we take a conservative approach and require the function type
+  // to be known during construction time.
+  Array<Type> param_types;
+  for (Var param : params) {
+    CHECK(param->checked_type_.defined())
+        << "relax.Function requires params to contain checked_type";
+    param_types.push_back(param->checked_type_);
+  }
+
+  if (!ret_type.defined()) {
+    CHECK(body->checked_type_.defined())
+        << "relax.Function requires body to contain deduced checked_type "
+        << " or ret_type to be supplied";
+    ret_type = body->checked_type_;
+  } else {
+    if (body->checked_type_.defined()) {
+      CHECK(tvm::StructuralEqual()(ret_type, body->checked_type_))
+          << "ret_type needs to be consistent with body->checked_type_: " << ret_type << " vs "
+          << body->checked_type_;
+    }
+  }
+  auto func_type = FuncType(param_types, ret_type, {}, {});
+
+  // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->name = std::move(name);
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
-  n->span = span;
+  n->checked_type_ = std::move(func_type);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 

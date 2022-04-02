@@ -510,7 +510,10 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
-  return builder_->Normalize(ExprFunctor::VisitExpr(expr));
+  Expr res = ExprFunctor::VisitExpr(expr);
+  // skip normalization if expr is the same
+  if (res.same_as(expr)) return res;
+  return builder_->Normalize(res);
 }
 
 void ExprMutator::VisitBinding(const Binding& binding) {

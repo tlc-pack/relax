@@ -144,20 +144,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       func = Function(op->name, op->params, new_body, op->ret_type);
     }
 
-    // only do shape/type inference if the Function does not have shape/type
-    if (func->shape_ && func->checked_type_.defined()) {
-      return func;
-    }
-
-    // Note: the shape_ of Function is left as Null for now, to be consitent with
-    // Function->checked_type_, which is a FuncType
-    if (!func->checked_type_.defined() && func->body->checked_type_.defined()) {
-      Array<Type> param_types;
-      for (auto param : func->params) {
-        param_types.push_back(param->checked_type_);
-      }
-      func->checked_type_ = FuncType(param_types, func->body->checked_type_, {}, {});
-    }
+    // NOTE: function's checked_type is deduced eagerly in constructor.
     return func;
   }
 
