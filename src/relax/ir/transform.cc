@@ -218,6 +218,7 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockPassNode, PassNode);
 };
 
+/*! \brief Helper to apply the passed function to dataflow blocks.*/
 class DataflowBlockMutator : public ExprMutator {
  public:
   DataflowBlockMutator(
@@ -226,8 +227,64 @@ class DataflowBlockMutator : public ExprMutator {
       : pass_func_(pass_func), mod_(mod), pass_ctx_(pass_ctx) {}
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
+    // collect Global Vars and Symbolic Vars inside the DataflowBlock
+    Map<String, Var> global_vars;
+    Map<String, tir::Var> symbolic_vars;
+    for (const Binding& binding : n->bindings) {
+      Var var;
+      if (const auto* node = binding.as<VarBindingNode>()) {
+        var = node->var;
+      } else if (const auto* node = binding.as<MatchShapeNode>()) {
+        var = node->var;
+        Array<PrimExpr> pattern = node->pattern;
+        for (PrimExpr expr : node->pattern) {
+          if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
+            tir::Var sym_var0 = Downcast<tir::Var>(expr);
+            symbolic_vars.Set(sym_var->name_hint, sym_var0);
+          }
+        }
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      }
+      if (!var.as<DataflowVarNode>()) {
+        global_vars.Set(var->name_hint(), var);
+      }
+    }
+
+    // apply pass_func_ to the DataflowBlock
     DataflowBlock block = GetRef<DataflowBlock>(n);
-    auto updated_block = pass_func_(block, mod_, pass_ctx_);
+    DataflowBlock updated_block = pass_func_(block, mod_, pass_ctx_);
+
+    // raise error if there are updates of recorded Global Vars and Symbolic Vars
+    for (const Binding& binding : updated_block->bindings) {
+      Var var;
+      if (const auto* node = binding.as<VarBindingNode>()) {
+        var = node->var;
+      } else if (const auto* node = binding.as<MatchShapeNode>()) {
+        var = node->var;
+        Array<PrimExpr> pattern = node->pattern;
+        for (PrimExpr expr : node->pattern) {
+          if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
+            if (symbolic_vars.count(sym_var->name_hint) > 0) {
+              tir::Var old_var = symbolic_vars[sym_var->name_hint];
+              ICHECK(Downcast<tir::Var>(expr) == old_var)
+                  << "Error: Transform Pass should not rewrite any Symbolic Var.";
+              symbolic_vars.erase(sym_var->name_hint);
+            }
+          }
+        }
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      }
+      if (!var.as<DataflowVarNode>() && global_vars.count(var->name_hint()) > 0) {
+        ICHECK(var == global_vars[var->name_hint()])
+            << "Error: Transform Pass should not rewrite any Global Var.";
+        global_vars.erase(var->name_hint());
+      }
+    }
+    ICHECK(global_vars.empty() && symbolic_vars.empty())
+        << "Error: Transform Pass should not delete any Global/Symbolic Var.";
+
     return std::move(updated_block);
   }
 
