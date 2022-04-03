@@ -156,12 +156,7 @@ tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr) { return VarVisitor().RecG
 
 TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
 
-TVM_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body([](TVMArgs args, TVMRetValue* ret) {
-  ObjectRef x = args[0];
-  if (x.as<ExprNode>()) {
-    *ret = BoundVars(Downcast<Expr>(x));
-  }
-});
+TVM_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body_typed(BoundVars);
 
 TVM_REGISTER_GLOBAL("relax.analysis.all_vars").set_body_typed(AllVars);
 

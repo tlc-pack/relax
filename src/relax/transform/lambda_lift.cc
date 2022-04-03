@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relax/backend/vm/lambda_lift.cc
+ * \file tvm/relax/transform/lambda_lift.cc
  * \brief Lift local functions into global functions.
  */
 

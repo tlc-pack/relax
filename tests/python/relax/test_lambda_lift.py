@@ -175,7 +175,7 @@ def test_recursive():
     # Perform Lamda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
-    assert_structural_equal(after["lifted_func_0"], expected["lifted_func_0"], map_free_vars=True)
+    assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 
 

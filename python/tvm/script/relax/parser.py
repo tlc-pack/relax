@@ -1556,7 +1556,7 @@ class RelaxTransformer(Transformer):
                     blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
                     current_block = []
                 blocks.append(parsed_stmt)
-            elif isinstance(parsed_stmt, relax.Function) or isinstance(parsed_stmt, tir.PrimFunc):
+            elif isinstance(parsed_stmt, (relax.Function, tir.PrimFunc)):
                 func_var = self.decl_var(stmt.name, None, None, stmt.span)
                 current_block.append(
                     relax.VarBinding(func_var, parsed_stmt, self.to_tvm_span(stmt.span))
