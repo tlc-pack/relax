@@ -571,7 +571,7 @@ class RelaxTransformer(Transformer):
         (root_func,) = mod.funcs.values()
 
         if isinstance(root_func, ast.Function):
-            return self.transform_function(root_func, is_global=True)
+            return self.transform_function(root_func)
         elif isinstance(root_func, ast.Class):
             # add global vars to the root scope for resolving global function calls
             for func_name in root_func.funcs:
@@ -633,15 +633,13 @@ class RelaxTransformer(Transformer):
         self._diagnostic_context._render_on_error = False
         return prim_func
 
-    def transform_function(self, func: ast.Function, is_global: bool = False) -> relax.Function:
+    def transform_function(self, func: ast.Function) -> relax.Function:
         """Transforms the given synr Function to a Relax Function.
 
         Parameters
         ----------
         func : ast.Function
             The input synr Function
-        is_global : bool, optional
-            Whether or not the input function is global/module-level, by default False
 
         Returns
         -------
@@ -920,8 +918,7 @@ class RelaxTransformer(Transformer):
 
         elif isinstance(stmt, ast.Function):
             func = self.transform_function(stmt)
-            func_var = self.decl_var(stmt.name, None, None, stmt.span)
-            return relax.VarBinding(func_var, func, self.to_tvm_span(stmt.span))
+            return func
 
         else:
             self.report_error(
@@ -1559,8 +1556,15 @@ class RelaxTransformer(Transformer):
                     blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(stmt.span)))
                     current_block = []
                 blocks.append(parsed_stmt)
+            elif isinstance(parsed_stmt, relax.Function) or isinstance(parsed_stmt, tir.PrimFunc):
+                func_var = self.decl_var(stmt.name, None, None, stmt.span)
+                current_block.append(
+                    relax.VarBinding(func_var, parsed_stmt, self.to_tvm_span(stmt.span))
+                )
             else:
-                assert isinstance(parsed_stmt, relax.Binding)
+                assert isinstance(
+                    parsed_stmt, relax.Binding
+                ), "Expected relax.Binding, but got " + str(type(parsed_stmt))
                 current_block.append(parsed_stmt)
         if len(current_block) > 0:
             blocks.append(relax.BindingBlock(current_block, self.to_tvm_span(block.stmts[-1].span)))
@@ -1572,6 +1576,20 @@ class RelaxTransformer(Transformer):
                 ret_stmt.span,
             )
         ret_expr = self.transform_stmt(ret_stmt)
+
+        # only a call node in the function body
+        if isinstance(ret_expr, relax.Call) and len(blocks) == 0:
+            return ret_expr
+
+        # return a defined inner function
+        if (
+            len(blocks) > 0
+            and isinstance(blocks[-1].bindings[-1].value, relax.Function)
+            and hasattr(ret_expr, "name_hint")
+            and ret_expr.name_hint == blocks[-1].bindings[-1].var.name_hint
+            and ret_expr.name_hint == blocks[-1].bindings[-1].value.name.name_hint
+        ):
+            return blocks[-1].bindings[-1].value
 
         return relax.SeqExpr(blocks, ret_expr, self.to_tvm_span(block.span))
 

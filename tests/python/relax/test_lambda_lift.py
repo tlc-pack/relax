@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations
-
 import pytest
 import tvm
 from tvm import relax, tir, te
@@ -25,10 +24,25 @@ from tvm.relax import transform
 from tvm.ir.base import assert_structural_equal, structural_equal
 
 
+def _check_equal(x, y):
+    tvm.ir.assert_structural_equal(x, y)
+    tvm.ir.assert_structural_equal(y, x)
+
+    xhash = tvm.ir.structural_hash(x)
+    yhash = tvm.ir.structural_hash(y)
+
+    assert xhash == yhash
+
+
+def _check_save_roundtrip(x):
+    y = tvm.ir.load_json(tvm.ir.save_json(x))
+    _check_equal(x, y)
+
+
 def test_basic():
     # the target IRModule
     @tvm.script.ir_module
-    class TargetModule:
+    class Expected:
         @R.function
         def lifted_func_0(
             x2: Tensor[(10, 5), "float32"], y2: Tensor[(10, 5), "float32"]
@@ -37,13 +51,12 @@ def test_basic():
 
         @R.function
         def main(x1: Tensor[(10, 5), "float32"], y1: Tensor[(10, 5), "float32"]):
-            # block 0
             inner = lifted_func_0
             gv1 = inner(x1, y1)
             return gv1
 
     @tvm.script.ir_module
-    class TestBasic:
+    class Before:
         @R.function
         def main(x1: Tensor[(10, 5), "float32"], y1: Tensor[(10, 5), "float32"]):
             @R.function
@@ -55,21 +68,24 @@ def test_basic():
             gv1: Tensor[(10, 5), "float32"] = inner(x1, y1)
             return gv1
 
-    mod = TestBasic
-
-    new_mod = transform.LambdaLift()(mod)
-    assert len(new_mod.functions) == 2
-    assert_structural_equal(new_mod, TargetModule, map_free_vars=True)
+    before = Before
+    expected = Expected
+    # Perform Lambda Lifting
+    after = transform.LambdaLift()(before)
+    assert len(after.functions) == 2
+    assert_structural_equal(after, expected, map_free_vars=True)
+    _check_save_roundtrip(after)
 
 
 def test_closure():
-    # the target IRModule
+    # the expected IRModule
     @tvm.script.ir_module
-    class TargetModule:
+    class Expected:
         @R.function
-        def lifted_func_0(y: Tensor[(2, 3), "float32"]):
-            inner_func = lifted_func_1(y)
-            return inner_func
+        def main(x: Tensor[(2, 3), "float32"], y: Tensor[(2, 3), "float32"]):
+            outer_func = lifted_func_0
+            res = outer_func(x)(y)
+            return res
 
         @R.function
         def lifted_func_1(y1: Tensor[(2, 3), "float32"]):
@@ -81,41 +97,37 @@ def test_closure():
             return inner_func_0
 
         @R.function
-        def main(x: Tensor[(2, 3), "float32"], y: Tensor[(2, 3), "float32"]):
-            outer_func = lifted_func_0
-            res = outer_func(x)(y)
-            return res
+        def lifted_func_0(y: Tensor[(2, 3), "float32"]):
+            return lifted_func_1(y)
 
-    # IRModule to apply LambadaLift
+    # IRModule to perform Lambda Lifting
     @tvm.script.ir_module
-    class TestClosure:
+    class Before:
         @R.function
         def main(x: Tensor[(2, 3), "float32"], y: Tensor[(2, 3), "float32"]):
             @R.function
-            def outer_func(y1: Tensor[(2, 3), "float32"]):
-                # c_1: Tensor[(), "float32"] = relax.const(3.14, dtype="float32")
-
+            def outer_func(c1: Tensor[(2, 3), "float32"]):
                 @R.function
                 def inner_func(x1: Tensor[(2, 3), "float32"]):
-                    r_1: Tensor[(2, 3), "float32"] = relax.add(x1, y1)
-                    # s_2: Tensor[(), "float32"] = relax.add(s_1, c_1)
+                    r_1: Tensor[(2, 3), "float32"] = relax.add(x1, c1)
                     return r_1
 
                 return inner_func
 
             res = outer_func(x)(y)
-            # res = func(y)
             return res
 
-    mod = TestClosure
-    new_mod = transform.LambdaLift()(mod)
-    assert_structural_equal(new_mod, TargetModule, map_free_vars=True)
+    before = Before
+    expected = Expected
+    after = transform.LambdaLift()(before)
+    assert_structural_equal(after, expected, map_free_vars=True)
+    _check_save_roundtrip(after)
 
 
 def test_recursive():
-    # the target IRModule
+    # the expected IRModule
     @tvm.script.ir_module
-    class TargetModule:
+    class Expected:
         @R.function
         def lifted_func_0(x: Tensor[(2, 3), "float32"]):
             @R.function
@@ -138,8 +150,9 @@ def test_recursive():
             gv = while_loop(relax.const(0), x)
             return gv
 
+    # the IRModule to apply lambda lifting
     @tvm.script.ir_module
-    class TestRecursive:
+    class Before:
         @R.function
         def main(x: Tensor[(2, 3), "float32"]):
             @R.function
@@ -157,10 +170,13 @@ def test_recursive():
             gv: Tensor[(), "float32"] = while_loop(relax.const(0), x)
             return gv
 
-    mod = TestRecursive
-    new_mod = transform.LambdaLift()(mod)
-    assert len(new_mod.functions) == 2
-    assert_structural_equal(new_mod, TargetModule, map_free_vars=True)
+    before = Before
+    expected = Expected
+    # Perform Lamda Lifting
+    after = transform.LambdaLift()(before)
+    assert len(after.functions) == 2
+    assert_structural_equal(after["lifted_func_0"], expected["lifted_func_0"], map_free_vars=True)
+    _check_save_roundtrip(after)
 
 
 if __name__ == "__main__":

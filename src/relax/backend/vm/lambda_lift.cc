@@ -54,8 +54,9 @@ class LambdaLifter : public ExprMutator {
       String rec_name = global_var_node->name_hint;
       auto global_var = GetRef<GlobalVar>(global_var_node);
       auto it = lambda_map_.find(global_var);
-      ICHECK(it != lambda_map_.end());
-      return Call(it->second, call->args, call_node->attrs, call_node->type_args);
+      if (it != lambda_map_.end()) {
+        return Call(it->second, call->args, call_node->attrs, call_node->type_args);
+      }
     }
     return std::move(call);
   }
@@ -89,7 +90,8 @@ class LambdaLifter : public ExprMutator {
     Array<Var> typed_captured_vars;
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      auto var = Var(free_var->name_hint(), NullOpt, free_var->type_annotation);
+      Var var = Var(free_var->name_hint(), NullOpt, free_var->type_annotation, free_var->span);
+      var->shape_ = free_var->shape_;
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -115,11 +117,11 @@ class LambdaLifter : public ExprMutator {
     } else {
       auto before = Downcast<Function>(body)->params.size();
       auto inner_name = std::string("inner_func_") + std::to_string(inner_func_num_++);
-      auto rebound_body =
-          Function(GlobalVar(inner_name), func->params, body->body, func->ret_type, func->span);
+      auto rebound_body = Function(GlobalVar(inner_name), func->params,
+                                   Bind(body->body, rebinding_map), func->ret_type, func->span);
       auto after = Downcast<Function>(rebound_body)->params.size();
       CHECK_EQ(before, after);
-      lifted_func = Function(global, captured_vars, rebound_body, func->checked_type_);
+      lifted_func = Function(global, typed_captured_vars, rebound_body, func->checked_type_);
       // todo (@yongwww): call make_closure intrinsic here
     }
 
