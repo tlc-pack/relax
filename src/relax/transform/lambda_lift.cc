@@ -22,7 +22,6 @@
  * \brief Lift local functions into global functions.
  */
 
-#include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -34,9 +33,6 @@
 
 namespace tvm {
 namespace relax {
-namespace relax_vm {
-
-using namespace tvm::runtime;
 
 /* The goal of this class is to lift out any nested functions into top-level
  * functions.
@@ -171,13 +167,11 @@ class LambdaLifter : public ExprMutator {
   size_t inner_func_num_ = 0;
 };
 
-}  // namespace relax_vm
-
 namespace transform {
 
 Pass LambdaLift() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::relax_vm::LambdaLifter(m).Lift(); };
+      [=](IRModule m, PassContext pc) { return relax::LambdaLifter(m).Lift(); };
   return CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
