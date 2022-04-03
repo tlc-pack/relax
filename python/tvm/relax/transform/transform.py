@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Relax transformation passes."""
+from typing import Dict
 import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase
+
 from . import _ffi_api
 
 
@@ -32,6 +34,16 @@ class FunctionPass(tvm.ir.transform.Pass):
 @tvm._ffi.register_object("relax.DataflowBlockPass")
 class DataflowBlockPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.DataflowBlock in a module."""
+
+
+def FailTestRewrite() -> tvm.ir.transform.Pass:
+    """Incorrectly transform the dataflow structure as fail testcases.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FailTestRewrite()
 
 
 def FMARewrite() -> tvm.ir.transform.Pass:
@@ -123,3 +135,32 @@ def MetaScheduleApplyHistoryBest(
 
     """
     return _ffi_api.MetaScheduleApplyHistoryBest(database, target)
+
+
+def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors.
+
+    Parameters
+    ----------
+
+    func_name: str
+        The function name to be bound
+
+    params : dict from str to ndarray
+        The map from param name to constant tensors.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.BindParams(func_name, params)
+
+
+def FoldConstant() -> tvm.ir.transform.Pass:
+    """Fold constant expressions
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FoldConstant()

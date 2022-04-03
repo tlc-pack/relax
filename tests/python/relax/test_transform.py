@@ -59,6 +59,67 @@ def test_fma_rewrite():
     assert_structural_equal(func, expected)
 
 
+def test_dataflowpass_fail():
+    # raise error on rewriting/removing existing Global Vars inside the dataflow block.
+    with pytest.raises(tvm.TVMError):
+
+        @tvm.script.ir_module
+        class TestRemoveGlobalVar:
+            @R.function
+            def main(x: Tensor[_, "float32"], y: Tensor[_, "float32"]):
+                with relax.dataflow():
+                    gv_remove = relax.add(x, y)
+                    gv1 = relax.add(x, y)
+                    relax.output(gv_remove, gv1)
+                return gv_remove, gv1
+
+        relax.transform.FailTestRewrite()(TestRemoveGlobalVar)
+
+    with pytest.raises(tvm.TVMError):
+
+        @tvm.script.ir_module
+        class TestRewriteGlobalVar:
+            @R.function
+            def main(x: Tensor[_, "float32"], y: Tensor[_, "float32"]):
+                with relax.dataflow():
+                    gv_rewrite = relax.add(x, y)
+                    gv1 = relax.add(x, y)
+                    relax.output(gv_rewrite, gv1)
+                return gv_rewrite, gv1
+
+        relax.transform.FailTestRewrite()(TestRewriteGlobalVar)
+
+    # raise error on rewriting/removing existing Symbolic Vars inside the dataflow block
+    # check all Symbolic Vars defined in R.match_shape
+    with pytest.raises(tvm.TVMError):
+
+        @tvm.script.ir_module
+        class TestRewriteSymbolicVar:
+            @R.function
+            def main(x: Tensor[_, "float32"], y: Tensor[_, "float32"]):
+                with relax.dataflow():
+                    lv0 = R.match_shape(x, (m, n))
+                    gv0 = relax.add(lv0, y)
+                    relax.output(gv0)
+                return gv0
+
+        relax.transform.FailTestRewrite()(TestRewriteSymbolicVar)
+
+    with pytest.raises(tvm.TVMError):
+
+        @tvm.script.ir_module
+        class TestRemoveSymbolicVar:
+            @R.function
+            def main(x: Tensor[_, "float32"], y: Tensor[_, "float32"]):
+                with relax.dataflow():
+                    lv0 = R.match_shape(x, (m, n, d))
+                    gv0 = relax.add(lv0, y)
+                    relax.output(gv0)
+                return gv0
+
+        relax.transform.FailTestRewrite()(TestRemoveSymbolicVar)
+
+
 def test_visit_shape():
     @tvm.script.ir_module
     class TestVisitShape:

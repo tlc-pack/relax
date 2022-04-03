@@ -57,6 +57,13 @@ TVM_DLL Pass CreateDataflowBlockPass(
     int opt_level, String name, tvm::Array<String> required);
 
 /*!
+ * \brief Incorrectly transform the dataflow structure as fail testcases.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FailTestRewrite();
+
+/*!
  * \brief Perform fused multiply add rewriting in dataflow blocks.
  *
  * \return The Pass.
@@ -91,6 +98,23 @@ TVM_DLL Pass ToANF();
  */
 TVM_DLL Pass MetaScheduleApplyHistoryBest(const tvm::meta_schedule::Database& database,
                                           Target target);
+
+/*!
+ * \brief Bind params of function of the module to constant tensors.
+ *
+ * \param func_name The name of the function to bind parameters.
+ * \param params The parameters to bind.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass BindParams(String name, Map<String, runtime::NDArray> params);
+
+/*!
+ * \brief Fold constant expressions.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FoldConstant();
 
 }  // namespace transform
 }  // namespace relax
