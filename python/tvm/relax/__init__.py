@@ -41,6 +41,7 @@ BindingBlock = expr.BindingBlock
 DataflowBlock = expr.DataflowBlock
 SeqExpr = expr.SeqExpr
 ShapeExpr = expr.ShapeExpr
+RuntimeDepShape = expr.RuntimeDepShape
 Tuple = expr.Tuple
 TupleGetItem = expr.TupleGetItem
 Function = expr.Function
