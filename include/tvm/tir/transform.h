@@ -680,6 +680,13 @@ TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
  */
 TVM_DLL Pass ManifestSharedMemoryLocalStage();
 
+/*!
+ * \brief Check whether a PrimFunc contains buffers with int64 shape, and if so, promote all shapes
+ * and iteration ranges to int64
+ * \return The pass.
+ */
+TVM_DLL Pass PromoteDataType();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
