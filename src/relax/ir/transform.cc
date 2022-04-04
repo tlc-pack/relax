@@ -234,6 +234,12 @@ class DataflowBlockMutator : public ExprMutator {
       IRModule mod, PassContext pass_ctx)
       : pass_func_(pass_func), mod_(mod), pass_ctx_(pass_ctx) {}
 
+  /*!
+   * \brief Rewrite the DataflowBlockNode with pass_func_
+   *
+   * This function will check that there are no rewrites of the global scope Vars
+   * and symbolic shape Vars defined inside the dataflow block.
+   */
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
     // collect Global Scope Vars and Symbolic Vars inside the DataflowBlock
     Map<String, Var> global_scope_vars;
