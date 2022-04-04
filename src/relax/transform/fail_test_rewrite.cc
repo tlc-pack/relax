@@ -30,7 +30,6 @@ namespace relax {
 class FailTestRewriter : public ExprMutator {
   // Rewrite/Remove specific global var
   Var VisitVarDef_(const VarNode* var) override {
-    std::cout << var->name_hint() << "\n";
     if (var->name_hint() == "gv_rewrite") {
       Var new_var = Var("gv_rewrite", {}, {}, {});
       return std::move(new_var);
