@@ -200,7 +200,7 @@ class DataflowBlockPass;
  * from the functions in an IRModule, and yields a rewritten DataflowBlock.
  *
  * Note that the scope of passes at this level is a Relax DataflowBlock. Therefore,
- * we cannot modify the global Vars and symbolic shape Vars defined inside the dataflow block.
+ * we cannot modify the global scope Vars and symbolic shape Vars defined inside the dataflow block.
  */
 class DataflowBlockPassNode : public tvm::transform::PassNode {
  public:
@@ -235,8 +235,8 @@ class DataflowBlockMutator : public ExprMutator {
       : pass_func_(pass_func), mod_(mod), pass_ctx_(pass_ctx) {}
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
-    // collect Global Vars and Symbolic Vars inside the DataflowBlock
-    Map<String, Var> global_vars;
+    // collect Global Scope Vars and Symbolic Vars inside the DataflowBlock
+    Map<String, Var> global_scope_vars;
     Map<String, tir::Var> symbolic_vars;
     for (const Binding& binding : n->bindings) {
       Var var;
@@ -254,7 +254,7 @@ class DataflowBlockMutator : public ExprMutator {
         LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
       }
       if (!var.as<DataflowVarNode>()) {
-        global_vars.Set(var->name_hint(), var);
+        global_scope_vars.Set(var->name_hint(), var);
       }
     }
 
@@ -262,7 +262,7 @@ class DataflowBlockMutator : public ExprMutator {
     DataflowBlock block = GetRef<DataflowBlock>(n);
     DataflowBlock updated_block = pass_func_(block, mod_, pass_ctx_);
 
-    // raise error if there are updates of recorded Global Vars and Symbolic Vars
+    // raise error if there are updates of recorded Global Scope Vars and Symbolic Vars
     for (const Binding& binding : updated_block->bindings) {
       Var var;
       if (const auto* node = binding.as<VarBindingNode>()) {
@@ -282,14 +282,14 @@ class DataflowBlockMutator : public ExprMutator {
       } else {
         LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
       }
-      if (!var.as<DataflowVarNode>() && global_vars.count(var->name_hint()) > 0) {
-        ICHECK(var == global_vars[var->name_hint()])
-            << "Error: DataflowBlock Pass should not rewrite any Global Var.";
-        global_vars.erase(var->name_hint());
+      if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint()) > 0) {
+        ICHECK(var == global_scope_vars[var->name_hint()])
+            << "Error: DataflowBlock Pass should not rewrite any GlobalScope Var.";
+        global_scope_vars.erase(var->name_hint());
       }
     }
-    ICHECK(global_vars.empty() && symbolic_vars.empty())
-        << "Error: DataflowBlock Pass should not delete any Global/Symbolic Var.";
+    ICHECK(global_scope_vars.empty() && symbolic_vars.empty())
+        << "Error: DataflowBlock Pass should not delete any GlobalScope/Symbolic Var.";
 
     return std::move(updated_block);
   }
