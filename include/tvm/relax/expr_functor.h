@@ -101,6 +101,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const DataflowVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ShapeExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RuntimeDepShapeNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ExternFuncNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const GlobalVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -124,6 +125,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(VarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(DataflowVarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(ShapeExprNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(RuntimeDepShapeNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(ExternFuncNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(GlobalVarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(FunctionNode);
@@ -153,6 +155,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const DataflowVarNode* op) override;
   void VisitExpr_(const ShapeExprNode* op) override;
+  void VisitExpr_(const RuntimeDepShapeNode* op) override;
   void VisitExpr_(const ExternFuncNode* op) override;
   void VisitExpr_(const GlobalVarNode* op) override;
   void VisitExpr_(const FunctionNode* op) override;
@@ -213,6 +216,7 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
   Expr VisitExpr_(const ShapeExprNode* op) override;
+  Expr VisitExpr_(const RuntimeDepShapeNode* op) override;
   Expr VisitExpr_(const ExternFuncNode* op) override;
   Expr VisitExpr_(const GlobalVarNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;

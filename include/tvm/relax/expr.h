@@ -84,6 +84,42 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
+/*! \brief Runtime dependent shape expression.
+ *
+ * Sometimes shape of a tensor cannot be deduced statically either because the shape is truly data
+ * dependent such as output of `unique` operator or cannot be deduced because of limited shape
+ * inference capability.
+ */
+class RuntimeDepShapeNode : public ExprNode {
+ public:
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("shape_", &shape_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const RuntimeDepShapeNode* other, SEqualReducer equal) const {
+    return equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(checked_type_);
+    hash_reduce(shape_);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.RuntimeDepShape";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeDepShapeNode, ExprNode);
+};
+
+class RuntimeDepShape : public Expr {
+ public:
+  TVM_DLL explicit RuntimeDepShape(Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(RuntimeDepShape, Expr, RuntimeDepShapeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RuntimeDepShapeNode);
+};
+
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:
