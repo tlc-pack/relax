@@ -31,10 +31,10 @@ from tvm.script import tir as T, relax as R
 def test_fma_rewrite():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = relax.DynTensorType(rank=2, dtype="float16")
-    dtype1 = relax.DynTensorType(rank=2, dtype="float16")
-    x = relax.Var("x", [m, n], dtype0)
-    y = relax.Var("y", [m, n], dtype1)
+    type_anno0 = relax.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = relax.DynTensorType(rank=2, dtype="float16")
+    x = relax.Var("x", [m, n], type_anno0)
+    y = relax.Var("y", [m, n], type_anno1)
     ib = relax.BlockBuilder()
     with ib.function("func", [x, y]):
         with ib.dataflow() as df:
