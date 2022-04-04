@@ -274,7 +274,7 @@ class DataflowBlockMutator : public ExprMutator {
             if (symbolic_vars.count(sym_var->name_hint) > 0) {
               tir::Var old_var = symbolic_vars[sym_var->name_hint];
               ICHECK(Downcast<tir::Var>(expr) == old_var)
-                  << "Error: Transform Pass should not rewrite any Symbolic Var.";
+                  << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
               symbolic_vars.erase(sym_var->name_hint);
             }
           }
@@ -284,12 +284,12 @@ class DataflowBlockMutator : public ExprMutator {
       }
       if (!var.as<DataflowVarNode>() && global_vars.count(var->name_hint()) > 0) {
         ICHECK(var == global_vars[var->name_hint()])
-            << "Error: Transform Pass should not rewrite any Global Var.";
+            << "Error: DataflowBlock Pass should not rewrite any Global Var.";
         global_vars.erase(var->name_hint());
       }
     }
     ICHECK(global_vars.empty() && symbolic_vars.empty())
-        << "Error: Transform Pass should not delete any Global/Symbolic Var.";
+        << "Error: DataflowBlock Pass should not delete any Global/Symbolic Var.";
 
     return std::move(updated_block);
   }
