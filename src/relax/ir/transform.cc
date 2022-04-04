@@ -39,8 +39,8 @@ class FunctionPass;
 
 /*!
  * \brief Function-level passes are used to implement various global
- * optimizations for a given Relax module. It fetches one function at a time
- * from the function list in the module for optimization.
+ * optimizations for a given Relax IRModule. It fetches one function at a time
+ * from the function list in the IRModule for optimization.
  *
  * Note that the scope of passes at this level is a Relax function. Therefore,
  * we cannot add or delete a function through these passes as they are not aware
@@ -53,8 +53,8 @@ class FunctionPassNode : public tvm::transform::PassNode {
 
   /*! \brief The packed pass function sketches the real optimization. For
    * instance, we can implement a pass that works on a Relax function as a
-   * `pass_func` and let it run on a given module. The same `pass_func` will
-   * then be applied on each function in the module.
+   * `pass_func` and let it run on a given IRModule. The same `pass_func` will
+   * then be applied on each function in the IRModule.
    */
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func;
 
@@ -65,10 +65,10 @@ class FunctionPassNode : public tvm::transform::PassNode {
   /*!
    * \brief Run a function pass on given pass context.
    *
-   * \param mod The module that an optimization pass is applied on.
+   * \param mod The IRModule that an optimization pass is applied on.
    * \param mod The context that an optimization pass executes on.
    *
-   * \return Return the updated module.
+   * \return Return the updated IRModule.
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
@@ -114,7 +114,7 @@ FunctionPass::FunctionPass(
   data_ = std::move(n);
 }
 
-// Perform Module -> Module optimizations at the Function level.
+// Perform IRModule -> IRModule optimizations at the Function level.
 IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   DiagnosticContext previous = DiagnosticContext::Default(mod);
 
@@ -201,8 +201,8 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
 
   /*! \brief The packed pass function sketches the real optimization. For
    * instance, we can implement a pass that works on a Relax DataflowBlock as a
-   * `pass_func` and let it run on a given module. The same `pass_func` will
-   * then be applied on each DataflowBlock in the module.
+   * `pass_func` and let it run on a given IRModule. The same `pass_func` will
+   * then be applied on each DataflowBlock in the IRModule.
    */
   runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func;
 
@@ -317,7 +317,7 @@ DataflowBlockPass::DataflowBlockPass(
   data_ = std::move(n);
 }
 
-// Perform Module -> Module optimizations at the DataflowBlock level.
+// Perform IRModule -> IRModule optimizations at the DataflowBlock level.
 IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   DiagnosticContext previous = DiagnosticContext::Default(mod);
 
