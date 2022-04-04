@@ -30,7 +30,7 @@ from tvm.script import tir as T, relax as R
 
 def test_fma_rewrite():
     @tvm.script.ir_module
-    class TestFMARewrite:
+    class Before:
         @R.function
         def main(x: Tensor[(m, n), "float32"], y: Tensor[(m, n), "float32"]):
             with relax.dataflow():
@@ -41,8 +41,10 @@ def test_fma_rewrite():
             gv2 = relax.add(gv1, y)
             return (gv0, gv1, gv2)
 
+    @tvm.script.ir_module
+    class Expected:
         @R.function
-        def expected(x: Tensor[(m, n), "float32"], y: Tensor[(m, n), "float32"]):
+        def main(x: Tensor[(m, n), "float32"], y: Tensor[(m, n), "float32"]):
             with relax.dataflow():
                 lv0 = relax.multiply(x, y)
                 gv0 = relax.ewise_fma(x, y, y)
@@ -51,12 +53,9 @@ def test_fma_rewrite():
             gv2 = relax.add(gv1, y)
             return (gv0, gv1, gv2)
 
-    mod = TestFMARewrite
-    new_mod = relax.transform.FMARewrite()(mod)
-    func = new_mod["main"]
-    expected = mod["expected"]
+    After = relax.transform.FMARewrite()(Before)
 
-    assert_structural_equal(func, expected)
+    assert_structural_equal(After["main"], Expected["main"])
 
 
 def test_dataflowpass_fail():
@@ -64,7 +63,7 @@ def test_dataflowpass_fail():
     with pytest.raises(tvm.TVMError):
 
         @tvm.script.ir_module
-        class TestRemoveGlobalVar:
+        class TestRemoveGlobalScopeVar:
             @R.function
             def main(x: Tensor[_, "float32"], y: Tensor[_, "float32"]):
                 with relax.dataflow():
@@ -73,12 +72,12 @@ def test_dataflowpass_fail():
                     relax.output(gv_remove, gv1)
                 return gv_remove, gv1
 
-        relax.transform.FailTestRewrite()(TestRemoveGlobalVar)
+        relax.transform.FailTestRewrite()(TestRemoveGlobalScopeVar)
 
     with pytest.raises(tvm.TVMError):
 
         @tvm.script.ir_module
-        class TestRewriteGlobalVar:
+        class TestRewriteGlobalScopeVar:
             @R.function
             def main(x: Tensor[_, "float32"], y: Tensor[_, "float32"]):
                 with relax.dataflow():
@@ -87,7 +86,7 @@ def test_dataflowpass_fail():
                     relax.output(gv_rewrite, gv1)
                 return gv_rewrite, gv1
 
-        relax.transform.FailTestRewrite()(TestRewriteGlobalVar)
+        relax.transform.FailTestRewrite()(TestRewriteGlobalScopeVar)
 
     # raise error on rewriting/removing existing Symbolic Vars inside the dataflow block
     # check all Symbolic Vars defined in R.match_shape
