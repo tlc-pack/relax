@@ -244,7 +244,6 @@ class DataflowBlockMutator : public ExprMutator {
         var = node->var;
       } else if (const auto* node = binding.as<MatchShapeNode>()) {
         var = node->var;
-        Array<PrimExpr> pattern = node->pattern;
         for (PrimExpr expr : node->pattern) {
           if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
             tir::Var sym_var0 = Downcast<tir::Var>(expr);
@@ -270,7 +269,6 @@ class DataflowBlockMutator : public ExprMutator {
         var = node->var;
       } else if (const auto* node = binding.as<MatchShapeNode>()) {
         var = node->var;
-        Array<PrimExpr> pattern = node->pattern;
         for (PrimExpr expr : node->pattern) {
           if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
             if (symbolic_vars.count(sym_var->name_hint) > 0) {
