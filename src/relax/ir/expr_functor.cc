@@ -102,6 +102,8 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
 
 void ExprVisitor::VisitExpr_(const ShapeExprNode* op) { this->VisitSpan(op->span); }
 
+void ExprVisitor::VisitExpr_(const RuntimeDepShapeNode* op) { this->VisitSpan(op->span); }
+
 void ExprVisitor::VisitExpr_(const ExternFuncNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
@@ -333,6 +335,8 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
 }
 
 Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutator::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
 

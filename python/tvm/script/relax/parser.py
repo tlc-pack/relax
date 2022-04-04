@@ -280,7 +280,14 @@ class RelaxTransformer(Transformer):
                 shape, dtype, rank = None, None, -1
 
                 # parse the shape annotation
-                if isinstance(shape_annotation, ast.TypeVar):
+                if isinstance(shape_annotation, ast.TypeConstant):
+                    if shape_annotation.value != "RuntimeDepShape":
+                        self.report_error(
+                            "invalid shape annotation",
+                            shape_annotation.span,
+                        )
+                    shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
+                elif isinstance(shape_annotation, ast.TypeVar):
                     if shape_annotation.id.name != "_":
                         # TODO(@altanh): handle variable annotations, e.g. x: Tensor[my_shape, _]
                         self.report_error(
