@@ -194,6 +194,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 class DataflowBlockPass;
 
+/*!
+ * \brief DataflowBlock-level passes are used to implement various dataflow block
+ * optimizations for a given Relax IRModule. It fetches one dataflow block at a time
+ * from the functions in an IRModule, and yields a rewritten DataflowBlock.
+ *
+ * Note that the scope of passes at this level is a Relax DataflowBlock. Therefore,
+ * we cannot modify the global Vars and symbolic shape Vars defined inside the dataflow block.
+ */
 class DataflowBlockPassNode : public tvm::transform::PassNode {
  public:
   /* \brief The pass meta data.*/
