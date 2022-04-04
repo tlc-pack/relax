@@ -58,6 +58,14 @@ def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
     raise ValueError("Wrong type")
 
 
+@tvm._ffi.register_object("relax.expr.RuntimeDepShape")
+class RuntimeDepShape(Expr):
+    """A shape expression which allows users to construct a runtime dependent shape."""
+
+    def __init__(self, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)
+
+
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(Expr):
     """The variable class for all Relax bindings."""
