@@ -86,6 +86,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   RELAX_EXPR_NORMALIZER_LEAF(VarNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataflowVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
+  RELAX_EXPR_NORMALIZER_LEAF(RuntimeDepShapeNode);
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
@@ -398,8 +399,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     // NB: tuples are treated as leaf nodes for ergonomics
     // TODO(@altanh, @yuchen): remove TupleNode from leaf
     return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-           expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
-           expr.as<TupleNode>();
+           expr.as<ShapeExprNode>() || expr.as<RuntimeDepShapeNode>() ||
+           expr.as<ExternFuncNode>() || expr.as<OpNode>() || expr.as<TupleNode>();
   }
 
   Expr VisitWithNewScope(const Expr& expr) {

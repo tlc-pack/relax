@@ -230,6 +230,13 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
   return doc;
 }
 
+Doc RelaxScriptPrinter::VisitNode_(const relax::RuntimeDepShapeNode* op) {
+  Doc doc;
+
+  doc << "\"RuntimeDepShape\"";
+  return doc;
+}
+
 Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
   Doc doc;
   if (op->var.defined()) {
