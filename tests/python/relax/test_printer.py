@@ -314,5 +314,10 @@ def test_shapeexpr():
     assert x.__str__() == "(10, 5)"
 
 
+def test_runtime_dep_shape():
+    x = relax.RuntimeDepShape()
+    assert x.__str__() == '"RuntimeDepShape"'
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
