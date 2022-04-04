@@ -267,6 +267,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;
   Doc VisitNode_(const relax::ShapeExprNode* op) override;
+  Doc VisitNode_(const relax::RuntimeDepShapeNode* op) override;
   Doc VisitNode_(const relax::MatchShapeNode* op) override;
   Doc VisitNode_(const relax::VarBindingNode* op) override;
   Doc VisitNode_(const relax::BindingBlockNode* op) override;
@@ -578,7 +579,8 @@ class TextPrinter {
                 node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
     } else if (node.defined() && (node->IsInstance<relax::FunctionNode>() ||
-                                  node->IsInstance<relax::ShapeExprNode>())) {
+                                  node->IsInstance<relax::ShapeExprNode>() ||
+                                  node->IsInstance<relax::RuntimeDepShapeNode>())) {
       doc << relax_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

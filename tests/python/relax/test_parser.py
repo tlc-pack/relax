@@ -40,6 +40,10 @@ def check_shape(e, s):
         assert e is None
         return
 
+    if isinstance(s, relax.RuntimeDepShape):
+        assert isinstance(e, relax.RuntimeDepShape)
+        return
+
     assert len(e) == len(s)
 
     for edim, sdim in zip(e, s):
@@ -71,7 +75,11 @@ def check_call(call, op, args):
 
 def test_annotations():
     @R.function
-    def f(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
+    def f(
+        x: Tensor[(32, m), "float32"],
+        y: Tensor[(m, k), "float32"],
+        r: Tensor["RuntimeDepShape", "int64"],
+    ) -> Tensor:
         z: Tensor[(32, k), "float32"] = nn.matmul(x, y, units=None)
         w: Tensor[_, _] = multiply(z, z)
         q: Tensor[(_, _), _] = add(w, w)
@@ -79,7 +87,7 @@ def test_annotations():
         sh: Shape = t.shape
         return t
 
-    x, y = f.params
+    x, y, r = f.params
     z_bind, w_bind, q_bind, t_bind, sh_bind = f.body.blocks[0].bindings
     z, mm = z_bind.var, z_bind.value
     w, mul = w_bind.var, w_bind.value
@@ -89,6 +97,7 @@ def test_annotations():
 
     check_tensor_var(x, (32, "m"), "float32")
     check_tensor_var(y, ("m", "k"), "float32")
+    check_tensor_var(r, relax.RuntimeDepShape(), "int64")
     check_tensor_var(z, (32, "k"), "float32")
     check_tensor_var(w, None, "")
     check_tensor_var(q, None, "", rank=2)
@@ -103,6 +112,14 @@ def test_annotations():
     assert f.body.body == t
 
     assert isinstance(f.ret_type, relax.ty.DynTensorType)
+
+
+def test_annotations_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor["u", "int64"]):
+            return x
 
 
 def test_match_shape():
