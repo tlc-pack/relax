@@ -55,7 +55,7 @@ def test_fma_rewrite():
 
     After = relax.transform.FMARewrite()(Before)
 
-    assert_structural_equal(After["main"], Expected["main"])
+    assert_structural_equal(After, Expected)
 
 
 def test_dataflowpass_fail():

@@ -354,13 +354,13 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
   IRModule updated_mod = mod->ShallowCopy();
 
-  DataflowBlockMutator dataflowblockmutator(pass_func, updated_mod, pass_ctx);
+  DataflowBlockMutator dataflow_block_mutator(pass_func, updated_mod, pass_ctx);
   std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : updated_mod->functions) {
     // only picks up relax::Function
     if (auto* n = it.second.as<FunctionNode>()) {
       Function func = GetRef<Function>(n);
-      Function updated_func = Downcast<Function>(dataflowblockmutator.VisitExpr(func));
+      Function updated_func = Downcast<Function>(dataflow_block_mutator.VisitExpr(func));
       updates.push_back({it.first, updated_func});
     }
   }
