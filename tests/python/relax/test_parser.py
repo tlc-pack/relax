@@ -56,12 +56,12 @@ def check_shape(e, s):
 
 
 def check_tensor_var(v, s, d, rank=None):
-    assert isinstance(v.type_annotation, relax.ty.DynTensorType)
-    assert v.type_annotation.dtype == d
+    assert isinstance(v._checked_type_, relax.ty.DynTensorType)
+    assert v._checked_type_.dtype == d
     if isinstance(s, (list, tuple)):
-        assert v.type_annotation.rank == len(s)
+        assert v._checked_type_.rank == len(s)
     if rank is not None:
-        assert v.type_annotation.rank == rank
+        assert v._checked_type_.rank == rank
     check_shape(v, s)
 
 
@@ -101,8 +101,8 @@ def test_annotations():
     check_tensor_var(z, (32, "k"), "float32")
     check_tensor_var(w, None, "")
     check_tensor_var(q, None, "", rank=2)
-    assert t.type_annotation is None
-    assert isinstance(sh.type_annotation, relax.ty.ShapeType)
+    assert t._checked_type_ is None
+    assert isinstance(sh._checked_type_, relax.ty.ShapeType)
 
     check_call(mm, "nn.matmul", [x, y])
     check_call(mul, "multiply", [z, z])
@@ -260,8 +260,8 @@ def test_tuple():
     t_bind = f.body.blocks[0].bindings[0]
     t, tup = t_bind.var, t_bind.value
 
-    assert isinstance(t.type_annotation, relay.TupleType)
-    annot = t.type_annotation
+    annot = t._checked_type_
+    assert isinstance(annot, relay.TupleType)
     assert isinstance(annot.fields[0], relax.ty.DynTensorType) and annot.fields[0].dtype == ""
     assert (
         isinstance(annot.fields[1], relax.ty.DynTensorType) and annot.fields[1].dtype == "float32"
@@ -629,7 +629,7 @@ def test_class_irmodule():
             return gv2
 
         @R.function
-        def h(x, y, z):
+        def h(x: Tensor[(n, n), _], y: Tensor[(n, n), _], z: Tensor[(n, n), _]) -> Tensor:
             _ = my_matmul(x, y, z)
             return z
 
