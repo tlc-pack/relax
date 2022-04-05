@@ -296,7 +296,7 @@ def test_class_irmodule():
             return relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
 
         @R.function
-        def h(x, y, z):
+        def h(x: Tensor[(n, n), _], y: Tensor[(n, n), _], z: Tensor[(n, n), _]) -> Tensor:
             _ = my_matmul(x, y, z)
             return z
 
