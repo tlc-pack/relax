@@ -24,10 +24,10 @@ from tvm.ir import structural_equal
 def test_dispatch_var():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    v0 = rx.Var("v0", [m, n], dtype0)
-    v1 = rx.DataflowVar("v1", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    v0 = rx.Var("v0", [m, n], type_anno0)
+    v1 = rx.DataflowVar("v1", [n], type_anno1)
     t = None
 
     def fvisit(e):
@@ -43,10 +43,10 @@ def test_dispatch_var():
 def test_post_order_visit():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     ib = rx.BlockBuilder()
     with ib.function("func", [x, y]):
         with ib.dataflow() as df:
