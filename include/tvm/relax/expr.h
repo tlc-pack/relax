@@ -126,8 +126,6 @@ class VarNode : public ExprNode {
   /*! \brief The identifier of the variable, which is used for comparing stable equality across
    * transformations. */
   Id vid;
-  /*! \brief The type annotation, used by binding sites and parameter declarations. */
-  runtime::Optional<Type> type_annotation;
 
   /*! \return The name hint of the variable */
   const String& name_hint() const { return vid->name_hint; }
@@ -135,20 +133,18 @@ class VarNode : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("vid", &vid);
-    v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+    return equal(vid, other->vid) && equal(checked_type_, other->checked_type_) &&
+           equal(shape_, other->shape_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(vid);
-    hash_reduce(type_annotation);
     hash_reduce(shape_);
     hash_reduce(checked_type_);
   }
@@ -179,7 +175,6 @@ class DataflowVarNode : public VarNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
-    v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
@@ -187,13 +182,12 @@ class DataflowVarNode : public VarNode {
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(type_annotation, other->type_annotation) &&
-           equal(shape_, other->shape_) && equal(checked_type_, other->checked_type_);
+    return equal(vid, other->vid) && equal(shape_, other->shape_) &&
+           equal(checked_type_, other->checked_type_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(vid);
-    hash_reduce(type_annotation);
     hash_reduce(shape_);
     hash_reduce(checked_type_);
   }
