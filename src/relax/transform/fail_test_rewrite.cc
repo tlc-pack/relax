@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/fma_rewrite.cc
+ * \file src/relax/transform/fail_test_rewrite.cc
  * \brief Incorrectly transform the dataflow structure as fail testcases.
  */
 #include <tvm/relax/expr_functor.h>
