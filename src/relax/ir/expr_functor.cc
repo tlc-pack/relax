@@ -147,9 +147,6 @@ void ExprVisitor::VisitBindingBlock_(const DataflowBlockNode* block) {
 
 void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
   this->VisitSpan(var->span);
-  if (var->type_annotation.defined()) {
-    this->VisitType(var->type_annotation.value());
-  }
 
   if (var->shape_) {
     this->VisitExpr(Downcast<Expr>(var->shape_.value()));
@@ -158,9 +155,6 @@ void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
 
 void ExprVisitor::VisitVarDef_(const VarNode* var) {
   this->VisitSpan(var->span);
-  if (var->type_annotation.defined()) {
-    this->VisitType(var->type_annotation.value());
-  }
 
   if (var->shape_) {
     this->VisitExpr(Downcast<Expr>(var->shape_.value()));
@@ -442,13 +436,6 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
 }
 
 Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
-  bool type_unchanged = true;
-  Type new_type;
-  if (var->type_annotation.defined()) {
-    new_type = this->VisitType(var->type_annotation.value());
-    type_unchanged &= new_type.same_as(var->type_annotation);
-  }
-
   bool shape_unchanged = true;
   Expr new_shape;
   if (var->shape_) {
@@ -456,21 +443,11 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
     shape_unchanged &= new_shape.same_as(var->shape_);
   }
 
-  if (type_unchanged && shape_unchanged) {
+  if (shape_unchanged) {
     return GetRef<Var>(var);
   } else {
-    Var new_var;
-    if (type_unchanged) {
-      new_var = DataflowVar(var->vid, NullOpt, var->type_annotation, var->span);
-    } else {
-      new_var = DataflowVar(var->vid, NullOpt, new_type, var->span);
-    }
-
-    if (shape_unchanged) {
-      new_var->shape_ = var->shape_;
-    } else {
-      new_var->shape_ = new_shape;
-    }
+    Var new_var = DataflowVar(var->vid, NullOpt, var->checked_type_, var->span);
+    new_var->shape_ = new_shape;
 
     this->var_remap_[var->vid] = new_var;
     return new_var;
@@ -478,13 +455,6 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
 }
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {
-  bool type_unchanged = true;
-  Type new_type;
-  if (var->type_annotation.defined()) {
-    new_type = this->VisitType(var->type_annotation.value());
-    type_unchanged &= new_type.same_as(var->type_annotation);
-  }
-
   bool shape_unchanged = true;
   Expr new_shape;
   if (var->shape_) {
@@ -492,21 +462,11 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
     shape_unchanged &= new_shape.same_as(var->shape_);
   }
 
-  if (type_unchanged && shape_unchanged) {
+  if (shape_unchanged) {
     return GetRef<Var>(var);
   } else {
-    Var new_var;
-    if (type_unchanged) {
-      new_var = Var(var->vid, NullOpt, var->type_annotation, var->span);
-    } else {
-      new_var = Var(var->vid, NullOpt, new_type, var->span);
-    }
-
-    if (shape_unchanged) {
-      new_var->shape_ = var->shape_;
-    } else {
-      new_var->shape_ = new_shape;
-    }
+    Var new_var = Var(var->vid, NullOpt, var->checked_type_, var->span);
+    new_var->shape_ = new_shape;
 
     this->var_remap_[var->vid] = new_var;
     return new_var;
