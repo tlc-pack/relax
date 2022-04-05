@@ -79,9 +79,8 @@ Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
   n->shape_ = std::move(shape_annotation);
-  n->type_annotation = std::move(type_annotation);
-  if (n->type_annotation) {
-    n->checked_type_ = n->type_annotation.value();
+  if (type_annotation) {
+    n->checked_type_ = std::move(type_annotation.value());
   }
   n->span = std::move(span);
   data_ = std::move(n);
@@ -100,9 +99,8 @@ DataflowVar::DataflowVar(Id vid, Optional<Expr> shape_annotation, Optional<Type>
   ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
   n->vid = std::move(vid);
   n->shape_ = std::move(shape_annotation);
-  n->type_annotation = std::move(type_annotation);
-  if (n->type_annotation) {
-    n->checked_type_ = n->type_annotation.value();
+  if (type_annotation) {
+    n->checked_type_ = std::move(type_annotation.value());
   }
   n->span = std::move(span);
   data_ = std::move(n);
@@ -193,6 +191,10 @@ Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr bo
                    Span span) {
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->name = std::move(name);
+  for (Var param : params) {
+    ICHECK(param->checked_type_.defined())
+        << "The checked_type_ of Function parameters must be filled.";
+  }
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
