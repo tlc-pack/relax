@@ -37,10 +37,10 @@ def nop():
 def test_block_builder():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     bb._begin_binding_block()
@@ -64,10 +64,10 @@ def test_block_builder():
 def test_function_single_block():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with bb.function("func", [x, y]):
@@ -95,10 +95,10 @@ def test_function_single_block():
 def test_function_multi_blocks():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with bb.function("func", [x, y]):
@@ -133,10 +133,10 @@ def test_function_multi_blocks():
 def test_multi_functions():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with bb.function("func1", [x, y]):
@@ -171,12 +171,12 @@ def test_binary_shape_type_deduction():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
     k = tir.Var("k", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, 1], dtype0)
-    y = rx.Var("y", [n], dtype1)
-    z = rx.Var("z", [5], dtype1)
-    w = rx.Var("w", [k], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, 1], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
+    z = rx.Var("z", [5], type_anno1)
+    w = rx.Var("w", [k], type_anno1)
     bb = rx.BlockBuilder()
 
     with bb.function("func", [x, y, z, w]):
@@ -260,10 +260,10 @@ def test_emit_match_shape():
 def test_normalize():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     add_call = rx.op.multiply(x, y)
@@ -485,10 +485,10 @@ def test_emit_tuple_get_item():
 def test_nested_function_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with pytest.raises(RuntimeError):
@@ -502,10 +502,10 @@ def test_nested_function_fail():
 def test_emit_func_output_twice_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with pytest.raises(RuntimeError):
@@ -518,10 +518,10 @@ def test_emit_func_output_twice_fail():
 def test_func_params_twice_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with pytest.raises(RuntimeError):
@@ -533,10 +533,10 @@ def test_func_params_twice_fail():
 def test_no_func_params_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-    dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-    x = rx.Var("x", [m, n], dtype0)
-    y = rx.Var("y", [n], dtype1)
+    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
     with pytest.raises(RuntimeError):

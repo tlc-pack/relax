@@ -84,10 +84,10 @@ class BlockBuilder(Object):
 
         m = tir.Var("m", "int32")
         n = tir.Var("n", "int32")
-        dtype0 = rx.DynTensorType(rank=2, dtype="float16")
-        dtype1 = rx.DynTensorType(rank=1, dtype="float16")
-        x = rx.Var("x", [m, n], dtype0)
-        y = rx.Var("y", [n], dtype1)
+        type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
+        type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+        x = rx.Var("x", [m, n], type_anno0)
+        y = rx.Var("y", [n], type_anno1)
         bb = rx.BlockBuilder()
         with bb.function([x, y], "func"):
             with bb.dataflow() as df:

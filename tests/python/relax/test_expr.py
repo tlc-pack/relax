@@ -25,28 +25,28 @@ def test_var() -> None:
     v0 = rx.Var("v0")
     assert v0.name_hint == "v0"
     assert v0.shape_ is None
-    assert v0.type_annotation is None
+    assert v0._checked_type_ is None
     shape_anno = [54, 96]
     type_anno = rx.DynTensorType(2, "float32")
     v1 = rx.Var("v1", shape_anno, type_anno)
     assert v1.name_hint == "v1"
     for s0, s1 in zip(v1.shape_, shape_anno):
         assert s0 == s1
-    assert v1.type_annotation == type_anno
+    assert v1._checked_type_ == type_anno
 
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     assert v0.name_hint == "v0"
     assert v0.shape_ is None
-    assert v0.type_annotation is None
+    assert v0._checked_type_ is None
     shape_anno = [54, 96]
     type_anno = rx.DynTensorType(2, "float16")
     v1 = rx.DataflowVar("v1", shape_anno, type_anno)
     assert v1.name_hint == "v1"
     for s0, s1 in zip(v1.shape_, shape_anno):
         assert s0 == s1
-    assert v1.type_annotation == type_anno
+    assert v1._checked_type_ == type_anno
     assert isinstance(v1, rx.DataflowVar)
 
 
@@ -138,7 +138,8 @@ def test_shape_expr() -> None:
 
 
 def test_func():
-    x = rx.Var("foo")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("foo", type_annotation=type_anno)
     bindings = [rx.VarBinding(x, rx.const(1))]
     blocks = [rx.BindingBlock(bindings)]
     seqe = rx.SeqExpr(blocks, x)
