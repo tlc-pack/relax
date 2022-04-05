@@ -506,9 +506,6 @@ Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
   // TODO(@altanh): we should consider moving annotation into binding
   Doc doc;
   Type annotation = var->checked_type_;
-  if (!annotation.defined()) {
-    annotation = var->type_annotation.value_or(Type());
-  }
   if (annotation.defined()) {
     doc << ": ";
     if (const relax::DynTensorTypeNode* tty = annotation.as<relax::DynTensorTypeNode>()) {
