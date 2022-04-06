@@ -66,14 +66,18 @@ class EwiseFMARewriter : public ExprMutator {
   }
 };
 
-Expr FMARewrite(const Expr& e) { return EwiseFMARewriter().VisitExpr(e); }
+BindingBlock FMARewrite(const BindingBlock& block) {
+  return EwiseFMARewriter().VisitBindingBlock(block);
+}
 
 namespace transform {
 
 Pass FMARewrite() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(FMARewrite(f)); };
-  return CreateFunctionPass(pass_func, 2, "FMARewrite", {});
+  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
+      [=](DataflowBlock block, IRModule m, PassContext pc) {
+        return Downcast<DataflowBlock>(FMARewrite(block));
+      };
+  return CreateDataflowBlockPass(pass_func, 2, "FMARewrite", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.FMARewrite").set_body_typed(FMARewrite);
