@@ -334,6 +334,8 @@ class RelaxTransformer(Transformer):
                 return (relax.DynTensorType(ndim=-1, dtype=None, span=span), None)
             elif ty.id.name == "Shape":
                 return (relax.ShapeType(span), None)
+            elif ty.id.name == "Object":
+                return (relax.ObjectType(span), None)
             elif ty.id.name == "Dim":
                 return (relax.DimType(span), None)
             self.report_error("unknown type in annotation", ty.span)

@@ -37,6 +37,16 @@ ShapeType::ShapeType(Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ShapeType").set_body_typed([](Span span) { return ShapeType(span); });
 
+ObjectType::ObjectType(Span span) {
+  ObjectPtr<ObjectTypeNode> n = make_object<ObjectTypeNode>();
+  n->span = span;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(ObjectTypeNode);
+
+TVM_REGISTER_GLOBAL("relax.ObjectType").set_body_typed([](Span span) { return ObjectType(span); });
+
 DynTensorType::DynTensorType(int ndim, DataType dtype, Span span) {
   ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
   n->ndim = std::move(ndim);
