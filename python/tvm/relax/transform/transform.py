@@ -31,6 +31,21 @@ class FunctionPass(tvm.ir.transform.Pass):
     """
 
 
+@tvm._ffi.register_object("relax.DataflowBlockPass")
+class DataflowBlockPass(tvm.ir.transform.Pass):
+    """A pass that works on each tvm.relax.DataflowBlock in a module."""
+
+
+def FailTestRewrite() -> tvm.ir.transform.Pass:
+    """Incorrectly transform the dataflow structure as fail testcases.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FailTestRewrite()
+
+
 def FMARewrite() -> tvm.ir.transform.Pass:
     """Perform fused multiply add rewriting in dataflow blocks.
 
