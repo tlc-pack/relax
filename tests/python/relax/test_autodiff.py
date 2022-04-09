@@ -64,5 +64,39 @@ def matmul():
 
   # np.testing.assert_allclose(inp.numpy() * inp2.numpy(), res.numpy())
 
+def test_nndense():
+  m = 5
+  n = 5
+  dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+  dtype1 = rx.DynTensorType(rank=2, dtype="float16")
+  x = rx.Var("x", [m, n], dtype0)
+  y = rx.Var("y", [n, n], dtype1)
+  bb = rx.BlockBuilder()
+
+  # op = relay.op.get("nn.dense")
+
+  with bb.function("func", [x, y]):
+      with bb.dataflow() as df:
+          #lv1 = bb.emit(rx.Call(op, [x, y]))
+          gv0 = bb.emit_output(relay.nn.dense(x, y))
+          #gv0 = bb.emit_output(lv1)
+      bb.emit_func_output(gv0)
+  mod = bb.get()
+  print(mod)
+
+  target = tvm.target.Target("llvm", host="llvm")
+  new_mod = rx.transform.EmitTERewrite(target)(mod)
+
+  print(new_mod)
+
+  # ex = rx.vm.build(new_mod, target)
+
+  # vm = rx.VirtualMachine(ex, tvm.cpu())
+  # inp = tvm.nd.array(np.random.rand(5, 5).astype(np.float16))
+  # inp2 = tvm.nd.array(np.random.rand(5, ).astype(np.float16))
+  # res, res1, res2 = vm["func"](inp, inp2)
+
+
 if __name__ == "__main__":
-  matmul()
+  test_nndense()
+  # matmul()

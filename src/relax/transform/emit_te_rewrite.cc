@@ -25,6 +25,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/op_strategy.h>
+#include <tvm/target/target.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/function.h>
 #include <tvm/ir/expr.h>
@@ -41,7 +43,10 @@ namespace relax {
 
 class EmitTEMutator : public ExprMutator {
   public:
-    explicit EmitTEMutator(IRModule mod) { mod_ = mod; }
+    explicit EmitTEMutator(IRModule mod, const Target& target) { 
+      mod_ = mod;
+      target_ = target;
+    }
 
     IRModule Lower() {
       for (auto& p : mod_->functions) {
@@ -84,13 +89,41 @@ class EmitTEMutator : public ExprMutator {
         const auto* f_make_call_tir = runtime::Registry::Get("relax.op.call_tir");
         Expr ret = (*f_make_call_tir)(gv, Tuple(call->args), output_shape, out_type, nullptr);
         return std::move(ret);
+      } else if (op != nullptr && relay_strategy_map.count(GetRef<Op>(op)) != 0) {
+        Op op = Downcast<Op>(call->op);
+
+        Array<te::Tensor> te_args;
+        const auto* f_te_tensor = runtime::Registry::Get("relax.TETensor");
+        for (const Expr& e: call->args) {
+          te::Tensor t = (*f_te_tensor)(e, "rxplaceholder");
+          te_args.push_back(t);
+        }
+
+        Expr output_shape = call->shape();
+        Type out_type = call->checked_type();
+
+        relay::OpStrategy strategy = relay_strategy_map[op](call->attrs, te_args, out_type, target_);
+        auto impl = strategy->specializations[0]->implementations[0];
+        auto outs = impl.Compute(call->attrs, te_args, out_type);
+
+        te_args.insert(te_args.end(), outs.begin(), outs.end());
+        const auto* f_create_func = runtime::Registry::Get("te.CreatePrimFunc");
+        te::PrimFunc f = (*f_create_func)(te_args, nullptr);
+
+        GlobalVar gv = builder_->AddFuncToContext(f, op->name);
+
+        const auto* f_make_call_tir = runtime::Registry::Get("relax.op.call_tir");
+        Expr ret = (*f_make_call_tir)(gv, Tuple(call->args), output_shape, out_type, nullptr);
+        return std::move(ret);
       }
 
       return GetRef<Expr>(call);
     }
   private:
     IRModule mod_;
+    Target target_;
     const OpAttrMap<relay::FTVMCompute> relay_op_map = Op::GetAttrMap<relay::FTVMCompute>("FTVMCompute");
+    const OpAttrMap<relay::FTVMStrategy> relay_strategy_map = Op::GetAttrMap<relay::FTVMStrategy>("FTVMStrategy");
 
     Array<te::Tensor> CallToTE(const Op& op, const Attrs& attrs, const Array<te::Tensor> te_args, const Expr& shape, const Type& out_type) {
       if (op == Op::Get("collapse_sum_like")) {
@@ -107,13 +140,15 @@ class EmitTEMutator : public ExprMutator {
 
 namespace transform {
 
-Pass EmitTERewrite() {
+Pass EmitTERewrite(const Target& target) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return EmitTEMutator(mod).Lower(); };
+      [=](IRModule mod, PassContext pc) { return EmitTEMutator(mod, target).Lower(); };
   return CreateModulePass(pass_func, 0, "EmitTERewrite", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.EmitTERewrite").set_body_typed(EmitTERewrite);
+TVM_REGISTER_GLOBAL("relax.transform.EmitTERewrite").set_body_typed([](const Target& target) {
+  return EmitTERewrite(target);
+});
 
 }  // namespace transform
 

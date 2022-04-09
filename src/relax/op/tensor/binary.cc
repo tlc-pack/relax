@@ -41,5 +41,9 @@ RELAY_REGISTER_OP("collapse_sum_like")                                       \
       .set_attr<FInferShape>("FInferShape", InferShapeBinaryLike)            \
       .set_attr<FInferType>("FInferType", InferTypeBinaryLike);
 
+RELAY_REGISTER_OP("nn.dense")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryNNDense)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryNNDense);
+
 }  // namespace relax
 }  // namespace tvm

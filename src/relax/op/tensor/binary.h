@@ -25,7 +25,9 @@
 #ifndef TVM_RELAX_OP_TENSOR_BINARY_H_
 #define TVM_RELAX_OP_TENSOR_BINARY_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relax/type.h>
 
 #include <algorithm>
@@ -128,6 +130,53 @@ Type InferTypeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
   }
   return call->args[1]->checked_type();
 }
+
+Optional<Expr> InferShapeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary broadcast op should have 2 arguments");
+  }
+
+  const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
+  const ShapeExprNode* tensor_b = call->args[1]->shape().as<ShapeExprNode>();
+
+  ICHECK(tensor_a != nullptr);
+  ICHECK(tensor_b != nullptr);
+
+  // Default set to dense layout
+  bool transpose_a = false;
+  bool transpose_b = true;
+  const auto& mattrs = call->attrs.as<relay::MatmulAttrs>();
+  if (mattrs != nullptr) {
+    transpose_a = mattrs->transpose_a;
+    transpose_b = mattrs->transpose_b;
+  }
+
+  Array<PrimExpr> oshape = tensor_a->values;
+  const Array<PrimExpr>& wshape = tensor_b->values;
+  oshape.Set((oshape.size() - 2), transpose_a ? oshape[oshape.size() - 1] : oshape[oshape.size() - 2]);
+  oshape.Set((oshape.size() - 1), transpose_b ? wshape[0] : wshape[1]);
+
+  return ShapeExpr(oshape);
+}
+
+Type InferTypeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary broadcast op should have 2 arguments");
+  }
+
+  const relay::DenseAttrs* param = call->attrs.as<relay::DenseAttrs>();
+  ICHECK(param != nullptr);
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  ICHECK(tensor_a != nullptr);
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = tensor_a->dtype;
+  }
+  return DynTensorType(tensor_a->rank, out_dtype);
+}
+
 
 }  // namespace relax
 }  // namespace tvm
