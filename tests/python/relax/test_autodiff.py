@@ -70,7 +70,7 @@ def test_nndense():
   dtype0 = rx.DynTensorType(rank=2, dtype="float16")
   dtype1 = rx.DynTensorType(rank=2, dtype="float16")
   x = rx.Var("x", [m, n], dtype0)
-  y = rx.Var("y", [n, n], dtype1)
+  y = rx.Var("y", [m, n], dtype1)
   bb = rx.BlockBuilder()
 
   # op = relay.op.get("nn.dense")
@@ -85,17 +85,21 @@ def test_nndense():
   print(mod)
 
   target = tvm.target.Target("llvm", host="llvm")
-  new_mod = rx.transform.EmitTERewrite(target)(mod)
+  new_mod = rx.transform.ReverseModeAD()(mod)
+  print(new_mod)
+
+  new_mod = rx.transform.EmitTERewrite(target)(new_mod)
 
   print(new_mod)
 
-  # ex = rx.vm.build(new_mod, target)
+  ex = rx.vm.build(new_mod, target)
 
-  # vm = rx.VirtualMachine(ex, tvm.cpu())
-  # inp = tvm.nd.array(np.random.rand(5, 5).astype(np.float16))
-  # inp2 = tvm.nd.array(np.random.rand(5, ).astype(np.float16))
-  # res, res1, res2 = vm["func"](inp, inp2)
+  vm = rx.VirtualMachine(ex, tvm.cpu())
+  inp = tvm.nd.array(np.random.rand(5, 5).astype(np.float16))
+  inp2 = tvm.nd.array(np.random.rand(5, 5).astype(np.float16))
+  res, res1, res2 = vm["func"](inp, inp2)
 
+  # np.testing.assert_allclose(inp.numpy() @ (np.transpose(inp2.numpy())), res.numpy(), atol=1e-3, rtol=1e-3)
 
 if __name__ == "__main__":
   test_nndense()

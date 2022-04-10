@@ -28,6 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relax/type.h>
 
 #include <algorithm>
@@ -117,7 +118,7 @@ Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
 Optional<Expr> InferShapeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Binary broadcast op should have 2 arguments");
+                       << "Binary like op should have 2 arguments");
   }
 
   return call->args[1]->shape();
@@ -126,7 +127,7 @@ Optional<Expr> InferShapeBinaryLike(const Call& call, DiagnosticContext diag_ctx
 Type InferTypeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Binary broadcast op should have 2 arguments");
+                       << "Binary like op should have 2 arguments");
   }
   return call->args[1]->checked_type();
 }
@@ -134,7 +135,7 @@ Type InferTypeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
 Optional<Expr> InferShapeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Binary broadcast op should have 2 arguments");
+                       << "Binary nn.dense op should have 2 arguments");
   }
 
   const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
@@ -163,7 +164,7 @@ Optional<Expr> InferShapeBinaryNNDense(const Call& call, DiagnosticContext diag_
 Type InferTypeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Binary broadcast op should have 2 arguments");
+                       << "Binary nn.dense op should have 2 arguments");
   }
 
   const relay::DenseAttrs* param = call->attrs.as<relay::DenseAttrs>();
@@ -176,6 +177,43 @@ Type InferTypeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
   }
   return DynTensorType(tensor_a->rank, out_dtype);
 }
+
+Optional<Expr> InferShapeBinaryTranspose(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "transpose op should have 1 arguments");
+  }
+  const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
+
+  ICHECK(tensor_a != nullptr);
+  
+  const auto* param = call->attrs.as<relay::TransposeAttrs>();
+  const int ndim = tensor_a->values.size();
+  const Array<Integer>& axes = param->axes;
+  ICHECK(!axes.defined()) << "only support transpose with no axes set in Relax shape inference for now";
+  std::vector<int> int_axes;
+  int_axes.reserve(ndim);
+  if (!axes.defined()) {
+    for (int i = ndim - 1; i >= 0; --i) {
+      int_axes.push_back(i);
+    }
+  }
+  Array<PrimExpr> oshape;
+  oshape.reserve(ndim);
+  for (int axis : int_axes) {
+    oshape.push_back(tensor_a->values[axis]);
+  }
+  return ShapeExpr(oshape);
+}
+
+Type InferTypeBinaryTranspose(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "transpose op should have 1 arguments");
+  }
+  return call->args[0]->checked_type();
+}
+
 
 
 }  // namespace relax

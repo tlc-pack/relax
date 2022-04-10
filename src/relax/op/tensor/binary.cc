@@ -45,5 +45,9 @@ RELAY_REGISTER_OP("nn.dense")                                       \
       .set_attr<FInferShape>("FInferShape", InferShapeBinaryNNDense)            \
       .set_attr<FInferType>("FInferType", InferTypeBinaryNNDense);
 
+RELAY_REGISTER_OP("transpose")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryTranspose)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryTranspose);
+
 }  // namespace relax
 }  // namespace tvm

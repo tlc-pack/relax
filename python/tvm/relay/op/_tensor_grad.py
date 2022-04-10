@@ -524,12 +524,13 @@ def bias_add_grad(orig, grad):
 def dense_grad(orig, grad):
     """Returns [grad' @ weight, data @ grad']"""
     data, weight = orig.args
+    # TODO: make this work for relax and relay
     return [
         collapse_sum_like(
-            _nn.dense(grad, transpose(weight), units=weight.checked_type.shape[1]), data
+            _nn.dense(grad, transpose(weight), units=weight.shape.values[1]), data
         ),
         collapse_sum_like(
-            _nn.dense(transpose(grad), transpose(data), units=data.checked_type.shape[1]), weight
+            _nn.dense(transpose(grad), transpose(data), units=data.shape.values[1]), weight
         ),
     ]
 
