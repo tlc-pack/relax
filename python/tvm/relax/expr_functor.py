@@ -49,10 +49,10 @@ class ExprFunctor:
             res = self.visit_extern_func(expr)
         elif isinstance(expr, Constant):
             res = self.visit_constant(expr)
-        elif isinstance(expr, Var):
-            res = self.visit_var(expr)
         elif isinstance(expr, DataflowVar):
             res = self.visit_dataflow_var(expr)
+        elif isinstance(expr, Var):
+            res = self.visit_var(expr)
         elif isinstance(expr, ShapeExpr):
             res = self.visit_shape_expr(expr)
         elif isinstance(expr, RuntimeDepShape):
@@ -227,7 +227,7 @@ class ExprMutator(ExprFunctor):
     def visit_function(self, func: Function):
         new_params = [self.visit(param) for param in func.params]
         new_body = self.visit(func.body)
-        return Function(new_params, new_body, func.ret_type, func.span)
+        return Function(new_params, new_body, func.ret_type, func.name, func.span)
 
     def visit_extern_func(self, op: ExternFunc):
         return op
