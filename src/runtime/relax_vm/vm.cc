@@ -204,14 +204,13 @@ void VirtualMachine::RunLoop() {
         PopFrame();
         if (frames_.size() == 0) {
           // directly return if no frame in the call stack.
-          return;
         } else {
           // return from a local call.
           // Update the current frame to be the parent frame.
           curr_frame = frames_.back().get();
           WriteRegister(curr_frame, caller_return_register, return_value_);
-          return;
         }
+        return;
       }
       case Opcode::Goto: {
         pc_ += instr.pc_offset;
