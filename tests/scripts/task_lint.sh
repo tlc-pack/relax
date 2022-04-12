@@ -30,6 +30,11 @@ trap cleanup 0
 function shard1 {
   echo "Convert scripts to Python..."
   tests/scripts/task_convert_scripts_to_python.sh
+# TODO: Remove this ad-hoc pip install once https://github.com/apache/tvm/pull/10741
+# is added to the ci_lint Docker image
+# python3 -m pip install --user -r jenkins/requirements.txt
+# echo "Check Jenkinsfile generation"
+# python3 jenkins/generate.py --check
 
   echo "Check Jenkinsfile generation"
   python3 ci/jenkins/generate.py --check
@@ -47,7 +52,7 @@ function shard1 {
   tests/lint/flake8.sh
 
   echo "black check..."
-  tests/lint/git-black.sh
+  tests/lint/git-black.sh --rev HEAD~5
 
   echo "Linting the JNI code..."
   tests/lint/jnilint.sh
