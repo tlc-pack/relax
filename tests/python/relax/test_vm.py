@@ -22,7 +22,7 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, te, tir, TVMError
+from tvm import relax, te, tir, topi, TVMError
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
 
@@ -632,6 +632,55 @@ def test_vm_emit_te_floor_symbolic_shape():
         return inp.numpy()[: output_shape[0]] + 1
 
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
+
+
+def test_vm_emit_te_constant_param_cpu():
+    x_np = np.random.rand(2, 2).astype("float32")
+    c_np = np.random.rand(2, 2).astype("float32")
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", (2, 2), relax.DynTensorType(2, "float32"))
+    c = relax.const(c_np, "float32")
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            lv0 = bb.emit_te(topi.add, x, c)
+            gv = bb.emit_output(lv0)
+        bb.emit_func_output(gv)
+
+    mod = bb.get()
+    exec = relax.vm.build(mod, "llvm")
+    dev = tvm.cpu()
+    vm = relax.VirtualMachine(exec, dev)
+
+    add_res = vm["main"](tvm.nd.array(x_np, dev))
+    tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
+
+
+@tvm.testing.requires_gpu
+def test_vm_emit_te_constant_param_gpu():
+    x_np = np.random.rand(2, 2).astype("float32")
+    c_np = np.random.rand(2, 2).astype("float32")
+
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", (2, 2), relax.DynTensorType(2, "float32"))
+    c = relax.const(c_np, "float32")
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            lv0 = bb.emit_te(topi.add, x, c)
+            gv = bb.emit_output(lv0)
+        bb.emit_func_output(gv)
+
+    mod = bb.get()
+    sch = tvm.tir.Schedule(mod, debug_mask="all")
+    loops = sch.get_loops(sch.get_block(name="T_add", func_name="add"))
+    sch.bind(loops[0], "threadIdx.x")
+
+    exec = relax.vm.build(sch.mod, "cuda")
+    dev = tvm.cuda()
+    vm = relax.VirtualMachine(exec, dev)
+
+    add_res = vm["main"](tvm.nd.array(x_np, dev))
+    tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
 def test_vm_relax_symbolic_shape():
