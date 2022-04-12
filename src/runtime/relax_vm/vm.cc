@@ -96,7 +96,7 @@ void VirtualMachine::LoadExecutable(ObjectPtr<Executable> exec) {
 
 RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
   const VMFunction& gfunc = exec_->global_funcs[gf_idx];
-  PushFrame(this->pc_ + 1, gfunc);
+  PushFrame(this->pc_, gfunc);
   // load arguments to the register file
   ICHECK(static_cast<size_t>(gfunc.num_args) == args.size());
   for (size_t i = 0; i < args.size(); ++i) {
@@ -142,8 +142,16 @@ void VirtualMachine::PrepareFuncTable(Index func_index) {
   }
   if (!func.defined()) {
     const PackedFunc* p_func = Registry::Get(func_name);
-    CHECK(p_func != nullptr);
-    func = *(p_func);
+    if (p_func == nullptr) {
+      const auto& m = exec_->global_map;
+      ICHECK(m.find(func_name) != m.end())
+          << "Error: Cannot find function " << func_name
+          << " in either Relax VM kernel library, or in TVM runtime PackedFunc registry, or in "
+             "global Relax functions of the VM executable";
+      func = this->GetFunction(func_name, GetObjectPtr<Object>(this));
+    } else {
+      func = *(p_func);
+    }
   }
   func_table_[func_index] = func;
 }
@@ -199,7 +207,6 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
 }
 
 void VirtualMachine::RunLoop() {
-  size_t start_frame = frames_.size();
   VMFrame* curr_frame = frames_.back().get();
 
   while (true) {
@@ -217,16 +224,15 @@ void VirtualMachine::RunLoop() {
         return_value_ = ReadRegister(curr_frame, instr.result);
         RegName caller_return_register = curr_frame->caller_return_register;
         PopFrame();
-        if (frames_.size() < start_frame) {
-          ICHECK(frames_.size() == start_frame - 1);
-          return;
+        if (frames_.size() == 0) {
+          // directly return if no frame in the call stack.
         } else {
+          // return from a local call.
           // Update the current frame to be the parent frame.
           curr_frame = frames_.back().get();
-          // Otherwise we are just returning from a local call.
           WriteRegister(curr_frame, caller_return_register, return_value_);
         }
-        break;
+        return;
       }
       case Opcode::Goto: {
         pc_ += instr.pc_offset;
