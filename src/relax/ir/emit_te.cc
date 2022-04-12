@@ -41,6 +41,23 @@ te::Tensor TETensor(Expr value, std::string name) {
   n->name = name;
   n->value = value;
 
+  // If the value is a constant, it might come as an argument of EmitTE and thus its shape and
+  // checked-type might not be properly set. In this case we set the shape and dtype of the returned
+  // TE tensor.
+  if (const auto* constant = value.as<ConstantNode>()) {
+    n->dtype = DataType(constant->data->dtype);
+
+    int ndim = constant->data->ndim;
+    ShapeTuple shape_tuple = constant->data.Shape();
+    Array<PrimExpr> shape;
+    shape.reserve(ndim);
+    for (int i = 0; i < ndim; ++i) {
+      shape.push_back(IntImm(DataType::Int(32), shape_tuple[i]));
+    }
+    n->shape = std::move(shape);
+    return te::PlaceholderOp(n).output(0);
+  }
+
   Expr shape_expr = value->shape();
   CHECK(shape_expr->IsInstance<ShapeExprNode>())
       << "ValueError: Expression does not have an known symbolic shape, please consider use "
