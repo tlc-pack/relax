@@ -69,6 +69,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     Instruction::Arg ret = ExprFunctor::VisitExpr(func_node->body);
     builder_->EmitRet(ret.data);
+    registers_num_ = 0;
     return ret;
   }
 
@@ -87,35 +88,36 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return ret_reg;
   }
 
-  Instruction::Arg VisitExpr_(const CallNode* op) {
-    if (op->op.as<OpNode>()) {
+  Instruction::Arg VisitExpr_(const CallNode* call_node) {
+    if (call_node->op.as<OpNode>()) {
       // special case generate for the intrinsics whose attribute fields
       // cannot be represented by args in the CallNode
-      const Call& call = GetRef<Call>(op);
-      if (op->op == alloc_storage_op_) {
+      const Call& call = GetRef<Call>(call_node);
+      if (call_node->op == alloc_storage_op_) {
         return EmitAllocStorage(call);
-      } else if (op->op == alloc_tensor_op_) {
+      } else if (call_node->op == alloc_tensor_op_) {
         return EmitAllocTensor(call);
-      } else if (op->op == store_shape_op_ || op->op == load_shape_op_) {
+      } else if (call_node->op == store_shape_op_ || call_node->op == load_shape_op_) {
         return EmitShape(call);
-      } else if (op->op == call_tir_dyn_op_) {
+      } else if (call_node->op == call_tir_dyn_op_) {
         return EmitTirDynOp(call);
       } else {
         // every "normal" operator is lowered to a global var in the IR module. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
-        LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << op->op;
+        LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << call_node->op;
       }
     }
     String name;
-    if (auto* extern_func = op->op.as<ExternFuncNode>()) {
+    if (auto* extern_func = call_node->op.as<ExternFuncNode>()) {
       name = extern_func->global_symbol;
-    } else if (auto* gvar = op->op.as<GlobalVarNode>()) {
+    } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
+      // GlobalVar can be reference to a Relax function or a TIR primfunc
       name = gvar->name_hint;
     } else {
-      LOG(FATAL) << "CodeGenVM does not support calls to " << op->op->GetTypeKey();
+      LOG(FATAL) << "CodeGenVM does not support calls to " << call_node->op->GetTypeKey();
     }
     std::vector<Instruction::Arg> args;
-    for (auto arg : op->args) {
+    for (auto arg : call_node->args) {
       args.push_back(this->VisitExpr(arg));
     }
     size_t arg_register = NewRegister();
