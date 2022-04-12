@@ -195,6 +195,8 @@ class VirtualMachine : public runtime::ModuleNode {
   Index pc_{0};
   /*! \brief The special return register. */
   RegType return_value_;
+  /*! \brief The global constant pool */
+  std::vector<TVMRetValue> constants;
 };
 
 }  // namespace relax_vm
