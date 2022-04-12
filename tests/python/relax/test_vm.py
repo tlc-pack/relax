@@ -44,6 +44,18 @@ def mul(a, b):
     return tvm.nd.array(ret)
 
 
+@tvm.register_func("test.vm.equal_zero")
+def equal_zero(a):
+    ret = np.all((a.numpy() == 0))
+    return bool(ret)
+
+
+@tvm.register_func("test.vm.subtract_one")
+def subtract_one(a):
+    ret = np.subtract(a.numpy(), 1)
+    return tvm.nd.array(ret)
+
+
 @tvm.register_func("test.vm.identity")
 def identity_packed(a, b):
     b[:] = tvm.nd.array(a.numpy())
@@ -797,6 +809,84 @@ def test_vm_tuplegetitem():
     y_inp = tvm.nd.array(np.random.rand(2, 3))
     res = vm["tuple_get_item"](x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
+
+
+def test_sub_func_call():
+    @tvm.script.ir_module
+    class TestVMSubFunction:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.var("int32")
+            n = T.var("int32")
+            k = T.var("int32")
+            A = T.match_buffer(x, (m, n))
+            B = T.match_buffer(y, (n, k))
+            C = T.match_buffer(z, (m, k))
+
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+        @R.function
+        def relax_matmul_tir(
+            x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]
+        ) -> Tensor:
+            with R.dataflow():
+                gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+                R.output(gv0)
+            return gv0
+
+        @R.function
+        def relax_matmul_packed(
+            x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]
+        ) -> Tensor:
+            gv0 = relax.call_packed("test.vm.mul", x, w)
+            return gv0
+
+        @R.function
+        def main(x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]) -> Tensor:
+            gv0 = relax_matmul_tir(x, w)
+            gv1 = relax_matmul_packed(gv0, gv0)
+            return gv1
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(TestVMSubFunction, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    y_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
+    res = vm["main"](x_inp, y_inp)
+    product = np.dot(x_inp.numpy(), y_inp.numpy())
+    expected = product * product
+    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
+
+
+def test_recursion():
+    @tvm.script.ir_module
+    class TestVMRecursion:
+        @R.function
+        def recursion(n: Tensor[(1,), "float32"]):
+            cond = relax.call_packed("test.vm.equal_zero", n)
+            if cond:
+                res = relax.const(1.0)
+            else:
+                gv0 = relax.call_packed("test.vm.subtract_one", n)
+                res = relax.call_packed("test.vm.add", recursion(gv0), n)
+            return res
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(TestVMRecursion, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    inp = np.empty(1)
+    recursion_runs = np.random.randint(1, 10)
+    inp.fill(recursion_runs)
+    inp = tvm.nd.array(inp)
+    res = vm["recursion"](inp)
+    tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
 if __name__ == "__main__":
