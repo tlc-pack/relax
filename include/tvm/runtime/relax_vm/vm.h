@@ -131,7 +131,7 @@ class VirtualMachine : public runtime::ModuleNode {
 
  protected:
   /*!
-   * \brief Push a call frame on to the call stack.
+   * \brief Push a call frame onto the call stack.
    * \param ret_pc The program counter to return to.
    * \param vm_func The function to be pushed to the call stack.
    */
