@@ -25,7 +25,8 @@
 #define TVM_RELAX_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
-#include <tvm/meta_schedule/integration.h>
+#include <tvm/meta_schedule/apply_history_best.h>
+#include <tvm/meta_schedule/database.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {

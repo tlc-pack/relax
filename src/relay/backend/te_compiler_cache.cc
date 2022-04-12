@@ -348,7 +348,7 @@ class ScheduleBuilder : public ExprVisitor {
       }
       if (meta_schedule_ctx_) {
         IRModule relay_mod({{prim_fn_var, relay_func}});
-        IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
+        IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs), {})}});
         if (Optional<IRModule> scheduled_mod = meta_schedule_ctx_.value()->Query(
                 prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod})) {
           ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
