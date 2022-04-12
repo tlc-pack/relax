@@ -48,6 +48,7 @@
 // Generated at 2022-08-11T13:17:04.679404
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:v0.69'
 ci_gpu = 'tlcpack/ci-gpu:v0.82'
@@ -64,33 +65,26 @@ ci_hexagon = 'tlcpack/ci-hexagon:v0.02'
 // over default values above.
 properties([
   parameters([
-    string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cpu_param', defaultValue: ''),
-    string(name: 'ci_minimal_param', defaultValue: ''),
-    string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_hexagon_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_cortexm_param', defaultValue: ''),
+    string(name: 'ci_cpu_param',  defaultValue: ''),
+    string(name: 'ci_gpu_param',  defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
+    string(name: 'ci_i386_param', defaultValue: ''),
+    string(name: 'ci_qemu_param', defaultValue: ''),
+    string(name: 'ci_arm_param',  defaultValue: '')
   ])
 ])
 
-// Placeholders for newly built Docker image names (if rebuild_docker_images
-// is used)
-  built_ci_arm = null;
-  built_ci_cpu = null;
-  built_ci_minimal = null;
-  built_ci_gpu = null;
-  built_ci_hexagon = null;
-  built_ci_i386 = null;
-  built_ci_lint = null;
-  built_ci_cortexm = null;
-  built_ci_wasm = null;
+// tvm libraries
+tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'
+tvm_lib = 'build/libtvm.so, ' + tvm_runtime
+// LLVM upstream lib
+tvm_multilib = 'build/libtvm.so, ' +
+               'build/libvta_fsim.so, ' +
+               tvm_runtime
 
-// Global variable assigned during Sanity Check that holds the sha1 which should be
-// merged into the PR in all branches.
-upstream_revision = null
+tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
+               tvm_multilib
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
@@ -118,101 +112,10 @@ def init_git() {
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
   )
-
-  // Determine merge commit to use for all stages
-  sh (
-    script: 'git fetch origin main',
-    label: 'Fetch upstream',
-  )
-  if (upstream_revision == null) {
-    upstream_revision = sh(
-      script: 'git log -1 FETCH_HEAD --format=\'%H\'',
-      label: 'Determine upstream revision',
-      returnStdout: true,
-    ).trim()
-  }
-  sh (
-    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
-    label: 'Merge to origin/main'
-  )
-
-  sh(
-    script: """
-      set -eux
-      retry() {
-  local max_retries=\$1
-  shift
-  local n=0
-  local backoff_max=30
-  until [ "\$n" -ge \$max_retries ]
-  do
-      "\$@" && break
-      n=\$((n+1))
-      if [ "\$n" -eq \$max_retries ]; then
-          echo "failed to update after attempt \$n / \$max_retries, giving up"
-          exit 1
-      fi
-
-      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-      sleep \$WAIT
-  done
-}
-
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
-    """,
-    label: 'Update git submodules',
-  )
-}
-
-def docker_init(image) {
-  // Clear out all Docker images that aren't going to be used
-  sh(
-    script: """
-    set -eux
-    docker image ls --all
-    IMAGES=\$(docker image ls --all --format '{{.Repository}}:{{.Tag}}  {{.ID}}')
-
-    echo -e "Found images:\\n\$IMAGES"
-    echo "\$IMAGES" | { grep -vE '${image}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }
-
-    docker image ls --all
-    """,
-    label: 'Clean old Docker images',
-  )
-
-  if (image.contains("amazonaws.com")) {
-    // If this string is in the image name it's from ECR and needs to be pulled
-    // with the right credentials
-    ecr_pull(image)
-  } else {
-    sh(
-      script: """
-      set -eux
-      retry() {
-  local max_retries=\$1
-  shift
-  local n=0
-  local backoff_max=30
-  until [ "\$n" -ge \$max_retries ]
-  do
-      "\$@" && break
-      n=\$((n+1))
-      if [ "\$n" -eq \$max_retries ]; then
-          echo "failed to update after attempt \$n / \$max_retries, giving up"
-          exit 1
-      fi
-
-      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-      sleep \$WAIT
-  done
-}
-
-      retry 3 docker pull ${image}
-      """,
-      label: 'Pull docker image',
-    )
+  retry(5) {
+    timeout(time: 2, unit: 'MINUTES') {
+      sh (script: 'git submodule update --init -f', label: 'Update git submodules')
+    }
   }
 }
 
@@ -263,29 +166,32 @@ cancel_previous_build()
 def lint() {
 stage('Lint') {
   node('CPU') {
-    timeout(time: max_time, unit: 'MINUTES') {
-      ci_lint = params.ci_lint_param ?: ci_lint
-      ci_cpu = params.ci_cpu_param ?: ci_cpu
-      ci_gpu = params.ci_gpu_param ?: ci_gpu
-      ci_wasm = params.ci_wasm_param ?: ci_wasm
-      ci_i386 = params.ci_i386_param ?: ci_i386
-      ci_qemu = params.ci_qemu_param ?: ci_qemu
-      ci_arm = params.ci_arm_param ?: ci_arm
-      ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
+    // When something is provided in ci_*_param, use it, otherwise default with ci_*
+    ci_lint = params.ci_lint_param ?: ci_lint
+    ci_cpu = params.ci_cpu_param ?: ci_cpu
+    ci_gpu = params.ci_gpu_param ?: ci_gpu
+    ci_wasm = params.ci_wasm_param ?: ci_wasm
+    ci_i386 = params.ci_i386_param ?: ci_i386
+    ci_qemu = params.ci_qemu_param ?: ci_qemu
+    ci_arm = params.ci_arm_param ?: ci_arm
 
-      sh (script: """
-        echo "Docker images being used in this build:"
-        echo " ci_lint = ${ci_lint}"
-        echo " ci_cpu  = ${ci_cpu}"
-        echo " ci_gpu  = ${ci_gpu}"
-        echo " ci_wasm = ${ci_wasm}"
-        echo " ci_i386 = ${ci_i386}"
-        echo " ci_qemu = ${ci_qemu}"
-        echo " ci_arm  = ${ci_arm}"
-        echo " ci_hexagon  = ${ci_hexagon}"
-      """, label: 'Docker image names')
+    sh (script: """
+      echo "Docker images being used in this build:"
+      echo " ci_lint = ${ci_lint}"
+      echo " ci_cpu  = ${ci_cpu}"
+      echo " ci_gpu  = ${ci_gpu}"
+      echo " ci_wasm = ${ci_wasm}"
+      echo " ci_i386 = ${ci_i386}"
+      echo " ci_qemu = ${ci_qemu}"
+      echo " ci_arm  = ${ci_arm}"
+    """, label: 'Docker image names')
+  }
+}
 
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
+stage('Sanity Check') {
+  timeout(time: max_time, unit: 'MINUTES') {
+    node('CPU') {
+      ws(per_exec_ws('tvm/sanity')) {
         init_git()
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
@@ -435,7 +341,7 @@ def fsim_test(image) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
+    script: "${docker_run} ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
     label: 'Run cmake build',
   )
 }
