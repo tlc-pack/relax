@@ -27,6 +27,17 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
+inline TVMRetValue CopyConstantTo(TVMRetValue src, const DLDevice& dev) {
+  NDArray nd_array = src.operator tvm::runtime::NDArray();
+  if (nd_array->device.device_type == dev.device_type &&
+      nd_array->device.device_id == dev.device_id) {
+    return src;
+  }
+  TVMRetValue ret;
+  ret = nd_array.CopyTo(dev);
+  return ret;
+}
+
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "vm_initialization") {
@@ -47,6 +58,17 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         alloc_types.push_back(AllocatorType(type));
       }
       this->Init(devices, alloc_types);
+
+      // Copy NDArray constants to the devices
+      // TODO(tvm-team): support multiple devices
+      this->constants.reserve(exec_->constants.size());
+      for (const auto& constant : exec_->constants) {
+        if (constant.type_code() != kTVMNDArrayHandle) {
+          this->constants.push_back(constant);
+        } else {
+          this->constants.push_back(CopyConstantTo(constant, devices[0]));
+        }
+      }
     });
   }
 
@@ -156,7 +178,7 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
         break;
       }
       case Instruction::kConstIdx: {
-        setter(i, this->exec_->constants[arg.value()]);
+        setter(i, this->constants[arg.value()]);
         break;
       }
       default: {
