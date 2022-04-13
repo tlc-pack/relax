@@ -19,14 +19,11 @@ import tvm
 from tvm.script import tir as T, relax as R
 from tvm import relax
 import numpy as np
-from tvm.tir import Schedule
 from tvm.ir.module import IRModule
 from tvm.target.target import Target
 import tempfile
 from typing import List
-from tvm.meta_schedule import ReplayTraceConfig, tune_tir
 from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
-from tvm.meta_schedule.relax_integration import extract_task_from_relax
 from tvm.meta_schedule.utils import derived_object
 from tvm import meta_schedule as ms
 from tvm import transform
@@ -172,21 +169,19 @@ def test_autotir(dev: str):
         dev = tvm.cuda()
 
     database = DummyDatabase()
-    tasks = extract_task_from_relax(mod, target=target)
-    for task in tasks:
-        print(f"Extracted task: {task.task_name}, {task.target}")
-        with tempfile.TemporaryDirectory() as work_dir:
-            sch = tune_tir(
-                mod=task.mod,
-                target=target,
-                config=ms.EvolutionarySearchConfig(
-                    num_trials_per_iter=32,
-                    max_trials_per_task=32,
-                    max_trials_global=32,
-                ),
-                work_dir=work_dir,
-                database=database,
-            )
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        relax_ex = ms.tune_relax(
+            mod=mod,
+            target=target,
+            config=ms.EvolutionarySearchConfig(
+                num_trials_per_iter=2,
+                max_trials_per_task=4,
+                max_trials_global=4,
+            ),
+            work_dir=work_dir,
+            database=database,
+        )
 
     if dev == "cpu":
         with transform.PassContext(opt_level=3):
@@ -200,11 +195,8 @@ def test_autotir(dev: str):
         e0 = toc - tic
         print(f"w/o tuning: {e0}")
 
-    with transform.PassContext(opt_level=3):
-        mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-        ex1 = relax.vm.build(mod, target)
+    vm1 = relax.VirtualMachine(relax_ex, dev)
 
-    vm1 = relax.VirtualMachine(ex1, dev)
     data = tvm.nd.array(np.random.rand(32, 32).astype(np.float32), dev)
     weight = tvm.nd.array(np.random.rand(32, 32).astype(np.float32), dev)
 
