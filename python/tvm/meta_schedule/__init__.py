@@ -37,6 +37,7 @@ from .tune import (
     ReplayFuncConfig,
     ReplayTraceConfig,
     tune_relay,
+    tune_relax,
     tune_te,
     tune_tir,
 )
