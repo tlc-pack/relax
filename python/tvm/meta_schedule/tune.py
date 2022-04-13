@@ -598,3 +598,87 @@ def tune_relay(
                 },
             ):
                 return relay_build(mod, target=target, params=params)
+
+
+def tune_relax(
+    mod: IRModule,
+    target: Union[str, Target],
+    config: SearchStrategyConfig,
+    work_dir: str,
+    *,
+    builder: Optional[Builder] = None,
+    runner: Optional[Runner] = None,
+    database: Optional[Database] = None,
+    cost_model: Optional[CostModel] = None,
+    measure_callbacks: Optional[List[MeasureCallback]] = None,
+    task_scheduler: Optional[TaskScheduler] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
+    num_threads: Optional[int] = None,
+) -> Module:
+    """Tune a TIR IRModule with a given target.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The module to tune.
+    target : Union[str, Target]
+        The target to tune for.
+    config : SearchStrategyConfig
+        The search strategy config.
+    task_name : str
+        The name of the task.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    builder : Optional[Builder]
+        The builder to use.
+    runner : Optional[Runner]
+        The runner to use.
+    database : Optional[Database]
+        The database to use.
+    measure_callbacks : Optional[List[MeasureCallback]]
+        The callbacks used during tuning.
+    f_tune_context : Optional[TYPE_F_TUNE_CONTEXT]
+        The function to create TuneContext.
+    f_task_scheduler : Optional[TYPE_F_TASK_SCHEDULER]
+        The function to create TaskScheduler.
+
+    Returns
+    -------
+    lib : Module
+        The built runtime module for the given relax workload.
+    """
+
+    from tvm.relax.vm import build as relax_build
+    from tvm.relax.transform import MetaScheduleApplyHistoryBest
+    from .relax_integration import extract_task_from_relax
+
+    logger.info("Working directory: %s", work_dir)
+    # pylint: disable=protected-access
+    target = Parse._target(target)
+    # parse the tuning contexts
+    extracted_tasks = extract_task_from_relax(mod, target)
+    database = tune_extracted_tasks(
+        extracted_tasks,
+        target,
+        config,
+        work_dir,
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        task_scheduler=task_scheduler,
+        space=space,
+        sch_rules=sch_rules,
+        postprocs=postprocs,
+        mutator_probs=mutator_probs,
+        num_threads=num_threads,
+    )
+
+    with PassContext(opt_level=3):
+        relax_mod = MetaScheduleApplyHistoryBest(database, target)(mod)
+        relax_ex = relax_build(relax_mod, target=target)
+    return relax_ex
