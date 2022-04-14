@@ -41,7 +41,7 @@ def call_tir(
         The input arguments.
 
     shape: Union[Tuple, ShapeExpr, List[int]]
-        The output shape. Tuple[ShapeExpr] if multiple outputs, ShapeExpr if single output.
+        The output shape. Tuple(ShapeExpr) if multiple outputs, ShapeExpr if single output.
 
     dtype: Union[str, List[str]]
         The output dtype. List[str] if multiple outputs, str if single output.
