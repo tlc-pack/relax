@@ -40,9 +40,9 @@ def check_roundtrip(f_pre):
 
 def test_annotations():
     @R.function
-    def foo(x: Tensor[(32, m), "float32"], y: Tensor[(m, k), "float32"]) -> Tensor:
-        z: Tensor[(32, k), "float32"] = nn.matmul(x, y, units=None)
-        w: Tensor[_, _] = multiply(z, z)
+    def foo(x: Tensor((32, m), "float32"), y: Tensor((m, k), "float32")) -> Tensor:
+        z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
+        w: Tensor(_, _) = multiply(z, z)
         t = subtract(w, z)
         sh: Shape = t.shape
         return t
@@ -52,9 +52,9 @@ def test_annotations():
 
 def test_match_shape():
     @R.function
-    def foo(x: Tensor[_, "float32"]):
+    def foo(x: Tensor(_, "float32")):
         relax.match_shape(x.shape, (n, m))
-        y: Tensor[(n, m), "float32"] = add(x, x)
+        y: Tensor((n, m), "float32") = add(x, x)
         return x
 
     check_roundtrip(foo)
@@ -62,7 +62,7 @@ def test_match_shape():
 
 def test_if():
     @R.function
-    def foo(cond: Tensor[(), "bool"], x: Tensor[(1,), "float32"]):
+    def foo(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
         if cond:
             w = add(x, x)
             y = multiply(w, w)
@@ -76,8 +76,8 @@ def test_if():
 
 def test_tuple():
     @R.function
-    def foo(x: Tensor[_, _], y: Tensor[(32,), "float32"]):
-        t: Tuple[Tensor[_, _], Tensor[(32,), "float32"]] = (x, y)
+    def foo(x: Tensor(_, _), y: Tensor((32,), "float32")):
+        t: Tuple(Tensor(_, _), Tensor((32,), "float32")) = (x, y)
         return t
 
     check_roundtrip(foo)
@@ -85,7 +85,7 @@ def test_tuple():
 
 def test_tuplegetitem():
     @R.function
-    def foo(x: Tensor[_, _]):
+    def foo(x: Tensor(_, _)):
         y = add(x, x)
         z = multiply(y, x)
         t = relax.Tuple((y, z))
@@ -99,9 +99,9 @@ def test_tuplegetitem():
 
 def test_local_func():
     @R.function
-    def foo(x: Tensor[_, _]):
+    def foo(x: Tensor(_, _)):
         @R.function
-        def bar(y: Tensor[_, _]):
+        def bar(y: Tensor(_, _)):
             return y
 
         y = bar(x)  # tests local function variable scoping
@@ -112,7 +112,7 @@ def test_local_func():
 
 def test_dataflow():
     @R.function
-    def foo(x: Tensor[_, _]):
+    def foo(x: Tensor(_, _)):
         with relax.dataflow():
             # TODO: parse this
             # nonlocal y, w
@@ -128,16 +128,16 @@ def test_dataflow():
 
 def test_dataflow_match_shape():
     @R.function
-    def foo(x: Tensor[_, _]):
+    def foo(x: Tensor(_, _)):
         with relax.dataflow():
-            x2: Tensor[(n, m), _] = relax.match_shape(x, (n, m))
+            x2: Tensor((n, m), _) = relax.match_shape(x, (n, m))
             y = add(x2, x2)
             z = multiply(y, x)
             relax.match_shape(z.shape, (n, m))
-            w: Tensor[(n, m), _] = subtract(z, x)
+            w: Tensor((n, m), _) = subtract(z, x)
             relax.output(y, w, x2)
-        t: Tensor[(n, m), _] = divide(y, w)
-        q: Tensor[(n, m), _] = add(t, x2)
+        t: Tensor((n, m), _) = divide(y, w)
+        q: Tensor((n, m), _) = add(t, x2)
         return q
 
     check_roundtrip(foo)
@@ -145,7 +145,7 @@ def test_dataflow_match_shape():
 
 def test_inline_tir():
     @R.function
-    def foo(x: Tensor[(B, 128), "float32"], y: Tensor[(128, 128), "float32"]):
+    def foo(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")):
         @T.prim_func
         def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
@@ -167,9 +167,9 @@ def test_inline_tir():
 
 def test_call_packed():
     @R.function
-    def foo(x: Tensor[(3, 3), "float32"]):
+    def foo(x: Tensor((3, 3), "float32")):
         # test that we can intro dim vars
-        z: Tensor[(n, m), "float32"] = relax.call_packed("contrib.my_matmul", x, x, mp=False)
+        z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
         w = relax.call_packed(
             "contrib.my_shape_of", x, dtype="int32", attrs_type_key="relay.attrs.ShapeOfAttrs"
         )
@@ -180,8 +180,8 @@ def test_call_packed():
 
 def test_primexpr_arithmetic():
     @R.function
-    def foo(x: Tensor[(n, m), "float32"]):
-        z: Tensor[(n * m,), "float32"] = relax.call_packed("my_flatten", (x,))
+    def foo(x: Tensor((n, m), "float32")):
+        z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
         sh: Shape = (n + m, n // m)
         return z
 
@@ -202,11 +202,11 @@ def test_const_irmodule():
         @tvm.script.ir_module
         class Module:
             @R.function
-            def my_const(x: Tensor[(2, 3), "float32"]):
-                y: Tensor[(2, 3), "float32"] = relax.const(
+            def my_const(x: Tensor((2, 3), "float32")):
+                y: Tensor((2, 3), "float32") = relax.const(
                     [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
                 )
-                z: Tensor[(2, 3), "float32"] = relax.add(x, y)
+                z: Tensor((2, 3), "float32") = relax.add(x, y)
                 return z
 
         mod = Module
@@ -219,8 +219,8 @@ def test_const_irmodule():
     @tvm.script.ir_module(metadata=json_str)
     class MyModule:
         @R.function
-        def my_const(x: Tensor[(2, 3), "float32"]):
-            z: Tensor[(2, 3), "float32"] = relax.add(x, meta[relay.Constant][0])
+        def my_const(x: Tensor((2, 3), "float32")):
+            z: Tensor((2, 3), "float32") = relax.add(x, meta[relay.Constant][0])
             return z
 
     my_module = MyModule
@@ -230,7 +230,7 @@ def test_const_irmodule():
 
 def test_const():
     @R.function
-    def my_const(x: Tensor[(2, 3), "float32"]):
+    def my_const(x: Tensor((2, 3), "float32")):
         y1 = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
         y2 = relax.const(2.1, dtype="float32")
         y3 = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
@@ -245,13 +245,13 @@ def test_const():
 def test_const_meta():
     def _get_meta_data():
         @R.function
-        def my_const(x: Tensor[(2, 3), "float32"]):
-            y1: Tensor[(2, 3), "float32"] = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+        def my_const(x: Tensor((2, 3), "float32")):
+            y1: Tensor((2, 3), "float32") = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
             y2 = relax.const(2.1, dtype="float32")
-            y3: Tensor[(2, 3), "float32"] = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
-            z: Tensor[(2, 3), "float32"] = relax.add(x, y1)
-            r: Tensor[(2, 3), "float32"] = relax.add(z, y2)
-            w: Tensor[(2, 3), "float32"] = relax.add(r, y3)
+            y3: Tensor((2, 3), "float32") = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
+            z: Tensor((2, 3), "float32") = relax.add(x, y1)
+            r: Tensor((2, 3), "float32") = relax.add(z, y2)
+            w: Tensor((2, 3), "float32") = relax.add(r, y3)
             return w
 
         relax_text = R.parser.astext(my_const, show_meta_data=True)
@@ -261,11 +261,11 @@ def test_const_meta():
     json_str = _get_meta_data()
 
     @R.function(metadata=json_str)
-    def my_const(x: Tensor[(2, 3), "float32"]):
+    def my_const(x: Tensor((2, 3), "float32")):
         y2 = relax.const(2.1, dtype="float32")
-        z: Tensor[(2, 3), "float32"] = relax.add(x, meta[relay.Constant][0])
-        r: Tensor[(2, 3), "float32"] = relax.add(z, y2)
-        w: Tensor[(2, 3), "float32"] = relax.add(r, meta[relay.Constant][1])
+        z: Tensor((2, 3), "float32") = relax.add(x, meta[relay.Constant][0])
+        r: Tensor((2, 3), "float32") = relax.add(z, y2)
+        w: Tensor((2, 3), "float32") = relax.add(r, meta[relay.Constant][1])
         return w
 
     check_roundtrip(my_const)
@@ -288,15 +288,15 @@ def test_class_irmodule():
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
         @R.function
-        def f(x: Tensor[(n, n), _]) -> Tensor:
+        def f(x: Tensor((n, n), _)) -> Tensor:
             return g(x)
 
         @R.function
-        def g(y: Tensor[(n, n), _]) -> Tensor:
+        def g(y: Tensor((n, n), _)) -> Tensor:
             return relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
 
         @R.function
-        def h(x: Tensor[(n, n), _], y: Tensor[(n, n), _], z: Tensor[(n, n), _]) -> Tensor:
+        def h(x: Tensor((n, n), _), y: Tensor((n, n), _), z: Tensor((n, n), _)) -> Tensor:
             _ = my_matmul(x, y, z)
             return z
 
