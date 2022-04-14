@@ -362,7 +362,7 @@ Doc RelaxScriptPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
 
 Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   if (node->fields.empty()) {
-    return Doc::Text("Tuple[]");
+    return Doc::Text("Tuple()");
   }
 
   Doc doc;
@@ -371,7 +371,7 @@ Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   for (Type ty : node->fields) {
     fields.push_back(Print(ty));
   }
-  doc << "Tuple[" << Doc::Concat(fields) << "]";
+  doc << "Tuple(" << Doc::Concat(fields) << ")";
 
   return doc;
 }
@@ -522,7 +522,7 @@ Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
 Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
                                               const Optional<ObjectRef>& shape) {
   Doc doc;
-  doc << "Tensor[";
+  doc << "Tensor(";
   if (shape.defined()) {
     doc << Print(Downcast<relay::Expr>(shape.value()));
   } else if (ty->rank != -1) {
@@ -542,14 +542,14 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
   } else {
     doc << Doc::StrLiteral(runtime::DLDataType2String(ty->dtype));
   }
-  doc << "]";
+  doc << ")";
   return doc;
 }
 
 Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
                                              const Optional<ObjectRef>& shape) {
   Doc doc;
-  doc << "Tuple[";
+  doc << "Tuple";
   std::vector<Doc> fields;
   for (size_t i = 0; i < ty->fields.size(); i++) {
     if (shape) {
@@ -565,7 +565,7 @@ Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
       }
     }
   }
-  doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")]";
+  doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")";
   return doc;
 }
 
