@@ -433,7 +433,7 @@ class BlockBuilder(Object):
                             compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
 
                 @R.function
-                def rx_func(x: Tensor[(n, m), "float32"], y: Tensor[(n, m), "float32"]) -> Tensor:
+                def rx_func(x: Tensor((n, m), "float32"), y: Tensor((n, m), "float32")) -> Tensor:
                     # block 0
                     gv = relax.call_tir("te_func", (x, y), (128, 128), dtype="float32")
                     return gv
@@ -480,8 +480,8 @@ class BlockBuilder(Object):
                             compute[i] = rxplaceholder[i]
 
                 @R.function
-                def rx_func(x: Tensor[(n,), "float32"], y: Tensor[((n + 1),), "float32"])
-                    -> Tensor[_, "float32"]:
+                def rx_func(x: Tensor((n,), "float32"), y: Tensor(((n + 1),), "float32"))
+                    -> Tensor(_, "float32"):
                     # block 0
                     gv = relax.call_tir(te_func, (y,), ((n + 1),), (n,), dtype="float32")
                     return gv

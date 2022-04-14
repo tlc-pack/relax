@@ -63,8 +63,8 @@ def test_match_shape() -> None:
     assert b0.var is not None
     assert b0.var.checked_type == rx.ShapeType()
 
-    # var1: Tensor[(m, n), "float32"] =
-    #   match_shape(var0: Tensor[_, "float32"], [m, n])
+    # var1: Tensor((m, n), "float32") =
+    #   match_shape(var0: Tensor(_, "float32"), [m, n])
     type_anno0 = rx.DynTensorType(-1, "float32")
     value = rx.Var("value", type_annotation=type_anno0)
 

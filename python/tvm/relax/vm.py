@@ -167,7 +167,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
     .. code-block:: python
         class InputModule:
             @R.function
-            def foo(x: Tensor[(3, 4), "float32"], y: Tensor[(3, 4), "float32"]):
+            def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
                 z = R.add(x, y)
                 return z
 
