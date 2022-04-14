@@ -212,6 +212,58 @@ Pass FoldConstant() {
 
 TVM_REGISTER_GLOBAL("relax.transform.FoldConstant").set_body_typed(FoldConstant);
 
+
+
+/*
+// @sunggg
+// Issue 1. Inheritance is tricky
+//        * We don't directly inherit the pass class for impl
+//        * We also have FunctionPass, ModulePass, DataFlowPass that decide where to apply the pass
+//          TuningPass will add another dimension. 
+// Idea: provide API via header file, not class inheritance
+
+#include <...> // API for tuning <- Maybe MetaSchedule?
+  // - classes: Instruction, Choice, Trace
+  // - functions: consider_eval_passes, evaluate, select_best_candidate, get_cost_model, ...
+
+class ConstantFolderTuner : public ExprMutator {
+    Function tune(Function f, IRModule m, PassContext pc){
+        ConstantFolder folder(m);
+
+        Choice choice1("apply", folder(f)) <- pass function pointer?
+        Choice choice2("noapply", noapply)  <- pass function pointer?
+
+        inst = Instruction("MockTuning", choices)
+        candidates = inst.generate_candidates(trace)
+        candidates = consider_eval_passes(candidates, ctx)  //TODO: pass 'eval_pass'
+        evaluate(ctx, candidates) // TODO: pass 'database'
+        best_trace = select_best_candidate(candidates)
+
+        return best_trace.out_mod
+    }
+}
+
+Pass TuneFoldConstant(){
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> tune_pass_func =
+      [=](Function f, IRModule m, PassContext pc) {
+        //////////////////////
+        new_f = ConstantFolderTuner().tune(f);
+        //////////////////////
+        return Downcast<Function>(new_f);
+      };
+  return CreateFunctionPass(tune_pass_func, 3, "TuneFoldConstant", required={"InferType"});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.TuneFoldConstant").set_body_typed(TuneFoldConstant);
+
+
+
+// Issue 2. Where do we take eval_passes, database, ..?
+// O1. Function Def e.g., Pass TuneFoldConstant(eval_pass={..}) -> works, but inconsistent
+// O2. Arg for CreateFunctionPass(...., eval_pass={...}) and pass to tune_pass_func
+
+*/
+
 }  // namespace transform
 
 }  // namespace relax

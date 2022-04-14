@@ -36,6 +36,7 @@ from .module import IRModule
 import numpy as np
 import sys
 import random
+import time
 
 
 @tvm._ffi.register_object("transform.PassInfo")
@@ -341,7 +342,7 @@ class TuningPass(Pass):
 
     def evaluate(self, ctx, candidates: List[Trace], num: int = 20, repeat: int = 20):
         # TODO: Temporary solution to avoid circular dependency
-        # from tvm.meta_schedule.arg_info import TensorInfo
+        from tvm.meta_schedule.arg_info import TensorInfo
         from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
         from tvm.meta_schedule.utils import get_global_func_with_default_on_worker
         from tvm.meta_schedule.runner import (
@@ -385,20 +386,24 @@ class TuningPass(Pass):
                 target: tvm.target.Target,
                 params: dict = {},
             ):
-                ex0, lib0 = tvm.relax.vm.build(mod, target)
-                return ex0
+                ex = tvm.relax.vm.build(mod, target)
+                return ex.mod
 
             # Build candidate
-            builder = LocalBuilder(f_build=relay_build)
+            builder = LocalBuilder(f_build=relax_build)
             (builder_result,) = builder.build([BuilderInput(mod, target)])
 
+            print(builder_result.error_msg)
             assert builder_result.artifact_path is not None
             assert builder_result.error_msg is None
 
             runner_input = RunnerInput(
                 builder_result.artifact_path,
                 target_str,
-                [],  # ArgInfo
+                args_info=[
+                    TensorInfo(shape=(32, 32), dtype="float32"),
+                    TensorInfo(shape=(32, 32), dtype="float32"),
+                ],
             )
 
             evaluator_config = EvaluatorConfig(
@@ -410,7 +415,7 @@ class TuningPass(Pass):
 
             # Wrap with a executor and evaluator configs
             # Evaluation function for Relay
-            def eval_func(rt_mod, device, evaluator_config, repeated_args):
+            def relay_eval_func(rt_mod, device, evaluator_config, repeated_args):
                 rt_mod = tvm.contrib.graph_executor.GraphModule(rt_mod["default"](device))
 
                 eval = rt_mod.module.time_evaluator(
@@ -431,15 +436,38 @@ class TuningPass(Pass):
                 costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
                 return costs
 
+            def relax_eval_func(rt_mod, device, evaluator_config, repeated_args):
+
+                exec = tvm.relax.vm.Executable(rt_mod)
+
+                vm = tvm.relax.VirtualMachine(exec=exec, device=device)
+
+                eval = vm.module.time_evaluator(
+                    func_name="main",
+                    dev=device,
+                    number=evaluator_config.number,
+                    repeat=evaluator_config.repeat,
+                    min_repeat_ms=evaluator_config.min_repeat_ms,
+                )
+                repeated_costs: List[List[float]] = []
+                for args in repeated_args:
+                    profile_result = eval(*args)
+                    repeated_costs.append(profile_result.results)
+
+                costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
+
+                return costs
+
             runner = LocalRunner(
                 timeout_sec=100,
                 evaluator_config=evaluator_config,
-                f_run_evaluator=eval_func,
+                f_run_evaluator=relax_eval_func,
             )
 
             (runner_future,) = runner.run([runner_input])
             runner_result = runner_future.result()
 
+            print(runner_result.error_msg)
             assert runner_result.error_msg is None
             perfs = []
             for result in runner_result.run_secs:

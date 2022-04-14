@@ -337,7 +337,6 @@ def test_joint_optimization(
     with PassContext(opt_level=4, config=config):
         new_mod = custom_pass(mod)
 
-    assert 0
     assert TuningPass.total_num_evals == 3 * 2
 
     custom_pass = TuningLayoutPass(eval_passes=[MockTuningPass(eval_passes=[])])

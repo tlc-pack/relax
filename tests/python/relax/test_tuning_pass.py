@@ -69,9 +69,9 @@ class MockModule:
     @R.function
     def main(x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]) -> Tensor:
         with R.dataflow():
-            lv0 = R.call_tir((32, 32), tir_matmul, (x, w))
-            lv1 = R.call_tir((32, 32), tir_relu, (lv0))
-            relax.output(lv1)
+            lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+            R.output(lv1)
         return lv1
 
 
@@ -102,7 +102,7 @@ class MockTuningPass(TuningPass):
         # Create mock choices for testing
         choices = {"c1": Choice(noapply), "c2": Choice(noapply), "c3": Choice(noapply)}
         # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Instruction("MockTuning", choices)
+        knob = Instruction("SampleMockChoices", choices)
 
         candidates = knob.generate_candidates(trace)
 
