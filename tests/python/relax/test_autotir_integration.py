@@ -65,7 +65,7 @@ class InputModule:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @R.function
-    def main(x:Tensor[(m,n), "float32"], w:Tensor[(n,k), "float32"]) -> Tensor:
+    def main(x:Tensor((m,n), "float32"), w:Tensor((n,k), "float32")) -> Tensor:
         with R.dataflow():
             sh = relax.call_packed("vm.builtin.shape_of", x)
             x0 = relax.match_shape(sh, (m, n))
@@ -151,7 +151,7 @@ def test_autotir(dev: str):
                     B[vi, vj] = T.max(A[vi, vj], 0.0)
 
         @R.function
-        def main(x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]) -> Tensor:
+        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
             with R.dataflow():
                 lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")

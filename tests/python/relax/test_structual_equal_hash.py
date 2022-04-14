@@ -117,7 +117,7 @@ def test_match_shape_symbolic():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def f(x: Tensor[(_, _), "float32"]):
+        def f(x: Tensor((_, _), "float32")):
             x0 = R.match_shape(x, (n, m))
             return (x0, (n + 1, m))
 
