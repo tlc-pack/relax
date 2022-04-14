@@ -36,7 +36,10 @@ from .module import IRModule
 import numpy as np
 import sys
 import random
+<<<<<<< HEAD
 import time
+=======
+>>>>>>> 9746c7f6b1b4d33fb7694261e6a2b2858139eaa5
 
 
 @tvm._ffi.register_object("transform.PassInfo")
@@ -437,7 +440,7 @@ class TuningPass(Pass):
                 return costs
 
             def relax_eval_func(rt_mod, device, evaluator_config, repeated_args):
-
+    
                 exec = tvm.relax.vm.Executable(rt_mod)
 
                 vm = tvm.relax.VirtualMachine(exec=exec, device=device)
@@ -467,7 +470,6 @@ class TuningPass(Pass):
             (runner_future,) = runner.run([runner_input])
             runner_result = runner_future.result()
 
-            print(runner_result.error_msg)
             assert runner_result.error_msg is None
             perfs = []
             for result in runner_result.run_secs:
