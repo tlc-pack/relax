@@ -225,8 +225,8 @@ def test_emit_match_shape():
 
     with bb.function("func", [x, y]):
         with bb.dataflow() as df:
-            # lv0: Tensor[(m, n), "float32"] =
-            #   match_shape(x: Tensor[_, "float32"], [m, n])
+            # lv0: Tensor((m, n), "float32") =
+            #   match_shape(x: Tensor(_, "float32"], [m, n))
             lv0 = bb.match_shape(x, [m, n])
             assert isinstance(lv0, rx.DataflowVar)
             assert lv0.shape[0] == m

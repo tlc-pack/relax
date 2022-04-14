@@ -266,10 +266,10 @@ class RelaxTransformer(Transformer):
             self.report_error("unknown type in annotation", span)
 
         # annotation with type arguments/shape annotation
-        if isinstance(ty, ast.TypeApply):
+        if isinstance(ty, ast.TypeCall):
             if ty.func_name.id.name == "Tensor":
-                # TODO(@altanh): forgetting dtype like "Tensor[(n, m)]" ends up getting parsed as
-                #                Tensor[n, m] which makes correct errors difficult here...
+                # TODO(@altanh): forgetting dtype like "Tensor((n, m))" ends up getting parsed as
+                #                Tensor(n, m) which makes correct errors difficult here...
                 if len(ty.params) != 2:
                     self.report_error(
                         "Tensor type annotations must have 2 fields (shape and dtype)",
@@ -289,7 +289,7 @@ class RelaxTransformer(Transformer):
                     shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
                 elif isinstance(shape_annotation, ast.TypeVar):
                     if shape_annotation.id.name != "_":
-                        # TODO(@altanh): handle variable annotations, e.g. x: Tensor[my_shape, _]
+                        # TODO(@altanh): handle variable annotations, e.g. x: Tensor(my_shape, _)
                         self.report_error(
                             "variable Tensor shape annotations not yet supported",
                             shape_annotation.span,

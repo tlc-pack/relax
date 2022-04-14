@@ -45,8 +45,8 @@ def test_bind_params():
 
         @R.function
         def main(
-            x: Tensor[(16, 16), "float32"], w: Tensor[(16, 16), "float32"]
-        ) -> Tensor[(16, 16), "float32"]:
+            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
             gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
             return gv0
 
