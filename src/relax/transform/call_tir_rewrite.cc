@@ -35,7 +35,7 @@ namespace relax {
 // CallTIRMutator
 // Perform explicit tensor allocation for call_tir.
 // Example:
-// lv0: Tensor[n, m] = rx.call_tir(func, (x), (n, m), dtype="float32")
+// lv0: Tensor(n, m) = rx.call_tir(func, (x), (n, m), dtype="float32")
 // -->
 // gv0 = rx.call("relax.builtin.alloc_tensor", [n, m], dtype="float32")
 // rx.call_packed(func, x, gv0)
