@@ -137,7 +137,7 @@ def test_vm_exec_serialize_export_library():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor[(3, 4), "float32"]):
+        def foo(x: Tensor((3, 4), "float32")):
             z = R.call_packed("vm.builtin.copy", x)
             return z
 
@@ -271,7 +271,7 @@ def test_vm_copy():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor[(3, 4), "float32"]):
+        def foo(x: Tensor((3, 4), "float32")):
             z = R.call_packed("vm.builtin.copy", x)
             return z
 
@@ -337,7 +337,7 @@ def test_vm_compile_if():
     @tvm.script.ir_module
     class TestVMCompileIf:
         @R.function
-        def ife(cond: Tensor[(), "bool"], x: Tensor[(3, 4), "float32"]):
+        def ife(cond: Tensor((), "bool"), x: Tensor((3, 4), "float32")):
             if cond:
                 w = relax.call_packed("test.vm.add", x, x)
             else:
@@ -359,7 +359,7 @@ def test_vm_compile_stage0():
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
-        def foo(x: Tensor[(3, 4), "float32"], y: Tensor[(3, 4), "float32"]):
+        def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
             z = R.call_packed("test.vm.identity", x, y)
             return y
 
@@ -393,8 +393,8 @@ def test_vm_compile_stage1():
             H[3] = H[1] * T.int64(3)
 
         @R.function
-        def foo(x: Tensor[_, "float32"]) -> Shape:
-            shape_heap: Tensor[(4,), "int64"] = relax.call_packed(
+        def foo(x: Tensor(_, "float32")) -> Shape:
+            shape_heap: Tensor((4,), "int64") = relax.call_packed(
                 "vm.builtin.alloc_shape_heap", (4,)
             )
             gv0 = relax.call_packed("vm.builtin.shape_of", x)
@@ -419,7 +419,7 @@ def test_vm_compile_stage2():
     @tvm.script.ir_module
     class TestVMCompileStage2:
         @R.function
-        def foo(x: Tensor[_, "float32"]) -> Shape:
+        def foo(x: Tensor(_, "float32")) -> Shape:
             R.match_shape(x, (n, m))
             return (n * 2, m * 3)
 
@@ -439,7 +439,7 @@ def test_vm_compile_stage3():
     @tvm.script.ir_module
     class TestVMCompileStage3:
         @R.function
-        def foo(x: Tensor[(32, 16), "float32"]) -> Tensor:
+        def foo(x: Tensor((32, 16), "float32")) -> Tensor:
             with R.dataflow():
                 y = R.call_tir("test.vm.identity", (x), (32, 16), dtype="float32")
                 R.output(y)
@@ -460,7 +460,7 @@ def test_vm_compile_e2e():
     @tvm.script.ir_module
     class TestVMCompileE2E:
         @R.function
-        def foo(x: Tensor[_, "float32"]) -> Tensor:
+        def foo(x: Tensor(_, "float32")) -> Tensor:
             with R.dataflow():
                 R.match_shape(x, (n, m))
                 y = R.call_tir("test.vm.tile", (x), (n, m * 2), dtype="float32")
@@ -500,7 +500,7 @@ def test_vm_compile_e2e_func_param_with_shape():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def func(x: Tensor[(m, n), "float32"], w: Tensor[(n, k), "float32"]) -> Tensor:
+        def func(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")) -> Tensor:
             gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
@@ -794,7 +794,7 @@ def test_vm_tuplegetitem():
     @tvm.script.ir_module
     class TestVMTupleGetItem:
         @R.function
-        def tuple_get_item(x: Tensor[(_, _), "float32"], y: Tensor[(_, _), "float32"]):
+        def tuple_get_item(x: Tensor((_, _), "float32"), y: Tensor((_, _), "float32")):
             t = relax.Tuple((x, y))
             a = relax.TupleGetItem(t, 0)
             b = relax.TupleGetItem(t, 1)
@@ -833,7 +833,7 @@ def test_sub_func_call():
 
         @R.function
         def relax_matmul_tir(
-            x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]
+            x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")
         ) -> Tensor:
             with R.dataflow():
                 gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
@@ -842,13 +842,13 @@ def test_sub_func_call():
 
         @R.function
         def relax_matmul_packed(
-            x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]
+            x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")
         ) -> Tensor:
             gv0 = relax.call_packed("test.vm.mul", x, w)
             return gv0
 
         @R.function
-        def main(x: Tensor[(32, 32), "float32"], w: Tensor[(32, 32), "float32"]) -> Tensor:
+        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
             gv0 = relax_matmul_tir(x, w)
             gv1 = relax_matmul_packed(gv0, gv0)
             return gv1
@@ -868,7 +868,7 @@ def test_recursion():
     @tvm.script.ir_module
     class TestVMRecursion:
         @R.function
-        def recursion(n: Tensor[(1,), "float32"]):
+        def recursion(n: Tensor((1,), "float32")):
             cond = relax.call_packed("test.vm.equal_zero", n)
             if cond:
                 res = relax.const(1.0)
