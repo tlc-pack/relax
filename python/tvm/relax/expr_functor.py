@@ -218,79 +218,79 @@ class ExprVisitor(ExprFunctor):
 
 class ExprMutator(ExprFunctor):
     """
-    A functional visitor over Expr.
+    A functional mutator over Expr.
 
     The default behavior recursively traverses the AST
     and reconstructs the AST.
     """
 
-    def visit_function(self, func: Function):
+    def visit_function(self, func: Function) -> Function:
         new_params = [self.visit(param) for param in func.params]
         new_body = self.visit(func.body)
         return Function(new_params, new_body, func.ret_type, func.name, func.span)
 
-    def visit_extern_func(self, op: ExternFunc):
+    def visit_extern_func(self, op: ExternFunc) -> ExternFunc:
         return op
 
-    def visit_constant(self, op: Constant):
+    def visit_constant(self, op: Constant) -> Constant:
         return op
 
-    def visit_var(self, op: Var):
+    def visit_var(self, op: Var) -> Var:
         return op
 
-    def visit_dataflow_var(self, op: DataflowVar):
+    def visit_dataflow_var(self, op: DataflowVar) -> DataflowVar:
         return op
 
-    def visit_shape_expr(self, op: ShapeExpr):
+    def visit_shape_expr(self, op: ShapeExpr) -> ShapeExpr:
         return op
 
-    def visit_runtime_dep_shape(self, op: RuntimeDepShape):
+    def visit_runtime_dep_shape(self, op: RuntimeDepShape) -> RuntimeDepShape:
         return op
 
-    def visit_global_var(self, op: GlobalVar):
+    def visit_global_var(self, op: GlobalVar) -> GlobalVar:
         return op
 
-    def visit_seq_expr(self, op: SeqExpr):
+    def visit_seq_expr(self, op: SeqExpr) -> SeqExpr:
         new_blocks = [self.visit(block) for block in op.blocks]
         new_body = self.visit(op.body)
         return SeqExpr(new_blocks, new_body, op.span)
 
-    def visit_tuple(self, op: Tuple):
+    def visit_tuple(self, op: Tuple) -> Tuple:
         new_fields = [self.visit(field) for field in op.fields]
         return Tuple(new_fields, op.span)
 
-    def visit_call(self, op: Call):
+    def visit_call(self, op: Call) -> Call:
         new_op = self.visit(op.op)
         new_args = [self.visit(arg) for arg in op.args]
         return Call(new_op, new_args, op.attrs, op.type_args, op.span)
 
-    def visit_if(self, op: If):
+    def visit_if(self, op: If) -> If:
         new_cond = op.cond
         new_true_branch = op.true_branch
         new_false_branch = op.false_branch
         return If(new_cond, new_true_branch, new_false_branch, op.span)
 
-    def visit_tuple_getitem(self, op: TupleGetItem):
+    def visit_tuple_getitem(self, op: TupleGetItem) -> TupleGetItem:
         new_tuple_value = self.visit(op.tuple_value)
         return TupleGetItem(new_tuple_value, op.index)
 
-    def visit_match_shape(self, binding: MatchShape):
+    def visit_match_shape(self, binding: MatchShape) -> MatchShape:
         new_value = self.visit(binding.value)
         new_var = self.visit(binding.var)
         return MatchShape(new_value, binding.pattern, new_var, binding.span)
 
-    def visit_var_binding(self, binding: VarBinding):
+    def visit_var_binding(self, binding: VarBinding) -> VarBinding:
         new_value = self.visit(binding.value)
         new_var = self.visit(binding.var)
         return VarBinding(new_var, new_value, binding.span)
 
-    def visit_dataflow_block(self, block: DataflowBlock):
+    def visit_dataflow_block(self, block: DataflowBlock) -> DataflowBlock:
         new_bindings = [self.visit(binding) for binding in block.bindings]
         return DataflowBlock(new_bindings, block.span)
 
-    def visit_binding_block(self, block: BindingBlock):
+    def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
         new_bindings = [self.visit(binding) for binding in block.bindings]
         return BindingBlock(new_bindings, block.span)
 
-    def visit_op(self, op: Op):
+    def visit_op(self, op: Op) -> Op:
         return op

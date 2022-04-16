@@ -19,7 +19,7 @@
 import functools
 import inspect
 import types
-from typing import Dict
+from typing import Callable, Dict, Union
 import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase
@@ -199,7 +199,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
     return PyFunctionPass
 
 
-def function_pass(pass_func=None, opt_level=None, name=None, required=None):
+def function_pass(
+    pass_func=None, opt_level=None, name=None, required=None
+) -> Union[Callable, FunctionPass]:
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -338,7 +340,9 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
     return PyDataflowBlockPass
 
 
-def dataflowblock_pass(pass_func=None, opt_level=None, name=None, required=None):
+def dataflowblock_pass(
+    pass_func=None, opt_level=None, name=None, required=None
+) -> Union[Callable, DataflowBlockPass]:
     """Decorate a dataflowblock pass.
 
     This function returns a callback when pass_func
