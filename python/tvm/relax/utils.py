@@ -16,30 +16,6 @@
 # under the License.
 """Utility functions for Relax"""
 from typing import List
-from tvm.tir import PrimFunc
-from tvm import IRModule
-
-
-def tir_partitioner(mod: IRModule) -> List[IRModule]:
-    """Extracts tir PrimFuncs from the input IRModule.
-
-    Parameters
-    ----------
-    mod : IRModule
-        The input IRModule.
-
-    Returns
-    -------
-    output : List[IRModule]
-        The result tir PrimFuncs.
-    """
-    partitions = []
-    for gvar in mod.get_global_vars():
-        if isinstance(mod[gvar], PrimFunc):
-            tir_mod = IRModule({})
-            tir_mod[gvar] = mod[gvar]
-            partitions.append(tir_mod)
-    return partitions
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:
