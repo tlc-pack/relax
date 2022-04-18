@@ -49,5 +49,25 @@ RELAY_REGISTER_OP("transpose")                                       \
       .set_attr<FInferShape>("FInferShape", InferShapeBinaryTranspose)            \
       .set_attr<FInferType>("FInferType", InferTypeBinaryTranspose);
 
+RELAY_REGISTER_OP("nn.relu")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("zeros_like")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("ones_like")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("where") \
+      .set_attr<FInferShape>("FInferShape", InferShapeWhere)            \
+      .set_attr<FInferType>("FInferType", InferTypeWhere);
+
+RELAY_REGISTER_OP("less") \
+      .set_attr<FInferShape>("FInferShape", InferShapeCmp)            \
+      .set_attr<FInferType>("FInferType", InferTypeCmp);
+
 }  // namespace relax
 }  // namespace tvm

@@ -214,7 +214,56 @@ Type InferTypeBinaryTranspose(const Call& call, DiagnosticContext diag_ctx) {
   return call->args[0]->checked_type();
 }
 
+Optional<Expr> InferShapePWUnary(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "PW Unary op should have 1 arguments");
+  }
 
+  return call->args[0]->shape();
+}
+
+Type InferTypePWUnary(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "PW Unary op should have 1 arguments");
+  }
+  return call->args[0]->checked_type();
+}
+
+Optional<Expr> InferShapeWhere(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 3) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Where op should have 3 arguments");
+  }
+
+  return call->args[1]->shape();
+}
+
+Type InferTypeWhere(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 3) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Where op should have 3 arguments");
+  }
+  return call->args[1]->checked_type();
+}
+Optional<Expr> InferShapeCmp(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "cmp op should have 2 arguments");
+  }
+
+  return call->args[1]->shape();
+}
+
+Type InferTypeCmp(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Cmp op should have 2 arguments");
+  }
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  return DynTensorType(tensor_a->rank, DataType::Bool());
+}
 
 }  // namespace relax
 }  // namespace tvm
