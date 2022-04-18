@@ -15,20 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations
-import tvm
-from tvm.script import tir as T, relax as R
-from tvm import relax
-import numpy as np
-from tvm.ir.module import IRModule
-from tvm.target.target import Target
-import tempfile
 from typing import List
-from tvm.meta_schedule.database import PyDatabase, Workload, TuningRecord
-from tvm.meta_schedule.utils import derived_object
-from tvm import meta_schedule as ms
-from tvm import transform
-import time
+
+import numpy as np
 import pytest
+import tempfile
+import time
+import tvm
+
+from tvm import meta_schedule as ms
+from tvm import relax
+from tvm import transform
+from tvm.ir.module import IRModule
+from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
+from tvm.meta_schedule.utils import derived_object
+from tvm.script import relax as R, tir as T
+from tvm.target.target import Target
 
 
 # Test case with dynamic shape.
@@ -211,6 +213,52 @@ def test_autotir(dev: str):
 @tvm.testing.requires_gpu
 def test_autotir_gpu():
     test_autotir("cuda")
+
+
+def test_meta_schedule_extract_task_from_relax():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def add1(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+            T.func_attr({"global_symbol": "add1"})
+            for i, j in T.grid(128, 128):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + 1.0
+
+        @T.prim_func
+        def add2(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+            T.func_attr({"global_symbol": "add2"})
+            for i, j in T.grid(128, 128):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + 2.0
+
+        @T.prim_func
+        def multiply1(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+            T.func_attr({"global_symbol": "multiply1"})
+            for i, j in T.grid(128, 128):
+                with T.block("multiply"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] * 2.0
+
+        @R.function
+        def main(x: Tensor((128, 128), "float32")) -> Tensor(_, "float32"):
+            with R.dataflow():
+                lv0 = R.call_tir(add1, (x,), (128, 128), dtype="float32")
+                lv1 = R.call_tir(multiply1, (lv0,), (128, 128), dtype="float32")
+                lv2 = R.call_tir(add2, (lv1,), (128, 128), dtype="float32")
+                lv3 = R.call_tir(multiply1, (lv2,), (128, 128), dtype="float32")
+                gv = R.call_tir(add1, (lv3,), (128, 128), dtype="float32")
+                relax.output(gv)
+            return gv
+
+    tasks = ms.relax_integration.extract_task_from_relax(Module, Target("llvm --num-cores=16"))
+    expected_weights = {"add1": 2, "add2": 1, "multiply1": 2}
+    assert len(tasks) == len(expected_weights)
+    for task in tasks:
+        assert task.task_name in expected_weights
+        assert expected_weights[task.task_name] == task.weight
 
 
 if __name__ == "__main__":

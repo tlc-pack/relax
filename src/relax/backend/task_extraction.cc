@@ -27,8 +27,6 @@ namespace tvm {
 namespace relax {
 namespace backend {
 
-// TODO(ruihang): need integration unit test
-
 using tvm::meta_schedule::ExtractedTask;
 
 /*!
