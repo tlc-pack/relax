@@ -153,20 +153,30 @@ class ReverseModeADMutator : public ExprMutator {
       ExprMutator::VisitBinding_(binding);
 
       Var v = binding->var;
-      ICHECK(binding->value->IsInstance<CallNode>());
-      const CallNode* node = binding->value.as<CallNode>();
-      const OpNode* op = node->op.as<OpNode>();
-      ICHECK(op != nullptr);
-
-
-      Op op_ref = GetRef<Op>(op);
-      ICHECK(rev_map.count(op_ref) != 0);
-
       if (adjoint_map.count(v) == 0) {
         Var adjoint_v = DataflowVar(v->name_hint() + "`", v->shape(), v->type_annotation);
 				adjoint_v->checked_type_ = v->checked_type();
 				adjoint_map.Set(v, adjoint_v);
       }
+
+      if (binding->value->IsInstance<VarNode>()) {
+        const VarNode* node = binding->value.as<VarNode>();
+        if (gradient_map.count(GetRef<Var>(node)) == 0) {
+          gradient_map.Set(GetRef<Var>(node), Array<Expr>());
+        }
+
+        Array<Expr> partials = gradient_map[GetRef<Var>(node)];
+        partials.insert(partials.end(), adjoint_map[v]);
+        gradient_map.Set(GetRef<Var>(node), partials);
+        return;
+      }
+      ICHECK(binding->value->IsInstance<CallNode>());
+      const CallNode* node = binding->value.as<CallNode>();
+      const OpNode* op = node->op.as<OpNode>();
+      ICHECK(op != nullptr);
+
+      Op op_ref = GetRef<Op>(op);
+      ICHECK(rev_map.count(op_ref) != 0);
       
       Array<Expr> rev = rev_map[op_ref](GetRef<Call>(node), adjoint_map[v]);
       ICHECK(rev.size() == node->args.size());

@@ -36,6 +36,7 @@ RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
     .set_support_level(1);
 
 RELAY_TO_RELAX_BINARY_ATTRS("multiply");
+RELAY_TO_RELAX_BINARY_ATTRS("subtract");
 
 RELAY_REGISTER_OP("collapse_sum_like")                                       \
       .set_attr<FInferShape>("FInferShape", InferShapeBinaryLike)            \
@@ -57,6 +58,14 @@ RELAY_REGISTER_OP("zeros_like")                                       \
       .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
       .set_attr<FInferType>("FInferType", InferTypePWUnary);
 
+RELAY_REGISTER_OP("nn.log_softmax")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+RELAY_REGISTER_OP("exp")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+
 RELAY_REGISTER_OP("ones_like")                                       \
       .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
       .set_attr<FInferType>("FInferType", InferTypePWUnary);
@@ -68,6 +77,10 @@ RELAY_REGISTER_OP("where") \
 RELAY_REGISTER_OP("less") \
       .set_attr<FInferShape>("FInferShape", InferShapeCmp)            \
       .set_attr<FInferType>("FInferType", InferTypeCmp);
+
+RELAY_REGISTER_OP("sum") \
+      .set_attr<FInferShape>("FInferShape", InferShapeReduce)            \
+      .set_attr<FInferType>("FInferType", InferTypeReduce);
 
 }  // namespace relax
 }  // namespace tvm

@@ -100,7 +100,42 @@ def test_nndense():
   res, res1, res2 = vm["func"](inp, inp2)
 
   # np.testing.assert_allclose(inp.numpy() @ (np.transpose(inp2.numpy())), res.numpy(), atol=1e-3, rtol=1e-3)
+def test_logsoftmax():
+  m = 5
+  n = 5
+  dtype0 = rx.DynTensorType(rank=2, dtype="float16")
+  x = rx.Var("x", [m, n], dtype0)
+  bb = rx.BlockBuilder()
+
+  # op = relay.op.get("nn.dense")
+
+  with bb.function("func", [x]):
+      with bb.dataflow() as df:
+          #lv1 = bb.emit(rx.Call(op, [x, y]))
+          lv1 = bb.emit(relay.nn.log_softmax(x))
+          # lv2 = bb.emit(relay.nn.relu(lv1))
+          # gv0 = bb.emit_output(relay.nn.relu(lv1))
+          gv0 = bb.emit_output(lv1)
+      bb.emit_func_output(gv0)
+  mod = bb.get()
+  # print(mod)
+
+  target = tvm.target.Target("llvm", host="llvm")
+  new_mod = rx.transform.ReverseModeAD()(mod)
+  print(new_mod)
+
+  new_mod = rx.transform.EmitTERewrite(target)(new_mod)
+
+  print(new_mod)
+
+  ex = rx.vm.build(new_mod, target)
+
+  vm = rx.VirtualMachine(ex, tvm.cpu())
+  inp = tvm.nd.array(np.random.uniform(low = -1, high = 1, size=(5, 5)).astype(np.float16))
+  res, res1 = vm["func"](inp)
+
 
 if __name__ == "__main__":
-  test_nndense()
+  # test_nndense()
+  test_logsoftmax()
   # matmul()

@@ -28,6 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/attrs/reduce.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relax/type.h>
 
@@ -263,6 +264,70 @@ Type InferTypeCmp(const Call& call, DiagnosticContext diag_ctx) {
   }
   const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
   return DynTensorType(tensor_a->rank, DataType::Bool());
+}
+
+Optional<Expr> InferShapeReduce(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "reduce op should have 1 arguments");
+  }
+  const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
+  ICHECK(tensor_a != nullptr);
+
+  const relay::ReduceAttrs* param = call->attrs.as<relay::ReduceAttrs>();
+  ICHECK(!param->exclude);
+
+  Array<PrimExpr> inshape = tensor_a->values;
+  Array<PrimExpr> out_shape;
+  Array<Integer> reduce_axis = param->axis;
+  bool reduce_all_axis = reduce_axis.empty();
+
+  std::vector<int> reduce_axis_normalized;
+  for (int i = 0; i < reduce_axis.size(); i++) {
+    int axis = reduce_axis[i];
+    if (axis < 0) {
+      reduce_axis_normalized.push_back((int)inshape.size() + axis);
+    } else {
+      reduce_axis_normalized.push_back(axis);
+    }
+  }
+  std::sort(reduce_axis_normalized.begin(), reduce_axis_normalized.end());
+
+  size_t j = 0;
+  for (int i = 0; i < inshape.size(); i++) {
+    // TODO: this code is weird because when inlining the boolean expression
+    // short-circuiting doesn't work and reduce_axis[j] is out of range, figure out why
+    bool inrange = j < reduce_axis_normalized.size();
+    bool red = false;
+    if (inrange) {
+      red = reduce_axis_normalized[j] == i; 
+    }
+    if (reduce_all_axis || red) {
+      // reduce this axis
+      if (param->keepdims) {
+        out_shape.insert(out_shape.end(), IntImm(DataType::Int(32), 1));
+      }
+      j++;
+    } else {
+      out_shape.insert(out_shape.end(), inshape[i]);
+    }
+  }
+
+  return ShapeExpr(out_shape);
+}
+
+Type InferTypeReduce(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "reduce op should have 1 arguments");
+  }
+  const relay::ReduceAttrs* param = call->attrs.as<relay::ReduceAttrs>();
+  ICHECK(!param->exclude);
+
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  int num_reduce_axis = param->axis.empty() ? tensor_a->rank : param->axis.size();
+  int newrank = param->keepdims ? tensor_a->rank : tensor_a->rank - num_reduce_axis;
+  return DynTensorType(newrank, tensor_a->dtype);
 }
 
 }  // namespace relax
