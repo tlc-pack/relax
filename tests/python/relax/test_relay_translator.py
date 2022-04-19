@@ -136,7 +136,7 @@ def test_verify_e2e_translation_cpu(layout, batch_size, image_shape):
     "layout, batch_size, image_shape", [("NCHW", 1, (3, 224, 224)), ("NHWC", 1, (224, 224, 3))]
 )
 def test_verify_e2e_translation_gpu(layout, batch_size, image_shape):
-    verify_e2e_translation("nvidia/geforce-rtx-3070", layout, batch_size, image_shape)
+    verify_e2e_translation("cuda", layout, batch_size, image_shape)
 
 
 def verify_extracted_tasks(target_str, layout, batch_size, image_shape):
@@ -184,7 +184,7 @@ def test_verify_extracted_tasks_cpu(layout, batch_size, image_shape):
     "layout, batch_size, image_shape", [("NCHW", 1, (3, 224, 224)), ("NHWC", 1, (224, 224, 3))]
 )
 def test_verify_extracted_tasks_gpu(layout, batch_size, image_shape):
-    verify_extracted_tasks("nvidia/geforce-rtx-3070", layout, batch_size, image_shape)
+    verify_extracted_tasks("cuda", layout, batch_size, image_shape)
 
 
 if __name__ == "__main__":

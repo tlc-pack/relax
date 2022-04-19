@@ -61,7 +61,10 @@ def from_relay(
     if disabled_pass is None:
         disabled_pass = []
     if pass_config is None:
-        pass_config = {"relay.FuseOps.max_depth": 1, "relay.backend.use_meta_schedule": True}
+        pass_config = {
+            "relay.FuseOps.max_depth": 1,  # Disable relay fusion
+            "relay.backend.use_meta_schedule": True,
+        }
 
     if relay_params:
         func = relay.build_module.bind_params_by_name(func, relay_params)
