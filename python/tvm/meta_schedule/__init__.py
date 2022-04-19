@@ -31,6 +31,7 @@ from . import (
 from .apply_history_best import ApplyHistoryBest
 from .extracted_task import ExtractedTask
 from .relay_integration import extract_task_from_relay
+from .relax_integration import extract_task_from_relax
 from .search_strategy import MeasureCandidate
 from .tune import (
     EvolutionarySearchConfig,
