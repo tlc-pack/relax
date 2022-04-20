@@ -69,10 +69,9 @@ class TaskExtractor : public ExprVisitor {
 
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
-    size_t shash = StructuralHash()(func);
 
-    auto it = hash2task_.find(shash);
-    if (it != hash2task_.end()) {
+    auto it = func2task_.find(func);
+    if (it != func2task_.end()) {
       it->second->weight += 1;
       return;
     }
@@ -84,13 +83,13 @@ class TaskExtractor : public ExprVisitor {
                        /*dispatched=*/{tir_mod},             //
                        /*weight=*/1);
     tasks_.push_back(task);
-    hash2task_.emplace(shash, task);
+    func2task_.emplace(func, task);
   }
 
   IRModule mod_;
   Target target_;
   Array<ExtractedTask> tasks_;
-  std::unordered_map<size_t, ExtractedTask> hash2task_;
+  std::unordered_map<tir::PrimFunc, ExtractedTask, StructuralHash, StructuralEqual> func2task_;
 };
 
 TVM_REGISTER_GLOBAL("relax.backend.MetaScheduleExtractTask")

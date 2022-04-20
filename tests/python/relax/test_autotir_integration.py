@@ -220,7 +220,6 @@ def test_meta_schedule_extract_task_from_relax():
     class Module:
         @T.prim_func
         def add1(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
-            T.func_attr({"global_symbol": "add1"})
             for i, j in T.grid(128, 128):
                 with T.block("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -228,15 +227,22 @@ def test_meta_schedule_extract_task_from_relax():
 
         @T.prim_func
         def add2(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
-            T.func_attr({"global_symbol": "add2"})
             for i, j in T.grid(128, 128):
                 with T.block("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + 2.0
 
+        # It is intentional that `add3` equals `add1`, in order to test the deduplication
+        # correctness.
+        @T.prim_func
+        def add3(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+            for i, j in T.grid(128, 128):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + 1.0
+
         @T.prim_func
         def multiply1(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
-            T.func_attr({"global_symbol": "multiply1"})
             for i, j in T.grid(128, 128):
                 with T.block("multiply"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -249,12 +255,13 @@ def test_meta_schedule_extract_task_from_relax():
                 lv1 = R.call_tir(multiply1, (lv0,), (128, 128), dtype="float32")
                 lv2 = R.call_tir(add2, (lv1,), (128, 128), dtype="float32")
                 lv3 = R.call_tir(multiply1, (lv2,), (128, 128), dtype="float32")
-                gv = R.call_tir(add1, (lv3,), (128, 128), dtype="float32")
+                lv4 = R.call_tir(add3, (lv3,), (128, 128), dtype="float32")
+                gv = R.call_tir(add1, (lv4,), (128, 128), dtype="float32")
                 relax.output(gv)
             return gv
 
     tasks = ms.relax_integration.extract_task_from_relax(Module, Target("llvm --num-cores=16"))
-    expected_weights = {"add1": 2, "add2": 1, "multiply1": 2}
+    expected_weights = {"add1": 3, "add2": 1, "multiply1": 2}
     assert len(tasks) == len(expected_weights)
     for task in tasks:
         assert task.task_name in expected_weights
