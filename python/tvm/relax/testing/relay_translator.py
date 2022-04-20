@@ -20,14 +20,13 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import tvm
-import numpy as np  # type: ignore
-from tvm import nd
 from tvm.ir.module import IRModule
 from tvm import relax, relay
 from tvm.relax.testing import nn
 from tvm.relay.backend.te_compiler import select_implementation
 from tvm.runtime import NDArray
 from tvm.target import Target
+from tvm.meta_schedule.utils import autotvm_silencer
 
 
 def from_relay(
@@ -68,17 +67,7 @@ def from_relay(
 
     if relay_params:
         func = relay.build_module.bind_params_by_name(func, relay_params)
-    mod = tvm.IRModule.from_expr(func)
 
-    # List of subset of relay->relay optimizations
-    # See src/relay/backend/utils.cc::GetPassPrefix() for full list
-    seq = tvm.get_global_func("relay.backend.GetPassPrefixSeq")(True, True)
-
-    with tvm.transform.PassContext(
-        opt_level=opt_level, config=pass_config, disabled_pass=disabled_pass
-    ):
-        mod = seq(mod)
-    func = mod["main"]
     params = []
 
     def visit_func(node):
@@ -103,24 +92,20 @@ def from_relay(
             op_name = node.op.name
             attrs = node.attrs
             out_type = node.checked_type
-            # @sunggg: its funny that we need this target context despite the target argument
-            # PassContext is also necessary for winograd-like lowerings
-            with target, tvm.transform.PassContext(
-                opt_level=opt_level, config=pass_config, disabled_pass=disabled_pass
-            ):
-                best_impl, outputs = select_implementation(
-                    node.op,
-                    attrs,
-                    te_inputs,
-                    out_type,
-                    target,
-                    use_autotvm=False,
-                )
-                compute_func = best_impl.compute
-                name_hint = op_name.split(".")[-1]
-                var = bb.emit_te(
-                    compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
-                )
+
+            best_impl, outputs = select_implementation(
+                node.op,
+                attrs,
+                te_inputs,
+                out_type,
+                target,
+                use_autotvm=False,
+            )
+            compute_func = best_impl.compute
+            name_hint = op_name.split(".")[-1]
+            var = bb.emit_te(
+                compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
+            )
             output_var = var
             var_map[node] = var
         elif isinstance(node, relay.Constant):
@@ -154,8 +139,19 @@ def from_relay(
         else:
             raise TypeError("{} is not supported yet.".format(str(type(node))))
 
-    bb = relax.BlockBuilder()
-    with bb.function("main"):
-        relay.analysis.post_order_visit(func, visit_func)
+    # List of subset of relay->relay optimizations
+    # See src/relay/backend/utils.cc::GetPassPrefix() for full list
+    seq = tvm.get_global_func("relay.backend.GetPassPrefixSeq")(True, True)
+
+    # Since optimization passes and OpStrategy are highly context-dependent,
+    # we match the exact same context with `extract_task_from_relay()` env
+    with autotvm_silencer(), target, tvm.transform.PassContext(
+        opt_level=opt_level, config=pass_config, disabled_pass=disabled_pass
+    ):
+        mod = tvm.IRModule.from_expr(func)
+        mod = seq(mod)
+        bb = relax.BlockBuilder()
+        with bb.function("main"):
+            relay.analysis.post_order_visit(mod["main"], visit_func)
 
     return bb.get()

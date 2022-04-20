@@ -162,6 +162,7 @@ def verify_extracted_tasks(target_str, layout, batch_size, image_shape):
             "relay.FuseOps.max_depth": 1,  # Disable relay fusion
         },
     )
+
     relax_tasks = ms.extract_task_from_relax(relax_mod, target=target, params=params)
     assert len(relay_tasks) == len(relax_tasks)
     # TODO: Can we compare extracted tasks as well?
@@ -170,8 +171,7 @@ def verify_extracted_tasks(target_str, layout, batch_size, image_shape):
 @pytest.mark.parametrize(
     "layout, batch_size, image_shape",
     [
-        # TODO: This test fails due to the different number of extracted tasks
-        # ("NCHW", 1, (3, 224, 224)),
+        ("NCHW", 1, (3, 224, 224)),
         ("NHWC", 1, (224, 224, 3)),
     ],
 )
