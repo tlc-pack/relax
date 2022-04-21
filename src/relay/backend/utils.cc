@@ -368,6 +368,13 @@ void BindParamsInModule(IRModule mod, Map<String, runtime::NDArray> params) {
   BindParamsInModule(mod, params_tmp);
 }
 
+TVM_REGISTER_GLOBAL("relay.backend.GetPassPrefixSeq")
+    .set_body_typed([](bool is_homogeneous, bool is_vm) {
+      auto pass_seqs = GetPassPrefix(is_homogeneous, is_vm);
+      transform::Sequential seq(pass_seqs);
+      return seq;
+    });
+
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm
