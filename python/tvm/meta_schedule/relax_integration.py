@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule integration with high-level IR"""
-from typing import List, Union, Tuple, Dict
+from typing import Any, List, Union, Tuple, Dict, Optional
 
+import tvm
 from tvm.ir import IRModule, structural_hash, structural_equal
 from tvm.meta_schedule import ExtractedTask
 from tvm.target import Target
 from tvm.relax.expr import Function as RelaxFunc
 from tvm.relax.utils import tir_partitioner
+from tvm.runtime import NDArray
 
 
 def deduplicate_extracted_tasks(
@@ -67,7 +69,15 @@ def deduplicate_extracted_tasks(
     return dedup, count
 
 
-def extract_task_from_relax(mod: Union[IRModule, RelaxFunc], target: Target) -> List[ExtractedTask]:
+def extract_task_from_relax(
+    mod: Union[IRModule, RelaxFunc],
+    target: Target,
+    params: Optional[Dict[str, NDArray]] = None,
+    *,
+    opt_level: int = 3,
+    pass_config: Optional[Dict[str, Any]] = None,
+    disabled_pass: Optional[List[str]] = None,
+) -> List[ExtractedTask]:
     """Extract tuning tasks from a relax program.
 
     Parameters
@@ -87,13 +97,25 @@ def extract_task_from_relax(mod: Union[IRModule, RelaxFunc], target: Target) -> 
     if not isinstance(target, Target):
         target = Target(target)
 
+    if disabled_pass is None:
+        disabled_pass = []
+    if pass_config is None:
+        pass_config = {}
+
+    if params:
+        mod = tvm.relax.transform.BindParams("main", params)(mod)
+
     tir_partitions = tir_partitioner(mod)
     tir_mods, tir_counts = deduplicate_extracted_tasks(tir_partitions)
-
     tasks = []
-    for i, tir_mod in enumerate(tir_mods):
-        task_name = tir_mod.get_global_vars()[0].name_hint
-        # The second arg to ExtractedTask is supposed to be a high-level IRModule,
-        # passing tir_mod as a workaround.
-        tasks.append(ExtractedTask(task_name, tir_mod, target, [tir_mod], tir_counts[i]))
+    with target, tvm.transform.PassContext(
+        opt_level=opt_level,
+        config=pass_config,
+        disabled_pass=disabled_pass,
+    ):
+        for i, tir_mod in enumerate(tir_mods):
+            task_name = tir_mod.get_global_vars()[0].name_hint
+            # The second arg to ExtractedTask is supposed to be a high-level IRModule,
+            # passing tir_mod as a workaround.
+            tasks.append(ExtractedTask(task_name, tir_mod, target, [tir_mod], tir_counts[i]))
     return tasks
