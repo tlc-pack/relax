@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule integration with high-level IR"""
-from typing import Any, List, Union, Dict, Optional
+from typing import List, Union, Dict, Optional
 
 import tvm
+from tvm import relax
 from tvm._ffi import get_global_func
 from tvm.ir import IRModule
 from tvm.meta_schedule import ExtractedTask
@@ -30,10 +31,6 @@ def extract_task_from_relax(
     mod: Union[IRModule, RelaxFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,
-    *,
-    opt_level: int = 3,
-    pass_config: Optional[Dict[str, Any]] = None,
-    disabled_pass: Optional[List[str]] = None,
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relax program.
 
@@ -57,18 +54,7 @@ def extract_task_from_relax(
 
     if isinstance(mod, RelaxFunc):
         mod = IRModule.from_expr(mod)
-
-    if disabled_pass is None:
-        disabled_pass = []
-    if pass_config is None:
-        pass_config = {}
-
     if params:
-        mod = tvm.relax.transform.BindParams("main", params)(mod)
+        mod = relax.transform.BindParams("main", params)(mod)
 
-    with target, tvm.transform.PassContext(
-        opt_level=opt_level,
-        config=pass_config,
-        disabled_pass=disabled_pass,
-    ):
-        return list(extract_task_func(mod, target))
+    return list(extract_task_func(mod, target))
