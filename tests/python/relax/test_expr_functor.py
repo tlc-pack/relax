@@ -30,12 +30,9 @@ y = relax.Var("y", [m, n], type_anno2)
 
 
 def check_visit(expr):
-    try:
+    with pytest.raises(NotImplementedError):
         ef = ExprFunctor()
         ef.visit(expr)
-        assert False
-    except NotImplementedError:
-        pass
 
     ev = ExprVisitor()
     ev.visit(expr)
