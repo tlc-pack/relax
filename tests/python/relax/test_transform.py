@@ -229,7 +229,7 @@ def test_vm_memory_lower():
         def foo(x: Tensor((m, n), "float32")) -> Tensor:
             alloc = relax.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
             _ = relax.call_packed(
-                "test.op.identity", x, alloc, type_args=[Tensor(rank=2, dtype="float32")]
+                "test.op.identity", x, alloc, type_args=(Tensor(rank=2, dtype="float32"))
             )
             gv0 = alloc
             return gv0
@@ -403,5 +403,4 @@ def test_to_anf_no_op():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_vm_memory_lower()
+    pytest.main([__file__])

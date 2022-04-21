@@ -182,9 +182,15 @@ def test_call_packed():
     @R.function
     def foo(x: Tensor((3, 3), "float32")):
         # test that we can intro dim vars
-        z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
+        z: Tensor((n, m), "float32") = relax.call_packed(
+            "contrib.my_matmul", x, x, mp=False, type_args=(Tensor(rank=2, dtype="float32"))
+        )
         w = relax.call_packed(
-            "contrib.my_shape_of", x, dtype="int32", attrs_type_key="relay.attrs.ShapeOfAttrs"
+            "contrib.my_shape_of",
+            x,
+            dtype="int32",
+            attrs_type_key="relay.attrs.ShapeOfAttrs",
+            type_args=(Shape),
         )
         return z
 
@@ -194,7 +200,9 @@ def test_call_packed():
 def test_primexpr_arithmetic():
     @R.function
     def foo(x: Tensor((n, m), "float32")):
-        z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
+        z: Tensor((n * m,), "float32") = relax.call_packed(
+            "my_flatten", (x,), type_args=(Tensor(rank=2, dtype="float32"))
+        )
         sh: Shape = (n + m, n // m)
         return z
 

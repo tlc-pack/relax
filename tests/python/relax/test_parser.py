@@ -560,9 +560,19 @@ def test_call_packed():
     @R.function
     def f(x: Tensor((3, 3), "float32")):
         # test that we can intro dim vars
-        z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
+        z: Tensor((n, m), "float32") = relax.call_packed(
+            "contrib.my_matmul",
+            x,
+            x,
+            mp=False,
+            type_args=(Tensor(rank=2, dtype="float32")),
+        )
         w = relax.call_packed(
-            "contrib.my_shape_of", x, dtype="int32", attrs_type_key="relay.attrs.ShapeOfAttrs"
+            "contrib.my_shape_of",
+            x,
+            dtype="int32",
+            attrs_type_key="relay.attrs.ShapeOfAttrs",
+            type_args=(Shape),
         )
         return z
 
@@ -603,7 +613,9 @@ def test_constant():
 def test_primexpr_arithmetic():
     @R.function
     def f(x: Tensor((n, m), "float32")):
-        z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
+        z: Tensor((n * m,), "float32") = relax.call_packed(
+            "my_flatten", (x,), type_args=(Tensor(rank=2, dtype="float32"))
+        )
         sh: Shape = (n + m, n // m)
         return z
 
@@ -673,16 +685,27 @@ def test_class_irmodule():
             _ = my_matmul(x, y, z)
             return z
 
+        @R.function
+        def k(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+            gv0 = relax.call_packed(
+                "test.vm.mul", x, w, type_args=(Tensor(rank=2, dtype="float32"))
+            )
+            return gv0
+
     my_module = MyModule
     assert isinstance(my_module, tvm.IRModule)
+
+    R.parser.pretty_print(my_module)
 
     var_f = my_module.get_global_var("f")
     var_g = my_module.get_global_var("g")
     var_j = my_module.get_global_var("j")
+    var_k = my_module.get_global_var("k")
     var_my_matmul = my_module.get_global_var("my_matmul")
     f = my_module[var_f]
     g = my_module[var_g]
     j = my_module[var_j]
+    k = my_module[var_k]
 
     assert f.body.body.op == var_g
     assert g.body.body.args[0] == var_my_matmul
@@ -694,6 +717,13 @@ def test_class_irmodule():
     assert gv_bind.var.checked_type.dtype == "float32"
     check_shape(gv_bind.value, ("n", "n"))
     check_shape(gv_bind.var, ("n", "n"))
+
+    # check call_packed checked_type_
+    gv0_bind = k.body.blocks[0].bindings[0]
+    assert gv0_bind.value.checked_type.dtype == "float32"
+    assert gv0_bind.value.checked_type.rank == 2
+    assert gv0_bind.var.checked_type.dtype == "float32"
+    assert gv0_bind.var.checked_type.rank == 2
 
     # check function type
     j_type = j.checked_type

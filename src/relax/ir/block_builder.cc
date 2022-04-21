@@ -85,9 +85,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     if (!tuple->checked_type_.defined()) {
       Array<Type> tuple_type;
       for (Expr field : tuple->fields) {
-        // TODO(@yuchen): add this check after we add ty_args to call_packed
-        // ICHECK(field->checked_type_.defined())
-        //     << "The checked_type_ of the field " << field << " of Tuple has not propagated.";
+        ICHECK(field->checked_type_.defined())
+            << "The checked_type_ of the field " << field << " of Tuple has not propagated.";
         tuple_type.push_back(field->checked_type_);
       }
       UpdateType(tuple, TupleType(tuple_type));
@@ -138,8 +137,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
     if (!call->shape_) {
       // shape inference
-      auto inferred_shape =
-          InferShape(call, this->builder_->diag_ctx_, this->builder_->context_mod_);
+      auto inferred_shape = InferShape(call, this->builder_->diag_ctx_);
       if (inferred_shape) {
         UpdateShape(call, inferred_shape.value());
       }
@@ -147,7 +145,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
     if (!call->checked_type_.defined()) {
       // type inference
-      auto inferred_type = InferType(call, this->builder_->diag_ctx_, this->builder_->context_mod_);
+      auto inferred_type = InferType(call, this->builder_->diag_ctx_);
       UpdateType(call, inferred_type);
     }
     return call;
@@ -365,7 +363,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   };
 
   // Helper function to infer the shape of a Call.
-  Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
+  Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
     auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
     if (call->op.as<OpNode>()) {
       Op op = Downcast<Op>(call->op);
@@ -379,9 +377,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         return shape;
       }
     } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
-      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
+      auto it_func = context_mod_->functions.find(GetRef<GlobalVar>(gv));
 
-      if (it_func != ctx_mod->functions.end()) {
+      if (it_func != context_mod_->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
           return func->shape();
         }
@@ -391,7 +389,18 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   // Helper function to infer the type of a Call.
-  Type InferType(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
+  Type InferType(const Call& call, DiagnosticContext diag_ctx) {
+    // special handling for call_packed: return type_args of the call node
+    if (call->op.as<ExternFuncNode>()) {
+      if (call->type_args.defined()) {
+        if (call->type_args.size() == 1) {
+          return call->type_args.front();
+        } else {
+          return TupleType(call->type_args);
+        }
+      }
+    }
+    // normal op
     auto op_map = Op::GetAttrMap<FInferType>("FInferType");
     if (call->op.as<OpNode>()) {
       Op op = Downcast<Op>(call->op);
@@ -399,9 +408,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         return op_map[op](call, diag_ctx);
       }
     } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
-      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
+      auto it_func = context_mod_->functions.find(GetRef<GlobalVar>(gv));
 
-      if (it_func != ctx_mod->functions.end()) {
+      if (it_func != context_mod_->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
           return func->checked_type_;
         }

@@ -1002,11 +1002,56 @@ class RelaxTransformer(Transformer):
                     else:
                         vals.append(nested_vals)
             else:
-                self.report_error(f"unsupported ast expression {expr.name}", expr.span)
+                self.report_error(f"unsupported ast expression {expr}", expr.span)
             return vals
 
         const_values = _get_values(expr, [])
         return relax.const(const_values)
+
+    def parse_call_type_args(self, expr: ast.Call) -> Union[relax.Type, List[relax.Type], None]:
+        """Parses the keyword parameters with the keyword "type_args" as the type_args of the call.
+
+        Parameters
+        ----------
+        expr : ast.Call
+            The synr Call to be parsed.
+
+        Returns
+        -------
+        Union[relax.Type, List[relax.Type], None]
+            The parsed call type_args.
+        """
+        for key, val in expr.keyword_params.items():
+            if key.value == "type_args":
+                if isinstance(val, ast.Call):
+                    if val.func_name.id.name != "Tensor":
+                        self.report_error(
+                            f"type_args elements must be Tensor, Object, or Shape", val.span
+                        )
+
+                    rank = -1
+                    dtype = None
+                    for k, v in val.keyword_params.items():
+                        if k.value == "rank":
+                            rank = v.value
+                        if k.value == "dtype":
+                            dtype = v.value
+                    return relax.DynTensorType(rank, dtype, self.to_tvm_span(val.span))
+                elif isinstance(val, ast.Var):
+                    if val.id.name == "Object":
+                        return relax.ObjectType(self.to_tvm_span(val.span))
+                    elif val.id.name == "Shape":
+                        return relax.ShapeType(self.to_tvm_span(val.span))
+                    else:
+                        self.report_error(
+                            f"type_args elements must be Tensor, Object, or Shape", val.span
+                        )
+                elif isinstance(val, ast.Tuple):
+                    fields = [self.parse_call_type_args(field) for field in val.values]
+                    return fields
+                else:
+                    self.report_error(f"unsupported expression: {expr}", expr.span)
+        return None
 
     def parse_call_attr(self, expr: ast.Call) -> Union[tvm.ir.Attrs, None]:
         """Parses keyword parameters as call attributes.
@@ -1024,9 +1069,10 @@ class RelaxTransformer(Transformer):
         op = self.transform_expr(expr.func_name)
         kwargs = {}
         for key, val in expr.keyword_params.items():
-            assert isinstance(key, ast.Constant) and isinstance(key.value, str)
-            # TODO(@altanh): might need separate attribute parsing eventually
-            kwargs[key.value] = self.transform_expr(val)
+            if key.value != "type_args":
+                assert isinstance(key, ast.Constant) and isinstance(key.value, str)
+                # TODO(@altanh): might need separate attribute parsing eventually
+                kwargs[key.value] = self.transform_expr(val)
 
         is_default = False
         if "attrs_type_key" in kwargs:
@@ -1092,7 +1138,10 @@ class RelaxTransformer(Transformer):
                 return self.transform_Subscript(expr)
 
         op = self.transform_expr(expr.func_name)
-        type_args = None
+
+        type_args = self.parse_call_type_args(expr)
+        if type_args and not isinstance(type_args, list):
+            type_args = [type_args]
 
         if op == SpecialOp.CALL_PACKED:
             extern_func = expr.params[0]
@@ -1113,6 +1162,7 @@ class RelaxTransformer(Transformer):
             args = [self.transform_expr(arg) for arg in expr.params]
             # index of TupleGetItem only accepts int type intead of tir.expr.IntImm
             return relax.TupleGetItem(args[0], args[1].value)
+
         elif op in (SpecialOp.CONSTANT, SpecialOp.CONST):
             # relax const/Constant
             arg = expr.params[0]
