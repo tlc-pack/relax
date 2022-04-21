@@ -148,71 +148,71 @@ class ExprVisitor(ExprFunctor):
     The default behavior recursively traverses the AST.
     """
 
-    def visit_function(self, func: Function):
+    def visit_function(self, func: Function) -> None:
         for param in func.params:
             self.visit(param)
         self.visit(func.body)
 
-    def visit_extern_func(self, op: ExternFunc):
+    def visit_extern_func(self, op: ExternFunc) -> None:
         pass
 
-    def visit_constant(self, op: Constant):
+    def visit_constant(self, op: Constant) -> None:
         pass
 
-    def visit_var(self, op: Var):
+    def visit_var(self, op: Var) -> None:
         pass
 
-    def visit_dataflow_var(self, op: DataflowVar):
+    def visit_dataflow_var(self, op: DataflowVar) -> None:
         pass
 
-    def visit_shape_expr(self, op: ShapeExpr):
+    def visit_shape_expr(self, op: ShapeExpr) -> None:
         pass
 
-    def visit_runtime_dep_shape(self, op: RuntimeDepShape):
+    def visit_runtime_dep_shape(self, op: RuntimeDepShape) -> None:
         pass
 
-    def visit_global_var(self, op: GlobalVar):
+    def visit_global_var(self, op: GlobalVar) -> None:
         pass
 
-    def visit_seq_expr(self, op: SeqExpr):
+    def visit_seq_expr(self, op: SeqExpr) -> None:
         for block in op.blocks:
             self.visit(block)
         self.visit(op.body)
 
-    def visit_tuple(self, op: Tuple):
+    def visit_tuple(self, op: Tuple) -> None:
         for field in op.fields:
             self.visit(field)
 
-    def visit_call(self, op: Call):
+    def visit_call(self, op: Call) -> None:
         self.visit(op.op)
         for arg in op.args:
             self.visit(arg)
 
-    def visit_if(self, op: If):
+    def visit_if(self, op: If) -> None:
         self.visit(op.cond)
         self.visit(op.true_branch)
         self.visit(op.false_branch)
 
-    def visit_tuple_getitem(self, op: TupleGetItem):
+    def visit_tuple_getitem(self, op: TupleGetItem) -> None:
         self.visit(op.tuple_value)
 
-    def visit_match_shape(self, binding: MatchShape):
+    def visit_match_shape(self, binding: MatchShape) -> None:
         self.visit(binding.value)
         self.visit(binding.var)
 
-    def visit_var_binding(self, binding: VarBinding):
+    def visit_var_binding(self, binding: VarBinding) -> None:
         self.visit(binding.value)
         self.visit(binding.var)
 
-    def visit_dataflow_block(self, block: DataflowBlock):
+    def visit_dataflow_block(self, block: DataflowBlock) -> None:
         for binding in block.bindings:
             self.visit(binding)
 
-    def visit_binding_block(self, block: BindingBlock):
+    def visit_binding_block(self, block: BindingBlock) -> None:
         for binding in block.bindings:
             self.visit(binding)
 
-    def visit_op(self, op: Op):
+    def visit_op(self, op: Op) -> None:
         pass
 
 
