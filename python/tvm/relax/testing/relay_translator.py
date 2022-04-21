@@ -18,138 +18,26 @@
 """Relay to Relax translator."""
 
 from __future__ import annotations
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 import tvm
 from tvm.ir.module import IRModule
-from tvm import relax, relay, topi
+from tvm import relax, relay
 from tvm.relax.testing import nn
+from tvm.relay.backend.te_compiler import select_implementation
+from tvm.runtime import NDArray
+from tvm.target import Target
+from tvm.meta_schedule.utils import autotvm_silencer
 
 
-class RelayOpConverter(object):
-    """A helper class for holding Relay op converters."""
-
-    @classmethod
-    def get_converter(cls):
-        """Get converter.
-
-        :return: converter, which should be `_impl`.
-        """
-
-        if hasattr(cls, "_impl"):
-            return getattr(cls, "_impl")
-        raise tvm.error.OpNotImplemented("Operator {} is not supported.".format(cls.__name__))
-
-
-class Dense(RelayOpConverter):
-    """Operator converter for nn.dense."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        return nn.emit_te(topi.nn.dense, *inputs)
-
-
-class BatchNorm(RelayOpConverter):
-    """Operator converter for nn.batch_norm."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(topi.nn.batch_norm, *inputs, **new_attrs)
-
-
-class Conv2D(RelayOpConverter):
-    """Operator converter for nn.conv2d."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_inputs = [*inputs]
-        if attrs is not None:
-            new_inputs.append(attrs["strides"])
-            new_inputs.append(attrs["padding"])
-            new_inputs.append(attrs["dilation"])
-        else:
-            raise RuntimeError("attrs must be provided to conv2d op.")
-        return nn.emit_te(topi.nn.conv2d_nchw, *new_inputs)
-
-
-class BatchMatmul(RelayOpConverter):
-    """Operator converter for nn.batch_matmul."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        if "out_dtype" in new_attrs:
-            new_attrs["out_dtype"] = None
-        if "transpose_a" in new_attrs:
-            new_attrs["transpose_a"] = bool(new_attrs["transpose_a"])
-        if "transpose_b" in new_attrs:
-            new_attrs["transpose_b"] = bool(new_attrs["transpose_b"])
-        return nn.emit_te(topi.nn.batch_matmul, *inputs, **new_attrs)
-
-
-class Softmax(RelayOpConverter):
-    """Operator converter for softmax."""
-
-    @classmethod
-    def _impl(cls, inputs, attrs):
-        new_attrs = attr_convert(attrs)
-        return nn.emit_te(topi.nn.softmax, *inputs, **new_attrs)
-
-
-# convert_map defines maps of name to converter functor(callable)
-# use attr_convert if attributes need to be converted
-# for 1 to N mapping(composed), use custom callable functions
-# for N to 1 mapping (fusion), write custom topi func
-
-# Minimal set of ops for transformer
-def get_convert_map():
-    return {
-        "nn.dense": Dense.get_converter(),
-        "nn.batch_norm": BatchNorm.get_converter(),
-        "nn.conv2d": Conv2D.get_converter(),
-        "nn.batch_matmul": BatchMatmul.get_converter(),
-        "nn.softmax": Softmax.get_converter(),
-    }
-
-
-def convert_operator(op_type: str, inputs: List[relax.Expr], attrs: Dict = None):
-    """Convert from Relay operator to Relax operator/topi function.
-    The converter must specify conversions explicitly for incompatible name, and
-    apply handlers to operator attributes.
-
-    Parameters
-    ----------
-    op_type : str
-        Operator name, such as Convolution, FullyConnected
-    inputs : list of Expr
-        List of input inputs.
-    attrs : dict
-        Dict of operator attributes
-
-    Returns
-    -------
-    func : tvm.relay.function.Function
-        Converted relay function
-    """
-    convert_map = get_convert_map()
-    if op_type in convert_map:
-        func = convert_map[op_type](inputs, attrs)
-    else:
-        raise tvm.error.OpNotImplemented("Operator {} is not supported.".format(op_type))
-    return func
-
-
-def attr_convert(attrs: tvm.ir.Attrs) -> Dict:
-    """Convert attributes to a dict."""
-    attrs_dict = {}
-
-    for k in attrs.keys():
-        attrs_dict[k] = attrs[k]
-
-    return attrs_dict
-
-
-def from_relay(func: relay.Function) -> IRModule:
+def from_relay(
+    func: relay.Function,
+    target: Target,
+    relay_params: Optional[Dict[str, NDArray]] = None,
+    *,
+    opt_level: int = 3,
+    pass_config: Optional[Dict[str, Any]] = None,
+    disabled_pass: Optional[List[str]] = None,
+) -> IRModule:
     """Convert a Relay function into a Relax program.
 
     Parameters
@@ -166,8 +54,21 @@ def from_relay(func: relay.Function) -> IRModule:
     var_map = {}
     # The output of the function
     output_var = None
+
+    if not isinstance(target, Target):
+        target = Target(target)
+    if disabled_pass is None:
+        disabled_pass = []
+    if pass_config is None:
+        pass_config = {
+            "relay.FuseOps.max_depth": 1,  # Disable relay fusion
+            "relay.backend.use_meta_schedule": True,
+        }
+
+    if relay_params:
+        func = relay.build_module.bind_params_by_name(func, relay_params)
+
     params = []
-    convert_map = get_convert_map()
 
     def visit_func(node):
         nonlocal output_var
@@ -182,25 +83,29 @@ def from_relay(func: relay.Function) -> IRModule:
         elif isinstance(node, relay.Call):
             args = node.args
             new_args = []
+            te_inputs = []
             for arg in args:
                 if arg in var_map:
                     new_args.append(var_map[arg])
+                    te_inputs.append(tvm.relax.expr.te_tensor(new_args[-1]))
 
             op_name = node.op.name
             attrs = node.attrs
-            compute_func = node.op.get_attr("FTVMCompute")
-            if compute_func is None:
-                if node.op.name not in convert_map:
-                    raise tvm.error.OpNotImplemented(
-                        "Operator {} is not supported.".format(op_name)
-                    )
-                var = convert_operator(op_name, new_args, attrs)
-            else:
-                name_hint = op_name.split(".")[-1]
-                var = bb.emit_te(
-                    compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
-                )
+            out_type = node.checked_type
 
+            best_impl, outputs = select_implementation(
+                node.op,
+                attrs,
+                te_inputs,
+                out_type,
+                target,
+                use_autotvm=False,
+            )
+            compute_func = best_impl.compute
+            name_hint = op_name.split(".")[-1]
+            var = bb.emit_te(
+                compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
+            )
             output_var = var
             var_map[node] = var
         elif isinstance(node, relay.Constant):
@@ -234,8 +139,19 @@ def from_relay(func: relay.Function) -> IRModule:
         else:
             raise TypeError("{} is not supported yet.".format(str(type(node))))
 
-    bb = relax.BlockBuilder()
-    with bb.function("main"):
-        relay.analysis.post_order_visit(func, visit_func)
+    # List of subset of relay->relay optimizations
+    # See src/relay/backend/utils.cc::GetPassPrefix() for full list
+    seq = tvm.get_global_func("relay.backend.GetPassPrefixSeq")(True, True)
+
+    # Since optimization passes and OpStrategy are highly context-dependent,
+    # we match the exact same context with `extract_task_from_relay()` env
+    with autotvm_silencer(), target, tvm.transform.PassContext(
+        opt_level=opt_level, config=pass_config, disabled_pass=disabled_pass
+    ):
+        mod = tvm.IRModule.from_expr(func)
+        mod = seq(mod)
+        bb = relax.BlockBuilder()
+        with bb.function("main"):
+            relay.analysis.post_order_visit(mod["main"], visit_func)
 
     return bb.get()
