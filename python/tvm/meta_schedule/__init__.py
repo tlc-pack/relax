@@ -38,6 +38,7 @@ from .relay_integration import (
     is_meta_schedule_dispatch_enabled,
     is_meta_schedule_enabled,
 )
+from .relax_integration import extract_task_from_relax
 from .search_strategy import MeasureCandidate
 from .tune import TuneConfig, tune_extracted_tasks, tune_relay, tune_relax, tune_te, tune_tir
 from .tune_context import TuneContext
