@@ -50,5 +50,6 @@ from .search_strategy import MeasureCandidate, SearchStrategy
 from .space_generator import SpaceGenerator
 from .task_scheduler import TaskScheduler
 from .tir_integration import tune_tir
+from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import derived_object
