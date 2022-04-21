@@ -17,7 +17,6 @@
 """Meta schedule integration with high-level IR"""
 from typing import List, Union, Dict, Optional
 
-import tvm
 from tvm import relax
 from tvm._ffi import get_global_func
 from tvm.ir import IRModule
