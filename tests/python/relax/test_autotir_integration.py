@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import annotations
-from typing import List
 
 import numpy as np
 import pytest
@@ -27,8 +26,7 @@ from tvm import meta_schedule as ms
 from tvm import relax
 from tvm import transform
 from tvm.ir.module import IRModule
-from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.testing import DummyDatabase
 from tvm.script import relax as R, tir as T
 from tvm.target.target import Target
 
@@ -80,45 +78,6 @@ class InputModule:
 """
 
 
-@derived_object
-class DummyDatabase(PyDatabase):
-    def __init__(self):
-        super().__init__()
-        self.records = []
-        self.workload_reg = []
-
-    def has_workload(self, mod: IRModule) -> Workload:
-        for workload in self.workload_reg:
-            if tvm.ir.structural_equal(workload.mod, mod):
-                return True
-        return False
-
-    def commit_tuning_record(self, record: TuningRecord) -> None:
-        self.records.append(record)
-
-    def commit_workload(self, mod: IRModule) -> Workload:
-        for workload in self.workload_reg:
-            if tvm.ir.structural_equal(workload.mod, mod):
-                return workload
-        workload = Workload(mod)
-        self.workload_reg.append(workload)
-        return workload
-
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-        return list(
-            filter(
-                lambda x: x.workload == workload,
-                sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
-            )
-        )[: int(top_k)]
-
-    def __len__(self) -> int:
-        return len(self.records)
-
-    def print_results(self) -> None:
-        print("\n".join([str(r) for r in self.records]))
-
-
 @pytest.mark.parametrize("dev", ["cpu"])
 def test_autotir(dev: str):
     @tvm.script.ir_module
@@ -161,7 +120,7 @@ def test_autotir(dev: str):
             return lv1
 
     mod = InputModule
-    assert isinstance(mod, tvm.IRModule)
+    assert isinstance(mod, IRModule)
 
     if dev == "cpu":
         target = Target("llvm --num-cores=16")
