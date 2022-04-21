@@ -176,7 +176,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pass_cls creation failed.fg
+            # initialize handle in case pass_cls creation failed.
             self.handle = None
             inst = pass_cls(*args, **kwargs)
 
@@ -214,14 +214,14 @@ def function_pass(
         The transformation function or class.
 
     opt_level : int
-        The optimization level of this module pass.
+        The optimization level of this function pass.
 
     name : Optional[str]
         The name of the function pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
 
     required : Optional[List[str]]
-        The list of passes that the module pass is dependent on.
+        The list of passes that the function pass is dependent on.
 
     Returns
     -------
@@ -315,7 +315,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pass_cls creation failed.fg
+            # initialize handle in case pass_cls creation failed.
             self.handle = None
             inst = pass_cls(*args, **kwargs)
 
@@ -355,14 +355,14 @@ def dataflowblock_pass(
         The transformation function or class.
 
     opt_level : int
-        The optimization level of this module pass.
+        The optimization level of this dataflowblock pass.
 
     name : Optional[str]
         The name of the dataflowblock pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
 
     required : Optional[List[str]]
-        The list of passes that the module pass is dependent on.
+        The list of passes that the dataflowblock pass is dependent on.
 
     Returns
     -------
