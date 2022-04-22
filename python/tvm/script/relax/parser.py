@@ -280,13 +280,11 @@ class RelaxTransformer(Transformer):
                 shape, dtype, rank = None, None, -1
 
                 # parse the shape annotation
-                if isinstance(shape_annotation, ast.TypeConstant):
-                    if shape_annotation.value != "RuntimeDepShape":
-                        self.report_error(
-                            "invalid shape annotation",
-                            shape_annotation.span,
-                        )
-                    shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
+                if (
+                    isinstance(shape_annotation, ast.TypeConstant)
+                    and shape_annotation.value is None
+                ):
+                    pass  # shape = None
                 elif isinstance(shape_annotation, ast.TypeVar):
                     if shape_annotation.id.name != "_":
                         # TODO(@altanh): handle variable annotations, e.g. x: Tensor(my_shape, _)
@@ -295,8 +293,7 @@ class RelaxTransformer(Transformer):
                             shape_annotation.span,
                         )
                     else:
-                        # FIXME(@altanh): use a special node for unknown shape vs no shape?
-                        pass  # shape = None
+                        shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
                 elif isinstance(shape_annotation, ast.TypeTuple):
                     # the syntax for fixed rank k but unknown/unmatched shape is a tuple of length
                     # k, where each element is "_" (e.g. "(_, _)" for rank 2)

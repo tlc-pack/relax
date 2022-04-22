@@ -78,10 +78,10 @@ def test_annotations():
     def f(
         x: Tensor((32, m), "float32"),
         y: Tensor((m, k), "float32"),
-        r: Tensor("RuntimeDepShape", "int64"),
+        r: Tensor(_, "int64"),
     ) -> Tensor:
         z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
-        w: Tensor(_, _) = multiply(z, z)
+        w: Tensor(None, _) = multiply(z, z)
         q: Tensor((_, _), _) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape

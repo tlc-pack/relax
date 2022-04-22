@@ -233,7 +233,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::RuntimeDepShapeNode* op) {
   Doc doc;
 
-  doc << "\"RuntimeDepShape\"";
+  doc << "_";
   return doc;
 }
 
@@ -534,7 +534,7 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
     }
     doc << ")";
   } else {
-    doc << "_";
+    doc << "None";
   }
   doc << ", ";
   if (ty->dtype.is_void()) {

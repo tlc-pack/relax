@@ -316,7 +316,7 @@ def test_shapeexpr():
 
 def test_runtime_dep_shape():
     x = relax.RuntimeDepShape()
-    assert x.__str__() == '"RuntimeDepShape"'
+    assert x.__str__() == "_"
 
 
 if __name__ == "__main__":
