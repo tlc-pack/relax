@@ -50,6 +50,18 @@ def test_annotations():
     check_roundtrip(foo)
 
 
+def test_rank_annotations():
+    @R.function
+    def foo(
+        x: Tensor((2, 3, 5), "float32", rank=3),
+        y: Tensor(None, "float32", rank=-1),
+        z: Tensor(_, "float32", rank=2),
+    ):
+        return x
+
+    check_roundtrip(foo)
+
+
 def test_match_shape():
     @R.function
     def foo(x: Tensor(_, "float32")):

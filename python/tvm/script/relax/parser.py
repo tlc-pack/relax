@@ -235,6 +235,79 @@ class RelaxTransformer(Transformer):
         self.scope[name] = var
         return var
 
+    def parse_tensor_kwargs_value(
+        self, ty: ast.Type, span=None
+    ) -> Union[str, None, bool, complex, float, int]:
+        """Parse value of Tensor annotation keyword parameters in synr ast and return value in
+        primitive type.
+
+        Parameters
+        ----------
+        ty : ast.Ty
+            The value of one of Tensor annotation keyword paramters
+
+        Returns
+        -------
+        Union[str, None, bool, complex, float, int]
+            Parsed value in primitive type
+        """
+
+        if isinstance(ty, ast.TypeConstant):
+            return ty.value
+
+        if isinstance(ty, ast.TypeCall):
+            if ty.func_name == ast.BuiltinOp.UAdd:
+                assert len(ty.params) == 1
+
+                val = self.parse_tensor_kwargs_value(ty.params[0], span)
+                if not isinstance(val, int):
+                    self.report_error(f"expected int, but got {type(val)}", span)
+                return val
+
+            if ty.func_name == ast.BuiltinOp.USub:
+                assert len(ty.params) == 1
+
+                val = self.parse_tensor_kwargs_value(ty.params[0], span)
+                if not isinstance(val, int):
+                    self.report_error(f"expected int, but got {type(val)}", span)
+                return 0 - val
+            self.report_error(f"unsupported op: {ty.func_name}", ty.span)
+
+        self.report_error(f"unexpected value of keyword argument {ty}", ty.span)
+
+    def parse_tensor_kwargs(self, ty: ast.Type) -> dict[str, int]:
+        """Parse keyword parameters of Tensor type annotation.
+
+        Parameters
+        ----------
+        ty : ast.Ty
+            The Tensor type annotation
+
+        Returns
+        -------
+        dict[str, Any]
+            Parsed keyword parameters in dict[key, value] format
+        """
+        kwargs = {}
+        for key, val in ty.keyword_params.items():
+            assert isinstance(key, ast.TypeConstant) and isinstance(key.value, str)
+            kwargs[key.value] = self.parse_tensor_kwargs_value(val, ty.span)
+
+        # sanity check for Tensor type kewword arguments
+        if len(kwargs) == 0:
+            return kwargs
+        if not (len(kwargs) == 1 and "rank" in kwargs.keys()):
+            self.report_error(
+                f"expected one keyword argument 'rank' but got {list(kwargs)}", ty.span
+            )
+        if not isinstance(kwargs["rank"], int):
+            self.report_error(
+                f"expcted 'rank' to be of type int, but got {type(kwargs['rank'])}", ty.span
+            )
+        if kwargs["rank"] < -1:
+            self.report_error(f"rank must be >= -1, but got {kwargs['rank']}", ty.span)
+        return kwargs
+
     def transform_type(self, ty: ast.Type, bind_free_vars: bool) -> Tuple[relax.Type, relax.Expr]:
         """Transforms the given synr type annotation to a Relax type and shape expression.
 
@@ -263,7 +336,7 @@ class RelaxTransformer(Transformer):
                 return (relax.ShapeType(span), None)
             elif ty.id.name == "Dim":
                 return (relax.DimType(span), None)
-            self.report_error("unknown type in annotation", span)
+            self.report_error("unknown type in annotation", ty.span)
 
         # annotation with type arguments/shape annotation
         if isinstance(ty, ast.TypeCall):
@@ -273,7 +346,7 @@ class RelaxTransformer(Transformer):
                 if len(ty.params) != 2:
                     self.report_error(
                         "Tensor type annotations must have 2 fields (shape and dtype)",
-                        span,
+                        ty.span,
                     )
 
                 shape_annotation, dtype_annotation = ty.params
@@ -295,22 +368,11 @@ class RelaxTransformer(Transformer):
                     else:
                         shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
                 elif isinstance(shape_annotation, ast.TypeTuple):
-                    # the syntax for fixed rank k but unknown/unmatched shape is a tuple of length
-                    # k, where each element is "_" (e.g. "(_, _)" for rank 2)
-                    is_unmatched = all(
-                        map(
-                            lambda v: isinstance(v, ast.Var) and v.id.name == "_",
-                            shape_annotation.values,
-                        )
+                    shape = relax.ShapeExpr(
+                        self.parse_shape(shape_annotation, bind_free_vars),
+                        span=self.to_tvm_span(shape_annotation.span),
                     )
-                    if len(shape_annotation.values) > 0 and is_unmatched:
-                        rank = len(shape_annotation.values)
-                    else:
-                        shape = relax.ShapeExpr(
-                            self.parse_shape(shape_annotation, bind_free_vars),
-                            span=self.to_tvm_span(shape_annotation.span),
-                        )
-                        rank = len(shape)
+                    rank = len(shape)
                 else:
                     self.report_error(
                         f"unsupported shape annotation {shape_annotation}",
@@ -327,7 +389,18 @@ class RelaxTransformer(Transformer):
                         "Tensor dtype annotations must be concrete or erased",
                         dtype_annotation.span,
                     )
-
+                # parse optional keyword argument "rank" if present
+                kwargs = self.parse_tensor_kwargs(ty)
+                if "rank" in kwargs.keys():
+                    # If rank was also inferred from shape annotation, then it must match keyword
+                    # argument rank.
+                    if rank >= 0 and kwargs["rank"] != rank:
+                        self.report_error(
+                            f"#shape dimensions must match rank: {rank} vs. {kwargs['rank']}",
+                            ty.span,
+                        )
+                    else:
+                        rank = kwargs["rank"]
                 return (relax.DynTensorType(rank=rank, dtype=dtype, span=span), shape)
             elif ty.func_name.id.name == "Tuple":
                 field_types = []

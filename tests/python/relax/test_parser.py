@@ -82,7 +82,7 @@ def test_annotations():
     ) -> Tensor:
         z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
         w: Tensor(None, _) = multiply(z, z)
-        q: Tensor((_, _), _) = add(w, w)
+        q: Tensor(None, _, rank=2) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
         return t
@@ -121,6 +121,44 @@ def test_annotations_fail():
         def f(x: Tensor("u", "int64")):
             return x
 
+def test_mismatch_shape_dims_and_rank():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((2, 3), "float32", rank=3)):
+            return x
+
+
+def test_unexpected_num_kw_args():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", rank=1, foo=2)):
+            return x
+
+
+def test_unexpected_kw_arg():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", foo=1)):
+            return x
+
+
+def test_unexpected_rank():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", rank=-2)):
+            return x
+
+
+def test_unexpected_rank_type():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", rank="1")):
+            return x
 
 def test_match_shape():
     @R.function
@@ -272,7 +310,7 @@ def test_tuple():
     assert isinstance(tup, relax.Tuple)
     assert_structural_equal(tup.fields, [x, y])
     assert tup.shape_ is None
-    check_shape(tup.fields[0], None)
+    check_shape(tup.fields[0], relax.RuntimeDepShape())
     check_shape(tup.fields[1], (32,))
 
 
