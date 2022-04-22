@@ -179,7 +179,7 @@ Pass CreateFunctionPass(
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
-TVM_REGISTER_GLOBAL("relax._transform.MakeFunctionPass")
+TVM_REGISTER_GLOBAL("relax.transform.MakeFunctionPass")
     .set_body_typed(
         [](runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
            PassInfo pass_info) { return FunctionPass(pass_func, pass_info); });
@@ -389,7 +389,7 @@ Pass CreateDataflowBlockPass(
 
 TVM_REGISTER_NODE_TYPE(DataflowBlockPassNode);
 
-TVM_REGISTER_GLOBAL("relax._transform.MakeDataflowBlockPass")
+TVM_REGISTER_GLOBAL("relax.transform.MakeDataflowBlockPass")
     .set_body_typed(
         [](runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
            PassInfo pass_info) { return DataflowBlockPass(pass_func, pass_info); });
