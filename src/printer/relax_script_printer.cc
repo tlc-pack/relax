@@ -536,9 +536,9 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
   } else {
     doc << Doc::StrLiteral(runtime::DLDataType2String(ty->dtype));
   }
-  // Print rank annotation only when it cannot be inferred from shape itself.
+  // Print ndim annotation only when it cannot be inferred from shape itself.
   if (!shape.defined() || shape->IsInstance<relax::RuntimeDepShapeNode>()) {
-    doc << ", rank = " << ty->rank;
+    doc << ", ndim = " << ty->ndim;
   }
   doc << ")";
   return doc;
