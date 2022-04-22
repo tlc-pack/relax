@@ -53,6 +53,16 @@ TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
 
+/*!
+ * \brief Create a dataflowblock pass.
+ *
+ * \param pass_func The packed function that contains the optimization.
+ * \param opt_level The optimization level of the dataflowblock pass.
+ * \param name The name of the dataflowblock pass.
+ * \param required The list of the passes that the dataflowblock pass is dependent on.
+ *
+ * \return The created dataflowblock pass.
+ */
 TVM_DLL Pass CreateDataflowBlockPass(
     const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);

@@ -25,6 +25,7 @@ from . import block_builder
 from . import op
 from . import analysis
 from . import transform
+from . import expr_functor
 
 # Expr
 Expr = expr.Expr
@@ -73,3 +74,8 @@ from .op.op_attrs import VMAllocStorageAttrs, VMAllocTensorAttrs
 
 # IRBuilder
 BlockBuilder = block_builder.BlockBuilder
+
+# ExprFunctor
+ExprFunctor = expr_functor.ExprFunctor
+ExprVisitor = expr_functor.ExprVisitor
+ExprMutator = expr_functor.ExprMutator
