@@ -142,12 +142,5 @@ def test_extern_func():
     check_visit(func)
 
 
-def test_memo():
-    expr = relax.const(1)
-    for _ in range(100):
-        expr = expr + expr
-    check_visit(expr)
-
-
 if __name__ == "__main__":
     pytest.main([__file__])

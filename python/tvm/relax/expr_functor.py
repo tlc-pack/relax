@@ -34,15 +34,9 @@ class ExprFunctor:
     implements memoization.
     """
 
-    def __init__(self):
-        self.memo_map = {}
-
     # pylint: disable=no-else-return
     def visit(self, expr):
         """Apply the visitor to an expression."""
-        if expr in self.memo_map:
-            return self.memo_map[expr]
-
         if isinstance(expr, Function):
             res = self.visit_function(expr)
         elif isinstance(expr, ExternFunc):
@@ -81,8 +75,6 @@ class ExprFunctor:
             res = self.visit_op(expr)
         else:
             raise Exception("warning unhandled case: {0}".format(type(expr)))
-
-        self.memo_map[expr] = res
 
         return res
 
