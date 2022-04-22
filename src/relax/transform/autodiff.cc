@@ -72,8 +72,8 @@ class ReverseModeADMutator : public ExprMutator {
       ICHECK(body->body->IsInstance<VarNode>());
 
       for (const auto& v: node->params) {
-        Var adjoint_v = Var(v->name_hint() + "`", v->shape(), v->type_annotation);
-				adjoint_v->checked_type_ = v->type_annotation.value();
+        Var adjoint_v = Var(v->name_hint() + "`", v->shape(), v->checked_type());
+				adjoint_v->checked_type_ = v->checked_type();
         adjoint_map.Set(v, adjoint_v);
       }
 
@@ -154,7 +154,7 @@ class ReverseModeADMutator : public ExprMutator {
 
       Var v = binding->var;
       if (adjoint_map.count(v) == 0) {
-        Var adjoint_v = DataflowVar(v->name_hint() + "`", v->shape(), v->type_annotation);
+        Var adjoint_v = DataflowVar(v->name_hint() + "`", v->shape(), v->checked_type());
 				adjoint_v->checked_type_ = v->checked_type();
 				adjoint_map.Set(v, adjoint_v);
       }

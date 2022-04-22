@@ -330,6 +330,24 @@ Type InferTypeReduce(const Call& call, DiagnosticContext diag_ctx) {
   return DynTensorType(newrank, tensor_a->dtype);
 }
 
+Optional<Expr> InferShapeCrossEntropy(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "cross entropy op should have 2 arguments");
+  }
+
+  return ShapeExpr(Array<PrimExpr>());
+}
+
+Type InferTypeCrossEntropy(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "cross entropy should have 2 arguments");
+  }
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  return DynTensorType(0, tensor_a->dtype);
+}
+
 }  // namespace relax
 }  // namespace tvm
 
