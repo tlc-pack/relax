@@ -285,7 +285,7 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        dict[str, Any]
+        dict[str, int]
             Parsed keyword parameters in dict[key, value] format
         """
         kwargs = {}
@@ -293,7 +293,7 @@ class RelaxTransformer(Transformer):
             assert isinstance(key, ast.TypeConstant) and isinstance(key.value, str)
             kwargs[key.value] = self.parse_tensor_kwargs_value(val, ty.span)
 
-        # sanity check for Tensor type kewword arguments
+        # sanity check for Tensor type keyword arguments
         if len(kwargs) == 0:
             return kwargs
         if not (len(kwargs) == 1 and "ndim" in kwargs.keys()):
@@ -345,7 +345,8 @@ class RelaxTransformer(Transformer):
                 #                Tensor(n, m) which makes correct errors difficult here...
                 if len(ty.params) != 2:
                     self.report_error(
-                        "Tensor type annotations must have 2 fields (shape and dtype)",
+                        "Tensor type annotations must have 2 positional fields (shape and dtype)"
+                        " and one optional keyword field ndim",
                         ty.span,
                     )
 
