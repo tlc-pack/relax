@@ -192,6 +192,7 @@ def test_call_packed():
             attrs_type_key="relay.attrs.ShapeOfAttrs",
             type_args=(Shape),
         )
+        o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
         return z
 
     check_roundtrip(foo)
@@ -325,12 +326,17 @@ def test_class_irmodule():
     check_roundtrip(my_module)
 
 
-def test_dyntensortype():
+def test_dyntensor_type():
     x = relax.DynTensorType(ndim=3, dtype="float32")
     assert x.__str__() == 'Tensor[ndim=3, dtype="float32"]'
 
 
-def test_shapeexpr():
+def test_object_type():
+    x = relax.ObjectType()
+    assert x.__str__() == "Object"
+
+
+def test_shape_expr():
     x = relax.ShapeExpr([tir.IntImm("int64", 10), tir.IntImm("int64", 5)])
     assert x.__str__() == "(10, 5)"
 

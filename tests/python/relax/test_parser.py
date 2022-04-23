@@ -85,15 +85,17 @@ def test_annotations():
         q: Tensor(None, _, ndim=2) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
-        return t
+        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y)
+        return o
 
     x, y, r = f.params
-    z_bind, w_bind, q_bind, t_bind, sh_bind = f.body.blocks[0].bindings
+    z_bind, w_bind, q_bind, t_bind, sh_bind, o_bind = f.body.blocks[0].bindings
     z, mm = z_bind.var, z_bind.value
     w, mul = w_bind.var, w_bind.value
     q, add = q_bind.var, w_bind.value
     t, sub = t_bind.var, t_bind.value
     sh, shape_of = sh_bind.var, sh_bind.value
+    o, o_call_packed = o_bind.var, o_bind.value
 
     check_tensor_var(x, (32, "m"), "float32")
     check_tensor_var(y, ("m", "k"), "float32")
@@ -109,9 +111,12 @@ def test_annotations():
     check_call(sub, "subtract", [w, z])
     check_call(shape_of, "relax.shape_of", [t])
 
-    assert f.body.body == t
+    assert f.body.body == o
 
-    assert isinstance(f.ret_type, relax.ty.DynTensorType)
+    assert isinstance(f.ret_type, relax.ty.ObjectType)
+
+    assert isinstance(o._checked_type_, relax.ty.ObjectType)
+    assert len(o_call_packed.type_args) == 0
 
 
 def test_annotations_fail():
@@ -574,18 +579,28 @@ def test_call_packed():
             attrs_type_key="relay.attrs.ShapeOfAttrs",
             type_args=(Shape),
         )
+        o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
         return z
 
     x = f.params[0]
-    (z_bind, w_bind) = f.body.blocks[0].bindings
-    check_tensor_var(z_bind.var, ("n", "m"), "float32")
+    (z_bind, w_bind, o_bind) = f.body.blocks[0].bindings
 
-    assert isinstance(z_bind.value.op, relax.ExternFunc)
-    assert z_bind.value.op.global_symbol == "contrib.my_matmul"
-    assert "mp" in z_bind.value.attrs and z_bind.value.attrs["mp"] == False
-    assert_structural_equal(z_bind.value.args, [x, x])
+    z_var, z_value = z_bind.var, z_bind.value
+    check_tensor_var(z_var, ("n", "m"), "float32")
 
-    assert isinstance(w_bind.value.attrs, relay.op.op_attrs.ShapeOfAttrs)
+    assert isinstance(z_value.op, relax.ExternFunc)
+    assert z_value.op.global_symbol == "contrib.my_matmul"
+    assert "mp" in z_value.attrs and z_value.attrs["mp"] == False
+    assert_structural_equal(z_value.args, [x, x])
+    assert len(z_value.type_args) == 1
+    assert_structural_equal(z_value.type_args[0], relax.ty.DynTensorType(2, "float32"))
+
+    _, w_value = w_bind.var, w_bind.value
+    assert isinstance(w_value.attrs, relay.op.op_attrs.ShapeOfAttrs)
+    assert_structural_equal(w_value.type_args[0], relax.ty.ShapeType())
+
+    _, o_value = o_bind.var, o_bind.value
+    assert_structural_equal(o_value.type_args[0], relax.ty.ObjectType())
 
 
 def test_constant():

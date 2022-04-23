@@ -195,6 +195,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc VisitType_(const RelayRefTypeNode* node) final;
   Doc VisitType_(const TypeDataNode* node) final;
   Doc VisitType_(const relax::DynTensorTypeNode* node) final;
+  Doc VisitType_(const relax::ObjectTypeNode* node) final;
   //------------------------------------
   // Overload of Attr printing functions
   //------------------------------------
