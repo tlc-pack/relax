@@ -100,13 +100,13 @@ Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
     output_dtype = t0->dtype;
   }
 
-  int output_rank;
-  if (t0->IsUnknownRank() || t1->IsUnknownRank() || t2->IsUnknownRank()) {
-    output_rank = -1;
+  int output_ndim;
+  if (t0->IsUnknownNdim() || t1->IsUnknownNdim() || t2->IsUnknownNdim()) {
+    output_ndim = -1;
   } else {
-    output_rank = t0->rank;
+    output_ndim = t0->ndim;
   }
-  return DynTensorType(output_rank, output_dtype);
+  return DynTensorType(output_ndim, output_dtype);
 }
 
 }  // namespace relax

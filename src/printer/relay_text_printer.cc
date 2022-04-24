@@ -752,7 +752,7 @@ Doc RelayTextPrinter::VisitType_(const TypeDataNode* node) {
 
 Doc RelayTextPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
   Doc doc;
-  doc << "Tensor[rank=" << node->rank << ", dtype=\"" << PrintDType(node->dtype) << "\"]";
+  doc << "Tensor[ndim=" << node->ndim << ", dtype=\"" << PrintDType(node->dtype) << "\"]";
   return doc;
 }
 

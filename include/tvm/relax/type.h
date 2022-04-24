@@ -59,28 +59,29 @@ class ShapeType : public Type {
 class DynTensorTypeNode : public BaseTensorTypeNode {
  public:
   /*!
-   * \brief The rank of the tensor, use -1 to denote dynamic rank tensor.
+   * \brief The number of dimensions of the tensor, use -1 to denote tensor with unknwon number of
+   * dimensions.
    */
-  int rank;
+  int ndim;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("rank", &rank);
+    v->Visit("ndim", &ndim);
     v->Visit("dtype", &dtype);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const DynTensorTypeNode* other, SEqualReducer equal) const {
-    return equal(rank, other->rank) && equal(dtype, other->dtype);
+    return equal(ndim, other->ndim) && equal(dtype, other->dtype);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(rank);
+    hash_reduce(ndim);
     hash_reduce(dtype);
   }
 
-  inline bool IsUnknownRank() const { return rank == -1; }
+  inline bool IsUnknownNdim() const { return ndim == -1; }
 
   inline bool IsUnknownDtype() const { return dtype.is_void(); }
 
@@ -99,7 +100,7 @@ class DynTensorType : public Type {
    * \param shape The shape of the tensor.
    * \param dtype The runtime dtype of the tensor's elements.
    */
-  TVM_DLL DynTensorType(int rank, DataType dtype, Span span = Span());
+  TVM_DLL DynTensorType(int ndim, DataType dtype, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(DynTensorType, Type, DynTensorTypeNode);
 };
