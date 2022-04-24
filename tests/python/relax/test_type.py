@@ -28,9 +28,9 @@ def test_shape_type():
 
 def test_dyn_tensor_type():
     t0 = rx.DynTensorType()
-    assert t0.rank == -1
+    assert t0.ndim == -1
     t1 = rx.DynTensorType(3, "int32")
-    assert t1.rank == 3
+    assert t1.ndim == 3
     assert t1.dtype == "int32"
 
 

@@ -37,8 +37,8 @@ def nop():
 def test_block_builder():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -64,8 +64,8 @@ def test_block_builder():
 def test_function_single_block():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -86,7 +86,7 @@ def test_function_single_block():
     assert func.body.body == gv0
     assert gv0.shape[0] == m
     assert gv0.shape[1] == n
-    assert gv0.checked_type.rank == 2
+    assert gv0.checked_type.ndim == 2
     assert gv0.checked_type.dtype == "float16"
     assert len(func.body.blocks) == 1
     assert len(func.body.blocks[0].bindings) == 3
@@ -95,8 +95,8 @@ def test_function_single_block():
 def test_function_multi_blocks():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -118,7 +118,7 @@ def test_function_multi_blocks():
     func = bb.get()["func"]
     assert gv2.shape[0] == m
     assert gv2.shape[1] == n
-    assert gv2.checked_type.rank == 2
+    assert gv2.checked_type.ndim == 2
     assert gv2.checked_type.dtype == "float16"
     assert func.params[0] == x
     assert func.params[1] == y
@@ -133,8 +133,8 @@ def test_function_multi_blocks():
 def test_multi_functions():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -171,8 +171,8 @@ def test_binary_shape_type_deduction():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
     k = tir.Var("k", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, 1], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     z = rx.Var("z", [5], type_anno1)
@@ -185,32 +185,32 @@ def test_binary_shape_type_deduction():
             assert lv0.shape[0] == m
             assert lv0.shape[1] == n
             assert isinstance(lv0.checked_type, rx.DynTensorType)
-            assert lv0.checked_type.rank == 2
+            assert lv0.checked_type.ndim == 2
             assert lv0.checked_type.dtype == "float16"
 
             lv1 = bb.emit(rx.op.multiply(x, z))
             assert lv1.shape[0] == m
             assert lv1.shape[1] == 5
             assert isinstance(lv1.checked_type, rx.DynTensorType)
-            assert lv1.checked_type.rank == 2
+            assert lv1.checked_type.ndim == 2
             assert lv1.checked_type.dtype == "float16"
 
             lv2 = bb.emit(rx.op.multiply(z, w))
             assert isinstance(lv2.shape, rx.Call)
             assert isinstance(lv2.checked_type, rx.DynTensorType)
-            assert lv2.checked_type.rank == 1
+            assert lv2.checked_type.ndim == 1
             assert lv2.checked_type.dtype == "float16"
 
             lv3 = bb.emit(rx.op.multiply(y, w))
             assert isinstance(lv3.shape, rx.Call)
             assert isinstance(lv3.checked_type, rx.DynTensorType)
-            assert lv3.checked_type.rank == 1
+            assert lv3.checked_type.ndim == 1
             assert lv3.checked_type.dtype == "float16"
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
         assert isinstance(gv0.shape, rx.Call)
         assert isinstance(gv0.checked_type, rx.DynTensorType)
-        assert gv0.checked_type.rank == 1
+        assert gv0.checked_type.ndim == 1
         assert gv0.checked_type.dtype == "float16"
 
 
@@ -231,7 +231,7 @@ def test_emit_match_shape():
             assert isinstance(lv0, rx.DataflowVar)
             assert lv0.shape[0] == m
             assert lv0.shape[1] == n
-            assert lv0.checked_type.rank == 2
+            assert lv0.checked_type.ndim == 2
             assert lv0.checked_type.dtype == "float32"
 
             # lv1: Shape = match_shape(shape, [m, n])
@@ -260,8 +260,8 @@ def test_emit_match_shape():
 def test_normalize():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -277,7 +277,7 @@ def test_normalize():
 
 def test_call_te():
     bb = rx.BlockBuilder()
-    dtype = rx.DynTensorType(rank=2, dtype="float32")
+    dtype = rx.DynTensorType(ndim=2, dtype="float32")
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     x = rx.Var("x", [n, m], dtype)
     y = rx.Var("y", [n, m], dtype)
@@ -466,7 +466,7 @@ def test_emit_tuple_get_item():
         assert z.shape[1] == m
         assert z.shape[2] == 224
         assert z.shape[3] == 224
-        assert z.checked_type.rank == 4
+        assert z.checked_type.ndim == 4
         assert z.checked_type.dtype == "float32"
 
         w = bb.emit(rx.TupleGetItem(y, 1))
@@ -485,8 +485,8 @@ def test_emit_tuple_get_item():
 def test_nested_function_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -502,8 +502,8 @@ def test_nested_function_fail():
 def test_emit_func_output_twice_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -518,8 +518,8 @@ def test_emit_func_output_twice_fail():
 def test_func_params_twice_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
@@ -533,8 +533,8 @@ def test_func_params_twice_fail():
 def test_no_func_params_fail():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
-    type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
