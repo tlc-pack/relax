@@ -101,7 +101,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
         } else {
           LOG(FATAL) << "TypeError: Invalid type: " << field_type->GetTypeKey();
         }
-      };
+      }
       doc << ", dtype=(" << Doc::Concat(dtypes, Doc::Text(", ")) << "))";
     } else {
       LOG(FATAL) << "TypeError: Invalid type: " << output_type->GetTypeKey();
@@ -233,7 +233,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::RuntimeDepShapeNode* op) {
   Doc doc;
 
-  doc << "\"RuntimeDepShape\"";
+  doc << "_";
   return doc;
 }
 
@@ -523,24 +523,22 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
                                               const Optional<ObjectRef>& shape) {
   Doc doc;
   doc << "Tensor(";
+  // Print shape annotation
   if (shape.defined()) {
     doc << Print(Downcast<relay::Expr>(shape.value()));
-  } else if (ty->rank != -1) {
-    ICHECK_GE(ty->rank, 0) << "DynTensor ranks must be -1 (unknown) or nonnegative";
-    std::vector<Doc> dims(ty->rank, Doc::Text("_"));
-    doc << "(" << Doc::Concat(dims, Doc::Text(", "));
-    if (ty->rank == 1) {
-      doc << ",";
-    }
-    doc << ")";
   } else {
-    doc << "_";
+    doc << "None";
   }
+  // Print dtype annotation
   doc << ", ";
   if (ty->dtype.is_void()) {
     doc << "_";
   } else {
     doc << Doc::StrLiteral(runtime::DLDataType2String(ty->dtype));
+  }
+  // Print ndim annotation only when it cannot be inferred from shape itself.
+  if (!shape.defined() || shape->IsInstance<relax::RuntimeDepShapeNode>()) {
+    doc << ", ndim = " << ty->ndim;
   }
   doc << ")";
   return doc;

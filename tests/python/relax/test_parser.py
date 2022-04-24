@@ -55,13 +55,13 @@ def check_shape(e, s):
             assert edim.value == sdim
 
 
-def check_tensor_var(v, s, d, rank=None):
+def check_tensor_var(v, s, d, ndim=None):
     assert isinstance(v._checked_type_, relax.ty.DynTensorType)
     assert v._checked_type_.dtype == d
     if isinstance(s, (list, tuple)):
-        assert v._checked_type_.rank == len(s)
-    if rank is not None:
-        assert v._checked_type_.rank == rank
+        assert v._checked_type_.ndim == len(s)
+    if ndim is not None:
+        assert v._checked_type_.ndim == ndim
     check_shape(v, s)
 
 
@@ -78,11 +78,11 @@ def test_annotations():
     def f(
         x: Tensor((32, m), "float32"),
         y: Tensor((m, k), "float32"),
-        r: Tensor("RuntimeDepShape", "int64"),
+        r: Tensor(_, "int64"),
     ) -> Tensor:
         z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
-        w: Tensor(_, _) = multiply(z, z)
-        q: Tensor((_, _), _) = add(w, w)
+        w: Tensor(None, _) = multiply(z, z)
+        q: Tensor(None, _, ndim=2) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
         return t
@@ -100,7 +100,7 @@ def test_annotations():
     check_tensor_var(r, relax.RuntimeDepShape(), "int64")
     check_tensor_var(z, (32, "k"), "float32")
     check_tensor_var(w, None, "")
-    check_tensor_var(q, None, "", rank=2)
+    check_tensor_var(q, None, "", ndim=2)
     assert t._checked_type_ is None
     assert isinstance(sh._checked_type_, relax.ty.ShapeType)
 
@@ -119,6 +119,46 @@ def test_annotations_fail():
 
         @R.function
         def f(x: Tensor("u", "int64")):
+            return x
+
+
+def test_mismatch_shape_dims_and_ndim():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((2, 3), "float32", ndim=3)):
+            return x
+
+
+def test_unexpected_num_kw_args():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", ndim=1, foo=2)):
+            return x
+
+
+def test_unexpected_kw_arg():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", foo=1)):
+            return x
+
+
+def test_unexpected_ndim():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", ndim=-2)):
+            return x
+
+
+def test_unexpected_ndim_type():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor(_, "float32", ndim="1")):
             return x
 
 
@@ -272,7 +312,7 @@ def test_tuple():
     assert isinstance(tup, relax.Tuple)
     assert_structural_equal(tup.fields, [x, y])
     assert tup.shape_ is None
-    check_shape(tup.fields[0], None)
+    check_shape(tup.fields[0], relax.RuntimeDepShape())
     check_shape(tup.fields[1], (32,))
 
 
@@ -479,7 +519,7 @@ def test_call_tir():
     call_tir_node = foo.body.blocks[0].bindings[0].value
     assert call_tir_node.attrs is None
     assert_structural_equal(
-        call_tir_node.type_args[0], relax.DynTensorType(rank=2, dtype="float32")
+        call_tir_node.type_args[0], relax.DynTensorType(ndim=2, dtype="float32")
     )
 
 
@@ -648,9 +688,9 @@ def test_class_irmodule():
     assert g.body.body.args[0] == var_my_matmul
 
     gv_bind = j.body.blocks[0].bindings[0]
-    assert gv_bind.value.checked_type.rank == 2
+    assert gv_bind.value.checked_type.ndim == 2
     assert gv_bind.value.checked_type.dtype == "float32"
-    assert gv_bind.var.checked_type.rank == 2
+    assert gv_bind.var.checked_type.ndim == 2
     assert gv_bind.var.checked_type.dtype == "float32"
     check_shape(gv_bind.value, ("n", "n"))
     check_shape(gv_bind.var, ("n", "n"))
@@ -658,12 +698,12 @@ def test_class_irmodule():
     # check function type
     # assert isinstance(j.checked_type, relax.FuncType)
     # assert j.checked_type.ret_type.dtype == "float32"
-    # assert j.checked_type.ret_type.rank == 2
+    # assert j.checked_type.ret_type.ndim == 2
 
     # check SeqExpr type/shape
     assert isinstance(j.body, relax.SeqExpr)
     assert j.body.checked_type.dtype == "float32"
-    assert j.body.checked_type.rank == 2
+    assert j.body.checked_type.ndim == 2
     check_shape(j.body, ("n", "n"))
 
     # check tuple type/shape
@@ -671,7 +711,7 @@ def test_class_irmodule():
     isinstance(gv1_bind.value, relax.Tuple)
     isinstance(gv1_bind.value.checked_type, relax.TupleType)
     isinstance(gv1_bind.var.checked_type, relax.TupleType)
-    assert gv1_bind.var.checked_type.fields[0].rank == 2
+    assert gv1_bind.var.checked_type.fields[0].ndim == 2
     assert gv1_bind.var.checked_type.fields[0].dtype == "float32"
     isinstance(gv1_bind.var.shape, relax.Tuple)
     isinstance(gv1_bind.value.shape, relax.Tuple)
@@ -683,9 +723,9 @@ def test_class_irmodule():
     # check TupleGetItem type/shape
     gv2_bind = j.body.blocks[0].bindings[2]
     isinstance(gv2_bind.value, relax.TupleGetItem)
-    assert gv2_bind.value.checked_type.rank == 2
+    assert gv2_bind.value.checked_type.ndim == 2
     assert gv2_bind.value.checked_type.dtype == "float32"
-    assert gv2_bind.var.checked_type.rank == 2
+    assert gv2_bind.var.checked_type.ndim == 2
     assert gv2_bind.var.checked_type.dtype == "float32"
     check_shape(gv2_bind.value.shape, ("n", "n"))
     check_shape(gv2_bind.var, ("n", "n"))
