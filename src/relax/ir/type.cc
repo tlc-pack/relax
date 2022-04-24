@@ -61,5 +61,43 @@ TVM_REGISTER_NODE_TYPE(DimTypeNode);
 
 TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimType(span); });
 
+bool IsSubType(Type lhs, Type rhs) {
+  if (auto lhs_tensor = lhs.as<DynTensorTypeNode>()) {
+    if (auto rhs_tensor = rhs.as<DynTensorTypeNode>()) {
+      if (rhs_tensor->rank == -1 || rhs_tensor->rank == lhs_tensor->rank) {
+        if (rhs_tensor->dtype == DataType::Void() || rhs_tensor->dtype == lhs_tensor->dtype) {
+          return true;
+        }
+      }
+    }
+  }
+
+  if (lhs->IsInstance<ShapeTypeNode>() && rhs->IsInstance<ShapeTypeNode>()) {
+    return true;
+  }
+
+  if (auto lhs_tuple = lhs.as<TupleTypeNode>()) {
+    if (auto rhs_tuple = rhs.as<TupleTypeNode>()) {
+      if (lhs_tuple->fields.size() != rhs_tuple->fields.size()) {
+        return false;
+      }
+
+      for (size_t i = 0; i < lhs_tuple->fields.size(); i++) {
+        if (!IsSubType(lhs_tuple->fields[i], rhs_tuple->fields[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+  // TODO(@yuchen): consider ObjectType relation after it's merged.
+
+  return false;
+}
+
+TVM_REGISTER_GLOBAL("relax.IsSubType").set_body_typed([](Type lhs, Type rhs) {
+  return IsSubType(lhs, rhs);
+});
+
 }  // namespace relax
 }  // namespace tvm

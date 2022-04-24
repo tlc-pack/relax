@@ -65,7 +65,7 @@ def test_ndim_annotations():
 
 def test_match_shape():
     @R.function
-    def foo(x: Tensor(_, "float32")):
+    def foo(x: Tensor(_, "float32")) -> Tensor:
         relax.match_shape(x.shape, (n, m))
         y: Tensor((n, m), "float32") = add(x, x)
         return x
@@ -75,7 +75,7 @@ def test_match_shape():
 
 def test_if():
     @R.function
-    def foo(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+    def foo(cond: Tensor((), "bool"), x: Tensor((1,), "float32")) -> Tensor:
         if cond:
             w = add(x, x)
             y = multiply(w, w)
@@ -89,7 +89,9 @@ def test_if():
 
 def test_tuple():
     @R.function
-    def foo(x: Tensor(_, _), y: Tensor((32,), "float32")):
+    def foo(
+        x: Tensor(_, _), y: Tensor((32,), "float32")
+    ) -> Tuple(Tensor(_, _), Tensor((32,), "float32")):
         t: Tuple(Tensor(_, _), Tensor((32,), "float32")) = (x, y)
         return t
 
@@ -98,7 +100,7 @@ def test_tuple():
 
 def test_tuplegetitem():
     @R.function
-    def foo(x: Tensor(_, _)):
+    def foo(x: Tensor(_, _)) -> Tensor:
         y = add(x, x)
         z = multiply(y, x)
         t = relax.Tuple((y, z))
@@ -112,9 +114,9 @@ def test_tuplegetitem():
 
 def test_local_func():
     @R.function
-    def foo(x: Tensor(_, _)):
+    def foo(x: Tensor(_, _)) -> Tensor:
         @R.function
-        def bar(y: Tensor(_, _)):
+        def bar(y: Tensor(_, _)) -> Tensor:
             return y
 
         y = bar(x)  # tests local function variable scoping
@@ -125,7 +127,7 @@ def test_local_func():
 
 def test_dataflow():
     @R.function
-    def foo(x: Tensor(_, _)):
+    def foo(x: Tensor(_, _)) -> Tensor:
         with relax.dataflow():
             # TODO: parse this
             # nonlocal y, w
@@ -141,7 +143,7 @@ def test_dataflow():
 
 def test_dataflow_match_shape():
     @R.function
-    def foo(x: Tensor(_, _)):
+    def foo(x: Tensor(_, _)) -> Tensor:
         with relax.dataflow():
             x2: Tensor((n, m), _) = relax.match_shape(x, (n, m))
             y = add(x2, x2)
@@ -158,7 +160,7 @@ def test_dataflow_match_shape():
 
 def test_inline_tir():
     @R.function
-    def foo(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")):
+    def foo(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")) -> Tensor:
         @T.prim_func
         def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
@@ -180,7 +182,7 @@ def test_inline_tir():
 
 def test_call_packed():
     @R.function
-    def foo(x: Tensor((3, 3), "float32")):
+    def foo(x: Tensor((3, 3), "float32")) -> Shape:
         # test that we can intro dim vars
         z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
         w = relax.call_packed(
@@ -193,7 +195,7 @@ def test_call_packed():
 
 def test_primexpr_arithmetic():
     @R.function
-    def foo(x: Tensor((n, m), "float32")):
+    def foo(x: Tensor((n, m), "float32")) -> Shape:
         z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
         sh: Shape = (n + m, n // m)
         return z
@@ -203,7 +205,7 @@ def test_primexpr_arithmetic():
 
 def test_call_tir_extern():
     @R.function
-    def foo(x: Tensor):
+    def foo(x: Tensor) -> Tensor:
         z = relax.call_tir("my_extern", (x,), (10,), dtype="float32")
         return z
 
@@ -215,7 +217,7 @@ def test_const_irmodule():
         @tvm.script.ir_module
         class Module:
             @R.function
-            def my_const(x: Tensor((2, 3), "float32")):
+            def my_const(x: Tensor((2, 3), "float32")) -> Tensor:
                 y: Tensor((2, 3), "float32") = relax.const(
                     [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
                 )
@@ -232,7 +234,7 @@ def test_const_irmodule():
     @tvm.script.ir_module(metadata=json_str)
     class MyModule:
         @R.function
-        def my_const(x: Tensor((2, 3), "float32")):
+        def my_const(x: Tensor((2, 3), "float32")) -> Tensor:
             z: Tensor((2, 3), "float32") = relax.add(x, meta[relay.Constant][0])
             return z
 
@@ -243,7 +245,7 @@ def test_const_irmodule():
 
 def test_const():
     @R.function
-    def my_const(x: Tensor((2, 3), "float32")):
+    def my_const(x: Tensor((2, 3), "float32")) -> Tensor:
         y1 = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
         y2 = relax.const(2.1, dtype="float32")
         y3 = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
@@ -258,7 +260,7 @@ def test_const():
 def test_const_meta():
     def _get_meta_data():
         @R.function
-        def my_const(x: Tensor((2, 3), "float32")):
+        def my_const(x: Tensor((2, 3), "float32")) -> Tensor:
             y1: Tensor((2, 3), "float32") = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
             y2 = relax.const(2.1, dtype="float32")
             y3: Tensor((2, 3), "float32") = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
@@ -274,7 +276,7 @@ def test_const_meta():
     json_str = _get_meta_data()
 
     @R.function(metadata=json_str)
-    def my_const(x: Tensor((2, 3), "float32")):
+    def my_const(x: Tensor((2, 3), "float32")) -> Tensor:
         y2 = relax.const(2.1, dtype="float32")
         z: Tensor((2, 3), "float32") = relax.add(x, meta[relay.Constant][0])
         r: Tensor((2, 3), "float32") = relax.add(z, y2)

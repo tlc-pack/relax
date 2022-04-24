@@ -124,6 +124,14 @@ class DimType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
+/*!
+ * \brief Check the sub type relationship.
+ * \param lhs The left type.
+ * \param rhs The right type.
+ * \return Whether we can prove lhs type is the same or the subtype of the rhs type.
+ */
+bool IsSubType(Type lhs, Type rhs);
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_TYPE_H_

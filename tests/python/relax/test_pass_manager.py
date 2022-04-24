@@ -48,13 +48,13 @@ def test_function_class_pass():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def f1(x: Tensor((m, n), "float32")):
+        def f1(x: Tensor((m, n), "float32")) -> Tensor:
             return x
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def f2(x: Tensor((m, n), "float32")):
+        def f2(x: Tensor((m, n), "float32")) -> Tensor:
             gv0 = relax.add(x, x)
             return gv0
 
@@ -85,7 +85,9 @@ def test_function_pass():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+        def main(
+            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+        ) -> Tuple(Tensor, Tensor, Tensor):
             with relax.dataflow():
                 lv0 = relax.multiply(x, y)
                 gv0 = relax.add(lv0, y)
@@ -97,7 +99,9 @@ def test_function_pass():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+        def main(
+            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+        ) -> Tuple(Tensor, Tensor, Tensor):
             with relax.dataflow():
                 lv0 = relax.add(x, y)
                 gv0 = relax.multiply(lv0, y)
@@ -157,7 +161,7 @@ def test_dataflowblock_class_pass():
     @tvm.script.ir_module
     class Mod1:
         @R.function
-        def f1(x: Tensor((m, n), "float32")):
+        def f1(x: Tensor((m, n), "float32")) -> Tensor:
             with relax.dataflow():
                 lv0 = relax.multiply(x, x)
                 gv0 = relax.add(x, x)
@@ -167,7 +171,7 @@ def test_dataflowblock_class_pass():
     @tvm.script.ir_module
     class Mod2:
         @R.function
-        def f2(x: Tensor((m, n), "float32")):
+        def f2(x: Tensor((m, n), "float32")) -> Tensor:
             with relax.dataflow():
                 lv0 = relax.add(x, x)
                 gv0 = relax.add(x, x)
@@ -186,7 +190,9 @@ def test_dataflowblock_pass():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+        def main(
+            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+        ) -> Tuple(Tensor, Tensor, Tensor):
             with relax.dataflow():
                 lv0 = relax.multiply(x, y)
                 gv0 = relax.add(lv0, y)
@@ -198,7 +204,9 @@ def test_dataflowblock_pass():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+        def main(
+            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+        ) -> Tuple(Tensor, Tensor, Tensor):
             with relax.dataflow():
                 lv0 = relax.add(x, y)
                 gv0 = relax.multiply(lv0, y)

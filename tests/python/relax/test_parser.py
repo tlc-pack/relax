@@ -164,7 +164,7 @@ def test_unexpected_ndim_type():
 
 def test_match_shape():
     @R.function
-    def f(x: Tensor(_, "float32")):
+    def f(x: Tensor(_, "float32")) -> Tensor:
         relax.match_shape(x.shape, (n, m))
         y: Tensor((n, m), "float32") = add(x, x)
         return x
@@ -187,7 +187,7 @@ def test_dim_var_intro_fail():
 
 def test_if():
     @R.function
-    def f(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+    def f(cond: Tensor((), "bool"), x: Tensor((1,), "float32")) -> Tensor:
         if cond:
             w = add(x, x)
             y = multiply(w, w)
@@ -292,7 +292,9 @@ def test_unassigned_call_fail():
 
 def test_tuple():
     @R.function
-    def f(x: Tensor(_, _), y: Tensor((32,), "float32")):
+    def f(
+        x: Tensor(_, _), y: Tensor((32,), "float32")
+    ) -> Tuple(Tensor(_, _), Tensor((32,), "float32")):
         t: Tuple(Tensor(_, _), Tensor((32,), "float32")) = (x, y)
         return t
 
@@ -318,7 +320,7 @@ def test_tuple():
 
 def test_tuplegetitem():
     @R.function
-    def f(x: Tensor(_, _), y: Tensor(_, _)):
+    def f(x: Tensor(_, _), y: Tensor(_, _)) -> Tensor:
         t1 = relax.Tuple((x, y))
         t2 = (x, y)
         a = t1[0]
@@ -347,9 +349,9 @@ def test_tuplegetitem():
 
 def test_local_func():
     @R.function
-    def f(x: Tensor(_, _)):
+    def f(x: Tensor(_, _)) -> Tensor:
         @R.function
-        def bar(y: Tensor(_, _)):
+        def bar(y: Tensor(_, _)) -> Tensor:
             return y
 
         y = bar(x)  # tests local function variable scoping
@@ -367,7 +369,7 @@ def test_local_func():
 
 def test_dataflow():
     @R.function
-    def f(x: Tensor(_, _)):
+    def f(x: Tensor(_, _)) -> Tensor:
         with relax.dataflow():
             y = add(x, x)
             z = multiply(y, x)
@@ -397,7 +399,7 @@ def test_dataflow():
 
 def test_dataflow_match_shape():
     @R.function
-    def f(x: Tensor(_, _)):
+    def f(x: Tensor(_, _)) -> Tensor:
         with relax.dataflow():
             x2: Tensor((n, m), _) = relax.match_shape(x, (n, m))
             y = add(x2, x2)
@@ -512,7 +514,7 @@ def test_func_no_return_fail():
 
 def test_call_tir():
     @R.function
-    def foo(x: Tensor((m, n), "float32")):
+    def foo(x: Tensor((m, n), "float32")) -> Tensor:
         gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
         return gv0
 
@@ -525,7 +527,7 @@ def test_call_tir():
 
 def test_inline_tir():
     @R.function
-    def f(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")):
+    def f(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")) -> Tensor:
         @T.prim_func
         def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
@@ -558,7 +560,7 @@ def test_inline_tir():
 
 def test_call_packed():
     @R.function
-    def f(x: Tensor((3, 3), "float32")):
+    def f(x: Tensor((3, 3), "float32")) -> Shape:
         # test that we can intro dim vars
         z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
         w = relax.call_packed(
@@ -580,7 +582,7 @@ def test_call_packed():
 
 def test_constant():
     @R.function
-    def f(x: Tensor((2, 3), "float32")):
+    def f(x: Tensor((2, 3), "float32")) -> Tensor:
         y1 = relax.const(2, dtype="float32")
         y2 = relax.const([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
         z = add(x, y1)
@@ -602,7 +604,7 @@ def test_constant():
 
 def test_primexpr_arithmetic():
     @R.function
-    def f(x: Tensor((n, m), "float32")):
+    def f(x: Tensor((n, m), "float32")) -> Shape:
         z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
         sh: Shape = (n + m, n // m)
         return z
@@ -617,7 +619,7 @@ def test_primexpr_arithmetic():
 
 def test_call_tir_extern():
     @R.function
-    def f(x: Tensor):
+    def f(x: Tensor) -> Tensor:
         z = relax.call_tir("my_extern", (x,), (10,), dtype="float32")
         return z
 
@@ -696,9 +698,14 @@ def test_class_irmodule():
     check_shape(gv_bind.var, ("n", "n"))
 
     # check function type
-    # assert isinstance(j.checked_type, relax.FuncType)
-    # assert j.checked_type.ret_type.dtype == "float32"
-    # assert j.checked_type.ret_type.ndim == 2
+    j_type = j.checked_type
+    assert isinstance(j_type, relax.FuncType)
+    assert isinstance(j_type.ret_type, relax.DynTensorType)
+    assert j_type.ret_type.rank == 2
+    assert j_type.ret_type.dtype == "float32"
+    assert len(j_type.arg_types) == 1
+    assert isinstance(j_type.arg_types[0], relax.DynTensorType)
+    assert j_type.arg_types[0].rank == 2
 
     # check SeqExpr type/shape
     assert isinstance(j.body, relax.SeqExpr)

@@ -53,3 +53,7 @@ class DimType(Type):
 
     def __init__(self, span: Span = None):
         self.__init_handle_by_constructor__(_ffi_api.DimType, span)
+
+
+def is_subtype(lhs: Type, rhs: Type) -> bool:
+    return _ffi_api.IsSubType(lhs, rhs)

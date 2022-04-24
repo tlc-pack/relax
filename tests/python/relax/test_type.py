@@ -18,6 +18,7 @@ import pytest
 import numpy as np
 import tvm
 from tvm import relax as rx
+from tvm.relax.ty import is_subtype
 
 
 def test_shape_type():
@@ -32,6 +33,38 @@ def test_dyn_tensor_type():
     t1 = rx.DynTensorType(3, "int32")
     assert t1.ndim == 3
     assert t1.dtype == "int32"
+
+
+def test_subtype():
+    # DynTensorType
+    t0 = rx.DynTensorType(-1, None)
+    t1 = rx.DynTensorType(3, None)
+    t2 = rx.DynTensorType(3, "int32")
+    t3 = rx.DynTensorType(3, "float32")
+    t4 = rx.DynTensorType(3, "float32")
+    assert is_subtype(t1, t0)
+    assert is_subtype(t2, t0)
+    assert is_subtype(t3, t0)
+    assert is_subtype(t4, t0)
+    assert is_subtype(t2, t1)
+    assert is_subtype(t3, t1)
+    assert is_subtype(t3, t4)
+    assert is_subtype(t3, t2) == False
+    assert is_subtype(t2, t3) == False
+
+    # ShapeType
+    t5 = rx.ShapeType()
+    t6 = rx.ShapeType()
+    assert is_subtype(t5, t6)
+    assert is_subtype(t5, t0) == False
+
+    # TupleType
+    t7 = rx.TupleType([t0, t1, t5])
+    t8 = rx.TupleType([t1, t1, t5])
+    t9 = rx.TupleType([t1, t3, t5])
+    assert is_subtype(t8, t7)
+    assert is_subtype(t9, t7)
+    assert is_subtype(t9, t8)
 
 
 if __name__ == "__main__":

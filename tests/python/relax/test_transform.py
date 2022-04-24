@@ -32,7 +32,9 @@ def test_fma_rewrite():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+        def main(
+            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+        ) -> Tuple(Tensor, Tensor, Tensor):
             with relax.dataflow():
                 lv0 = relax.multiply(x, y)
                 gv0 = relax.add(lv0, y)
@@ -44,7 +46,9 @@ def test_fma_rewrite():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+        def main(
+            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+        ) -> Tuple(Tensor, Tensor, Tensor):
             with relax.dataflow():
                 lv0 = relax.multiply(x, y)
                 gv0 = relax.ewise_fma(x, y, y)
@@ -65,12 +69,12 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRemoveGlobalScopeVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
+            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")) -> Tuple(Tensor, Tensor):
                 with relax.dataflow():
                     gv_remove = relax.add(x, y)
                     gv1 = relax.add(x, y)
                     relax.output(gv_remove, gv1)
-                return gv_remove, gv1
+                return (gv_remove, gv1)
 
         relax.transform.FailTestRewrite()(TestRemoveGlobalScopeVar)
 
@@ -79,12 +83,12 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRewriteGlobalScopeVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
+            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")) -> Tuple(Tensor, Tensor):
                 with relax.dataflow():
                     gv_rewrite = relax.add(x, y)
                     gv1 = relax.add(x, y)
                     relax.output(gv_rewrite, gv1)
-                return gv_rewrite, gv1
+                return (gv_rewrite, gv1)
 
         relax.transform.FailTestRewrite()(TestRewriteGlobalScopeVar)
 
@@ -95,7 +99,7 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRewriteSymbolicVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
+            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")) -> Tensor:
                 with relax.dataflow():
                     lv0 = R.match_shape(x, (m, n))
                     gv0 = relax.add(lv0, y)
@@ -109,7 +113,7 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRemoveSymbolicVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
+            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")) -> Tensor:
                 with relax.dataflow():
                     lv0 = R.match_shape(x, (m, n, d))
                     gv0 = relax.add(lv0, y)
@@ -123,7 +127,7 @@ def test_visit_shape():
     @tvm.script.ir_module
     class TestVisitShape:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: Tensor((m, n), "float32")) -> Tensor:
             gv0 = R.add(x, x)
             return gv0
 
@@ -150,7 +154,7 @@ def test_to_non_dataflow():
     @tvm.script.ir_module
     class TestToNonDataflow:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: Tensor((m, n), "float32")) -> Tensor:
             with relax.dataflow():
                 lv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
                 gv0 = relax.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
@@ -194,7 +198,7 @@ def test_call_tir_rewrite():
     @tvm.script.ir_module
     class TestCallTIRRewrite:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: Tensor((m, n), "float32")) -> Tensor:
             gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
             return gv0
 
@@ -226,7 +230,7 @@ def test_vm_memory_lower():
     @tvm.script.ir_module
     class TestVMMemoryLower:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: Tensor((m, n), "float32")) -> Tensor:
             alloc = relax.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
@@ -372,7 +376,7 @@ def test_to_anf():
     @tvm.script.ir_module
     class TestToANFInputModule:
         @R.function
-        def f(x: Tensor(_, "float32")):
+        def f(x: Tensor(_, "float32")) -> Tuple(Tensor, Tensor):
             gv = relax.add(x, x)
             gv1 = relax.add(gv, gv)
             gv2 = relax.add(gv, gv1)
@@ -387,7 +391,7 @@ def test_to_anf_no_op():
     @tvm.script.ir_module
     class TestANFNoOp:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: Tensor((m, n), "float32")) -> Tensor:
             with relax.dataflow():
                 lv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
                 gv0 = relax.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
