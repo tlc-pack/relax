@@ -36,15 +36,15 @@ class DynTensorType(Type):
 
     Parameters
     ----------
-    rank : Optional[int]
-        The rank of the Tensor
+    ndim : Optional[int]
+        The ndim of the Tensor
 
     dtype : Optional[str]
         The content data type.
     """
 
-    def __init__(self, rank=-1, dtype="float32", span: Span = None):
-        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, rank, dtype, span)
+    def __init__(self, ndim=-1, dtype="float32", span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, ndim, dtype, span)
 
 
 @tvm._ffi.register_object("relax.DimType")
