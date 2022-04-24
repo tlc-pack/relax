@@ -94,7 +94,7 @@ class VMShapeLowerMutator : public ExprMutator {
       for (Var param : node->params) {
         if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
           if (auto* param_type = param->checked_type_.as<DynTensorTypeNode>()) {
-            if (param_type->rank != 0) {
+            if (param_type->ndim != 0) {
               Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
               StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
             }
