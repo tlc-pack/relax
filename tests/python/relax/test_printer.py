@@ -50,6 +50,19 @@ def test_annotations():
     check_roundtrip(foo)
 
 
+def test_ndim_annotations():
+    @R.function
+    def foo(
+        x: Tensor((2, 3, 5), "float32", ndim=3),
+        y: Tensor(_, "float32", ndim=-1),
+        z: Tensor(_, "float32", ndim=2),
+    ):
+        w: Tensor(None, "float32", ndim=-1) = x + x
+        return w
+
+    check_roundtrip(foo)
+
+
 def test_match_shape():
     @R.function
     def foo(x: Tensor(_, "float32")):
@@ -305,8 +318,8 @@ def test_class_irmodule():
 
 
 def test_dyntensortype():
-    x = relax.DynTensorType(rank=3, dtype="float32")
-    assert x.__str__() == 'Tensor[rank=3, dtype="float32"]'
+    x = relax.DynTensorType(ndim=3, dtype="float32")
+    assert x.__str__() == 'Tensor[ndim=3, dtype="float32"]'
 
 
 def test_shapeexpr():
@@ -316,7 +329,7 @@ def test_shapeexpr():
 
 def test_runtime_dep_shape():
     x = relax.RuntimeDepShape()
-    assert x.__str__() == '"RuntimeDepShape"'
+    assert x.__str__() == "_"
 
 
 if __name__ == "__main__":

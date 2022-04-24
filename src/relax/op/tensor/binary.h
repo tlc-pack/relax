@@ -103,13 +103,13 @@ Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
     output_dtype = t0->dtype;
   }
 
-  int output_rank;
-  if (t0->IsUnknownRank() || t1->IsUnknownRank()) {
-    output_rank = -1;
+  int output_ndim;
+  if (t0->IsUnknownNdim() || t1->IsUnknownNdim()) {
+    output_ndim = -1;
   } else {
-    output_rank = std::max(t0->rank, t1->rank);
+    output_ndim = std::max(t0->ndim, t1->ndim);
   }
-  return DynTensorType(output_rank, output_dtype);
+  return DynTensorType(output_ndim, output_dtype);
 }
 
 }  // namespace relax

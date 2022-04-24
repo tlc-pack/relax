@@ -84,8 +84,8 @@ class BlockBuilder(Object):
 
         m = tir.Var("m", "int32")
         n = tir.Var("n", "int32")
-        type_anno0 = rx.DynTensorType(rank=2, dtype="float16")
-        type_anno1 = rx.DynTensorType(rank=1, dtype="float16")
+        type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+        type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
         x = rx.Var("x", [m, n], type_anno0)
         y = rx.Var("y", [n], type_anno1)
         bb = rx.BlockBuilder()
@@ -481,7 +481,7 @@ class BlockBuilder(Object):
 
                 @R.function
                 def rx_func(x: Tensor((n,), "float32"), y: Tensor(((n + 1),), "float32"))
-                    -> Tensor(_, "float32"):
+                    -> Tensor(None, "float32", ndim=-1):
                     # block 0
                     gv = relax.call_tir(te_func, (y,), ((n + 1),), (n,), dtype="float32")
                     return gv
