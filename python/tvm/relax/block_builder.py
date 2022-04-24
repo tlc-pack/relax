@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return, invalid-name
 """Developer API of constructing Relax AST."""
 import typing
 
@@ -572,7 +572,7 @@ class BlockBuilder(Object):
             self._blocks.append(block)
         seqe = self.normalize(rx.SeqExpr(self._blocks, self._func_ret))
 
-        # The function's checked_type_ relies on the function body(seqe) to have deduced checked_type_
+        # The function's checked_type_ relies on the function body(seqe) to have deduced type
         # TODO(@yuchen): handle the case where the body's checked_type_ is null
         func = rx.Function(self._func_params, seqe, None, rx.GlobalVar(self._func_name))
         self.add_func(func, self._func_name)

@@ -701,11 +701,11 @@ def test_class_irmodule():
     j_type = j.checked_type
     assert isinstance(j_type, relax.FuncType)
     assert isinstance(j_type.ret_type, relax.DynTensorType)
-    assert j_type.ret_type.rank == 2
+    assert j_type.ret_type.ndim == 2
     assert j_type.ret_type.dtype == "float32"
     assert len(j_type.arg_types) == 1
     assert isinstance(j_type.arg_types[0], relax.DynTensorType)
-    assert j_type.arg_types[0].rank == 2
+    assert j_type.arg_types[0].ndim == 2
 
     # check SeqExpr type/shape
     assert isinstance(j.body, relax.SeqExpr)

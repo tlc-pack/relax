@@ -56,7 +56,7 @@ def test_ndim_annotations():
         x: Tensor((2, 3, 5), "float32", ndim=3),
         y: Tensor(_, "float32", ndim=-1),
         z: Tensor(_, "float32", ndim=2),
-    ):
+    ) -> Tensor:
         w: Tensor(None, "float32", ndim=-1) = x + x
         return w
 

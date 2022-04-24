@@ -495,7 +495,7 @@ class ExternFunc : public BaseFunc {
  * \brief Update the type of an Expr.
  * \param expr The Expr whose type to be updated.
  * \param type The type assigned to the checked_type_ of \p expr.
- * \note We ensure idempotent, that is we can only update the checked_type_ of an Expr if it's
+ * \note We ensure idempotence, that is we can only update the checked_type_ of an Expr if it's
  * nullptr.
  */
 void UpdateType(Expr expr, Type type);
@@ -504,7 +504,7 @@ void UpdateType(Expr expr, Type type);
  * \brief Update the shape of an Expr.
  * \param expr The Expr whose shape to be updated.
  * \param shape The shape assigned to the shape_ of \p expr.
- * \note We ensure idempotent, that is we can only update the shape_ of an Expr if it's nullptr.
+ * \note We ensure idempotence, that is we can only update the shape_ of an Expr if it's nullptr.
  */
 void UpdateShape(Expr expr, Optional<ObjectRef> shape);
 

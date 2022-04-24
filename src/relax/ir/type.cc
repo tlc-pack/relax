@@ -64,7 +64,7 @@ TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimTy
 bool IsSubType(Type lhs, Type rhs) {
   if (auto lhs_tensor = lhs.as<DynTensorTypeNode>()) {
     if (auto rhs_tensor = rhs.as<DynTensorTypeNode>()) {
-      if (rhs_tensor->rank == -1 || rhs_tensor->rank == lhs_tensor->rank) {
+      if (rhs_tensor->ndim == -1 || rhs_tensor->ndim == lhs_tensor->ndim) {
         if (rhs_tensor->dtype == DataType::Void() || rhs_tensor->dtype == lhs_tensor->dtype) {
           return true;
         }
