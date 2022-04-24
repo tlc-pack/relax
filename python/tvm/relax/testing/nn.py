@@ -34,8 +34,8 @@ class Placeholder(relax.Var):
     def __init__(self, shape, dtype="float32", name="data"):
         if not isinstance(shape, (list, tuple)):
             raise TypeError("the shape of Placeholder is expected to be a list or a tuple")
-        rank = len(shape)
-        type_anno = relax.DynTensorType(rank, dtype)
+        ndim = len(shape)
+        type_anno = relax.DynTensorType(ndim, dtype)
         super().__init__(relax.BlockBuilder.current().get_unique_name(name), shape, type_anno)
 
 
@@ -45,8 +45,8 @@ class Parameter(relax.Var):
     def __init__(self, shape, dtype="float32", name="param"):
         if not isinstance(shape, (list, tuple)):
             raise TypeError("the shape of Parameter is expected to be a list or a tuple")
-        rank = len(shape)
-        type_anno = relax.DynTensorType(rank, dtype)
+        ndim = len(shape)
+        type_anno = relax.DynTensorType(ndim, dtype)
         super().__init__(relax.BlockBuilder.current().get_unique_name(name), shape, type_anno)
 
 
