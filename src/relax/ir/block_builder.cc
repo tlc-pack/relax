@@ -635,17 +635,16 @@ NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 GlobalVar BlockBuilderNode::AddFunction(const BaseFunc& func, const String& func_name_hint) {
   auto it = func_map_.find(func);
   if (it == func_map_.end()) {
-    IRModuleNode* p_mod = context_mod_.CopyOnWrite();
+    context_mod_.CopyOnWrite();
     String func_name = name_table_->GetUniqueName(func_name_hint);
     GlobalVar gvar = GlobalVar(func_name);
     if (const tir::PrimFuncNode* prim_func = func.as<tir::PrimFuncNode>()) {
       tir::PrimFunc fn = GetRef<tir::PrimFunc>(prim_func);
       fn = WithAttr(std::move(fn), "global_symbol", func_name);
-      p_mod->Add(gvar, fn);
+      context_mod_->Add(gvar, fn);
     } else {
-      p_mod->Add(gvar, func);
+      context_mod_->Add(gvar, func);
     }
-    context_mod_ = GetRef<IRModule>(p_mod);
     func_map_.emplace(func, gvar);
     return gvar;
   } else {
@@ -653,11 +652,10 @@ GlobalVar BlockBuilderNode::AddFunction(const BaseFunc& func, const String& func
   }
 }
 
-void BlockBuilderNode::UpdateFunction(const GlobalVar& gv, const Function& updated_function) {
-  IRModuleNode* p_mod = context_mod_.CopyOnWrite();
-  p_mod->Update(gv, updated_function);
+void BlockBuilderNode::UpdateFunction(const GlobalVar& gv, Function updated_function) {
+  context_mod_.CopyOnWrite();
+  context_mod_->Update(gv, updated_function);
   func_map_[updated_function] = gv;
-  context_mod_ = GetRef<IRModule>(p_mod);
 }
 
 IRModule BlockBuilderNode::GetContextIRModule() const { return context_mod_; }

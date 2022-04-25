@@ -126,11 +126,12 @@ class DimType : public Type {
 
 /*!
  * \brief Check the sub type relationship.
- * \param lhs The left type.
- * \param rhs The right type.
- * \return Whether we can prove lhs type is the same or the subtype of the rhs type.
+ * \param base The base type.
+ * \param derived The derived type.
+ * \return If \p derived is a subtype of \p base or if both are the same type, returns true.
+ * Otherwise returns false.
  */
-bool IsSubType(Type lhs, Type rhs);
+bool IsBaseOf(const Type& base, const Type& derived);
 
 }  // namespace relax
 }  // namespace tvm

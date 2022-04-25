@@ -206,7 +206,7 @@ Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr bo
     ret_type = body->checked_type_;
   } else {
     if (body->checked_type_.defined()) {
-      CHECK(IsSubType(body->checked_type_, ret_type))
+      CHECK(IsBaseOf(ret_type, body->checked_type_))
           << "relax.Function requires the deduced body->checked_type_ to be a subtype of the "
              "annotated ret_type but meet body->checked_type_: "
           << body->checked_type_ << ", ret_type: " << ret_type;

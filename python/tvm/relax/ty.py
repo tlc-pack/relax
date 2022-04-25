@@ -55,5 +55,5 @@ class DimType(Type):
         self.__init_handle_by_constructor__(_ffi_api.DimType, span)
 
 
-def is_subtype(lhs: Type, rhs: Type) -> bool:
-    return _ffi_api.IsSubType(lhs, rhs)
+def is_base_of(base: Type, derived: Type) -> bool:
+    return _ffi_api.IsBaseOf(base, derived)
