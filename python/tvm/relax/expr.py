@@ -193,6 +193,17 @@ class Function(BaseFunc):
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Function, name, params, body, ret_type, span)
 
+    @staticmethod
+    def create_unchecked(
+        params: List[Var],
+        body: Expr,
+        ret_type: Type,
+        name: Optional[GlobalVar] = None,
+        span: Span = None,
+    ):
+        """ Construct a relax.Function but without type checking. """
+        return _ffi_api.Function_CreateUnchecked(name, params, body, ret_type, span)
+
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):

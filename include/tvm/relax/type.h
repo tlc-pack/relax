@@ -125,7 +125,7 @@ class DimType : public Type {
 };
 
 /*!
- * \brief Check the sub type relationship.
+ * \brief Check the subtype relationship between base and derived.
  * \param base The base type.
  * \param derived The derived type.
  * \return If \p derived is a subtype of \p base or if both are the same type, returns true.

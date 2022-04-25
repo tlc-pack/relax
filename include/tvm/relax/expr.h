@@ -457,6 +457,13 @@ class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
                             Type ret_type, Span span = Span());
+
+  /*!
+   * \brief Mimics the constructor but without type checking.
+   */
+  TVM_DLL static Function CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params,
+                                          Expr body, Type ret_type, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };

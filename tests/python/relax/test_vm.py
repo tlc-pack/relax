@@ -359,9 +359,7 @@ def test_vm_compile_stage0():
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
-        def foo(
-            x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")
-        ) -> Tensor((3, 4), "float32"):
+        def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
             z = R.call_packed("test.vm.identity", x, y)
             return y
 

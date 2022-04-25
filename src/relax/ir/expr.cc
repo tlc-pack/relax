@@ -233,6 +233,29 @@ TVM_REGISTER_GLOBAL("relax.Function")
                        Type ret_type,
                        Span span) { return Function(name, params, body, ret_type, span); });
 
+Function Function::CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
+                                   Type ret_type, Span span) {
+  for (Var param : params) {
+    ICHECK(param->checked_type_.defined())
+        << "relax.Function requires params to contain checked_type_.";
+  }
+
+  // set the fields
+  ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
+  n->name = std::move(name);
+  n->params = std::move(params);
+  n->body = std::move(body);
+  n->ret_type = std::move(ret_type);
+  n->span = std::move(span);
+  return Function(std::move(n));
+}
+
+TVM_REGISTER_GLOBAL("relax.Function_CreateUnchecked")
+    .set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
+                       Type ret_type, Span span) {
+      return Function::CreateUnchecked(name, params, body, ret_type, span);
+    });
+
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
 ExternFunc::ExternFunc(String global_symbol, Span span) {

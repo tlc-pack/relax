@@ -56,4 +56,21 @@ class DimType(Type):
 
 
 def is_base_of(base: Type, derived: Type) -> bool:
+    """Check the subtype relationship between base and derived.
+
+    Parameters
+    ----------
+    base : Type
+        The base type.
+
+    derived : Type
+        The derived type.
+
+
+    Returns
+    -------
+    ret : bool
+        If derived is a subtype of base or if both are the same type, returns true.
+        Otherwise returns false.
+    """
     return _ffi_api.IsBaseOf(base, derived)
