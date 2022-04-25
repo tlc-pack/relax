@@ -252,8 +252,7 @@ class DataflowBlockMutator : public ExprMutator {
         var = node->var;
         for (PrimExpr expr : node->pattern) {
           if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
-            tir::Var sym_var0 = Downcast<tir::Var>(expr);
-            symbolic_vars.Set(sym_var->name_hint, sym_var0);
+            symbolic_vars.Set(sym_var->name_hint, Downcast<tir::Var>(expr));
           }
         }
       } else {
