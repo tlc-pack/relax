@@ -124,6 +124,15 @@ class DimType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
+/*!
+ * \brief Check the subtype relationship between base and derived.
+ * \param base The base type.
+ * \param derived The derived type.
+ * \return If \p derived is a subtype of \p base or if both are the same type, returns true.
+ * Otherwise returns false.
+ */
+bool IsBaseOf(const Type& base, const Type& derived);
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_TYPE_H_
