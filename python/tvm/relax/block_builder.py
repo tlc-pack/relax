@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return, invalid-name
 """Developer API of constructing Relax AST."""
 import typing
 
 from typing import List, Optional, Union, Any, Callable
+from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm import relax as rx, tir
 import tvm
@@ -132,11 +133,11 @@ class BlockBuilder(Object):
         """Returns the current BlockBuilder."""
         return BlockBuilder._current
 
-    def __init__(self):
+    def __init__(self, mod: IRModule = None):
         self._blocks = []
         # a boolean flag that tracks if emit_func_output has been called
         self._is_emit_func_output_called = False
-        self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate)
+        self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)
 
     def _begin_dataflow_block(self) -> None:
         _ffi_api.BlockBuilderBeginDataflowBlock(self)
@@ -564,16 +565,16 @@ class BlockBuilder(Object):
 
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
-        self._func_ret = output
+        self._func_ret = self.normalize(output)
 
         block = self._end_block()
         if len(block.bindings) > 0:
             self._blocks.append(block)
-        seqe = rx.SeqExpr(self._blocks, self._func_ret)
-        # TODO: rx function can return Tuple as well, need to infer ret type
-        func = rx.Function(
-            self._func_params, seqe, rx.DynTensorType(-1), rx.GlobalVar(self._func_name)
-        )
+        seqe = self.normalize(rx.SeqExpr(self._blocks, self._func_ret))
+
+        # The function's checked_type_ relies on the function body(seqe) to have deduced type
+        # TODO(@yuchen): handle the case where the body's checked_type_ is null
+        func = rx.Function(self._func_params, seqe, None, rx.GlobalVar(self._func_name))
         self.add_func(func, self._func_name)
 
     def normalize(self, expr: Expr) -> Expr:
@@ -632,4 +633,17 @@ class BlockBuilder(Object):
         gvar : GlobalVar
             The global var bound to the added function.
         """
-        return _ffi_api.BlockBuilderAddFuncToContext(self, func, func_name)
+        return _ffi_api.BlockBuilderAddFunction(self, func, func_name)
+
+    def update_func(self, gv: GlobalVar, updated_func: BaseFunc) -> None:
+        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
+
+        Parameters
+        ----------
+        gv : GlobalVar
+            The global var referring the function to be updated.
+
+        updated_func : BaseFunc
+            The updated function.
+        """
+        return _ffi_api.BlockBuilderUpdateFunction(self, gv, updated_func)
