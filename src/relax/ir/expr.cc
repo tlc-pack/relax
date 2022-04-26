@@ -189,16 +189,42 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body, Type ret_type,
                    Span span) {
+  // Set the function type.
+  // For function, we take a conservative approach and require the function type
+  // to be known at construction time.
+  Array<Type> param_types;
+  for (Var param : params) {
+    CHECK(param->checked_type_.defined())
+        << "relax.Function requires params to contain checked_type_";
+    param_types.push_back(param->checked_type_);
+  }
+
+  if (!ret_type.defined()) {
+    CHECK(body->checked_type_.defined())
+        << "relax.Function requires body to contain deduced checked_type_"
+        << " or ret_type to be supplied";
+    ret_type = body->checked_type_;
+  } else {
+    if (body->checked_type_.defined()) {
+      CHECK(IsBaseOf(ret_type, body->checked_type_))
+          << "relax.Function requires the deduced body->checked_type_ to be a subtype of the "
+             "annotated ret_type but meet body->checked_type_: "
+          << body->checked_type_ << ", ret_type: " << ret_type;
+
+      // Use the more refined body->checked_type_ as the return type.
+      ret_type = body->checked_type_;
+    }
+  }
+  auto func_type = FuncType(param_types, ret_type, {}, {});
+
+  // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->name = std::move(name);
-  for (Var param : params) {
-    ICHECK(param->checked_type_.defined())
-        << "The checked_type_ of Function parameters must be filled.";
-  }
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
-  n->span = span;
+  n->checked_type_ = std::move(func_type);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -206,6 +232,29 @@ TVM_REGISTER_GLOBAL("relax.Function")
     .set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
                        Type ret_type,
                        Span span) { return Function(name, params, body, ret_type, span); });
+
+Function Function::CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
+                                   Type ret_type, Span span) {
+  for (Var param : params) {
+    ICHECK(param->checked_type_.defined())
+        << "relax.Function requires params to contain checked_type_.";
+  }
+
+  // set the fields
+  ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
+  n->name = std::move(name);
+  n->params = std::move(params);
+  n->body = std::move(body);
+  n->ret_type = std::move(ret_type);
+  n->span = std::move(span);
+  return Function(std::move(n));
+}
+
+TVM_REGISTER_GLOBAL("relax.Function_CreateUnchecked")
+    .set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
+                       Type ret_type, Span span) {
+      return Function::CreateUnchecked(name, params, body, ret_type, span);
+    });
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
@@ -218,6 +267,25 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
   return ExternFunc(global_symbol, span);
+});
+
+void UpdateType(Expr expr, Type type) {
+  ICHECK(!expr->checked_type_.defined() || tvm::StructuralEqual()(expr->checked_type_, type))
+      << "the checked_type_ of the Expr must not be nullptr for idempotency";
+  expr->checked_type_ = type;
+}
+
+TVM_REGISTER_GLOBAL("relax.UpdateType").set_body_typed([](Expr expr, Type type) {
+  UpdateType(expr, type);
+});
+
+void UpdateShape(Expr expr, Optional<ObjectRef> shape) {
+  ICHECK(!expr->shape_.defined()) << "the shape_ of the Expr must not be nullptr for idempotency";
+  expr->shape_ = shape;
+}
+
+TVM_REGISTER_GLOBAL("relax.UpdateShape").set_body_typed([](Expr expr, Optional<ObjectRef> shape) {
+  UpdateShape(expr, shape);
 });
 
 }  // namespace relax

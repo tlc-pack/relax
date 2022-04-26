@@ -29,13 +29,13 @@ if __name__ == "__main__":
     relay_mod, _ = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
 
     # translate the ResNet model from Relay to Relax
-    relax_mod = relay_translator.from_relay(relay_mod["main"])
+    target = tvm.target.Target("llvm", host="llvm")
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
 
     # print the ResNet IRmodule got translated
     print(R.parser.astext(relax_mod))
 
     # build the IRModule and create relax vm
-    target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(relax_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 

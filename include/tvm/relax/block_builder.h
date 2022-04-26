@@ -155,7 +155,14 @@ class BlockBuilderNode : public Object {
    * GlobalVar directly.
    * \return The global var bound to the added function.
    */
-  GlobalVar AddFuncToContext(const BaseFunc& func, const String& func_name_hint);
+  GlobalVar AddFunction(const BaseFunc& func, const String& func_name_hint);
+
+  /*!
+   * \brief Update a Relax function or a TIR PrimFunc in \p context_mod_.
+   * \param gv The global var referring the function to be updated.
+   * \param function The updated function.
+   */
+  void UpdateFunction(const GlobalVar& gv, Function function);
 
   /*!
    * \brief Get the context IRModule being built.
@@ -237,9 +244,10 @@ class BlockBuilder : public ObjectRef {
  public:
   /*!
    * \brief Create a BlockBuilder.
+   * \param mod Optional before-transformation IRModule for rewriting.
    * \return The created BlockBuilder.
    */
-  TVM_DLL static BlockBuilder Create();
+  TVM_DLL static BlockBuilder Create(Optional<IRModule> mod);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
