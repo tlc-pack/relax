@@ -67,10 +67,8 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
       return expr;
     }
-    auto ret = runtime::make_object<FunctionNode>(*func);
-    ret->params = new_params;
-    ret->body = new_body;
-    return Function(ret);
+    // The checked_type_ of the new function is deduced from the function body
+    return Function(func->name, new_params, new_body, Type());
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
   }

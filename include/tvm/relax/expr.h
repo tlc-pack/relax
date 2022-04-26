@@ -457,6 +457,13 @@ class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
                             Type ret_type, Span span = Span());
+
+  /*!
+   * \brief Mimics the constructor but without type checking.
+   */
+  TVM_DLL static Function CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params,
+                                          Expr body, Type ret_type, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
@@ -490,6 +497,23 @@ class ExternFunc : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
+
+/*!
+ * \brief Update the type of an Expr.
+ * \param expr The Expr whose type to be updated.
+ * \param type The type assigned to the checked_type_ of \p expr.
+ * \note We ensure idempotence, that is we can only update the checked_type_ of an Expr if it's
+ * nullptr.
+ */
+void UpdateType(Expr expr, Type type);
+
+/*!
+ * \brief Update the shape of an Expr.
+ * \param expr The Expr whose shape to be updated.
+ * \param shape The shape assigned to the shape_ of \p expr.
+ * \note We ensure idempotence, that is we can only update the shape_ of an Expr if it's nullptr.
+ */
+void UpdateShape(Expr expr, Optional<ObjectRef> shape);
 
 }  // namespace relax
 }  // namespace tvm
