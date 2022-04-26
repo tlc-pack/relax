@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import, super-init-not-called
+# pylint: disable=redefined-builtin
 """The expression nodes of Relax."""
 from typing import List, Optional
 import tvm._ffi
+import tvm
 from ..ir import Node, Span, SourceName, BaseFunc
 from ..runtime import String
 from ..relay import Id, Tuple, TupleGetItem
@@ -191,6 +193,17 @@ class Function(BaseFunc):
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Function, name, params, body, ret_type, span)
 
+    @staticmethod
+    def create_unchecked(
+        params: List[Var],
+        body: Expr,
+        ret_type: Type,
+        name: Optional[GlobalVar] = None,
+        span: Span = None,
+    ):
+        """ Construct a relax.Function but without type checking. """
+        return _ffi_api.Function_CreateUnchecked(name, params, body, ret_type, span)
+
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):
@@ -210,3 +223,11 @@ def extern(name: str, span: Span = None):
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
     """Create te tensor from relax expression."""
     return _ffi_api.TETensor(value, name)
+
+
+def _update_type(expr: Expr, type: Type) -> None:
+    _ffi_api.UpdateType(expr, type)
+
+
+def _update_shape(expr: Expr, shape: Optional[tvm.runtime.Object]) -> None:
+    _ffi_api.UpdateShape(expr, shape)
