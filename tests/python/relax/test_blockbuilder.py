@@ -27,6 +27,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc, ShapeExpr, Tuple
 from tvm import topi
 from tvm.relax.testing import nn
+from tvm.script import relax as R, tir as T
 
 
 @tvm.register_func("test.blockbuilder.nop")
@@ -165,6 +166,48 @@ def test_multi_functions():
     assert func2.params[1] == y
     assert func2.name.name_hint == "func2"
     assert len(func2.body.blocks) == 1
+
+
+def test_block_builder_input_mod():
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.var("int32")
+            n = T.var("int32")
+            k = T.var("int32")
+            A = T.match_buffer(x, (m, n))
+            B = T.match_buffer(y, (n, k))
+            C = T.match_buffer(z, (m, k))
+
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+        @R.function
+        def before_main(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")) -> Tensor:
+            gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
+            return gv0
+
+    @R.function
+    def after_main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+        return gv0
+
+    input_mod = InputModule
+    bb = rx.BlockBuilder(input_mod)
+    var_main = input_mod.get_global_var("before_main")
+    bb.update_func(var_main, after_main)
+
+    context_mod = bb.get()
+    assert len(context_mod.get_global_vars()) == 2
+    var_before_main = context_mod.get_global_var("before_main")
+    assert var_main == var_before_main
+    assert_structural_equal(context_mod[var_before_main], after_main)
 
 
 def test_binary_shape_type_deduction():

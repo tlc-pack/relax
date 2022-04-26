@@ -51,7 +51,7 @@ class VMShapeLowerMutator : public ExprMutator {
         // mutate
         func = this->VisitExpr(func);
       }
-      builder_->AddFuncToContext(Downcast<BaseFunc>(func), p.first->name_hint);
+      builder_->AddFunction(Downcast<BaseFunc>(func), p.first->name_hint);
     }
     return builder_->GetContextIRModule();
   }
@@ -70,7 +70,7 @@ class VMShapeLowerMutator : public ExprMutator {
     }
     tir::PrimFunc func = CalculateShape(GetRef<ShapeExpr>(node));
 
-    GlobalVar shape_func_var = builder_->AddFuncToContext(func, "shape_func");
+    GlobalVar shape_func_var = builder_->AddFunction(func, "shape_func");
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
 
     // construct shape
