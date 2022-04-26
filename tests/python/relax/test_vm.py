@@ -137,7 +137,7 @@ def test_vm_exec_serialize_export_library():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor((3, 4), "float32")):
+        def foo(x: Tensor((3, 4), "float32")) -> Tensor:
             z = R.call_packed("vm.builtin.copy", x)
             return z
 
@@ -271,7 +271,7 @@ def test_vm_copy():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor((3, 4), "float32")):
+        def foo(x: Tensor((3, 4), "float32")) -> Tensor:
             z = R.call_packed("vm.builtin.copy", x)
             return z
 
@@ -337,7 +337,7 @@ def test_vm_compile_if():
     @tvm.script.ir_module
     class TestVMCompileIf:
         @R.function
-        def ife(cond: Tensor((), "bool"), x: Tensor((3, 4), "float32")):
+        def ife(cond: Tensor((), "bool"), x: Tensor((3, 4), "float32")) -> Tensor:
             if cond:
                 w = relax.call_packed("test.vm.add", x, x)
             else:
@@ -794,7 +794,7 @@ def test_vm_tuplegetitem():
     @tvm.script.ir_module
     class TestVMTupleGetItem:
         @R.function
-        def tuple_get_item(x: Tensor((_, _), "float32"), y: Tensor((_, _), "float32")):
+        def tuple_get_item(x: Tensor((_, _), "float32"), y: Tensor((_, _), "float32")) -> Tensor:
             t = relax.Tuple((x, y))
             a = relax.TupleGetItem(t, 0)
             b = relax.TupleGetItem(t, 1)
@@ -868,7 +868,7 @@ def test_recursion():
     @tvm.script.ir_module
     class TestVMRecursion:
         @R.function
-        def recursion(n: Tensor((1,), "float32")):
+        def recursion(n: Tensor((1,), "float32")) -> Tensor:
             cond = relax.call_packed("test.vm.equal_zero", n)
             if cond:
                 res = relax.const(1.0)

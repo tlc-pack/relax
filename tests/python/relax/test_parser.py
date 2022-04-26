@@ -617,7 +617,7 @@ def test_primexpr_arithmetic():
 
 def test_call_tir_extern():
     @R.function
-    def f(x: Tensor):
+    def f(x: Tensor) -> Tensor:
         z = relax.call_tir("my_extern", (x,), (10,), dtype="float32")
         return z
 
@@ -696,9 +696,14 @@ def test_class_irmodule():
     check_shape(gv_bind.var, ("n", "n"))
 
     # check function type
-    # assert isinstance(j.checked_type, relax.FuncType)
-    # assert j.checked_type.ret_type.dtype == "float32"
-    # assert j.checked_type.ret_type.ndim == 2
+    j_type = j.checked_type
+    assert isinstance(j_type, relax.FuncType)
+    assert isinstance(j_type.ret_type, relax.DynTensorType)
+    assert j_type.ret_type.ndim == 2
+    assert j_type.ret_type.dtype == "float32"
+    assert len(j_type.arg_types) == 1
+    assert isinstance(j_type.arg_types[0], relax.DynTensorType)
+    assert j_type.arg_types[0].ndim == 2
 
     # check SeqExpr type/shape
     assert isinstance(j.body, relax.SeqExpr)

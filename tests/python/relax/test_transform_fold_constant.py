@@ -225,7 +225,7 @@ def test_fold_mixed_case():
             c1: Tensor((16, 16), "float32"),
             c2: Tensor((16, 16), "float32"),
             x: Tensor((_, _), "float32"),
-        ):
+        ) -> Tensor:
             x0 = R.match_shape(x, (n, m))
             # this line cannot be folded because n is unknown
             lv0 = relax.call_tir(addone, (c0,), (n, 16), dtype="float32")
