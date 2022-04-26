@@ -32,46 +32,6 @@
 namespace tvm {
 namespace relax {
 
-// Helper function to infer the shape of a Call.
-Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
-  auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
-  if (call->op.as<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    if (op_map.count(op)) {
-      return op_map[op](call, diag_ctx);
-    }
-  }
-  return NullOpt;
-}
-
-// Helper function to infer the type of a Call.
-Type InferType(const Call& call, DiagnosticContext diag_ctx) {
-  auto op_map = Op::GetAttrMap<FInferType>("FInferType");
-  if (call->op.as<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    if (op_map.count(op)) {
-      return op_map[op](call, diag_ctx);
-    }
-  }
-  return Type();
-}
-
-// Helper function to get the shape of a Tuple based on its fields
-Optional<Expr> GetTupleShape(const Tuple& tuple) {
-  Array<Expr> tuple_shape;
-  for (Expr field : tuple->fields) {
-    if (field->checked_type_.as<DynTensorTypeNode>() && field->shape_) {
-      tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
-    } else {
-      break;
-    }
-  }
-  if (tuple_shape.size() == tuple->fields.size()) {
-    return Tuple(tuple_shape);
-  }
-  return NullOpt;
-}
-
 // ================================
 // BlockBuilderNode::ExprNormalizer
 
@@ -85,7 +45,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   RELAX_EXPR_NORMALIZER_LEAF(VarNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataflowVarNode);
-  RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
   RELAX_EXPR_NORMALIZER_LEAF(RuntimeDepShapeNode);
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
@@ -119,7 +78,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
     // Tuple's shape can be null, when a tuple consists of all DynTensorType, it has a shape
     if (!tuple->shape_) {
-      tuple->shape_ = GetTupleShape(tuple);
+      UpdateShape(tuple, GetTupleShape(tuple));
     }
 
     // Tuple's checked_type must not be null
@@ -131,7 +90,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         //     << "The checked_type_ of the field " << field << " of Tuple has not propagated.";
         tuple_type.push_back(field->checked_type_);
       }
-      tuple->checked_type_ = TupleType(tuple_type);
+      UpdateType(tuple, TupleType(tuple_type));
     }
     return tuple;
   }
@@ -179,16 +138,17 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
     if (!call->shape_) {
       // shape inference
-      auto inferred_shape = InferShape(call, this->builder_->diag_ctx_);
+      auto inferred_shape =
+          InferShape(call, this->builder_->diag_ctx_, this->builder_->context_mod_);
       if (inferred_shape) {
-        call->shape_ = inferred_shape.value();
+        UpdateShape(call, inferred_shape.value());
       }
     }
 
     if (!call->checked_type_.defined()) {
       // type inference
-      auto inferred_type = InferType(call, this->builder_->diag_ctx_);
-      call->checked_type_ = inferred_type;
+      auto inferred_type = InferType(call, this->builder_->diag_ctx_, this->builder_->context_mod_);
+      UpdateType(call, inferred_type);
     }
     return call;
   }
@@ -227,11 +187,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     if (!seq_expr->shape_ && seq_expr->body->shape_) {
-      seq_expr->shape_ = seq_expr->body->shape_;
+      UpdateShape(seq_expr, seq_expr->body->shape_);
     }
 
     if (!seq_expr->checked_type_.defined() && seq_expr->body->checked_type_.defined()) {
-      seq_expr->checked_type_ = seq_expr->body->checked_type_;
+      UpdateType(seq_expr, seq_expr->body->checked_type_);
     }
     return seq_expr;
   }
@@ -250,15 +210,24 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
         values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
       }
-      constant->shape_ = relax::ShapeExpr(values);
+      UpdateShape(constant, relax::ShapeExpr(values));
     }
 
     if (!constant->checked_type_.defined()) {
       DataType dtype = constant->data.DataType();
       Type type = relax::DynTensorType(shape_tuple.size(), dtype);
-      constant->checked_type_ = type;
+      UpdateType(constant, type);
     }
     return constant;
+  }
+
+  Expr VisitExpr_(const ShapeExprNode* op) final {
+    ShapeExpr shape_expr = GetRef<ShapeExpr>(op);
+
+    if (!shape_expr->checked_type_.defined()) {
+      UpdateType(shape_expr, ShapeType(Span()));
+    }
+    return shape_expr;
   }
 
   Expr VisitExpr_(const IfNode* op) final {
@@ -288,7 +257,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     if (!node->checked_type_.defined()) {
       const TupleTypeNode* tuple_type = node->tuple->checked_type_.as<TupleTypeNode>();
       ICHECK(tuple_type) << "The checked_type_ of Tuple must be TupleTypeNode.";
-      node->checked_type_ = tuple_type->fields[node->index];
+      UpdateType(node, tuple_type->fields[node->index]);
     }
 
     if (!node->shape_ && node->tuple->shape_) {
@@ -296,7 +265,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
         // field
         if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
-          node->shape_ = shape->fields[node->index];
+          UpdateShape(node, shape->fields[node->index]);
         }
       }
     }
@@ -395,6 +364,68 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
   };
 
+  // Helper function to infer the shape of a Call.
+  Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
+    auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
+    if (call->op.as<OpNode>()) {
+      Op op = Downcast<Op>(call->op);
+      if (op_map.count(op)) {
+        Optional<Expr> shape = op_map[op](call, diag_ctx);
+        if (shape && shape.as<ShapeExprNode>()) {
+          if (!shape.value()->checked_type_.defined()) {
+            UpdateType(shape.value(), ShapeType(Span()));
+          }
+        }
+        return shape;
+      }
+    } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
+      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
+
+      if (it_func != ctx_mod->functions.end()) {
+        if (const auto* func = (*it_func).second.as<FunctionNode>()) {
+          return func->shape();
+        }
+      }
+    }
+    return NullOpt;
+  }
+
+  // Helper function to infer the type of a Call.
+  Type InferType(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
+    auto op_map = Op::GetAttrMap<FInferType>("FInferType");
+    if (call->op.as<OpNode>()) {
+      Op op = Downcast<Op>(call->op);
+      if (op_map.count(op)) {
+        return op_map[op](call, diag_ctx);
+      }
+    } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
+      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
+
+      if (it_func != ctx_mod->functions.end()) {
+        if (const auto* func = (*it_func).second.as<FunctionNode>()) {
+          return func->checked_type_;
+        }
+      }
+    }
+    return Type();
+  }
+
+  // Helper function to get the shape of a Tuple based on its fields
+  Optional<Expr> GetTupleShape(const Tuple& tuple) {
+    Array<Expr> tuple_shape;
+    for (Expr field : tuple->fields) {
+      if (field->checked_type_.as<DynTensorTypeNode>() && field->shape_) {
+        tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
+      } else {
+        break;
+      }
+    }
+    if (tuple_shape.size() == tuple->fields.size()) {
+      return Tuple(tuple_shape);
+    }
+    return NullOpt;
+  }
+
   static bool IsLeaf(const Expr& expr) {
     // NB: tuples are treated as leaf nodes for ergonomics
     // TODO(@altanh, @yuchen): remove TupleNode from leaf
@@ -470,8 +501,8 @@ Var BlockBuilderNode::Emit(const Expr& expr, bool is_dataflow, std::string name_
   }
   Id vid = Id(name_table_->GetUniqueName(name_hint));
   Var var = is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
-  var->checked_type_ = normalized->checked_type_;
-  var->shape_ = normalized->shape_;
+  UpdateType(var, normalized->checked_type_);
+  UpdateShape(var, normalized->shape_);
 
   cur_frame->bindings.push_back(VarBinding(var, expr));
   binding_table_[var->vid] = expr;
@@ -503,12 +534,12 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
       cur_frame->is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
 
   if (value->checked_type().as<ShapeTypeNode>()) {
-    var->checked_type_ = ShapeType(Span());
+    UpdateType(var, ShapeType(Span()));
   } else if (const DynTensorTypeNode* tty = value->checked_type().as<DynTensorTypeNode>()) {
     ShapeExpr shape = ShapeExpr(pattern);
-    var->shape_ = shape;
+    UpdateShape(var, shape);
     DataType dtype = tty->dtype;
-    var->checked_type_ = DynTensorType(pattern.size(), dtype);
+    UpdateType(var, DynTensorType(pattern.size(), dtype));
   } else {
     this->diag_ctx_.EmitFatal(
         Diagnostic::Error(value->span)
@@ -601,9 +632,10 @@ BlockBuilderNode::BlockFrame* BlockBuilderNode::CurrentFrame() {
 
 NameTable* BlockBuilderNode::name_table() { return name_table_.get(); }
 
-GlobalVar BlockBuilderNode::AddFuncToContext(const BaseFunc& func, const String& func_name_hint) {
+GlobalVar BlockBuilderNode::AddFunction(const BaseFunc& func, const String& func_name_hint) {
   auto it = func_map_.find(func);
   if (it == func_map_.end()) {
+    context_mod_.CopyOnWrite();
     String func_name = name_table_->GetUniqueName(func_name_hint);
     GlobalVar gvar = GlobalVar(func_name);
     if (const tir::PrimFuncNode* prim_func = func.as<tir::PrimFuncNode>()) {
@@ -620,11 +652,25 @@ GlobalVar BlockBuilderNode::AddFuncToContext(const BaseFunc& func, const String&
   }
 }
 
+void BlockBuilderNode::UpdateFunction(const GlobalVar& gv, Function updated_function) {
+  context_mod_.CopyOnWrite();
+  context_mod_->Update(gv, updated_function);
+  func_map_[updated_function] = gv;
+}
+
 IRModule BlockBuilderNode::GetContextIRModule() const { return context_mod_; }
 
-BlockBuilder BlockBuilder::Create() { return BlockBuilder(make_object<BlockBuilderNode>()); }
+BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
+  ObjectPtr<BlockBuilderNode> n = make_object<BlockBuilderNode>();
+  if (mod) {
+    n->context_mod_ = mod.value();
+  }
+  return BlockBuilder(n);
+}
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed(BlockBuilder::Create);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed([](Optional<IRModule> mod) {
+  return BlockBuilder::Create(mod);
+});
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginDataflowBlock")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginDataflowBlock);
@@ -657,8 +703,11 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
       return builder->name_table()->GetUniqueName(name_hint);
     });
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFuncToContext")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFuncToContext);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunction")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFunction);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderUpdateFunction")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::UpdateFunction);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);

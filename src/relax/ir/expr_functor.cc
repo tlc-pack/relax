@@ -447,7 +447,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
     return GetRef<Var>(var);
   } else {
     Var new_var = DataflowVar(var->vid, NullOpt, var->checked_type_, var->span);
-    new_var->shape_ = new_shape;
+    UpdateShape(new_var, new_shape);
 
     this->var_remap_[var->vid] = new_var;
     return new_var;
@@ -466,7 +466,7 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
     return GetRef<Var>(var);
   } else {
     Var new_var = Var(var->vid, NullOpt, var->checked_type_, var->span);
-    new_var->shape_ = new_shape;
+    UpdateShape(new_var, new_shape);
 
     this->var_remap_[var->vid] = new_var;
     return new_var;
@@ -537,8 +537,8 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
   if (shape_changed || type_changed) {
     Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
                                             : Var(var->vid, NullOpt, NullOpt, var->span);
-    new_var->shape_ = var->shape_;
-    new_var->checked_type_ = var->checked_type_;
+    UpdateShape(new_var, var->shape_);
+    UpdateType(new_var, var->checked_type_);
     var = new_var;
   }
 
