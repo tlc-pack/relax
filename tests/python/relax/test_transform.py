@@ -70,7 +70,7 @@ def test_dataflowpass_fail():
                     gv_remove = relax.add(x, y)
                     gv1 = relax.add(x, y)
                     relax.output(gv_remove, gv1)
-                return gv_remove, gv1
+                return (gv_remove, gv1)
 
         relax.transform.FailTestRewrite()(TestRemoveGlobalScopeVar)
 
@@ -84,7 +84,7 @@ def test_dataflowpass_fail():
                     gv_rewrite = relax.add(x, y)
                     gv1 = relax.add(x, y)
                     relax.output(gv_rewrite, gv1)
-                return gv_rewrite, gv1
+                return (gv_rewrite, gv1)
 
         relax.transform.FailTestRewrite()(TestRewriteGlobalScopeVar)
 
@@ -226,7 +226,7 @@ def test_vm_memory_lower():
     @tvm.script.ir_module
     class TestVMMemoryLower:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: Tensor((m, n), "float32")) -> Tensor:
             alloc = relax.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
             _ = relax.call_packed("test.op.identity", (x,), alloc)
             gv0 = alloc
@@ -257,7 +257,7 @@ def test_vm_shape_lowering():
     @tvm.script.ir_module
     class TestVMShapeLower:
         @R.function
-        def foo(x: Tensor(_, "float32")) -> Shape:
+        def foo(x: Tensor(_, "float32")):
             relax.match_shape(x, (n, m))
             return (n * 2, m * 3)
 
@@ -293,7 +293,7 @@ def test_vm_static_shape_lowering():
     @tvm.script.ir_module
     class TestVMStaticShapeLower:
         @R.function
-        def foo(x: Tensor((2, 3), "float32")) -> Tensor:
+        def foo(x: Tensor((2, 3), "float32")):
             with relax.dataflow():
                 y = R.call_tir("test.vm.tile", (x), (2, 6), dtype="float32")
                 relax.output(y)
@@ -330,7 +330,7 @@ def test_vm_shape_lowering_func_param_with_shape():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def foo(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")) -> Tensor:
+        def foo(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
             gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 

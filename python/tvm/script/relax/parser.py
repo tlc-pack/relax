@@ -616,7 +616,7 @@ class RelaxTransformer(Transformer):
             ret_type, _ = self.transform_type(func.ret_type, bind_free_vars=False)
 
         func_name = relax.GlobalVar(func.name) if is_global else None
-        return relax.Function(
+        return relax.Function.create_unchecked(
             params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
         )
 
