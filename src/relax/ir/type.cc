@@ -61,5 +61,49 @@ TVM_REGISTER_NODE_TYPE(DimTypeNode);
 
 TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimType(span); });
 
+bool IsBaseOf(const Type& base, const Type& derived) {
+  // TODO(@yuchen): refactor to use generic type functor, dispatching on base.
+
+  if (auto base_tensor = base.as<DynTensorTypeNode>()) {
+    if (auto derived_tensor = derived.as<DynTensorTypeNode>()) {
+      if (base_tensor->IsUnknownNdim() || base_tensor->ndim == derived_tensor->ndim) {
+        if (base_tensor->IsUnknownDtype() || base_tensor->dtype == derived_tensor->dtype) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } else if (base.as<ShapeTypeNode>()) {
+    if (derived.as<ShapeTypeNode>()) {
+      return true;
+    }
+    return false;
+  } else if (auto base_tuple = base.as<TupleTypeNode>()) {
+    if (auto derived_tuple = derived.as<TupleTypeNode>()) {
+      if (base_tuple->fields.size() != derived_tuple->fields.size()) {
+        return false;
+      }
+
+      for (size_t i = 0; i < base_tuple->fields.size(); i++) {
+        if (!IsBaseOf(base_tuple->fields[i], derived_tuple->fields[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  } else {
+    LOG(FATAL) << "TypeError: cannot handle base type: " << base->GetTypeKey();
+  }
+
+  // TODO(@yuchen): consider ObjectType relation after the pr's merged.
+
+  return false;
+}
+
+TVM_REGISTER_GLOBAL("relax.IsBaseOf").set_body_typed([](const Type& base, const Type& derived) {
+  return IsBaseOf(base, derived);
+});
+
 }  // namespace relax
 }  // namespace tvm

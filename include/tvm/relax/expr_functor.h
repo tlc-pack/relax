@@ -208,7 +208,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
  */
 class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
  public:
-  ExprMutator() { builder_ = BlockBuilder::Create(); }
+  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
 
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
