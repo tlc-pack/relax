@@ -137,7 +137,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
     if (!call->shape_) {
       // shape inference
-      auto inferred_shape = InferShape(call, this->builder_->diag_ctx_);
+      auto inferred_shape =
+          InferShape(call, this->builder_->diag_ctx_, this->builder_->context_mod_);
       if (inferred_shape) {
         UpdateShape(call, inferred_shape.value());
       }
@@ -145,7 +146,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
     if (!call->checked_type_.defined()) {
       // type inference
-      auto inferred_type = InferType(call, this->builder_->diag_ctx_);
+      auto inferred_type = InferType(call, this->builder_->diag_ctx_, this->builder_->context_mod_);
       UpdateType(call, inferred_type);
     }
     return call;
@@ -363,9 +364,13 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   };
 
   // Helper function to infer the shape of a Call.
-  Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx) {
-    auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
-    if (call->op.as<OpNode>()) {
+  Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
+    if (call->op.as<ExternFuncNode>()) {
+      // call_packed: return RuntimeDepShape
+      return RuntimeDepShape(Span());
+    } else if (call->op.as<OpNode>()) {
+      // primitive op: look up FInferShape attribute
+      auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
       Op op = Downcast<Op>(call->op);
       if (op_map.count(op)) {
         Optional<Expr> shape = op_map[op](call, diag_ctx);
@@ -377,45 +382,56 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         return shape;
       }
     } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
-      auto it_func = context_mod_->functions.find(GetRef<GlobalVar>(gv));
+      // global function: find the function's shape_
+      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
 
-      if (it_func != context_mod_->functions.end()) {
+      if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
           return func->shape();
         }
       }
+    } else {
+      LOG(FATAL) << "ValueError: Failed to do shape inference.";
     }
+
     return NullOpt;
   }
 
   // Helper function to infer the type of a Call.
-  Type InferType(const Call& call, DiagnosticContext diag_ctx) {
-    // special handling for call_packed: return type_args of the call node
+  Type InferType(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
+    // call_packed: return type_args of the call node
     if (call->op.as<ExternFuncNode>()) {
       if (call->type_args.defined()) {
-        if (call->type_args.size() == 1) {
+        if (call->type_args.size() == 0) {
+          return ObjectType(Span());
+        } else if (call->type_args.size() == 1) {
           return call->type_args.front();
         } else {
           return TupleType(call->type_args);
         }
       }
-    }
-    // normal op
-    auto op_map = Op::GetAttrMap<FInferType>("FInferType");
-    if (call->op.as<OpNode>()) {
+    } else if (call->op.as<OpNode>()) {
+      // primitive op: look up FInferType attribute
+      auto op_map = Op::GetAttrMap<FInferType>("FInferType");
       Op op = Downcast<Op>(call->op);
       if (op_map.count(op)) {
         return op_map[op](call, diag_ctx);
+      } else {
+        LOG(FATAL) << "ValueError: Cannot find the FInferType attribute registered to op: "
+                   << op->name;
       }
     } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
-      auto it_func = context_mod_->functions.find(GetRef<GlobalVar>(gv));
-
-      if (it_func != context_mod_->functions.end()) {
+      // global function: find the function's checked_type_
+      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
+      if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
           return func->checked_type_;
         }
       }
+    } else {
+      LOG(FATAL) << "ValueError: Failed to do type inference.";
     }
+
     return Type();
   }
 

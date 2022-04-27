@@ -422,7 +422,7 @@ std::vector<Doc> RelaxScriptPrinter::PrintTypeArgs(const Array<tvm::Type>& type_
     for (const auto& type : type_args) {
       if (const auto* tensor = type.as<DynTensorTypeNode>()) {
         Doc doc;
-        doc << "Tensor(rank=" << tensor->rank << ", dtype=" << PrintDType(tensor->dtype) << ")";
+        doc << "Tensor(ndim=" << tensor->ndim << ", dtype=" << PrintDType(tensor->dtype) << ")";
         type_args_doc.push_back(doc);
       } else {
         type_args_doc.push_back(this->VisitType(type));

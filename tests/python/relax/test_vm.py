@@ -137,8 +137,8 @@ def test_vm_exec_serialize_export_library():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor((3, 4), "float32")) -> Tensor:
-            z = R.call_packed("vm.builtin.copy", x)
+        def foo(x: Tensor((3, 4), "float32")):
+            z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor(ndim=2, dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -271,8 +271,8 @@ def test_vm_copy():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor((3, 4), "float32")) -> Tensor:
-            z = R.call_packed("vm.builtin.copy", x)
+        def foo(x: Tensor((3, 4), "float32")):
+            z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor(ndim=2, dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -393,7 +393,7 @@ def test_vm_compile_stage1():
             H[3] = H[1] * T.int64(3)
 
         @R.function
-        def foo(x: Tensor(_, "float32")) -> Shape:
+        def foo(x: Tensor(_, "float32")):
             shape_heap: Tensor((4,), "int64") = relax.call_packed(
                 "vm.builtin.alloc_shape_heap", (4,)
             )
@@ -794,11 +794,11 @@ def test_vm_tuplegetitem():
     @tvm.script.ir_module
     class TestVMTupleGetItem:
         @R.function
-        def tuple_get_item(x: Tensor((_, _), "float32"), y: Tensor((_, _), "float32")) -> Tensor:
-            t = relax.Tuple((x, y))
-            a = relax.TupleGetItem(t, 0)
-            b = relax.TupleGetItem(t, 1)
-            c = relax.call_packed("test.vm.add", a, b)
+        def tuple_get_item(x: Tensor((_, _), "float32"), y: Tensor((_, _), "float32")):
+            t = (x, y)
+            a = t[0]
+            b = t[1]
+            c = relax.call_packed("test.vm.add", a, b, type_args=(Tensor(ndim=2, dtype="float32")))
             return c
 
     mod = TestVMTupleGetItem
@@ -843,12 +843,12 @@ def test_sub_func_call():
         @R.function
         def relax_matmul_packed(
             x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")
-        ) -> Tensor:
+        ) -> Object:
             gv0 = relax.call_packed("test.vm.mul", x, w)
             return gv0
 
         @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Object:
             gv0 = relax_matmul_tir(x, w)
             gv1 = relax_matmul_packed(gv0, gv0)
             return gv1

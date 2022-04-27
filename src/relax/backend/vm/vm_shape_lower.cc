@@ -102,7 +102,6 @@ class VMShapeLowerMutator : public ExprMutator {
         }
       }
     }
-    Type ret_type = this->VisitType(node->ret_type);
     Expr new_body = this->VisitExpr(node->body);
 
     Array<BindingBlock> blocks;
@@ -119,6 +118,11 @@ class VMShapeLowerMutator : public ExprMutator {
     // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
     new_body = builder_->Normalize(SeqExpr(blocks, new_body));
 
+    Type ret_type = this->VisitType(node->ret_type);
+    // weaken the ret_type given this pass is the last stage of build.
+    if (const DynTensorTypeNode* temp = ret_type.as<DynTensorTypeNode>()) {
+      ret_type = DynTensorType(-1, temp->dtype);
+    }
     return Function(node->name, node->params, new_body, ret_type);
   }
 

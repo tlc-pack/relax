@@ -102,11 +102,11 @@ bool IsBaseOf(const Type& base, const Type& derived) {
       return true;
     }
     return false;
+  } else if (base.as<ObjectTypeNode>()) {
+    return true;
   } else {
     LOG(FATAL) << "TypeError: cannot handle base type: " << base->GetTypeKey();
   }
-
-  // TODO(@yuchen): consider ObjectType relation after the pr's merged.
 
   return false;
 }

@@ -79,7 +79,7 @@ def test_annotations():
         x: Tensor((32, m), "float32"),
         y: Tensor((m, k), "float32"),
         r: Tensor(_, "int64"),
-    ) -> Tensor:
+    ) -> Object:
         z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
         w: Tensor(None, _) = multiply(z, z)
         q: Tensor(None, _, ndim=2) = add(w, w)
@@ -570,7 +570,7 @@ def test_call_packed():
             x,
             x,
             mp=False,
-            type_args=(Tensor(rank=2, dtype="float32")),
+            type_args=(Tensor(ndim=2, dtype="float32")),
         )
         w = relax.call_packed(
             "contrib.my_shape_of",
@@ -629,7 +629,7 @@ def test_primexpr_arithmetic():
     @R.function
     def f(x: Tensor((n, m), "float32")):
         z: Tensor((n * m,), "float32") = relax.call_packed(
-            "my_flatten", (x,), type_args=(Tensor(rank=2, dtype="float32"))
+            "my_flatten", (x,), type_args=(Tensor(ndim=2, dtype="float32"))
         )
         sh: Shape = (n + m, n // m)
         return z
@@ -703,7 +703,7 @@ def test_class_irmodule():
         @R.function
         def k(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
             gv0 = relax.call_packed(
-                "test.vm.mul", x, w, type_args=(Tensor(rank=2, dtype="float32"))
+                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
             )
             return gv0
 
@@ -736,9 +736,9 @@ def test_class_irmodule():
     # check call_packed checked_type_
     gv0_bind = k.body.blocks[0].bindings[0]
     assert gv0_bind.value.checked_type.dtype == "float32"
-    assert gv0_bind.value.checked_type.rank == 2
+    assert gv0_bind.value.checked_type.ndim == 2
     assert gv0_bind.var.checked_type.dtype == "float32"
-    assert gv0_bind.var.checked_type.rank == 2
+    assert gv0_bind.var.checked_type.ndim == 2
 
     # check function type
     j_type = j.checked_type

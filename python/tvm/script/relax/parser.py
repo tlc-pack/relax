@@ -1029,14 +1029,14 @@ class RelaxTransformer(Transformer):
                             f"type_args elements must be Tensor, Object, or Shape", val.span
                         )
 
-                    rank = -1
+                    ndim = -1
                     dtype = None
                     for k, v in val.keyword_params.items():
-                        if k.value == "rank":
-                            rank = v.value
+                        if k.value == "ndim":
+                            ndim = v.value
                         if k.value == "dtype":
                             dtype = v.value
-                    return relax.DynTensorType(rank, dtype, self.to_tvm_span(val.span))
+                    return relax.DynTensorType(ndim, dtype, self.to_tvm_span(val.span))
                 elif isinstance(val, ast.Var):
                     if val.id.name == "Object":
                         return relax.ObjectType(self.to_tvm_span(val.span))
