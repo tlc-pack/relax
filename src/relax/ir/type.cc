@@ -37,12 +37,30 @@ ShapeType::ShapeType(Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ShapeType").set_body_typed([](Span span) { return ShapeType(span); });
 
+ObjectType::ObjectType(Span span) {
+  ObjectPtr<ObjectTypeNode> n = make_object<ObjectTypeNode>();
+  n->span = span;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(ObjectTypeNode);
+
+TVM_REGISTER_GLOBAL("relax.ObjectType").set_body_typed([](Span span) { return ObjectType(span); });
+
 DynTensorType::DynTensorType(int ndim, DataType dtype, Span span) {
   ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
   n->ndim = std::move(ndim);
   n->dtype = std::move(dtype);
   n->span = span;
   data_ = std::move(n);
+}
+
+DynTensorType DynTensorType::CreateUnknownNDim(DataType dtype, Span span) {
+  ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
+  n->ndim = -1;
+  n->dtype = std::move(dtype);
+  n->span = std::move(span);
+  return DynTensorType(std::move(n));
 }
 
 TVM_REGISTER_NODE_TYPE(DynTensorTypeNode);
@@ -92,11 +110,11 @@ bool IsBaseOf(const Type& base, const Type& derived) {
       return true;
     }
     return false;
+  } else if (base.as<ObjectTypeNode>()) {
+    return true;
   } else {
     LOG(FATAL) << "TypeError: cannot handle base type: " << base->GetTypeKey();
   }
-
-  // TODO(@yuchen): consider ObjectType relation after the pr's merged.
 
   return false;
 }
