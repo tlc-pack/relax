@@ -68,7 +68,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
       return expr;
     }
     // The checked_type_ of the new function is deduced from the function body
-    return Function(func->name, new_params, new_body, Type());
+    return Function(func->name, new_params, new_body, Type(), func->attrs);
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
   }

@@ -619,7 +619,12 @@ class RelaxTransformer(Transformer):
 
         func_name = relax.GlobalVar(func.name) if is_global else None
         return relax.Function.create_unchecked(
-            params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
+            params,
+            new_body,
+            ret_type,
+            name=func_name,
+            attrs=None,
+            span=self.to_tvm_span(func.span),
         )
 
     def is_match_shape(self, stmt: ast.Stmt) -> bool:

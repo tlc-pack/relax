@@ -429,13 +429,14 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
     v->Visit("span", &span);
+    v->Visit("attrs", &attrs);
   }
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
            equal(ret_type, other->ret_type) && equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
+           equal(shape_, other->shape_) && equal(attrs, other->attrs);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -445,6 +446,7 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce(ret_type);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
+    hash_reduce(attrs);
   }
 
   static constexpr const char* _type_key = "relax.expr.Function";
@@ -456,17 +458,35 @@ class FunctionNode : public BaseFuncNode {
 class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                            Type ret_type, Span span = Span());
+                            Type ret_type, DictAttrs attrs = NullValue<DictAttrs>(),
+                            Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without type checking.
    */
   TVM_DLL static Function CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params,
-                                          Expr body, Type ret_type, Span span = Span());
+                                          Expr body, Type ret_type,
+                                          DictAttrs attrs = NullValue<DictAttrs>(),
+                                          Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
+
+// [TODO] Investigate the exact usage of kComposite, kPartitionedFromPattern, and kPrimitive.
+namespace attr {
+/*! \brief Mark the function as a primitive function. */
+constexpr const char* kPrimitive = "Primitive";
+/*!
+ * \brief Indicate the codegen that should be used for building this function.
+ * When this is unset or set to "default", the default compilation pipeline will be used.
+ */
+constexpr const char* kCodegen = "Codegen";
+/*! \brief Treat the function as a composite operator. */
+constexpr const char* kComposite = "Composite";
+/*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
+constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
+}  // namespace attr
 
 /*! \brief The extern function, which can represent packed function. */
 class ExternFuncNode : public BaseFuncNode {
