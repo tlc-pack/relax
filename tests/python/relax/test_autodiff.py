@@ -50,7 +50,7 @@ def matmul():
   print(new_mod)
   # exit()
   target = tvm.target.Target("llvm", host="llvm")
-  new_mod = rx.transform.EmitTERewrite(target)(new_mod)
+  new_mod = rx.transform.RelayOpRewrite(target)(new_mod)
 
   print(new_mod)
 
@@ -89,7 +89,7 @@ def test_nndense():
   new_mod = rx.transform.ReverseModeAD()(mod)
   print(new_mod)
 
-  new_mod = rx.transform.EmitTERewrite(target)(new_mod)
+  new_mod = rx.transform.RelayOpRewrite(target)(new_mod)
 
   ex = rx.vm.build(new_mod, target)
 
@@ -123,7 +123,7 @@ def test_logsoftmax():
   new_mod = rx.transform.ReverseModeAD()(mod)
   print(new_mod)
 
-  new_mod = rx.transform.EmitTERewrite(target)(new_mod)
+  new_mod = rx.transform.RelayOpRewrite(target)(new_mod)
 
   print(new_mod)
 
@@ -156,7 +156,7 @@ def test_cross_entropy():
   # print(new_mod)
   # # exit()
   # target = tvm.target.Target("llvm", host="llvm")
-  # new_mod = rx.transform.EmitTERewrite(target)(new_mod)
+  # new_mod = rx.transform.RelayOpRewrite(target)(new_mod)
 
   # print(new_mod)
 

@@ -78,7 +78,7 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.CallTIRRewrite()
 
-def EmitTERewrite(target: str = None) -> tvm.ir.transform.Pass:
+def RelayOpRewrite(target: str = None) -> tvm.ir.transform.Pass:
     """Rewrite Relay Op to TIR call.
 
     Returns
@@ -88,8 +88,8 @@ def EmitTERewrite(target: str = None) -> tvm.ir.transform.Pass:
     if target is None:
         target = Target.current()
     if target is None:
-        raise RuntimeError("target is not set in EmitTERewrite")
-    return _ffi_api.EmitTERewrite(target)
+        raise RuntimeError("target is not set in RelayOpRewrite")
+    return _ffi_api.RelayOpRewrite(target)
 
 def ReverseModeAD() -> tvm.ir.transform.Pass:
     """Reverse-mode auto-differentiation.

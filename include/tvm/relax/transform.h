@@ -100,7 +100,7 @@ TVM_DLL Pass CallTIRRewrite();
  *
  * \return The Pass.
  */
-TVM_DLL Pass EmitTERewrite();
+TVM_DLL Pass RelayOpRewrite();
 
 /*!
  * \brief Reverse-mode auto-differentiation.

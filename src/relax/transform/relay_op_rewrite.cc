@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/emit_te_rewrite.cc
+ * \file src/relax/transform/relay_op_rewrite.cc
  * \brief Rewrite Relay Op calls to TIR call
  */
 
@@ -38,12 +38,12 @@ namespace tvm {
 namespace relax {
 
 // ==================
-// EmitTEMutator:
+// RelayOpMutator:
 // Rewrite Relay Op to TIR call.
 
-class EmitTEMutator : public ExprMutator {
+class RelayOpMutator : public ExprMutator {
   public:
-    explicit EmitTEMutator(IRModule mod, const Target& target) { 
+    explicit RelayOpMutator(IRModule mod, const Target& target) { 
       mod_ = mod;
       target_ = target;
     }
@@ -140,14 +140,14 @@ class EmitTEMutator : public ExprMutator {
 
 namespace transform {
 
-Pass EmitTERewrite(const Target& target) {
+Pass RelayOpRewrite(const Target& target) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return EmitTEMutator(mod, target).Lower(); };
-  return CreateModulePass(pass_func, 0, "EmitTERewrite", {});
+      [=](IRModule mod, PassContext pc) { return RelayOpMutator(mod, target).Lower(); };
+  return CreateModulePass(pass_func, 0, "RelayOpRewrite", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.EmitTERewrite").set_body_typed([](const Target& target) {
-  return EmitTERewrite(target);
+TVM_REGISTER_GLOBAL("relax.transform.RelayOpRewrite").set_body_typed([](const Target& target) {
+  return RelayOpRewrite(target);
 });
 
 }  // namespace transform
