@@ -56,6 +56,25 @@ class ShapeType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(ShapeType, Type, ShapeTypeNode);
 };
 
+class ObjectTypeNode : public TypeNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+
+  bool SEqualReduce(const ObjectTypeNode* other, SEqualReducer equal) const { return true; }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
+
+  static constexpr const char* _type_key = "relax.ObjectType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ObjectTypeNode, TypeNode);
+};
+
+class ObjectType : public Type {
+ public:
+  TVM_DLL ObjectType(Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ObjectType, Type, ObjectTypeNode);
+};
+
 class DynTensorTypeNode : public BaseTensorTypeNode {
  public:
   /*!
@@ -101,6 +120,11 @@ class DynTensorType : public Type {
    * \param dtype The runtime dtype of the tensor's elements.
    */
   TVM_DLL DynTensorType(int ndim, DataType dtype, Span span = Span());
+
+  /*!
+   * \brief Create a DynTensorType with unknown ndim.
+   */
+  TVM_DLL static DynTensorType CreateUnknownNDim(DataType dtype, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(DynTensorType, Type, DynTensorTypeNode);
 };
