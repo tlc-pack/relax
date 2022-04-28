@@ -32,7 +32,8 @@ class ShapeType(Type):
 
 @tvm._ffi.register_object("relax.ObjectType")
 class ObjectType(Type):
-    """A type that corresponds to tvm::runtime::Object, is base of all possible object values in TVM."""
+    """A type that corresponds to tvm::runtime::Object, is base of all possible object
+    values in TVM."""
 
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)

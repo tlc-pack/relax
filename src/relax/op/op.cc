@@ -168,7 +168,7 @@ Type InferTypeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
   if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
     return DynTensorType(output_shape->values.size(), attrs->dtype);
   }
-  return DynTensorType(-1, attrs->dtype);
+  return DynTensorType::CreateUnknownNDim(attrs->dtype, Span());
 }
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")

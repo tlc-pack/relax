@@ -1054,7 +1054,8 @@ class RelaxTransformer(Transformer):
                 return relax.TupleType(field_types, self.to_tvm_span(val.span))
             else:
                 self.report_error(
-                    f"type_args elements must be Tensor or Tuple when having arguments, but meet {val.func_name.id.name}",
+                    f"""type_args elements must be Tensor or Tuple when having arguments,
+                    but meet {val.func_name.id.name}""",
                     val.span,
                 )
         else:
@@ -1276,7 +1277,7 @@ class RelaxTransformer(Transformer):
         else:
             attrs, type_args = self.parse_call_attr(expr)
 
-        if isinstance(op, relax.ExternFunc) and type_args == None:
+        if isinstance(op, relax.ExternFunc) and type_args is None:
             self.report_error(f"call_packed is required to have type_args", expr.span)
 
         return relax.Call(
