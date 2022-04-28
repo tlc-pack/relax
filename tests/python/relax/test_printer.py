@@ -182,10 +182,17 @@ def test_call_packed():
     @R.function
     def foo(x: Tensor((3, 3), "float32")):
         # test that we can intro dim vars
-        z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
-        w = relax.call_packed(
-            "contrib.my_shape_of", x, dtype="int32", attrs_type_key="relay.attrs.ShapeOfAttrs"
+        z: Tensor((n, m), "float32") = relax.call_packed(
+            "contrib.my_matmul", x, x, mp=False, type_args=(Tensor(ndim=2, dtype="float32"))
         )
+        w = relax.call_packed(
+            "contrib.my_shape_of",
+            x,
+            dtype="int32",
+            attrs_type_key="relay.attrs.ShapeOfAttrs",
+            type_args=(Shape),
+        )
+        o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
         return z
 
     check_roundtrip(foo)
@@ -194,7 +201,9 @@ def test_call_packed():
 def test_primexpr_arithmetic():
     @R.function
     def foo(x: Tensor((n, m), "float32")):
-        z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
+        z: Tensor((n * m,), "float32") = relax.call_packed(
+            "my_flatten", (x,), type_args=(Tensor(ndim=2, dtype="float32"))
+        )
         sh: Shape = (n + m, n // m)
         return z
 
@@ -317,12 +326,17 @@ def test_class_irmodule():
     check_roundtrip(my_module)
 
 
-def test_dyntensortype():
+def test_dyntensor_type():
     x = relax.DynTensorType(ndim=3, dtype="float32")
     assert x.__str__() == 'Tensor[ndim=3, dtype="float32"]'
 
 
-def test_shapeexpr():
+def test_object_type():
+    x = relax.ObjectType()
+    assert x.__str__() == "Object"
+
+
+def test_shape_expr():
     x = relax.ShapeExpr([tir.IntImm("int64", 10), tir.IntImm("int64", 5)])
     assert x.__str__() == "(10, 5)"
 
