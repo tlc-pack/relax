@@ -339,9 +339,9 @@ def test_vm_compile_if():
         @R.function
         def ife(cond: Tensor((), "bool"), x: Tensor((3, 4), "float32")) -> Tensor:
             if cond:
-                w = relax.call_packed("test.vm.add", x, x)
+                w = relax.call_packed("test.vm.add", x, x, type_args=(Tensor))
             else:
-                w = relax.call_packed("test.vm.mul", x, x)
+                w = relax.call_packed("test.vm.mul", x, x, type_args=(Tensor))
             return w
 
     mod = TestVMCompileIf
@@ -360,7 +360,7 @@ def test_vm_compile_stage0():
     class TestVMCompileStage0:
         @R.function
         def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
-            z = R.call_packed("test.vm.identity", x, y)
+            z = R.call_packed("test.vm.identity", x, y, type_args=(Tensor(ndim=2, dtype="float32")))
             return y
 
     mod = TestVMCompileStage0
@@ -395,12 +395,14 @@ def test_vm_compile_stage1():
         @R.function
         def foo(x: Tensor(_, "float32")):
             shape_heap: Tensor((4,), "int64") = relax.call_packed(
-                "vm.builtin.alloc_shape_heap", (4,)
+                "vm.builtin.alloc_shape_heap", (4,), type_args=(Tensor(ndim=2, dtype="float32"))
             )
-            gv0 = relax.call_packed("vm.builtin.shape_of", x)
-            gv1 = relax.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1))
+            gv0 = relax.call_packed("vm.builtin.shape_of", x, type_args=(Shape))
+            gv1 = relax.call_packed(
+                "vm.builtin.store_shape", gv0, shape_heap, (0, 1), type_args=(Void)
+            )
             gv2 = shape_func0(shape_heap)
-            gv3 = relax.call_packed("vm.builtin.load_shape", shape_heap, (2, 3))
+            gv3 = relax.call_packed("vm.builtin.load_shape", shape_heap, (2, 3), type_args=(Shape))
             return gv3
 
     mod = TestVMCompileStage1
@@ -844,13 +846,15 @@ def test_sub_func_call():
         def relax_matmul_packed(
             x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")
         ) -> Object:
-            gv0 = relax.call_packed("test.vm.mul", x, w)
+            gv0 = relax.call_packed(
+                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
+            )
             return gv0
 
         @R.function
         def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Object:
             gv0 = relax_matmul_tir(x, w)
-            gv1 = relax_matmul_packed(gv0, gv0)
+            gv1 = relax_matmul_packed(gv0, gv0, type_args=(Tensor(ndim=2, dtype="float32")))
             return gv1
 
     target = tvm.target.Target("llvm", host="llvm")
@@ -869,12 +873,18 @@ def test_recursion():
     class TestVMRecursion:
         @R.function
         def recursion(n: Tensor((1,), "float32")) -> Tensor:
-            cond = relax.call_packed("test.vm.equal_zero", n)
+            cond = relax.call_packed(
+                "test.vm.equal_zero", n, type_args=(Tensor(ndim=1, dtype="float32"))
+            )
             if cond:
                 res = relax.const(1.0)
             else:
-                gv0 = relax.call_packed("test.vm.subtract_one", n)
-                res = relax.call_packed("test.vm.add", recursion(gv0), n)
+                gv0 = relax.call_packed(
+                    "test.vm.subtract_one", n, type_args=(Tensor(ndim=1, dtype="float32"))
+                )
+                res = relax.call_packed(
+                    "test.vm.add", recursion(gv0), n, type_args=(Tensor(ndim=1, dtype="float32"))
+                )
             return res
 
     target = tvm.target.Target("llvm", host="llvm")

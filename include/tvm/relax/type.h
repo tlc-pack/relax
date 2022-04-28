@@ -121,6 +121,11 @@ class DynTensorType : public Type {
    */
   TVM_DLL DynTensorType(int ndim, DataType dtype, Span span = Span());
 
+  /*!
+   * \brief Create a DynTensorType with unknown ndim.
+   */
+  TVM_DLL static DynTensorType CreateUnknownNDim(DataType dtype, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(DynTensorType, Type, DynTensorTypeNode);
 };
 

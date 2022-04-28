@@ -1008,52 +1008,62 @@ class RelaxTransformer(Transformer):
         const_values = _get_values(expr, [])
         return relax.const(const_values)
 
-    def parse_call_type_args(self, expr: ast.Call) -> Union[relax.Type, List[relax.Type], None]:
-        """Parses the keyword parameters with the keyword "type_args" as the type_args of the call.
+    # TODO(@tvm-team): Currenly the synr is over-specialized, unify with transform_type
+    # to parse types in the future
+    def parse_type_from_value(self, val: ast.Expr) -> relax.Type:
+        """Parses the type_args value of a call to a Relax type.
 
         Parameters
         ----------
-        expr : ast.Call
-            The synr Call to be parsed.
+        val : ast.Expr
+            The type_args value to be parsed.
 
         Returns
         -------
-        Union[relax.Type, List[relax.Type], None]
-            The parsed call type_args.
+        relax.Type
+            The parsed Relax type.
         """
-        for key, val in expr.keyword_params.items():
-            if key.value == "type_args":
-                if isinstance(val, ast.Call):
-                    if val.func_name.id.name != "Tensor":
-                        self.report_error(
-                            f"type_args elements must be Tensor, Object, or Shape", val.span
-                        )
+        if isinstance(val, ast.Var):
+            if val.id.name == "Tensor":
+                return relax.DynTensorType(ndim=-1, dtype=None, span=self.to_tvm_span(val.span))
+            elif val.id.name == "Object":
+                return relax.ObjectType(self.to_tvm_span(val.span))
+            elif val.id.name == "Shape":
+                return relax.ShapeType(self.to_tvm_span(val.span))
+            elif val.id.name == "Void":
+                return relay.TupleType(None, self.to_tvm_span(val.span))
+            else:
+                self.report_error(
+                    f"type_args value must be Tensor, Object, Shape, Void, or Tuple()", val.span
+                )
+        elif isinstance(val, ast.Call):
+            if val.func_name.id.name == "Tensor":
+                ndim = -1
+                dtype = None
+                for k, v in val.keyword_params.items():
+                    if k.value == "ndim":
+                        ndim = v.value
+                    if k.value == "dtype":
+                        dtype = v.value
+                return relax.DynTensorType(ndim, dtype, self.to_tvm_span(val.span))
+            elif val.func_name.id.name == "Tuple":
+                field_types = []
+                for field in val.params:
+                    fty = self.parse_type_from_value(field)
+                    field_types.append(fty)
+                return relax.TupleType(field_types, self.to_tvm_span(val.span))
+            else:
+                self.report_error(
+                    f"type_args elements must be Tensor or Tuple when having arguments, but meet {val.func_name.id.name}",
+                    val.span,
+                )
+        else:
+            self.report_error(
+                f"cannot parse {val} as the type_args value",
+                val.span,
+            )
 
-                    ndim = -1
-                    dtype = None
-                    for k, v in val.keyword_params.items():
-                        if k.value == "ndim":
-                            ndim = v.value
-                        if k.value == "dtype":
-                            dtype = v.value
-                    return relax.DynTensorType(ndim, dtype, self.to_tvm_span(val.span))
-                elif isinstance(val, ast.Var):
-                    if val.id.name == "Object":
-                        return relax.ObjectType(self.to_tvm_span(val.span))
-                    elif val.id.name == "Shape":
-                        return relax.ShapeType(self.to_tvm_span(val.span))
-                    else:
-                        self.report_error(
-                            f"type_args elements must be Tensor, Object, or Shape", val.span
-                        )
-                elif isinstance(val, ast.Tuple):
-                    fields = [self.parse_call_type_args(field) for field in val.values]
-                    return fields
-                else:
-                    self.report_error(f"unsupported expression: {expr}", expr.span)
-        return None
-
-    def parse_call_attr(self, expr: ast.Call) -> Union[tvm.ir.Attrs, None]:
+    def parse_call_attr(self, expr: ast.Call) -> Tuple(tvm.ir.Attrs, List[relax.Type]):
         """Parses keyword parameters as call attributes.
 
         Parameters
@@ -1063,13 +1073,18 @@ class RelaxTransformer(Transformer):
 
         Returns
         -------
-        Union[tvm.ir.Attrs, None]
-            The parsed call attributes.
+        Tuple(tvm.ir.Attrs, List[relax.Type])
+            The parsed call attributes and type_args.
         """
         op = self.transform_expr(expr.func_name)
         kwargs = {}
+        type_args = None
         for key, val in expr.keyword_params.items():
-            if key.value != "type_args":
+            if key.value == "type_args":
+                type_args = self.parse_type_from_value(val)
+                if type_args:
+                    type_args = [type_args]
+            else:
                 assert isinstance(key, ast.Constant) and isinstance(key.value, str)
                 # TODO(@altanh): might need separate attribute parsing eventually
                 kwargs[key.value] = self.transform_expr(val)
@@ -1087,7 +1102,7 @@ class RelaxTransformer(Transformer):
         attrs = None
         if kwargs or not is_default:
             attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
-        return attrs
+        return (attrs, type_args)
 
     def parse_call(self, expr: ast.Call) -> Union[tir.PrimExpr, relax.Expr]:
         """Parses the given synr Call node to a Relax expression or PrimExpr.
@@ -1138,10 +1153,7 @@ class RelaxTransformer(Transformer):
                 return self.transform_Subscript(expr)
 
         op = self.transform_expr(expr.func_name)
-
-        type_args = self.parse_call_type_args(expr)
-        if type_args and not isinstance(type_args, list):
-            type_args = [type_args]
+        type_args = None
 
         if op == SpecialOp.CALL_PACKED:
             extern_func = expr.params[0]
@@ -1262,7 +1274,10 @@ class RelaxTransformer(Transformer):
         if isinstance(op, tvm.ir.Op) and op.name == "relax.call_tir":
             attrs = None
         else:
-            attrs = self.parse_call_attr(expr)
+            attrs, type_args = self.parse_call_attr(expr)
+
+        if isinstance(op, relax.ExternFunc) and type_args == None:
+            self.report_error(f"call_packed is required to have type_args", expr.span)
 
         return relax.Call(
             op, args, attrs=attrs, type_args=type_args, span=self.to_tvm_span(expr.span)

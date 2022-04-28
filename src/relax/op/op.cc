@@ -51,11 +51,11 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Type InferTypeVoid(const Call& call, DiagnosticContext diag_ctx) { return VoidType(); }
+Type ReturnVoidType(const Call& call, DiagnosticContext diag_ctx) { return VoidType(); }
 
-Type InferTypeObject(const Call& call, DiagnosticContext diag_ctx) { return ObjectType(Span()); }
+Type ReturnObjectType(const Call& call, DiagnosticContext diag_ctx) { return ObjectType(Span()); }
 
-Type InferTypeShape(const Call& call, DiagnosticContext diag_ctx) { return ShapeType(Span()); }
+Type ReturnShapeType(const Call& call, DiagnosticContext diag_ctx) { return ShapeType(Span()); }
 
 // call_tir
 
@@ -104,7 +104,7 @@ TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 RELAY_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
-    .set_attr<FInferType>("FInferType", InferTypeShape);
+    .set_attr<FInferType>("FInferType", ReturnShapeType);
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");
@@ -147,7 +147,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
     .set_attrs_type<VMAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
-    .set_attr<FInferType>("FInferType", InferTypeObject);
+    .set_attr<FInferType>("FInferType", ReturnObjectType);
 
 Expr MakeVMAllocStorage(Expr size) {
   static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
@@ -193,7 +193,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
     .set_num_inputs(2)
     .add_argument("shape", "Expr", "The shape to be stored.")
     .add_argument("heap", "Expr", "The heap to store the shape.")
-    .set_attr<FInferType>("FInferType", InferTypeVoid);
+    .set_attr<FInferType>("FInferType", ReturnVoidType);
 
 Expr MakeStoreShape(Expr shape, Expr heap) {
   static const Op& op = Op::Get("relax.vm.builtin.store_shape");
@@ -208,7 +208,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
     .set_attrs_type<ShapeHeapAttrs>()
     .set_num_inputs(1)
     .add_argument("heap", "Expr", "The heap to load the shape from.")
-    .set_attr<FInferType>("FInferType", InferTypeShape);
+    .set_attr<FInferType>("FInferType", ReturnShapeType);
 
 Expr MakeLoadShape(Expr heap) {
   static const Op& op = Op::Get("relax.vm.builtin.load_shape");
@@ -224,7 +224,7 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple",
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
-    .set_attr<FInferType>("FInferType", InferTypeVoid);
+    .set_attr<FInferType>("FInferType", ReturnVoidType);
 
 }  // namespace relax
 }  // namespace tvm

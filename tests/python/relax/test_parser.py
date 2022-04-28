@@ -85,7 +85,7 @@ def test_annotations():
         q: Tensor(None, _, ndim=2) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
-        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y)
+        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y, type_args=(Object))
         return o
 
     x, y, r = f.params
@@ -116,7 +116,7 @@ def test_annotations():
     assert isinstance(f.ret_type, relax.ty.ObjectType)
 
     assert isinstance(o._checked_type_, relax.ty.ObjectType)
-    assert len(o_call_packed.type_args) == 0
+    assert len(o_call_packed.type_args) == 1
 
 
 def test_annotations_fail():
@@ -564,7 +564,6 @@ def test_inline_tir():
 def test_call_packed():
     @R.function
     def f(x: Tensor((3, 3), "float32")):
-        # test that we can intro dim vars
         z: Tensor((n, m), "float32") = relax.call_packed(
             "contrib.my_matmul",
             x,
@@ -572,6 +571,7 @@ def test_call_packed():
             mp=False,
             type_args=(Tensor(ndim=2, dtype="float32")),
         )
+
         w = relax.call_packed(
             "contrib.my_shape_of",
             x,
@@ -579,11 +579,19 @@ def test_call_packed():
             attrs_type_key="relay.attrs.ShapeOfAttrs",
             type_args=(Shape),
         )
+
         o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
-        return z
+
+        k = relax.call_packed(
+            "contrib.construct_tuple",
+            x,
+            x,
+            type_args=(Tuple(Tuple(Tensor(ndim=2, dtype="float32"), Tensor), Tensor)),
+        )
+        return k
 
     x = f.params[0]
-    (z_bind, w_bind, o_bind) = f.body.blocks[0].bindings
+    (z_bind, w_bind, o_bind, k_bind) = f.body.blocks[0].bindings
 
     z_var, z_value = z_bind.var, z_bind.value
     check_tensor_var(z_var, ("n", "m"), "float32")
@@ -595,12 +603,45 @@ def test_call_packed():
     assert len(z_value.type_args) == 1
     assert_structural_equal(z_value.type_args[0], relax.ty.DynTensorType(2, "float32"))
 
-    _, w_value = w_bind.var, w_bind.value
+    w_value = w_bind.value
     assert isinstance(w_value.attrs, relay.op.op_attrs.ShapeOfAttrs)
     assert_structural_equal(w_value.type_args[0], relax.ty.ShapeType())
 
-    _, o_value = o_bind.var, o_bind.value
+    o_value = o_bind.value
     assert_structural_equal(o_value.type_args[0], relax.ty.ObjectType())
+
+    k_value = k_bind.value
+    assert_structural_equal(
+        k_value.type_args[0],
+        relax.ty.TupleType(
+            [
+                relax.TupleType(
+                    [relax.ty.DynTensorType(2, "float32"), relax.ty.DynTensorType(-1, None)]
+                ),
+                relax.ty.DynTensorType(-1, None),
+            ]
+        ),
+    )
+
+
+def test_call_packed_no_type_args_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((3, 3), "float32")):
+            z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x)
+            return z
+
+
+def test_call_packed_wrong_type_args_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((3, 3), "float32")):
+            z: Tensor((n, m), "float32") = relax.call_packed(
+                "contrib.my_matmul", x, x, type_args=(Tuple)
+            )
+            return z
 
 
 def test_constant():

@@ -55,6 +55,14 @@ DynTensorType::DynTensorType(int ndim, DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
+DynTensorType DynTensorType::CreateUnknownNDim(DataType dtype, Span span) {
+  ObjectPtr<DynTensorTypeNode> n = make_object<DynTensorTypeNode>();
+  n->ndim = -1;
+  n->dtype = std::move(dtype);
+  n->span = std::move(span);
+  return DynTensorType(std::move(n));
+}
+
 TVM_REGISTER_NODE_TYPE(DynTensorTypeNode);
 
 TVM_REGISTER_GLOBAL("relax.DynTensorType").set_body_typed([](int ndim, DataType dtype, Span span) {

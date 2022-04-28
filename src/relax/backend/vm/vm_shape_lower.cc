@@ -121,7 +121,7 @@ class VMShapeLowerMutator : public ExprMutator {
     Type ret_type = this->VisitType(node->ret_type);
     // weaken the ret_type given this pass is the last stage of build.
     if (const DynTensorTypeNode* temp = ret_type.as<DynTensorTypeNode>()) {
-      ret_type = DynTensorType(-1, temp->dtype);
+      ret_type = DynTensorType::CreateUnknownNDim(temp->dtype, Span());
     }
     return Function(node->name, node->params, new_body, ret_type);
   }

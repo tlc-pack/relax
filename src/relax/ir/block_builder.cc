@@ -370,10 +370,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       return RuntimeDepShape(Span());
     } else if (call->op.as<OpNode>()) {
       // primitive op: look up FInferShape attribute
-      auto op_map = Op::GetAttrMap<FInferShape>("FInferShape");
       Op op = Downcast<Op>(call->op);
-      if (op_map.count(op)) {
-        Optional<Expr> shape = op_map[op](call, diag_ctx);
+      if (op_map_infer_shape_.count(op)) {
+        Optional<Expr> shape = op_map_infer_shape_[op](call, diag_ctx);
         if (shape && shape.as<ShapeExprNode>()) {
           if (!shape.value()->checked_type_.defined()) {
             UpdateType(shape.value(), ShapeType(Span()));
@@ -391,7 +390,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         }
       }
     } else {
-      LOG(FATAL) << "ValueError: Failed to do shape inference.";
+      LOG(FATAL) << "ValueError: Failed to do shape inference for " << call->op->GetTypeKey();
     }
 
     return NullOpt;
@@ -400,6 +399,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   // Helper function to infer the type of a Call.
   Type InferType(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
     // call_packed: return type_args of the call node
+    // TODO(@yuchen): add type annotation for ExternFuncNode
     if (call->op.as<ExternFuncNode>()) {
       if (call->type_args.defined()) {
         if (call->type_args.size() == 0) {
@@ -412,10 +412,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       }
     } else if (call->op.as<OpNode>()) {
       // primitive op: look up FInferType attribute
-      auto op_map = Op::GetAttrMap<FInferType>("FInferType");
       Op op = Downcast<Op>(call->op);
-      if (op_map.count(op)) {
-        return op_map[op](call, diag_ctx);
+      if (op_map_infer_type_.count(op)) {
+        return op_map_infer_type_[op](call, diag_ctx);
       } else {
         LOG(FATAL) << "ValueError: Cannot find the FInferType attribute registered to op: "
                    << op->name;
@@ -427,9 +426,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
           return func->checked_type_;
         }
+        // TODO(@yuchen): check after function type normalization
       }
     } else {
-      LOG(FATAL) << "ValueError: Failed to do type inference.";
+      // TODO(@yuchen): call to local var/function support
+      LOG(FATAL) << "ValueError: Failed to do type inference for " << call->op->GetTypeKey();
     }
 
     return Type();
@@ -483,6 +484,12 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   /*! \brief Memoization table for mapping expressions to their ANF variables. */
   ExprMemo expr_memo_;
+
+  /*! \brief Operator to shape inference map. */
+  tvm::OpAttrMap<FInferShape> op_map_infer_shape_ = Op::GetAttrMap<FInferShape>("FInferShape");
+
+  /*! \brief Operator to type inference map. */
+  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
 };
 
 // ================
