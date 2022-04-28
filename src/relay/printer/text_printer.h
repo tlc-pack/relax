@@ -185,6 +185,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc VisitType_(const RelayRefTypeNode* node) final;
   Doc VisitType_(const TypeDataNode* node) final;
   Doc VisitType_(const relax::DynTensorTypeNode* node) final;
+  Doc VisitType_(const relax::ObjectTypeNode* node) final;
   //------------------------------------
   // Overload of Attr printing functions
   //------------------------------------
@@ -296,11 +297,13 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc PrintTupleAnnotation(const TupleType& ty, const Optional<ObjectRef>& shape);
 
   Doc VisitType_(const relax::ShapeTypeNode* node) override;
+  Doc VisitType_(const relax::ObjectTypeNode* node) override;
   Doc VisitType_(const relax::DynTensorTypeNode* node) override;
   Doc VisitType_(const relay::TupleTypeNode* node) override;
 
   Doc PrintAttr(const ObjectRef& attr);
   std::vector<Doc> PrintAttrs(const Attrs& attrs);
+  std::vector<Doc> PrintTypeArgs(const Array<tvm::Type>& type_args);
   Doc VisitAttrDefault_(const Object* op) override;
   Doc PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info = true);
   Doc VisitAttr_(const ArrayNode* op) override;
