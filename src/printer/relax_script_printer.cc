@@ -35,6 +35,8 @@
 namespace tvm {
 namespace relax {
 
+Doc PrintDType(DataType dtype) { return Doc::StrLiteral(runtime::DLDataType2String(dtype)); }
+
 Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   if (node->IsInstance<IRModuleNode>()) {
     return PrintIRModule(Downcast<IRModule>(node));
@@ -90,13 +92,13 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
 
     Type output_type = op->type_args[0];
     if (const auto* out_type = output_type.as<DynTensorTypeNode>()) {
-      doc << ", dtype=" << Doc::StrLiteral(runtime::DLDataType2String(out_type->dtype)) << ")";
+      doc << ", dtype=" << PrintDType(out_type->dtype) << ")";
     } else if (const auto* out_type = output_type.as<TupleTypeNode>()) {
       std::vector<Doc> dtypes;
       for (auto field : out_type->fields) {
         if (const auto* field_type = field.as<DynTensorTypeNode>()) {
           Doc dtype;
-          dtype << Doc::StrLiteral(runtime::DLDataType2String(field_type->dtype));
+          dtype << PrintDType(field_type->dtype);
           dtypes.push_back(dtype);
         } else {
           LOG(FATAL) << "TypeError: Invalid type: " << field_type->GetTypeKey();
@@ -127,6 +129,13 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   }
   if (!attrs.empty()) {
     doc << ", " << Doc::Concat(attrs);
+  }
+
+  if (!op->type_args.empty()) {
+    doc << ", type_args=(";
+    std::vector<Doc> type_args = PrintTypeArgs(op->type_args);
+    doc << Doc::Concat(type_args);
+    doc << ")";
   }
 
   doc << ")";
@@ -355,6 +364,10 @@ TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ");
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) { return Doc::Text("Shape"); }
 
+Doc RelaxScriptPrinter::VisitType_(const relax::ObjectTypeNode* node) {
+  return Doc::Text("Object");
+}
+
 Doc RelaxScriptPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
   // NOTE: to print shape information, use PrintTensorAnnotation
   return PrintTensorAnnotation(GetRef<DynTensorType>(node), NullOpt);
@@ -401,6 +414,22 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_printer);
   }
   return kwargs;
+}
+
+std::vector<Doc> RelaxScriptPrinter::PrintTypeArgs(const Array<tvm::Type>& type_args) {
+  std::vector<Doc> type_args_doc;
+  if (!type_args.empty()) {
+    for (const auto& type : type_args) {
+      if (const auto* tensor = type.as<DynTensorTypeNode>()) {
+        Doc doc;
+        doc << "Tensor(ndim=" << tensor->ndim << ", dtype=" << PrintDType(tensor->dtype) << ")";
+        type_args_doc.push_back(doc);
+      } else {
+        type_args_doc.push_back(this->VisitType(type));
+      }
+    }
+  }
+  return type_args_doc;
 }
 
 Doc RelaxScriptPrinter::VisitAttrDefault_(const Object* op) {
@@ -534,7 +563,7 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
   if (ty->dtype.is_void()) {
     doc << "_";
   } else {
-    doc << Doc::StrLiteral(runtime::DLDataType2String(ty->dtype));
+    doc << PrintDType(ty->dtype);
   }
   // Print ndim annotation only when it cannot be inferred from shape itself.
   if (!shape.defined() || shape->IsInstance<relax::RuntimeDepShapeNode>()) {

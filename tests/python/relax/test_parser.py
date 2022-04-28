@@ -79,21 +79,23 @@ def test_annotations():
         x: Tensor((32, m), "float32"),
         y: Tensor((m, k), "float32"),
         r: Tensor(_, "int64"),
-    ) -> Tensor:
+    ) -> Object:
         z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
         w: Tensor(None, _) = multiply(z, z)
         q: Tensor(None, _, ndim=2) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
-        return t
+        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y, type_args=(Object))
+        return o
 
     x, y, r = f.params
-    z_bind, w_bind, q_bind, t_bind, sh_bind = f.body.blocks[0].bindings
+    z_bind, w_bind, q_bind, t_bind, sh_bind, o_bind = f.body.blocks[0].bindings
     z, mm = z_bind.var, z_bind.value
     w, mul = w_bind.var, w_bind.value
     q, add = q_bind.var, w_bind.value
     t, sub = t_bind.var, t_bind.value
     sh, shape_of = sh_bind.var, sh_bind.value
+    o, o_call_packed = o_bind.var, o_bind.value
 
     check_tensor_var(x, (32, "m"), "float32")
     check_tensor_var(y, ("m", "k"), "float32")
@@ -109,9 +111,12 @@ def test_annotations():
     check_call(sub, "subtract", [w, z])
     check_call(shape_of, "relax.shape_of", [t])
 
-    assert f.body.body == t
+    assert f.body.body == o
 
-    assert isinstance(f.ret_type, relax.ty.DynTensorType)
+    assert isinstance(f.ret_type, relax.ty.ObjectType)
+
+    assert isinstance(o._checked_type_, relax.ty.ObjectType)
+    assert len(o_call_packed.type_args) == 1
 
 
 def test_annotations_fail():
@@ -559,23 +564,84 @@ def test_inline_tir():
 def test_call_packed():
     @R.function
     def f(x: Tensor((3, 3), "float32")):
-        # test that we can intro dim vars
-        z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x, mp=False)
-        w = relax.call_packed(
-            "contrib.my_shape_of", x, dtype="int32", attrs_type_key="relay.attrs.ShapeOfAttrs"
+        z: Tensor((n, m), "float32") = relax.call_packed(
+            "contrib.my_matmul",
+            x,
+            x,
+            mp=False,
+            type_args=(Tensor(ndim=2, dtype="float32")),
         )
-        return z
+
+        w = relax.call_packed(
+            "contrib.my_shape_of",
+            x,
+            dtype="int32",
+            attrs_type_key="relay.attrs.ShapeOfAttrs",
+            type_args=(Shape),
+        )
+
+        o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
+
+        k = relax.call_packed(
+            "contrib.construct_tuple",
+            x,
+            x,
+            type_args=(Tuple(Tuple(Tensor(ndim=2, dtype="float32"), Tensor), Tensor)),
+        )
+        return k
 
     x = f.params[0]
-    (z_bind, w_bind) = f.body.blocks[0].bindings
-    check_tensor_var(z_bind.var, ("n", "m"), "float32")
+    (z_bind, w_bind, o_bind, k_bind) = f.body.blocks[0].bindings
 
-    assert isinstance(z_bind.value.op, relax.ExternFunc)
-    assert z_bind.value.op.global_symbol == "contrib.my_matmul"
-    assert "mp" in z_bind.value.attrs and z_bind.value.attrs["mp"] == False
-    assert_structural_equal(z_bind.value.args, [x, x])
+    z_var, z_value = z_bind.var, z_bind.value
+    check_tensor_var(z_var, ("n", "m"), "float32")
 
-    assert isinstance(w_bind.value.attrs, relay.op.op_attrs.ShapeOfAttrs)
+    assert isinstance(z_value.op, relax.ExternFunc)
+    assert z_value.op.global_symbol == "contrib.my_matmul"
+    assert "mp" in z_value.attrs and z_value.attrs["mp"] == False
+    assert_structural_equal(z_value.args, [x, x])
+    assert len(z_value.type_args) == 1
+    assert_structural_equal(z_value.type_args[0], relax.ty.DynTensorType(2, "float32"))
+
+    w_value = w_bind.value
+    assert isinstance(w_value.attrs, relay.op.op_attrs.ShapeOfAttrs)
+    assert_structural_equal(w_value.type_args[0], relax.ty.ShapeType())
+
+    o_value = o_bind.value
+    assert_structural_equal(o_value.type_args[0], relax.ty.ObjectType())
+
+    k_value = k_bind.value
+    assert_structural_equal(
+        k_value.type_args[0],
+        relax.ty.TupleType(
+            [
+                relax.TupleType(
+                    [relax.ty.DynTensorType(2, "float32"), relax.ty.DynTensorType(-1, None)]
+                ),
+                relax.ty.DynTensorType(-1, None),
+            ]
+        ),
+    )
+
+
+def test_call_packed_no_type_args_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((3, 3), "float32")):
+            z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x)
+            return z
+
+
+def test_call_packed_wrong_type_args_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((3, 3), "float32")):
+            z: Tensor((n, m), "float32") = relax.call_packed(
+                "contrib.my_matmul", x, x, type_args=(Tuple)
+            )
+            return z
 
 
 def test_constant():
@@ -603,7 +669,9 @@ def test_constant():
 def test_primexpr_arithmetic():
     @R.function
     def f(x: Tensor((n, m), "float32")):
-        z: Tensor((n * m,), "float32") = relax.call_packed("my_flatten", (x,))
+        z: Tensor((n * m,), "float32") = relax.call_packed(
+            "my_flatten", (x,), type_args=(Tensor(ndim=2, dtype="float32"))
+        )
         sh: Shape = (n + m, n // m)
         return z
 
@@ -673,16 +741,27 @@ def test_class_irmodule():
             _ = my_matmul(x, y, z)
             return z
 
+        @R.function
+        def k(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+            gv0 = relax.call_packed(
+                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
+            )
+            return gv0
+
     my_module = MyModule
     assert isinstance(my_module, tvm.IRModule)
+
+    R.parser.pretty_print(my_module)
 
     var_f = my_module.get_global_var("f")
     var_g = my_module.get_global_var("g")
     var_j = my_module.get_global_var("j")
+    var_k = my_module.get_global_var("k")
     var_my_matmul = my_module.get_global_var("my_matmul")
     f = my_module[var_f]
     g = my_module[var_g]
     j = my_module[var_j]
+    k = my_module[var_k]
 
     assert f.body.body.op == var_g
     assert g.body.body.args[0] == var_my_matmul
@@ -694,6 +773,13 @@ def test_class_irmodule():
     assert gv_bind.var.checked_type.dtype == "float32"
     check_shape(gv_bind.value, ("n", "n"))
     check_shape(gv_bind.var, ("n", "n"))
+
+    # check call_packed checked_type_
+    gv0_bind = k.body.blocks[0].bindings[0]
+    assert gv0_bind.value.checked_type.dtype == "float32"
+    assert gv0_bind.value.checked_type.ndim == 2
+    assert gv0_bind.var.checked_type.dtype == "float32"
+    assert gv0_bind.var.checked_type.ndim == 2
 
     # check function type
     j_type = j.checked_type
