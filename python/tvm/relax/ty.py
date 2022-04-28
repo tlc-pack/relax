@@ -24,8 +24,19 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("relax.ShapeType")
 class ShapeType(Type):
-    def __init__(self, span: Span = None):
+    """The type of shape in Relax."""
+
+    def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeType, span)
+
+
+@tvm._ffi.register_object("relax.ObjectType")
+class ObjectType(Type):
+    """A type that corresponds to tvm::runtime::Object, is base of all possible object
+    values in TVM."""
+
+    def __init__(self, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)
 
 
 @tvm._ffi.register_object("relax.DynTensorType")
@@ -43,7 +54,7 @@ class DynTensorType(Type):
         The content data type.
     """
 
-    def __init__(self, ndim=-1, dtype="float32", span: Span = None):
+    def __init__(self, ndim=-1, dtype="float32", span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DynTensorType, ndim, dtype, span)
 
 
@@ -51,7 +62,7 @@ class DynTensorType(Type):
 class DimType(Type):
     """The type of indices/shape dimensions in Relax."""
 
-    def __init__(self, span: Span = None):
+    def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DimType, span)
 
 
