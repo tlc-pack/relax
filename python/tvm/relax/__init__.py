@@ -58,6 +58,7 @@ te_tensor = expr.te_tensor
 # Type
 Type = ty.Type
 ShapeType = ty.ShapeType
+ObjectType = ty.ObjectType
 DynTensorType = ty.DynTensorType
 DimType = ty.DimType
 TupleType = ty.TupleType

@@ -102,7 +102,6 @@ class VMShapeLowerMutator : public ExprMutator {
         }
       }
     }
-    Type ret_type = this->VisitType(node->ret_type);
     Expr new_body = this->VisitExpr(node->body);
 
     Array<BindingBlock> blocks;
@@ -118,6 +117,15 @@ class VMShapeLowerMutator : public ExprMutator {
     // FIXME(@yuchen): Implement vm.builtin.free_shape_heap.
     // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
     new_body = builder_->Normalize(SeqExpr(blocks, new_body));
+
+    Type ret_type = this->VisitType(node->ret_type);
+
+    // Because this pass is the last stage of build, ndim info is no longer needed for tensors.
+    // The ret_type is weakened to unknown-dimensional DynTensorType.
+    // TODO(@yuchen): change all tensor types in the function to unknown ndim
+    if (const DynTensorTypeNode* temp = ret_type.as<DynTensorTypeNode>()) {
+      ret_type = DynTensorType::CreateUnknownNDim(temp->dtype, Span());
+    }
 
     return Function(node->name, node->params, new_body, ret_type);
   }
