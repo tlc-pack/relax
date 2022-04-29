@@ -409,11 +409,6 @@ class SeqExpr : public Expr {
 /*! \brief A Relax function, eventually to replace the current Relay function definition. */
 class FunctionNode : public BaseFuncNode {
  public:
-  /*!
-   * \brief Optionally attach the function's name for improved printing, and debugging.
-   * It need to be consistent with the GlobalVar in the IRModule.
-   */
-  runtime::Optional<GlobalVar> name;
   /*! \brief The parameters to the function. */
   Array<Var> params;
   /*! \brief The body of the function. */
@@ -422,7 +417,6 @@ class FunctionNode : public BaseFuncNode {
   Type ret_type;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
@@ -457,15 +451,13 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public BaseFunc {
  public:
-  TVM_DLL explicit Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                            Type ret_type, DictAttrs attrs = NullValue<DictAttrs>(),
-                            Span span = Span());
+  TVM_DLL explicit Function(Array<Var> params, Expr body, Type ret_type,
+                            DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without type checking.
    */
-  TVM_DLL static Function CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params,
-                                          Expr body, Type ret_type,
+  TVM_DLL static Function CreateUnchecked(Array<Var> params, Expr body, Type ret_type,
                                           DictAttrs attrs = NullValue<DictAttrs>(),
                                           Span span = Span());
 
@@ -473,7 +465,8 @@ class Function : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
-// [TODO] Investigate the exact usage of kComposite, kPartitionedFromPattern, and kPrimitive.
+// TODO(@sunggg): Investigate the exact usage of kComposite, kPartitionedFromPattern, and
+// kPrimitive.
 namespace attr {
 /*! \brief Mark the function as a primitive function. */
 constexpr const char* kPrimitive = "Primitive";

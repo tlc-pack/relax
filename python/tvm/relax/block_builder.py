@@ -574,7 +574,8 @@ class BlockBuilder(Object):
 
         # The function's checked_type_ relies on the function body(seqe) to have deduced type
         # TODO(@yuchen): handle the case where the body's checked_type_ is null
-        func = rx.Function(self._func_params, seqe, None, rx.GlobalVar(self._func_name))
+        func = rx.Function(self._func_params, seqe, None)
+        func = func.with_attr("global_symbol", self._func_name)
         self.add_func(func, self._func_name)
 
     def normalize(self, expr: Expr) -> Expr:

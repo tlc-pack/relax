@@ -328,8 +328,9 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::SeqExprNode* op) {
 }
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::FunctionNode* op) {
-  ICHECK(op->name.defined());
-  return PrintFunctionDef(Doc::Text(op->name.value()->name_hint), GetRef<relax::Function>(op));
+  Optional<String> gsymbol = op->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  ICHECK(gsymbol.defined());
+  return PrintFunctionDef(Doc::Text(gsymbol.value()), GetRef<relax::Function>(op));
 }
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::ExternFuncNode* op) {
