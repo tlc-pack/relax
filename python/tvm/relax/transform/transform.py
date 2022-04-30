@@ -59,6 +59,17 @@ def FMARewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.FMARewrite()
 
 
+def FMAFuse() -> tvm.ir.transform.Pass:
+    """Perform fused multiply add rewriting, generate subgraph(sub function),
+    and call into the sub function in the main function.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FMAFuse()
+
+
 def ToNonDataflow() -> tvm.ir.transform.Pass:
     """Transform all dataflow structure to non-dataflow version.
 
@@ -127,6 +138,7 @@ def MetaScheduleApplyHistoryBest(
     target: Target,
 ) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
+
     Parameters
     ----------
     database : metaschedule tuning database
@@ -160,7 +172,7 @@ def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir
 
 
 def FoldConstant() -> tvm.ir.transform.Pass:
-    """Fold constant expressions
+    """Fold constant expressions.
 
     Returns
     -------
@@ -170,7 +182,7 @@ def FoldConstant() -> tvm.ir.transform.Pass:
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
-    """Wrap a python class as function pass"""
+    """Wrap a python class as function pass."""
 
     class PyFunctionPass(FunctionPass):
         """Internal wrapper class to create a class instance."""
