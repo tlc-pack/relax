@@ -401,6 +401,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
             if (const auto* shape = func->body->shape_.as<ShapeExprNode>()) {
               if (IsConstantShape(shape)) {
                 return GetRef<ShapeExpr>(shape);
+              } else {
+                // TODO(@yuchen): add deducer for other cases, return RuntimeDepShape for now.
+                return RuntimeDepShape(Span());
               }
             } else {
               // TODO(@yuchen): add deducer for other cases

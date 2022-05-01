@@ -49,25 +49,25 @@ def FailTestRewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.FailTestRewrite()
 
 
-def FMARewrite() -> tvm.ir.transform.Pass:
+def RewriteFMA() -> tvm.ir.transform.Pass:
     """Perform fused multiply add rewriting in dataflow blocks.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.FMARewrite()
+    return _ffi_api.RewriteFMA()
 
 
-def FMAFuse() -> tvm.ir.transform.Pass:
-    """Perform fused multiply add rewriting, generate subgraph(sub function),
+def FuseFMA() -> tvm.ir.transform.Pass:
+    """Perform fused multiply add rewriting, generate a subgraph(sub function),
     and call into the sub function in the main function.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.FMAFuse()
+    return _ffi_api.FuseFMA()
 
 
 def ToNonDataflow() -> tvm.ir.transform.Pass:
