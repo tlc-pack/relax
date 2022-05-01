@@ -363,6 +363,16 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
   };
 
+  // Helper function to check if a ShapeExpr is constant shape
+  bool IsConstantShape(const ShapeExprNode* shape) const {
+    for (PrimExpr e : shape->values) {
+      if (!e->IsInstance<IntImmNode>()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // Helper function to infer the shape of a Call.
   Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
     if (call->op.as<ExternFuncNode>()) {
@@ -386,9 +396,27 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
       if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
-          return func->shape();
+          if (func->ret_type.as<DynTensorTypeNode>()) {
+            // case0: constant shape case
+            if (const auto* shape = func->body->shape_.as<ShapeExprNode>()) {
+              if (IsConstantShape(shape)) {
+                return GetRef<ShapeExpr>(shape);
+              } else {
+                // TODO(@yuchen): add deducer for other cases, return RuntimeDepShape for now.
+                return RuntimeDepShape(Span());
+              }
+            } else {
+              // TODO(@yuchen): add deducer for other cases
+              return RuntimeDepShape(Span());
+            }
+          }
         }
       }
+      // TODO(@yuchen): add this check after normalization in parser
+      // else {
+      //   LOG(FATAL) << "ValueError: Cannot find function " << gv->name_hint
+      //              << " in the context IRModule.";
+      // }
     } else {
       LOG(FATAL) << "ValueError: Failed to do shape inference for " << call->op->GetTypeKey();
     }
@@ -424,9 +452,13 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
       if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
-          return func->checked_type_;
+          return func->ret_type;
         }
-        // TODO(@yuchen): check after function type normalization
+        // TODO(@yuchen): add this check after normalization in parser
+        // else {
+        //   LOG(FATAL) << "ValueError: Cannot find function " << gv->name_hint
+        //              << " in the context IRModule.";
+        // }
       }
     } else {
       // TODO(@yuchen): call to local var/function support
