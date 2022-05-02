@@ -39,16 +39,16 @@ def test_func_attr_setter():
     mod = InputModule
     assert isinstance(mod, tvm.IRModule)
     # Annotate a function
-    annot_mod = mod["relax_add"].with_attr("Codegen", "test-codegen")
-    annot_mod = annot_mod.with_attr("global_symbol", "test-symbol")
+    annot_func = mod["relax_add"].with_attr("Codegen", "test-codegen")
+    annot_func = annot_func.with_attr("global_symbol", "test-symbol")
 
     # Test annotation
-    assert annot_mod.attrs
-    assert annot_mod.attrs["Codegen"] == "test-codegen"
-    assert annot_mod.attrs["global_symbol"] == "test-symbol"
+    assert annot_func.attrs
+    assert annot_func.attrs["Codegen"] == "test-codegen"
+    assert annot_func.attrs["global_symbol"] == "test-symbol"
 
     # Update ir module
-    mod["relax_add"] = annot_mod
+    mod["relax_add"] = annot_func
 
     # Test with passes
     # Annotation should stay the same unless the pass needs to modify it

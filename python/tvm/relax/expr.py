@@ -181,15 +181,15 @@ class Function(BaseFunc):
     params: List[Var]
     body: Expr
     ret_type: Type
-    attrs: dict
+    attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
         self,
         params: List[Var],
         body: Expr,
         ret_type: Type,
-        attrs: dict = None,
-        span: Span = None,
+        attrs: Optional[tvm.ir.DictAttrs] = None,
+        span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Function, params, body, ret_type, attrs, span)
 
@@ -198,8 +198,8 @@ class Function(BaseFunc):
         params: List[Var],
         body: Expr,
         ret_type: Type,
-        attrs: dict = None,
-        span: Span = None,
+        attrs: Optional[tvm.ir.DictAttrs] = None,
+        span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without type checking."""
         return _ffi_api.Function_CreateUnchecked(params, body, ret_type, attrs, span)
