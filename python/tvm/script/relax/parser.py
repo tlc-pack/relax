@@ -617,10 +617,17 @@ class RelaxTransformer(Transformer):
             new_body = self.transform_block(func.body)
             ret_type, _ = self.transform_type(func.ret_type, bind_free_vars=False)
 
-        func_name = relax.GlobalVar(func.name) if is_global else None
-        return relax.Function.create_unchecked(
-            params, new_body, ret_type, name=func_name, span=self.to_tvm_span(func.span)
+        relax_func = relax.Function.create_unchecked(
+            params,
+            new_body,
+            ret_type,
+            attrs=None,
+            span=self.to_tvm_span(func.span),
         )
+        if is_global:
+            relax_func = relax_func.with_attr("global_symbol", func.name)
+
+        return relax_func
 
     def is_match_shape(self, stmt: ast.Stmt) -> bool:
         """Returns whether or not the given statement is a MatchShape binding.
