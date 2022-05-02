@@ -68,7 +68,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
       return expr;
     }
     // The checked_type_ of the new function is deduced from the function body
-    return Function(func->name, new_params, new_body, Type());
+    return Function(new_params, new_body, Type(), func->attrs);
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
   }
@@ -122,7 +122,8 @@ IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> p
   Map<GlobalVar, BaseFunc> functions = m->functions;
   for (const auto& func_pr : functions) {
     if (const auto* relax_f = func_pr.second.as<FunctionNode>()) {
-      if (relax_f->name.value()->name_hint == func_name) {
+      Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      if (gsymbol.defined() && gsymbol.value() == func_name) {
         Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
         new_module->Update(func_pr.first, f_after_bind);
       }
