@@ -187,8 +187,7 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body, Type ret_type,
-                   Span span) {
+Function::Function(Array<Var> params, Expr body, Type ret_type, DictAttrs attrs, Span span) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
@@ -219,22 +218,22 @@ Function::Function(runtime::Optional<GlobalVar> name, Array<Var> params, Expr bo
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
-  n->name = std::move(name);
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->checked_type_ = std::move(func_type);
+  n->attrs = std::move(attrs);
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relax.Function")
-    .set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                       Type ret_type,
-                       Span span) { return Function(name, params, body, ret_type, span); });
+    .set_body_typed([](Array<Var> params, Expr body, Type ret_type, DictAttrs attrs, Span span) {
+      return Function(params, body, ret_type, attrs, span);
+    });
 
-Function Function::CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                                   Type ret_type, Span span) {
+Function Function::CreateUnchecked(Array<Var> params, Expr body, Type ret_type, DictAttrs attrs,
+                                   Span span) {
   for (Var param : params) {
     ICHECK(param->checked_type_.defined())
         << "relax.Function requires params to contain checked_type_.";
@@ -242,18 +241,17 @@ Function Function::CreateUnchecked(runtime::Optional<GlobalVar> name, Array<Var>
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
-  n->name = std::move(name);
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
+  n->attrs = std::move(attrs);
   n->span = std::move(span);
   return Function(std::move(n));
 }
 
 TVM_REGISTER_GLOBAL("relax.Function_CreateUnchecked")
-    .set_body_typed([](runtime::Optional<GlobalVar> name, Array<Var> params, Expr body,
-                       Type ret_type, Span span) {
-      return Function::CreateUnchecked(name, params, body, ret_type, span);
+    .set_body_typed([](Array<Var> params, Expr body, Type ret_type, DictAttrs attrs, Span span) {
+      return Function::CreateUnchecked(params, body, ret_type, attrs, span);
     });
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);

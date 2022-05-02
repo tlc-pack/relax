@@ -144,11 +144,12 @@ def test_func():
     blocks = [rx.BindingBlock(bindings)]
     seqe = rx.SeqExpr(blocks, x)
     ret_type = rx.DynTensorType(-1, "float32")
-    func = rx.Function([x], seqe, ret_type, rx.GlobalVar("func"))
+    func = rx.Function([x], seqe, ret_type)
+    func = func.with_attr("global_symbol", "func")
     assert func.params[0] == x
     assert func.body == seqe
     assert func.ret_type == ret_type
-    assert func.name.name_hint == "func"
+    assert func.attrs["global_symbol"] == "func"
 
 
 def test_shape_of():
