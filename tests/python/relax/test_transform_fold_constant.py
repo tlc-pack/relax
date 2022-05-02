@@ -49,7 +49,9 @@ def gen_mod(mod, name, binding):
             if k.name_hint == name:
                 # rename to main
                 gv = tvm.ir.GlobalVar("main")
-                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type, gv)
+                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type).with_attr(
+                    "global_symbol", "main"
+                )
         else:
             funcs[k] = v
     mod = tvm.IRModule(funcs)
