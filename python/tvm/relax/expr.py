@@ -178,31 +178,31 @@ class SeqExpr(Expr):
 class Function(BaseFunc):
     """A Relax function."""
 
-    name: Optional[GlobalVar]
     params: List[Var]
     body: Expr
     ret_type: Type
+    attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
         self,
         params: List[Var],
         body: Expr,
         ret_type: Type,
-        name: Optional[GlobalVar] = None,
-        span: Span = None,
+        attrs: Optional[tvm.ir.DictAttrs] = None,
+        span: Optional[Span] = None,
     ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Function, name, params, body, ret_type, span)
+        self.__init_handle_by_constructor__(_ffi_api.Function, params, body, ret_type, attrs, span)
 
     @staticmethod
     def create_unchecked(
         params: List[Var],
         body: Expr,
         ret_type: Type,
-        name: Optional[GlobalVar] = None,
-        span: Span = None,
+        attrs: Optional[tvm.ir.DictAttrs] = None,
+        span: Optional[Span] = None,
     ):
-        """ Construct a relax.Function but without type checking. """
-        return _ffi_api.Function_CreateUnchecked(name, params, body, ret_type, span)
+        """Construct a relax.Function but without type checking."""
+        return _ffi_api.Function_CreateUnchecked(params, body, ret_type, attrs, span)
 
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
