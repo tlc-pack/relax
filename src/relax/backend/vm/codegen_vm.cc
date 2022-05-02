@@ -53,8 +53,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   // TODO(@yuchen): when we support closure, this visitor should return a register that
   // contains the closure object.
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
-    if (func_node->name.defined()) {
-      builder_->EmitFunction(func_node->name.value()->name_hint, func_node->params.size());
+    Optional<String> gsymbol = func_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    if (gsymbol.defined()) {
+      builder_->EmitFunction(gsymbol.value(), func_node->params.size());
     } else {
       // TODO(@yuchen): handle local functions that capture local vars outside the func
       // TODO(@yuchen): a renaming pass to resolve name conflicts, e.g. the input module has a
