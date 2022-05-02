@@ -28,6 +28,7 @@
 // and are only used in minimum cases where they are clearly marked.
 //
 // Rationale: We calls into the type specific WithAttr function
+#include <tvm/relax/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/tir/function.h>
 
@@ -43,6 +44,8 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
         return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
       } else if (func->IsInstance<relay::FunctionNode>()) {
         return WithAttr(Downcast<relay::Function>(std::move(func)), key, value);
+      } else if (func->IsInstance<relax::FunctionNode>()) {
+        return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
       } else {
         LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
       }

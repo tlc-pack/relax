@@ -219,7 +219,7 @@ class ExprMutator(ExprFunctor):
     def visit_function(self, func: Function) -> Function:
         new_params = [self.visit(param) for param in func.params]
         new_body = self.visit(func.body)
-        return Function(new_params, new_body, func.ret_type, func.name, func.span)
+        return Function(new_params, new_body, func.ret_type, func.attrs, func.span)
 
     def visit_extern_func(self, op: ExternFunc) -> ExternFunc:
         return op

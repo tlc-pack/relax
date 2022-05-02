@@ -157,7 +157,7 @@ def test_dataflowblock_class_pass():
     @tvm.script.ir_module
     class Mod1:
         @R.function
-        def f1(x: Tensor((m, n), "float32")):
+        def f(x: Tensor((m, n), "float32")):
             with relax.dataflow():
                 lv0 = relax.multiply(x, x)
                 gv0 = relax.add(x, x)
@@ -167,7 +167,7 @@ def test_dataflowblock_class_pass():
     @tvm.script.ir_module
     class Mod2:
         @R.function
-        def f2(x: Tensor((m, n), "float32")):
+        def f(x: Tensor((m, n), "float32")):
             with relax.dataflow():
                 lv0 = relax.add(x, x)
                 gv0 = relax.add(x, x)
@@ -179,7 +179,7 @@ def test_dataflowblock_class_pass():
     assert block_pass.info.name == "TestReplaceBinding"
     updated_mod1 = block_pass(Mod1)
     updated_mod2 = block_pass(Mod2)
-    assert_structural_equal(updated_mod1["f1"], updated_mod2["f2"])
+    assert_structural_equal(updated_mod1["f"], updated_mod2["f"])
 
 
 def test_dataflowblock_pass():
