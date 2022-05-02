@@ -100,7 +100,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     if (new_body.same_as(op->body)) {
       func = GetRef<Function>(op);
     } else {
-      func = Function(op->name, op->params, new_body, op->ret_type);
+      func = Function(op->params, new_body, op->ret_type, op->attrs);
     }
 
     // NOTE: the shape_ of Function is left as null for now, to be consitent with

@@ -122,9 +122,9 @@ class EwiseFuseFMAMutator : public ExprMutator {
         Var z = Var("z", Downcast<Expr>(call->args[1]->shape_), call->args[1]->checked_type_);
         Expr body = Call(ewise_fma_op, {x, y, z});
 
-        // TODO(@yuchen): avoid creating the unnecessary global_var after #136 is merged
-        GlobalVar global_var = GlobalVar("ewise_fma_fused");
-        Expr ewise_fma_fused = Function(global_var, {x, y, z}, body, call->args[1]->checked_type_);
+        String func_name = "ewise_fma_fused";
+        Function func = Function({x, y, z}, body, call->args[1]->checked_type_);
+        Expr ewise_fma_fused = WithAttr(std::move(func), "global_symbol", func_name);
         Expr normalized = builder_->Normalize(ewise_fma_fused);
         GlobalVar global_var1 =
             builder_->AddFunction(Downcast<BaseFunc>(normalized), "ewise_fma_fused");
