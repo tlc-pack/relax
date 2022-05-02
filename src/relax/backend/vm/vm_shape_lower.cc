@@ -127,7 +127,7 @@ class VMShapeLowerMutator : public ExprMutator {
       ret_type = DynTensorType::CreateUnknownNDim(temp->dtype, Span());
     }
 
-    return Function(node->name, node->params, new_body, ret_type);
+    return Function(node->params, new_body, ret_type, node->attrs);
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {

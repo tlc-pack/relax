@@ -275,7 +275,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(op->name, params, body, ret_type);
+    return Function(params, body, ret_type, op->attrs);
   }
 }
 

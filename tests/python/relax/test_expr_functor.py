@@ -133,7 +133,7 @@ def test_function():
     blocks = [relax.BindingBlock(bindings)]
     seq_expr = relax.SeqExpr(blocks, x)
     ret_type = relax.DynTensorType(-1, "float32")
-    func = relax.Function([x], seq_expr, ret_type, relax.GlobalVar("func"))
+    func = relax.Function([x], seq_expr, ret_type)
     check_visit(func)
 
 
