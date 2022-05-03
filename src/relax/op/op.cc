@@ -99,6 +99,36 @@ Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
+// make_closure
+
+RELAY_REGISTER_OP("relax.make_closure")
+    .set_num_inputs(2)
+    .add_argument("func", "Expr", "The closure.")
+    .add_argument("args", "Tuple", "The captured variables.")
+    .set_attr<FInferType>("FInferType", ReturnObjectType);
+
+Expr MakeClosure(Expr func, Tuple args) {
+  static const Op& op = Op::Get("relax.make_closure");
+  return Call(op, {func, args}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
+
+// invoke_closure
+
+RELAY_REGISTER_OP("relax.invoke_closure")
+    .set_num_inputs(2)
+    .add_argument("closure", "Expr", "The VMClosure.")
+    .add_argument("args", "Tuple", "The captured variables.")
+    .set_attr<FInferType>("FInferType", ReturnVoidType);
+
+Expr InvokeClosure(Expr closure, Tuple args) {
+  static const Op& op = Op::Get("relax.invoke_closure");
+  return Call(op, {closure, args}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
+
 // shape_of
 
 RELAY_REGISTER_OP("relax.shape_of")
@@ -185,6 +215,21 @@ Expr MakeVMAllocTensor(Expr storage, Expr shape) {
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor").set_body_typed(MakeVMAllocTensor);
+
+// vm make_closure
+
+RELAY_REGISTER_OP("relax.vm.builtin.make_closure")
+    .set_num_inputs(2)
+    .add_argument("func", "Expr", "The closure.")
+    .add_argument("args", "Tuple", "The captured variables.")
+    .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor);
+
+Expr MakeVMClosure(Expr func, Tuple args) {
+  static const Op& op = Op::Get("relax.vm.builtin.make_closure");
+  return Call(op, {func, args}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.builtin.make_closure").set_body_typed(MakeVMClosure);
 
 // vm store_shape
 

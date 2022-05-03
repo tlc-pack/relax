@@ -903,5 +903,62 @@ def test_recursion():
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
+def test_vm_closure():
+    ib = relax.ExecBuilder()
+    with ib.function("lifted_func_1", num_inputs=2):
+        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
+        ib.emit_ret(ib.r(2))
+    with ib.function("main", num_inputs=2):
+        x = ib.emit_constant("lifted_func_1")
+        ib.emit_call("vm.builtin.alloc_closure", args=[ib.c(x), ib.r(0)], dst=ib.r(2))
+        ib.emit_call(
+            "vm.builtin.invoke_closure", args=[ib.vm_state(), ib.r(2), ib.r(1)], dst=ib.r(3)
+        )
+        ib.emit_ret(ib.r(3))
+    ex = ib.get()
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    print("test_vm_closure, ex: \n", ex.as_text())
+    a = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
+    b = tvm.nd.array(
+        np.random.rand(
+            4,
+        )
+    )
+
+    clo_res = vm["main"](a, b)
+    tvm.testing.assert_allclose(clo_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
+
+
+def test_vm_compile_closure():
+    @tvm.script.ir_module
+    class TestClosure:
+        @R.function
+        def lifted_func_1(x: Tensor((2, 3), "float32"), env: Tensor((2, 3), "float32")):
+            return relax.call_packed("test.vm.add", x, env, type_args=(Tensor))
+
+        @R.function
+        def main(
+            x: Tensor((2, 3), "float32"),
+            y: Tensor((2, 3), "float32"),
+        ):
+            clo = relax.make_closure(lifted_func_1, (x,))
+            res = relax.invoke_closure(clo, (y,))
+            return res
+
+    mod = TestClosure
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x_inp = tvm.nd.array(np.random.rand(2, 3))
+    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+    res = vm["main"](x_inp, y_inp)
+    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
+    # TODO (yongwww): add vm.invoke_closure(clo, *args) function, then invoke the VMClosure object here
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

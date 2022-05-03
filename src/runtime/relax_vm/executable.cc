@@ -22,6 +22,7 @@
  */
 
 #include <dmlc/memory_io.h>
+#include <tvm/runtime/object.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/relax_vm/executable.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -50,6 +51,15 @@ enum ConstantType : int {
 #define STREAM_CHECK(val, section)                                          \
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
+
+TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
+
+VMClosure::VMClosure(String func_name, Array<ObjectRef> free_vars) {
+  auto ptr = make_object<VMClosureObj>();
+  ptr->func_name = func_name;
+  ptr->free_vars = std::move(free_vars);
+  data_ = std::move(ptr);
+}
 
 PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "stats") {

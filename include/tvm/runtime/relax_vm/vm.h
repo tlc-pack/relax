@@ -97,7 +97,8 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param devices The set of TVM devices.
    * \param alloc_types The allocator types for each device.
    */
-  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
+  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types,
+            const Optional<Module>& lib);
   /*!
    * \brief Load the executable for the virtual machine.
    * \param exec The executable.
@@ -166,6 +167,13 @@ class VirtualMachine : public runtime::ModuleNode {
    * \return The object representing the result.
    */
   RegType Invoke(Index fidx, const std::vector<RegType>& args);
+  /*!
+   * \brief Invoke a VMClosure.
+   * \param clo The VMClosure.
+   * \param args The arguments to the closure.
+   * \return The object representing the result.
+   */
+  RegType Invoke_Closure(VMClosure clo, const std::vector<RegType>& args);
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
   /*!

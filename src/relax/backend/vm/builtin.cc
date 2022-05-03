@@ -19,6 +19,7 @@
 /*!
  * \file src/relax/backend/vm/builtin.cc
  */
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
@@ -28,6 +29,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/bytecode.h>
+#include <tvm/runtime/relax_vm/executable.h>
 #include <tvm/runtime/relax_vm/memory_manager.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
@@ -43,6 +45,54 @@ TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](NDArray src) { return s
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap").set_body_typed([](ShapeTuple size) {
   return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
+});
+
+
+TVM_REGISTER_GLOBAL("vm.builtin.alloc_closure")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      std::vector<ObjectRef> cap_vars;
+      for (int i = 1; i < args.size(); ++i) {
+        cap_vars.push_back(args[i]);
+      }
+      String func_name = args[0];
+      VMClosure vm_closure(func_name, cap_vars);
+
+      *rv = std::move(vm_closure);
+    });
+
+TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
+  // args[0]: vm_state; args[1]: closure; args[2]: function arguments, tuple
+  void* vm_state_ptr = args[0];
+  VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
+  VMClosure vm_closure = args[1];
+  runtime::String func_name = vm_closure->func_name;
+
+  PackedFunc func{nullptr};
+  if (vm_state->lib.defined()) {
+    func = vm_state->lib.value()->GetFunction(func_name, true);
+  }
+  if (!func.defined()) {
+    const PackedFunc* p_func = Registry::Get(func_name);
+    CHECK(p_func != nullptr);
+    func = *(p_func);
+  }
+
+  // get closure free_vars
+  Array<ObjectRef> cap_vars = vm_closure->free_vars;
+  size_t num_tensor_args = args.size() - 2;
+  std::vector<TVMValue> values(num_tensor_args + cap_vars.size());
+  std::vector<int> tcodes(num_tensor_args + cap_vars.size());
+
+  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
+  for (size_t i = 0; i < num_tensor_args; i++) {
+    NDArray arg = args[i + 2];
+    setter(i, arg);
+  }
+  for (size_t i = 0; i < cap_vars.size(); i++) {
+    setter(i + num_tensor_args, cap_vars[i]);
+  }
+  TVMArgs func_args(values.data(), tcodes.data(), values.size());
+  func.CallPacked(func_args, rv);
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.store_shape")
