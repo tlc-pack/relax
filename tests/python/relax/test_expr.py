@@ -165,5 +165,19 @@ def test_shape_of():
         assert x == y
 
 
+def test_shape_expr():
+    shape_expr = rx.ShapeExpr([10, 20])
+    assert shape_expr.values[0] == 10
+    assert shape_expr.values[1] == 20
+    assert shape_expr.checked_type == rx.ShapeType()
+    assert shape_expr.shape_ is None
+
+    x = rx.Var("v0", (10, 20), rx.DynTensorType(2, "float32"))
+    assert x.shape_.values[0] == 10
+    assert x.shape_.values[1] == 20
+    assert x.shape_.checked_type == rx.ShapeType()
+    assert x.shape_.shape_ is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
