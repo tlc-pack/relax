@@ -49,6 +49,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
+  RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
 
   // TODO(@altanh): CopyOnWrite
 
@@ -220,15 +221,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     return constant;
   }
 
-  Expr VisitExpr_(const ShapeExprNode* op) final {
-    ShapeExpr shape_expr = GetRef<ShapeExpr>(op);
-
-    if (!shape_expr->checked_type_.defined()) {
-      UpdateType(shape_expr, ShapeType(Span()));
-    }
-    return shape_expr;
-  }
-
   Expr VisitExpr_(const IfNode* op) final {
     Expr new_cond = this->VisitExpr(op->cond);
     Expr new_true = this->VisitWithNewScope(op->true_branch);
@@ -382,13 +374,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       // primitive op: look up FInferShape attribute
       Op op = Downcast<Op>(call->op);
       if (op_map_infer_shape_.count(op)) {
-        Optional<Expr> shape = op_map_infer_shape_[op](call, diag_ctx);
-        if (shape && shape.as<ShapeExprNode>()) {
-          if (!shape.value()->checked_type_.defined()) {
-            UpdateType(shape.value(), ShapeType(Span()));
-          }
-        }
-        return shape;
+        return op_map_infer_shape_[op](call, diag_ctx);
       }
     } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
       // global function: find the function's shape_
