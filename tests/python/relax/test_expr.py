@@ -177,5 +177,6 @@ def test_shape_expr():
     assert x.shape_.checked_type == rx.ShapeType()
     assert x.shape_.shape_ is None
 
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -49,6 +49,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
+  RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
 
   // TODO(@altanh): CopyOnWrite
 
@@ -218,13 +219,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       UpdateType(constant, type);
     }
     return constant;
-  }
-
-  Expr VisitExpr_(const ShapeExprNode* op) final {
-    ShapeExpr shape_expr = GetRef<ShapeExpr>(op);
-    ICHECK(op->checked_type_.defined());
-    ICHECK(!op->shape_.defined());
-    return shape_expr;
   }
 
   Expr VisitExpr_(const IfNode* op) final {
