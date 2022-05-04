@@ -43,7 +43,7 @@ def test_var():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
     # Error: Var gv0 is defined more than once
     with pytest.raises(tvm.TVMError):
@@ -54,7 +54,7 @@ def test_var():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
 
 def test_dataflowvar():
@@ -67,7 +67,7 @@ def test_dataflowvar():
         blocks = [rx.DataflowBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
     # Error: DataflowVar gv0 is defined more than once
     with pytest.raises(tvm.TVMError):
@@ -78,7 +78,7 @@ def test_dataflowvar():
         blocks = [rx.DataflowBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
     # Error: DataflowVar lv0 is defined outside DataflowBlock
     with pytest.raises(tvm.TVMError):
@@ -88,7 +88,7 @@ def test_dataflowvar():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
     # Error: DataflowVar lv0 is used outside DataflowBlock
     with pytest.raises(tvm.TVMError):
@@ -99,7 +99,7 @@ def test_dataflowvar():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
 
 def test_globalvar():
@@ -115,7 +115,7 @@ def test_globalvar():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
 
 def test_symbolicvar():
@@ -128,7 +128,7 @@ def test_symbolicvar():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
 
 def test_seqexpr():
@@ -146,7 +146,7 @@ def test_seqexpr():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
 
 def test_ANF():
@@ -158,7 +158,7 @@ def test_ANF():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
     # Error: Call Node in Tuple
     with pytest.raises(tvm.TVMError):
@@ -167,7 +167,7 @@ def test_ANF():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks)
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        rx.analysis.WellFormed(mod)
+        rx.analysis.well_formed(mod)
 
 
 if __name__ == "__main__":
