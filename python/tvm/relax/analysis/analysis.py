@@ -37,3 +37,14 @@ def post_order_visit(expr, fvisit):
         The visitor function to be applied.
     """
     return _ffi_api.post_order_visit(expr, fvisit)
+
+
+def WellFormed(mod) -> None:
+    """Check if the IRModule is well formed.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input IRModule.
+    """
+    return _ffi_api.well_formed(mod)

@@ -23,6 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relay/function.h>
@@ -160,6 +161,9 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   pass_ctx->diag_ctx = previous;
 
   VLOG(1) << "Output module:" << std::endl << PrettyPrint(updated_mod);
+
+  // check if the updated IRModule is well formed
+  WellFormed(updated_mod);
 
   return updated_mod;
 }
@@ -375,6 +379,9 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
   pass_ctx->diag_ctx = previous;
 
   VLOG(1) << "Output module:" << std::endl << PrettyPrint(updated_mod);
+
+  // check if the updated IRModule is well formed
+  WellFormed(updated_mod);
 
   return updated_mod;
 }
