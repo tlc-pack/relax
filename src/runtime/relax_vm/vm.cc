@@ -71,6 +71,19 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         }
       }
     });
+  } else if (name == "invoke_closure") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK(exec_) << "The executable is not created yet.";
+      VMClosure clo = args[0];
+      Array<ObjectRef> func_args = args[1];
+      std::vector<RegType> new_args;
+      for (auto f_arg : func_args) {
+        TVMRetValue arg;
+        arg = f_arg;
+        new_args.push_back(arg);
+      }
+      *rv = InvokeClosure(clo, new_args);
+    });
   }
 
   const auto& m = exec_->global_map;
@@ -109,19 +122,21 @@ RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
   return return_value_;
 }
 
-RegType VirtualMachine::Invoke_Closure(VMClosure clo, const std::vector<RegType>& args) {
-  //
+RegType VirtualMachine::InvokeClosure(VMClosure clo, const std::vector<RegType>& args) {
   std::vector<RegType> new_args;
-  auto cap_vars = clo->free_vars;
-  // for (size_t i = 0; i < cap_vars.size(); ++i) { // todo(yongwww): Get RegType
-  //   new_args.push_back(TVMRetValue(cap_vars[i]));
-  // }
   for (size_t j = 0; j < args.size(); ++j) {
     new_args.push_back(args[j]);
   }
+  // Append the free variables of closure
+  auto cap_vars = clo->free_vars;
+  for (size_t i = 0; i < cap_vars.size(); ++i) {
+    TVMRetValue arg;
+    arg = cap_vars[i];
+    new_args.push_back(arg);
+  }
   String func_name = clo->func_name;
   auto it = exec_->global_map.find(func_name);
-  ICHECK(it != exec_->global_map.end()) << "no such function " << func_name;
+  ICHECK(it != exec_->global_map.end()) << "No such function " << func_name;
   Index func_idx = it->second;
 
   return this->Invoke(func_idx, new_args);

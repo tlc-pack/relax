@@ -917,7 +917,6 @@ def test_vm_closure():
         ib.emit_ret(ib.r(3))
     ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    print("test_vm_closure, ex: \n", ex.as_text())
     a = tvm.nd.array(
         np.random.rand(
             4,
@@ -930,7 +929,7 @@ def test_vm_closure():
     )
 
     clo_res = vm["main"](a, b)
-    tvm.testing.assert_allclose(clo_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(clo_res.numpy(), a.numpy() + b.numpy())
 
 
 def test_vm_compile_closure():
@@ -956,8 +955,41 @@ def test_vm_compile_closure():
     x_inp = tvm.nd.array(np.random.rand(2, 3))
     y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
     res = vm["main"](x_inp, y_inp)
-    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
-    # TODO (yongwww): add vm.invoke_closure(clo, *args) function, then invoke the VMClosure object here
+    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
+
+
+def test_vm_invoke_closure():
+    @tvm.script.ir_module
+    class TestClosure:
+        @R.function
+        def lifted_func_1(
+            w: Tensor((2, 3), "float32"),
+            x: Tensor((2, 3), "float32"),
+            y: Tensor((2, 3), "float32"),
+            z: Tensor((2, 3), "float32"),
+        ):
+            s1 = relax.call_packed("test.vm.add", w, x, type_args=(Tensor))
+            s2 = relax.call_packed("test.vm.add", s1, y, type_args=(Tensor))
+            s3 = relax.call_packed("test.vm.add", s2, z, type_args=(Tensor))
+            return s3
+
+        @R.function
+        def main(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")):
+            return relax.make_closure(lifted_func_1, (x, y))
+
+    mod = TestClosure
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    w_inp = tvm.nd.array(np.random.rand(2, 3))
+    x_inp = tvm.nd.array(np.random.rand(2, 3))
+    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+    z_inp = tvm.nd.array(np.random.rand(2, 3))
+    clo = vm["main"](w_inp, x_inp)
+    res = vm.invoke_closure(clo, (y_inp, z_inp))
+    tvm.testing.assert_allclose(
+        res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
+    )
 
 
 if __name__ == "__main__":

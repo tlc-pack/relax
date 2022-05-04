@@ -90,6 +90,7 @@ class VirtualMachine(object):
             dict.
         """
         self.module = exec.mod["vm_load_executable"]()
+        self._invoke_closure = self.module["invoke_closure"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
@@ -135,6 +136,24 @@ class VirtualMachine(object):
 
     def __getitem__(self, key: str) -> PackedFunc:
         return self.module[key]
+
+    def invoke_closure(self, closure, *args):
+        """Invoke a closure.
+
+        Parameters
+        ----------
+        closure : Object
+            The VMClosure Object.
+
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+            The arguments to the closure.
+
+        Returns
+        -------
+        result : Object
+            The output.
+        """
+        return self._invoke_closure(closure, *args)
 
 
 def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:

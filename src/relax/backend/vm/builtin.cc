@@ -61,7 +61,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_closure")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
-  // args[0]: vm_state; args[1]: closure; args[2]: function arguments, tuple
+  // args[0]: vm_state; args[1]: closure; args[2, 3, ...]: function arguments
   void* vm_state_ptr = args[0];
   VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
   VMClosure vm_closure = args[1];

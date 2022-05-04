@@ -216,21 +216,6 @@ Expr MakeVMAllocTensor(Expr storage, Expr shape) {
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
-// vm make_closure
-
-RELAY_REGISTER_OP("relax.vm.builtin.make_closure")
-    .set_num_inputs(2)
-    .add_argument("func", "Expr", "The closure.")
-    .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor);
-
-Expr MakeVMClosure(Expr func, Tuple args) {
-  static const Op& op = Op::Get("relax.vm.builtin.make_closure");
-  return Call(op, {func, args}, {}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.make_closure").set_body_typed(MakeVMClosure);
-
 // vm store_shape
 
 RELAY_REGISTER_OP("relax.vm.builtin.store_shape")

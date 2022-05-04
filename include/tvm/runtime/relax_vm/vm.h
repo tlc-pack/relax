@@ -173,7 +173,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param args The arguments to the closure.
    * \return The object representing the result.
    */
-  RegType Invoke_Closure(VMClosure clo, const std::vector<RegType>& args);
+  RegType InvokeClosure(VMClosure clo, const std::vector<RegType>& args);
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
   /*!
