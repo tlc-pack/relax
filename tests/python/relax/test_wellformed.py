@@ -29,7 +29,7 @@ def build_function(blocks):
     """Returns relax.function with given blocks"""
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     ret_type = rx.DynTensorType(-1, "float32")
-    func = rx.Function([x], seq_expr, ret_type)
+    func = rx.Function([x], seq_expr, ret_type).with_attr("global_symbol", "foo")
     return func
 
 
