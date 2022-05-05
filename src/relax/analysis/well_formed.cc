@@ -59,7 +59,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     for (size_t i = 0; i < op->fields.size(); i++) {
       Expr expr = op->fields[i];
       if (expr.as<VarNode>() || expr.as<DataflowVarNode>() || expr.as<ShapeExprNode>() ||
-          expr.as<ConstantNode>() || expr.as<TupleNode>()) {
+          expr.as<RuntimeDepShapeNode>() || expr.as<ConstantNode>() || expr.as<TupleNode>()) {
         this->VisitExpr(expr);
       } else {
         LOG(FATAL) << "WellFormedCheckError: Tuple is not in ANF form, field " << i << " gets "
