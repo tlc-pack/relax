@@ -28,6 +28,7 @@
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 
@@ -40,6 +41,19 @@ namespace relax {
 namespace relax_vm {
 
 using namespace relax;
+
+// Helper function to get the function name of the registered packed function implementation of
+// relax operator.
+FCallPacked GetPackedFuncName(const Call& call) {
+  auto op_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
+  if (call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(call->op);
+    if (op_map.count(op)) {
+      return op_map[op];
+    }
+  }
+  return {};
+}
 
 /*!
  * \brief A class to generate VM executable for Relax functions.
@@ -94,7 +108,12 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       // special case generate for the intrinsics whose attribute fields
       // cannot be represented by args in the CallNode
       const Call& call = GetRef<Call>(call_node);
-      if (call_node->op == alloc_storage_op_) {
+      FCallPacked name = GetPackedFuncName(call);
+      if (!name.empty()) {
+        // If the operator has a registered packed function implementation, emit call to that packed
+        // function.
+        return EmitPackedFuncCall(call, name);
+      } else if (call_node->op == alloc_storage_op_) {
         return EmitAllocStorage(call);
       } else if (call_node->op == alloc_tensor_op_) {
         return EmitAllocTensor(call);
@@ -329,6 +348,43 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return Instruction::Arg(Instruction::kRegister, dst_register);
   }
 
+  template <typename T>
+  Instruction::Arg EmitConstantFromValue(T value) {
+    TVMRetValue tvm_value;
+    tvm_value = value;
+    Index index = builder_->EmitConstant(tvm_value);
+    return Instruction::Arg(Instruction::kConstIdx, index);
+  }
+
+  // Emit the `call_node` attributes as constants and append these constants to `args` vector.
+  void AppendAttrsAsConstants(const Call& call_node, std::vector<Instruction::Arg>& args) {
+    auto attrs = call_node->attrs;
+    if (!attrs.defined()) return;
+
+    if (call_node->op == unique_op_) {
+      auto unique_attrs = call_node->attrs.as<UniqueAttrs>();
+      args.push_back(EmitConstantFromValue(unique_attrs->sorted));
+      args.push_back(EmitConstantFromValue(unique_attrs->return_inverse));
+      args.push_back(EmitConstantFromValue(unique_attrs->return_counts));
+      args.push_back(EmitConstantFromValue(unique_attrs->dim));
+      return;
+    }
+    LOG(FATAL) << "Support for attributes of Op " << call_node->op
+               << " has not been implemented yet.";
+    return;
+  }
+
+  // Emits call to packed function `name` with arguments copied over from `call_node` args and
+  // attributes.
+  Instruction::Arg EmitPackedFuncCall(const Call& call_node, const FCallPacked& name) {
+    std::vector<Instruction::Arg> args;
+    for (auto arg : call_node->args) args.push_back(this->VisitExpr(arg));
+    AppendAttrsAsConstants(call_node, args);
+    size_t arg_register = NewRegister();
+    builder_->EmitCall(name, args, arg_register);
+    return Instruction::Arg(Instruction::kRegister, arg_register);
+  }
+
   bool IsConstantShape(ShapeExpr shape) const {
     for (PrimExpr e : shape->values) {
       if (!e->IsInstance<IntImmNode>()) {
@@ -386,6 +442,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& store_shape_op_ = Op::Get("relax.vm.builtin.store_shape");
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
+  const Op& unique_op_ = Op::Get("relax.unique");
 };
 
 void VMCodeGen::CodeGen(IRModule rx_mod) {

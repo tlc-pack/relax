@@ -44,6 +44,7 @@ enum ConstantType : int {
   kDLDataType = 1,
   kShapeTuple = 2,
   kString = 3,
+  kInt = 4,
 };
 
 #define STREAM_CHECK(val, section)                                          \
@@ -112,6 +113,9 @@ std::string Executable::Stats() const {
       oss << "\"";
       oss << f;
       oss << "\", ";
+    } else if (it.type_code() == kDLInt) {
+      oss << static_cast<int64_t>(it);
+      oss << ", ";
     } else {
       try {
         DLDataType dtype = it.operator DLDataType();
@@ -315,12 +319,15 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
       for (size_t i = 0; i < str.size(); ++i) {
         strm->Write(str.at(i));
       }
+    } else if (it.type_code() == kDLInt) {
+      strm->Write(ConstantType::kInt);
+      strm->Write(it.value());
     } else {
       try {
         strm->Write(ConstantType::kDLDataType);
         strm->Write(it.operator DLDataType());
       } catch (std::exception& exc) {
-        LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
+        LOG(FATAL) << "Constant pool can only contain NDArray, DLDataType, and Integers but got "
                    << ArgTypeCode2Str(it.type_code());
       }
     }
@@ -388,6 +395,12 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
       }
       TVMRetValue cell;
       cell = String(std::string(data.begin(), data.end()));
+      this->constants.push_back(cell);
+    } else if (constant_type == ConstantType::kInt) {
+      int64_t value;
+      strm->Read(&value);
+      TVMRetValue cell;
+      cell = value;
       this->constants.push_back(cell);
     } else {
       LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
