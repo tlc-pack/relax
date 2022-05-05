@@ -29,17 +29,17 @@ namespace tvm {
 namespace relax {
 class ChoiceNode : public runtime::Object {
  public:
-  /*! \brief The function type of `f_transform` method. */
-  using FTransform = runtime::TypedPackedFunc<void()>;
-  /*! \brief The function type of `f_constr` method. */
-  using FConstr = runtime::TypedPackedFunc<bool()>;
+  /*! \brief The function type of `f_transform` method */
+  using FTransform = runtime::TypedPackedFunc<IRModule(IRModule)>;
+  /*! \brief The function type of `f_constr` method */
+  using FConstr = runtime::TypedPackedFunc<bool(IRModule)>;
   /*! \brief transformation function */
   FTransform f_transform;
-  /*! \brief constraint function.
-     f_transform will be applied only when this function returns true. */
+  /*! \brief constraint function
+     f_transform will be applied only when this function returns true */
   FConstr f_constr;
 
-  /*! \brief The default destructor. */
+  /*! \brief The default destructor */
   virtual ~ChoiceNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -57,6 +57,8 @@ class ChoiceNode : public runtime::Object {
     return f_constr;
   }
 
+  bool CheckConstr(IRModule mod) { return f_constr(mod); }
+
   static constexpr const char* _type_key = "relax.transform.Choice";
   TVM_DECLARE_BASE_OBJECT_INFO(ChoiceNode, Object);
 };
@@ -64,10 +66,112 @@ class ChoiceNode : public runtime::Object {
 class Choice : public runtime::ObjectRef {
  public:
   TVM_DLL explicit Choice(ChoiceNode::FTransform f_transform, ChoiceNode::FConstr f_constr);
+
+  // TODO(sunggg): Double-check this
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);
-  // TVM_DEFINE_OBJECT_REF_METHODS(
-  // TVM_DEFINE_OBJECT_REF_COW_METHOD(ChoiceNode);
 };
+
+class KnobNode : public runtime::Object {
+ public:
+  /*! \brief Name of the knob */
+  String name;
+  /*! \brief Decision space */
+  Map<String, Choice> choices;
+
+  /*! \brief The default destructor */
+  virtual ~KnobNode() = default;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("choices", &choices);
+  }
+
+  /*! \brief Check if a decision is valid */
+  bool Verify(String decision) { return choices.count(decision) > 0; }
+
+  /*! \brief Apply decision */
+  IRModule Apply(IRModule mod, String decision) {
+    ICHECK(Verify(decision)) << "Invalid choice for this knob: " << decision << "\n";
+    ICHECK(choices[decision]->CheckConstr(mod)) << "Constraint is not satisfied.\n";
+    return choices[decision]->f_transform(mod);
+  }
+
+  static constexpr const char* _type_key = "relax.transform.Knob";
+  TVM_DECLARE_BASE_OBJECT_INFO(KnobNode, Object);
+};
+
+class Knob : public runtime::ObjectRef {
+ public:
+  TVM_DLL explicit Knob(String name, Map<String, Choice> choices);
+
+  // TODO(sunggg): Double-check this
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Knob, ObjectRef, KnobNode);
+};
+
+class TraceNode : public runtime::Object {
+ public:
+  /*! \brief Input IRModule */
+  IRModule in_mod;
+  /*! \brief Output IRModule */
+  mutable IRModule out_mod;
+  /*! \brief Knobs that are applied so far */
+  Array<Knob> knobs;
+  /*! \brief Decisions made for the knobs */
+  Array<String> decisions;
+  /*! \brief Performance of out_mod */
+  mutable double perf = -1;
+  /*! \brief Length of the decision history */
+  mutable int size = 0;
+
+  /*! \brief The default destructor */
+  virtual ~TraceNode() = default;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("in_mod", &in_mod);
+    v->Visit("out_mod", &out_mod);
+    v->Visit("knobs", &knobs);
+    v->Visit("decisions", &decisions);
+    v->Visit("perf", &perf);
+    v->Visit("size", &size);
+  }
+
+  /*! \brief Verify current decision history */
+  bool Verify() {
+    if (knobs.size() != decisions.size()) return false;
+    int n = knobs.size();
+    for (int i = 0; i < n; i++) {
+      if (!knobs[i]->Verify(decisions[i])) return false;
+    }
+    return true;
+  }
+
+  /*! \brief Add a knob and its decision to the current trace */
+  IRModule Add(Knob knob, String decision) {
+    out_mod = knob->Apply(out_mod, decision);
+    knobs.push_back(knob);
+    decisions.push_back(decision);
+    // perf number should be initialized after new decision is applied
+    perf = -1;
+    // increment history size
+    size++;
+    return out_mod;
+  }
+
+  /*! \brief Set the performance */
+  void SetPerf(double _perf) { perf = _perf; }
+
+  static constexpr const char* _type_key = "relax.transform.Trace";
+  TVM_DECLARE_BASE_OBJECT_INFO(TraceNode, Object);
+};
+
+class Trace : public runtime::ObjectRef {
+ public:
+  TVM_DLL explicit Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions);
+
+  // TODO(sunggg): Double-check this
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Trace, ObjectRef, TraceNode);
+};
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -51,7 +51,7 @@ using DataflowBlock = tvm::relax::DataflowBlock;
  */
 TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Create a dataflowblock pass.
@@ -65,7 +65,7 @@ TVM_DLL Pass CreateFunctionPass(
  */
 TVM_DLL Pass CreateDataflowBlockPass(
     const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Incorrectly transform the dataflow structure as fail testcases.

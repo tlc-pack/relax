@@ -244,7 +244,11 @@ def _wrap_class_function_pass(pass_cls, pass_info):
 
 
 def function_pass(
-    pass_func=None, opt_level=None, name=None, required=None
+    pass_func=None,
+    opt_level=None,
+    name=None,
+    required=None,
+    traceable=False,
 ) -> Union[Callable, FunctionPass]:
     """Decorate a function pass.
 
@@ -340,7 +344,7 @@ def function_pass(
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required)
+        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):

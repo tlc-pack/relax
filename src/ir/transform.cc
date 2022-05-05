@@ -318,11 +318,13 @@ class ModulePass : public Pass {
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
 
-PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required,
+                   bool traceable) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
   pass_info->required = std::move(required);
+  pass_info->traceable = std::move(traceable);
   data_ = std::move(pass_info);
 }
 
@@ -381,7 +383,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
-  PassInfo pass_info = PassInfo(0, std::move(name), {});
+  PassInfo pass_info = PassInfo(0, std::move(name), {}, /* traceable */ false);
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
@@ -433,16 +435,16 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                      int opt_level, String name, tvm::Array<String> required) {
-  PassInfo pass_info = PassInfo(opt_level, name, required);
+                      int opt_level, String name, tvm::Array<String> required, bool traceable) {
+  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return ModulePass(pass_func, pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-    .set_body_typed([](int opt_level, String name, tvm::Array<String> required) {
-      return PassInfo(opt_level, name, required);
+    .set_body_typed([](int opt_level, String name, tvm::Array<String> required, bool traceable) {
+      return PassInfo(opt_level, name, required, traceable);
     });
 
 TVM_REGISTER_GLOBAL("transform.Info").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -493,7 +495,7 @@ TVM_REGISTER_GLOBAL("transform.Sequential").set_body([](TVMArgs args, TVMRetValu
   int opt_level = args[1];
   std::string name = args[2];
   tvm::Array<runtime::String> required = args[3];
-  PassInfo pass_info = PassInfo(opt_level, name, required);
+  PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ false);
   *ret = Sequential(passes, pass_info);
 });
 
@@ -516,7 +518,8 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
-                       Optional<Map<String, ObjectRef>> config) {
+                       Optional<Map<String, ObjectRef>> config, Optional<relax::Trace> trace,
+                       int num_evals) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
@@ -526,6 +529,8 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       if (config.defined()) {
         pctx->config = config.value();
       }
+      pctx->trace = std::move(trace);
+      pctx->num_evals = std::move(num_evals);
       PassConfigManager::Global()->Legalize(&(pctx->config));
       return pctx;
     });
@@ -551,6 +556,12 @@ class PassContext::Internal {
   static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
 
+TVM_REGISTER_GLOBAL("transform.SetTrace").set_body_method<PassContext>(&PassContextNode::SetTrace);
+TVM_REGISTER_GLOBAL("transform.SetNumEvals")
+    .set_body_method<PassContext>(&PassContextNode::SetNumEvals);
+TVM_REGISTER_GLOBAL("transform.IncNumEvals")
+    .set_body_method<PassContext>(&PassContextNode::IncNumEvals);
+
 TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 
 TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::Internal::EnterScope);
@@ -569,7 +580,7 @@ Pass PrintIR(String header, bool show_meta_data) {
     LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_meta_data);
     return mod;
   };
-  return CreateModulePass(pass_func, 0, "PrintIR", {});
+  return CreateModulePass(pass_func, 0, "PrintIR", {}, /* traceable */ false);
 }
 
 TVM_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);

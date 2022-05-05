@@ -45,8 +45,10 @@ class PassInfo(tvm.runtime.Object):
         The list of passes that are required by a certain pass.
     """
 
-    def __init__(self, opt_level, name, required=None):
-        self.__init_handle_by_constructor__(_ffi_transform_api.PassInfo, opt_level, name, required)
+    def __init__(self, opt_level, name, required=None, traceable=False):
+        self.__init_handle_by_constructor__(
+            _ffi_transform_api.PassInfo, opt_level, name, required, traceable
+        )
 
 
 @tvm._ffi.register_object("transform.PassContext")
@@ -79,6 +81,8 @@ class PassContext(tvm.runtime.Object):
         disabled_pass=None,
         instruments=None,
         config=None,
+        trace=None,
+        num_evals=0,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -94,7 +98,14 @@ class PassContext(tvm.runtime.Object):
 
         config = config if config else None
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassContext, opt_level, required, disabled, instruments, config
+            _ffi_transform_api.PassContext,
+            opt_level,
+            required,
+            disabled,
+            instruments,
+            config,
+            trace,
+            num_evals,
         )
 
     def __enter__(self):
@@ -130,6 +141,15 @@ class PassContext(tvm.runtime.Object):
 
         """
         return _ffi_transform_api.ListConfigs()
+
+    def set_trace(self, trace):
+        return _ffi_transform_api.SetTrace(self, trace)
+
+    def set_num_evals(self, num: int):
+        return _ffi_transform_api.SetNumEvals(self, num)
+
+    def inc_num_evals(self, num: int):
+        return _ffi_transform_api.IncNumEvals(self, num)
 
 
 @tvm._ffi.register_object("transform.Pass")
@@ -245,7 +265,7 @@ def _wrap_class_module_pass(pass_cls, pass_info):
     return PyModulePass
 
 
-def module_pass(pass_func=None, opt_level=None, name=None, required=None):
+def module_pass(pass_func=None, opt_level=None, name=None, required=None, traceable=False):
     """Decorate a module pass.
 
     This function returns a callback when pass_func is provided.
@@ -337,7 +357,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
     def create_module_pass(pass_arg):
         """Internal function that creates a module pass"""
         fname = name if name else pass_arg.__name__
-        info = PassInfo(opt_level, fname, required)
+        info = PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_module_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):

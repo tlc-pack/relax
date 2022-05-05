@@ -60,6 +60,7 @@
 #include <tvm/ir/error.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/tuning.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
@@ -92,6 +93,9 @@ class PassContextNode : public Object {
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
 
+  /*! \brief Optional trace for relax pass infra. */
+  mutable Optional<tvm::relax::Trace> trace;
+  mutable int num_evals{0};
   PassContextNode() = default;
 
   /*!
@@ -131,7 +135,13 @@ class PassContextNode : public Object {
     v->Visit("instruments", &instruments);
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
+    v->Visit("trace", &trace);
+    v->Visit("num_evals", &num_evals);
   }
+
+  void SetTrace(relax::Trace _trace) { trace = _trace; }
+  void SetNumEvals(int _num_evals) { num_evals = _num_evals; }
+  void IncNumEvals(int _num_evals) { num_evals += _num_evals; }
 
   static constexpr const char* _type_key = "transform.PassContext";
   static constexpr bool _type_has_method_sequal_reduce = false;
@@ -280,6 +290,7 @@ class PassContext : public ObjectRef {
  * \brief Meta data that will be used to help optimization and analysis.
  * \sa PassInfo
  */
+
 class PassInfoNode : public Object {
  public:
   /*! \brief The minimal optimization level that this pass will be enabled. */
@@ -287,6 +298,9 @@ class PassInfoNode : public Object {
 
   /*! \brief The name of an optimization/analysis pass. */
   String name;
+
+  /*! \brief Boolen that tells whether this pass will be traced or not */
+  bool traceable;
 
   /*! \brief The passes that are required to perform the current pass. */
   Array<String> required;
@@ -297,6 +311,7 @@ class PassInfoNode : public Object {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
+    v->Visit("traceable", &traceable);
   }
 
   static constexpr const char* _type_key = "transform.PassInfo";
@@ -315,8 +330,9 @@ class PassInfo : public ObjectRef {
    * \param opt_level The optimization level
    * \param name Name of the pass.
    * \param required  The passes that are required to perform the current pass.
+   * \param traceable Boolean that tells whether the pass is traceable
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required);
+  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required, bool traceable);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -486,9 +502,9 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass
-CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, String name, Array<runtime::String> required);
+TVM_DLL Pass CreateModulePass(
+    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
+    String name, Array<runtime::String> required, bool traceable = false);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
