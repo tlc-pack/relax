@@ -160,6 +160,9 @@ def test_vm_constant_serialize():
     shape = (4, 6)
     inp = tvm.nd.array(np.random.rand(4, 6).astype(np.float32))
     ib = relax.ExecBuilder()
+    # add a few integer constants in constant pool
+    ib.emit_constant(2)
+    ib.emit_constant(5)
     with ib.function("main", num_inputs=1):
         ib.emit_call(
             "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(0), dtype], dst=ib.r(1)
@@ -172,6 +175,7 @@ def test_vm_constant_serialize():
     exec0 = ib.get()
     exec0.save_to_file("exec.tmp")
     exec1 = relax.load_exec_from_file("exec.tmp")
+    assert exec0.stats() == exec1.stats()
     assert exec0.as_text() == exec1.as_text()
     vm = relax.VirtualMachine(exec0, tvm.cpu())
     res = vm["main"](inp)
