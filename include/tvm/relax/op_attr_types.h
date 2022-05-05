@@ -55,6 +55,39 @@ using FInferShape =
  */
 using FInferType = runtime::TypedPackedFunc<Type(const Call& call, DiagnosticContext diag_ctx)>;
 
+/*!
+ * \brief Packed function implementation for operators. The relax operator will be lowered to
+ * this packed function call during codegen.
+ */
+using FCallPacked = String;
+
+/*! \brief Attributes used in unique operator */
+struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
+  bool sorted;
+  bool return_inverse;
+  bool return_counts;
+  int dim;
+  TVM_DECLARE_ATTRS(UniqueAttrs, "relax.attrs.UniqueAttrs") {
+    TVM_ATTR_FIELD(sorted)
+        .describe(
+            "Whether to sort the unique elements in ascending order before returning as output.")
+        .set_default(true);
+    TVM_ATTR_FIELD(return_inverse)
+        .describe(
+            "Whether to return an additional tensor with indices for where elements in the "
+            "original input ended up in the returned unique list.")
+        .set_default(false);
+    TVM_ATTR_FIELD(return_counts)
+        .describe("Whether to return an additional tensor with counts of each unique elements")
+        .set_default(false);
+    TVM_ATTR_FIELD(dim)
+        .describe(
+            "The dimension to apply unique. If negative, the unique of the flattened input is "
+            "returned.")
+        .set_default(-1);
+  }
+};  // struct UniqueAttrs
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_ATTR_TYPES_H_
