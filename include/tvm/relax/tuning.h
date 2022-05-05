@@ -27,12 +27,12 @@
 
 namespace tvm {
 namespace relax {
+/*! \brief The function type of `f_transform` method */
+using FTransform = runtime::TypedPackedFunc<IRModule(IRModule)>;
+/*! \brief The function type of `f_constr` method */
+using FConstr = runtime::TypedPackedFunc<bool(IRModule)>;
 class ChoiceNode : public runtime::Object {
  public:
-  /*! \brief The function type of `f_transform` method */
-  using FTransform = runtime::TypedPackedFunc<IRModule(IRModule)>;
-  /*! \brief The function type of `f_constr` method */
-  using FConstr = runtime::TypedPackedFunc<bool(IRModule)>;
   /*! \brief transformation function */
   FTransform f_transform;
   /*! \brief constraint function
@@ -65,7 +65,7 @@ class ChoiceNode : public runtime::Object {
 
 class Choice : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit Choice(ChoiceNode::FTransform f_transform, ChoiceNode::FConstr f_constr);
+  TVM_DLL explicit Choice(FTransform f_transform, FConstr f_constr);
 
   // TODO(sunggg): Double-check this
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);

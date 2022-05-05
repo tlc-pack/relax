@@ -17,6 +17,7 @@
 
 from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
+from typing import Callable, Union, Dict, List, Optional
 from tvm.relax.transform.tuning import (
     default_generate_candidate,
     default_consider_eval_passes,
@@ -32,6 +33,7 @@ from tvm.ir.module import IRModule
 from tvm.script import tir as T, relax as R
 from tvm.relax.transform.tuning import Choice, Knob, Trace
 from tvm import relax
+from tvm.relax.expr import Expr, DataflowBlock, Function
 import numpy as np
 
 
@@ -49,59 +51,6 @@ class MyModule:
     def main(c0: Tensor((16, 16), "int32")):
         lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="int32")
         return lv0
-
-
-@ir.transform.module_pass(opt_level=0, traceable=True)
-class MockConstFoldingTuningPass(transform.Pass):
-    def __init__(self, eval_passes=[], required=[], database=None):
-        self.required = required
-        self.eval_passes = eval_passes
-        self.database = database
-
-    def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.trace
-
-        def apply(mod):
-            return relax.transform.FoldConstant()(mod)
-
-        def noapply(mod):
-            return mod
-
-        # Create mock choices for testing
-        choices = {"apply": Choice(apply), "noapply": Choice(noapply)}
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockTuningKnob", choices)
-
-        candidates = default_generate_candidate(knob, trace, self.eval_passes)
-        default_evaluate(candidates, "llvm")
-        best_trace = select_best_candidate(candidates)
-
-        ctx.set_trace(best_trace)
-        return best_trace.out_mod
-
-
-@ir.transform.module_pass(opt_level=0)
-class MockModuleTuningPass(transform.Pass):
-    def __init__(self, eval_passes=[], required=[], database=None):
-        self.required = required
-        self.eval_passes = eval_passes
-        self.database = database
-
-    def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.trace
-
-        def noapply(mod):
-            return mod
-
-        # Create mock choices for testing
-        choices = {"c1": Choice(noapply), "c2": Choice(noapply), "c3": Choice(noapply)}
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockChoices", choices)
-
-        candidates = default_generate_candidate(knob, trace, self.eval_passes)
-        default_evaluate(candidates, "llvm")
-        best_trace = select_best_candidate(candidates)
-        return best_trace.out_mod
 
 
 def setup_test_const_folding():
@@ -163,6 +112,56 @@ def setup_test_const_folding():
     expected = gen_mod(mod, "expected", {"c1": c1_np})
 
     return before, expected
+
+
+# Mock evaluation pass for testing
+# Assigns arbitrary performance number to each candidate
+def mock_evaluate(candidates: List[Trace], target_str: str, ctx: PassContext):
+    num_evals = 0
+    # Evaluation
+    for candidate in candidates:
+        # If this candidate is already evaluated, skip the measurement
+        if candidate.perf != -1:
+            continue
+
+        num_evals += 1
+        mock_perf = 100 - (ctx.num_evals + num_evals)
+        candidate.set_perf(mock_perf)
+    ctx.inc_num_evals(num_evals)
+
+
+@ir.transform.module_pass(opt_level=0, traceable=True)
+class MockConstFoldingTuningPass(transform.Pass):
+    def __init__(
+        self,
+        eval_passes: List[transform.Pass] = None,
+        required: List[transform.Pass] = [],
+        database=None,
+    ):
+        self.required = required
+        self.eval_passes = eval_passes
+        self.database = database
+
+    def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
+        trace = ctx.trace
+
+        def apply(mod):
+            return relax.transform.FoldConstant()(mod)
+
+        def noapply(mod):
+            return mod
+
+        # Create mock choices for testing
+        choices = {"apply": Choice(apply), "noapply": Choice(noapply)}
+        # Tuning pass manages a set of transformation functions registered via knob.
+        knob = Knob("MockTuningKnob", choices)
+
+        candidates = default_generate_candidate(knob, trace, self.eval_passes)
+        mock_evaluate(candidates, "llvm", ctx)
+        best_trace = select_best_candidate(candidates)
+
+        ctx.set_trace(best_trace)
+        return best_trace.out_mod
 
 
 def test_choice():
@@ -249,7 +248,16 @@ def test_trace():
     assert trace.perf == -1
 
 
-def test_generate_candidates_and_evaluate():
+def test_trace_wrapper():
+    mod = MyModule
+    assert isinstance(mod, tvm.IRModule)
+    assert isinstance(Trace(mod), Trace)
+    assert isinstance(get_trace(mod), Trace)
+    assert isinstance(get_trace(mod["main"]), Trace)
+    assert isinstance(get_trace(mod["addone"]), Trace)
+
+
+def test_default_functions():
     mod = MyModule
     assert isinstance(mod, tvm.IRModule)
 
@@ -267,12 +275,39 @@ def test_generate_candidates_and_evaluate():
         candidates = default_generate_candidate(knob, trace)
         assert len(candidates) == 2
 
-        num = default_evaluate(candidates, "llvm")
-        assert num == 2
+        default_evaluate(candidates, "llvm")
+        assert PassContext.current().num_evals == 2
 
         # Since these candidates are already evaluated, we should not evaluate them again
-        num = default_evaluate(candidates, "llvm")
-        assert num == 0
+        default_evaluate(candidates, "llvm")
+        assert PassContext.current().num_evals == 2
+
+
+def test_pass_context():
+    mod = MyModule
+    assert isinstance(mod, tvm.IRModule)
+    HeuristicPass = relax.transform.FoldConstant
+
+    # Without binding
+    seq = transform.Sequential([HeuristicPass()])
+    with transform.PassContext(trace=Trace(mod)):
+        _ = seq(mod)
+        assert PassContext.current().trace.size == 1
+
+    # Binding IRModule
+    c0 = np.arange((16 * 16)).astype("int32").reshape(16, 16)
+    mod = relax.transform.BindParams("main", {"c0": tvm.nd.array(c0)})(mod)
+
+    # With binding, the heuristic pass implicitly performs TIR passes
+    seq = transform.Sequential([HeuristicPass()])
+    with transform.PassContext(trace=Trace(mod)):
+        _ = seq(mod)
+        assert PassContext.current().trace.size == 57
+
+    # We can explicitly specify which pass we want to keep track of
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
+        _ = seq(mod)
+        assert PassContext.current().trace.size == 1
 
 
 def test_module_pass():
@@ -281,25 +316,24 @@ def test_module_pass():
     # Test setup
     c0 = np.arange((16 * 16)).astype("int32").reshape(16, 16)
     mod = relax.transform.BindParams("main", {"c0": tvm.nd.array(c0)})(mod)
-
     HeuristicPass = relax.transform.FoldConstant
 
     mock_pass = MockConstFoldingTuningPass(eval_passes=[])
-    with transform.PassContext(trace=Trace(mod)):
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
         _ = mock_pass(mod)
         assert PassContext.current().num_evals == 2
         assert PassContext.current().trace.size == 1
 
     # Heuristic pass should not affect the number of candidates
     mock_pass = MockConstFoldingTuningPass(eval_passes=[HeuristicPass()])
-    with transform.PassContext(trace=Trace(mod)):
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
         _ = mock_pass(mod)
         assert PassContext.current().num_evals == 2
         assert PassContext.current().trace.size == 2
 
     # Joint-optimization will increase the search space in the combinatorial way
     mock_pass = MockConstFoldingTuningPass(eval_passes=[MockConstFoldingTuningPass(eval_passes=[])])
-    with transform.PassContext(trace=Trace(mod)):
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
         _ = mock_pass(mod)
         assert PassContext.current().num_evals == 2 * 2
         assert PassContext.current().trace.size == 2
@@ -309,7 +343,7 @@ def test_module_pass():
             MockConstFoldingTuningPass(eval_passes=[MockConstFoldingTuningPass(eval_passes=[])])
         ]
     )
-    with transform.PassContext(trace=Trace(mod)):
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
         _ = mock_pass(mod)
         assert PassContext.current().num_evals == 2 * 2 * 2
         assert PassContext.current().trace.size == 3
@@ -323,7 +357,9 @@ def test_module_pass():
             )
         ]
     )
-    with transform.PassContext(trace=Trace(mod)):
+    with transform.PassContext(
+        trace=Trace(mod), make_traceable=["MockConstFoldingTuningPass", "FoldConstant"]
+    ):
         _ = mock_pass(mod)
         assert PassContext.current().num_evals == 2 * 2 * 2
         assert PassContext.current().trace.size == 5
@@ -336,31 +372,167 @@ def test_module_pass():
             MockConstFoldingTuningPass(eval_passes=[]),
         ]
     )
-    with transform.PassContext(trace=Trace(mod)):
+    with transform.PassContext(
+        trace=Trace(mod), make_traceable=["MockConstFoldingTuningPass", "FoldConstant"]
+    ):
         _ = mock_pass(mod)
         assert PassContext.current().num_evals == 2 * (2 + 2 + 2)
         assert PassContext.current().trace.size == 4
 
 
-def test_trace_wrapper():
+def test_sequential():
     mod = MyModule
     assert isinstance(mod, tvm.IRModule)
-    assert isinstance(Trace(mod), Trace)
-    assert isinstance(get_trace(mod), Trace)
-    assert isinstance(get_trace(mod["main"]), Trace)
-    assert isinstance(get_trace(mod["addone"]), Trace)
+    # Test setup
+    c0 = np.arange((16 * 16)).astype("int32").reshape(16, 16)
+    mod = relax.transform.BindParams("main", {"c0": tvm.nd.array(c0)})(mod)
+    HeuristicPass = relax.transform.FoldConstant
+
+    # Sequential with a single tuning pass should behave same with a single pass
+    seq = transform.Sequential([MockConstFoldingTuningPass(eval_passes=[])])
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
+        _ = seq(mod)
+        assert PassContext.current().num_evals == 2
+        assert PassContext.current().trace.size == 1
+
+    # Sequential pass should increase search space (num_evals) in additive manner
+    seq = transform.Sequential(
+        [
+            MockConstFoldingTuningPass(eval_passes=[]),
+            MockConstFoldingTuningPass(eval_passes=[]),
+            MockConstFoldingTuningPass(eval_passes=[]),
+        ]
+    )
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
+        _ = seq(mod)
+        assert PassContext.current().num_evals == 2 + 2 + 2
+        assert PassContext.current().trace.size == 3
+
+    # Heuristic pass will not increase the search space. Just increase trace length
+    seq = transform.Sequential(
+        [
+            MockConstFoldingTuningPass(eval_passes=[]),
+            HeuristicPass(),
+            MockConstFoldingTuningPass(eval_passes=[]),
+            MockConstFoldingTuningPass(eval_passes=[]),
+            HeuristicPass(),
+        ]
+    )
+
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
+        _ = seq(mod)
+        assert PassContext.current().num_evals == 2 + 2 + 2
+        assert PassContext.current().trace.size == 5
+
+    seq = transform.Sequential(
+        [
+            HeuristicPass(),
+            MockConstFoldingTuningPass(
+                eval_passes=[
+                    MockConstFoldingTuningPass(
+                        eval_passes=[
+                            MockConstFoldingTuningPass(
+                                eval_passes=[
+                                    HeuristicPass(),
+                                ]
+                            )
+                        ]
+                    ),
+                ]
+            ),
+            MockConstFoldingTuningPass(eval_passes=[]),
+            HeuristicPass(),
+        ]
+    )
+
+    with transform.PassContext(trace=Trace(mod), make_traceable=["FoldConstant"]):
+        _ = seq(mod)
+        assert PassContext.current().num_evals == (2 * 2 * 2) + 2
+        assert PassContext.current().trace.size == 7
 
 
-# TODO(sunggg)
-def test_sequential():
-    pass
+def test_mixed_passes():
+    @tvm.script.ir_module
+    class MockModule:
+        @R.function
+        def f1(x: Tensor((m, n), "float32")):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, x)
+                gv0 = relax.add(x, x)
+                relax.output(gv0)
+            return gv0
+
+        @R.function
+        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, y)
+                gv0 = relax.add(lv0, y)
+                relax.output(gv0)
+            gv1 = relax.multiply(x, y)
+            gv2 = relax.add(gv1, y)
+            return (gv0, gv1, gv2)
+
+    mod = MockModule
+    assert isinstance(mod, tvm.IRModule)
+
+    def pass_func(
+        mod: IRModule, ctx: PassContext, eval_passes: List[transform.Pass] = None
+    ) -> IRModule:
+        trace = ctx.trace
+
+        def noapply(mod):
+            return mod
+
+        # Create mock choices for testing
+        choices = [Choice(noapply), Choice(noapply), Choice(noapply)]
+        # Tuning pass manages a set of transformation functions registered via knob.
+        knob = Knob("MockTuningKnob", choices)
+
+        candidates = default_generate_candidate(knob, trace, eval_passes)
+        mock_evaluate(candidates, "llvm", ctx)
+        best_trace = select_best_candidate(candidates)
+
+        ctx.set_trace(best_trace)
+        return best_trace.out_mod
+
+    @ir.transform.module_pass(opt_level=0, traceable=True)
+    def MockModulePass(mod: IRModule, ctx: PassContext) -> IRModule:
+        return pass_func(mod, ctx)
+
+    @relax.transform.function_pass(opt_level=0, traceable=True)
+    def MockFunctionPass(expr: Expr, mod: IRModule, ctx: PassContext) -> Function:
+        # Do something
+        pass_func(mod, ctx)
+        return expr
+
+    @relax.transform.dataflowblock_pass(opt_level=0, traceable=True)
+    def MockDataflowBlockPass(
+        block: DataflowBlock, mod: IRModule, ctx: PassContext
+    ) -> DataflowBlock:
+        # Do something
+        pass_func(mod, ctx)
+        return block
+
+    seq = transform.Sequential(
+        [
+            MockModulePass,
+            MockFunctionPass,
+            MockDataflowBlockPass,
+        ]
+    )
+
+    with transform.PassContext(trace=Trace(mod), make_traceable=[]):
+        _ = seq(mod)
+        # Trace length and num eval can be different depending on how each function/dataflow block is treated
 
 
 if __name__ == "__main__":
     test_choice()
     test_knob()
     test_trace()
-    test_generate_candidates_and_evaluate()
+    test_default_functions()
     test_trace_wrapper()
+    test_pass_context()
     test_module_pass()
     test_sequential()
+    test_mixed_passes()

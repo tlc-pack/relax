@@ -95,6 +95,8 @@ class PassContextNode : public Object {
 
   /*! \brief Optional trace for relax pass infra. */
   mutable Optional<tvm::relax::Trace> trace;
+  /*! \brief Passes that we are going to trace. */
+  Optional<Map<String, Bool>> make_traceable;
   mutable int num_evals{0};
   PassContextNode() = default;
 
@@ -136,6 +138,7 @@ class PassContextNode : public Object {
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
     v->Visit("trace", &trace);
+    v->Visit("make_traceable", &make_traceable);
     v->Visit("num_evals", &num_evals);
   }
 

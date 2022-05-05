@@ -82,6 +82,7 @@ class PassContext(tvm.runtime.Object):
         instruments=None,
         config=None,
         trace=None,
+        make_traceable=None,
         num_evals=0,
     ):
         required = list(required_pass) if required_pass else []
@@ -96,6 +97,10 @@ class PassContext(tvm.runtime.Object):
         if not isinstance(instruments, (list, tuple)):
             raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
 
+        # Convert to Map<String, bool>
+        # TODO(sunggg): Replace this to Set equivalent if exists
+        make_traceable = {name: True for name in make_traceable} if make_traceable else None
+
         config = config if config else None
         self.__init_handle_by_constructor__(
             _ffi_transform_api.PassContext,
@@ -105,6 +110,7 @@ class PassContext(tvm.runtime.Object):
             instruments,
             config,
             trace,
+            make_traceable,
             num_evals,
         )
 
@@ -219,7 +225,7 @@ class Sequential(Pass):
         The list of passes that the sequential pass is dependent on.
     """
 
-    def __init__(self, passes=None, opt_level=0, name="sequential", required=None):
+    def __init__(self, passes=None, opt_level=0, name="sequential", required=None, traceable=False):
         passes = passes if passes else []
         if not isinstance(passes, (list, tuple)):
             raise TypeError("passes must be a list of Pass objects.")
@@ -229,7 +235,7 @@ class Sequential(Pass):
             raise TypeError("Required is expected to be the type of list/tuple.")
 
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.Sequential, passes, opt_level, name, required
+            _ffi_transform_api.Sequential, passes, opt_level, name, required, traceable
         )
 
 

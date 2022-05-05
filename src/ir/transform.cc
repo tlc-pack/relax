@@ -425,11 +425,25 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
       VLOG(0) << "skipping disabled pass '" << pass_info->name << "'";
       continue;
     }
+
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);
     }
-    mod = pass(std::move(mod), pass_ctx);
+
+    // This handles passes that does not use Relax tuning API (untraceable passes).
+    // We make untraceable passes trackable when pass context has a trace (trace mode).
+    // When passes to trace (make_traceable) is provided from users, we only make them trackable.
+    if (pass_ctx->trace.defined() && !pass_info->traceable &&
+        (!pass_ctx->make_traceable.defined() ||
+         pass_ctx->make_traceable.value().count(pass_info->name))) {
+      relax::FTransform f_transform = [=](IRModule m) { return pass(std::move(mod), pass_ctx); };
+      relax::Knob knob =
+          relax::Knob(pass_info->name, {{"enabled", relax::Choice(f_transform, nullptr)}});
+      mod = pass_ctx->trace.value()->Add(knob, "enabled");
+    } else {
+      mod = pass(std::move(mod), pass_ctx);
+    }
   }
   return mod;
 }
@@ -495,7 +509,8 @@ TVM_REGISTER_GLOBAL("transform.Sequential").set_body([](TVMArgs args, TVMRetValu
   int opt_level = args[1];
   std::string name = args[2];
   tvm::Array<runtime::String> required = args[3];
-  PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ false);
+  bool traceable = args[4];
+  PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
   *ret = Sequential(passes, pass_info);
 });
 
@@ -519,7 +534,7 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
                        Optional<Map<String, ObjectRef>> config, Optional<relax::Trace> trace,
-                       int num_evals) {
+                       Optional<Map<String, Bool>> make_traceable, int num_evals) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
@@ -530,6 +545,7 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
         pctx->config = config.value();
       }
       pctx->trace = std::move(trace);
+      pctx->make_traceable = std::move(make_traceable);
       pctx->num_evals = std::move(num_evals);
       PassConfigManager::Global()->Legalize(&(pctx->config));
       return pctx;

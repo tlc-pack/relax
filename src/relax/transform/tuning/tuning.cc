@@ -29,7 +29,12 @@ namespace tvm {
 namespace relax {
 TVM_REGISTER_NODE_TYPE(ChoiceNode);
 
-Choice::Choice(ChoiceNode::FTransform f_transform, ChoiceNode::FConstr f_constr) {
+Choice::Choice(FTransform f_transform, FConstr f_constr) {
+  ICHECK(f_transform != nullptr) << "Transformation function should be defined.";
+  if (f_constr == nullptr) {
+    f_constr = [=](IRModule m) { return true; };
+  }
+
   ObjectPtr<ChoiceNode> n = make_object<ChoiceNode>();
   n->f_transform = std::move(f_transform);
   n->f_constr = std::move(f_constr);
@@ -37,7 +42,7 @@ Choice::Choice(ChoiceNode::FTransform f_transform, ChoiceNode::FConstr f_constr)
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.Choice")
-    .set_body_typed([](ChoiceNode::FTransform f_transform, ChoiceNode::FConstr f_constr) {
+    .set_body_typed([](FTransform f_transform, FConstr f_constr) {
       return Choice(f_transform, f_constr);
     });
 
