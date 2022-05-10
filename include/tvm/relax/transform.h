@@ -127,6 +127,28 @@ TVM_DLL Pass BindParams(String name, Map<String, runtime::NDArray> params);
  */
 TVM_DLL Pass FoldConstant();
 
+/*!
+ * \brief Annotate Op Pattern Kind for TIR functions, which is used in FuseOps.
+ * \note It is an auto-detect pass for "unscheduled prim_funcs", the op_pattern will be
+ *       "opaque" of we can't detect it. Users can manually annotate the attr `op_pattern`
+ *       to prim_func.
+ * \return The Pass.
+ */
+TVM_DLL Pass AnnotateTIROpPattern();
+
+/*!
+ * \brief This pass groups bindings in a dataflow block of Relax functions and generates a new
+ * grouped Relax function for each group, according to the fusion algorithm described in the pass
+ * implementation. By grouping bindings into new Relax functions, we substitute the bindings in the
+ * function being manipulated into function calls to the new grouped function.
+ *
+ * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+ * \param fuse_opt_level The level of fuse optimization.
+ *        -1 indicates that the level will be inferred from pass context.
+ * \return The Pass.
+ */
+TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
