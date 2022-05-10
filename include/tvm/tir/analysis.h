@@ -26,6 +26,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
@@ -274,6 +275,11 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
  * \return The anchor block if found, nullptr otherwise.
  */
 const tir::BlockNode* FindAnchorBlock(const IRModule& mod);
+ * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
+ * \param func The PrimFunc to be analyzed.
+ * \return The Op Pattern Kind.
+ */
+TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.

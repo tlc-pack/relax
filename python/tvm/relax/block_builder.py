@@ -18,7 +18,7 @@
 """Developer API of constructing Relax AST."""
 import typing
 
-from typing import List, Optional, Union, Any, Callable
+from typing import Dict, List, Optional, Union, Any, Callable
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm import relax as rx, tir
@@ -41,13 +41,14 @@ from . import _ffi_api
 class FunctionScope(object):
     """Auxiliary scope for function"""
 
-    def __init__(self, block_builder, name, params):
+    def __init__(self, block_builder, name, params, attrs):
         self._bb = block_builder
         self._name = name
         self._params = params
+        self._attrs = attrs
 
     def __enter__(self):
-        self._bb._enter_function_scope(self._name, self._params)
+        self._bb._enter_function_scope(self._name, self._params, self._attrs)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # __exit__ should properly handle the case where the with block exits with an exception
@@ -148,12 +149,13 @@ class BlockBuilder(Object):
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)
 
-    def _enter_function_scope(self, name, params):
+    def _enter_function_scope(self, name, params, attrs):
         if BlockBuilder.current() is not None:
             raise RuntimeError("BlockBuilder does not allow nested functions.")
         BlockBuilder._current = self
         self._func_name = name
         self._func_params = params
+        self._func_attrs = attrs
         self._begin_binding_block()
 
     def _exit_function_scope(self, exc_type, exc_val, exc_tb):
@@ -231,7 +233,10 @@ class BlockBuilder(Object):
         return list(diff)
 
     def function(
-        self, name: str, params: Optional[Union[Var, Tuple, List[Var]]] = None
+        self,
+        name: str,
+        params: Optional[Union[Var, Tuple, List[Var]]] = None,
+        attrs: Optional[Dict[str, Object]] = None,
     ) -> FunctionScope:
         """Annotate a Relax function.
 
@@ -244,6 +249,9 @@ class BlockBuilder(Object):
             The parameters of the function.
             If params is None, it means deferring initialization of function parameters
             until emit_func_output.
+
+        attrs : Dict[str, Object], optional
+            The function attrs
 
         Returns
         -------
@@ -263,8 +271,9 @@ class BlockBuilder(Object):
                             type(param)
                         )
                     )
-
-        return FunctionScope(self, name, params)
+        if attrs is None:
+            attrs = {}
+        return FunctionScope(self, name, params, attrs)
 
     def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block.
@@ -576,6 +585,8 @@ class BlockBuilder(Object):
         # TODO(@yuchen): handle the case where the body's checked_type_ is null
         func = rx.Function(self._func_params, seqe, None)
         func = func.with_attr("global_symbol", self._func_name)
+        for key, value in self._func_attrs.items():
+            func = func.with_attr(key, value)
         self.add_func(func, self._func_name)
 
     def normalize(self, expr: Expr) -> Expr:
