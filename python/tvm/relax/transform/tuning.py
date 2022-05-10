@@ -15,6 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Tuning Pass API"""
+
+# TODO(sunggg):
+# 1) Better Integration with MetaSchedule
+#    1-1) Trace with MetaSchedule Trace
+#    1-2) Database
+#    1-3) Other componets (e.g., MetaSchedule Instr, Cost model)
+# 2) Better example for subgraph-level tuning
+#    *** This is currently blocked by pattern matcher, modular compilation, etc. ***
+
 import tvm
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -39,6 +48,7 @@ import itertools
 import numpy as np
 from tvm._ffi.registry import register_func
 
+
 # Default constraint func that always returns true
 def f_default_constr(mod: IRModule):
     return True
@@ -47,78 +57,100 @@ def f_default_constr(mod: IRModule):
 @register_object("relax.transform.Choice")
 class Choice(Object):
     """
-    A TVM object Choice that maintains a set of transformation and constraint functions
-    Transformation function should be applied when constraint function returns true
+    A TVM object Choice that maintains a set of transformation and constraint functions.
+    Transformation function should be applied when constraint function returns true.
     Parameters
     ----------
     f_transform : Callable
-        Transformation function
+        Transformation function.
 
     f_constr : Callable
-        Constraint function
+        Constraint function.
+
+    Examples
+    --------
+    The following code block defines a Choice.
+
+    .. code-block:: python
+    def apply(mod):
+        return relax.transform.FoldConstant()(mod)
+    def constr(mod):
+        return len(mod.functions) == 3
+    choice = Choice(apply, constr) # Define a choice to apply constant folding only when IRModule has three functions.
     """
 
-    f_transform: Callable
-    f_constr: Callable
-
-    def __init__(self, f_transform: Callable, f_constr: Callable = None):
+    def __init__(self, f_transform: Callable, f_constr: Optional[Callable] = None):
         """Constructor
         Parameters
         ----------
         f_transform : Callable
-            Transformation function
+            Transformation function.
 
         f_constr : Callable
-            Constraint function
-
-
-        Returns
-        -------
-        ret: Object
-
+            Constraint function.
         """
-
         f_constr = f_constr if f_constr else f_default_constr
-
         self.__init_handle_by_constructor__(
             _ffi_api.Choice, f_transform, f_constr  # type: ignore # pylint: disable=no-member
         )
 
     def get_transform_func(self) -> Callable:
-        """Get f_transform
-        Parameters
-        ----------
-        func : Expr
-            The closure, can be ExternFunc or PrimFunc.
-
-        args : Union[Tuple, List[Expr]]
-            The input arguments.
-
-
+        """Getter for f_transform
         Returns
         -------
-        ret: Object
-
+        ret: Callable
+           registered transformation function
         """
         return _ffi_api.ChoiceGetTransformFunc(self)
 
     def get_constr_func(self) -> Callable:
-        """Get f_constr"""
+        """Getter for f_constr
+        Returns
+        -------
+        ret: Callable
+           registered constraint function
+        """
         return _ffi_api.ChoiceGetConstrFunc(self)
 
     def check_constr(self, mod: IRModule) -> bool:
-        """Check if the given constraint satisfies"""
+        """Perform f_constr
+        Returns
+        -------
+        ret: Bool
+           Returns whether the IRModule satisfies the constraint or not
+        """
         return _ffi_api.ChoiceCheckConstr(self, mod)
 
 
 @register_object("relax.transform.Knob")
 class Knob(Object):
     """
-    A TVM object Knob to support customization on the python side.
+    A TVM object Knob that maintains a set of valid Choices.
+    By using Knobs, a tuning pass can generate candidates and define the search space.
+    Parameters
+    ----------
+    name : str
+        Name of the knob.
+
+    choices: Union[List[Choice], Dict[str, Choice]]
+        A list of valid choices
+
+    Examples
+    --------
+    The following code block defines a Knob.
+
+    .. code-block:: python
+    def apply(mod):
+        return relax.transform.FoldConstant()(mod)
+    def noapply(mod):
+        return mod
+    choices = {"apply": Choice(apply), "noapply": Choice(noapply)}
+    # A knob manages a set of its valid choices
+    knob = Knob("MockTuningKnob", choices)
     """
 
     def __init__(self, name: str, choices: Union[List[Choice], Dict[str, Choice]]):
-        """Constructor"""
+        """Constructor."""
         if isinstance(choices, list):
             choices = {str(idx): val for idx, val in enumerate(choices)}
 
@@ -127,13 +159,13 @@ class Knob(Object):
         )
 
     def verify(self, decision: Union[str, int]) -> bool:
-        """Verify if the decision is valid"""
+        """Verify if the decision is valid."""
         if isinstance(decision, int):
             decision = str(decision)
         return _ffi_api.KnobVerify(self, decision)
 
     def apply(self, mod: IRModule, decision: Union[str, int]) -> IRModule:
-        """Get choice if a decision is valid"""
+        """Get choice if a decision is valid."""
         if isinstance(decision, int):
             decision = str(decision)
         return _ffi_api.KnobApply(self, mod, decision)
@@ -148,7 +180,26 @@ class Knob(Object):
 @register_object("relax.transform.Trace")
 class Trace(Object):
     """
-    A TVM object Trace to support customization on the python side.
+    A TVM object Trace logs the history of transformations (decisions).
+    Parameters
+    ----------
+    in_mod : IRModule
+        Input IRModule.
+    knobs: Optional[List[Knob]]
+        A list of knobs applied in the trace.
+    decisions: Optional[List[Union[str, int]]]
+        A list of decisions made for each knob
+
+    Examples
+    --------
+    The following code block defines a Knob.
+
+    .. code-block:: python
+    trace = Trace(mod, [knob1, knob2, knob3], ["c1", "c0", "c3"])
+    assert trace.size == 3 # Length of history.
+    out: IRModule = trace.add(knob4, "c2") # 'out' contains IRModule that applies transformations in the trace.
+    assert trace.size == 4 # Length of history.
+    trace.set_perf(0.03) # Set the performanec number of the trace.
     """
 
     def __init__(
@@ -157,7 +208,7 @@ class Trace(Object):
         knobs: Optional[List[Knob]] = None,
         decisions: Optional[List[Union[str, int]]] = None,
     ):
-        """Constructor"""
+        """Constructor."""
         knobs = knobs if knobs else list()
         decisions = (
             [str(v) if isinstance(v, int) else v for v in decisions] if decisions else list()
@@ -167,16 +218,17 @@ class Trace(Object):
         )
 
     def verify(self) -> bool:
-        """Verify if current history is valid"""
+        """Verify if current history is valid."""
         return _ffi_api.TraceVerify()
 
     def add(self, knob: Knob, decision: Union[str, int]) -> IRModule:
-        """Add & Apply new decision (with knob)"""
+        """Add & Apply new decision (with knob)."""
         if isinstance(decision, int):
             decision = str(decision)
         return _ffi_api.TraceAdd(self, knob, decision)
 
     def set_perf(self, perf: float) -> None:
+        """Set performance number for the trace."""
         return _ffi_api.TraceSetPerf(self, perf)
 
     def __str__(self) -> str:
@@ -187,34 +239,46 @@ class Trace(Object):
         return msg
 
 
-# Default functions for writing a tuning pass
 @register_func("relax.transform.default_generate_candidate")
 def default_generate_candidate(
     knob: Knob, trace: Trace, eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
     """
-    Default function to generate the search space for a given trace by using registered choices
-    This function simply expands candidate space as long as the knob's constraint satisfies
-    To reduce the search space, a developer may expand each choice with smart search method
+    Default function to generate the search space for a given trace by using registered choices.
+    This function simply expands candidate space as long as the knob's constraint satisfies.
+    To reduce the search space, a developer may expand each choice with smart search method.
     (e.g., genetic search, multi-armed bandit)
 
+    Parameters
+    ----------
+    knob : Knob
+        Knob to consider to generate candidate for input trace.
+    trace: Trace
+        Input trace.
+    eval_passes: Optional[List[Pass]]
+        List of passes to consider to evaluate each candidate.
+        This will enable joint-optimization.
+
+    Return
+    ----------
+    candidates: List[Trace]
+        List of candidate traces
     """
+
     mod = trace.out_mod
     candidates = list()
     # Iterate over every decision
-
     for decision in knob.choices.keys():
         choice = knob.choices[decision]
-        # Generate new candidate when this condition satisfies
+        # Generate new candidate when this condition satisfies.
         if choice.check_constr(mod):
             new_trace = copy.deepcopy(trace)
             new_trace.add(knob, decision)
             candidates.append(new_trace)
 
-    # Expand candidates by using eval passes if provided
+    # Expand candidates by using eval passes if provided. This will enable joint-optimization.
     if eval_passes:
         candidates = default_consider_eval_passes(candidates, eval_passes)
-
     return candidates
 
 
@@ -223,21 +287,35 @@ def default_consider_eval_passes(
     init_candidates: List[Trace], eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
     """
-    Expands traces generated by current tuning pass with its eval passes
-    This function visits each pass in depth-first manner
+    Default function to expand traces by visiting each eval_pass in dfs order in transform.Sequential().
+    By performing a candidate generation function in each pass, this function enumerates the possible candidate traces.
+
+    Parameters
+    ----------
+    init_candidates: List[Trace]
+        Initial candidates
+    eval_passes: Optional[List[Pass]]
+        List of passes to consider to evaluate each candidate.
+        This will enable joint-optimization.
+    Return
+    ----------
+    candidates: List[Trace]
+        List of candidate traces
     """
     if not eval_passes:
         return init_candidates
 
     eval_passes = list(eval_passes) if not isinstance(eval_passes, list) else eval_passes
     ctx = PassContext.current()
-    candidates = list(init_candidates)
-    for _ in range(len(candidates)):
-        trace = candidates.pop(0)
-        ctx.set_trace(trace)
+    candidates = []  # list(init_candidates)
+    # for _ in range(len(candidates)):
+    for trace in init_candidates:
+        # trace = candidates.pop(0)
+        ctx.push_trace(trace)
         tvm.transform.Sequential(eval_passes)(trace.out_mod)
+        new_trace = ctx.pop_trace()
         # A new trace contains the best decisions in eval_passes
-        candidates.append(copy.deepcopy(ctx.trace))
+        candidates.append(new_trace)
 
     return candidates
 
@@ -250,9 +328,26 @@ def default_evaluate(
     builder: Optional[meta_schedule.builder.Builder] = None,
     runner: Optional[meta_schedule.runner.Runner] = None,
 ) -> None:
+    """
+    Default function to evaluate a set of candidate traces by using MetaSchedule builder/runner.
+
+    Parameters
+    ----------
+    candidates: List[Trace]
+        List of traces to evaluate.
+    target_str: str,
+        Compilation target (e.g., llvm, cuda).
+    params: Optional[Dict[str, np.ndarray]]
+        Params to bind.
+    builder: Optional[meta_schedule.builder.Builder]
+        builder function. If not provided, default local builder will be used.
+    runner: Optional[meta_schedule.runner.Runner]
+        runner function. If not provided, default local runner will be used.
+    """
+
     ctx = PassContext.current()
     target = tvm.target.Target(target_str)
-    # Setup default builder if not provided
+    # Setup default local builder if not provided
     if builder is None:
 
         def relax_build(
@@ -267,7 +362,7 @@ def default_evaluate(
 
         builder = LocalBuilder(f_build=relax_build)
 
-    # Setup default runner if not provided
+    # Setup default local runner if not provided
     if runner is None:
 
         def relax_eval_func(rt_mod, device, evaluator_config, repeated_args):
@@ -295,6 +390,7 @@ def default_evaluate(
             f_run_evaluator=relax_eval_func,
         )
 
+    # Keep track of number of evaluations (mostly for the debugging purpose)
     num_evals = 0
     # Evaluation
     for candidate in candidates:
@@ -311,6 +407,7 @@ def default_evaluate(
         assert builder_result.artifact_path is not None
         assert builder_result.error_msg is None
 
+        # Set up runner input and measure the performance
         runner_input = RunnerInput(
             builder_result.artifact_path,
             target_str,
@@ -332,6 +429,7 @@ def default_evaluate(
             perfs.append(result)
 
         # Store the evaluation result
+        # TODO(sunggg): Match with MetaSchedule
         candidate.set_perf(np.mean(perfs))
 
         # clean up
@@ -345,12 +443,22 @@ def default_evaluate(
     ctx.inc_num_evals(num_evals)
 
 
-# TODO(sunggg): Database
+def select_best_candidate(candidates: List[Trace]) -> Trace:
+    """
+    Select the best trace.
 
-# Choose the best trace
-def select_best_candidate(traces):
+    Parameters
+    ----------
+    candidates: List[Trace]
+        Candidate traces
+
+    Return
+    ----------
+    best_trace: Trace
+        Trace with the best performance
+    """
     best_perf, best_trace = sys.maxsize, None
-    for candidate in traces:
+    for candidate in candidates:
         avg = candidate.perf
         # Select best one
         if best_perf > avg:
@@ -359,8 +467,19 @@ def select_best_candidate(traces):
     return best_trace
 
 
-# Return trace wrapper if necessary
 def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
+    """
+    Getter for a trace wrapper.
+
+    Parameters
+    ----------
+    in_: Union[Trace, IRModule, Expr]
+        Input entity
+    Return
+    ----------
+    wrapped: Trace
+        Traced entity
+    """
     if isinstance(in_, Trace):
         return in_
     if isinstance(in_, IRModule):
@@ -369,20 +488,3 @@ def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
         return Trace(tvm.IRModule.from_expr(in_))
     else:
         raise Exception(f"Invalid input type for trace: {type(in_)}")
-
-
-# Extracts matching subgraph for subgraph-level tuning
-def extract_subgraph(mod, pattern):
-    assert 0, "Need to implement"
-
-
-# [Optional] a cost model that estimates the performance of a trace
-def query_cost_model(cost_model, trace: Trace) -> float:
-    assert 0, "Need to implement"
-
-
-# [Optional] a prediction model that predicts the optimized IRModule
-# This can be done by heuristic like AutoTVM
-# or data-driven approach like ApplyHistoryBest in MetaSchedule
-def predict(mod: IRModule, ctx) -> IRModule:
-    assert 0, "Need to implement"

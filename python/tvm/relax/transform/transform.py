@@ -271,6 +271,9 @@ def function_pass(
     required : Optional[List[str]]
         The list of passes that the function pass is dependent on.
 
+    traceable: Boolean
+        Boolean variable whether the function pass is traceable
+
     Returns
     -------
     create_function_pass : Union[Callable, FunctionPass]
@@ -411,6 +414,9 @@ def dataflowblock_pass(
 
     required : Optional[List[str]]
         The list of passes that the dataflowblock pass is dependent on.
+
+    traceable: Boolean
+        Boolean variable whether the dataflowblock pass is traceable
 
     Returns
     -------

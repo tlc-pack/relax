@@ -434,13 +434,14 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
     // This handles passes that does not use Relax tuning API (untraceable passes).
     // We make untraceable passes trackable when pass context has a trace (trace mode).
     // When passes to trace (make_traceable) is provided from users, we only make them trackable.
-    if (pass_ctx->trace.defined() && !pass_info->traceable &&
+    if (pass_ctx->trace_stack.size() && !pass_info->traceable &&
         (!pass_ctx->make_traceable.defined() ||
          pass_ctx->make_traceable.value().count(pass_info->name))) {
       relax::FTransform f_transform = [=](IRModule m) { return pass(std::move(mod), pass_ctx); };
       relax::Knob knob =
           relax::Knob(pass_info->name, {{"enabled", relax::Choice(f_transform, nullptr)}});
-      mod = pass_ctx->trace.value()->Add(knob, "enabled");
+      // Add new decision to the trace at the top of the stack.
+      mod = pass_ctx->trace_stack.back()->Add(knob, "enabled");
     } else {
       mod = pass(std::move(mod), pass_ctx);
     }
@@ -533,7 +534,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
-                       Optional<Map<String, ObjectRef>> config, Optional<relax::Trace> trace,
+                       Optional<Map<String, ObjectRef>> config, Array<relax::Trace> trace_stack,
                        Optional<Map<String, Bool>> make_traceable, int num_evals) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
@@ -544,7 +545,7 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       if (config.defined()) {
         pctx->config = config.value();
       }
-      pctx->trace = std::move(trace);
+      pctx->trace_stack = std::move(trace_stack);
       pctx->make_traceable = std::move(make_traceable);
       pctx->num_evals = std::move(num_evals);
       PassConfigManager::Global()->Legalize(&(pctx->config));
@@ -572,7 +573,15 @@ class PassContext::Internal {
   static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
 
-TVM_REGISTER_GLOBAL("transform.SetTrace").set_body_method<PassContext>(&PassContextNode::SetTrace);
+TVM_REGISTER_GLOBAL("transform.GetTraceStack")
+    .set_body_method<PassContext>(&PassContextNode::GetTraceStack);
+TVM_REGISTER_GLOBAL("transform.PushTrace")
+    .set_body_method<PassContext>(&PassContextNode::PushTrace);
+TVM_REGISTER_GLOBAL("transform.PopTrace").set_body_method<PassContext>(&PassContextNode::PopTrace);
+TVM_REGISTER_GLOBAL("transform.GetTraceStackSize")
+    .set_body_method<PassContext>(&PassContextNode::GetTraceStackSize);
+TVM_REGISTER_GLOBAL("transform.GetCurrentTrace")
+    .set_body_method<PassContext>(&PassContextNode::GetCurrentTrace);
 TVM_REGISTER_GLOBAL("transform.SetNumEvals")
     .set_body_method<PassContext>(&PassContextNode::SetNumEvals);
 TVM_REGISTER_GLOBAL("transform.IncNumEvals")
