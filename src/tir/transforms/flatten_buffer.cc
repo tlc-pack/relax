@@ -170,8 +170,8 @@ class BufferFlattener : public StmtExprMutator {
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (store->value.dtype() == DataType::Bool()) {
-      ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
+      // ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
+      //     << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tir::Cast(DataType::Int(8), store->value);
     }

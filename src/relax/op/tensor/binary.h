@@ -25,7 +25,11 @@
 #ifndef TVM_RELAX_OP_TENSOR_BINARY_H_
 #define TVM_RELAX_OP_TENSOR_BINARY_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/attrs/reduce.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relax/type.h>
 
 #include <algorithm>
@@ -110,6 +114,238 @@ Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
     output_ndim = std::max(t0->ndim, t1->ndim);
   }
   return DynTensorType(output_ndim, output_dtype);
+}
+
+Optional<Expr> InferShapeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary like op should have 2 arguments");
+  }
+
+  return call->args[1]->shape();
+}
+
+Type InferTypeBinaryLike(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary like op should have 2 arguments");
+  }
+  return call->args[1]->checked_type();
+}
+
+Optional<Expr> InferShapeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary nn.dense op should have 2 arguments");
+  }
+
+  const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
+  const ShapeExprNode* tensor_b = call->args[1]->shape().as<ShapeExprNode>();
+
+  ICHECK(tensor_a != nullptr);
+  ICHECK(tensor_b != nullptr);
+
+  // Default set to dense layout
+  bool transpose_a = false;
+  bool transpose_b = true;
+  const auto& mattrs = call->attrs.as<relay::MatmulAttrs>();
+  if (mattrs != nullptr) {
+    transpose_a = mattrs->transpose_a;
+    transpose_b = mattrs->transpose_b;
+  }
+
+  Array<PrimExpr> oshape = tensor_a->values;
+  const Array<PrimExpr>& wshape = tensor_b->values;
+  oshape.Set((oshape.size() - 2), transpose_a ? oshape[oshape.size() - 1] : oshape[oshape.size() - 2]);
+  oshape.Set((oshape.size() - 1), transpose_b ? wshape[0] : wshape[1]);
+
+  return ShapeExpr(oshape);
+}
+
+Type InferTypeBinaryNNDense(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Binary nn.dense op should have 2 arguments");
+  }
+
+  const relay::DenseAttrs* param = call->attrs.as<relay::DenseAttrs>();
+  ICHECK(param != nullptr);
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  ICHECK(tensor_a != nullptr);
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = tensor_a->dtype;
+  }
+  return DynTensorType(tensor_a->rank, out_dtype);
+}
+
+Optional<Expr> InferShapeBinaryTranspose(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "transpose op should have 1 arguments");
+  }
+  const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
+
+  ICHECK(tensor_a != nullptr);
+  
+  const auto* param = call->attrs.as<relay::TransposeAttrs>();
+  const int ndim = tensor_a->values.size();
+  const Array<Integer>& axes = param->axes;
+  ICHECK(!axes.defined()) << "only support transpose with no axes set in Relax shape inference for now";
+  std::vector<int> int_axes;
+  int_axes.reserve(ndim);
+  if (!axes.defined()) {
+    for (int i = ndim - 1; i >= 0; --i) {
+      int_axes.push_back(i);
+    }
+  }
+  Array<PrimExpr> oshape;
+  oshape.reserve(ndim);
+  for (int axis : int_axes) {
+    oshape.push_back(tensor_a->values[axis]);
+  }
+  return ShapeExpr(oshape);
+}
+
+Type InferTypeBinaryTranspose(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "transpose op should have 1 arguments");
+  }
+  return call->args[0]->checked_type();
+}
+
+Optional<Expr> InferShapePWUnary(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "PW Unary op should have 1 arguments");
+  }
+
+  return call->args[0]->shape();
+}
+
+Type InferTypePWUnary(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "PW Unary op should have 1 arguments");
+  }
+  return call->args[0]->checked_type();
+}
+
+Optional<Expr> InferShapeWhere(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 3) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Where op should have 3 arguments");
+  }
+
+  return call->args[1]->shape();
+}
+
+Type InferTypeWhere(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 3) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Where op should have 3 arguments");
+  }
+  return call->args[1]->checked_type();
+}
+Optional<Expr> InferShapeCmp(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "cmp op should have 2 arguments");
+  }
+
+  return call->args[1]->shape();
+}
+
+Type InferTypeCmp(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Cmp op should have 2 arguments");
+  }
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  return DynTensorType(tensor_a->rank, DataType::Bool());
+}
+
+Optional<Expr> InferShapeReduce(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "reduce op should have 1 arguments");
+  }
+  const ShapeExprNode* tensor_a = call->args[0]->shape().as<ShapeExprNode>();
+  ICHECK(tensor_a != nullptr);
+
+  const relay::ReduceAttrs* param = call->attrs.as<relay::ReduceAttrs>();
+  ICHECK(!param->exclude);
+
+  Array<PrimExpr> inshape = tensor_a->values;
+  Array<PrimExpr> out_shape;
+  Array<Integer> reduce_axis = param->axis;
+  bool reduce_all_axis = reduce_axis.empty();
+
+  std::vector<int> reduce_axis_normalized;
+  for (int i = 0; i < reduce_axis.size(); i++) {
+    int axis = reduce_axis[i];
+    if (axis < 0) {
+      reduce_axis_normalized.push_back((int)inshape.size() + axis);
+    } else {
+      reduce_axis_normalized.push_back(axis);
+    }
+  }
+  std::sort(reduce_axis_normalized.begin(), reduce_axis_normalized.end());
+
+  size_t j = 0;
+  for (int i = 0; i < inshape.size(); i++) {
+    // TODO: this code is weird because when inlining the boolean expression
+    // short-circuiting doesn't work and reduce_axis[j] is out of range, figure out why
+    bool inrange = j < reduce_axis_normalized.size();
+    bool red = false;
+    if (inrange) {
+      red = reduce_axis_normalized[j] == i; 
+    }
+    if (reduce_all_axis || red) {
+      // reduce this axis
+      if (param->keepdims) {
+        out_shape.insert(out_shape.end(), IntImm(DataType::Int(32), 1));
+      }
+      j++;
+    } else {
+      out_shape.insert(out_shape.end(), inshape[i]);
+    }
+  }
+
+  return ShapeExpr(out_shape);
+}
+
+Type InferTypeReduce(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "reduce op should have 1 arguments");
+  }
+  const relay::ReduceAttrs* param = call->attrs.as<relay::ReduceAttrs>();
+  ICHECK(!param->exclude);
+
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  int num_reduce_axis = param->axis.empty() ? tensor_a->rank : param->axis.size();
+  int newrank = param->keepdims ? tensor_a->rank : tensor_a->rank - num_reduce_axis;
+  return DynTensorType(newrank, tensor_a->dtype);
+}
+
+Optional<Expr> InferShapeCrossEntropy(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "cross entropy op should have 2 arguments");
+  }
+
+  return ShapeExpr(Array<PrimExpr>());
+}
+
+Type InferTypeCrossEntropy(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "cross entropy should have 2 arguments");
+  }
+  const DynTensorTypeNode* tensor_a = call->args[0]->checked_type().as<relax::DynTensorTypeNode>();
+  return DynTensorType(0, tensor_a->dtype);
 }
 
 }  // namespace relax

@@ -90,6 +90,7 @@ Any = ty.Any
 
 # Expr
 Expr = expr.RelayExpr
+ExprWithOp = expr.ExprWithOp
 Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var

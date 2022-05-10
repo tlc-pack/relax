@@ -96,6 +96,20 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
+ * \brief Rewrite Relay Op to TIR call.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass RelayOpRewrite();
+
+/*!
+ * \brief Reverse-mode auto-differentiation.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass ReverseModeAD();
+
+/*!
  * \brief Transform Relax IR to A-normal form.
  *
  * \return The Pass.

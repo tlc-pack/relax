@@ -35,5 +35,65 @@ RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
     .describe("Elementwise multiply with broadcasting")
     .set_support_level(1);
 
+RELAY_TO_RELAX_BINARY_ATTRS("multiply");
+RELAY_TO_RELAX_BINARY_ATTRS("subtract");
+
+RELAY_REGISTER_OP("collapse_sum_like")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryLike)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryLike);
+
+RELAY_REGISTER_OP("nn.dense")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryNNDense)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryNNDense);
+
+RELAY_REGISTER_OP("transpose")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryTranspose)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryTranspose);
+
+RELAY_REGISTER_OP("nn.relu")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("zeros_like")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("nn.log_softmax")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+RELAY_REGISTER_OP("exp")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+RELAY_REGISTER_OP("log")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+RELAY_REGISTER_OP("negative")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("ones_like")                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapePWUnary)            \
+      .set_attr<FInferType>("FInferType", InferTypePWUnary);
+
+RELAY_REGISTER_OP("where") \
+      .set_attr<FInferShape>("FInferShape", InferShapeWhere)            \
+      .set_attr<FInferType>("FInferType", InferTypeWhere);
+
+RELAY_REGISTER_OP("less") \
+      .set_attr<FInferShape>("FInferShape", InferShapeCmp)            \
+      .set_attr<FInferType>("FInferType", InferTypeCmp);
+
+RELAY_REGISTER_OP("sum") \
+      .set_attr<FInferShape>("FInferShape", InferShapeReduce)            \
+      .set_attr<FInferType>("FInferType", InferTypeReduce);
+
+RELAY_REGISTER_OP("nn.cross_entropy") \
+      .set_attr<FInferShape>("FInferShape", InferShapeCrossEntropy)            \
+      .set_attr<FInferType>("FInferType", InferTypeCrossEntropy);
+
+RELAX_REGISTER_BINARY_BROADCAST_OP("divide")
+    .describe("Elementwise divide with broadcasting")
+    .set_support_level(1);
+
 }  // namespace relax
 }  // namespace tvm

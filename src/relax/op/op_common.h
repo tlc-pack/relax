@@ -59,6 +59,11 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs);
       .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)            \
       .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast)
 
+#define RELAY_TO_RELAX_BINARY_ATTRS(OpName)                                       \
+  RELAY_REGISTER_OP(OpName)                                                       \
+      .set_attr<FInferShape>("FInferShape", InferShapeBinaryBroadcast)            \
+      .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast)
+
 }  // namespace relax
 }  // namespace tvm
 
