@@ -570,7 +570,7 @@ class RelaxTransformer(Transformer):
         """
         # this behavior is assumed by the TIR parser
         self._diagnostic_context._render_on_error = True
-        parser = _TIRScriptParser(synr_ast.span.start_line, self.tir_prefix)
+        parser = _TIRScriptParser(synr_ast.span.start_line, self.tir_prefix, {})
         prim_func = parser.do_transform(synr_ast, self._diagnostic_context)
         self._diagnostic_context._render_on_error = False
         return prim_func

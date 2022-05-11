@@ -630,7 +630,7 @@ def tune_relay(
 def tune_relax(
     mod: IRModule,
     target: Union[str, Target],
-    config: SearchStrategyConfig,
+    config: TuneConfig,
     work_dir: str,
     *,
     builder: Optional[Builder] = None,
@@ -638,7 +638,6 @@ def tune_relax(
     database: Optional[Database] = None,
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
-    task_scheduler: Optional[TaskScheduler] = None,
     space: Optional[FnSpaceGenerator] = None,
     sch_rules: Optional[FnScheduleRule] = None,
     postprocs: Optional[FnPostproc] = None,
@@ -667,10 +666,6 @@ def tune_relax(
         The database to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
-    f_tune_context : Optional[TYPE_F_TUNE_CONTEXT]
-        The function to create TuneContext.
-    f_task_scheduler : Optional[TYPE_F_TASK_SCHEDULER]
-        The function to create TaskScheduler.
 
     Returns
     -------
@@ -689,7 +684,6 @@ def tune_relax(
     extracted_tasks = extract_task_from_relax(mod, target)
     database = tune_extracted_tasks(
         extracted_tasks,
-        target,
         config,
         work_dir,
         builder=builder,
@@ -697,7 +691,6 @@ def tune_relax(
         database=database,
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
-        task_scheduler=task_scheduler,
         space=space,
         sch_rules=sch_rules,
         postprocs=postprocs,
