@@ -39,12 +39,17 @@ def post_order_visit(expr, fvisit):
     return _ffi_api.post_order_visit(expr, fvisit)
 
 
-def well_formed(mod) -> None:
+def well_formed(mod) -> bool:
     """Check if the IRModule is well formed.
 
     Parameters
     ----------
     mod : tvm.IRModule
         The input IRModule.
+
+    Returns
+    -------
+    ret: bool
+        True if the IRModule is well formed, False if not.
     """
     return _ffi_api.well_formed(mod)

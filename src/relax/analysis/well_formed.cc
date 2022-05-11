@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/expr_functor.h>
@@ -25,33 +26,50 @@
 namespace tvm {
 namespace relax {
 
-/*! \brief Helper to visit PrimExpr in the shape annotation and check if the symbolic vars in the
- * PrimExpr are defined.*/
+class WellFormedChecker;
+
+/*! \brief Helper to visit PrimExpr in the shape annotation and check if the symbolic vars in
+ * the PrimExpr are defined.*/
 class PrimExprVisitor : public tir::ExprVisitor {
  public:
+  explicit PrimExprVisitor(WellFormedChecker* checker) : _checker(checker) {}
+
   void RegisterSymVar(const tir::Var var) { symbolicvar_set_.insert(var); }
   void ClearSymVarSet() { symbolicvar_set_.clear(); }
 
+  void VisitExpr_(const tir::VarNode* op);
+
  private:
-  void VisitExpr_(const tir::VarNode* op) {
-    tir::Var var = GetRef<tir::Var>(op);
-    if (symbolicvar_set_.count(var) == 0) {
-      LOG(FATAL) << "WellFormedCheckError: Symbolic Var " << var->name_hint << " is not defined.";
-    }
-  }
+  WellFormedChecker* _checker;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolicvar_set_;
 };
 
 /*! \brief Helper to implement well formed check.*/
 class WellFormedChecker : public relax::ExprVisitor {
  public:
+  Optional<DiagnosticContext> diag_ctx;
+
+  bool well_formed = true;
+
+  explicit WellFormedChecker(const Optional<DiagnosticContext>& ctx)
+      : diag_ctx(ctx), prim_expr_visitor(this) {}
+
+  void Malformed(Diagnostic diag) {
+    well_formed = false;
+    if (diag_ctx) {
+      diag_ctx.value().Emit(diag);
+    } else {
+      LOG(WARNING) << "This IR is not well formed: " << diag->message;
+    }
+  }
+
   void RegisterGlobalVar(GlobalVar var) { globalvar_set_.insert(var); }
 
  private:
   void VisitExpr_(const GlobalVarNode* op) {
     GlobalVar var = GetRef<GlobalVar>(op);
     if (globalvar_set_.count(var) == 0) {
-      LOG(FATAL) << "WellFormedCheckError: GlobalVar" << op->name_hint << " is not defined.";
+      Malformed(Diagnostic::Error(var->span) << "GlobalVar" << op->name_hint << " is not defined.");
     }
   }
 
@@ -62,8 +80,8 @@ class WellFormedChecker : public relax::ExprVisitor {
           expr.as<RuntimeDepShapeNode>() || expr.as<ConstantNode>() || expr.as<TupleNode>()) {
         this->VisitExpr(expr);
       } else {
-        LOG(FATAL) << "WellFormedCheckError: Tuple is not in ANF form, field " << i << " gets "
-                   << expr->GetTypeKey();
+        Malformed(Diagnostic::Error(expr->span)
+                  << "Tuple is not in ANF form, field " << i << " gets " << expr->GetTypeKey());
       }
     }
 
@@ -75,18 +93,19 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitExpr_(const VarNode* op) {
     Var var = GetRef<Var>(op);
     if (var_set_.count(var) == 0) {
-      LOG(FATAL) << "WellFormedCheckError: Var " << op->name_hint() << " is not defined.";
+      Malformed(Diagnostic::Error(var->span) << "Var " << op->name_hint() << " is not defined.");
     }
   }
 
   void VisitExpr_(const DataflowVarNode* op) {
     DataflowVar var = GetRef<DataflowVar>(op);
     if (!is_dataflow) {
-      LOG(FATAL) << "WellFormedCheckError: DataflowVar " << op->name_hint()
-                 << " is used outside DataflowBlock.";
+      Malformed(Diagnostic::Error(var->span)
+                << "DataflowVar " << op->name_hint() << " is used outside DataflowBlock.");
     }
     if (dataflowvar_set_.count(var) == 0) {
-      LOG(FATAL) << "WellFormedCheckError: DataflowVar " << op->name_hint() << " is not defined.";
+      Malformed(Diagnostic::Error(var->span)
+                << "DataflowVar " << op->name_hint() << " is not defined.");
     }
   }
 
@@ -123,8 +142,8 @@ class WellFormedChecker : public relax::ExprVisitor {
           arg.as<ConstantNode>()) {
         this->VisitExpr(arg);
       } else {
-        LOG(FATAL) << "WellFormedCheckError: Call is not in ANF form, arg " << i << " gets "
-                   << arg->GetTypeKey();
+        Malformed(Diagnostic::Error(arg->span)
+                  << "Call is not in ANF form, arg " << i << " gets " << arg->GetTypeKey());
       }
     }
 
@@ -147,8 +166,9 @@ class WellFormedChecker : public relax::ExprVisitor {
   }
 
   void VisitExpr_(const SeqExprNode* op) {
-    LOG(FATAL) << "WellFormedCheckError: SeqExpr only serves as the function body in FunctionNode, "
-                  "or the true/false branch body in IfNode.";
+    Malformed(Diagnostic::Error(op->span)
+              << "SeqExpr only serves as the function body in FunctionNode, "
+                 "or the true/false branch body in IfNode.");
   }
 
   void VisitSeqExpr(const SeqExprNode* op) {
@@ -201,13 +221,13 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void VisitVarDef_(const DataflowVarNode* var) {
     if (!is_dataflow) {
-      LOG(FATAL) << "WellFormedCheckError: DataflowVar " << var->name_hint()
-                 << " is defined outside DataflowBlock.";
+      Malformed(Diagnostic::Error(var->span)
+                << "DataflowVar " << var->name_hint() << " is defined outside DataflowBlock.");
     }
     DataflowVar lv = GetRef<DataflowVar>(var);
     if (dataflowvar_set_.count(lv) == 1) {
-      LOG(FATAL) << "WellFormedCheckError: DataflowVar " << lv->name_hint()
-                 << " is defined more than once.";
+      Malformed(Diagnostic::Error(var->span)
+                << "DataflowVar " << lv->name_hint() << " is defined more than once.");
     }
     // register DataflowVar
     dataflowvar_set_.insert(lv);
@@ -216,8 +236,8 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitVarDef_(const VarNode* var) {
     Var gv = GetRef<Var>(var);
     if (var_set_.count(gv) == 1) {
-      LOG(FATAL) << "WellFormedCheckError: Var " << gv->name_hint()
-                 << " is defined more than once.";
+      Malformed(Diagnostic::Error(var->span)
+                << "Var " << gv->name_hint() << " is defined more than once.");
     }
     // register Var
     var_set_.insert(gv);
@@ -244,8 +264,16 @@ class WellFormedChecker : public relax::ExprVisitor {
   PrimExprVisitor prim_expr_visitor;
 };
 
-void WellFormed(const IRModule& m) {
-  WellFormedChecker well_formed_checker = WellFormedChecker();
+void PrimExprVisitor::VisitExpr_(const tir::VarNode* op) {
+  tir::Var var = GetRef<tir::Var>(op);
+  if (symbolicvar_set_.count(var) == 0) {
+    _checker->Malformed(Diagnostic::Error(var->span)
+                        << "Symbolic Var " << var->name_hint << " is not defined.");
+  }
+}
+
+bool WellFormed(const IRModule& m, Optional<DiagnosticContext> diag_ctx) {
+  WellFormedChecker well_formed_checker = WellFormedChecker(diag_ctx);
   for (const auto& it : m->functions) {
     // register GlobalVar in the IRModule first
     well_formed_checker.RegisterGlobalVar(it.first);
@@ -258,6 +286,8 @@ void WellFormed(const IRModule& m) {
       well_formed_checker.VisitExpr(func);
     }
   }
+
+  return well_formed_checker.well_formed;
 }
 
 TVM_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed([](IRModule m) {

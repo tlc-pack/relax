@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_ANALYSIS_H_
 #define TVM_RELAX_ANALYSIS_H_
 
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 
 namespace tvm {
@@ -33,8 +34,11 @@ namespace relax {
  * \brief Check if the IRModule is well formed.
  *
  * \param m the IRModule to check.
+ *
+ * \return true if the IRModule is well formed, false if not.
  */
-TVM_DLL void WellFormed(const IRModule& m);
+TVM_DLL bool WellFormed(const IRModule& m,
+                        Optional<DiagnosticContext> diag_ctx = Optional<DiagnosticContext>());
 
 }  // namespace relax
 }  // namespace tvm
