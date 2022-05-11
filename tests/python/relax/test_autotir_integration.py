@@ -135,7 +135,8 @@ def test_autotir(dev: str):
         relax_ex = ms.tune_relax(
             mod=mod,
             target=target,
-            config=ms.EvolutionarySearchConfig(
+            config=ms.TuneConfig(
+                strategy="evolutionary",
                 num_trials_per_iter=2,
                 max_trials_per_task=4,
                 max_trials_global=4,
