@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 """The base Relax operators."""
-from typing import Union, List, Optional, Callable
+from typing import Union, List, Optional
 
 from tvm.runtime.object import Object
 

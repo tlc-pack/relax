@@ -48,7 +48,6 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       ICHECK_EQ(args.size() % 3, 0);
       std::vector<Device> devices;
       std::vector<AllocatorType> alloc_types;
-      Optional<Module> lib(sptr_to_self);
       for (int i = 0; i < args.size(); i += 3) {
         Device dev;
         int device_type = args[i];
@@ -58,7 +57,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         devices.push_back(dev);
         alloc_types.push_back(AllocatorType(type));
       }
-      this->Init(devices, alloc_types, lib);
+      this->Init(devices, alloc_types);
 
       // Copy NDArray constants to the devices
       // TODO(tvm-team): support multiple devices
@@ -82,7 +81,19 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         arg = f_arg;
         new_args.push_back(arg);
       }
-      *rv = InvokeClosure(clo, new_args);
+      // Append the free variables of closure
+      auto free_vars = clo->free_vars;
+      for (auto f_var : free_vars) {
+        TVMRetValue arg;
+        arg = f_var;
+        new_args.push_back(arg);
+      }
+
+      String func_name = clo->func_name;
+      auto it = exec_->global_map.find(func_name);
+      ICHECK(it != exec_->global_map.end()) << "No such function " << func_name;
+      Index func_idx = it->second;
+      *rv = Invoke(func_idx, new_args);
     });
   }
 
@@ -105,7 +116,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 void VirtualMachine::LoadExecutable(ObjectPtr<Executable> exec) {
   this->exec_ = exec;
   CHECK_LE(exec_->imports().size(), 1);
-  this->state.lib = exec_->imports().empty() ? Optional<Module>(NullOpt) : exec_->imports()[0];
+  this->lib = exec_->imports().empty() ? Optional<Module>(NullOpt) : exec_->imports()[0];
 }
 
 RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
@@ -122,41 +133,19 @@ RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
   return return_value_;
 }
 
-RegType VirtualMachine::InvokeClosure(VMClosure clo, const std::vector<RegType>& args) {
-  std::vector<RegType> new_args;
-  for (size_t j = 0; j < args.size(); ++j) {
-    new_args.push_back(args[j]);
-  }
-  // Append the free variables of closure
-  auto cap_vars = clo->free_vars;
-  for (size_t i = 0; i < cap_vars.size(); ++i) {
-    TVMRetValue arg;
-    arg = cap_vars[i];
-    new_args.push_back(arg);
-  }
-  String func_name = clo->func_name;
-  auto it = exec_->global_map.find(func_name);
-  ICHECK(it != exec_->global_map.end()) << "No such function " << func_name;
-  Index func_idx = it->second;
-
-  return this->Invoke(func_idx, new_args);
-}
-
 void VirtualMachine::Init(const std::vector<Device>& devices,
-                          const std::vector<AllocatorType>& alloc_types,
-                          const Optional<Module>& lib) {
+                          const std::vector<AllocatorType>& alloc_types) {
   // TODO(@yuchen): support multi-device heterogeneous execution
   ICHECK_LT(devices.size(), 3)
       << "Currently relax vm only supports at most 2 devices (host + device)";
   ICHECK_EQ(devices.size(), alloc_types.size());
 
-  state.devices.reserve(devices.size());
-  state.allocators.reserve(alloc_types.size());
-  state.lib = lib;
+  this->devices.reserve(devices.size());
+  this->allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
     auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
-    state.devices.push_back(devices[i]);
-    state.allocators.push_back(alloc);
+    this->devices.push_back(devices[i]);
+    this->allocators.push_back(alloc);
   }
 }
 
@@ -171,8 +160,12 @@ void VirtualMachine::PrepareFuncTable(Index func_index) {
   }
 
   const std::string& func_name = exec_->func_names[func_index];
+
   // lookup function and populate
   PackedFunc func{nullptr};
+  if (this->lib.defined()) {
+    func = this->lib.value()->GetFunction(func_name, true);
+  }
   if (!func.defined()) {
     const PackedFunc* p_func = Registry::Get(func_name);
     if (p_func == nullptr) {
@@ -185,9 +178,6 @@ void VirtualMachine::PrepareFuncTable(Index func_index) {
     } else {
       func = *(p_func);
     }
-  }
-  if (!func.defined() && state.lib.defined()) {
-    func = state.lib.value()->GetFunction(func_name, true);
   }
   func_table_[func_index] = func;
 }
@@ -210,8 +200,8 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     Instruction::Arg arg = instr.args[i];
     switch (arg.kind()) {
       case Instruction::kRegister: {
-        if (arg.value() == Instruction::kVMStateRegister) {
-          setter(i, &(this->state));
+        if (arg.value() == Instruction::kVMRegister) {
+          setter(i, this);
         } else {
           setter(i, ReadRegister(curr_frame, arg.value()));
         }

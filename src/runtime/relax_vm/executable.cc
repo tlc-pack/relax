@@ -22,7 +22,6 @@
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/relax_vm/executable.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -449,8 +448,8 @@ std::string RegNameToStr(RegName reg) {
   if (reg == Instruction::kVoidArg) {
     return "void";
   }
-  if (reg == Instruction::kVMStateRegister) {
-    return "%state";
+  if (reg == Instruction::kVMRegister) {
+    return "%vm";
   }
   return "%" + std::to_string(reg);
 }
@@ -473,8 +472,8 @@ std::string InstrArgToStr(Instruction::Arg arg) {
 std::string InstrArgToPyStr(Instruction::Arg arg) {
   switch (arg.kind()) {
     case Instruction::kRegister:
-      if (arg.value() == Instruction::kVMStateRegister) {
-        return "ib.r(state)";
+      if (arg.value() == Instruction::kVMRegister) {
+        return "ib.r(vm)";
       }
       return "ib.r(" + std::to_string(arg.value()) + ")";
     case Instruction::kImmediate:

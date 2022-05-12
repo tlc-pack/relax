@@ -251,7 +251,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg EmitAllocStorage(const Call& call_node) {
     // Handle args of the call
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
+    args.push_back(Instruction::Arg(Instruction::kVMRegister));
     for (Expr arg : call_node->args) {
       args.push_back(ConvertArg(arg));
     }
@@ -339,7 +339,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto func_name_index = builder_->EmitConstant(func_name_constant);
 
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
+    args.push_back(Instruction::Arg(Instruction::kVMRegister));
     args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
     for (Expr arg : tir_args->fields) {
       args.push_back(ConvertArg(arg));
@@ -419,7 +419,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     std::vector<Instruction::Arg> args;
     // VMState is utilized to help get the Function in builtin packedfunc
-    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
+    args.push_back(Instruction::Arg(Instruction::kVMRegister));
 
     auto lv = Downcast<Var>(call_node->args[0]);
     auto it = this->var_register_map_.find(lv);

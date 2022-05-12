@@ -904,35 +904,6 @@ def test_recursion():
 
 
 def test_vm_closure():
-    ib = relax.ExecBuilder()
-    with ib.function("lifted_func_1", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    with ib.function("main", num_inputs=2):
-        x = ib.emit_constant("lifted_func_1")
-        ib.emit_call("vm.builtin.alloc_closure", args=[ib.c(x), ib.r(0)], dst=ib.r(2))
-        ib.emit_call(
-            "vm.builtin.invoke_closure", args=[ib.vm_state(), ib.r(2), ib.r(1)], dst=ib.r(3)
-        )
-        ib.emit_ret(ib.r(3))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    b = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-
-    clo_res = vm["main"](a, b)
-    tvm.testing.assert_allclose(clo_res.numpy(), a.numpy() + b.numpy())
-
-
-def test_vm_compile_closure():
     @tvm.script.ir_module
     class TestClosure:
         @R.function
@@ -959,27 +930,18 @@ def test_vm_compile_closure():
 
 
 def test_vm_invoke_closure():
-    @tvm.script.ir_module
-    class TestClosure:
-        @R.function
-        def lifted_func_1(
-            w: Tensor((2, 3), "float32"),
-            x: Tensor((2, 3), "float32"),
-            y: Tensor((2, 3), "float32"),
-            z: Tensor((2, 3), "float32"),
-        ):
-            s1 = relax.call_packed("test.vm.add", w, x, type_args=(Tensor))
-            s2 = relax.call_packed("test.vm.add", s1, y, type_args=(Tensor))
-            s3 = relax.call_packed("test.vm.add", s2, z, type_args=(Tensor))
-            return s3
+    ib = relax.ExecBuilder()
+    with ib.function("lifted_func_1", num_inputs=4):
+        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(4))
+        ib.emit_call("test.vm.add", args=[ib.r(2), ib.r(4)], dst=ib.r(5))
+        ib.emit_call("test.vm.add", args=[ib.r(3), ib.r(5)], dst=ib.r(6))
+        ib.emit_ret(ib.r(6))
+    with ib.function("main", num_inputs=2):
+        x = ib.emit_constant("lifted_func_1")
+        ib.emit_call("vm.builtin.alloc_closure", args=[ib.c(x), ib.r(0), ib.r(1)], dst=ib.r(2))
+        ib.emit_ret(ib.r(2))
 
-        @R.function
-        def main(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")):
-            return relax.make_closure(lifted_func_1, (x, y))
-
-    mod = TestClosure
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = ib.get()
     vm = relax.VirtualMachine(ex, tvm.cpu())
     w_inp = tvm.nd.array(np.random.rand(2, 3))
     x_inp = tvm.nd.array(np.random.rand(2, 3))

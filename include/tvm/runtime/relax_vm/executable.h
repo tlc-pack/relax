@@ -38,7 +38,6 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-
 /*!
  * \brief An object representing a vm closure.
  */
@@ -53,7 +52,7 @@ class VMClosureObj : public ClosureObj {
   Array<ObjectRef> free_vars;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "vm.Closure";
+  static constexpr const char* _type_key = "relax.vm.Closure";
   TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, ClosureObj);
 };
 
