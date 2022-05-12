@@ -32,16 +32,12 @@ class WellFormedChecker;
  * the PrimExpr are defined.*/
 class PrimExprVisitor : public tir::ExprVisitor {
  public:
+  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolicvar_set_;
+  WellFormedChecker* _checker;
+
   explicit PrimExprVisitor(WellFormedChecker* checker) : _checker(checker) {}
 
-  void RegisterSymVar(const tir::Var var) { symbolicvar_set_.insert(var); }
-  void ClearSymVarSet() { symbolicvar_set_.clear(); }
-
   void VisitExpr_(const tir::VarNode* op);
-
- private:
-  WellFormedChecker* _checker;
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolicvar_set_;
 };
 
 /*! \brief Helper to implement well formed check.*/
@@ -119,7 +115,7 @@ class WellFormedChecker : public relax::ExprVisitor {
         } else {
           for (PrimExpr expr : Downcast<ShapeExpr>(var_shape)->values) {
             if (expr.as<tir::VarNode>()) {
-              prim_expr_visitor.RegisterSymVar(Downcast<tir::Var>(expr));
+              prim_expr_visitor.symbolicvar_set_.insert(Downcast<tir::Var>(expr));
             } else {
               prim_expr_visitor(expr);
             }
@@ -131,7 +127,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     }
     this->VisitBody(op->body);
     var_set_.clear();
-    prim_expr_visitor.ClearSymVarSet();
+    prim_expr_visitor.symbolicvar_set_.clear();
   }
 
   void VisitExpr_(const CallNode* op) {
@@ -154,8 +150,15 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void VisitExpr_(const IfNode* op) {
     this->VisitExpr(op->cond);
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set_ = var_set_;
+    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolicvar_set_ =
+        prim_expr_visitor.symbolicvar_set_;
     this->VisitBody(op->true_branch);
+    var_set_ = previous_var_set_;
+    prim_expr_visitor.symbolicvar_set_ = previous_symbolicvar_set_;
     this->VisitBody(op->false_branch);
+    var_set_ = previous_var_set_;
+    prim_expr_visitor.symbolicvar_set_ = previous_symbolicvar_set_;
   }
 
   void VisitExpr_(const ShapeExprNode* op) {
@@ -198,7 +201,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     for (PrimExpr expr : binding->pattern) {
       if (expr.as<tir::VarNode>()) {
         // register symbolic var implicitly defined in the pattern of MatchShape
-        prim_expr_visitor.RegisterSymVar(Downcast<tir::Var>(expr));
+        prim_expr_visitor.symbolicvar_set_.insert(Downcast<tir::Var>(expr));
       } else {
         // check if the symbolic var in the expr are defined, e.g, 2 * m
         prim_expr_visitor(expr);

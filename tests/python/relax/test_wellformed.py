@@ -22,14 +22,16 @@ from tvm import relax as rx
 m = tir.Var("m", "int32")
 n = tir.Var("n", "int32")
 type_anno = rx.DynTensorType(ndim=2, dtype="float16")
+bool_type_anno = rx.DynTensorType(ndim=0, dtype="bool")
 x = rx.Var("x", [m, n], type_anno)
+cond = rx.Var("cond", [], bool_type_anno)
 
 
 def build_function(blocks):
     """Returns relax.function with given blocks"""
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     ret_type = rx.DynTensorType(ndim=-1, dtype="float32")
-    func = rx.Function([x], seq_expr, ret_type).with_attr("global_symbol", "foo")
+    func = rx.Function([x, cond], seq_expr, ret_type).with_attr("global_symbol", "foo")
     return func
 
 
@@ -134,6 +136,38 @@ def test_seqexpr():
     _seq_expr = rx.SeqExpr(_blocks, gv1)
     # build a Binding with the SeqExpr as value
     bindings = [rx.VarBinding(gv0, _seq_expr)]
+    blocks = [rx.BindingBlock(bindings)]
+    func = build_function(blocks)
+    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
+    assert not rx.analysis.well_formed(mod)
+
+
+def test_if():
+    # Error: Var defined in true/false branch is invisible in the outer scope
+    # except the return Var, i.e the var in the last stmt
+    # v_in_if is invisible in the outer scope
+    v_in_if = rx.Var("v_in_if", [m, n], type_anno)
+    # gv0 is visible in the outer scope
+    gv0 = rx.Var("gv0", [m, n], type_anno)
+    # build true branch
+    true_bindings = [
+        rx.VarBinding(v_in_if, rx.op.add(x, x)),
+        rx.VarBinding(gv0, rx.op.multiply(x, x)),
+    ]
+    true_blocks = [rx.BindingBlock(true_bindings)]
+    true_seq_expr = rx.SeqExpr(true_blocks, true_blocks[-1].bindings[-1].var)
+    # build false branch
+    false_bindings = [
+        rx.VarBinding(v_in_if, rx.op.multiply(x, x)),
+        rx.VarBinding(gv0, rx.op.add(x, x)),
+    ]
+    false_blocks = [rx.BindingBlock(false_bindings)]
+    false_seq_expr = rx.SeqExpr(false_blocks, false_blocks[-1].bindings[-1].var)
+    # build If node
+    if_node = rx.If(cond=cond, true_branch=true_seq_expr, false_branch=false_seq_expr)
+    gv1 = rx.Var("gv1", [m, n], type_anno)
+    # try to call v_in_if defined in the true/false branch
+    bindings = [rx.VarBinding(gv0, if_node), rx.VarBinding(gv1, v_in_if)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
