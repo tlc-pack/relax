@@ -16,6 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+/*!
+ * \file relax/analysis/well_formed.cc
+ * \brief Check if the IRModule is well formed. If it's malformed, messages
+ *    will be logged as Warning. This pass will check:
+ *    1. GlobalVars are defined before use.
+ *    2. Vars are defined before use.
+ *    3. Vars are defined exactly once.
+ *    4. Symbolic Vars are defined before use.
+ *    5. DataflowVars cannot be defined inside BindingBlock.
+ *    6. Vars defined in IfNode, except the return Var, are invisible
+ *       out of the If body.(May change for new AST designs)
+ *    6. SeqExpr only serves as function body, or in the true and
+ *       false branches in IfNode.
+ *    7. The IR is in ANF:
+ *       (a) No nested call
+ *       (b) The fields of the Tuple can only be Var/DataflowVar/Constant/
+ *           ShapeExpr/RuntimeDepShape/Tuple
+ */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
