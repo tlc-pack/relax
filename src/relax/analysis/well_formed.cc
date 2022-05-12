@@ -32,10 +32,10 @@ class WellFormedChecker;
  * the PrimExpr are defined.*/
 class PrimExprVisitor : public tir::ExprVisitor {
  public:
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolicvar_set_;
-  WellFormedChecker* _checker;
+  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
+  WellFormedChecker* checker_;
 
-  explicit PrimExprVisitor(WellFormedChecker* checker) : _checker(checker) {}
+  explicit PrimExprVisitor(WellFormedChecker* checker) : checker_(checker) {}
 
   void VisitExpr_(const tir::VarNode* op);
 };
@@ -48,7 +48,7 @@ class WellFormedChecker : public relax::ExprVisitor {
   bool well_formed = true;
 
   explicit WellFormedChecker(const Optional<DiagnosticContext>& ctx)
-      : diag_ctx(ctx), prim_expr_visitor(this) {}
+      : diag_ctx(ctx), prim_expr_visitor_(this) {}
 
   void Malformed(Diagnostic diag) {
     well_formed = false;
@@ -59,13 +59,14 @@ class WellFormedChecker : public relax::ExprVisitor {
     }
   }
 
-  void RegisterGlobalVar(GlobalVar var) { globalvar_set_.insert(var); }
+  void RegisterGlobalVar(GlobalVar var) { global_var_set_.insert(var); }
 
  private:
   void VisitExpr_(const GlobalVarNode* op) {
     GlobalVar var = GetRef<GlobalVar>(op);
-    if (globalvar_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var->span) << "GlobalVar" << op->name_hint << " is not defined.");
+    if (global_var_set_.count(var) == 0) {
+      Malformed(Diagnostic::Error(var->span)
+                << "GlobalVar " << op->name_hint << " is not defined.");
     }
   }
 
@@ -95,11 +96,11 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void VisitExpr_(const DataflowVarNode* op) {
     DataflowVar var = GetRef<DataflowVar>(op);
-    if (!is_dataflow) {
+    if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var->span)
                 << "DataflowVar " << op->name_hint() << " is used outside DataflowBlock.");
     }
-    if (dataflowvar_set_.count(var) == 0) {
+    if (dataflow_var_set_.count(var) == 0) {
       Malformed(Diagnostic::Error(var->span)
                 << "DataflowVar " << op->name_hint() << " is not defined.");
     }
@@ -115,9 +116,9 @@ class WellFormedChecker : public relax::ExprVisitor {
         } else {
           for (PrimExpr expr : Downcast<ShapeExpr>(var_shape)->values) {
             if (expr.as<tir::VarNode>()) {
-              prim_expr_visitor.symbolicvar_set_.insert(Downcast<tir::Var>(expr));
+              prim_expr_visitor_.symbolic_var_set_.insert(Downcast<tir::Var>(expr));
             } else {
-              prim_expr_visitor(expr);
+              prim_expr_visitor_(expr);
             }
           }
         }
@@ -127,7 +128,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     }
     this->VisitBody(op->body);
     var_set_.clear();
-    prim_expr_visitor.symbolicvar_set_.clear();
+    prim_expr_visitor_.symbolic_var_set_.clear();
   }
 
   void VisitExpr_(const CallNode* op) {
@@ -151,20 +152,20 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitExpr_(const IfNode* op) {
     this->VisitExpr(op->cond);
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set_ = var_set_;
-    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolicvar_set_ =
-        prim_expr_visitor.symbolicvar_set_;
+    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolic_var_set_ =
+        prim_expr_visitor_.symbolic_var_set_;
     this->VisitBody(op->true_branch);
     var_set_ = previous_var_set_;
-    prim_expr_visitor.symbolicvar_set_ = previous_symbolicvar_set_;
+    prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
     this->VisitBody(op->false_branch);
     var_set_ = previous_var_set_;
-    prim_expr_visitor.symbolicvar_set_ = previous_symbolicvar_set_;
+    prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
   }
 
   void VisitExpr_(const ShapeExprNode* op) {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
-      prim_expr_visitor(expr);
+      prim_expr_visitor_(expr);
     }
   }
 
@@ -201,10 +202,10 @@ class WellFormedChecker : public relax::ExprVisitor {
     for (PrimExpr expr : binding->pattern) {
       if (expr.as<tir::VarNode>()) {
         // register symbolic var implicitly defined in the pattern of MatchShape
-        prim_expr_visitor.symbolicvar_set_.insert(Downcast<tir::Var>(expr));
+        prim_expr_visitor_.symbolic_var_set_.insert(Downcast<tir::Var>(expr));
       } else {
         // check if the symbolic var in the expr are defined, e.g, 2 * m
-        prim_expr_visitor(expr);
+        prim_expr_visitor_(expr);
       }
     }
 
@@ -214,26 +215,26 @@ class WellFormedChecker : public relax::ExprVisitor {
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) {
-    is_dataflow = true;
+    is_dataflow_ = true;
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
     }
-    is_dataflow = false;
-    dataflowvar_set_.clear();
+    is_dataflow_ = false;
+    dataflow_var_set_.clear();
   }
 
   void VisitVarDef_(const DataflowVarNode* var) {
-    if (!is_dataflow) {
+    if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var->span)
                 << "DataflowVar " << var->name_hint() << " is defined outside DataflowBlock.");
     }
     DataflowVar lv = GetRef<DataflowVar>(var);
-    if (dataflowvar_set_.count(lv) == 1) {
+    if (dataflow_var_set_.count(lv) == 1) {
       Malformed(Diagnostic::Error(var->span)
                 << "DataflowVar " << lv->name_hint() << " is defined more than once.");
     }
     // register DataflowVar
-    dataflowvar_set_.insert(lv);
+    dataflow_var_set_.insert(lv);
   }
 
   void VisitVarDef_(const VarNode* var) {
@@ -260,17 +261,17 @@ class WellFormedChecker : public relax::ExprVisitor {
     }
   }
 
-  bool is_dataflow = false;
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> globalvar_set_;
+  bool is_dataflow_ = false;
+  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> global_var_set_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
-  std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflowvar_set_;
-  PrimExprVisitor prim_expr_visitor;
+  std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
+  PrimExprVisitor prim_expr_visitor_;
 };
 
 void PrimExprVisitor::VisitExpr_(const tir::VarNode* op) {
   tir::Var var = GetRef<tir::Var>(op);
-  if (symbolicvar_set_.count(var) == 0) {
-    _checker->Malformed(Diagnostic::Error(var->span)
+  if (symbolic_var_set_.count(var) == 0) {
+    checker_->Malformed(Diagnostic::Error(var->span)
                         << "Symbolic Var " << var->name_hint << " is not defined.");
   }
 }

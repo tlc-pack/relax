@@ -57,7 +57,7 @@ def test_var():
     assert not rx.analysis.well_formed(mod)
 
 
-def test_dataflowvar():
+def test_dataflow_var():
     # Error: DataflowVar lv0 is not defined
     lv0 = rx.DataflowVar("lv0", [m, n], type_anno)
     gv0 = rx.Var("gv0", [m, n], type_anno)
@@ -98,7 +98,7 @@ def test_dataflowvar():
     assert not rx.analysis.well_formed(mod)
 
 
-def test_globalvar():
+def test_global_var():
     # Error: GlobalVar GlobalVar0 is not defined
     gv0 = rx.Var("gv0", [m, n], type_anno)
     globalvar = rx.GlobalVar("GlobalVar0")
@@ -113,7 +113,7 @@ def test_globalvar():
     assert not rx.analysis.well_formed(mod)
 
 
-def test_symbolicvar():
+def test_symbolic_var():
     # Error: Symbolic Var new_s is not defined
     new_s = tir.Var("new_s", "int32")
     gv0 = rx.Var("gv0", [m, new_s], type_anno)
@@ -125,7 +125,7 @@ def test_symbolicvar():
     assert not rx.analysis.well_formed(mod)
 
 
-def test_seqexpr():
+def test_seq_expr():
     # Error: SeqExpr in VarBinding
     gv0 = rx.Var("gv0", [m, n], type_anno)
     # build a SeqExpr

@@ -34,7 +34,7 @@ namespace relax {
  * \brief Check if the IRModule is well formed.
  *
  * \param m the IRModule to check.
- *
+ * \param diag_ctx the diagnostic context
  * \return true if the IRModule is well formed, false if not.
  */
 TVM_DLL bool WellFormed(const IRModule& m,

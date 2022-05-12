@@ -20,6 +20,7 @@
 This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
+import tvm
 from . import _ffi_api
 
 
@@ -39,7 +40,7 @@ def post_order_visit(expr, fvisit):
     return _ffi_api.post_order_visit(expr, fvisit)
 
 
-def well_formed(mod) -> bool:
+def well_formed(mod: tvm.IRModule) -> bool:
     """Check if the IRModule is well formed.
 
     Parameters
