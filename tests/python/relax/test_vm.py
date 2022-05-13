@@ -903,5 +903,56 @@ def test_recursion():
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
+def test_vm_closure():
+    @tvm.script.ir_module
+    class TestClosure:
+        @R.function
+        def lifted_func_1(x: Tensor((2, 3), "float32"), env: Tensor((2, 3), "float32")):
+            return relax.call_packed("test.vm.add", x, env, type_args=(Tensor))
+
+        @R.function
+        def main(
+            x: Tensor((2, 3), "float32"),
+            y: Tensor((2, 3), "float32"),
+        ):
+            clo = relax.make_closure(lifted_func_1, (x,))
+            res = relax.invoke_closure(clo, (y,), type_args=(Tensor))
+            return res
+
+    mod = TestClosure
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x_inp = tvm.nd.array(np.random.rand(2, 3))
+    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+    res = vm["main"](x_inp, y_inp)
+    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
+
+
+def test_vm_invoke_closure():
+    ib = relax.ExecBuilder()
+    with ib.function("lifted_func_1", num_inputs=4):
+        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(4))
+        ib.emit_call("test.vm.add", args=[ib.r(2), ib.r(4)], dst=ib.r(5))
+        ib.emit_call("test.vm.add", args=[ib.r(3), ib.r(5)], dst=ib.r(6))
+        ib.emit_ret(ib.r(6))
+    with ib.function("main", num_inputs=2):
+        x = ib.emit_constant("lifted_func_1")
+        ib.emit_call("vm.builtin.alloc_closure", args=[ib.c(x), ib.r(0), ib.r(1)], dst=ib.r(2))
+        ib.emit_ret(ib.r(2))
+
+    ex = ib.get()
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    w_inp = tvm.nd.array(np.random.rand(2, 3))
+    x_inp = tvm.nd.array(np.random.rand(2, 3))
+    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+    z_inp = tvm.nd.array(np.random.rand(2, 3))
+    clo = vm["main"](w_inp, x_inp)
+    res = vm.invoke_closure(clo, (y_inp, z_inp))
+    tvm.testing.assert_allclose(
+        res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

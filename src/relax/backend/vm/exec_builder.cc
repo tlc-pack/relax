@@ -104,7 +104,7 @@ void ExecBuilderNode::CheckExecutable() {
         case Opcode::Call: {
           for (int i = 0; i < instr.num_args; ++i) {
             if (instr.args[i].kind() == Instruction::kRegister &&
-                instr.args[i].value() == Instruction::kVMStateRegister) {
+                instr.args[i].value() == Instruction::kVMRegister) {
               continue;
             }
             if (instr.args[i].kind() == Instruction::kRegister &&
