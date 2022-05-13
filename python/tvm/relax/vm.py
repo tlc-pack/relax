@@ -21,7 +21,9 @@ from typing import List, Optional, Union, Dict, Tuple
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
+from tvm.relay import Any
 from tvm.runtime import Device, Module, PackedFunc
+from tvm.runtime.object import Object
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
@@ -137,7 +139,7 @@ class VirtualMachine(object):
     def __getitem__(self, key: str) -> PackedFunc:
         return self.module[key]
 
-    def invoke_closure(self, closure, *args):
+    def invoke_closure(self, closure: Object, *args: Any) -> Object:
         """Invoke a closure.
 
         Parameters

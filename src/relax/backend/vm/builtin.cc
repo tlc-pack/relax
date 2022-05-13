@@ -65,11 +65,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body([](TVMArgs args, TVMRe
 
   PackedFunc func{nullptr};
   func = vm->GetFunction(func_name, GetObjectPtr<Object>(vm));
-  if (!func.defined()) {
-    const PackedFunc* p_func = Registry::Get(func_name);
-    CHECK(p_func != nullptr);
-    func = *(p_func);
-  }
+  ICHECK(func != nullptr) << "cannot find closure " << func_name;
 
   // get closure free_vars
   Array<ObjectRef> cap_vars = vm_closure->free_vars;

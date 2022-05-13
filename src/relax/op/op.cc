@@ -64,10 +64,10 @@ Optional<Expr> InferShapeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
   return output_shape;
 }
 
-Type InferTypeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
+Type InferTypeArg(const Call& call, DiagnosticContext diag_ctx) {
   if (call->type_args.size() != 1) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "type_args of call_tir should have exact 1 output type.");
+                       << "type_args should have exact 1 output type.");
   }
   Type output_type = call->type_args[0];
   return output_type;
@@ -82,7 +82,7 @@ RELAY_REGISTER_OP("relax.call_tir")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferShape>("FInferShape", InferShapeCallTIR)
-    .set_attr<FInferType>("FInferType", InferTypeCallTIR);
+    .set_attr<FInferType>("FInferType", InferTypeArg);
 
 Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
                  Optional<Expr> packed_ints) {
@@ -120,7 +120,7 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .set_num_inputs(2)
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferType>("FInferType", ReturnVoidType);
+    .set_attr<FInferType>("FInferType", InferTypeArg);
 
 Expr InvokeClosure(Expr closure, Tuple args) {
   static const Op& op = Op::Get("relax.invoke_closure");

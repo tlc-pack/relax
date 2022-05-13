@@ -916,7 +916,7 @@ def test_vm_closure():
             y: Tensor((2, 3), "float32"),
         ):
             clo = relax.make_closure(lifted_func_1, (x,))
-            res = relax.invoke_closure(clo, (y,))
+            res = relax.invoke_closure(clo, (y,), type_args=(Tensor))
             return res
 
     mod = TestClosure
