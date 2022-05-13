@@ -391,6 +391,7 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   VLOG(1) << "Result module:" << std::endl << PrettyPrint(mod);
 
+  // TODO(@lesheng): will need to check if the updated IRModule is well formed
   return mod;
 }
 
