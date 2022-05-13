@@ -70,6 +70,31 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         }
       }
     });
+  } else if (name == "invoke_closure") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK(exec_) << "The executable is not created yet.";
+      VMClosure clo = args[0];
+      Array<ObjectRef> func_args = args[1];
+      std::vector<RegType> new_args;
+      for (auto f_arg : func_args) {
+        TVMRetValue arg;
+        arg = f_arg;
+        new_args.push_back(arg);
+      }
+      // Append the free variables of closure
+      auto free_vars = clo->free_vars;
+      for (auto f_var : free_vars) {
+        TVMRetValue arg;
+        arg = f_var;
+        new_args.push_back(arg);
+      }
+
+      String func_name = clo->func_name;
+      auto it = exec_->global_map.find(func_name);
+      ICHECK(it != exec_->global_map.end()) << "No such function " << func_name;
+      Index func_idx = it->second;
+      *rv = Invoke(func_idx, new_args);
+    });
   }
 
   const auto& m = exec_->global_map;
@@ -91,7 +116,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 void VirtualMachine::LoadExecutable(ObjectPtr<Executable> exec) {
   this->exec_ = exec;
   CHECK_LE(exec_->imports().size(), 1);
-  this->state.lib = exec_->imports().empty() ? Optional<Module>(NullOpt) : exec_->imports()[0];
+  this->lib = exec_->imports().empty() ? Optional<Module>(NullOpt) : exec_->imports()[0];
 }
 
 RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
@@ -115,12 +140,12 @@ void VirtualMachine::Init(const std::vector<Device>& devices,
       << "Currently relax vm only supports at most 2 devices (host + device)";
   ICHECK_EQ(devices.size(), alloc_types.size());
 
-  state.devices.reserve(devices.size());
-  state.allocators.reserve(alloc_types.size());
+  this->devices.reserve(devices.size());
+  this->allocators.reserve(alloc_types.size());
   for (size_t i = 0; i < devices.size(); i++) {
     auto alloc = MemoryManager::GetOrCreateAllocator(devices[i], alloc_types[i]);
-    state.devices.push_back(devices[i]);
-    state.allocators.push_back(alloc);
+    this->devices.push_back(devices[i]);
+    this->allocators.push_back(alloc);
   }
 }
 
@@ -135,10 +160,11 @@ void VirtualMachine::PrepareFuncTable(Index func_index) {
   }
 
   const std::string& func_name = exec_->func_names[func_index];
+
   // lookup function and populate
   PackedFunc func{nullptr};
-  if (state.lib.defined()) {
-    func = state.lib.value()->GetFunction(func_name, true);
+  if (this->lib.defined()) {
+    func = this->lib.value()->GetFunction(func_name, true);
   }
   if (!func.defined()) {
     const PackedFunc* p_func = Registry::Get(func_name);
@@ -174,8 +200,8 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     Instruction::Arg arg = instr.args[i];
     switch (arg.kind()) {
       case Instruction::kRegister: {
-        if (arg.value() == Instruction::kVMStateRegister) {
-          setter(i, &(this->state));
+        if (arg.value() == Instruction::kVMRegister) {
+          setter(i, this);
         } else {
           setter(i, ReadRegister(curr_frame, arg.value()));
         }
