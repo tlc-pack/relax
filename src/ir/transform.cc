@@ -388,6 +388,7 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
+  // TODO(@lesheng): will need to check if the updated IRModule is well formed
   return mod;
 }
 
