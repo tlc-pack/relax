@@ -23,6 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relay/function.h>
@@ -156,6 +157,9 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
 
+  // check if the updated IRModule is well formed
+  ICHECK(WellFormed(updated_mod, pass_ctx->diag_ctx.value()));
+
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
@@ -252,8 +256,7 @@ class DataflowBlockMutator : public ExprMutator {
         var = node->var;
         for (PrimExpr expr : node->pattern) {
           if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
-            tir::Var sym_var0 = Downcast<tir::Var>(expr);
-            symbolic_vars.Set(sym_var->name_hint, sym_var0);
+            symbolic_vars.Set(sym_var->name_hint, Downcast<tir::Var>(expr));
           }
         }
       } else {
@@ -371,6 +374,9 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
   ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
+
+  // check if the updated IRModule is well formed
+  ICHECK(WellFormed(updated_mod, pass_ctx->diag_ctx.value()));
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
