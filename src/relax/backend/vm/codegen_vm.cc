@@ -64,8 +64,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
  protected:
   size_t NewRegister() { return registers_num_++; }
-  // TODO(@yuchen): when we support closure, this visitor should return a register that
-  // contains the closure object.
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     Optional<String> gsymbol = func_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
     if (gsymbol.defined()) {
@@ -78,6 +76,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       builder_->EmitFunction("local_func" + std::to_string(local_func_counter_++),
                              func_node->params.size());
     }
+
     for (Var param : func_node->params) {
       Instruction::Arg reg = this->VisitExpr(param);
       this->var_register_map_.insert({param, reg.data});
@@ -121,6 +120,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         return EmitShape(call);
       } else if (call_node->op == call_tir_dyn_op_) {
         return EmitTirDynOp(call);
+      } else if (call_node->op == make_closure_op_) {
+        return EmitAllocClosure(call);
+      } else if (call_node->op == invoke_closure_op_) {
+        return EmitInvokeClosure(call);
       } else {
         // every "normal" operator is lowered to a global var in the IR module. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
@@ -248,7 +251,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg EmitAllocStorage(const Call& call_node) {
     // Handle args of the call
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
+    args.push_back(Instruction::Arg(Instruction::kVMRegister));
     for (Expr arg : call_node->args) {
       args.push_back(ConvertArg(arg));
     }
@@ -336,7 +339,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto func_name_index = builder_->EmitConstant(func_name_constant);
 
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kVMStateRegister));
+    args.push_back(Instruction::Arg(Instruction::kVMRegister));
     args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
     for (Expr arg : tir_args->fields) {
       args.push_back(ConvertArg(arg));
@@ -383,6 +386,58 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     size_t arg_register = NewRegister();
     builder_->EmitCall(name, args, arg_register);
     return Instruction::Arg(Instruction::kRegister, arg_register);
+  }
+
+  Instruction::Arg EmitAllocClosure(const Call& call_node) {
+    ICHECK(call_node->args.size() == 2);
+    ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
+    ICHECK(call_node->args[1]->IsInstance<TupleNode>());
+
+    auto gv = Downcast<GlobalVar>(call_node->args[0]);
+    auto closure_args = Downcast<Tuple>(call_node->args[1]);
+    auto func_name = gv->name_hint;
+
+    TVMRetValue func_name_constant;
+    func_name_constant = func_name;
+    auto func_name_index = builder_->EmitConstant(func_name_constant);
+
+    std::vector<Instruction::Arg> args;
+    args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
+    for (Expr arg : closure_args->fields) {
+      args.push_back(ConvertArg(arg));
+    }
+
+    size_t dst_register = NewRegister();
+    builder_->EmitCall("vm.builtin.alloc_closure", args, dst_register);
+    return Instruction::Arg(Instruction::kRegister, dst_register);
+  }
+
+  Instruction::Arg EmitInvokeClosure(const Call& call_node) {
+    ICHECK(call_node->args.size() == 2);
+    ICHECK(call_node->args[0]->IsInstance<VarNode>());
+    ICHECK(call_node->args[1]->IsInstance<TupleNode>());
+
+    std::vector<Instruction::Arg> args;
+    // VMState is utilized to help get the Function in builtin packedfunc
+    args.push_back(Instruction::Arg(Instruction::kVMRegister));
+
+    auto lv = Downcast<Var>(call_node->args[0]);
+    auto it = this->var_register_map_.find(lv);
+    if (it != this->var_register_map_.end()) {
+      args.push_back(Instruction::Arg(Instruction::kRegister, it->second));
+    } else {
+      args.push_back(Instruction::Arg(Instruction::kRegister, registers_num_));
+    }
+
+    // free_vars of VMClosure
+    auto closure_args = Downcast<Tuple>(call_node->args[1]);
+    for (Expr arg : closure_args->fields) {
+      args.push_back(ConvertArg(arg));
+    }
+
+    size_t dst_register = NewRegister();
+    builder_->EmitCall("vm.builtin.invoke_closure", args, dst_register);
+    return Instruction::Arg(Instruction::kRegister, dst_register);
   }
 
   bool IsConstantShape(ShapeExpr shape) const {
@@ -443,6 +498,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& unique_op_ = Op::Get("relax.unique");
+  const Op& make_closure_op_ = Op::Get("relax.make_closure");
+  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
 
 void VMCodeGen::CodeGen(IRModule rx_mod) {
