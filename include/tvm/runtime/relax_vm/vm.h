@@ -67,19 +67,6 @@ struct VMFrame {
 };
 
 /*!
- * \brief The state of virtual machine, which can be referred in
- * instruction.
- */
-struct VMState {
-  /*! \brief The memory allocators. */
-  std::vector<Allocator*> allocators;
-  /*! \brief The kernel library. */
-  Optional<runtime::Module> lib;
-  /*! \brief Runtime physical device list. */
-  std::vector<Device> devices;
-};
-
-/*!
  * \brief The virtual machine.
  *
  * The virtual machine contains all the current execution state,
@@ -126,8 +113,12 @@ class VirtualMachine : public runtime::ModuleNode {
 
   const char* type_key() const final { return "relax.VirtualMachine"; }
 
-  /*! \brief The state of the virtual machine, which can be referred by instructions. */
-  VMState state;
+  /*! \brief The kernel library. */
+  Optional<runtime::Module> lib;
+  /*! \brief The memory allocators. */
+  std::vector<Allocator*> allocators;
+  /*! \brief Runtime physical device list. */
+  std::vector<Device> devices;
 
  protected:
   /*!
@@ -166,6 +157,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \return The object representing the result.
    */
   RegType Invoke(Index fidx, const std::vector<RegType>& args);
+
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
   /*!

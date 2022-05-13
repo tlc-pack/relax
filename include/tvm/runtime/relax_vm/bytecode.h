@@ -72,8 +72,8 @@ enum class Opcode {
 struct Instruction {
   /*! \brief Random magic number that represents void argument. */
   static constexpr RegName kVoidArg = 0x00EC66FE0321975A;
-  /*! \brief Random magic number that represents the VM state. */
-  static constexpr RegName kVMStateRegister = 0x008D14FA4379015C;
+  /*! \brief Random magic number that represents the VM. */
+  static constexpr RegName kVMRegister = 0x008D14FA4379015C;
   /*!
    * \brief The kind of instruction's argument.
    */
