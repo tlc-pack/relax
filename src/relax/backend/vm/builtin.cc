@@ -45,6 +45,46 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap").set_body_typed([](ShapeTuple 
   return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.alloc_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::vector<ObjectRef> cap_vars;
+  for (int i = 1; i < args.size(); ++i) {
+    cap_vars.push_back(args[i]);
+  }
+  String func_name = args[0];
+  VMClosure vm_closure(func_name, cap_vars);
+
+  *rv = std::move(vm_closure);
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
+  // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
+  void* vm_ptr = args[0];
+  VirtualMachine* vm = static_cast<VirtualMachine*>(vm_ptr);
+  VMClosure vm_closure = args[1];
+  runtime::String func_name = vm_closure->func_name;
+
+  PackedFunc func{nullptr};
+  func = vm->GetFunction(func_name, GetObjectPtr<Object>(vm));
+  ICHECK(func != nullptr) << "cannot find closure " << func_name;
+
+  // get closure free_vars
+  Array<ObjectRef> cap_vars = vm_closure->free_vars;
+  size_t num_tensor_args = args.size() - 2;
+  std::vector<TVMValue> values(num_tensor_args + cap_vars.size());
+  std::vector<int> tcodes(num_tensor_args + cap_vars.size());
+
+  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
+  for (size_t i = 0; i < num_tensor_args; i++) {
+    NDArray arg = args[i + 2];
+    setter(i, arg);
+  }
+  for (size_t i = 0; i < cap_vars.size(); i++) {
+    setter(i + num_tensor_args, cap_vars[i]);
+  }
+  TVMArgs func_args(values.data(), tcodes.data(), values.size());
+  func.CallPacked(func_args, rv);
+});
+
 TVM_REGISTER_GLOBAL("vm.builtin.store_shape")
     .set_body_typed([](ShapeTuple shape, NDArray heap, ShapeTuple indexes) {
       int64_t* heap_data = reinterpret_cast<int64_t*>(heap.ToDLPack()->dl_tensor.data);
@@ -67,17 +107,17 @@ TVM_REGISTER_GLOBAL("vm.builtin.load_shape").set_body_typed([](NDArray heap, Sha
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
-    .set_body_typed([](void* vm_state_ptr, ShapeTuple buffer_size, Index device_index,
+    .set_body_typed([](void* vm_ptr, ShapeTuple buffer_size, Index device_index,
                        DLDataType dtype_hint) {
       ICHECK_EQ(buffer_size.size(), 1);
       int alignment = runtime::kAllocAlignment;
-      VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
-      ICHECK_LT(device_index, vm_state->devices.size())
+      VirtualMachine* vm = static_cast<VirtualMachine*>(vm_ptr);
+      ICHECK_LT(device_index, vm->devices.size())
           << "The device index is out of VM physical devices list";
 
       if (device_index == -1) {
-        // Allocate on host. Host is always the last element of vm_state->devices.
-        device_index = vm_state->devices.size() - 1;
+        // Allocate on host. Host is always the last element of vm->devices.
+        device_index = vm->devices.size() - 1;
       }
 
       int64_t size_imm = buffer_size[0];
@@ -86,7 +126,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
                  << ", device_index=" << device_index;
 
       auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
-      auto* alloc = vm_state->allocators[device_index];
+      auto* alloc = vm->allocators[device_index];
       ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
       storage_obj->buffer = alloc->Alloc(size_imm, alignment, dtype_hint);
       Storage storage(storage_obj);
@@ -120,13 +160,13 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
     });
 
 TVM_REGISTER_GLOBAL("vm.call_tir_dyn").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void* vm_state_ptr = args[0];
-  VMState* vm_state = static_cast<VMState*>(vm_state_ptr);
+  void* vm_ptr = args[0];
+  VirtualMachine* vm = static_cast<VirtualMachine*>(vm_ptr);
   runtime::String func_name = args[1];
 
   PackedFunc func{nullptr};
-  if (vm_state->lib.defined()) {
-    func = vm_state->lib.value()->GetFunction(func_name, true);
+  if (vm->lib.defined()) {
+    func = vm->lib.value()->GetFunction(func_name, true);
   }
   if (!func.defined()) {
     const PackedFunc* p_func = Registry::Get(func_name);

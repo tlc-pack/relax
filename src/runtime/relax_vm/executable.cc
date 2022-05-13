@@ -51,6 +51,15 @@ enum ConstantType : int {
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
 
+TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
+
+VMClosure::VMClosure(String func_name, Array<ObjectRef> free_vars) {
+  auto ptr = make_object<VMClosureObj>();
+  ptr->func_name = func_name;
+  ptr->free_vars = std::move(free_vars);
+  data_ = std::move(ptr);
+}
+
 PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "stats") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
@@ -439,8 +448,8 @@ std::string RegNameToStr(RegName reg) {
   if (reg == Instruction::kVoidArg) {
     return "void";
   }
-  if (reg == Instruction::kVMStateRegister) {
-    return "%state";
+  if (reg == Instruction::kVMRegister) {
+    return "%vm";
   }
   return "%" + std::to_string(reg);
 }
@@ -463,8 +472,8 @@ std::string InstrArgToStr(Instruction::Arg arg) {
 std::string InstrArgToPyStr(Instruction::Arg arg) {
   switch (arg.kind()) {
     case Instruction::kRegister:
-      if (arg.value() == Instruction::kVMStateRegister) {
-        return "ib.r(state)";
+      if (arg.value() == Instruction::kVMRegister) {
+        return "ib.r(vm)";
       }
       return "ib.r(" + std::to_string(arg.value()) + ")";
     case Instruction::kImmediate:

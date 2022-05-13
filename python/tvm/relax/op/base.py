@@ -16,6 +16,8 @@
 """The base Relax operators."""
 from typing import Union, List, Optional
 
+from tvm.runtime.object import Object
+
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call
 from ..ty import DynTensorType, TupleType
@@ -70,3 +72,59 @@ def call_tir(
         raise TypeError("Not supported dtype for call_tir: " + str(type(dtype)))
 
     return _ffi_api.call_tir(func, args, shape, output_type, tir_vars)
+
+
+def make_closure(
+    func: Expr,
+    args: Union[Tuple, List[Expr]],
+) -> Object:
+    """
+    Create a closure with free variables and return the closure.
+
+    Parameters
+    ----------
+    func : Expr
+        The closure, can be ExternFunc or PrimFunc.
+
+    args : Union[Tuple, List[Expr]]
+        The input arguments.
+
+
+    Returns
+    -------
+    ret: Object
+        The VMClosure.
+    """
+
+    if isinstance(args, (list, tuple)):
+        args = Tuple(args)
+
+    return _ffi_api.make_closure(func, args)
+
+
+def invoke_closure(
+    closure: Expr,
+    args: Union[Tuple, List[Expr]],
+) -> Object:
+    """
+    Invoke a closure.
+
+    Parameters
+    ----------
+    closure : Expr
+        The VMClosure object.
+
+    args : Union[Tuple, List[Expr]]
+        The input arguments.
+
+
+    Returns
+    -------
+    ret: Object
+        The result.
+    """
+
+    if isinstance(args, (list, tuple)):
+        args = Tuple(args)
+
+    return _ffi_api.invoke_closure(closure, args)
