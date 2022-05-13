@@ -24,6 +24,7 @@
 #define TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
@@ -36,6 +37,31 @@
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
+
+/*!
+ * \brief An object representing a vm closure.
+ */
+class VMClosureObj : public ClosureObj {
+ public:
+  /*!
+   * \brief The function name. The function could be any
+   * function object that is compatible to the VM runtime.
+   */
+  String func_name;
+  /*! \brief The free variables of the closure. */
+  Array<ObjectRef> free_vars;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.vm.Closure";
+  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, ClosureObj);
+};
+
+/*! \brief reference to closure. */
+class VMClosure : public Closure {
+ public:
+  VMClosure(String func_name, Array<ObjectRef> free_vars);
+  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, Closure, VMClosureObj);
+};
 
 /*!
  * \brief A representation of a Relax function in the VM.
