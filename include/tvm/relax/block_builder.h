@@ -162,7 +162,7 @@ class BlockBuilderNode : public Object {
    * \param gv The global var referring the function to be updated.
    * \param function The updated function.
    */
-  void UpdateFunction(const GlobalVar& gv, Function function);
+  void UpdateFunction(const GlobalVar& gv, BaseFunc function);
 
   /*!
    * \brief Get the context IRModule being built.
