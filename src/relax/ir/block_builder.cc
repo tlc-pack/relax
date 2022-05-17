@@ -702,7 +702,7 @@ GlobalVar BlockBuilderNode::AddFunction(const BaseFunc& func, const String& func
   }
 }
 
-void BlockBuilderNode::UpdateFunction(const GlobalVar& gv, Function updated_function) {
+void BlockBuilderNode::UpdateFunction(const GlobalVar& gv, BaseFunc updated_function) {
   context_mod_.CopyOnWrite();
   context_mod_->Update(gv, updated_function);
   func_map_[updated_function] = gv;
@@ -715,7 +715,13 @@ BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
   if (mod) {
     n->context_mod_ = mod.value();
   }
-  return BlockBuilder(n);
+  BlockBuilder block_builder(n);
+  for (const auto& kv : n->context_mod_->functions) {
+    const GlobalVar& gv = kv.first;
+    const BaseFunc& func = kv.second;
+    block_builder->func_map_.emplace(func, gv);
+  }
+  return block_builder;
 }
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed([](Optional<IRModule> mod) {
