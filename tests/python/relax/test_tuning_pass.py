@@ -32,8 +32,8 @@ from tvm.ir.transform import PassContext
 from tvm.ir.module import IRModule
 from tvm.script import tir as T, relax as R
 from tvm.relax.transform.tuning import Choice, Knob, Trace
-from tvm import relax, tir
-from tvm.relax.expr import Expr, DataflowBlock, Function, Call
+from tvm import relax
+from tvm.relax.expr import Expr, DataflowBlock, Function
 import numpy as np
 import tvm.meta_schedule as ms
 from tvm.meta_schedule.testing import DummyDatabase
@@ -87,7 +87,9 @@ def setup_test_const_folding():
                 if k.name_hint == name:
                     # rename to main.
                     gv = tvm.ir.GlobalVar("main")
-                    funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type, gv)
+                    funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type).with_attr(
+                        "global_symbol", "main"
+                    )
             else:
                 funcs[k] = v
         mod = tvm.IRModule(funcs)
@@ -595,8 +597,8 @@ def test_passes_with_mixed_granularities():
         # Do something.
         pass_func(mod, ctx)
         # Pop tuned trace and recover the previous trace.
-        trace = ctx.pop_trace()
-        return trace.out_mod["main"]
+        ctx.pop_trace()
+        return func
 
     @relax.transform.dataflowblock_pass(opt_level=0, traceable=True)
     def MockDataflowBlockPass(
@@ -673,7 +675,8 @@ def test_metaschedule_tuning():
 
         def meta_schedule_tuning(mod):
             target = ms.tune.Parse._target(target_str)
-            config = ms.EvolutionarySearchConfig(
+            config = ms.TuneConfig(
+                strategy="evolutionary",
                 num_trials_per_iter=2,
                 max_trials_per_task=4,
                 max_trials_global=4,
@@ -681,7 +684,7 @@ def test_metaschedule_tuning():
             with tempfile.TemporaryDirectory() as work_dir:
                 extracted_tasks = ms.relax_integration.extract_task_from_relax(mod, target)
                 database = ms.tune.tune_extracted_tasks(
-                    extracted_tasks, target, config, work_dir, database=DummyDatabase()
+                    extracted_tasks, config, work_dir, database=DummyDatabase()
                 )
 
                 return relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)

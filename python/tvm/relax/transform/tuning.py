@@ -248,6 +248,10 @@ def default_generate_candidate(
     This function simply expands candidate space as long as the knob's constraint satisfies.
     To reduce the search space, a developer may expand each choice with smart search method.
     (e.g., genetic search, multi-armed bandit)
+    Please note that each pass generates caniddates without the need to know what other passes are doing.
+    i.e., it only uses its incoming trace/IRModule and Choices to generate candidates, evaluate them, and select the best one.
+    This will help alleviating the complexity of joint-optimization significantly
+    given that consideration of interaction between optimizations has known to be extremely difficult.
 
     Parameters
     ----------

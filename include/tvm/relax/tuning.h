@@ -21,8 +21,8 @@
  * \file tvm/relax/tuning.h
  * \brief Relax Tuning Pass APIs.
  */
-#ifndef TVM_RELAX_TRANSFORM_TUNING_H_
-#define TVM_RELAX_TRANSFORM_TUNING_H_
+#ifndef TVM_RELAX_TUNING_H_
+#define TVM_RELAX_TUNING_H_
 #include <tvm/ir/module.h>
 
 namespace tvm {
@@ -126,7 +126,6 @@ class TraceNode : public runtime::Object {
   mutable double perf = -1;
   /*! \brief Length of the decision history. */
   mutable int size = 0;
-
   /*! \brief The default destructor. */
   virtual ~TraceNode() = default;
 
@@ -178,5 +177,4 @@ class Trace : public runtime::ObjectRef {
 
 }  // namespace relax
 }  // namespace tvm
-
-#endif  // TVM_RELAX_TRANSFORM_TUNING_H_
+#endif  // TVM_RELAX_TUNING_H_
