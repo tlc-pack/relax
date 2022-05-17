@@ -97,6 +97,7 @@ def test_func_attr_setter_with_passes():
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.VMMemoryLower())
+    passes.append(relax.transform.VMShapeLower())
     seq = tvm.transform.Sequential(passes)
 
     # Apply passes
@@ -108,6 +109,33 @@ def test_func_attr_setter_with_passes():
     assert func.attrs
     assert func.attrs["Codegen"] == "test-codegen"
     assert func.attrs["global_symbol"] == "test-symbol"
+
+
+def test_irmodule_attr_setter_with_passes():
+    mod = InputModule
+    assert isinstance(mod, tvm.IRModule)
+    # Annotate
+    attr = relax.const(1, "float32")
+    mod = mod.with_attr("test-attr", attr)
+    mod_attr = mod.get_attrs()
+
+    # Test with passes
+    # Annotation should stay the same unless the pass needs to modify it
+
+    # List of passes
+    passes = [relax.transform.ToNonDataflow()]
+    passes.append(relax.transform.CallTIRRewrite())
+    passes.append(relax.transform.VMMemoryLower())
+    passes.append(relax.transform.VMShapeLower())
+    seq = tvm.transform.Sequential(passes)
+
+    # Apply passes
+    new_mod = seq(mod)
+    _check_save_roundtrip(new_mod)
+
+    # Check IRModule attrs is preserved after applying passes
+    assert new_mod.get_attrs()["test-attr"] == attr
+    assert new_mod.get_attrs() == mod_attr
 
 
 if __name__ == "__main__":
