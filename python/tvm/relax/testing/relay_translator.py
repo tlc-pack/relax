@@ -70,12 +70,26 @@ def from_relay(
 
     params = []
 
+    def convert_shape(shape: List[tvm.tir.PrimExpr]) -> List[tvm.tir.PrimExpr]:
+        """Convert the relay shape to relax shape by changing Any dim to symbolic dim"""
+        ret = []
+        for dim in shape:
+            if isinstance(dim, tvm.tir.IntImm):
+                ret.append(tvm.tir.IntImm("int64", int(dim)))
+            elif isinstance(dim, tvm.tir.Any):
+                ret.append(tvm.tir.Var("d", "int64"))
+            else:
+                ret.append(dim)
+        return ret
+
     def visit_func(node):
         nonlocal output_var
         if isinstance(node, relay.Var):
             if isinstance(node.type_annotation, relay.TensorType):
                 var_map[node] = nn.Placeholder(
-                    tuple(node.type_annotation.shape), node.type_annotation.dtype, node.name_hint
+                    tuple(convert_shape(node.type_annotation.shape)),
+                    node.type_annotation.dtype,
+                    node.name_hint,
                 )
                 params.append(var_map[node])
             else:
