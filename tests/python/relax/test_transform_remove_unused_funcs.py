@@ -61,11 +61,12 @@ def test_unused_relax_func():
 
     mod = InputModule
     assert mod
-    assert check_if_func_exists(mod, "unused_func")
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
+    assert check_if_func_exists(new_mod, "tir_matmul")
     assert not check_if_func_exists(new_mod, "unused_func")
 
-    # Test with relax function w/ symbolic shape
+    # Test with relax function w/ symbolic shape.
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
@@ -97,11 +98,22 @@ def test_unused_relax_func():
 
     mod = InputModule
     assert mod
-    assert check_if_func_exists(mod, "unused_func")
 
-    # Test entry function other than "main"
+    # Remove unused function before shape lowering.
+    # Test entry function other than "main".
     new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
-    assert check_if_func_exists(mod, "foo")
+    assert check_if_func_exists(new_mod, "foo")
+    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert not check_if_func_exists(new_mod, "unused_func")
+
+    # Remove unused function after shape lowering.
+    # Shape lowering will inject several shape-related global functions.
+    # We need to make sure unused function removal pass does not remove those functions.
+    shape_lowered_mod = relax.transform.VMShapeLower()(mod)
+    new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(shape_lowered_mod)
+    assert check_if_func_exists(new_mod, "foo")
+    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "shape_func")  # injected by VMShapeLower pass
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
@@ -137,8 +149,10 @@ def test_unused_prim_func():
 
     mod = InputModule
     assert mod
-    assert check_if_func_exists(mod, "unused_func")
+
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
+    assert check_if_func_exists(new_mod, "relax_add")
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
@@ -174,9 +188,8 @@ def test_multiple_unused_funcs():
 
     mod = InputModule
     assert mod
-    assert check_if_func_exists(mod, "unused_func1")
-    assert check_if_func_exists(mod, "unused_func2")
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
     assert not check_if_func_exists(new_mod, "unused_func1")
     assert not check_if_func_exists(new_mod, "unused_func2")
 
