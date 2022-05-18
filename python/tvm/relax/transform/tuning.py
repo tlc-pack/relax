@@ -249,10 +249,10 @@ def default_generate_candidate(
     This function simply expands candidate space as long as the knob's constraint satisfies.
     To reduce the search space, a developer may expand each choice with smart search method.
     (e.g., genetic search, multi-armed bandit)
-    Please note that each pass generates caniddates without the need to know what other passes are doing.
+    Note, each pass generates caniddates without worrying about the interaction with other passes.
     i.e., it only uses its incoming trace/IRModule and Choices for candidate generation.
-    This will help alleviating the complexity of joint-optimization significantly
-    given that consideration of interaction between optimizations has known to be extremely difficult.
+    This will help alleviating the complexity of joint-optimization significantly.
+    - consideration of interaction between optimizations has known to be extremely difficult.
 
     Parameters
     ----------
@@ -292,8 +292,9 @@ def default_consider_eval_passes(
     init_candidates: List[Trace], eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
     """
-    Default function to update traces by visiting each eval_pass in dfs order in transform.Sequential().
-    By doing so, this function returns the best possible candidate trace for each candidate.
+    Default function to update traces with eval passes.
+    It visits each eval_pass in dfs order in transform.Sequential() and
+    returns the best possible candidate trace for each candidate.
 
     Parameters
     ----------
@@ -486,9 +487,9 @@ def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
     """
     if isinstance(in_, Trace):
         return in_
-    elif isinstance(in_, IRModule):
+    if isinstance(in_, IRModule):
         return Trace(in_)
-    elif isinstance(in_, Expr):
+    if isinstance(in_, Expr):
         return Trace(tvm.IRModule.from_expr(in_))
-    else:
-        raise Exception(f"Invalid input type for trace: {type(in_)}")
+
+    raise Exception(f"Invalid input type for trace: {type(in_)}")
