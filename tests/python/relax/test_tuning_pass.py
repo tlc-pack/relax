@@ -158,7 +158,7 @@ class MockConstFoldingTuningPass(transform.Pass):
         # Tuning pass manages a set of transformation functions registered via knob.
         knob = Knob("MockTuningKnob", choices)
 
-        candidates = self.f_generate_candidate(knob, trace, self.eval_passes)
+        candidates = self.f_generate_candidate([knob], trace, self.eval_passes)
         self.f_evaluate(candidates, "llvm", ctx)
         best_trace = select_best_candidate(candidates)
 
@@ -265,7 +265,6 @@ def test_trace():
     tvm.ir.assert_structural_equal(trace.out_mod, expected)
     tvm.ir.assert_structural_equal(out, expected)
 
-    print(trace)
     assert trace.size == 3
     # Should be initalized when new knob is applied.
     assert trace.perf == -1
@@ -298,21 +297,25 @@ def test_default_functions():
     # Launch a pass pipeline in trace mode.
     with transform.PassContext(trace=trace):
         # Default generation function expands every valid choice.
-        candidates = default_generate_candidate(knob, trace)
+        candidates = default_generate_candidate([knob], trace)
         assert len(candidates) == 2
 
         # Default evaluate function uses MetaSchedule builder/runner.
         # Since builder/runner are not provided, local builder/runner will be used.
-        default_evaluate(candidates, "llvm")
+        default_evaluate(candidates, "llvm --num-cores=16")
         assert PassContext.current().num_evals == 2
 
         # Because these candidates are already evaluated, num_evals stays the same.
-        default_evaluate(candidates, "llvm")
+        default_evaluate(candidates, "llvm --num-cores=16")
         assert PassContext.current().num_evals == 2
+
+        # Test with multiple knobs
+        candidates = default_generate_candidate([knob, knob], trace)
+        assert len(candidates) == 4
 
     # Launch new pass pipeline in trace mode.
     with transform.PassContext(trace=trace):
-        candidates = default_generate_candidate(knob, trace)
+        candidates = default_generate_candidate([knob], trace)
         assert len(candidates) == 2
         # Provide tuning pass as an eval pass.
         # Note that MockConstFoldingTuningPass() has its own generation function, evaluation function.
@@ -334,7 +337,7 @@ def test_default_functions():
 
     HeuristicPass = relax.transform.FoldConstant
     with transform.PassContext(trace=trace):
-        candidates = default_generate_candidate(knob, trace)
+        candidates = default_generate_candidate([knob], trace)
         assert len(candidates) == 2
         # Provide heuristic pass as an eval pass.
         new_candidates = default_consider_eval_passes(candidates, [HeuristicPass()])
@@ -579,7 +582,7 @@ def test_passes_with_mixed_granularities():
         # Tuning pass manages a set of transformation functions registered via knob.
         knob = Knob("MockTuningKnob", choices)
 
-        candidates = default_generate_candidate(knob, trace, eval_passes)
+        candidates = default_generate_candidate([knob], trace, eval_passes)
         mock_evaluate(candidates, "llvm", ctx)
         best_trace = select_best_candidate(candidates)
 
@@ -696,7 +699,7 @@ def test_metaschedule_tuning():
         # Tuning pass manages a set of transformation functions registered via knob.
         knob = Knob("MockMetaSched", choices)
 
-        candidates = default_generate_candidate(knob, trace)
+        candidates = default_generate_candidate([knob], trace)
         assert len(candidates) == 1
         best_trace = candidates[0]
         ctx.push_trace(best_trace)
@@ -710,4 +713,5 @@ def test_metaschedule_tuning():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_default_functions()
+    # pytest.main([__file__])

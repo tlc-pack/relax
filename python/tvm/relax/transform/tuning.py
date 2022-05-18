@@ -30,6 +30,7 @@ import sys
 import itertools
 import numpy as np
 import tvm
+import logging
 from tvm.runtime import Object
 from tvm.ir.module import IRModule
 from tvm.relax import Expr
@@ -242,7 +243,7 @@ class Trace(Object):
 
 @register_func("relax.transform.default_generate_candidate")
 def default_generate_candidate(
-    knob: Knob, trace: Trace, eval_passes: Optional[List[Pass]] = None
+    knobs: List[Knob], trace: Trace, eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
     """
     Default function to generate the search space for a given trace by using registered choices.
@@ -256,8 +257,8 @@ def default_generate_candidate(
 
     Parameters
     ----------
-    knob : Knob
-        Knob to consider to generate candidate for input trace.
+    knobs : List[Knob]
+        List of Knobs to consider to generate candidate for input trace.
     trace: Trace
         Input trace.
     eval_passes: Optional[List[Pass]]
@@ -270,16 +271,19 @@ def default_generate_candidate(
         List of candidate traces
     """
 
-    mod = trace.out_mod
-    candidates = list()
+    candidates = [trace]
     # Iterate over every decision
-    for decision in knob.choices.keys():
-        choice = knob.choices[decision]
-        # Generate new candidate when this condition satisfies.
-        if choice.check_constr(mod):
-            new_trace = copy.deepcopy(trace)
-            new_trace.add(knob, decision)
-            candidates.append(new_trace)
+    for knob in knobs:
+        num = len(candidates)
+        for _ in range(num):
+            cur_trace = candidates.pop(0)
+            for decision in knob.choices.keys():
+                choice = knob.choices[decision]
+                # Generate new candidate when this condition satisfies.
+                if choice.check_constr(cur_trace.out_mod):
+                    new_trace = copy.deepcopy(cur_trace)
+                    new_trace.add(knob, decision)
+                    candidates.append(new_trace)
 
     # Expand candidates by using eval passes if provided. This will enable joint-optimization.
     if eval_passes:
@@ -395,6 +399,10 @@ def default_evaluate(
             f_run_evaluator=relax_eval_func,
         )
 
+    # set up clean up function
+    f_clean_build = get_global_func_with_default_on_worker("meta_schedule.remove_build_dir", None)
+    assert f_clean_build
+
     # Keep track of number of evaluations (mostly for the debugging purpose)
     num_evals = 0
     # Evaluation
@@ -409,10 +417,14 @@ def default_evaluate(
         # Build candidate
         (builder_result,) = builder.build([BuilderInput(mod, target, params)])
 
-        assert builder_result.artifact_path is not None
-        assert builder_result.error_msg is None
+        # Build error
+        # Assign the worst performance and move on to the next candidate.
+        if builder_result.artifact_path is None:
+            logging.warn(builder_result.error_msg)
+            candidate.set_perf(1e100)
+            continue
 
-        # Set up runner input and measure the performance
+        # If build passes, set up runner input and measure the performance.
         runner_input = RunnerInput(
             builder_result.artifact_path,
             target_str,
@@ -424,27 +436,28 @@ def default_evaluate(
         (runner_future,) = runner.run([runner_input])
         runner_result = runner_future.result()
 
-        assert runner_result.error_msg is None
-        perfs = []
-        for result in runner_result.run_secs:
-            if isinstance(result, tvm.tir.FloatImm):
-                result = result.value
-            assert isinstance(result, float)
-            assert result >= 0.0
-            perfs.append(result)
-
-        # Store the evaluation result
-        # TODO(sunggg): Match with MetaSchedule
-        candidate.set_perf(np.mean(perfs))
-
-        # clean up
-        f_clean_build = get_global_func_with_default_on_worker(
-            "meta_schedule.remove_build_dir", None
-        )
-        if f_clean_build is not None:
-            f_clean_build(builder_result.artifact_path)
+        # Runtime error
+        # Assign the worst performance and move on to the next candidate.
+        if runner_result.error_msg is not None:
+            logging.warn(runner_result.error_msg)
+            candidate.set_perf(1e100)
+        # For valid measurments, compute the average and update the trace performance.
         else:
-            raise RuntimeError("Unable to find remove_build_dir function.")
+            perfs = []
+            for result in runner_result.run_secs:
+                if isinstance(result, tvm.tir.FloatImm):
+                    result = result.value
+                assert isinstance(result, float)
+                assert result >= 0.0
+                perfs.append(result)
+
+            # Store the evaluation result
+            # TODO(sunggg): Match with MetaSchedule
+            candidate.set_perf(np.mean(perfs))
+
+        # Clean up the artifact
+        f_clean_build(builder_result.artifact_path)
+
     ctx.inc_num_evals(num_evals)
 
 
