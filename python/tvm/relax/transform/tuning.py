@@ -28,9 +28,9 @@ from typing import Callable, Union, Dict, List, Optional
 import copy
 import sys
 import itertools
+import logging
 import numpy as np
 import tvm
-import logging
 from tvm.runtime import Object
 from tvm.ir.module import IRModule
 from tvm.relax import Expr
@@ -48,6 +48,7 @@ from tvm._ffi import register_object
 from tvm._ffi.registry import register_func
 from . import _ffi_api
 
+logger = logging.getLogger("TuningAPI")
 
 # Default constraint func that always returns true
 def f_default_constr(mod: IRModule):  # pylint: disable=unused-argument
@@ -420,7 +421,7 @@ def default_evaluate(
         # Build error
         # Assign the worst performance and move on to the next candidate.
         if builder_result.artifact_path is None:
-            logging.warn(builder_result.error_msg)
+            logger.warning(builder_result.error_msg)
             candidate.set_perf(1e100)
             continue
 
@@ -439,7 +440,7 @@ def default_evaluate(
         # Runtime error
         # Assign the worst performance and move on to the next candidate.
         if runner_result.error_msg is not None:
-            logging.warn(runner_result.error_msg)
+            logger.warning(runner_result.error_msg)
             candidate.set_perf(1e100)
         # For valid measurments, compute the average and update the trace performance.
         else:

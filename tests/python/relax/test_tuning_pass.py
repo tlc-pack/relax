@@ -713,5 +713,4 @@ def test_metaschedule_tuning():
 
 
 if __name__ == "__main__":
-    test_default_functions()
-    # pytest.main([__file__])
+    pytest.main([__file__])
