@@ -48,7 +48,7 @@ from tvm._ffi import register_object
 from tvm._ffi.registry import register_func
 from . import _ffi_api
 
-logger = logging.getLogger("TuningAPI")
+logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name
 
 # Default constraint func that always returns true
 def f_default_constr(mod: IRModule):  # pylint: disable=unused-argument
