@@ -24,16 +24,16 @@
 # 2) Better example for subgraph-level tuning
 #    *** This is currently blocked by pattern matcher, modular compilation, etc. ***
 
+from typing import Callable, Union, Dict, List, Optional
+import copy
+import sys
+import itertools
+import numpy as np
 import tvm
-from tvm._ffi import register_object
 from tvm.runtime import Object
-from . import _ffi_api
 from tvm.ir.module import IRModule
 from tvm.relax import Expr
-from typing import Callable, Union, Dict, List, Optional
 from tvm.ir.transform import PassContext, Pass
-import copy, sys
-
 from tvm import meta_schedule
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
@@ -43,14 +43,13 @@ from tvm.meta_schedule.runner import (
     LocalRunner,
     RunnerInput,
 )
-from tvm.meta_schedule.database import TuningRecord
-import itertools
-import numpy as np
+from tvm._ffi import register_object
 from tvm._ffi.registry import register_func
+from . import _ffi_api
 
 
 # Default constraint func that always returns true
-def f_default_constr(mod: IRModule):
+def f_default_constr(*args):
     return True
 
 
@@ -76,7 +75,8 @@ class Choice(Object):
         return relax.transform.FoldConstant()(mod)
     def constr(mod):
         return len(mod.functions) == 3
-    choice = Choice(apply, constr) # Define a choice to apply constant folding only when IRModule has three functions.
+    # Define a choice to apply constant folding only when IRModule has three functions.
+    choice = Choice(apply, constr)
     """
 
     def __init__(self, f_transform: Callable, f_constr: Optional[Callable] = None):
@@ -197,7 +197,8 @@ class Trace(Object):
     .. code-block:: python
     trace = Trace(mod, [knob1, knob2, knob3], ["c1", "c0", "c3"])
     assert trace.size == 3 # Length of history.
-    out: IRModule = trace.add(knob4, "c2") # 'out' contains IRModule that applies transformations in the trace.
+    # 'out' contains IRModule that applies transformations in the trace.
+    out: IRModule = trace.add(knob4, "c2")
     assert trace.size == 4 # Length of history.
     trace.set_perf(0.03) # Set the performanec number of the trace.
     """
@@ -249,7 +250,7 @@ def default_generate_candidate(
     To reduce the search space, a developer may expand each choice with smart search method.
     (e.g., genetic search, multi-armed bandit)
     Please note that each pass generates caniddates without the need to know what other passes are doing.
-    i.e., it only uses its incoming trace/IRModule and Choices to generate candidates, evaluate them, and select the best one.
+    i.e., it only uses its incoming trace/IRModule and Choices for candidate generation.
     This will help alleviating the complexity of joint-optimization significantly
     given that consideration of interaction between optimizations has known to be extremely difficult.
 
@@ -291,8 +292,8 @@ def default_consider_eval_passes(
     init_candidates: List[Trace], eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
     """
-    Default function to expand traces by visiting each eval_pass in dfs order in transform.Sequential().
-    By performing a candidate generation function in each pass, this function enumerates the possible candidate traces.
+    Default function to update traces by visiting each eval_pass in dfs order in transform.Sequential().
+    By doing so, this function returns the best possible candidate trace for each candidate.
 
     Parameters
     ----------
@@ -311,10 +312,9 @@ def default_consider_eval_passes(
 
     eval_passes = list(eval_passes) if not isinstance(eval_passes, list) else eval_passes
     ctx = PassContext.current()
-    candidates = []  # list(init_candidates)
+    candidates = []
     # for _ in range(len(candidates)):
     for trace in init_candidates:
-        # trace = candidates.pop(0)
         ctx.push_trace(trace)
         tvm.transform.Sequential(eval_passes)(trace.out_mod)
         new_trace = ctx.pop_trace()
@@ -361,8 +361,8 @@ def default_evaluate(
         ):
             if params:
                 mod = tvm.relax.transform.BindParams("main", params)(mod)
-            ex = tvm.relax.vm.build(mod, target)
-            return ex.mod
+            relax_exec = tvm.relax.vm.build(mod, target)
+            return relax_exec.mod
 
         builder = LocalBuilder(f_build=relax_build)
 
@@ -370,10 +370,10 @@ def default_evaluate(
     if runner is None:
 
         def relax_eval_func(rt_mod, device, evaluator_config, repeated_args):
-            exec = tvm.relax.vm.Executable(rt_mod)
-            vm = tvm.relax.VirtualMachine(exec=exec, device=device)
+            relax_exec = tvm.relax.vm.Executable(rt_mod)
+            relax_vm = tvm.relax.VirtualMachine(exec=relax_exec, device=device)
 
-            eval = vm.module.time_evaluator(
+            evaluator = relax_vm.module.time_evaluator(
                 func_name="main",
                 dev=device,
                 number=evaluator_config.number,
@@ -382,7 +382,7 @@ def default_evaluate(
             )
             repeated_costs: List[List[float]] = []
             for args in repeated_args:
-                profile_result = eval(*args)
+                profile_result = evaluator(*args)
                 repeated_costs.append(profile_result.results)
 
             costs = [float(cost) for cost in itertools.chain.from_iterable(repeated_costs)]
@@ -486,7 +486,7 @@ def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
     """
     if isinstance(in_, Trace):
         return in_
-    if isinstance(in_, IRModule):
+    elif isinstance(in_, IRModule):
         return Trace(in_)
     elif isinstance(in_, Expr):
         return Trace(tvm.IRModule.from_expr(in_))

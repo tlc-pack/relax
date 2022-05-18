@@ -264,6 +264,8 @@ def test_trace():
     tvm.ir.assert_structural_equal(trace.in_mod, before)
     tvm.ir.assert_structural_equal(trace.out_mod, expected)
     tvm.ir.assert_structural_equal(out, expected)
+
+    print(trace)
     assert trace.size == 3
     # Should be initalized when new knob is applied.
     assert trace.perf == -1

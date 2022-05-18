@@ -22,7 +22,6 @@ import functools
 
 import tvm._ffi
 import tvm.runtime
-from typing import Optional
 from . import _ffi_transform_api
 
 
@@ -178,8 +177,8 @@ class PassContext(tvm.runtime.Object):
             cur_trace = self.get_current_trace()
             _ffi_transform_api.PopTrace(self)
             return cur_trace
-        else:
-            return _ffi_transform_api.PopTrace(self)
+
+        return _ffi_transform_api.PopTrace(self)
 
     def get_trace_stack(self):
         """Get the current trace stack."""
