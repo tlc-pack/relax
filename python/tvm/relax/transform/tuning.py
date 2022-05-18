@@ -19,7 +19,7 @@
 # TODO(sunggg):
 # 1) Better Integration with MetaSchedule
 #    1-1) Trace with MetaSchedule Trace
-#    1-2) Database
+#    1-2) Database (includes serialization)
 #    1-3) Other componets (e.g., MetaSchedule Instr, Cost model)
 # 2) Better example for subgraph-level tuning
 #    *** This is currently blocked by pattern matcher, modular compilation, etc. ***
@@ -49,7 +49,7 @@ from . import _ffi_api
 
 
 # Default constraint func that always returns true
-def f_default_constr(*args):
+def f_default_constr(mod: IRModule):  # pylint: disable=unused-argument
     return True
 
 
