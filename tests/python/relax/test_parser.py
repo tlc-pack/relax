@@ -167,6 +167,24 @@ def test_unexpected_ndim_type():
             return x
 
 
+def test_unexpected_tir_cast_args():
+    # tir.cast expects 2 arguments, but got 3
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((m,), "float32")):
+            return relax.call_tir("foo", (x,), (tir.cast("int32", m, 1),), dtype="float32")
+
+
+def test_unexpected_tir_max_args():
+    # tir.max expects 2 arguments, but got 1
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: Tensor((m, n), "float32")):
+            return relax.call_tir("foo", (x,), (tir.max(m),), dtype="float32")
+
+
 def test_match_shape():
     @R.function
     def f(x: Tensor(_, "float32")):
