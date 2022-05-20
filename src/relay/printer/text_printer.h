@@ -285,6 +285,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitExpr_(const tir::MulNode* op) override;
   Doc VisitExpr_(const tir::DivNode* op) override;
   Doc VisitExpr_(const tir::FloorDivNode* op) override;
+  Doc VisitExpr_(const tir::CastNode* op) override;
+  Doc VisitExpr_(const tir::MaxNode* op) override;
 
   Doc PrintIRModule(const IRModule& mod);
   Doc PrintPrimFunc(const String& name, const tir::PrimFunc& func);
