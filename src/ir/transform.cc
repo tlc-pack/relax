@@ -516,7 +516,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
-                       Array<instrument::PassInstrument> instruments,
+                       Array<instrument::PassInstrument> instruments, bool wellformed_check,
                        Optional<Map<String, ObjectRef>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
@@ -524,6 +524,7 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
       pctx->instruments = std::move(instruments);
+      pctx->wellformed_check = std::move(wellformed_check);
       if (config.defined()) {
         pctx->config = config.value();
       }

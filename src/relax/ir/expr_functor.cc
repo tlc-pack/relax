@@ -33,6 +33,11 @@
 namespace tvm {
 namespace relax {
 
+// ==================
+// ExprVisitor
+
+void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
+
 void ExprVisitor::VisitExpr_(const ConstantNode* op) {
   this->VisitSpan(op->span);
 
@@ -161,8 +166,6 @@ void ExprVisitor::VisitVarDef_(const VarNode* var) {
   }
 }
 
-void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
-
 void ExprVisitor::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
     VisitBinding_(node);
@@ -215,7 +218,143 @@ TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr ex
 });
 
 // ==================
+// ExprMutatorBase
+
+Expr ExprMutatorBase::VisitExpr(const Expr& expr) { return ExprFunctor::VisitExpr(expr); }
+
+Expr ExprMutatorBase::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const TupleNode* op) {
+  bool unchanged = true;
+  tvm::Array<Expr> fields;
+  for (Expr field : op->fields) {
+    Expr new_field = this->VisitExpr(field);
+    fields.push_back(new_field);
+    unchanged &= new_field.same_as(field);
+  }
+
+  if (unchanged) {
+    return GetRef<Expr>(op);
+  } else {
+    Expr new_tuple = Tuple(fields, op->span);
+    return new_tuple;
+  }
+}
+
+// Visit the use-site of a defined Var
+Expr ExprMutatorBase::VisitExpr_(const VarNode* op) { return GetRef<Expr>(op); }
+
+// Visit the use-site of a defined DataflowVar
+Expr ExprMutatorBase::VisitExpr_(const DataflowVarNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const FunctionNode* op) {
+  Expr body = this->VisitExpr(op->body);
+
+  if (body.same_as(op->body)) {
+    return GetRef<Expr>(op);
+  } else {
+    return Function(op->params, body, op->ret_type, op->attrs);
+  }
+}
+
+Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
+  Expr new_op = this->VisitExpr(call_node->op);
+  bool unchanged = call_node->op.same_as(new_op);
+
+  tvm::Array<Expr> call_args;
+  for (Expr arg : call_node->args) {
+    Expr new_arg = this->VisitExpr(arg);
+    call_args.push_back(new_arg);
+    unchanged &= new_arg.same_as(arg);
+  }
+
+  if (unchanged) {
+    return GetRef<Expr>(call_node);
+  } else {
+    Expr new_call =
+        Call(new_op, call_args, call_node->attrs, call_node->type_args, call_node->span);
+    return new_call;
+  }
+}
+
+Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
+  Expr guard = this->VisitExpr(op->cond);
+  Expr true_b = this->VisitExpr(op->true_branch);
+  Expr false_b = this->VisitExpr(op->false_branch);
+  if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
+      op->false_branch.same_as(false_b)) {
+    return GetRef<Expr>(op);
+  } else {
+    return If(guard, true_b, false_b, op->span);
+  }
+}
+
+Expr ExprMutatorBase::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* get_item) {
+  auto t = this->VisitExpr(get_item->tuple);
+  if (get_item->tuple.same_as(t)) {
+    return GetRef<Expr>(get_item);
+  } else {
+    return TupleGetItem(t, get_item->index, get_item->span);
+  }
+}
+
+Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const SeqExprNode* op) {
+  bool all_blocks_unchanged = true;
+  Array<BindingBlock> blocks;
+  for (auto block : op->blocks) {
+    BindingBlock new_block = this->VisitBindingBlock(block);
+    if (!new_block->bindings.empty()) {
+      blocks.push_back(new_block);
+    }
+    all_blocks_unchanged &= block.same_as(new_block);
+  }
+
+  Expr body = this->VisitExpr(op->body);
+
+  if (all_blocks_unchanged && body.same_as(op->body)) {
+    return GetRef<Expr>(op);
+  } else {
+    return SeqExpr(blocks, body);
+  }
+}
+
+BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
+  Array<Binding> bindings;
+  if (const auto* node = block.as<BindingBlockNode>()) {
+    for (auto binding : node->bindings) {
+      if (auto var_binding = binding.as<VarBindingNode>()) {
+        Expr new_value = this->VisitExpr(var_binding->value);
+        bindings.push_back(VarBinding(var_binding->var, new_value));
+      } else if (auto match_shape_binding = binding.as<MatchShapeNode>()) {
+        Expr new_value = this->VisitExpr(match_shape_binding->value);
+        bindings.push_back(
+            MatchShape(new_value, match_shape_binding->pattern, match_shape_binding->var));
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      }
+    }
+  } else {
+    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+  }
+  return BindingBlock(bindings);
+}
+
+// ==================
 // ExprMutator
+
+Expr ExprMutator::VisitExpr(const Expr& expr) {
+  return builder_->Normalize(ExprFunctor::VisitExpr(expr));
+}
 
 Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
 
@@ -314,17 +453,6 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
     return GetRef<Expr>(op);
   } else {
     return If(guard, true_b, false_b, op->span);
-  }
-}
-
-Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
-
-Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
-  auto t = this->VisitExpr(get_item->tuple);
-  if (get_item->tuple.same_as(t)) {
-    return GetRef<Expr>(get_item);
-  } else {
-    return TupleGetItem(t, get_item->index, get_item->span);
   }
 }
 
@@ -471,10 +599,6 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
     this->var_remap_[var->vid] = new_var;
     return new_var;
   }
-}
-
-Expr ExprMutator::VisitExpr(const Expr& expr) {
-  return builder_->Normalize(ExprFunctor::VisitExpr(expr));
 }
 
 void ExprMutator::VisitBinding(const Binding& binding) {

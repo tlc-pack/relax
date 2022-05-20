@@ -1305,7 +1305,9 @@ def ir_module(input_module=None, metadata=None) -> IRModule:
                 name: f for name, f in input_module.__dict__.items() if isinstance(f, BaseFunc)
             }
             mod = IRModule(func_dict, attrs=metadata)
-            mod = relax.transform.ResolveGlobals()(mod)
+            with tvm.transform.PassContext(wellformed_check=False):
+                mod = relax.transform.Normalization()(mod)
+                mod = relax.transform.ResolveGlobals()(mod)
             # FIXME(@altanh): where is the source map?
             return mod
 
