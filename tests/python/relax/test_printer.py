@@ -326,6 +326,24 @@ def test_class_irmodule():
     check_roundtrip(my_module)
 
 
+def test_tir_max():
+    @R.function
+    def tir_max(x: Tensor((m, n), "float32")):
+        gv = relax.call_tir("my_extern", (x,), (tir.max(n, m),), dtype="float32")
+        return gv
+
+    check_roundtrip(tir_max)
+
+
+def test_tir_cast():
+    @R.function
+    def tir_cast(x: Tensor((m,), "float32")):
+        gv = relax.call_tir("my_extern", (x,), (tir.cast("int32", m),), dtype="float32")
+        return gv
+
+    check_roundtrip(tir_cast)
+
+
 def test_dyntensor_type():
     x = relax.DynTensorType(ndim=3, dtype="float32")
     assert x.__str__() == 'Tensor[ndim=3, dtype="float32"]'
