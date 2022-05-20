@@ -361,7 +361,19 @@ TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::AddNode, " + ")
 TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::SubNode, " - ")
 TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::MulNode, " * ")
 TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::DivNode, " / ")
-TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ");
+TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ")
+
+Doc RelaxScriptPrinter::VisitExpr_(const tir::CastNode* op) {
+  Doc doc;
+  doc << "tir.cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
+  return doc;
+}
+
+Doc RelaxScriptPrinter::VisitExpr_(const tir::MaxNode* op) {
+  Doc doc;
+  doc << "tir.max(" << Print(op->a) << ", " << Print(op->b) << ")";
+  return doc;
+}
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) { return Doc::Text("Shape"); }
 

@@ -63,7 +63,7 @@ def _is_registered(op_name: str, op_set=None) -> bool:
 
 # NOTE: call_tir is an actual registered operator
 class SpecialOp(Enum):
-    """Relax operators that have special semantics handled by the parser."""
+    """Relax and TIR operators that have special semantics handled by the parser."""
 
     MATCH_SHAPE = "relax.match_shape"
     CALL_PACKED = "relax.call_packed"
@@ -73,6 +73,8 @@ class SpecialOp(Enum):
     TUPLE_GET_ITEM = "relax.TupleGetItem"
     CONST = "relax.const"
     CONSTANT = "relax.expr.Constant"
+    TIR_CAST = "tir.cast"
+    TIR_MAX = "tir.max"
 
 
 class ArithmeticOp(Enum):
@@ -1192,6 +1194,22 @@ class RelaxTransformer(Transformer):
                 return self.parse_array_literal(arg)
             else:
                 self.report_error(f"unsupported ast for const: {arg}", expr.span)
+
+        elif op == SpecialOp.TIR_CAST:
+            if len(expr.params) != 2:
+                self.report_error(
+                    f"tir.cast expects 2 arguments, but got {len(expr.params)}", expr.span
+                )
+            args = [self.transform_expr(arg) for arg in expr.params]
+            return tir.Cast(args[0], args[1])
+
+        elif op == SpecialOp.TIR_MAX:
+            if len(expr.params) != 2:
+                self.report_error(
+                    f"tir.max expects 2 arguments, but got {len(expr.params)}", expr.span
+                )
+            args = [self.transform_expr(arg) for arg in expr.params]
+            return tir.Max(args[0], args[1])
 
         elif isinstance(op, ArithmeticOp):
             args = [self.transform_expr(arg) for arg in expr.params]
