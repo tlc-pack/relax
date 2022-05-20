@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm.runtime import vm
 import tvm.testing
 from tvm.relay import testing
 from tvm import relax, relay
@@ -185,6 +186,65 @@ def test_verify_extracted_tasks_cpu(layout, batch_size, image_shape):
 )
 def test_verify_extracted_tasks_gpu(layout, batch_size, image_shape):
     verify_extracted_tasks("cuda", layout, batch_size, image_shape)
+
+
+def translate_and_build_vms(relay_mod, target_str="llvm"):
+    target = tvm.target.Target(target_str)
+
+    # build the relay IRModule and create relay vm
+    relay_ex = relay.vm.compile(relay_mod, target)
+    relay_vm = vm.VirtualMachine(relay_ex, tvm.cpu())
+
+    # build the relax IRModule and create relax vm
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
+    relax_ex = relax.vm.build(relax_mod, target)
+    relax_vm = relax.VirtualMachine(relax_ex, tvm.cpu())
+
+    return relay_vm, relax_vm
+
+
+def verify_vm_outputs(
+    input_shape,
+    relay_vm,
+    relax_vm,
+    extra_args=[],
+):
+    input = tvm.nd.array(np.random.rand(*input_shape).astype(np.float32))
+
+    # check correctness by comparing relax and relay result
+    args = [input] + extra_args
+    relax_output = relax_vm["main"](*args)
+    relay_output = relay_vm.run(*args)
+    tvm.testing.assert_allclose(relay_output.numpy(), relax_output.numpy())
+
+
+def test_single_dynamic_dim():
+    wx, wy = 64, 128
+    # create relay module: y = data * weights + bias with dynamic batch dimension
+    data = relay.var("data", shape=(relay.Any(), wx))
+    weights = relay.var("weights", shape=(wx, wy))
+    bias = relay.var("bias", shape=(wy,))
+    y = relay.nn.matmul(data, weights)
+    relay_mod = tvm.IRModule.from_expr(relay.Function([data, weights, bias], y + bias))
+
+    relay_vm, relax_vm = translate_and_build_vms(relay_mod)
+    weights = tvm.nd.array(np.random.rand(wx, wy).astype(np.float32))
+    bias = tvm.nd.array(np.random.rand(wy).astype(np.float32))
+    # verify for different batch sizes
+    verify_vm_outputs([10, wx], relay_vm, relax_vm, [weights, bias])
+    verify_vm_outputs([32, wx], relay_vm, relax_vm, [weights, bias])
+
+
+def test_multiple_dynamic_dims():
+    # create relay module: y = a + a, where a has shape = (?, 5, ?)
+    shape = (relay.Any(), 5, relay.Any())
+    a = relay.var("a", shape=shape)
+
+    relay_mod = tvm.IRModule.from_expr(relay.Function([a], a + a))
+    relay_vm, relax_vm = translate_and_build_vms(relay_mod)
+    # verify for different shapes
+    verify_vm_outputs([2, 5, 10], relay_vm, relax_vm)
+    verify_vm_outputs([12, 5, 24], relay_vm, relax_vm)
 
 
 if __name__ == "__main__":
