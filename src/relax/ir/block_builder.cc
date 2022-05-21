@@ -252,12 +252,10 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     if (!node->shape_ && node->tuple->shape_) {
-      if (node->checked_type_.as<DynTensorTypeNode>()) {
-        // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
-        // field
-        if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
-          UpdateShape(node, shape->fields[node->index]);
-        }
+      // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
+      // field
+      if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
+        UpdateShape(node, shape->fields[node->index]);
       }
     }
 
