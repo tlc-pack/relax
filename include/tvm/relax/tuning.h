@@ -31,6 +31,8 @@ namespace relax {
 using FTransform = runtime::TypedPackedFunc<IRModule(IRModule)>;
 /*! \brief The function type of `f_constr` method. */
 using FConstr = runtime::TypedPackedFunc<bool(IRModule)>;
+
+/*! \brief Choice manages a set of transformation and constraint functions. */
 class ChoiceNode : public runtime::Object {
  public:
   /*! \brief transformation function. */
@@ -66,6 +68,7 @@ class ChoiceNode : public runtime::Object {
   TVM_DECLARE_BASE_OBJECT_INFO(ChoiceNode, Object);
 };
 
+/*! \brief Managed reference to ChoiceNode */
 class Choice : public runtime::ObjectRef {
  public:
   TVM_DLL explicit Choice(FTransform f_transform, FConstr f_constr);
@@ -74,6 +77,7 @@ class Choice : public runtime::ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);
 };
 
+/*! \brief Knob manages a set of valid choices for an optimization. */
 class KnobNode : public runtime::Object {
  public:
   /*! \brief Name of the knob. */
@@ -103,6 +107,7 @@ class KnobNode : public runtime::Object {
   TVM_DECLARE_BASE_OBJECT_INFO(KnobNode, Object);
 };
 
+/*! \brief Managed reference to KnobNode */
 class Knob : public runtime::ObjectRef {
  public:
   TVM_DLL explicit Knob(String name, Map<String, Choice> choices);
@@ -111,12 +116,14 @@ class Knob : public runtime::ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Knob, ObjectRef, KnobNode);
 };
 
+/*! \brief Trace manages history of optimization decisions. */
 class TraceNode : public runtime::Object {
  public:
   /*! \brief Input IRModule. */
   IRModule in_mod;
   /*! \brief Output IRModule. */
   mutable IRModule out_mod;
+  // TODO(sunggg): can we move knobs and decisions into private?
   /*! \brief Knobs that are applied so far. */
   Array<Knob> knobs;
   /*! \brief Decisions made for the knobs. */
@@ -167,6 +174,7 @@ class TraceNode : public runtime::Object {
   TVM_DECLARE_BASE_OBJECT_INFO(TraceNode, Object);
 };
 
+/*! \brief Managed reference to TraceNode */
 class Trace : public runtime::ObjectRef {
  public:
   TVM_DLL explicit Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions);

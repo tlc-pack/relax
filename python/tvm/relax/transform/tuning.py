@@ -73,12 +73,13 @@ class Choice(Object):
     The following code block defines a Choice.
 
     .. code-block:: python
-    def apply(mod):
-        return relax.transform.FoldConstant()(mod)
-    def constr(mod):
-        return len(mod.functions) == 3
-    # Define a choice to apply constant folding only when IRModule has three functions.
-    choice = Choice(apply, constr)
+
+        def apply(mod):
+            return relax.transform.FoldConstant()(mod)
+        def constr(mod):
+            return len(mod.functions) == 3
+        # Define a choice to apply constant folding only when IRModule has three functions.
+        choice = Choice(apply, constr)
     """
 
     def __init__(self, f_transform: Callable, f_constr: Optional[Callable] = None):
@@ -142,13 +143,14 @@ class Knob(Object):
     The following code block defines a Knob.
 
     .. code-block:: python
-    def apply(mod):
-        return relax.transform.FoldConstant()(mod)
-    def noapply(mod):
-        return mod
-    choices = {"apply": Choice(apply), "noapply": Choice(noapply)}
-    # A knob manages a set of its valid choices
-    knob = Knob("MockTuningKnob", choices)
+
+        def apply(mod):
+            return relax.transform.FoldConstant()(mod)
+        def noapply(mod):
+            return mod
+        choices = {"apply": Choice(apply), "noapply": Choice(noapply)}
+        # A knob manages a set of its valid choices
+        knob = Knob("MockTuningKnob", choices)
     """
 
     def __init__(self, name: str, choices: Union[List[Choice], Dict[str, Choice]]):
@@ -194,15 +196,16 @@ class Trace(Object):
 
     Examples
     --------
-    The following code block defines a Knob.
+    The following code block defines a Trace.
 
     .. code-block:: python
-    trace = Trace(mod, [knob1, knob2, knob3], ["c1", "c0", "c3"])
-    assert trace.size == 3 # Length of history.
-    # 'out' contains IRModule that applies transformations in the trace.
-    out: IRModule = trace.add(knob4, "c2")
-    assert trace.size == 4 # Length of history.
-    trace.set_perf(0.03) # Set the performanec number of the trace.
+
+        trace = Trace(mod, [knob1, knob2, knob3], ["c1", "c0", "c3"])
+        assert trace.size == 3 # Length of history.
+        # 'out' contains IRModule that applies transformations in the trace.
+        out: IRModule = trace.add(knob4, "c2")
+        assert trace.size == 4 # Length of history.
+        trace.set_perf(0.03) # Set the performance number of the trace.
     """
 
     def __init__(
@@ -251,7 +254,7 @@ def default_generate_candidate(
     This function simply expands candidate space as long as the knob's constraint satisfies.
     To reduce the search space, a developer may expand each choice with smart search method.
     (e.g., genetic search, multi-armed bandit)
-    Note, each pass generates caniddates without worrying about the interaction with other passes.
+    Note, each pass generates candidates without worrying about the interaction with other passes.
     i.e., it only uses its incoming trace/IRModule and Choices for candidate generation.
     This will help alleviating the complexity of joint-optimization significantly.
     - consideration of interaction between optimizations has known to be extremely difficult.

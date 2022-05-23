@@ -563,7 +563,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "\tdisabled passes: " << node->disabled_pass << "\n";
       p->stream << "\tinstruments: " << node->instruments << "\n";
 
-      p->stream << "\tconfig: " << node->config;
+      p->stream << "\tconfig: " << node->config << "\n";
+      p->stream << "\ttrace stack: " << node->trace_stack;
     });
 
 class PassContext::Internal {

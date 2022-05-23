@@ -94,7 +94,7 @@ class PassContextNode : public Object {
   mutable Array<relax::Trace> trace_stack;
   /*! \brief List of passes to be traced. If not defined, make every pass traceable. */
   Optional<Map<String, Bool>> make_traceable;
-  /*! \brief Number of evaluation conducted in the pass pipeline. */
+  /*! \brief Number of evaluations conducted in the pass pipeline. */
   mutable int num_evals{0};
   PassContextNode() = default;
   /*!
@@ -140,7 +140,7 @@ class PassContextNode : public Object {
   }
 
   Array<relax::Trace> GetTraceStack() { return trace_stack; }
-  void PushTrace(relax::Trace _trace) { trace_stack.push_back(_trace); }
+  void PushTrace(relax::Trace new_trace) { trace_stack.push_back(new_trace); }
   void PopTrace() {
     ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
     trace_stack.pop_back();
@@ -309,7 +309,7 @@ class PassInfoNode : public Object {
   /*! \brief The name of an optimization/analysis pass. */
   String name;
 
-  /*! \brief Boolen that tells whether this pass will be traced or not. */
+  /*! \brief Boolean that tells whether this pass will be traced or not. */
   bool traceable;
 
   /*! \brief The passes that are required to perform the current pass. */
