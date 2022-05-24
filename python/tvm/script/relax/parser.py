@@ -571,7 +571,7 @@ class RelaxTransformer(Transformer):
         (root_func,) = mod.funcs.values()
 
         if isinstance(root_func, ast.Function):
-            return self.transform_function(root_func)
+            return self.transform_function(root_func, is_global=True)
         elif isinstance(root_func, ast.Class):
             # add global vars to the root scope for resolving global function calls
             for func_name in root_func.funcs:
@@ -633,13 +633,15 @@ class RelaxTransformer(Transformer):
         self._diagnostic_context._render_on_error = False
         return prim_func
 
-    def transform_function(self, func: ast.Function) -> relax.Function:
+    def transform_function(self, func: ast.Function, is_global: bool = False) -> relax.Function:
         """Transforms the given synr Function to a Relax Function.
 
         Parameters
         ----------
         func : ast.Function
             The input synr Function
+        is_global : bool, optional
+            Whether or not the input function is global/module-level, by default False
 
         Returns
         -------
@@ -1587,7 +1589,6 @@ class RelaxTransformer(Transformer):
             and isinstance(blocks[-1].bindings[-1].value, relax.Function)
             and hasattr(ret_expr, "name_hint")
             and ret_expr.name_hint == blocks[-1].bindings[-1].var.name_hint
-            and ret_expr.name_hint == blocks[-1].bindings[-1].value.name.name_hint
         ):
             return blocks[-1].bindings[-1].value
 

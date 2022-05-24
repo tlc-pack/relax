@@ -71,11 +71,7 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void Malformed(Diagnostic diag) {
     well_formed = false;
-    if (diag_ctx) {
-      diag_ctx.value().Emit(diag);
-    } else {
-      LOG(WARNING) << "This IR is not well formed: " << diag->message;
-    }
+    LOG(WARNING) << "This IR is not well formed: " << diag->message;
   }
 
   void RegisterGlobalVar(GlobalVar var) { global_var_set_.insert(var); }
@@ -126,6 +122,8 @@ class WellFormedChecker : public relax::ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode* op) {
+    // save the var_set_ for local function
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set_ = var_set_;
     for (Var param : op->params) {
       // register symbolic var defined in the shape annotation of function params
       if (param->shape_) {
@@ -146,7 +144,7 @@ class WellFormedChecker : public relax::ExprVisitor {
       this->VisitVarDef(param);
     }
     this->VisitBody(op->body);
-    var_set_.clear();
+    var_set_ = previous_var_set_;
     prim_expr_visitor_.symbolic_var_set_.clear();
   }
 

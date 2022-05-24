@@ -418,7 +418,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
 
     std::vector<Instruction::Arg> args;
-    // VMState is utilized to help get the Function in builtin packedfunc
+    // VM is utilized to help get the Function in builtin packedfunc
     args.push_back(Instruction::Arg(Instruction::kVMRegister));
 
     auto lv = Downcast<Var>(call_node->args[0]);
@@ -429,9 +429,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(Instruction::Arg(Instruction::kRegister, registers_num_));
     }
 
-    // free_vars of VMClosure
-    auto closure_args = Downcast<Tuple>(call_node->args[1]);
-    for (Expr arg : closure_args->fields) {
+    // args for the invoke_closure
+    auto invoke_closure_args = Downcast<Tuple>(call_node->args[1]);
+    for (Expr arg : invoke_closure_args->fields) {
       args.push_back(ConvertArg(arg));
     }
 
