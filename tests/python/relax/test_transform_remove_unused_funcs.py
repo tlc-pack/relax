@@ -23,6 +23,11 @@ from tvm import relax
 import tvm.script
 from tvm.script import tir as T, relax as R
 
+# TODO (sunggg):
+# Currently, parser sets each function name as the global symbol by default.
+# And printer uses the global symbol to print out the function name.
+# This is temproray and will improve in the future.
+
 
 def check_if_func_exists(mod, func_name):
     gvs = [str(gv) for gv in mod.get_global_vars()]
@@ -61,11 +66,73 @@ def test_unused_relax_func():
 
     mod = InputModule
     assert mod
+    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
+    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
+    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "unused_func")
+
+    # Remove global symbol from the function.
+    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
+
+    # Then, this removes the unused function without any global symbol.
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "tir_matmul")
     assert not check_if_func_exists(new_mod, "unused_func")
 
+
+def test_unused_relax_func_custom_entry_func():
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            A = T.match_buffer(x, (16, 16))
+            B = T.match_buffer(y, (16, 16))
+            C = T.match_buffer(z, (16, 16))
+            for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
+                with T.block("matmul"):
+                    vi = T.axis.S(16, i0 * 4 + i1)
+                    vj = T.axis.S(16, j)
+                    vk = T.axis.R(16, k0 * 4 + k1)
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+        @R.function
+        def unused_func(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
+            gv0 = relax.add(x, w)
+            return gv0
+
+        @R.function
+        def foo(
+            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
+            gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
+            return gv0
+
+    mod = InputModule
+    assert mod
+
+    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
+    # Test entry function other than "main".
+    new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
+    assert check_if_func_exists(new_mod, "foo")
+    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "unused_func")
+
+    # Remove global symbol from the function.
+    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
+
+    # Then, this removes the unused function without any global symbol.
+    new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
+    assert check_if_func_exists(new_mod, "foo")
+    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert not check_if_func_exists(new_mod, "unused_func")
+
+
+def test_unused_relax_func_symbolic_shape():
     # Test with relax function w/ symbolic shape.
     @tvm.script.ir_module
     class InputModule:
@@ -92,17 +159,25 @@ def test_unused_relax_func():
             return gv0
 
         @R.function
-        def foo(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
+        def main(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
             gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
     mod = InputModule
     assert mod
 
+    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
+    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
+    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "unused_func")
+
+    # Remove global symbol from the unused function
+    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
     # Remove unused function before shape lowering.
     # Test entry function other than "main".
-    new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
-    assert check_if_func_exists(new_mod, "foo")
+    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "tir_matmul")
     assert not check_if_func_exists(new_mod, "unused_func")
 
@@ -110,8 +185,8 @@ def test_unused_relax_func():
     # Shape lowering will inject several shape-related global functions.
     # We need to make sure unused function removal pass does not remove those functions.
     shape_lowered_mod = relax.transform.VMShapeLower()(mod)
-    new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(shape_lowered_mod)
-    assert check_if_func_exists(new_mod, "foo")
+    new_mod = relax.transform.RemoveUnusedFunctions()(shape_lowered_mod)
+    assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "tir_matmul")
     assert check_if_func_exists(new_mod, "shape_func")  # injected by VMShapeLower pass
     assert not check_if_func_exists(new_mod, "unused_func")
@@ -149,6 +224,14 @@ def test_unused_prim_func():
 
     mod = InputModule
     assert mod
+    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
+    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
+    assert check_if_func_exists(new_mod, "relax_add")
+    assert check_if_func_exists(new_mod, "unused_func")
+
+    # Remove global symbol from the unused function
+    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
 
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
@@ -188,6 +271,16 @@ def test_multiple_unused_funcs():
 
     mod = InputModule
     assert mod
+
+    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
+    assert check_if_func_exists(new_mod, "main")
+    assert check_if_func_exists(new_mod, "unused_func1")
+    assert check_if_func_exists(new_mod, "unused_func2")
+
+    # Remove global symbol from unused functions
+    mod["unused_func1"] = mod["unused_func1"].without_attr("global_symbol")
+    mod["unused_func2"] = mod["unused_func2"].without_attr("global_symbol")
+
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
     assert not check_if_func_exists(new_mod, "unused_func1")

@@ -29,27 +29,18 @@
 #include <unordered_set>
 #include <vector>
 
-//#include "../../op/call/call.h"
-
 namespace tvm {
 namespace relax {
 
 /**
  * \brief Detects all the functions that can be possibly called by entry function.
  */
-struct CallTracer : ExprVisitor {
-  IRModule module_;
-
-  // Record the names of all encountered functions
-  std::unordered_set<std::string> called_funcs_;
-
-  // Record the expressions that are being visited
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
-
+class CallTracer : ExprVisitor {
+ public:
   explicit CallTracer(const IRModule& module) : module_{module}, called_funcs_{}, visiting_{} {}
 
   void VisitExpr_(const GlobalVarNode* op) final {
-    called_funcs_.insert(op->name_hint);
+    called_funcs_.insert(GetRef<GlobalVar>(op));
     auto func = module_->Lookup(op->name_hint);
     if (const auto* function_node = func.as<FunctionNode>()) {
       VisitExpr(GetRef<Function>(function_node));
@@ -57,10 +48,7 @@ struct CallTracer : ExprVisitor {
     // else: Don't visit PrimFuncs -- we don't need to collect any tir.Calls therein.
   }
 
-  void VisitExpr_(const CallNode* call_node) final {
-    // TODO(sunggg): Check if shape functions need special handling.
-    ExprVisitor::VisitExpr_(call_node);
-  }
+  void VisitExpr_(const CallNode* call_node) final { ExprVisitor::VisitExpr_(call_node); }
 
   void VisitExpr_(const FunctionNode* func_node) final {
     auto func = GetRef<Function>(func_node);
@@ -73,12 +61,22 @@ struct CallTracer : ExprVisitor {
     }
   }
 
-  std::unordered_set<std::string> Trace(const std::string& entry) {
-    called_funcs_.insert(entry);
+  void Trace(const std::string& entry) {
+    called_funcs_.insert(module_->GetGlobalVar(entry));
     auto main_func = module_->Lookup(entry);
     VisitExpr(main_func);
-    return called_funcs_;
   }
+
+  bool check_if_called(GlobalVar gv) { return called_funcs_.count(gv) > 0; }
+
+ private:
+  IRModule module_;
+
+  // Record the names of all encountered functions.
+  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> called_funcs_;
+
+  // Record the expressions that are being visited.
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 };
 
 /*!
@@ -90,25 +88,24 @@ struct CallTracer : ExprVisitor {
  * \return The module with dead functions removed.
  */
 IRModule RemoveUnusedFunctions(const IRModule& module, Array<runtime::String> entry_funcs) {
-  std::unordered_set<std::string> called_funcs{};
+  auto tracer = CallTracer(module);
   for (auto entry : entry_funcs) {
-    auto funcs = CallTracer(module).Trace(entry);
-    called_funcs.insert(funcs.cbegin(), funcs.cend());
+    tracer.Trace(entry);
   }
   auto existing_functions = module->functions;
   for (auto f : existing_functions) {
-    auto it = called_funcs.find(f.first->name_hint);
-    if (it == called_funcs.end()) {
+    // If a function has an external linkage type, we do not remove it.
+    // Otherwise, we check the function and remove it if it is not used anywhere.
+    if (f.second->GetLinkageType() == TypeLinkage::kInternal && !tracer.check_if_called(f.first)) {
       module->Remove(f.first);
     }
   }
   return module;
-}
+}  // namespace relax
 
 }  // namespace relax
 
 namespace transform {
-
 Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule m, PassContext pc) { return relax::RemoveUnusedFunctions(m, entry_functions); };
