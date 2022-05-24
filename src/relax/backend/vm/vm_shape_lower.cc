@@ -142,6 +142,8 @@ class VMShapeLowerMutator : public ExprMutator {
     for (PrimExpr e : s->values) {
       Map<tir::Var, PrimExpr> var_mapping = BuildVarMapping(e, buffer);
       PrimExpr value = tir::Substitute(e, var_mapping);
+      // cast value to shape heap dtype
+      if (value.dtype() != ShapeDType()) value = tir::Cast(ShapeDType(), value);
       int idx = expr2slot_.at(e);
       seq.push_back(tir::BufferStore(buffer, value, {idx}));
     }
