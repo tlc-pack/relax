@@ -157,11 +157,6 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block, this is a bug.";
 
-  // check if the updated IRModule is well formed
-  if (pass_ctx->wellformed_check) {
-    ICHECK(WellFormed(updated_mod, pass_ctx->diag_ctx.value()));
-  }
-
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
@@ -376,11 +371,6 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
   ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
-
-  // check if the updated IRModule is well formed
-  if (pass_ctx->wellformed_check) {
-    ICHECK(WellFormed(updated_mod, pass_ctx->diag_ctx.value()));
-  }
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;

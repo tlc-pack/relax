@@ -263,6 +263,13 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   Expr new_op = this->VisitExpr(call_node->op);
   bool unchanged = call_node->op.same_as(new_op);
 
+  tvm::Array<Type> ty_args;
+  for (Type ty_arg : call_node->type_args) {
+    Type new_ty_arg = this->VisitType(ty_arg);
+    ty_args.push_back(new_ty_arg);
+    unchanged &= new_ty_arg.same_as(ty_arg);
+  }
+
   tvm::Array<Expr> call_args;
   for (Expr arg : call_node->args) {
     Expr new_arg = this->VisitExpr(arg);
@@ -273,8 +280,7 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   if (unchanged) {
     return GetRef<Expr>(call_node);
   } else {
-    Expr new_call =
-        Call(new_op, call_args, call_node->attrs, call_node->type_args, call_node->span);
+    Expr new_call = Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
     return new_call;
   }
 }
@@ -349,16 +355,14 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
   return BindingBlock(bindings);
 }
 
+Type ExprMutatorBase::VisitType(const Type& t) { return t; }
+
 // ==================
 // ExprMutator
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   return builder_->Normalize(ExprFunctor::VisitExpr(expr));
 }
-
-Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
-
-Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   bool unchanged = true;
@@ -418,32 +422,6 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
-  Expr new_op = this->VisitExpr(call_node->op);
-  bool unchanged = call_node->op.same_as(new_op);
-
-  tvm::Array<Type> ty_args;
-  for (Type ty_arg : call_node->type_args) {
-    Type new_ty_arg = this->VisitType(ty_arg);
-    ty_args.push_back(new_ty_arg);
-    unchanged &= new_ty_arg.same_as(ty_arg);
-  }
-
-  tvm::Array<Expr> call_args;
-  for (Expr arg : call_node->args) {
-    Expr new_arg = this->VisitExpr(arg);
-    call_args.push_back(new_arg);
-    unchanged &= new_arg.same_as(arg);
-  }
-
-  if (unchanged) {
-    return GetRef<Expr>(call_node);
-  } else {
-    Expr new_call = Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
-    return new_call;
-  }
-}
-
 Expr ExprMutator::VisitExpr_(const IfNode* op) {
   Expr guard = this->VisitExpr(op->cond);
   Expr true_b = this->VisitWithNewScope(op->true_branch);
@@ -455,12 +433,6 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
     return If(guard, true_b, false_b, op->span);
   }
 }
-
-Expr ExprMutator::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
-
-Expr ExprMutator::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
-
-Expr ExprMutator::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   bool all_blocks_unchanged = true;
@@ -488,8 +460,6 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   }
 }
 
-Type ExprMutator::VisitType(const Type& t) { return t; }
-
 void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
   Expr new_value = this->VisitExpr(binding->value);
   Var new_var = this->VisitVarDef(binding->var);
@@ -509,12 +479,16 @@ void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
   //   return;
   // }
 
-  {
-    Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
-    if (!temp.same_as(new_var)) {
-      new_var = temp;
-      this->var_remap_[binding->var->vid] = new_var;
-    }
+  // fast path: reemit binding if nothing changes
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    emit(GetRef<VarBinding>(binding));
+    return;
+  }
+
+  Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
+  if (!temp.same_as(new_var)) {
+    new_var = temp;
+    this->var_remap_[binding->var->vid] = new_var;
   }
 
   emit(VarBinding(new_var, new_value));
@@ -537,6 +511,14 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
     if (!temp.same_as(new_var)) {
       new_var = temp;
       this->var_remap_[binding->var->vid] = new_var;
+    }
+  }
+
+  // reemit old binding if nothing changes
+  if (new_value.same_as(binding->value) && new_pattern.same_as(binding->pattern)) {
+    if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
+      builder_->EmitMatchShape(GetRef<MatchShape>(binding));
+      return;
     }
   }
 

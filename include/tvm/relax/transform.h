@@ -101,7 +101,7 @@ TVM_DLL Pass CallTIRRewrite();
  *
  * \return The Pass.
  */
-TVM_DLL Pass Normalization();
+TVM_DLL Pass Normalize();
 
 /*!
  * \brief Apply the best schedule from tuning database.

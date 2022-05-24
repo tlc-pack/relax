@@ -70,19 +70,10 @@ class PassContext(tvm.runtime.Object):
 
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
-
-    wellformed_check: Optional[bool]
-        Whether to check if the IRModule is well-formed after applying every pass.
     """
 
     def __init__(
-        self,
-        opt_level=2,
-        required_pass=None,
-        disabled_pass=None,
-        instruments=None,
-        config=None,
-        wellformed_check=None,
+        self, opt_level=2, required_pass=None, disabled_pass=None, instruments=None, config=None
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -96,20 +87,9 @@ class PassContext(tvm.runtime.Object):
         if not isinstance(instruments, (list, tuple)):
             raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
 
-        if wellformed_check is None:
-            wellformed_check = True
-        if not isinstance(wellformed_check, bool):
-            raise TypeError("wellformed_check is expected to be the type of bool.")
-
         config = config if config else None
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassContext,
-            opt_level,
-            required,
-            disabled,
-            instruments,
-            wellformed_check,
-            config,
+            _ffi_transform_api.PassContext, opt_level, required, disabled, instruments, config
         )
 
     def __enter__(self):

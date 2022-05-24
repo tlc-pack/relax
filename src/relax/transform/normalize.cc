@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relax/transform/normalization.cc
+ * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
  * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
  * available.
@@ -32,9 +32,9 @@ namespace tvm {
 namespace relax {
 
 // TODO(@altanh): LCA binding lifting
-class NormalizationMutator : public ExprMutatorBase {
+class NormalizeMutator : public ExprMutatorBase {
  public:
-  NormalizationMutator() { builder_ = BlockBuilder::Create(NullOpt); }
+  NormalizeMutator() { builder_ = BlockBuilder::Create(NullOpt); }
 
   Expr VisitExpr(const Expr& expr) override {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
@@ -120,12 +120,15 @@ class NormalizationMutator : public ExprMutatorBase {
     if (!binding->var->shape_.defined()) {
       UpdateShape(binding->var, new_value->shape_);
     }
-    emit(VarBinding(binding->var, new_value));
+    if (new_value.same_as(binding->value)) {
+      emit(GetRef<VarBinding>(binding));
+    } else {
+      emit(VarBinding(binding->var, new_value));
+    }
   }
 
   void VisitBinding_(const MatchShapeNode* binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
 
     if (binding->var.defined()) {
       if (!binding->var->checked_type_.defined()) {
@@ -135,8 +138,11 @@ class NormalizationMutator : public ExprMutatorBase {
         UpdateShape(binding->var, new_value->shape_);
       }
     }
-    builder_->EmitMatchShape(
-        MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, binding->var));
+    if (new_value.same_as(binding->value)) {
+      builder_->EmitMatchShape(GetRef<MatchShape>(binding));
+    } else {
+      builder_->EmitMatchShape(MatchShape(new_value, binding->pattern, binding->var));
+    }
   }
 
  private:
@@ -144,17 +150,17 @@ class NormalizationMutator : public ExprMutatorBase {
   BlockBuilder builder_;
 };  // namespace relax
 
-Expr Normalization(const Expr& e) { return NormalizationMutator().VisitExpr(e); }
+Expr Normalize(const Expr& e) { return NormalizeMutator().VisitExpr(e); }
 
 namespace transform {
 
-Pass Normalization() {
+Pass Normalize() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(Normalization(f)); };
-  return CreateFunctionPass(pass_func, 1, "Normalization", {});
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(Normalize(f)); };
+  return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Normalization").set_body_typed(Normalization);
+TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
 
 }  // namespace transform
 

@@ -90,8 +90,6 @@ class PassContextNode : public Object {
   Map<String, ObjectRef> config;
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
-  /*! \brief Whether to check if the IRModule is well-formed after applying every pass. */
-  bool wellformed_check = true;
 
   PassContextNode() = default;
 
@@ -130,7 +128,6 @@ class PassContextNode : public Object {
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
     v->Visit("instruments", &instruments);
-    v->Visit("wellformed_check", &wellformed_check);
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
   }

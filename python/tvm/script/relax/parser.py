@@ -523,12 +523,12 @@ class RelaxTransformer(Transformer):
             for func_name, func in root_func.funcs.items():
                 global_var = self.scope[func_name]
                 self.mod[global_var] = self.transform_function(func, is_global=True)
-            with tvm.transform.PassContext(wellformed_check=False):
-                # TODO(@yuchen): temporarily make the the parser.from_source api also run
-                # ResolveGlobals pass to populate shape and checked type to be consitent
-                # with the behavior of directly parsing TVMScript
-                self.mod = relax.transform.Normalization()(self.mod)
-                self.mod = relax.transform.ResolveGlobals()(self.mod)
+
+            # TODO(@yuchen): temporarily make the the parser.from_source api also run
+            # ResolveGlobals pass to populate shape and checked type to be consitent
+            # with the behavior of directly parsing TVMScript
+            self.mod = relax.transform.Normalize()(self.mod)
+            self.mod = relax.transform.ResolveGlobals()(self.mod)
             return self.mod
         else:
             self.report_error(f"unsupported input class: {root_func}", root_func.span)

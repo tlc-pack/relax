@@ -231,6 +231,15 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    * \return The binding block after transformation.
    */
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
+
+  /*!
+   * \brief Used to visit the types inside of expressions.
+   *
+   * Can be overloaded to transform the types in arbitrary
+   * ways, one way would be to define a sub-class of type
+   * visitor for types which transform them appropriately.
+   */
+  virtual Type VisitType(const Type& t);
 };
 
 /*!
@@ -242,30 +251,16 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
  */
 class ExprMutator : public ExprMutatorBase {
  public:
-  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
+  using ExprMutatorBase::VisitExpr_;
 
+  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
   Expr VisitExpr(const Expr& expr) override;
-  Expr VisitExpr_(const ConstantNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
-  Expr VisitExpr_(const ShapeExprNode* op) override;
-  Expr VisitExpr_(const RuntimeDepShapeNode* op) override;
-  Expr VisitExpr_(const ExternFuncNode* op) override;
-  Expr VisitExpr_(const GlobalVarNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
   Expr VisitExpr_(const SeqExprNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;
-
-  /*!
-   * \brief Used to visit the types inside of expressions.
-   *
-   * Can be overloaded to transform the types in arbitrary
-   * ways, one way would be to define a sub-class of type
-   * visitor for types which transform them appropriately.
-   */
-  virtual Type VisitType(const Type& t);
 
   /*!
    * \brief Generic dispatcher for bindings.
