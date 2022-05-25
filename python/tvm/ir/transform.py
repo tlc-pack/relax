@@ -73,7 +73,12 @@ class PassContext(tvm.runtime.Object):
     """
 
     def __init__(
-        self, opt_level=2, required_pass=None, disabled_pass=None, instruments=None, config=None
+        self,
+        opt_level=2,
+        required_pass=None,
+        disabled_pass=None,
+        instruments=None,
+        config=None,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):

@@ -88,6 +88,7 @@ class PassContextNode : public Object {
   mutable Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
   Map<String, ObjectRef> config;
+
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
 
