@@ -353,14 +353,21 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
   };
 
-  // Helper function to check if a ShapeExpr is constant shape
-  bool IsConstantShape(const ShapeExprNode* shape) const {
-    for (PrimExpr e : shape->values) {
-      if (!e->IsInstance<IntImmNode>()) {
-        return false;
+  // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape
+  bool IsConstantShapes(const Expr& shape) const {
+    if (const auto* shape_expr = shape.as<ShapeExprNode>()) {
+      for (const PrimExpr& e : shape_expr->values) {
+        if (!e->IsInstance<IntImmNode>()) return false;
       }
+      return true;
+    } else if (const auto* shape_tuple = shape.as<TupleNode>()) {
+      for (const Expr& e : shape_tuple->fields) {
+        if (!IsConstantShapes(e)) return false;
+      }
+      return true;
+    } else {
+      return false;
     }
-    return true;
   }
 
   // Helper function to infer the shape of a Call.
@@ -380,19 +387,13 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
       if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
-          if (func->ret_type.as<DynTensorTypeNode>()) {
-            // case0: constant shape case
-            if (const auto* shape = func->body->shape_.as<ShapeExprNode>()) {
-              if (IsConstantShape(shape)) {
-                return GetRef<ShapeExpr>(shape);
-              } else {
-                // TODO(@yuchen): add deducer for other cases, return RuntimeDepShape for now.
-                return RuntimeDepShape(Span());
-              }
-            } else {
-              // TODO(@yuchen): add deducer for other cases
-              return RuntimeDepShape(Span());
-            }
+          Expr func_shape = Downcast<Expr>(func->body->shape_);
+          if (IsConstantShapes(func_shape)) {
+            // Case 1. Nested tuples of constant shapes
+            return func_shape;
+          } else {
+            // TODO(@yuchen): add deducer for other cases
+            return RuntimeDepShape(Span());
           }
         }
       }

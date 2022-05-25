@@ -27,6 +27,7 @@
 namespace tvm {
 namespace tir {
 
+// TODO(Siyuan): move it to somewhere under tir folder
 /*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions.
  */
@@ -149,11 +150,14 @@ class BufferSubstituter : private StmtExprMutator {
  private:
   /*! \brief Mapping from src buffer.data to tgt buffer. */
   std::unordered_map<const tir::VarNode*, tir::Buffer> buffer_var_map_;
+  /*! \brief The structural equality checker */
+  StructuralEqual structural_equal_;
 
-  static Array<tir::BufferRegion> UnionAccessRegion(const Array<BufferRegion>& regions) {
+  Array<tir::BufferRegion> UnionAccessRegion(const Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
     // e.g. `[A[vi, vj], A[vi, vj]]` is a legal pattern but need to union to `A[vi, vj]`
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
+    // Note: the order of return region should remain the same as the first occurance of the region
     Array<BufferRegion> ret;
     std::unordered_map<const BufferNode*, Region> buffer_region_set;
 
@@ -163,7 +167,7 @@ class BufferSubstituter : private StmtExprMutator {
         ret.push_back(region);
         buffer_region_set[region->buffer.get()] = region->region;
       } else {
-        ICHECK(tvm::StructuralEqual()(region->region, it->second));
+        ICHECK(structural_equal_(region->region, it->second));
       }
     }
 
@@ -202,6 +206,8 @@ class BlockNameDeduplicator : public tir::StmtMutator {
     return unique_prefix;
   }
 
+  // TODO(relax-team): It should detects the number suffix and do renaming properly
+  // e.g. GetUniqueName("name1") should return "name2" instead of "name10".
   /*! \brief The count map to make block name unique. */
   std::unordered_map<String, int> name_count_;
 };
@@ -234,42 +240,11 @@ class FusedTIRConstructor : public ExprVisitor {
       : mod_(mod), func_name_(func_name) {}
 
   void VisitExpr_(const FunctionNode* func) final {
-    Array<Var> input_output_vars;
-    Array<String> input_output_names;
-
-    // Step 1. Collect function input params
+    // Step 1. Create buffers for function params
     for (const Var& relax_param : func->params) {
-      input_output_vars.push_back(relax_param);
-      input_output_names.push_back(relax_param->name_hint());
-    }
-
-    // Step 2. Collect function output binding vars
-    ICHECK(func->body->IsInstance<SeqExprNode>());
-    Expr body = Downcast<SeqExpr>(func->body)->body;
-    if (const auto* var = body.as<VarNode>()) {
-      output_vars_.insert(var);
-      input_output_vars.push_back(GetRef<Var>(var));
-      input_output_names.push_back("output");
-    } else if (const auto* tuple = body.as<TupleNode>()) {
-      for (size_t i = 0; i < tuple->fields.size(); ++i) {
-        const auto* var = tuple->fields[i].as<VarNode>();
-        ICHECK_NOTNULL(var);
-        output_vars_.insert(var);
-        input_output_vars.push_back(GetRef<Var>(var));
-        input_output_names.push_back("output_" + std::to_string(i));
-      }
-    } else {
-      LOG(FATAL) << "Var or Tuple of Var are expected to be the function output, but got: " << body;
-    }
-
-    // Step 3. Create buffers for func inputs and outputs.
-    ICHECK_EQ(input_output_vars.size(), input_output_names.size());
-    for (size_t i = 0; i < input_output_vars.size(); ++i) {
-      const Var& var = input_output_vars[i];
-      const String& name = input_output_names[i];
-      auto ret = CreateParamsAndBuffers(var->checked_type(),  //
-                                        var->shape(),         //
-                                        name);
+      auto ret = CreateParamsAndBuffers(relax_param->checked_type(),  //
+                                        relax_param->shape(),         //
+                                        relax_param->name_hint());
       const Array<tir::Var>& params = ret.first;
       const Array<tir::Buffer>& buffers = ret.second;
       ICHECK_EQ(params.size(), buffers.size());
@@ -277,28 +252,38 @@ class FusedTIRConstructor : public ExprVisitor {
         func_info_.buffer_map.Set(params[i], buffers[i]);
         func_info_.params.push_back(params[i]);
       }
-      func_info_.var2buffers.Set(var, buffers);
+      func_info_.expr2buffers.Set(relax_param, buffers);
     }
 
-    // Step 4. Visit Function body.
+    // Step 2. Visit Function body and create intermediate buffers
     ExprVisitor::VisitExpr_(func);
 
-    // Step 5. Create PrimFunc
+    // Step 3. Create and remap buffers for function output
+    ICHECK(func->body->IsInstance<SeqExprNode>())
+        << "Function body is expected to be a SeqExpr, but got: " << func->body->GetTypeKey();
+    Expr body = Downcast<SeqExpr>(func->body)->body;
+    auto it = func_info_.expr2buffers.find(body);
+    ICHECK(it != func_info_.expr2buffers.end())
+        << "Fail to detect output buffers for function body";
+    const Array<tir::Buffer>& buffers = (*it).second;
+    for (size_t i = 0; i < buffers.size(); ++i) {
+      tir::Var param = tir::Var("p_output" + std::to_string(i), PrimType(DataType::Handle()));
+      func_info_.buffer_map.Set(param, buffers[i]);
+      func_info_.params.push_back(param);
+      func_info_.output_buffers.insert(buffers[i].get());
+    }
+
+    // Step 4. Create PrimFunc
     fused_tir_ = ConstructFunc();
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+    // Update expr2buffers by visiting values.
     this->VisitExpr(binding->value);
-    if (const auto* call = binding->value.as<CallNode>()) {
-      if (call->op.same_as(call_tir_op_)) {
-        VisitCallTIR(call, binding->var);
-      } else {
-        LOG(FATAL) << "Only call_tir is supported in primitive function, but got: "
-                   << binding->value;
-      }
-    } else if (const auto* tuple_get_item = binding->value.as<TupleGetItemNode>()) {
-      VisitTupleGetItem(tuple_get_item, binding->var);
+    auto it = func_info_.expr2buffers.find(binding->value);
+    if (it != func_info_.expr2buffers.end()) {
+      // assign binding var to the buffers of the value
+      func_info_.expr2buffers.Set(binding->var, (*it).second);
     } else {
       LOG(FATAL) << "Unsupported binding value: " << binding->value;
     }
@@ -309,11 +294,11 @@ class FusedTIRConstructor : public ExprVisitor {
     LOG(FATAL) << "MatchShape is unsupported in primitive functions";
   }
 
-  /********** Binding Value Handler **********/
-
-  void VisitCallTIR(const CallNode* call, const Var& binding_var) {
+  void VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    ICHECK(call->op == call_tir_op_);
+    ICHECK(call->op == call_tir_op_)
+        << "Only call_tir is supported in primitive function, but got: " << GetRef<Expr>(call);
+
     // Step 1. Get Global var and PrimFunc
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
     Optional<tir::PrimFunc> prim_func_ = GetPrimFunc(gv);
@@ -338,23 +323,14 @@ class FusedTIRConstructor : public ExprVisitor {
     // Step 5. Map input arguments to buffer
     MapInputBuffer(prim_func, call->args[1]);
     size_t num_output_buffers = GetCallTIROutputSize(call);
-    if (!output_vars_.count(binding_var.get())) {
-      // Allocate buffer if it is an intermediate var in the fused function,
-      AllocateIntermediateBuffer(binding_var, prim_func, num_output_buffers);
-    } else {
-      // Map old output buffer to the new one in the buffer map
-      MapOutputBuffer(binding_var, prim_func, num_output_buffers);
-    }
+    AllocateIntermediateBuffer(GetRef<Expr>(call), prim_func, num_output_buffers);
     // Update fused func name
     func_info_.global_name += "_" + gv->name_hint;
   }
 
-  void VisitTupleGetItem(const TupleGetItemNode* tuple_get_item, const Var& binding_var) {
-    ICHECK(binding_var->IsInstance<DataflowVarNode>())
-        << "Currently TupleGetItem outputs are not allowed";
-    const Var& tuple_var = Downcast<Var>(tuple_get_item->tuple);
-    auto it = func_info_.var2buffers.find(tuple_var);
-    if (it != func_info_.var2buffers.end()) {
+  void VisitExpr_(const TupleGetItemNode* tuple_get_item) final {
+    auto it = func_info_.expr2buffers.find(tuple_get_item->tuple);
+    if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
       const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
@@ -362,8 +338,22 @@ class FusedTIRConstructor : public ExprVisitor {
         begin_buf_idx += GetTensorNum(tuple_type->fields[i]);
       }
       end_buf_idx = begin_buf_idx + GetTensorNum(tuple_type->fields[tuple_get_item->index]);
-      func_info_.var2buffers.Set(
-          binding_var, {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
+      func_info_.expr2buffers.Set(
+          GetRef<Expr>(tuple_get_item),
+          {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
+    }
+  }
+
+  void VisitExpr_(const TupleNode* tuple) final {
+    Array<tir::Buffer> buffers;
+    for (const Expr& expr : tuple->fields) {
+      auto it = func_info_.expr2buffers.find(expr);
+      if (it != func_info_.expr2buffers.end()) {
+        buffers.insert(buffers.end(), (*it).second.begin(), (*it).second.end());
+      }
+    }
+    if (!buffers.empty()) {
+      func_info_.expr2buffers.Set(GetRef<Expr>(tuple), buffers);
     }
   }
 
@@ -371,7 +361,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
   /*!
    * \brief Pattern match op to a TIR function and look it up.
-   * \return The TIR function, or nullopt if patter match fails.
+   * \return The TIR function, or NullOpt if patter match fails.
    */
   Optional<tir::PrimFunc> GetPrimFunc(const GlobalVar& global_var) {
     // NOTE: as check works for nullptr(returns null)
@@ -403,9 +393,9 @@ class FusedTIRConstructor : public ExprVisitor {
     size_t buffer_idx = 0;
     for (const Expr& arg : args) {
       if (const auto* v = arg.as<VarNode>()) {
-        auto it = func_info_.var2buffers.find(GetRef<Var>(v));
+        auto it = func_info_.expr2buffers.find(GetRef<Var>(v));
         // Substitute the buffer with the already allocated one if it is an intermediate var
-        if (it != func_info_.var2buffers.end()) {
+        if (it != func_info_.expr2buffers.end()) {
           for (const tir::Buffer& target_buffer : (*it).second) {
             ICHECK_LT(buffer_idx, buffers.size());
             const tir::Buffer& buffer = buffers[buffer_idx];
@@ -448,33 +438,13 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   /*!
-   * \brief Update buffer mapping `func_info_.buffer_subst_map` if the PrimFunc output(s) are also
-   * the output(s) of fused function.
-   * \param func The old TIR PrimFunc
-   * \param output_size The number of output params. All output params are at the end of param list.
-   */
-  void MapOutputBuffer(const relax::Var& binding_var, const tir::PrimFunc& func,
-                       size_t output_size) {
-    Array<tir::Buffer> buffer_list;
-    size_t n = func->params.size();
-    ICHECK_GE(n, output_size);
-    for (size_t i = 0; i < output_size; ++i) {
-      const tir::Var& param = func->params[n - output_size + i];
-      const tir::Buffer& buffer = func->buffer_map.at(param);
-      buffer_list.push_back(buffer);
-    }
-    MapArgsToBuffer({binding_var}, buffer_list);
-  }
-
-  /*!
-   * \brief Allocate buffer(s) and update `func_info.var2buffers` if the PrimFunc output(s) are
+   * \brief Allocate buffer(s) and update `func_info.expr2buffers` if the PrimFunc output(s) are
    * intermediate results.
-   * \param binding_var The relax binding var
+   * \param expr The relax Expr, which can be binding vars or binding values.
    * \param func The old TIR PrimFunc
    * \param output_size The number of output params. All output params are at the end of param list.
    */
-  void AllocateIntermediateBuffer(const relax::Var& binding_var, const tir::PrimFunc& func,
-                                  size_t output_size) {
+  void AllocateIntermediateBuffer(const Expr& expr, const tir::PrimFunc& func, size_t output_size) {
     size_t n = func->params.size();
     ICHECK_GE(n, output_size);
     // Allocate intermediate buffer
@@ -485,8 +455,8 @@ class FusedTIRConstructor : public ExprVisitor {
       func_info_.alloc_buffers.push_back(buffer);
       alloc_buffers.push_back(buffer);
     }
-    // Update var2buffers
-    func_info_.var2buffers.Set(binding_var, alloc_buffers);
+    // Update expr2buffers
+    func_info_.expr2buffers.Set(expr, alloc_buffers);
   }
 
   /*!
@@ -547,9 +517,16 @@ class FusedTIRConstructor : public ExprVisitor {
     ICHECK(func_info_.global_name != "fused");
     // TODO(relax-team): remove global_symbol later.
     attr_map.Set("global_symbol", String(func_info_.global_name));
+    // Remove output buffers from func_info_.alloc_buffers
+    Array<tir::Buffer> alloc_buffers;
+    for (const tir::Buffer& buf : func_info_.alloc_buffers) {
+      if (func_info_.output_buffers.count(buf.get()) == 0) {
+        alloc_buffers.push_back(buf);
+      }
+    }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
     body = tir::BufferSubstituter::Substitute(func_info_.buffer_subst_map, body);
-    body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, func_info_.alloc_buffers);
+    body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                        Optional<Map<tir::Var, tir::Buffer>>(), DictAttrs(attr_map));
@@ -582,7 +559,7 @@ class FusedTIRConstructor : public ExprVisitor {
      * \brief The map from each dataflow var (intermediate var) to the corresponding buffers
      * allocated in the fused func
      */
-    Map<Var, Array<tir::Buffer>> var2buffers;
+    Map<Expr, Array<tir::Buffer>> expr2buffers;
     /*! \brief The buffers to allocate in the fused func*/
     Array<tir::Buffer> alloc_buffers;
     /*! \brief The bodies of the original funcs, which is also the body of the fused func. */
@@ -596,6 +573,8 @@ class FusedTIRConstructor : public ExprVisitor {
     Map<tir::Buffer, tir::Buffer> buffer_subst_map;
     /*! \brief The `buffer_map` in the fused function*/
     Map<tir::Var, tir::Buffer> buffer_map;
+    /*! \brief The output buffers in the function buffer_map*/
+    std::unordered_set<const tir::BufferNode*> output_buffers;
     /*! \brief The name of the fused function */
     std::string global_name = "fused";
   };
@@ -608,8 +587,6 @@ class FusedTIRConstructor : public ExprVisitor {
   FuseFuncInfo func_info_;
   /*! \brief The tir function after fusion*/
   tir::PrimFunc fused_tir_;
-  /*! \brief Output vars */
-  std::unordered_set<const VarNode*> output_vars_;
 };
 
 /*!
@@ -664,15 +641,9 @@ class TIRFuseMutator : public ExprMutator {
           Array<Expr> flattened = FlattenArg(arg);
           arg_list.insert(arg_list.end(), flattened.begin(), flattened.end());
         }
-        // Step b. Detect call_tir type args
-        Array<Type> call_type_args;
-        if (const auto* type = call->checked_type().as<TupleTypeNode>()) {
-          call_type_args = type->fields;
-        } else {
-          call_type_args = {call->checked_type()};
-        }
+        // Step b. Create call_tir
         Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list), call->shape()};
-        return Call(call_tir_op_, call_args, call->attrs, call_type_args);
+        return Call(call_tir_op_, call_args, call->attrs, {call->checked_type()});
       } else {
         // Case 1.2. The callee function is not primitive, nothing to do.
         return call;

@@ -196,12 +196,12 @@ def test_two_subfunction():
             bb.emit_func_output(gv)
         return bb.get()
 
-    def fused_exp_squeeze(x):
-        exp = topi.exp(x)
-        squeeze = topi.squeeze(exp)
-        return squeeze
-
     def expected():
+        def fused_exp_squeeze(x):
+            exp = topi.exp(x)
+            squeeze = topi.squeeze(exp)
+            return squeeze
+
         bb = relax.BlockBuilder()
         x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
         with bb.function("main", [x]):
@@ -236,13 +236,13 @@ def test_fuse_same_primfunc():
             bb.emit_func_output(gv)
         return bb.get()
 
-    def fused_exp_exp_squeeze(x):
-        exp = topi.exp(x)
-        exp = topi.exp(exp)
-        squeeze = topi.squeeze(exp)
-        return squeeze
-
     def expected():
+        def fused_exp_exp_squeeze(x):
+            exp = topi.exp(x)
+            exp = topi.exp(exp)
+            squeeze = topi.squeeze(exp)
+            return squeeze
+
         bb = relax.BlockBuilder()
         x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
         with bb.function("main", [x]):
@@ -415,19 +415,58 @@ def test_fuse_with_const_in_argument():
             bb.emit_func_output(gv)
         return bb.get()
 
-    def fused_add_exp_squeeze(x, y):
-        add = topi.add(x, y)
-        exp = topi.exp(add)
-        squeeze = topi.squeeze(exp)
-        return squeeze
-
     def expected():
+        def fused_add_exp_squeeze(x, y):
+            add = topi.add(x, y)
+            exp = topi.exp(add)
+            squeeze = topi.squeeze(exp)
+            return squeeze
+
         bb = relax.BlockBuilder()
         x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv = bb.emit_te(fused_add_exp_squeeze, x, relax.const(1, "float32"))
                 gv = bb.emit_output(lv)
+            bb.emit_func_output(gv)
+        return bb.get()
+
+    _check(before(), expected())
+
+
+def test_fuse_tuple_output():
+    def before():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        p0 = relax.Var("p0", (), relax.DynTensorType(0, "float32"))
+
+        with bb.function("fused_add_exp", [x, p0], attrs={"Primitive": True}):
+            with bb.dataflow():
+                gv0 = bb.emit_output(bb.call_te(topi.add, x, p0))
+                gv1 = bb.emit_output(bb.call_te(topi.exp, gv0))
+            bb.emit_func_output(relax.Tuple([gv0, gv1]))
+        fused_add_exp = bb.get().get_global_var("fused_add_exp")
+
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        with bb.function("main", [x, p0]):
+            with bb.dataflow():
+                gv = bb.emit_output(relax.Call(fused_add_exp, [x, p0]))
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    def expected():
+        def fused_add_exp(x, p0):
+            add = topi.add(x, p0)
+            exp = topi.exp(add)
+            return add, exp
+
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        p0 = relax.Var("p0", (), relax.DynTensorType(0, "float32"))
+        with bb.function("main", [x, p0]):
+            with bb.dataflow():
+                gv = bb.emit_output(bb.call_te(fused_add_exp, x, p0))
             bb.emit_func_output(gv)
         return bb.get()
 
