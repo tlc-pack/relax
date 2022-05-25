@@ -409,7 +409,7 @@ def test_vm_shape_lowering_func_param_with_shape():
 
 def test_to_anf():
     @tvm.script.ir_module
-    class TestToANFInputModule:
+    class TestNormalizeInputModule:
         @R.function
         def f(x: Tensor(_, "float32")):
             gv = relax.add(x, x)
@@ -417,8 +417,8 @@ def test_to_anf():
             gv2 = relax.add(gv, gv1)
             return (gv, gv2)
 
-    before_mod = TestToANFInputModule
-    after_mod = relax.transform.ToANF()(before_mod)
+    before_mod = TestNormalizeInputModule
+    after_mod = relax.transform.Normalize()(before_mod)
     assert_structural_equal(before_mod, after_mod, map_free_vars=True)
 
 
@@ -434,7 +434,7 @@ def test_to_anf_no_op():
             return gv0
 
     mod = TestANFNoOp
-    mod_post = relax.transform.ToANF()(mod)
+    mod_post = relax.transform.Normalize()(mod)
 
     assert_structural_equal(mod, mod_post)
 
