@@ -111,7 +111,7 @@ class RelaxTransformer(Transformer):
 
     def __init__(self, ir_mod: IRModule, relax_prefix: List[str], tir_prefix: List[str]):
         super().__init__()
-        self.module = ir_mod
+        self.mod = ir_mod
         self.relax_prefix = relax_prefix
         self.tir_prefix = tir_prefix
         self._scopes = [{}]  # str -> Var
@@ -524,12 +524,14 @@ class RelaxTransformer(Transformer):
                 self.scope[func_name] = relay.GlobalVar(func_name)
             for func_name, func in root_func.funcs.items():
                 global_var = self.scope[func_name]
-                self.module[global_var] = self.transform_function(func, is_global=True)
+                self.mod[global_var] = self.transform_function(func, is_global=True)
+
             # TODO(@yuchen): temporarily make the the parser.from_source api also run
             # ResolveGlobals pass to populate shape and checked type to be consitent
             # with the behavior of directly parsing TVMScript
-            self.module = relax.transform.ResolveGlobals()(self.module)
-            return self.module
+            self.mod = relax.transform.Normalize()(self.mod)
+            self.mod = relax.transform.ResolveGlobals()(self.mod)
+            return self.mod
         else:
             self.report_error(f"unsupported input class: {root_func}", root_func.span)
 
@@ -1139,8 +1141,8 @@ class RelaxTransformer(Transformer):
                 if hasattr(expr.params[-1], "values"):
                     const_idx = expr.params[-1].values[0].value
 
-                if self.module.get_attrs():
-                    metadata = self.module.get_attrs()
+                if self.mod.get_attrs():
+                    metadata = self.mod.get_attrs()
                 else:
                     metadata = RelaxTransformer.get_meta()
 

@@ -29,8 +29,8 @@ from tvm.script import tir as T, relax as R
 
 
 def check_equal(mod1, mod2):
-    mod1 = relax.transform.ToANF()(mod1)
-    mod2 = relax.transform.ToANF()(mod2)
+    mod1 = relax.transform.Normalize()(mod1)
+    mod2 = relax.transform.Normalize()(mod2)
     assert_structural_equal(mod1, mod2)
 
 
