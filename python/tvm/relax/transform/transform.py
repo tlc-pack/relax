@@ -111,14 +111,15 @@ def VMShapeLower() -> tvm.ir.transform.Pass:
     return _ffi_api.VMShapeLower()
 
 
-def ToANF() -> tvm.ir.transform.Pass:
-    """Transforming Relax IR to A-normal form.
+def Normalize() -> tvm.ir.transform.Pass:
+    """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
+    and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are available.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.ToANF()
+    return _ffi_api.Normalize()
 
 
 def ResolveGlobals() -> tvm.ir.transform.Pass:
