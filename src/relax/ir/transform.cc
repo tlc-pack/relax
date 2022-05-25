@@ -67,7 +67,7 @@ class FunctionPassNode : public tvm::transform::PassNode {
    * \brief Run a function pass on given pass context.
    *
    * \param mod The IRModule that an optimization pass is applied on.
-   * \param mod The context that an optimization pass executes on.
+   * \param pass_ctx The context that an optimization pass executes on.
    *
    * \return Return the updated IRModule.
    */
@@ -155,10 +155,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   }
 
   ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
-
-  // check if the updated IRModule is well formed
-  ICHECK(WellFormed(updated_mod, pass_ctx->diag_ctx.value()));
+      << "The diagnostic context was set at the top of this block, this is a bug.";
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
@@ -332,7 +329,7 @@ DataflowBlockPass::DataflowBlockPass(
   data_ = std::move(n);
 }
 
-// Perform IRModule -> IRModule optimizations at the DataflowBlock level.
+// Perform IRModule -> IRModule transformations at the DataflowBlock level.
 IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   DiagnosticContext previous = DiagnosticContext::Default(mod);
 
@@ -345,7 +342,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
   }
 
   ICHECK(pass_ctx->diag_ctx)
-      << "The diagnostic context was set at the top of this block this is a bug.";
+      << "The diagnostic context was set at the top of this block, this is a bug.";
 
   const PassInfo& pass_info = Info();
 
@@ -374,9 +371,6 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
   ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
-
-  // check if the updated IRModule is well formed
-  ICHECK(WellFormed(updated_mod, pass_ctx->diag_ctx.value()));
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;

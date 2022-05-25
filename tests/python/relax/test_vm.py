@@ -399,7 +399,7 @@ def test_vm_compile_stage1():
         @R.function
         def foo(x: Tensor(_, "float32")):
             shape_heap: Tensor((4,), "int64") = relax.call_packed(
-                "vm.builtin.alloc_shape_heap", (4,), type_args=(Tensor(ndim=2, dtype="float32"))
+                "vm.builtin.alloc_shape_heap", (4,), type_args=(Tensor(ndim=1, dtype="int64"))
             )
             gv0 = relax.call_packed("vm.builtin.shape_of", x, type_args=(Shape))
             gv1 = relax.call_packed(
