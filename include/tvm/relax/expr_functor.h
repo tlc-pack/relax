@@ -200,16 +200,15 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 
 /*!
- * \brief A wrapper around ExprFunctor which functionally updates the AST.
+ * \brief A mutator works in unnormalized form.
  *
- * ExprMutator treats Expr as dataflow graph, and only Mutate each Expr once.
- * The mutated results are memoized in a map and reused so that
- * local transformation on the dataflow preserves the graph structure.
+ * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., checked_type_ and shape_
+ * of expressions can be nullptr, and the expressions may nest(and as a result the AST is not in
+ * ANF).
  */
-class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
- public:
-  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
 
+class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
+ public:
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const ConstantNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
@@ -227,6 +226,13 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const TupleGetItemNode* op) override;
 
   /*!
+   * \brief Mutate BindingBlock.
+   * \param block The binding block to be visited.
+   * \return The binding block after transformation.
+   */
+  virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
+
+  /*!
    * \brief Used to visit the types inside of expressions.
    *
    * Can be overloaded to transform the types in arbitrary
@@ -234,6 +240,27 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
+};
+
+/*!
+ * \brief A mutator works in normal form.
+ *
+ * ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
+ * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * available.
+ */
+class ExprMutator : public ExprMutatorBase {
+ public:
+  using ExprMutatorBase::VisitExpr_;
+
+  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
+  Expr VisitExpr(const Expr& expr) override;
+  Expr VisitExpr_(const TupleNode* op) override;
+  Expr VisitExpr_(const VarNode* op) override;
+  Expr VisitExpr_(const DataflowVarNode* op) override;
+  Expr VisitExpr_(const FunctionNode* op) override;
+  Expr VisitExpr_(const SeqExprNode* op) override;
+  Expr VisitExpr_(const IfNode* op) override;
 
   /*!
    * \brief Generic dispatcher for bindings.
@@ -296,8 +323,11 @@ class ExprMutator : public ExprFunctor<Expr(const Expr&)> {
 
   /*!
    * \brief Create a new var with specified shape and type if the original var's shape or type does
-   * not match with the specified ones. \param var The var to be updated. \param shape The specified
-   * shape. \param type The specified type. \return The var filled with \p shape and \p type.
+   * not match with the specified ones.
+   * \param var The var to be updated.
+   * \param shape The specified shape.
+   * \param type The specified type.
+   * \return The var filled with \p shape and \p type.
    */
   Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
 
