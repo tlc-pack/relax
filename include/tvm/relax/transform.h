@@ -96,11 +96,12 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
- * \brief Transform Relax IR to A-normal form.
+ * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
+ * checked_type_ and shape_ of expressions.
  *
  * \return The Pass.
  */
-TVM_DLL Pass ToANF();
+TVM_DLL Pass Normalize();
 
 /*!
  * \brief Apply the best schedule from tuning database.
