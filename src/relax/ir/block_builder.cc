@@ -453,7 +453,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   Optional<Expr> GetTupleShape(const Tuple& tuple) {
     Array<Expr> tuple_shape;
     for (Expr field : tuple->fields) {
-      if (field->checked_type_.as<DynTensorTypeNode>() && field->shape_) {
+      if (field->shape_) {
         tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
       } else {
         break;
