@@ -150,6 +150,13 @@ TVM_DLL Pass AnnotateTIROpPattern();
  */
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
+/*!
+ * \brief Fuse relax sub-function into a larger TIR function if possible.
+    this pass works together with FuseOps to perform operator fusion.
+
+ * \return The Pass.
+ */
+TVM_DLL Pass FuseTIR();
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
