@@ -356,15 +356,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape
   bool IsConstantShapes(const Expr& shape) const {
     if (const auto* shape_expr = shape.as<ShapeExprNode>()) {
-      for (const PrimExpr& e : shape_expr->values) {
-        if (!e->IsInstance<IntImmNode>()) return false;
-      }
-      return true;
+      return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
+                         [](const PrimExpr& e) { return e->IsInstance<IntImmNode>(); });
     } else if (const auto* shape_tuple = shape.as<TupleNode>()) {
-      for (const Expr& e : shape_tuple->fields) {
-        if (!IsConstantShapes(e)) return false;
-      }
-      return true;
+      return std::all_of(shape_tuple->fields.begin(), shape_tuple->fields.end(),
+                         [&](const Expr& e) { return IsConstantShapes(e); });
     } else {
       return false;
     }

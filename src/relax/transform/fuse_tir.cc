@@ -335,9 +335,9 @@ class FusedTIRConstructor : public ExprVisitor {
       int end_buf_idx = 0;
       const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        begin_buf_idx += GetTensorNum(tuple_type->fields[i]);
+        begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
       }
-      end_buf_idx = begin_buf_idx + GetTensorNum(tuple_type->fields[tuple_get_item->index]);
+      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_type->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
           GetRef<Expr>(tuple_get_item),
           {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
@@ -355,6 +355,10 @@ class FusedTIRConstructor : public ExprVisitor {
     if (!buffers.empty()) {
       func_info_.expr2buffers.Set(GetRef<Expr>(tuple), buffers);
     }
+  }
+
+  void VisitExpr_(const ConstantNode* op) final {
+    LOG(FATAL) << "Relax.Constant is not supported in primitive functions.";
   }
 
   /********** Helper Functions **********/
@@ -401,7 +405,7 @@ class FusedTIRConstructor : public ExprVisitor {
             const tir::Buffer& buffer = buffers[buffer_idx];
             // TODO(relax-team): Add support for symbolic shape fusion
             for (const PrimExpr& shape_expr : buffer->shape) {
-              ICHECK(shape_expr.as<IntImmNode>());
+              ICHECK(shape_expr.as<IntImmNode>()) << "Only support constant shape fusion for now";
             }
             func_info_.buffer_subst_map.Set(buffer, target_buffer);
             buffer_idx++;
@@ -534,13 +538,13 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */
-  static size_t GetTensorNum(const Type& type) {
+  static size_t GetTotalTensorSize(const Type& type) {
     if (type.as<DynTensorTypeNode>()) {
       return 1;
     } else if (const auto* tuple_type = type.as<TupleTypeNode>()) {
       size_t num = 0;
       for (const Type& type : tuple_type->fields) {
-        num += GetTensorNum(type);
+        num += GetTotalTensorSize(type);
       }
       return num;
     } else {

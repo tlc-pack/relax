@@ -22,9 +22,9 @@ from tvm import topi
 from tvm import relax
 
 
-def _check(mod_actual, mod_expected):
-    mod_actual = relax.transform.FuseTIR()(mod_actual)
-    tvm.ir.assert_structural_equal(mod_actual, mod_expected)
+def _check(mod_before, mod_expected):
+    mod = relax.transform.FuseTIR()(mod_before)
+    tvm.ir.assert_structural_equal(mod, mod_expected)
 
 
 def test_simple():
