@@ -252,12 +252,10 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     if (!node->shape_ && node->tuple->shape_) {
-      if (node->checked_type_.as<DynTensorTypeNode>()) {
-        // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
-        // field
-        if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
-          UpdateShape(node, shape->fields[node->index]);
-        }
+      // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
+      // field
+      if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
+        UpdateShape(node, shape->fields[node->index]);
       }
     }
 
@@ -355,14 +353,17 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
   };
 
-  // Helper function to check if a ShapeExpr is constant shape
-  bool IsConstantShape(const ShapeExprNode* shape) const {
-    for (PrimExpr e : shape->values) {
-      if (!e->IsInstance<IntImmNode>()) {
-        return false;
-      }
+  // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape
+  bool IsConstantShapes(const Expr& shape) const {
+    if (const auto* shape_expr = shape.as<ShapeExprNode>()) {
+      return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
+                         [](const PrimExpr& e) { return e->IsInstance<IntImmNode>(); });
+    } else if (const auto* shape_tuple = shape.as<TupleNode>()) {
+      return std::all_of(shape_tuple->fields.begin(), shape_tuple->fields.end(),
+                         [&](const Expr& e) { return IsConstantShapes(e); });
+    } else {
+      return false;
     }
-    return true;
   }
 
   // Helper function to infer the shape of a Call.
@@ -382,19 +383,13 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
       if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
-          if (func->ret_type.as<DynTensorTypeNode>()) {
-            // case0: constant shape case
-            if (const auto* shape = func->body->shape_.as<ShapeExprNode>()) {
-              if (IsConstantShape(shape)) {
-                return GetRef<ShapeExpr>(shape);
-              } else {
-                // TODO(@yuchen): add deducer for other cases, return RuntimeDepShape for now.
-                return RuntimeDepShape(Span());
-              }
-            } else {
-              // TODO(@yuchen): add deducer for other cases
-              return RuntimeDepShape(Span());
-            }
+          Expr func_shape = Downcast<Expr>(func->body->shape_);
+          if (IsConstantShapes(func_shape)) {
+            // Case 1. Nested tuples of constant shapes
+            return func_shape;
+          } else {
+            // TODO(@yuchen): add deducer for other cases
+            return RuntimeDepShape(Span());
           }
         }
       }
