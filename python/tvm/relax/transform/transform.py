@@ -171,7 +171,7 @@ def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir
     return _ffi_api.BindParams(func_name, params)
 
 
-def RemoveUnusedFunctions(entry_functions=None):
+def RemoveUnusedFunctions(entry_functions=None) -> tvm.ir.transform.Pass:
     """Remove unused global relax functions in a IRModule.
 
     Parameters

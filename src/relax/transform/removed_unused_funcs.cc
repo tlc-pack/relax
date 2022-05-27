@@ -37,11 +37,11 @@ namespace relax {
  */
 class CallTracer : ExprVisitor {
  public:
-  explicit CallTracer(const IRModule& module) : module_{module}, called_funcs_{}, visiting_{} {}
+  explicit CallTracer(IRModule mod_) : mod_{mod_}, called_funcs_{}, visiting_{} {}
 
   void VisitExpr_(const GlobalVarNode* op) final {
     called_funcs_.insert(GetRef<GlobalVar>(op));
-    auto func = module_->Lookup(op->name_hint);
+    auto func = mod_->Lookup(op->name_hint);
     if (const auto* function_node = func.as<FunctionNode>()) {
       VisitExpr(GetRef<Function>(function_node));
     }
@@ -61,16 +61,16 @@ class CallTracer : ExprVisitor {
     }
   }
 
-  void Trace(const std::string& entry) {
-    called_funcs_.insert(module_->GetGlobalVar(entry));
-    auto main_func = module_->Lookup(entry);
+  void Trace(std::string entry) {
+    called_funcs_.insert(mod_->GetGlobalVar(entry));
+    auto main_func = mod_->Lookup(entry);
     VisitExpr(main_func);
   }
 
   bool check_if_called(GlobalVar gv) { return called_funcs_.count(gv) > 0; }
 
  private:
-  IRModule module_;
+  IRModule mod_;
 
   // Record the names of all encountered functions.
   std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> called_funcs_;
@@ -82,26 +82,26 @@ class CallTracer : ExprVisitor {
 /*!
  * \brief Remove functions that are not used.
  *
- * \param module IRModule.
+ * \param mod_ IRModule.
  * \param entry_funcs The set of functions that can be entry function.
  *
  * \return The module with dead functions removed.
  */
-IRModule RemoveUnusedFunctions(const IRModule& module, Array<runtime::String> entry_funcs) {
-  auto tracer = CallTracer(module);
+IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs) {
+  auto tracer = CallTracer(mod_);
   for (auto entry : entry_funcs) {
     tracer.Trace(entry);
   }
-  auto existing_functions = module->functions;
+  auto existing_functions = mod_->functions;
   for (auto f : existing_functions) {
     // If a function has an external linkage type, we do not remove it.
     // Otherwise, we check the function and remove it if it is not used anywhere.
-    if (f.second->GetLinkageType() == TypeLinkage::kInternal && !tracer.check_if_called(f.first)) {
-      module->Remove(f.first);
+    if (f.second->GetLinkageType() == LinkageType::kInternal && !tracer.check_if_called(f.first)) {
+      mod_->Remove(f.first);
     }
   }
-  return module;
-}  // namespace relax
+  return mod_;
+}
 
 }  // namespace relax
 

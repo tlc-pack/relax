@@ -38,19 +38,15 @@ def test_unused_relax_func():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16))
-            C = T.match_buffer(z, (16, 16))
-            for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-                with T.block("matmul"):
-                    vi = T.axis.S(16, i0 * 4 + i1)
-                    vj = T.axis.S(16, j)
-                    vk = T.axis.R(16, k0 * 4 + k1)
-                    with T.init():
-                        C[vi, vj] = T.float32(0)
-                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        def tir_add(
+            x: T.Buffer[(16, 16), "float32"],
+            y: T.Buffer[(16, 16), "float32"],
+            z: T.Buffer[(16, 16), "float32"],
+        ) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
         def unused_func(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
@@ -61,7 +57,7 @@ def test_unused_relax_func():
         def main(
             x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
         ) -> Tensor((16, 16), "float32"):
-            gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), (16, 16), dtype="float32")
             return gv0
 
     mod = InputModule
@@ -69,7 +65,7 @@ def test_unused_relax_func():
     # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert check_if_func_exists(new_mod, "unused_func")
 
     # Remove global symbol from the function.
@@ -78,7 +74,7 @@ def test_unused_relax_func():
     # Then, this removes the unused function without any global symbol.
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
@@ -86,19 +82,15 @@ def test_unused_relax_func_custom_entry_func():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16))
-            C = T.match_buffer(z, (16, 16))
-            for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-                with T.block("matmul"):
-                    vi = T.axis.S(16, i0 * 4 + i1)
-                    vj = T.axis.S(16, j)
-                    vk = T.axis.R(16, k0 * 4 + k1)
-                    with T.init():
-                        C[vi, vj] = T.float32(0)
-                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        def tir_add(
+            x: T.Buffer[(16, 16), "float32"],
+            y: T.Buffer[(16, 16), "float32"],
+            z: T.Buffer[(16, 16), "float32"],
+        ) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
         def unused_func(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
@@ -109,7 +101,7 @@ def test_unused_relax_func_custom_entry_func():
         def foo(
             x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
         ) -> Tensor((16, 16), "float32"):
-            gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), (16, 16), dtype="float32")
             return gv0
 
     mod = InputModule
@@ -119,7 +111,7 @@ def test_unused_relax_func_custom_entry_func():
     # Test entry function other than "main".
     new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
     assert check_if_func_exists(new_mod, "foo")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert check_if_func_exists(new_mod, "unused_func")
 
     # Remove global symbol from the function.
@@ -128,7 +120,7 @@ def test_unused_relax_func_custom_entry_func():
     # Then, this removes the unused function without any global symbol.
     new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
     assert check_if_func_exists(new_mod, "foo")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
@@ -137,21 +129,15 @@ def test_unused_relax_func_symbolic_shape():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
-
-            for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
-                        C[vi, vj] = T.float32(0)
-                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        def tir_add(
+            x: T.Buffer[(16, 16), "float32"],
+            y: T.Buffer[(16, 16), "float32"],
+            z: T.Buffer[(16, 16), "float32"],
+        ) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
         def unused_func(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
@@ -160,7 +146,7 @@ def test_unused_relax_func_symbolic_shape():
 
         @R.function
         def main(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
-            gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), (m, k), dtype="float32")
             return gv0
 
     mod = InputModule
@@ -169,7 +155,7 @@ def test_unused_relax_func_symbolic_shape():
     # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert check_if_func_exists(new_mod, "unused_func")
 
     # Remove global symbol from the unused function
@@ -178,7 +164,7 @@ def test_unused_relax_func_symbolic_shape():
     # Test entry function other than "main".
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert not check_if_func_exists(new_mod, "unused_func")
 
     # Remove unused function after shape lowering.
@@ -187,7 +173,7 @@ def test_unused_relax_func_symbolic_shape():
     shape_lowered_mod = relax.transform.VMShapeLower()(mod)
     new_mod = relax.transform.RemoveUnusedFunctions()(shape_lowered_mod)
     assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_matmul")
+    assert check_if_func_exists(new_mod, "tir_add")
     assert check_if_func_exists(new_mod, "shape_func")  # injected by VMShapeLower pass
     assert not check_if_func_exists(new_mod, "unused_func")
 
@@ -196,19 +182,16 @@ def test_unused_prim_func():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def unused_func(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16))
-            C = T.match_buffer(z, (16, 16))
-            for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-                with T.block("matmul"):
-                    vi = T.axis.S(16, i0 * 4 + i1)
-                    vj = T.axis.S(16, j)
-                    vk = T.axis.R(16, k0 * 4 + k1)
-                    with T.init():
-                        C[vi, vj] = T.float32(0)
-                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        def unused_func(
+            x: T.Buffer[(16, 16), "float32"],
+            y: T.Buffer[(16, 16), "float32"],
+            z: T.Buffer[(16, 16), "float32"],
+        ) -> None:
+            T.func_attr({"global_symbol": "tir_unused"})
+            for i, j in T.grid(16, 16):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
         def relax_add(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
@@ -243,19 +226,16 @@ def test_multiple_unused_funcs():
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
-        def unused_func1(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            A = T.match_buffer(x, (16, 16))
-            B = T.match_buffer(y, (16, 16))
-            C = T.match_buffer(z, (16, 16))
-            for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-                with T.block("matmul"):
-                    vi = T.axis.S(16, i0 * 4 + i1)
-                    vj = T.axis.S(16, j)
-                    vk = T.axis.R(16, k0 * 4 + k1)
-                    with T.init():
-                        C[vi, vj] = T.float32(0)
-                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        def unused_func1(
+            x: T.Buffer[(16, 16), "float32"],
+            y: T.Buffer[(16, 16), "float32"],
+            z: T.Buffer[(16, 16), "float32"],
+        ) -> None:
+            T.func_attr({"global_symbol": "tir_unused"})
+            for i, j in T.grid(16, 16):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
         def unused_func2(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):

@@ -68,7 +68,7 @@ enum class CallingConv : int {
 /*!
  * \brief Supported linkage types.
  */
-enum class TypeLinkage : int {
+enum class LinkageType : int {
   /*!
    * \brief Internal linkage.
    */
@@ -204,7 +204,7 @@ class BaseFuncNode : public RelayExprNode {
    * \code
    *
    *  void Example(const BaseFunc& f) {
-   *    if (f->GetLinkageType() == tvm::TypeLinkage::kExternal) {
+   *    if (f->GetLinkageType() == tvm::LinkageType::kExternal) {
    *      // Do not remove a function with external linkage
    *    }
    *  }
@@ -212,11 +212,11 @@ class BaseFuncNode : public RelayExprNode {
    * \endcode
    */
 
-  TypeLinkage GetLinkageType() const {
+  LinkageType GetLinkageType() const {
     if (GetAttr<String>(attr::kGlobalSymbol))
-      return TypeLinkage::kExternal;
+      return LinkageType::kExternal;
     else
-      return TypeLinkage::kInternal;
+      return LinkageType::kInternal;
   }
 
   static constexpr const char* _type_key = "BaseFunc";
