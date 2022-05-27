@@ -406,14 +406,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       if (const auto* func_node = val.value().as<FunctionNode>()) {
         Function func = GetRef<Function>(func_node);
         if (func->ret_type.as<DynTensorTypeNode>()) {
-          // todo (yongwww, yuchen):  func->body->shape_ could be nullptr
-          if (const auto* shape = func->body->shape_.as<ShapeExprNode>()) {
-            if (IsConstantShape(shape)) {
-              return GetRef<ShapeExpr>(shape);
-            } else {
-              return RuntimeDepShape(Span());
-            }
+          Expr func_shape = Downcast<Expr>(func_node->body->shape_);
+          if (IsConstantShapes(func_shape)) {
+            return func_shape;
           } else {
+            // TODO(@yuchen, @yongwww): add deducer for other cases
             return RuntimeDepShape(Span());
           }
         }
@@ -467,8 +464,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       if (const auto* func_node = val.value().as<FunctionNode>()) {
         return func_node->ret_type;
       }
-      if (auto* ft = var->checked_type_.as<FuncTypeNode>()) {
-        return ft->ret_type;
+      if (auto* ft_node = var->checked_type_.as<FuncTypeNode>()) {
+        return ft_node->ret_type;
       }
     } else {
       // TODO(@yuchen): call to local var/function support

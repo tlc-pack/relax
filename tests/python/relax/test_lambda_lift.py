@@ -54,7 +54,7 @@ def test_basic():
             x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
         ) -> Tensor((10, 5), "float32"):
             inner = lifted_func_0
-            gv1: Tensor((10, 5), "float32") = inner(x1, y1)
+            gv1 = inner(x1, y1)
             return gv1
 
     @tvm.script.ir_module
@@ -137,7 +137,7 @@ def test_recursive():
         def lifted_func_0(
             i: Tensor((), "int32"), s: Tensor((2, 3), "float32"), x: Tensor((2, 3), "float32")
         ) -> Tensor((2, 3), "float32"):
-            cond = relax.call_packed(
+            cond: Tensor((), "bool") = relax.call_packed(
                 "test.vm.less", i, relax.const(10), type_args=(Tensor(ndim=0, dtype="bool"))
             )
             c: Tensor((), "int32") = relax.const(1, dtype="int32")
