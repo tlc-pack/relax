@@ -279,7 +279,7 @@ class DataflowBlockMutator : public ExprMutator {
           if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
             if (symbolic_vars.count(sym_var->name_hint) > 0) {
               tir::Var old_var = symbolic_vars[sym_var->name_hint];
-              ICHECK(Downcast<tir::Var>(expr) == old_var)
+              ICHECK(expr.same_as(old_var))
                   << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
               symbolic_vars.erase(sym_var->name_hint);
             }
@@ -289,7 +289,7 @@ class DataflowBlockMutator : public ExprMutator {
         LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
       }
       if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint()) > 0) {
-        ICHECK(var == global_scope_vars[var->name_hint()])
+        ICHECK(var.same_as(global_scope_vars[var->name_hint()]))
             << "Error: DataflowBlock Pass should not rewrite any GlobalScope Var.";
         global_scope_vars.erase(var->name_hint());
       }
