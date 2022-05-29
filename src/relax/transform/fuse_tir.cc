@@ -295,6 +295,7 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
+    ExprVisitor::VisitExpr_(call);
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     ICHECK(call->op == call_tir_op_)
         << "Only call_tir is supported in primitive function, but got: " << GetRef<Expr>(call);
@@ -329,6 +330,7 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   void VisitExpr_(const TupleGetItemNode* tuple_get_item) final {
+    ExprVisitor::VisitExpr_(tuple_get_item);
     auto it = func_info_.expr2buffers.find(tuple_get_item->tuple);
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
@@ -345,6 +347,7 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   void VisitExpr_(const TupleNode* tuple) final {
+    ExprVisitor::VisitExpr_(tuple);
     Array<tir::Buffer> buffers;
     for (const Expr& expr : tuple->fields) {
       auto it = func_info_.expr2buffers.find(expr);
