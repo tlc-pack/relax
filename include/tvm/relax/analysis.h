@@ -26,6 +26,8 @@
 
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/tir/function.h>
 
 namespace tvm {
 namespace relax {
@@ -39,6 +41,17 @@ namespace relax {
  */
 TVM_DLL bool WellFormed(const IRModule& m,
                         Optional<DiagnosticContext> diag_ctx = Optional<DiagnosticContext>());
+
+/*!
+ * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
+ *
+ * \param func The PrimFunc to be analyzed.
+ * \return The Op Pattern Kind.
+ *
+ * \note This analysis applies on TIR function but is primarily used by relax passes.
+ *       As a result we place it under the relax namespace.
+ */
+TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
 
 }  // namespace relax
 }  // namespace tvm
