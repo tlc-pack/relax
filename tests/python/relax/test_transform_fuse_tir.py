@@ -473,5 +473,102 @@ def test_fuse_tuple_output():
     _check(before(), expected())
 
 
+def test_fuse_with_immediate_tuple():
+    def before():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        y = relax.Var("y", [10, 20], relax.DynTensorType(2, "float32"))
+
+        with bb.function("fused_add", [x, y], attrs={"Primitive": True}):
+            with bb.dataflow():
+                lv_tuple = bb.emit(relax.Tuple([x, relax.Tuple([x, y])]))
+                lv_x = bb.emit(relax.TupleGetItem(lv_tuple, 0))
+                lv0 = bb.emit(relax.TupleGetItem(lv_tuple, 1))
+                lv_y = bb.emit(relax.TupleGetItem(lv0, 1))
+                gv = bb.emit_output(bb.call_te(topi.add, lv_x, lv_y))
+            bb.emit_func_output(gv)
+        fused_add = bb.get().get_global_var("fused_add")
+
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        y = relax.Var("y", [10, 20], relax.DynTensorType(2, "float32"))
+        with bb.function("main", [x, y]):
+            with bb.dataflow():
+                gv = bb.emit_output(relax.Call(fused_add, [x, y]))
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    def expected():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        y = relax.Var("y", [10, 20], relax.DynTensorType(2, "float32"))
+        with bb.function("main", [x, y]):
+            with bb.dataflow():
+                gv = bb.emit_output(bb.call_te(topi.add, x, y, primfunc_name_hint="fused_add"))
+            bb.emit_func_output(gv)
+        return bb.get()
+
+    _check(before(), expected())
+
+
+def test_fuse_return_partial_result():
+    def te_argmax_idx_val(val):
+        from tvm import te
+
+        def f_combine(x, y):
+            lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+            rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
+            return lhs, rhs
+
+        def f_identity(dtype0: tvm.DataType, dtype1: tvm.DataType):
+            return tvm.tir.const(-1, dtype0), tvm.te.min_value(dtype1)
+
+        argmax = te.comm_reducer(f_combine, f_identity, name="argmax")
+        m, n = val.shape
+        k = te.reduce_axis((0, n), "k")
+        max_idx, max_val = te.compute(
+            (m,), lambda i: argmax((k.var, val[i, k]), axis=k), name="argmax"
+        )
+        return max_idx, max_val
+
+    def before():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        offset = relax.Var("offset", [10], relax.DynTensorType(1, "int32"))
+        with bb.function("fused_argmax_add", [x, offset], attrs={"Primitive": True}):
+            with bb.dataflow():
+                lv = bb.emit_te(te_argmax_idx_val, x)
+                idx = bb.emit(relax.TupleGetItem(lv, 0))
+                gv = bb.emit_output(bb.call_te(topi.add, idx, offset))
+            bb.emit_func_output(gv)
+        mod = bb.get()
+
+        func_gv = mod.get_global_var("fused_argmax_add")
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        offset = relax.Var("x", [10], relax.DynTensorType(1, "int32"))
+        with bb.function("main", [x, offset]):
+            with bb.dataflow():
+                gv = bb.emit_output(relax.Call(func_gv, [x, offset]))
+            bb.emit_func_output(gv)
+        return bb.get()
+
+    def expected():
+        def fused_argmax_add(x, offset):
+            idx, value = te_argmax_idx_val(x)
+            idx = topi.add(idx, offset)
+            return idx
+
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        offset = relax.Var("offset", [10], relax.DynTensorType(1, "int32"))
+        with bb.function("main", [x, offset]):
+            with bb.dataflow():
+                gv = bb.emit_output(bb.call_te(fused_argmax_add, x, offset))
+            bb.emit_func_output(gv)
+        return bb.get()
+
+    _check(before(), expected())
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
