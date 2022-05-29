@@ -26,7 +26,6 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
@@ -221,6 +220,7 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
  */
 TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
+
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:
  *        - Check if expressions not contain vars that is defined outside the block.
@@ -229,13 +229,6 @@ TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
  * \return Whether it is a well-formed TIR function.
  */
 TVM_DLL bool VerifyWellFormed(const PrimFunc& func, bool assert_mode = true);
-
-/*!
- * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
- * \param func The PrimFunc to be analyzed.
- * \return The Op Pattern Kind.
- */
-TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
