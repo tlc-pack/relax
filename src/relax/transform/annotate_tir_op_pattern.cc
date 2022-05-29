@@ -22,10 +22,10 @@
  * \brief Annotate Op Pattern for TIR functions. It is a pass works on TIR PrimFuncs,
  *        but they are needed for relax fusion. So we put them in the relax namespace.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/tir/analysis.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
