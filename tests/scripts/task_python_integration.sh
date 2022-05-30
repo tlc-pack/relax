@@ -30,7 +30,9 @@ export TVM_NUM_THREADS=2
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
 
 # Run Relax examples
-ls ./apps/relax_examples/*.py | xargs python3
+python3 ./apps/relax_examples/mlp.py
+python3 ./apps/relax_examples/nn_module.py
+python3 ./apps/relax_examples/resnet.py
 
 # NOTE: also set by task_python_integration_gpuonly.sh.
 # if [ -z "${TVM_INTEGRATION_TESTSUITE_NAME:-}" ]; then
