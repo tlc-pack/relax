@@ -28,10 +28,14 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 
 namespace tvm {
 namespace relax {
+
+using relay::ExpandDataflow;
 
 // ==================
 // ExprVisitor
@@ -663,5 +667,24 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
 
   return var;
 }
+
+void MixedModeVisitor::VisitLeaf(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
+
+void MixedModeVisitor::VisitExpr(const Expr& expr) {
+  // FIXME: Should we support visit_counter_ as relay::ExprFunctor?
+  auto fcheck_visited = [](const Expr& expr) { return false; };
+  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
+  ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
+}
+
+// Overwrite the VisitExpr so we don't recurse for dataflow nodes
+void MixedModeVisitor::VisitExpr_(const CallNode* op) {}
+
+// Overwrite the VisitExpr so we don't recurse for dataflow nodes
+void MixedModeVisitor::VisitExpr_(const TupleNode* op) {}
+
+// Overwrite the VisitExpr so we don't recurse for dataflow nodes
+void MixedModeVisitor::VisitExpr_(const TupleGetItemNode* op) {}
+
 }  // namespace relax
 }  // namespace tvm
