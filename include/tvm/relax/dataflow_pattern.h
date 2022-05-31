@@ -38,6 +38,35 @@ namespace relax {
 using relay::DFPattern;
 using relay::DFPatternNode;
 
+class DynTensorTypePattern;
+/**
+ * \brief
+ *
+ */
+class DynTensorTypePatternNode : public DFPatternNode {
+ public:
+  /*! \brief The pattern. */
+  DFPattern pattern;
+  /*! \brief The type to match */
+  DynTensorType type;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pattern", &pattern);
+    v->Visit("type", &type);
+  }
+  static constexpr const char* _type_key = "relax.dataflow_pattern.DynTensorTypePattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DynTensorTypePatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief A pattern to match expressions with a specific dynamic tensor type.
+ */
+class DynTensorTypePattern : public DFPattern {
+ public:
+  TVM_DLL DynTensorTypePattern(DFPattern pattern, DynTensorType type);
+  TVM_DEFINE_OBJECT_REF_METHODS(DynTensorTypePattern, DFPattern, DynTensorTypePatternNode);
+};
+
 class RuntimeDepShapePattern;
 /*!
  * \brief Pattern for RuntimeDepShape.

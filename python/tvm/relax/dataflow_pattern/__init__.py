@@ -19,7 +19,7 @@
 from typing import List, Optional
 
 import tvm._ffi
-from tvm.relax import Expr
+from tvm.relax import Expr, DynTensorType
 from tvm.relay.op import get
 import tvm.relay.dataflow_pattern as relay_dp
 from tvm.relay.dataflow_pattern import register_df_node as register_relay_df_node
@@ -331,6 +331,22 @@ class RuntimeDepShapePattern(DFPattern):
 
     def __init__(self):
         self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern)
+
+@register_relax_df_node
+class DynTensorTypePattern(DFPattern):
+    """A pattern that matches another pattern with a certain DynTensorTypePattern.
+
+    Parameters
+    ----------
+    pattern: tvm.relax.dataflow_pattern.DFPattern
+        The input pattern that needs type annotation.
+
+    ttype: tvm.relax.DynTensorType
+        The type to match.
+    """
+
+    def __init__(self, type: DynTensorType, pattern: "DFPattern" = None):
+        self.__init_handle_by_constructor__(ffi.DynTensorTypePattern, pattern, type)
 
 
 @register_relay_df_node

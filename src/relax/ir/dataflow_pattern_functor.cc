@@ -97,6 +97,10 @@ void DFPatternVisitor::VisitDFPattern_(const IfPatternNode* op) {
 
 void DFPatternVisitor::VisitDFPattern_(const TypePatternNode* op) { VisitDFPattern(op->pattern); }
 
+void DFPatternVisitor::VisitDFPattern_(const DynTensorTypePatternNode* op) {
+  VisitDFPattern(op->pattern);
+}
+
 void DFPatternVisitor::VisitDFPattern_(const VarPatternNode* op) {}
 
 void DFPatternVisitor::VisitDFPattern_(const RuntimeDepShapePatternNode* op) {}

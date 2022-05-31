@@ -27,6 +27,19 @@
 namespace tvm {
 namespace relax {
 
+DynTensorTypePattern::DynTensorTypePattern(DFPattern pattern, DynTensorType type) {
+  ObjectPtr<DynTensorTypePatternNode> n = make_object<DynTensorTypePatternNode>();
+  n->pattern = std::move(pattern);
+  n->type = std::move(type);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DynTensorTypePatternNode);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DynTensorTypePattern")
+    .set_body_typed([](DFPattern pattern, DynTensorType type) {
+      return DynTensorTypePattern(pattern, type);
+    });
+
 TVM_REGISTER_NODE_TYPE(RuntimeDepShapePatternNode);
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.RuntimeDepShapePattern").set_body_typed([] {
   return RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());

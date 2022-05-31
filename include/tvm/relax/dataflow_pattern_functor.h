@@ -116,6 +116,8 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
 
   virtual R VisitDFPattern_(const RuntimeDepShapePatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitDFPattern_(const DynTensorTypePatternNode* op,
+                            Args... args) DFPATTERN_FUNCTOR_DEFAULT;
 
   virtual R VisitDFPatternDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
@@ -144,6 +146,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(VarPatternNode);
 
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(RuntimeDepShapePatternNode);
+    RELAY_DFPATTERN_FUNCTOR_DISPATCH(DynTensorTypePatternNode);
     return vtable;
   }
 };
@@ -174,6 +177,7 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const VarPatternNode* op) override;
 
   void VisitDFPattern_(const RuntimeDepShapePatternNode* op) override;
+  void VisitDFPattern_(const DynTensorTypePatternNode* op) override;
 
  protected:
   // set of already-visited nodes

@@ -32,6 +32,8 @@
 #include <stack>
 
 #include "dataflow_matcher_impl.h"
+#include "tvm/node/structural_equal.h"
+#include "tvm/relax/type.h"
 
 namespace tvm {
 namespace relax {
@@ -470,9 +472,18 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
-  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  auto expr_type = expr->checked_type();
   if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
     return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
+  }
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const DynTensorTypePatternNode* op, const Expr& expr) {
+  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>()) {
+    return (StructuralEqual()(op->type, GetRef<DynTensorType>(tensor_type))) &&
+           VisitDFPattern(op->pattern, expr);
   }
   return false;
 }
