@@ -21,8 +21,8 @@
  * \file src/relay/ir/indexed_graph.h
  * \brief A pattern matcher for matching dataflow properties.
  */
-#ifndef TVM_RELAY_IR_INDEXED_GRAPH_H_
-#define TVM_RELAY_IR_INDEXED_GRAPH_H_
+#ifndef TVM_RELAX_IR_INDEXED_GRAPH_H_
+#define TVM_RELAX_IR_INDEXED_GRAPH_H_
 
 #include <tvm/relax/dataflow_pattern.h>
 
@@ -159,4 +159,4 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 
 }  // namespace relax
 }  // namespace tvm
-#endif  // TVM_RELAY_IR_INDEXED_GRAPH_H_
+#endif  // TVM_RELAX_IR_INDEXED_GRAPH_H_
