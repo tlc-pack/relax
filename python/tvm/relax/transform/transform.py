@@ -256,7 +256,11 @@ def _wrap_class_function_pass(pass_cls, pass_info):
 
 
 def function_pass(
-    pass_func=None, opt_level=None, name=None, required=None
+    pass_func=None,
+    opt_level=None,
+    name=None,
+    required=None,
+    traceable=False,
 ) -> Union[Callable, FunctionPass]:
     """Decorate a function pass.
 
@@ -278,6 +282,9 @@ def function_pass(
 
     required : Optional[List[str]]
         The list of passes that the function pass is dependent on.
+
+    traceable: Boolean
+        Boolean variable whether the function pass is traceable
 
     Returns
     -------
@@ -352,7 +359,7 @@ def function_pass(
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required)
+        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
@@ -397,7 +404,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
 
 
 def dataflowblock_pass(
-    pass_func=None, opt_level=None, name=None, required=None
+    pass_func=None, opt_level=None, name=None, required=None, traceable=False
 ) -> Union[Callable, DataflowBlockPass]:
     """Decorate a dataflowblock pass.
 
@@ -419,6 +426,9 @@ def dataflowblock_pass(
 
     required : Optional[List[str]]
         The list of passes that the dataflowblock pass is dependent on.
+
+    traceable: Boolean
+        Boolean variable whether the dataflowblock pass is traceable
 
     Returns
     -------
@@ -502,7 +512,7 @@ def dataflowblock_pass(
     def create_dataflowblock_pass(pass_arg):
         """Internal function that creates a dataflowblock pass"""
         fname = name if name else pass_arg.__name__
-        info = tvm.transform.PassInfo(opt_level, fname, required)
+        info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_dataflowblock_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
