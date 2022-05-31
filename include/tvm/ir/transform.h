@@ -32,18 +32,18 @@
  *  - Reducing the effort required to implement new passes for compiler
  * developers, etc.
  *
- * Similar to LLVM's pass manager, we designed the Relay pass manager to work
+ * Similar to LLVM's pass manager, we designed the Relay/Relax pass manager to work
  * different granularity, i.e. module level, function level, and even sequential
  * passe that contains a host of passes.
  *
  * However, we also extend the functionality of the traditional pass manager
  * with the consideration of requirements/convention from deep learning
- * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relay pass
+ * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relay/Relax pass
  * manager performs the IRModule -> IRModule transformation. All
  * different types of passes, including the sequential-level pass object, are
  * essentially pass objects. This design, therefore, effectively provides users
  * a consistent and convenient interface, i.e. Pass, to play with. It offers a
- * means to ease the development and testing of Relay passes. For example, with
+ * means to ease the development and testing of Relay/Relax passes. For example, with
  * the pass manager, external users will be able to have custom passes correctly
  * scheduled without having to modify a single handcrafted pass order.
  *
@@ -59,6 +59,7 @@
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/tuning.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
@@ -78,7 +79,6 @@ class PassContextNode : public Object {
  public:
   /*! \brief The default optimization level. */
   int opt_level{2};
-
   /*! \brief The list of required passes. */
   Array<String> required_pass;
   /*! \brief The list of disabled passes. */
@@ -87,12 +87,15 @@ class PassContextNode : public Object {
   mutable Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
   Map<String, ObjectRef> config;
-
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
-
+  /*! \brief Trace stack for relax pass infra. */
+  mutable Array<relax::Trace> trace_stack;
+  /*! \brief List of passes to be traced. If not defined, make every pass traceable. */
+  Optional<Map<String, Bool>> make_traceable;
+  /*! \brief Number of evaluations conducted in the pass pipeline. */
+  mutable int num_evals{0};
   PassContextNode() = default;
-
   /*!
    * \brief Get a config value from the pass context.
    *
@@ -130,7 +133,24 @@ class PassContextNode : public Object {
     v->Visit("instruments", &instruments);
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
+    v->Visit("trace_stack", &trace_stack);
+    v->Visit("make_traceable", &make_traceable);
+    v->Visit("num_evals", &num_evals);
   }
+
+  Array<relax::Trace> GetTraceStack() { return trace_stack; }
+  void PushTrace(relax::Trace new_trace) { trace_stack.push_back(new_trace); }
+  void PopTrace() {
+    ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
+    trace_stack.pop_back();
+  }
+  int GetTraceStackSize() { return trace_stack.size(); }
+  relax::Trace GetCurrentTrace() {
+    ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
+    return trace_stack.back();
+  }
+  void SetNumEvals(int _num_evals) { num_evals = _num_evals; }
+  void IncNumEvals(int _num_evals) { num_evals += _num_evals; }
 
   static constexpr const char* _type_key = "transform.PassContext";
   static constexpr bool _type_has_method_sequal_reduce = false;
@@ -279,6 +299,7 @@ class PassContext : public ObjectRef {
  * \brief Meta data that will be used to help optimization and analysis.
  * \sa PassInfo
  */
+
 class PassInfoNode : public Object {
  public:
   /*! \brief The minimal optimization level that this pass will be enabled. */
@@ -286,6 +307,9 @@ class PassInfoNode : public Object {
 
   /*! \brief The name of an optimization/analysis pass. */
   String name;
+
+  /*! \brief Boolean that tells whether this pass will be traced or not. */
+  bool traceable;
 
   /*! \brief The passes that are required to perform the current pass. */
   Array<String> required;
@@ -296,6 +320,7 @@ class PassInfoNode : public Object {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
+    v->Visit("traceable", &traceable);
   }
 
   static constexpr const char* _type_key = "transform.PassInfo";
@@ -314,8 +339,9 @@ class PassInfo : public ObjectRef {
    * \param opt_level The optimization level
    * \param name Name of the pass.
    * \param required  The passes that are required to perform the current pass.
+   * \param traceable Boolean that tells whether the pass is traceable.
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required);
+  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required, bool traceable);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -323,7 +349,7 @@ class PassInfo : public ObjectRef {
 /*!
  * \brief PassNode is the base type of differnt types of optimization passes.
  * It is designed as a pure class and implemented by different pass subclasses
- * at different granularity of Relay nodes.
+ * at different granularity of Relay/Relax nodes.
  */
 class PassNode : public Object {
  public:
@@ -396,7 +422,7 @@ class Pass : public ObjectRef {
 };
 
 /*!
- * \brief The SequentialNode contains a set of passes that transform Relay
+ * \brief The SequentialNode contains a set of passes that transform Relay/Relax
  * programs from one AST to another semantically equivalent one.
  *
  * One example of this level of pass is that the pass manager needs to correctly
@@ -489,9 +515,9 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass
-CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, String name, Array<runtime::String> required);
+TVM_DLL Pass CreateModulePass(
+    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
+    String name, Array<runtime::String> required, bool traceable = false);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
