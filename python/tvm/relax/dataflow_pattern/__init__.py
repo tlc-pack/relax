@@ -23,6 +23,7 @@ from tvm.relax import Expr
 from tvm.relay.op import get
 import tvm.relay.dataflow_pattern as relay_dp
 from tvm.relay.dataflow_pattern import register_df_node as register_relay_df_node
+from tvm.relay.dataflow_pattern import ffi as relay_ffi
 
 
 from . import _ffi as ffi
@@ -343,7 +344,7 @@ class ExprPattern(DFPattern):
     """
 
     def __init__(self, expr: Expr):
-        self.__init_handle_by_constructor__(ffi.ExprPattern, expr)
+        self.__init_handle_by_constructor__(relay_ffi.ExprPattern, expr)
 
 
 @register_relay_df_node
@@ -364,7 +365,7 @@ class VarPattern(DFPattern):
     """
 
     def __init__(self, name_hint: str = ""):
-        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)
+        self.__init_handle_by_constructor__(relay_ffi.VarPattern, name_hint)
 
 
 @register_relay_df_node
@@ -372,7 +373,7 @@ class ConstantPattern(DFPattern):
     """A pattern matching a Relax Constant."""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(ffi.ConstantPattern)
+        self.__init_handle_by_constructor__(relay_ffi.ConstantPattern)
 
 
 @register_relay_df_node
@@ -394,7 +395,7 @@ class CallPattern(DFPattern):
         op: "DFPattern",
         args: List["DFPattern"],
     ):
-        self.__init_handle_by_constructor__(ffi.CallPattern, op, args)
+        self.__init_handle_by_constructor__(relay_ffi.CallPattern, op, args)
 
 
 @register_relay_df_node
@@ -416,7 +417,7 @@ class FunctionPattern(DFPattern):
         params: List["DFPattern"],
         body: "DFPattern",
     ):
-        self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)
+        self.__init_handle_by_constructor__(relay_ffi.FunctionPattern, params, body)
 
 
 @register_relay_df_node
@@ -436,7 +437,7 @@ class IfPattern(DFPattern):
     """
 
     def __init__(self, cond: "DFPattern", true_branch: "DFPattern", false_branch: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.IfPattern, cond, true_branch, false_branch)
+        self.__init_handle_by_constructor__(relay_ffi.IfPattern, cond, true_branch, false_branch)
 
 
 @register_relay_df_node
@@ -450,7 +451,7 @@ class TuplePattern(DFPattern):
     """
 
     def __init__(self, fields: tvm.ir.container.Array):
-        self.__init_handle_by_constructor__(ffi.TuplePattern, fields)
+        self.__init_handle_by_constructor__(relay_ffi.TuplePattern, fields)
 
     def __getitem__(self, index: int):
         if index >= len(self):
@@ -479,7 +480,7 @@ class TupleGetItemPattern(DFPattern):
 
     def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
         match_index = index if index is not None else -1
-        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, match_index)
+        self.__init_handle_by_constructor__(relay_ffi.TupleGetItemPattern, tuple_value, match_index)
 
 
 @register_relay_df_node
@@ -495,7 +496,7 @@ class AltPattern(DFPattern):
     """
 
     def __init__(self, left: "DFPattern", right: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.AltPattern, left, right)
+        self.__init_handle_by_constructor__(relay_ffi.AltPattern, left, right)
 
 
 @register_relay_df_node
@@ -503,7 +504,7 @@ class WildcardPattern(DFPattern):
     """A pattern which matches anything."""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(ffi.WildcardPattern)
+        self.__init_handle_by_constructor__(relay_ffi.WildcardPattern)
 
 
 @register_relay_df_node
@@ -520,7 +521,7 @@ class TypePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", ttype: tvm.ir.type.Type):
-        self.__init_handle_by_constructor__(ffi.TypePattern, pattern, ttype)
+        self.__init_handle_by_constructor__(relay_ffi.TypePattern, pattern, ttype)
 
 
 @register_relay_df_node
@@ -537,7 +538,7 @@ class DataTypePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", dtype: str):
-        self.__init_handle_by_constructor__(ffi.DataTypePattern, pattern, dtype)
+        self.__init_handle_by_constructor__(relay_ffi.DataTypePattern, pattern, dtype)
 
 
 @register_relay_df_node
@@ -554,7 +555,7 @@ class ShapePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
-        self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)
+        self.__init_handle_by_constructor__(relay_ffi.ShapePattern, pattern, shape)
 
 
 @register_relay_df_node
@@ -572,7 +573,7 @@ class AttrPattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", attrs: tvm.ir.attrs.Attrs):
-        self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)
+        self.__init_handle_by_constructor__(relay_ffi.AttrPattern, pattern, attrs)
 
 
 @register_relay_df_node
@@ -593,5 +594,5 @@ class DominatorPattern(DFPattern):
     """
 
     def __init__(self, parent: "DFPattern", path: "DFPattern", child: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.DominatorPattern, parent, path, child)
+        self.__init_handle_by_constructor__(relay_ffi.DominatorPattern, parent, path, child)
 
