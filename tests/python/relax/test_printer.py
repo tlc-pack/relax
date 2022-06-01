@@ -369,13 +369,12 @@ def test_func_type():
     class TestFuncType:
         @R.function
         def global_func_1(
-            x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")
+            x: Tensor((m, n), "float32")
         ) -> Callable((Tensor((m, n), "float32")), Tensor((m, n), "float32")):
             @R.function
-            def local_func_1(z: Tensor((m, n), "float32")) -> Tensor((m, n), "float32"):
-                s1 = relax.add(x, y)
-                s2 = relax.add(z, s1)
-                return s2
+            def local_func_1(y: Tensor((m, n), "float32")) -> Tensor((m, n), "float32"):
+                s = relax.add(x, y)
+                return s
 
             return local_func_1
 

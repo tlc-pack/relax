@@ -123,8 +123,9 @@ bool IsBaseOf(const Type& base, const Type& derived) {
       if (!IsBaseOf(base_func->ret_type, derived_func->ret_type)) {
         return false;
       }
+      return true;
     }
-    return true;
+    return false;
   } else if (base.as<ObjectTypeNode>()) {
     return true;
   } else {

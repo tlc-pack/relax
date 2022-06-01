@@ -418,6 +418,8 @@ Doc RelaxScriptPrinter::VisitType_(const relay::FuncTypeNode* node) {
   for (Type arg_type : node->arg_types) {
     arg_types.push_back(Print(arg_type));
   }
+  // TODO(@yongwww): Change it to Callable[[Arg1Type, Arg2Type, ...,], ReturnType]
+  //                 to be consistent with Python type hint syntax,
   return doc << "((" << Doc::Concat(arg_types) << "), " << Print(node->ret_type) << ")";
 }
 
