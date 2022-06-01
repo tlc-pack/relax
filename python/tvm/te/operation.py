@@ -19,7 +19,7 @@ import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List
+from typing import List, Union
 
 import tvm._ffi
 import tvm.tir
@@ -532,9 +532,6 @@ def create_prim_func(
     """
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
-<<<<<<< HEAD
-    return _ffi_api.CreatePrimFunc(ops)
-=======
     return _ffi_api.CreatePrimFunc(ops, tir_var_list)
 
 
@@ -556,4 +553,3 @@ def create_prim_func_from_outputs(
     if not isinstance(outputs, (list, tuple, Array)):
         outputs = [outputs]
     return _ffi_api.CreatePrimFuncFromOutputs(outputs)
->>>>>>> [EmitTe] Dynamic TIR Function (w/ unbound TIR vars) (#57)
