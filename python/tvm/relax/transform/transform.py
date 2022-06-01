@@ -172,6 +172,24 @@ def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir
     return _ffi_api.BindParams(func_name, params)
 
 
+def RemoveUnusedFunctions(entry_functions=None) -> tvm.ir.transform.Pass:
+    """Remove unused relax/prim functions without external linkage in a IRModule.
+
+    Parameters
+    ----------
+    entry_functions: list[string]
+        The set of entry functions to start from.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass to remove unused functions.
+    """
+    if entry_functions is None:
+        entry_functions = ["main"]
+    return _ffi_api.RemoveUnusedFunctions(entry_functions)
+
+
 def FoldConstant() -> tvm.ir.transform.Pass:
     """Fold constant expressions.
 
