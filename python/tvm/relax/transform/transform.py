@@ -172,7 +172,7 @@ def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir
 
 
 def RemoveUnusedFunctions(entry_functions=None) -> tvm.ir.transform.Pass:
-    """Remove unused global relax functions in a IRModule.
+    """Remove unused relax/prim functions without external linkage in a IRModule.
 
     Parameters
     ----------
