@@ -247,5 +247,15 @@ def test_multiple_dynamic_dims():
     verify_vm_outputs([12, 5, 24], relay_vm, relax_vm)
 
 
+def test_layout_transform():
+    shape = (relay.Any(), 3, 224, 224)
+    a = relay.var("a", shape=shape)
+    b = relay.layout_transform(a, "NCHW", "NHWC")
+    relay_mod = tvm.IRModule.from_expr(relay.Function([a], b))
+
+    relay_vm, relax_vm = translate_and_build_vms(relay_mod)
+    verify_vm_outputs([1, 3, 224, 224], relay_vm, relax_vm)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
