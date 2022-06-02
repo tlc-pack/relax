@@ -110,6 +110,22 @@ bool IsBaseOf(const Type& base, const Type& derived) {
       return true;
     }
     return false;
+  } else if (auto base_func = base.as<FuncTypeNode>()) {
+    if (auto derived_func = derived.as<FuncTypeNode>()) {
+      if (base_func->arg_types.size() != derived_func->arg_types.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < base_func->arg_types.size(); ++i) {
+        if (!IsBaseOf(base_func->arg_types[i], derived_func->arg_types[i])) {
+          return false;
+        }
+      }
+      if (!IsBaseOf(base_func->ret_type, derived_func->ret_type)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
   } else if (base.as<ObjectTypeNode>()) {
     return true;
   } else {
