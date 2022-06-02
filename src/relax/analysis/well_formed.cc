@@ -185,6 +185,10 @@ class WellFormedChecker : public relax::ExprVisitor {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
       prim_expr_visitor_(expr);
+      if (!expr.dtype().is_int()) {
+        Malformed(Diagnostic::Error(expr->span)
+                  << "Shape expressions must be of integer type, but got " << expr.dtype());
+      }
     }
   }
 
