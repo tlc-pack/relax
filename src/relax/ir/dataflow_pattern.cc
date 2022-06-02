@@ -27,6 +27,31 @@
 namespace tvm {
 namespace relax {
 
+ExternFuncPattern::ExternFuncPattern(String global_symbol) {
+  ObjectPtr<ExternFuncPatternNode> n = make_object<ExternFuncPatternNode>();
+  n->global_symbol_ = std::move(global_symbol);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(ExternFuncPatternNode);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.ExternFuncPattern")
+    .set_body_typed([](String global_symbol) { return ExternFuncPattern(global_symbol); });
+
+VarPattern::VarPattern(String name_hint) {
+  ObjectPtr<VarPatternNode> n = make_object<VarPatternNode>();
+  n->name = std::move(name_hint);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(VarPatternNode);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.VarPattern").set_body_typed([](String name_hint) {
+  return VarPattern(name_hint);
+});
+
+TVM_REGISTER_NODE_TYPE(DataflowVarPatternNode);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DataflowVarPattern")
+    .set_body_typed([](String name_hint) { return DataflowVarPattern(name_hint); });
+
 DynTensorTypePattern::DynTensorTypePattern(DFPattern pattern, DynTensorType type) {
   ObjectPtr<DynTensorTypePatternNode> n = make_object<DynTensorTypePatternNode>();
   n->pattern = std::move(pattern);

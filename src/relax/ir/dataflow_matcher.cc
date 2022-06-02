@@ -32,8 +32,7 @@
 #include <stack>
 
 #include "dataflow_matcher_impl.h"
-#include "tvm/node/structural_equal.h"
-#include "tvm/relax/type.h"
+#include "tvm/relay/dataflow_pattern.h"
 
 namespace tvm {
 namespace relax {
@@ -472,7 +471,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
-  auto expr_type = expr->checked_type();
+  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
   if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
     return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
   }
@@ -480,7 +479,7 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DynTensorTypePatternNode* op, const Expr& expr) {
-  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  auto expr_type = expr->checked_type();
   if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>()) {
     return (StructuralEqual()(op->type, GetRef<DynTensorType>(tensor_type))) &&
            VisitDFPattern(op->pattern, expr);
@@ -499,8 +498,20 @@ bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& exp
   return matches;
 }
 
+bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) {
+  if (const auto* extern_fn = expr.as<ExternFuncNode>()) {
+    return op->global_symbol() == "" || op->global_symbol() == extern_fn->global_symbol;
+  }
+  return false;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) {
   return expr.as<ConstantNode>() != nullptr;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) {
+  return expr->IsInstance<DataflowVarNode>() &&
+         VisitDFPattern_(static_cast<const VarPatternNode*>(op), expr);
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) {

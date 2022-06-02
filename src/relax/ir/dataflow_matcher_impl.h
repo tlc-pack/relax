@@ -60,6 +60,8 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 
   bool VisitDFPattern_(const RuntimeDepShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const DynTensorTypePatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) override;
 
   void ClearMap(size_t watermark);
   bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);

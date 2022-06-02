@@ -24,8 +24,6 @@
 
 #include <tvm/relax/dataflow_pattern_functor.h>
 
-#include "tvm/relax/dataflow_pattern.h"
-
 namespace tvm {
 namespace relax {
 
@@ -101,12 +99,12 @@ void DFPatternVisitor::VisitDFPattern_(const DynTensorTypePatternNode* op) {
   VisitDFPattern(op->pattern);
 }
 
+// leaf nodes.
 void DFPatternVisitor::VisitDFPattern_(const VarPatternNode* op) {}
-
 void DFPatternVisitor::VisitDFPattern_(const RuntimeDepShapePatternNode* op) {}
-
 void DFPatternVisitor::VisitDFPattern_(const ConstantPatternNode* op) {}
-
+void DFPatternVisitor::VisitDFPattern_(const DataflowVarPatternNode* op) {}
+void DFPatternVisitor::VisitDFPattern_(const ExternFuncPatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const WildcardPatternNode* op) {}
 
 }  // namespace relax

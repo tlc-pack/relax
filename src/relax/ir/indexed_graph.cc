@@ -99,6 +99,10 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
 
     void VisitExpr_(const RuntimeDepShapeNode* op, NodePtr parent) override {}
 
+    void VisitExpr_(const DataflowVarNode* op, NodePtr parent) override {}
+
+    void VisitExpr_(const ExternFuncNode* op, NodePtr parent) override {}
+
     void VisitExpr_(const TupleNode* op, NodePtr parent) override {
       for (auto field : op->fields) {
         this->VisitExpr(field, graph_.node_map_[GetRef<Expr>(op)]);
@@ -215,6 +219,8 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
     void VisitDFPattern_(const ConstantPatternNode* op, NodePtr parent) override {}
     void VisitDFPattern_(const RuntimeDepShapePatternNode* op, NodePtr parent) override {}
+    void VisitDFPattern_(const DataflowVarPatternNode* op, NodePtr parent) override {}
+    void VisitDFPattern_(const ExternFuncPatternNode* op, NodePtr parent) override {}
 
     void VisitDFPattern_(const DataTypePatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->pattern, graph_.node_map_[GetRef<DFPattern>(op)]);

@@ -338,14 +338,16 @@ class DynTensorTypePattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The input pattern that needs type annotation.
-
     ttype: tvm.relax.DynTensorType
         The type to match.
+
+    pattern: tvm.relax.dataflow_pattern.DFPattern
+        The input pattern that needs type annotation.
     """
 
     def __init__(self, type: DynTensorType, pattern: "DFPattern" = None):
+        if pattern is None:
+            pattern = wildcard()
         self.__init_handle_by_constructor__(ffi.DynTensorTypePattern, pattern, type)
 
 
@@ -363,7 +365,7 @@ class ExprPattern(DFPattern):
         self.__init_handle_by_constructor__(relay_ffi.ExprPattern, expr)
 
 
-@register_relay_df_node
+@register_relax_df_node
 class VarPattern(DFPattern):
     """A local variable pattern.
 
@@ -381,8 +383,34 @@ class VarPattern(DFPattern):
     """
 
     def __init__(self, name_hint: str = ""):
-        self.__init_handle_by_constructor__(relay_ffi.VarPattern, name_hint)
+        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)
 
+
+@register_relax_df_node
+class DataflowVarPattern(DFPattern):
+    """A local variable pattern.
+
+    Local variable can be used to declare input
+    arguments to a function, or intermediate variables.
+
+    Parameters
+    ----------
+    name_hint: str
+        The name of the variable. Optional, if not provided,
+        the pattern will match any VarNode.
+
+    type_annotation: tvm.ir.type.Type, optional
+        The type annotation on the variable.
+    """
+
+    def __init__(self, name_hint: str = ""):
+        self.__init_handle_by_constructor__(ffi.DataflowVarPattern, name_hint)
+
+
+@register_relax_df_node
+class ExternFuncPattern(DFPattern):
+    def __init__(self, global_symbol: str = ""):
+        self.__init_handle_by_constructor__(ffi.ExternFuncPattern, global_symbol)
 
 @register_relay_df_node
 class ConstantPattern(DFPattern):

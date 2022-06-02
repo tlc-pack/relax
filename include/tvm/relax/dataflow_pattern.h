@@ -38,11 +38,64 @@ namespace relax {
 using relay::DFPattern;
 using relay::DFPatternNode;
 
-class DynTensorTypePattern;
-/**
- * \brief
- *
+// class ShapeExprPattern;
+// class ExternFuncPattern; ?
+// class GlobalVarPattern; ? -> CallPattern?
+// class FunctionPattern;
+
+// FIXME: Document those APIs.
+class ExternFuncPattern;
+class ExternFuncPatternNode : public DFPatternNode {
+ public:
+  String global_symbol_;
+  const String& global_symbol() const { return global_symbol_; }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("global_symbol", &global_symbol_); }
+
+  static constexpr const char* _type_key = "relax.dataflow_pattern.ExternFuncPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncPatternNode, DFPatternNode);
+};
+
+class ExternFuncPattern : public DFPattern {
+ public:
+  TVM_DLL ExternFuncPattern(String global_symbol);
+  TVM_DEFINE_OBJECT_REF_METHODS(ExternFuncPattern, DFPattern, ExternFuncPatternNode);
+};
+
+class VarPattern;
+class VarPatternNode : public DFPatternNode {
+ public:
+  String name;
+  const String& name_hint() const { return name; }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name", &name); }
+
+  static constexpr const char* _type_key = "relax.dataflow_pattern.VarPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarPatternNode, DFPatternNode);
+};
+
+class VarPattern : public DFPattern {
+ public:
+  TVM_DLL VarPattern(String name_hint);
+  TVM_DEFINE_OBJECT_REF_METHODS(VarPattern, DFPattern, VarPatternNode);
+};
+
+/*!
+ * \brief A Pattern to Match a Relax Dataflow Variable
  */
+class DataflowVarPattern;
+/*! \brief Container for Var */
+class DataflowVarPatternNode : public VarPatternNode {
+ public:
+  static constexpr const char* _type_key = "relax.dataflow_pattern.DataflowVarPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarPatternNode, DFPatternNode);
+};
+
+class DataflowVarPattern : public VarPattern {
+ public:
+  using VarPattern::VarPattern;
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowVarPattern, VarPattern, DataflowVarPatternNode);
+};
+
+class DynTensorTypePattern;
 class DynTensorTypePatternNode : public DFPatternNode {
  public:
   /*! \brief The pattern. */
