@@ -27,11 +27,11 @@ x = rx.Var("x", [m, n], type_anno)
 cond = rx.Var("cond", [], bool_type_anno)
 
 
-def build_function(blocks):
+def build_function(blocks, params=[]):
     """Returns relax.function with given blocks"""
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     ret_type = rx.DynTensorType(ndim=-1, dtype="float32")
-    func = rx.Function([x, cond], seq_expr, ret_type).with_attr("global_symbol", "foo")
+    func = rx.Function([x, cond] + params, seq_expr, ret_type).with_attr("global_symbol", "foo")
     return func
 
 
@@ -121,6 +121,20 @@ def test_symbolic_var():
     bindings = [rx.VarBinding(gv0, call_node)]
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
+    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
+    assert not rx.analysis.well_formed(mod)
+
+
+def test_symbolic_var_invalid_type():
+    # Error: dim must be of integer type, but got float32
+    dim = tir.Var("dim", "float32")
+    type_anno = rx.DynTensorType(ndim=1, dtype="float32")
+    y = rx.Var("y", [dim], type_anno)
+    gv0 = rx.Var("gv0", [dim], type_anno)
+    call_node = rx.op.add(y, y)
+    bindings = [rx.VarBinding(gv0, call_node)]
+    blocks = [rx.BindingBlock(bindings)]
+    func = build_function(blocks, [y])
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
     assert not rx.analysis.well_formed(mod)
 

@@ -407,6 +407,28 @@ def test_vm_shape_lowering_func_param_with_shape():
     assert s5.op.name == "relax.vm.builtin.store_shape"
 
 
+def test_vm_shape_lower_int32_shape():
+    @tvm.script.ir_module
+    class InputModule:
+        @R.function
+        def foo(x: Tensor((d,), "float32")):
+            gv0 = R.call_tir("my_extern", (x,), (tir.cast("int32", d),), dtype="float32")
+            return gv0
+
+    before_mod = InputModule
+    after_mod = relax.transform.VMShapeLower()(before_mod)
+
+    assert isinstance(after_mod, tvm.IRModule)
+    shape_func = after_mod["shape_func"]
+    assert isinstance(shape_func, tvm.tir.function.PrimFunc)
+    buffer_store_stmt = shape_func.body[0]
+    assert isinstance(buffer_store_stmt, tvm.tir.stmt.BufferStore)
+    # verify that the value in BufferStore stmt is cast to int64 first
+    cast_expr = buffer_store_stmt.value
+    assert isinstance(cast_expr, tvm.tir.expr.Cast)
+    assert cast_expr.dtype == "int64"
+
+
 def test_to_anf():
     @tvm.script.ir_module
     class TestNormalizeInputModule:
