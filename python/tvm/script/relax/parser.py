@@ -310,6 +310,94 @@ class RelaxTransformer(Transformer):
             self.report_error(f"ndim must be >= -1, but got {kwargs['ndim']}", ty.span)
         return kwargs
 
+    def parse_dyn_tensor_type(
+        self, ty: Union[ast.Type, ast.Call], bind_free_vars: bool
+    ) -> Tuple[relax.Type, relax.Expr]:
+        """
+        Transforms the given synr tensor type annotation to a Relax DynTensorType
+        Parameters
+        ----------
+        ty : ast.Type or ast.Call
+            The synr type
+        bind_free_vars : bool
+            Whether or not the shape annotation can introduce new dimension variables
+
+        Returns
+        -------
+        Tuple[relax.Type, relax.Expr]:
+            The corresponding Relax type and shape expression
+        """
+
+        # TODO(@altanh): forgetting dtype like "Tensor((n, m))" ends up getting parsed as
+        #                Tensor(n, m) which makes correct errors difficult here...
+        if len(ty.params) != 2:
+            self.report_error(
+                "Tensor type annotations must have 2 positional fields (shape and dtype)"
+                " and one optional keyword field ndim",
+                ty.span,
+            )
+
+        shape_annotation, dtype_annotation = ty.params
+        shape, dtype, ndim = None, None, -1
+
+        # parse the shape annotation
+        if isinstance(shape_annotation, ast.TypeConstant) and shape_annotation.value is None:
+            pass  # shape = None
+        elif isinstance(shape_annotation, ast.TypeVar):
+            if shape_annotation.id.name != "_":
+                # TODO(@altanh): handle variable annotations, e.g. x: Tensor(my_shape, _)
+                self.report_error(
+                    "variable Tensor shape annotations not yet supported",
+                    shape_annotation.span,
+                )
+            else:
+                shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
+        elif isinstance(shape_annotation, ast.TypeTuple):
+            shape = relax.ShapeExpr(
+                self.parse_shape(shape_annotation, bind_free_vars),
+                span=self.to_tvm_span(shape_annotation.span),
+            )
+            ndim = len(shape)
+        elif isinstance(shape_annotation, ast.Tuple):
+            shape = relax.ShapeExpr(
+                self.parse_shape(shape_annotation, bind_free_vars),
+                span=self.to_tvm_span(shape_annotation.span),
+            )
+            ndim = len(shape)
+
+        else:
+            self.report_error(
+                f"unsupported shape annotation {shape_annotation}",
+                shape_annotation.span,
+            )
+
+        # parse the dtype annotation
+        if isinstance(dtype_annotation, ast.TypeVar) and dtype_annotation.id.name == "_":
+            pass  # dtype = None
+        elif isinstance(dtype_annotation, ast.TypeConstant):
+            dtype = dtype_annotation.value
+        elif isinstance(dtype_annotation, ast.Constant):
+            dtype = dtype_annotation.value
+        else:
+            self.report_error(
+                "Tensor dtype annotations must be concrete or erased",
+                dtype_annotation.span,
+            )
+        # parse optional keyword argument "ndim" if present
+        kwargs = self.parse_tensor_kwargs(ty)
+        if "ndim" in kwargs.keys():
+            # If ndim was also inferred from shape annotation, then it must match keyword
+            # argument ndim.
+            if ndim >= 0 and kwargs["ndim"] != ndim:
+                self.report_error(
+                    f"#shape dimensions must match ndim: {ndim} vs. {kwargs['ndim']}",
+                    ty.span,
+                )
+            else:
+                ndim = kwargs["ndim"]
+        span = self.to_tvm_span(ty.span)
+        return (relax.DynTensorType(ndim=ndim, dtype=dtype, span=span), shape)
+
     def transform_type(self, ty: ast.Type, bind_free_vars: bool) -> Tuple[relax.Type, relax.Expr]:
         """Transforms the given synr type annotation to a Relax type and shape expression.
 
@@ -345,68 +433,7 @@ class RelaxTransformer(Transformer):
         # annotation with type arguments/shape annotation
         if isinstance(ty, ast.TypeCall):
             if ty.func_name.id.name == "Tensor":
-                # TODO(@altanh): forgetting dtype like "Tensor((n, m))" ends up getting parsed as
-                #                Tensor(n, m) which makes correct errors difficult here...
-                if len(ty.params) != 2:
-                    self.report_error(
-                        "Tensor type annotations must have 2 positional fields (shape and dtype)"
-                        " and one optional keyword field ndim",
-                        ty.span,
-                    )
-
-                shape_annotation, dtype_annotation = ty.params
-                shape, dtype, ndim = None, None, -1
-
-                # parse the shape annotation
-                if (
-                    isinstance(shape_annotation, ast.TypeConstant)
-                    and shape_annotation.value is None
-                ):
-                    pass  # shape = None
-                elif isinstance(shape_annotation, ast.TypeVar):
-                    if shape_annotation.id.name != "_":
-                        # TODO(@altanh): handle variable annotations, e.g. x: Tensor(my_shape, _)
-                        self.report_error(
-                            "variable Tensor shape annotations not yet supported",
-                            shape_annotation.span,
-                        )
-                    else:
-                        shape = relax.RuntimeDepShape(span=self.to_tvm_span(shape_annotation.span))
-                elif isinstance(shape_annotation, ast.TypeTuple):
-                    shape = relax.ShapeExpr(
-                        self.parse_shape(shape_annotation, bind_free_vars),
-                        span=self.to_tvm_span(shape_annotation.span),
-                    )
-                    ndim = len(shape)
-                else:
-                    self.report_error(
-                        f"unsupported shape annotation {shape_annotation}",
-                        shape_annotation.span,
-                    )
-
-                # parse the dtype annotation
-                if isinstance(dtype_annotation, ast.TypeVar) and dtype_annotation.id.name == "_":
-                    pass  # dtype = None
-                elif isinstance(dtype_annotation, ast.TypeConstant):
-                    dtype = dtype_annotation.value
-                else:
-                    self.report_error(
-                        "Tensor dtype annotations must be concrete or erased",
-                        dtype_annotation.span,
-                    )
-                # parse optional keyword argument "ndim" if present
-                kwargs = self.parse_tensor_kwargs(ty)
-                if "ndim" in kwargs.keys():
-                    # If ndim was also inferred from shape annotation, then it must match keyword
-                    # argument ndim.
-                    if ndim >= 0 and kwargs["ndim"] != ndim:
-                        self.report_error(
-                            f"#shape dimensions must match ndim: {ndim} vs. {kwargs['ndim']}",
-                            ty.span,
-                        )
-                    else:
-                        ndim = kwargs["ndim"]
-                return (relax.DynTensorType(ndim=ndim, dtype=dtype, span=span), shape)
+                return self.parse_dyn_tensor_type(ty, bind_free_vars)
             elif ty.func_name.id.name == "Tuple":
                 field_types = []
                 field_shapes = []
@@ -415,7 +442,34 @@ class RelaxTransformer(Transformer):
                     field_types.append(fty)
                     field_shapes.append(fsh)
                 return (relay.TupleType(field_types, span), None)
-            # TODO(@altanh): other types with args, e.g. Ref[T], func types
+            elif ty.func_name.id.name == "Callable":
+                if len(ty.params) != 2:
+                    self.report_error(
+                        "Function type annotations must have 2 positional fields",
+                        ty.span,
+                    )
+
+                func_arg_types, func_ret_type = ty.params
+                input_tensors = []
+                # Single input
+                if isinstance(func_arg_types, ast.TypeCall):
+                    tensor_type = self.parse_dyn_tensor_type(func_arg_types, bind_free_vars)
+                    input_tensors.append(tensor_type[0])
+                # Multiple inputs
+                elif isinstance(func_arg_types, ast.TypeTuple):
+                    for func_arg_type in func_arg_types.values:
+                        tensor_type = self.parse_dyn_tensor_type(func_arg_type, bind_free_vars)
+                        input_tensors.append(tensor_type[0])
+                else:
+                    self.report_error(
+                        "Function Reture Type annotations must be concrete or erased",
+                        func_arg_types.span,
+                    )
+
+                ret_type = self.transform_type(func_ret_type, bind_free_vars)
+
+                return (relax.FuncType(input_tensors, ret_type[0]), None)
+
         self.report_error("invalid type", ty.span)
 
     def parse_shape(

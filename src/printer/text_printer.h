@@ -305,6 +305,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitType_(const relax::ObjectTypeNode* node) override;
   Doc VisitType_(const relax::DynTensorTypeNode* node) override;
   Doc VisitType_(const relay::TupleTypeNode* node) override;
+  Doc VisitType_(const relay::FuncTypeNode* node) override;
 
   Doc PrintAttr(const ObjectRef& attr);
   std::vector<Doc> PrintAttrs(const Attrs& attrs);
