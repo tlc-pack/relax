@@ -463,9 +463,11 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
-  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
-  if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
-    return (StructuralEqual()(op->shape, tensor_type->shape)) && VisitDFPattern(op->pattern, expr);
+  if (const ShapeExprNode* shape_expr = expr->shape().as<ShapeExprNode>()) {
+    if (op->shape.size() != shape_expr->values.size()) return false;
+    for (size_t i = 0; i < op->shape.size(); ++i)
+      if (!tir::is_one(op->shape[i] == shape_expr->values[i])) return false;
+    return VisitDFPattern(op->pattern, expr);
   }
   return false;
 }

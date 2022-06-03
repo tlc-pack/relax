@@ -38,9 +38,7 @@ namespace relax {
 using relay::DFPattern;
 using relay::DFPatternNode;
 
-// class ShapeExprPattern;
-// class ExternFuncPattern; ?
-// class GlobalVarPattern; ? -> CallPattern?
+// class ShapeExprPattern; ? we don't need this right?
 // class FunctionPattern;
 
 // FIXME: Document those APIs.
