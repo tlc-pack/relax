@@ -18,20 +18,14 @@ import os
 import json
 import argparse
 import logging
-
-import numpy as np  # type: ignore
-import tvm
-
-from tvm.meta_schedule.testing.relay_workload import get_network
-
-
 from typing import Dict
+import numpy as np  # type: ignore
 
-import tvm.meta_schedule as ms
-
-from tvm import tir, relay, relax, runtime
-from tvm import transform
+import tvm
+from tvm import relay, relax, runtime, transform
 from tvm.ir.module import IRModule
+from tvm import meta_schedule as ms
+from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.relax.testing import relay_translator
 from tvm.target.target import Target
@@ -62,17 +56,17 @@ def _parse_args():
     args.add_argument(
         "--rpc-host",
         type=str,
-        required=True,
+        default=None,
     )
     args.add_argument(
         "--rpc-port",
         type=int,
-        required=True,
+        default=None,
     )
     args.add_argument(
         "--rpc-key",
         type=str,
-        required=True,
+        default=None,
     )
     args.add_argument(
         "--work-dir",
@@ -84,11 +78,6 @@ def _parse_args():
         type=str,
         default=None,
     )
-    args.add_argument(
-        "--tune-model",
-        type=int,
-        required=True,
-    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -96,14 +85,21 @@ def _parse_args():
         parsed.alloc_repeat = 3
     else:
         parsed.alloc_repeat = 1
-    parsed.rpc_config = ms.runner.RPCConfig(
-        tracker_host=parsed.rpc_host,
-        tracker_port=parsed.rpc_port,
-        tracker_key=parsed.rpc_key,
-        session_timeout_sec=180,
-    )
-    parsed.rpc_workers = parsed.rpc_config.count_num_servers(allow_missing=False)
-    parsed.tune_model = False if parsed.tune_model == 0 else True
+    if parsed.rpc_host and parsed.rpc_port and parsed.rpc_key:
+        parsed.rpc_config = ms.runner.RPCConfig(
+            tracker_host=parsed.rpc_host,
+            tracker_port=parsed.rpc_port,
+            tracker_key=parsed.rpc_key,
+            session_timeout_sec=180,
+        )
+        parsed.workers = parsed.rpc_config.count_num_servers(allow_missing=False)
+    else:
+        # check all rpc configs are None
+        assert (
+            (parsed.rpc_host is None) and (parsed.rpc_port is None) and (parsed.rpc_key is None)
+        ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
+        parsed.rpc_config = None
+        parsed.workers = 1
     return parsed
 
 
@@ -133,17 +129,7 @@ def apply_opt_before_tuning(
     return relax_mod
 
 
-def apply_opt_after_tuning(relax_mod: IRModule, database: ms.database.Database, target: Target):
-    with transform.PassContext(opt_level=3):
-        relax_mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(relax_mod)
-        # Should be enabled after LayoutRewrite ready
-        # if ARGS.target.kind.name != "cuda":
-        #     relax_mod = relax.transform.LayoutRewrite()(relax_mod)
-        #     relax_mod = relax.transform.FoldConstant()(relax_mod)
-    return relax_mod
-
-
-def f_remote_measurement(rt_mod: runtime.Module, device: runtime.ndarray.Device, *input_data):
+def f_measurement(rt_mod: runtime.Module, device: runtime.ndarray.Device, *input_data):
     vm = relax.vm.VirtualMachine(exec=rt_mod, device=device)
     evaluator = vm.module.time_evaluator(
         func_name="main",
@@ -152,6 +138,26 @@ def f_remote_measurement(rt_mod: runtime.Module, device: runtime.ndarray.Device,
         min_repeat_ms=500,
     )
     print(evaluator(*input_data))
+
+
+def get_runner():
+    runner_config = {
+        "evaluator_config": ms.runner.EvaluatorConfig(
+            number=3,
+            repeat=1,
+            min_repeat_ms=100,
+            enable_cpu_cache_flush=False,
+        ),
+        "alloc_repeat": ARGS.alloc_repeat,
+    }
+    if ARGS.rpc_config:
+        runner = ms.runner.RPCRunner(
+            rpc_config=ARGS.rpc_config, max_workers=ARGS.workers, **runner_config
+        )
+    else:
+        runner = ms.runner.LocalRunner(**runner_config)
+
+    return runner
 
 
 def main():
@@ -165,59 +171,41 @@ def main():
     print(f"  input_shape: {input_shape}")
     print(f"  input_dtype: {input_dtype}")
 
-    path_workload = os.path.join(ARGS.work_dir, "database_workload.json")
-    path_tuning_record = os.path.join(ARGS.work_dir, "database_tuning_record.json")
-    database = ms.database.JSONDatabase(
-        path_workload=path_workload,
-        path_tuning_record=path_tuning_record,
-    )
-
     # translate the ResNet model from Relay to Relax
     relax_mod = apply_opt_before_tuning(relay_mod, params, target=ARGS.target)
     assert isinstance(relax_mod, tvm.IRModule)
 
-    if ARGS.tune_model:
-        ms.tune_relax(
-            mod=relax_mod,
-            target=ARGS.target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=64,
-                max_trials_per_task=ARGS.num_trials,
-                max_trials_global=ARGS.num_trials,
-            ),
-            runner=ms.runner.RPCRunner(
-                rpc_config=ARGS.rpc_config,
-                evaluator_config=ms.runner.EvaluatorConfig(
-                    number=3,
-                    repeat=1,
-                    min_repeat_ms=100,
-                    enable_cpu_cache_flush=False,
-                ),
-                alloc_repeat=ARGS.alloc_repeat,
-                max_workers=ARGS.rpc_workers,
-            ),
-            database=database,
-            work_dir=ARGS.work_dir,
-            num_threads=os.cpu_count(),
-        )
-
-    relax_mod = apply_opt_after_tuning(relax_mod, database, ARGS.target)
-    if input_dtype.startswith("float"):
-        input_data = np.random.uniform(size=input_shape).astype(input_dtype)
-    else:
-        input_data = np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
-
-    with transform.PassContext(opt_level=3):
-        executable = relax.vm.build(mod=relax_mod, target=ARGS.target)
-
-    run_module_via_rpc(
-        rpc_config=ARGS.rpc_config,
-        lib=executable.mod,
-        dev_type=ARGS.target.kind.name,
-        args=[input_data],
-        continuation=f_remote_measurement,
+    executable = ms.tune_relax(
+        mod=relax_mod,
+        target=ARGS.target,
+        config=ms.TuneConfig(
+            strategy="evolutionary",
+            num_trials_per_iter=64,
+            max_trials_per_task=ARGS.num_trials,
+            max_trials_global=ARGS.num_trials,
+        ),
+        runner=get_runner(),
+        work_dir=ARGS.work_dir,
+        num_threads=os.cpu_count(),
     )
+
+    if input_dtype.startswith("float"):
+        input_data = [np.random.uniform(size=input_shape).astype(input_dtype)]
+    else:
+        input_data = [np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)]
+
+    if ARGS.rpc_config:
+        run_module_via_rpc(
+            rpc_config=ARGS.rpc_config,
+            lib=executable.mod,
+            dev_type=ARGS.target.kind.name,
+            args=input_data,
+            continuation=f_measurement,
+        )
+    else:
+        dev = tvm.device(ARGS.target.kind.name)
+        input_data = [runtime.ndarray.array(arg, dev) for arg in input_data]
+        f_measurement(executable.mod, dev, *input_data)
 
 
 if __name__ == "__main__":
