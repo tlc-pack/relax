@@ -180,9 +180,7 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
 
     mod = InputModule
     new_mod = relax.transform.AnnotateTIROpPattern()(mod)
-    assert (
-        new_mod["add_with_unit_dim_len_broadcast"].attrs["op_pattern"] == OpPatternKind.kElemWise
-    )
+    assert new_mod["add_with_unit_dim_len_broadcast"].attrs["op_pattern"] == OpPatternKind.kElemWise
 
 
 def test_annotate_opkind_add_zero_dim_element_wise():
