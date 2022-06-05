@@ -26,9 +26,6 @@
 #include <tvm/relax/dataflow_pattern_functor.h>
 #include <tvm/relax/expr_functor.h>
 
-#include "tvm/relax/dataflow_pattern.h"
-#include "tvm/relax/expr.h"
-
 namespace tvm {
 namespace relax {
 
@@ -58,6 +55,7 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
     IndexedGraph<Expr> graph_;
     size_t index_ = 0;
   };
+
   /*! \brief Annotator takes an IndexedGraph, fills it's forward outputs, and does dominator tree
    * analysis.
    *
@@ -90,7 +88,7 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
    protected:
     IndexedGraph<Expr> graph_;
     void VisitExpr_(const VarNode* op, NodePtr parent) override {
-      return;  // not visiting var's Type as relax's Var has no type annotation.
+      // not visiting var's Type as relax's Var has no type annotation.
     }
 
     void VisitExpr_(const GlobalVarNode* op, NodePtr parent) override {}
@@ -102,6 +100,8 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
     void VisitExpr_(const DataflowVarNode* op, NodePtr parent) override {}
 
     void VisitExpr_(const ExternFuncNode* op, NodePtr parent) override {}
+
+    void VisitExpr_(const ShapeExprNode* op, NodePtr parent) override {}
 
     void VisitExpr_(const TupleNode* op, NodePtr parent) override {
       for (auto field : op->fields) {
