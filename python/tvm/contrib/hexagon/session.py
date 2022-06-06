@@ -21,6 +21,7 @@ import os
 import pathlib
 import tempfile
 from typing import Union
+from tvm import relax
 
 import tvm
 from tvm import rpc as _rpc
@@ -146,19 +147,16 @@ class Session:
         TVMModule :
             TVM module object.
         """
-
         assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
 
-        if isinstance(module, tvm.runtime.Module):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_dir = pathlib.Path(temp_dir)
-                binary_name = "test_binary.so"
-                binary_path = temp_dir / binary_name
-                module.save(str(binary_path))
-                self.upload(binary_path, binary_name)
-                module = binary_name
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = pathlib.Path(temp_dir)
+            binary_name = "test_binary.so"
+            binary_path = temp_dir / binary_name
+            module.save(str(binary_path))
+            self.upload(binary_path, binary_name)
+            module = binary_name
 
-        assert isinstance(module, (str, pathlib.Path)), "Invalid path type:" + str(type(module))
         return self._rpc.get_function("tvm.hexagon.load_module")(str(module))
 
     def get_graph_executor(
@@ -237,6 +235,10 @@ class Session:
             return self._aot_executor_from_factory(module)
         if isinstance(module, GraphExecutorFactoryModule):
             return self._graph_executor_from_factory(module)
+        if isinstance(module, tvm.runtime.vm.Executable):
+            return self._get_relay_vm(module)
+        if isinstance(module, relax.vm.Executable):
+            return self._relax_vm_executable_executor(module)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
@@ -253,8 +255,8 @@ class Session:
         if not hasattr(module, "target"):
             self._requires_cpu_device = False
         else:
-            assert len(module.target) == 1
-            for target in module.target:
+            assert len(module.target.values()) == 1
+            for target in module.target.values():
                 target_type = str(target).split()[0]
 
             if target_type == "llvm":
@@ -292,6 +294,20 @@ class Session:
 
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
+    def _relax_vm_executable_executor(
+        self,
+        module,
+    ):
+        vm_mod = self.load_module(module.get_lib())
+        return vm_mod
+
+    def _get_relay_vm(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):
+        import tvm.runtime.vm as vm_rt
+
+        save_func, lib = module.save()
+        vm_mod = self.load_module(lib)
+        return vm_rt.VirtualMachine(vm_mod, self.device)
+
     def _aot_executor_from_factory(
         self,
         module: Union[str, pathlib.Path, AOTExecutorFactoryModule],
@@ -319,13 +335,13 @@ class Session:
 
         hexagon_arch = set(
             target.mcpu.replace("hexagon", "")
-            for target in module.target
+            for target in module.target.values()
             if "hexagon" in target.keys
         )
 
         self._set_device_type(module)
 
-        for target in module.target:
+        for target in module.target.values():
             target_type = str(target).split()[0]
 
         assert hexagon_arch, "No hexagon target architecture found"

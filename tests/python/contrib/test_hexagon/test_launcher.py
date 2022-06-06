@@ -20,10 +20,47 @@ import pytest
 import numpy as np
 
 import tvm.testing
+import tvm
 from tvm import te
-from tvm import relay
+from tvm import relay, relax
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
+from tvm.script import relax as R, tir as T
+from tvm.relax.testing import relay_translator
+
+
+@tvm.testing.requires_hexagon
+def test_relax(hexagon_session: Session):
+    dtype = "float32"
+    data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
+    weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    relay_mod = tvm.IRModule.from_expr(f)
+
+    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
+
+    R.parser.pretty_print(relax_mod)
+
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    print(vm_mod)
+    # data = tvm.nd.array(np.random.rand(1, 64, 64, 3).astype(np.float32), dev)
+    # weight = tvm.nd.array(np.random.rand(5, 5, 3, 8).astype(np.float32), dev)
+    # res = vm["main"](data, weight)
+    # loaded_exec = relax.vm.Executable(ex, vm_mod)
 
 
 @tvm.testing.requires_hexagon
@@ -385,6 +422,57 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
     expected_output = llvm_graph_mod.get_output(0).numpy()
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+def test_vm(hexagon_session: Session):
+    dtype = "float32"
+    input_shape = (1, 128, 128, 3)
+    w_shape = (5, 5, 3, 8)
+    data = relay.var("data", relay.TensorType(input_shape, dtype))
+    weight = relay.var("weight", relay.TensorType(w_shape, dtype))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    relay_mod = tvm.IRModule.from_expr(f)
+    relay_mod = relay.transform.InferType()(relay_mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+
+    weight_data = np.random.rand(w_shape[0], w_shape[1], w_shape[2], w_shape[3]).astype(dtype=dtype)
+    input_data = np.random.rand(
+        input_shape[0], input_shape[1], input_shape[2], input_shape[3]
+    ).astype(dtype=dtype)
+
+    params = {"weight": weight_data}
+    inputs = {"data": input_data}
+
+    from tvm.relay.backend import vm
+
+    with tvm.transform.PassContext(opt_level=3):
+        exe = vm.compile(
+            relay_mod,
+            # tvm.target.Target(target_hexagon, host=target_hexagon),
+            target=target_hexagon,
+            target_host=target_hexagon,
+            params=params,
+        )
+    relay_vm = hexagon_session.get_executor_from_factory(exe)
+
+    relay_vm.set_input(func_name="main", **inputs)
+
+    relay_vm.run()
+
+    output = relay_vm.get_outputs()
+    output = output[0].numpy()
+
+    return output
 
 
 if __name__ == "__main__":
