@@ -107,6 +107,13 @@ TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
  * \return List of all global variables, in the PostDFS order in the expression.
  */
 TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
+/**
+ * \brief Perform use-def analysis to get a UDChain.
+ *
+ * \param m the IRModule to check.
+ * \return A map showing used-by information.
+ */
+TVM_DLL std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const IRModule& m);
 
 }  // namespace relax
 }  // namespace tvm
