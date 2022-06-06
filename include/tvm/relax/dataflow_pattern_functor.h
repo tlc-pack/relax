@@ -32,21 +32,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::AltPatternNode;
-using relay::AttrPatternNode;
-using relay::CallPatternNode;
-using relay::ConstantPatternNode;
-using relay::DataTypePatternNode;
-using relay::DominatorPatternNode;
-using relay::ExprPatternNode;
-using relay::FunctionPatternNode;
-using relay::IfPatternNode;
-using relay::ShapePatternNode;
-using relay::TupleGetItemPatternNode;
-using relay::TuplePatternNode;
-using relay::TypePatternNode;
-using relay::WildcardPatternNode;
-
 /*!
  * \brief A dynamical functor that dispatches on in the first DFPattern argument.
  *

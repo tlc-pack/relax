@@ -32,12 +32,10 @@
 #include <stack>
 
 #include "dataflow_matcher_impl.h"
-#include "tvm/relay/dataflow_pattern.h"
 
 namespace tvm {
 namespace relax {
 
-using relay::CallPattern;
 using relay::transform::InferType;
 
 // Pattern Matcher

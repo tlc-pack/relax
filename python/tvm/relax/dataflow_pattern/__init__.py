@@ -16,19 +16,18 @@
 # under the License.
 """The Relax Pattern Language and tooling."""
 # pylint: disable=no-member
-from typing import List, Optional
+from typing import List, Optional, Callable, Dict
 
 import tvm._ffi
 from tvm.relax import Expr, DynTensorType
 from tvm.relay.op import get
-import tvm.relay.dataflow_pattern as relay_dp
-from tvm.relay.dataflow_pattern import register_df_node as register_relay_df_node
-from tvm.relay.dataflow_pattern import ffi as relay_ffi
 
-
+from ...ir import make_node
+from ...runtime import Object
+from ...ir.base import Node
 from . import _ffi as ffi
 
-def register_relax_df_node(type_key=None):
+def register_df_node(type_key=None):
     """Register a Relax node type.
 
     Parameters
@@ -40,9 +39,93 @@ def register_relax_df_node(type_key=None):
         return tvm._ffi.register_object("relax.dataflow_pattern." + type_key.__name__)(type_key)
     return tvm._ffi.register_object(type_key)
 
+class DFPattern(Node):
+    """Base class of all Patterns."""
 
-class DFPattern(relay_dp.DFPattern):
-    """Base class of all Relax Patterns."""
+    def __call__(self, *args):
+        args = list(args)
+        if len(args) == 1 and args[0] is None:
+            args = None
+        return CallPattern(self, args)
+
+    def __or__(self, other):
+        return AltPattern(self, other)
+
+    def __add__(self, other):
+        return is_op("add")(self, other)
+
+    def __sub__(self, other):
+        return is_op("subtract")(self, other)
+
+    def __mul__(self, other):
+        return is_op("multiply")(self, other)
+
+    def __truediv__(self, other):
+        return is_op("divide")(self, other)
+
+    def has_attr(self, attrs: Dict[str, Object]):
+        """
+        Add an attribute constraint to this pattern
+
+        Parameters
+        ----------
+        attrs: Dict[str, Object]
+
+        Returns
+        -------
+        result: tvm.relax.dataflow_pattern.DFPattern
+            The resulting AttrPattern
+        """
+        attrs = make_node("DictAttrs", **attrs)
+        return AttrPattern(self, attrs)
+
+    def has_type(self, ttype: tvm.ir.type.Type):
+        """
+        Add a type constraint to this pattern
+
+        Parameters
+        ----------
+        ttype: tvm.ir.type.Type
+            The type to match
+
+        Returns
+        -------
+        result: tvm.relax.dataflow_pattern.DFPattern
+            The resulting TypePattern
+        """
+        return has_type(ttype, self)
+
+    def has_dtype(self, dtype: str):
+        """
+        Add a type constraint to this pattern
+
+        Parameters
+        ----------
+        dtype: str
+            The dtype to match
+
+        Returns
+        -------
+        result: tvm.relax.dataflow_pattern.DFPattern
+            The resulting DataTypePattern
+        """
+        return has_dtype(dtype, self)
+
+    def has_shape(self, shape: List[tvm.ir.PrimExpr]):
+        """
+        Add a type constraint to this pattern
+
+        Parameters
+        ----------
+        shape: List[tvm.ir.PrimExpr]
+            The shape to match
+
+        Returns
+        -------
+        result: tvm.relax.dataflow_pattern.DFPattern
+            The resulting ShapePattern
+        """
+        return has_shape(shape, self)
 
     def match(self, expr: Expr) -> bool:
         """
@@ -50,7 +133,7 @@ class DFPattern(relay_dp.DFPattern):
 
         Parameters
         ----------
-        expr : tvm.relax.Expr
+        expr : tvm.relay.Expr
             The expression to match.
 
         Returns
@@ -59,6 +142,44 @@ class DFPattern(relay_dp.DFPattern):
             Whether or not the expression matches the pattern
         """
         return match(self, expr)
+
+    def dominates(self, parent: "DFPattern", path: "DFPattern" = None):
+        """
+        Create a dominator for this pattern.
+
+        Parameters
+        ----------
+        parent: tvm.relax.dataflow_pattern.DFPattern
+            The parent pattern this pattern dominates.
+        path: tvm.relax.dataflow_pattern.DFPattern
+            The fuzzy path pattern.
+
+        Returns
+        -------
+        result: tvm.relax.dataflow_pattern.DFPattern
+            The resulting DominatorPattern.
+        """
+        if path is None:
+            path = wildcard()
+        return DominatorPattern(parent, path, self)
+
+    def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
+        """
+        Create a optional user of this pattern.
+
+        Parameters
+        ----------
+        option_constructor: function
+            A function that takes a single Pattern parameter and returns
+            a constructed pattern matching the option
+
+        Returns
+        -------
+        result: tvm.relax.dataflow_pattern.DFPattern
+            The resulting Pattern
+        """
+        return self | option_constructor(self)
+
 
 
 def is_var(name: str = "") -> "DFPattern":
@@ -119,7 +240,7 @@ def is_op(op_name: str) -> "DFPattern":
     Parameters
     ----------
     op_name: String
-        The name of the relay op
+        The name of the tvm.ir.op.Op object
 
     Returns
     -------
@@ -325,14 +446,14 @@ def match(pattern: "DFPattern", expr: Expr) -> bool:
     return ffi.match(pattern, expr)
 
 
-@register_relax_df_node
+@register_df_node
 class RuntimeDepShapePattern(DFPattern):
     """A pattern matching a Relax RuntimeDepShape."""
 
     def __init__(self):
         self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern)
 
-@register_relax_df_node
+@register_df_node
 class DynTensorTypePattern(DFPattern):
     """A pattern that matches another pattern with a certain DynTensorTypePattern.
 
@@ -351,7 +472,7 @@ class DynTensorTypePattern(DFPattern):
         self.__init_handle_by_constructor__(ffi.DynTensorTypePattern, pattern, type)
 
 
-@register_relay_df_node
+@register_df_node
 class ExprPattern(DFPattern):
     """A pattern which matches a constant expression.
 
@@ -362,10 +483,10 @@ class ExprPattern(DFPattern):
     """
 
     def __init__(self, expr: Expr):
-        self.__init_handle_by_constructor__(relay_ffi.ExprPattern, expr)
+        self.__init_handle_by_constructor__(ffi.ExprPattern, expr)
 
 
-@register_relax_df_node
+@register_df_node
 class VarPattern(DFPattern):
     """A local variable pattern.
 
@@ -386,7 +507,7 @@ class VarPattern(DFPattern):
         self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)
 
 
-@register_relax_df_node
+@register_df_node
 class DataflowVarPattern(DFPattern):
     """A local variable pattern.
 
@@ -407,20 +528,20 @@ class DataflowVarPattern(DFPattern):
         self.__init_handle_by_constructor__(ffi.DataflowVarPattern, name_hint)
 
 
-@register_relax_df_node
+@register_df_node
 class ExternFuncPattern(DFPattern):
     def __init__(self, global_symbol: str = ""):
         self.__init_handle_by_constructor__(ffi.ExternFuncPattern, global_symbol)
 
-@register_relay_df_node
+@register_df_node
 class ConstantPattern(DFPattern):
     """A pattern matching a Relax Constant."""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(relay_ffi.ConstantPattern)
+        self.__init_handle_by_constructor__(ffi.ConstantPattern)
 
 
-@register_relay_df_node
+@register_df_node
 class CallPattern(DFPattern):
     """A pattern matching a function call node.
 
@@ -439,10 +560,10 @@ class CallPattern(DFPattern):
         op: "DFPattern",
         args: List["DFPattern"],
     ):
-        self.__init_handle_by_constructor__(relay_ffi.CallPattern, op, args)
+        self.__init_handle_by_constructor__(ffi.CallPattern, op, args)
 
 
-@register_relay_df_node
+@register_df_node
 class FunctionPattern(DFPattern):
     """A pattern matching a function node in Relax.
 
@@ -461,10 +582,10 @@ class FunctionPattern(DFPattern):
         params: List["DFPattern"],
         body: "DFPattern",
     ):
-        self.__init_handle_by_constructor__(relay_ffi.FunctionPattern, params, body)
+        self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)
 
 
-@register_relay_df_node
+@register_df_node
 class IfPattern(DFPattern):
     """A patern matching a Relax If.
 
@@ -481,10 +602,10 @@ class IfPattern(DFPattern):
     """
 
     def __init__(self, cond: "DFPattern", true_branch: "DFPattern", false_branch: "DFPattern"):
-        self.__init_handle_by_constructor__(relay_ffi.IfPattern, cond, true_branch, false_branch)
+        self.__init_handle_by_constructor__(ffi.IfPattern, cond, true_branch, false_branch)
 
 
-@register_relay_df_node
+@register_df_node
 class TuplePattern(DFPattern):
     """A patern matching a Relax Tuple.
 
@@ -495,7 +616,7 @@ class TuplePattern(DFPattern):
     """
 
     def __init__(self, fields: tvm.ir.container.Array):
-        self.__init_handle_by_constructor__(relay_ffi.TuplePattern, fields)
+        self.__init_handle_by_constructor__(ffi.TuplePattern, fields)
 
     def __getitem__(self, index: int):
         if index >= len(self):
@@ -509,7 +630,7 @@ class TuplePattern(DFPattern):
         raise TypeError("astype cannot be used on TuplePattern")
 
 
-@register_relay_df_node
+@register_df_node
 class TupleGetItemPattern(DFPattern):
     """Get index-th item from a TuplePattern.
 
@@ -524,10 +645,10 @@ class TupleGetItemPattern(DFPattern):
 
     def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
         match_index = index if index is not None else -1
-        self.__init_handle_by_constructor__(relay_ffi.TupleGetItemPattern, tuple_value, match_index)
+        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, match_index)
 
 
-@register_relay_df_node
+@register_df_node
 class AltPattern(DFPattern):
     """Create a Pattern that can match one of two conditions
 
@@ -540,18 +661,18 @@ class AltPattern(DFPattern):
     """
 
     def __init__(self, left: "DFPattern", right: "DFPattern"):
-        self.__init_handle_by_constructor__(relay_ffi.AltPattern, left, right)
+        self.__init_handle_by_constructor__(ffi.AltPattern, left, right)
 
 
-@register_relay_df_node
+@register_df_node
 class WildcardPattern(DFPattern):
     """A pattern which matches anything."""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(relay_ffi.WildcardPattern)
+        self.__init_handle_by_constructor__(ffi.WildcardPattern)
 
 
-@register_relay_df_node
+@register_df_node
 class TypePattern(DFPattern):
     """A pattern that matches another pattern with a certain type annotation.
 
@@ -565,10 +686,10 @@ class TypePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", ttype: tvm.ir.type.Type):
-        self.__init_handle_by_constructor__(relay_ffi.TypePattern, pattern, ttype)
+        self.__init_handle_by_constructor__(ffi.TypePattern, pattern, ttype)
 
 
-@register_relay_df_node
+@register_df_node
 class DataTypePattern(DFPattern):
     """A pattern that matches another pattern with certain data type
 
@@ -582,10 +703,10 @@ class DataTypePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", dtype: str):
-        self.__init_handle_by_constructor__(relay_ffi.DataTypePattern, pattern, dtype)
+        self.__init_handle_by_constructor__(ffi.DataTypePattern, pattern, dtype)
 
 
-@register_relay_df_node
+@register_df_node
 class ShapePattern(DFPattern):
     """A pattern that matches another pattern with a certain tensor shape
 
@@ -599,10 +720,10 @@ class ShapePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
-        self.__init_handle_by_constructor__(relay_ffi.ShapePattern, pattern, shape)
+        self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)
 
 
-@register_relay_df_node
+@register_df_node
 class AttrPattern(DFPattern):
     """Get match an expression with a certain attributes.
     Currently only supports Op Attributes, not call Attributes.
@@ -617,10 +738,10 @@ class AttrPattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", attrs: tvm.ir.attrs.Attrs):
-        self.__init_handle_by_constructor__(relay_ffi.AttrPattern, pattern, attrs)
+        self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)
 
 
-@register_relay_df_node
+@register_df_node
 class DominatorPattern(DFPattern):
     """Match a domination graph.
 
@@ -638,5 +759,5 @@ class DominatorPattern(DFPattern):
     """
 
     def __init__(self, parent: "DFPattern", path: "DFPattern", child: "DFPattern"):
-        self.__init_handle_by_constructor__(relay_ffi.DominatorPattern, parent, path, child)
+        self.__init_handle_by_constructor__(ffi.DominatorPattern, parent, path, child)
 
