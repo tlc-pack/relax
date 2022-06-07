@@ -512,7 +512,7 @@ bool DFPatternMatcher::VisitDFPattern_(const DynTensorTypePatternNode* op, const
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
   if (const auto* var_node = expr.as<VarNode>()) {
     // either no name or name matches.
-    return op->name_hint() != "" || op->name_hint() == var_node->name_hint();
+    return op->name_hint() == "" || op->name_hint() == var_node->name_hint();
   }
   return false;
 }
