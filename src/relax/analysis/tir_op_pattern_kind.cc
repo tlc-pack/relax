@@ -53,11 +53,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    if (op->indices.size() > 0) {
-      // zero-rank buffer loads are regarded as constant, skip it.
-      // E.g. A[i] = B[i] + C[()] will be element-wise rather than broadcast or injective.
-      loads_.push_back(GetRef<BufferLoad>(op));
-    }
+    loads_.push_back(GetRef<BufferLoad>(op));
     ExprVisitor::VisitExpr_(op);
   }
 
@@ -77,28 +73,30 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
     // Step 3. Checking load store indices pattern
     relay::OpPatternKind index_pair_pattern = relay::kElemWise;
-    if (loads_.empty()) {
-      // E.g. A[i] = B[()] or A[i] = 1
-      index_pair_pattern = relay::kBroadcast;
-    } else {
-      for (const BufferLoad& load : loads_) {
-        // Since elemwise is stricter than broadcast and broadcast is stricter than injective,
-        // while the order amount enums: kElemWise < kBroadcast < kInjective.
-        // We can simpily use `std::max` to detect these three patterns.
-        // E.g Here is only one store node but two load nodes, like C[i, j] = A[i, j] + B[i]
-        // Buffer C and A are elemwise but C and B are broadcast. So the whole block follows
-        // broadcast pattern.
-        if (IsElemwisePattern(store, load)) {
-          index_pair_pattern = std::max(index_pair_pattern, relay::kElemWise);
-        } else if (IsBroadcastPattern(store, load)) {
-          index_pair_pattern = std::max(index_pair_pattern, relay::kBroadcast);
-        } else if (IsInjectivePattern(store, load)) {
-          index_pair_pattern = std::max(index_pair_pattern, relay::kInjective);
-        } else {
-          index_pair_pattern = relay::kOpaque;
-          break;
-        }
+    bool has_elem_wise = false;
+    for (const BufferLoad& load : loads_) {
+      // Since elemwise is stricter than broadcast and broadcast is stricter than injective,
+      // while the order amount enums: kElemWise < kBroadcast < kInjective.
+      // We can simpily use `std::max` to detect these three patterns.
+      // E.g Here is only one store node but two load nodes, like C[i, j] = A[i, j] + B[i]
+      // Buffer C and A are elemwise but C and B are broadcast. So the whole block follows
+      // broadcast pattern.
+      if (IsElemwisePattern(store, load)) {
+        index_pair_pattern = std::max(index_pair_pattern, relay::kElemWise);
+        has_elem_wise = true;
+      } else if (IsBroadcastPattern(store, load)) {
+        index_pair_pattern = std::max(index_pair_pattern, relay::kBroadcast);
+      } else if (IsInjectivePattern(store, load)) {
+        index_pair_pattern = std::max(index_pair_pattern, relay::kInjective);
+      } else {
+        index_pair_pattern = relay::kOpaque;
+        break;
       }
+    }
+    // If there is a index pair is kElemWise and others are kBroadcast, we regard it as kElemWise
+    // e.g. A[i, j] = B[i, j] + C[i]
+    if (index_pair_pattern == relay::kBroadcast && has_elem_wise) {
+      index_pair_pattern = relay::kElemWise;
     }
     // If the block index pattern is not opaque, update kind.
     if (index_pair_pattern != relay::kOpaque) {
