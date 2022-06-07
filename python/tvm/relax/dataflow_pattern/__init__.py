@@ -170,8 +170,8 @@ class DFPattern(Node):
         """
         return self | option_constructor(self)
     
-    def is_rt_dep_shape(self):
-        return self & is_rt_dep_shape()
+    def has_rt_dep_shape(self):
+        return self & has_rt_dep_shape()
 
 
 @register_df_node
@@ -736,7 +736,7 @@ def is_call_tir(op_name: str, args: TuplePattern = None, shape: List[tvm.ir.Prim
 
     return is_op("relax.call_tir")(GlobalVarPattern(op_name), args, shape)
 
-def is_rt_dep_shape():
+def has_rt_dep_shape():
     return RuntimeDepShapePattern()
 
 
