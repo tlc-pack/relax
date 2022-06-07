@@ -24,7 +24,7 @@ configuring the passes and scripting them in Python.
 from typing import Dict, List
 
 import tvm
-from tvm.relax.expr import VarBinding
+from tvm.relax.expr import VarBinding, Var, Expr, Function
 from . import _ffi_api
 
 
@@ -72,3 +72,6 @@ def udchain(mod: tvm.IRModule) -> Dict[VarBinding, List[VarBinding]]:
         The UD chain of the module (values are used by key).
     """
     return _ffi_api.udchain(mod)
+
+def get_var2val(func: Function) -> Dict[Var, Expr]:
+    return _ffi_api.get_var2val(func)

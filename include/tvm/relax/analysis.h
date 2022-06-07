@@ -115,6 +115,14 @@ TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
  */
 TVM_DLL std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const IRModule& m);
 
+/*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param m the IRModule to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -536,6 +536,8 @@ def is_var(name: str = "") -> "DFPattern":
 def is_gv(name) -> "DFPattern":
     return GlobalVarPattern(name)
 
+def is_dfv(name) -> "DFPattern":
+    return DataflowVarPattern(name)
 
 def is_constant() -> "DFPattern":
     """
