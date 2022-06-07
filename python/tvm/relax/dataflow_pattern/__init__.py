@@ -114,21 +114,8 @@ class DFPattern(Node):
         """
         return has_dtype(dtype, self)
 
-    def has_shape(self, shape: List[tvm.ir.PrimExpr]):
-        """
-        Add a type constraint to this pattern
-
-        Parameters
-        ----------
-        shape: List[tvm.ir.PrimExpr]
-            The shape to match
-
-        Returns
-        -------
-        result: tvm.relax.dataflow_pattern.DFPattern
-            The resulting ShapePattern
-        """
-        return has_shape(shape, self)
+    def has_shape(self, *args):
+        return has_shape(*args, pattern=self)
 
     def match(self, expr: Expr) -> bool:
         """
@@ -187,275 +174,6 @@ class DFPattern(Node):
         return self & is_rt_dep_shape()
 
 
-
-def is_var(name: str = "") -> "DFPattern":
-    """
-    Syntatic sugar for creating an optionally named VarPattern.
-
-    Parameters
-    ----------
-    name: str
-        The name of the input pattern to match.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return VarPattern(name)
-
-
-def is_constant() -> "DFPattern":
-    """
-    Syntatic sugar for creating a ConstantPattern.
-
-    Parameters
-    ----------
-    name: str
-        The name of the input pattern to match.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return ConstantPattern()
-
-
-def is_expr(expr: Expr) -> "DFPattern":
-    """
-    Syntatic sugar for creating an ExprPattern.
-
-    Parameters
-    ----------
-    expr: Expr
-        The Relax expression to match.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return ExprPattern(expr)
-
-
-def is_op(op_name: str) -> "DFPattern":
-    """
-    Syntatic sugar for creating an operator ExprPattern.
-
-    Parameters
-    ----------
-    op_name: String
-        The name of the tvm.ir.op.Op object
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting ExprPattern
-    """
-    op = get(op_name)
-    return ExprPattern(op)
-
-
-def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
-    """
-    Syntatic sugar for creating an ExprPattern.
-
-    Parameters
-    ----------
-    fields : Array[tvm.relax.dataflow_pattern.DFPattern]
-        The fields in the tuple.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return TuplePattern(fields)
-
-
-def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> "DFPattern":
-    """
-    Syntatic sugar for creating an ExprPattern.
-
-    Parameters
-    ----------
-    tuple_value: tvm.relax.dataflow_pattern.DFPattern
-        The input tuple expression.
-
-    index: Optional[int]
-        The index to match; Default (None) to match a TupleGetItem with any index.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return TupleGetItemPattern(tuple_value, index)
-
-
-def is_if(cond, true_branch, false_branch):
-    """
-    Syntatic sugar for creating an IfPattern.
-
-    Parameters
-    ----------
-    cond: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the condition of If.
-
-    true_branch: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the true branch of If.
-
-    false_branch: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the false branch of If.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return IfPattern(cond, true_branch, false_branch)
-
-
-def wildcard() -> "DFPattern":
-    """
-    Syntatic sugar for creating a WildcardPattern.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return WildcardPattern()
-
-
-def has_type(ttype: tvm.ir.type.Type, pattern: "DFPattern" = None) -> "DFPattern":
-    """
-    Syntatic sugar for creating a TypePattern
-
-    Parameters
-    ----------
-    ttype: tvm.ir.type.Type
-        The type to match
-
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The pattern that needs type annotation
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting TypePattern
-    """
-    if pattern is None:
-        pattern = wildcard()
-    return TypePattern(pattern, ttype)
-
-
-def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
-    """
-    Syntatic sugar for creating a DataTypePattern
-
-    Parameters
-    ----------
-    dtype: str
-        The dtype to match
-
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The pattern that needs type annotation
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting DataTypePattern
-    """
-    if pattern is None:
-        pattern = wildcard()
-    return DataTypePattern(pattern, dtype)
-
-
-def has_shape(shape: List[tvm.ir.PrimExpr], pattern: "DFPattern" = None) -> "DFPattern":
-    """
-    Syntatic sugar for creating a ShapePattern
-
-    Parameters
-    ----------
-    shape: List[tvm.ir.PrimExpr]
-        The shape to match
-
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The pattern that needs type annotation
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting ShapePattern
-    """
-    if pattern is None:
-        pattern = wildcard()
-    return ShapePattern(pattern, shape)
-
-
-def is_rt_dep_shape():
-    return RuntimeDepShapePattern()
-
-
-def has_attr(attrs, pattern=None) -> "DFPattern":
-    """
-    Syntatic sugar for creating an AttrPattern
-
-    Parameters
-    ----------
-    attrs: Dict[str, Object]
-        The attributes to match
-
-    pattern: Optional[tvm.relax.dataflow_pattern.DFPattern]
-        The input pattern.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting AttrPattern
-    """
-    if pattern is None:
-        pattern = wildcard()
-    return pattern.has_attr(attrs)
-
-
-def dominates(parent: "DFPattern", path: "DFPattern", child: "DFPattern") -> "DFPattern":
-    """
-    Syntatic sugar for creating an Dominator pattern
-
-    Parameters
-    ----------
-    parent: tvm.relax.dataflow_pattern.DFPattern
-        The parent pattern.
-    path: tvm.relax.dataflow_pattern.DFPattern
-        The fuzzy path pattern.
-    child: tvm.relax.dataflow_pattern.DFPattern
-        The child pattern.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting DominatorPattern.
-    """
-    return DominatorPattern(parent, path, child)
-
-
-def match(pattern: "DFPattern", expr: Expr) -> bool:
-    """
-    Match a pattern to an expression
-
-    Parameters
-    ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The input pattern.
-    expr : tvm.relax.Expr
-        The expression to match.
-    """
-    return ffi.match(pattern, expr)
-
-
 @register_df_node
 class RuntimeDepShapePattern(DFPattern):
     """A pattern matching a Relax RuntimeDepShape."""
@@ -506,9 +224,6 @@ class VarPattern(DFPattern):
     name_hint: str
         The name of the variable. Optional, if not provided,
         the pattern will match any VarNode.
-
-    type_annotation: tvm.ir.type.Type, optional
-        The type annotation on the variable.
     """
 
     def __init__(self, name_hint: str = ""):
@@ -517,7 +232,7 @@ class VarPattern(DFPattern):
 
 @register_df_node
 class DataflowVarPattern(DFPattern):
-    """A local variable pattern.
+    """A local dataflow variable pattern.
 
     Local variable can be used to declare input
     arguments to a function, or intermediate variables.
@@ -527,13 +242,27 @@ class DataflowVarPattern(DFPattern):
     name_hint: str
         The name of the variable. Optional, if not provided,
         the pattern will match any VarNode.
-
-    type_annotation: tvm.ir.type.Type, optional
-        The type annotation on the variable.
     """
 
     def __init__(self, name_hint: str = ""):
         self.__init_handle_by_constructor__(ffi.DataflowVarPattern, name_hint)
+
+@register_df_node
+class GlobalVarPattern(DFPattern):
+    """A global variable pattern.
+
+    Global variable can be used to declare input
+    arguments to a function, or intermediate variables.
+
+    Parameters
+    ----------
+    name_hint: str
+        The name of the variable. Optional, if not provided,
+        the pattern will match any VarNode.
+    """
+
+    def __init__(self, name_hint: str = ""):
+        self.__init_handle_by_constructor__(ffi.GlobalVarPattern, name_hint)
 
 
 @register_df_node
@@ -745,6 +474,10 @@ class ShapePattern(DFPattern):
     def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)
 
+@register_df_node
+class PrimArrPattern(DFPattern):
+    def __init__(self,  shape: List[tvm.ir.PrimExpr]):
+        self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)
 
 @register_df_node
 class AttrPattern(DFPattern):
@@ -784,3 +517,281 @@ class DominatorPattern(DFPattern):
     def __init__(self, parent: "DFPattern", path: "DFPattern", child: "DFPattern"):
         self.__init_handle_by_constructor__(ffi.DominatorPattern, parent, path, child)
 
+def is_var(name: str = "") -> "DFPattern":
+    """
+    Syntatic sugar for creating an optionally named VarPattern.
+
+    Parameters
+    ----------
+    name: str
+        The name of the input pattern to match.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return VarPattern(name)
+
+def is_gv(name) -> "DFPattern":
+    return GlobalVarPattern(name)
+
+
+def is_constant() -> "DFPattern":
+    """
+    Syntatic sugar for creating a ConstantPattern.
+
+    Parameters
+    ----------
+    name: str
+        The name of the input pattern to match.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return ConstantPattern()
+
+
+def is_expr(expr: Expr) -> "DFPattern":
+    """
+    Syntatic sugar for creating an ExprPattern.
+
+    Parameters
+    ----------
+    expr: Expr
+        The Relax expression to match.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return ExprPattern(expr)
+
+
+def is_op(op_name: str) -> "DFPattern":
+    """
+    Syntatic sugar for creating an operator ExprPattern.
+
+    Parameters
+    ----------
+    op_name: String
+        The name of the tvm.ir.op.Op object
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting ExprPattern
+    """
+    op = get(op_name)
+    return ExprPattern(op)
+
+
+def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
+    """
+    Syntatic sugar for creating an ExprPattern.
+
+    Parameters
+    ----------
+    fields : Array[tvm.relax.dataflow_pattern.DFPattern]
+        The fields in the tuple.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return TuplePattern(fields)
+
+
+def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> "DFPattern":
+    """
+    Syntatic sugar for creating an ExprPattern.
+
+    Parameters
+    ----------
+    tuple_value: tvm.relax.dataflow_pattern.DFPattern
+        The input tuple expression.
+
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return TupleGetItemPattern(tuple_value, index)
+
+
+def is_if(cond, true_branch, false_branch):
+    """
+    Syntatic sugar for creating an IfPattern.
+
+    Parameters
+    ----------
+    cond: tvm.relax.dataflow_pattern.DFPattern
+        The pattern describing the condition of If.
+
+    true_branch: tvm.relax.dataflow_pattern.DFPattern
+        The pattern describing the true branch of If.
+
+    false_branch: tvm.relax.dataflow_pattern.DFPattern
+        The pattern describing the false branch of If.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return IfPattern(cond, true_branch, false_branch)
+
+
+def wildcard() -> "DFPattern":
+    """
+    Syntatic sugar for creating a WildcardPattern.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return WildcardPattern()
+
+
+def has_type(ttype: tvm.ir.type.Type, pattern: "DFPattern" = None) -> "DFPattern":
+    """
+    Syntatic sugar for creating a TypePattern
+
+    Parameters
+    ----------
+    ttype: tvm.ir.type.Type
+        The type to match
+
+    pattern: tvm.relax.dataflow_pattern.DFPattern
+        The pattern that needs type annotation
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting TypePattern
+    """
+    if pattern is None:
+        pattern = wildcard()
+    return TypePattern(pattern, ttype)
+
+
+def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
+    """
+    Syntatic sugar for creating a DataTypePattern
+
+    Parameters
+    ----------
+    dtype: str
+        The dtype to match
+
+    pattern: tvm.relax.dataflow_pattern.DFPattern
+        The pattern that needs type annotation
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting DataTypePattern
+    """
+    if pattern is None:
+        pattern = wildcard()
+    return DataTypePattern(pattern, dtype)
+
+
+def has_shape(*args, pattern: "DFPattern" = None) -> "DFPattern":
+    """Either has_shape(a, b, c) or has_shape([a, b, c, ...])
+    """
+    if pattern is None:
+        pattern = wildcard()
+    if len(args) == 1 and isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
+        return ShapePattern(pattern, args[0])
+    return ShapePattern(pattern, args)
+
+def is_shape(*args):
+    if len(args) == 1 and isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
+        return PrimArrPattern(args[0])
+    return PrimArrPattern(args)
+
+def is_call_tir(op_name: str, args: TuplePattern = None, shape: List[tvm.ir.PrimExpr] = None) -> "DFPattern":
+    if args is None:
+        args = wildcard()
+    elif isinstance(args, TuplePattern):
+        pass
+    elif isinstance(args, (list, tuple, tvm.ir.container.Array)):
+        args = TuplePattern(args)
+    else:
+        raise ValueError("`args` must be list/tuple/tvm.ir.container.Array or just TuplePattern")
+    
+    if shape is None:
+        shape = wildcard()
+    elif isinstance(shape, (list, tuple, tvm.ir.container.Array)):
+        shape = is_tuple(shape)
+
+    return is_op("relax.call_tir")(GlobalVarPattern(op_name), args, shape)
+
+def is_rt_dep_shape():
+    return RuntimeDepShapePattern()
+
+
+def has_attr(attrs, pattern=None) -> "DFPattern":
+    """
+    Syntatic sugar for creating an AttrPattern
+
+    Parameters
+    ----------
+    attrs: Dict[str, Object]
+        The attributes to match
+
+    pattern: Optional[tvm.relax.dataflow_pattern.DFPattern]
+        The input pattern.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting AttrPattern
+    """
+    if pattern is None:
+        pattern = wildcard()
+    return pattern.has_attr(attrs)
+
+
+def dominates(parent: "DFPattern", path: "DFPattern", child: "DFPattern") -> "DFPattern":
+    """
+    Syntatic sugar for creating an Dominator pattern
+
+    Parameters
+    ----------
+    parent: tvm.relax.dataflow_pattern.DFPattern
+        The parent pattern.
+    path: tvm.relax.dataflow_pattern.DFPattern
+        The fuzzy path pattern.
+    child: tvm.relax.dataflow_pattern.DFPattern
+        The child pattern.
+
+    Returns
+    -------
+    result: tvm.relax.dataflow_pattern.DFPattern
+        The resulting DominatorPattern.
+    """
+    return DominatorPattern(parent, path, child)
+
+
+def match(pattern: "DFPattern", expr: Expr) -> bool:
+    """
+    Match a pattern to an expression
+
+    Parameters
+    ----------
+    pattern: tvm.relax.dataflow_pattern.DFPattern
+        The input pattern.
+    expr : tvm.relax.Expr
+        The expression to match.
+    """
+    return ffi.match(pattern, expr)

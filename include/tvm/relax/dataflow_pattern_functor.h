@@ -105,8 +105,10 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const DataflowVarPatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitDFPattern_(const GlobalVarPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const ExternFuncPatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitDFPattern_(const PrimArrPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
 
   virtual R VisitDFPatternDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
@@ -138,7 +140,9 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(RuntimeDepShapePatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(DynTensorTypePatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(DataflowVarPatternNode);
+    RELAY_DFPATTERN_FUNCTOR_DISPATCH(GlobalVarPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(ExternFuncPatternNode);
+    RELAY_DFPATTERN_FUNCTOR_DISPATCH(PrimArrPatternNode);
     return vtable;
   }
 };
@@ -172,7 +176,9 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const RuntimeDepShapePatternNode* op) override;
   void VisitDFPattern_(const DynTensorTypePatternNode* op) override;
   void VisitDFPattern_(const DataflowVarPatternNode* op) override;
+  void VisitDFPattern_(const GlobalVarPatternNode* op) override;
   void VisitDFPattern_(const ExternFuncPatternNode* op) override;
+  void VisitDFPattern_(const PrimArrPatternNode* op) override;
 
  protected:
   // set of already-visited nodes

@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
 #define TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
@@ -62,7 +63,9 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const RuntimeDepShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const DynTensorTypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const GlobalVarPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr) override;
 
   void ClearMap(size_t watermark);
   bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);
@@ -70,6 +73,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 
   std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
+  arith::Analyzer analyzer_;
   bool memoize_ = true;
 };
 

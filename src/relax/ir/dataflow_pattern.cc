@@ -24,6 +24,8 @@
 
 #include <tvm/relax/dataflow_pattern.h>
 
+#include "tvm/ir/expr.h"
+
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
       .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
@@ -64,6 +66,19 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DataflowVarPattern")
     .set_body_typed([](String name_hint) { return DataflowVarPattern(name_hint); });
 RELAX_PATTERN_PRINTER_DEF(DataflowVarPatternNode, [](auto p, auto node) {
   p->stream << "DataflowVarPattern(" << node->name_hint() << ")";
+});
+
+TVM_REGISTER_NODE_TYPE(GlobalVarPatternNode);
+GlobalVarPattern::GlobalVarPattern(String name_hint) {
+  ObjectPtr<GlobalVarPatternNode> n = make_object<GlobalVarPatternNode>();
+  n->name = std::move(name_hint);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.GlobalVarPattern").set_body_typed([](String name_hint) {
+  return GlobalVarPattern(name_hint);
+});
+RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
+  p->stream << "GlobalVarPattern(" << node->name_hint() << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(DynTensorTypePatternNode);
@@ -115,6 +130,18 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.CallPattern")
     .set_body_typed([](DFPattern op, Array<DFPattern> args) { return CallPattern(op, args); });
 RELAX_PATTERN_PRINTER_DEF(CallPatternNode, [](auto p, auto node) {
   p->stream << "CallPatternNode(" << node->op << ", " << node->args << ")";
+});
+
+TVM_REGISTER_NODE_TYPE(PrimArrPatternNode);
+PrimArrPattern::PrimArrPattern(Array<PrimExpr> arr) {
+  ObjectPtr<PrimArrPatternNode> n = make_object<PrimArrPatternNode>();
+  n->array = std::move(arr);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.PrimArrPattern")
+    .set_body_typed([](Array<PrimExpr> arr) { return PrimArrPattern(std::move(arr)); });
+RELAX_PATTERN_PRINTER_DEF(PrimArrPatternNode, [](auto p, auto node) {
+  p->stream << "PrimArrPattern(" << node->array << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionPatternNode);

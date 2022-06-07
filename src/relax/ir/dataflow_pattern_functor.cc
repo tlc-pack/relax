@@ -102,10 +102,12 @@ void DFPatternVisitor::VisitDFPattern_(const TypePatternNode* op) { VisitDFPatte
 
 // leaf nodes.
 void DFPatternVisitor::VisitDFPattern_(const DynTensorTypePatternNode* op) {}
+void DFPatternVisitor::VisitDFPattern_(const PrimArrPatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const VarPatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const RuntimeDepShapePatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const ConstantPatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const DataflowVarPatternNode* op) {}
+void DFPatternVisitor::VisitDFPattern_(const GlobalVarPatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const ExternFuncPatternNode* op) {}
 void DFPatternVisitor::VisitDFPattern_(const WildcardPatternNode* op) {}
 

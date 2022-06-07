@@ -31,6 +31,8 @@
 #include <string>
 #include <vector>
 
+#include "tvm/ir/expr.h"
+
 namespace tvm {
 namespace relax {
 
@@ -126,6 +128,22 @@ class DataflowVarPattern : public VarPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVarPattern, VarPattern, DataflowVarPatternNode);
 };
 
+/*!
+ * \brief A Pattern to Match a Relax Global Variable
+ */
+class GlobalVarPattern;
+/*! \brief Container for Var */
+class GlobalVarPatternNode : public VarPatternNode {
+ public:
+  static constexpr const char* _type_key = "relax.dataflow_pattern.GlobalVarPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarPatternNode, DFPatternNode);
+};
+class GlobalVarPattern : public DFPattern {
+ public:
+  TVM_DLL GlobalVarPattern(String name_hint);
+  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVarPattern, DFPattern, GlobalVarPatternNode);
+};
+
 class ConstantPattern;
 class ConstantPatternNode : public DFPatternNode {
  public:
@@ -168,6 +186,21 @@ class CallPattern : public DFPattern {
  public:
   TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args);
   TVM_DEFINE_OBJECT_REF_METHODS(CallPattern, DFPattern, CallPatternNode);
+};
+
+class PrimArrPattern;
+class PrimArrPatternNode : public DFPatternNode {
+ public:
+  /*! \brief The array to match */
+  Array<PrimExpr> array;
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("array", &array); }
+  static constexpr const char* _type_key = "relax.dataflow_pattern.PrimArrPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PrimArrPatternNode, DFPatternNode);
+};
+class PrimArrPattern : public DFPattern {
+ public:
+  TVM_DLL PrimArrPattern(Array<PrimExpr> arr);
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimArrPattern, DFPattern, PrimArrPatternNode);
 };
 
 /*!

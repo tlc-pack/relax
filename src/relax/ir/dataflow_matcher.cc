@@ -37,6 +37,7 @@ namespace tvm {
 namespace relax {
 
 using relay::transform::InferType;
+using tvm::arith::Analyzer;
 
 // Pattern Matcher
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
@@ -464,13 +465,23 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
 
+auto shape_equal = [](Analyzer& analyzer, const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+  if (lhs.size() != rhs.size()) return false;
+  for (size_t i = 0; i < lhs.size(); ++i)
+    if (!tir::is_one(analyzer.Simplify(lhs[i] == rhs[i]))) return false;
+  return true;
+};
+
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
-  if (const ShapeExprNode* shape_expr = expr->shape().as<ShapeExprNode>()) {
-    if (op->shape.size() != shape_expr->values.size()) return false;
-    for (size_t i = 0; i < op->shape.size(); ++i)
-      if (!tir::is_one(op->shape[i] == shape_expr->values[i])) return false;
-    return VisitDFPattern(op->pattern, expr);
-  }
+  if (const ShapeExprNode* shape_expr = expr->shape().as<ShapeExprNode>())
+    return shape_equal(analyzer_, op->shape, shape_expr->values) &&
+           VisitDFPattern(op->pattern, expr);
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr) {
+  if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
+    return shape_equal(analyzer_, op->array, shape_expr->values);
   return false;
 }
 
@@ -512,8 +523,17 @@ bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataflowVarPatternNode* op, const Expr& expr) {
+  // DataflowVar is inherented from Var, so dispatch it to VarPattern.
   return expr->IsInstance<DataflowVarNode>() &&
          VisitDFPattern_(static_cast<const VarPatternNode*>(op), expr);
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const GlobalVarPatternNode* op, const Expr& expr) {
+  // GlobalVarPattern is not inherited from Var, so we need to handle it separately.
+  if (const auto* var_node = expr.as<GlobalVarNode>())
+    return op->name_hint() ==
+           var_node->name_hint;  // global are usually func names which are not allowed to be "".
+  return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) {
