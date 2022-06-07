@@ -69,6 +69,8 @@ class DFPattern : public ObjectRef {
   DFPattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   DFPattern HasShape(const Array<PrimExpr>& shape) const;
+  /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
+  DFPattern IsRuntimeDepShape() const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
 };
@@ -453,15 +455,10 @@ class ExternFuncPattern : public DFPattern {
 class DynTensorTypePattern;
 class DynTensorTypePatternNode : public DFPatternNode {
  public:
-  /*! \brief The pattern. */
-  DFPattern pattern;
   /*! \brief The type to match */
   DynTensorType type;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pattern", &pattern);
-    v->Visit("type", &type);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("type", &type); }
   static constexpr const char* _type_key = "relax.dataflow_pattern.DynTensorTypePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(DynTensorTypePatternNode, DFPatternNode);
 };
@@ -471,7 +468,7 @@ class DynTensorTypePatternNode : public DFPatternNode {
  */
 class DynTensorTypePattern : public DFPattern {
  public:
-  TVM_DLL DynTensorTypePattern(DFPattern pattern, DynTensorType type);
+  TVM_DLL DynTensorTypePattern(DynTensorType type);
   TVM_DEFINE_OBJECT_REF_METHODS(DynTensorTypePattern, DFPattern, DynTensorTypePatternNode);
 };
 

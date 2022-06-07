@@ -484,10 +484,8 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
 
 bool DFPatternMatcher::VisitDFPattern_(const DynTensorTypePatternNode* op, const Expr& expr) {
   auto expr_type = expr->checked_type();
-  if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>()) {
-    return (StructuralEqual()(op->type, GetRef<DynTensorType>(tensor_type))) &&
-           VisitDFPattern(op->pattern, expr);
-  }
+  if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>())
+    return (StructuralEqual()(op->type, GetRef<DynTensorType>(tensor_type)));
   return false;
 }
 

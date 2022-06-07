@@ -67,18 +67,15 @@ RELAX_PATTERN_PRINTER_DEF(DataflowVarPatternNode, [](auto p, auto node) {
 });
 
 TVM_REGISTER_NODE_TYPE(DynTensorTypePatternNode);
-DynTensorTypePattern::DynTensorTypePattern(DFPattern pattern, DynTensorType type) {
+DynTensorTypePattern::DynTensorTypePattern(DynTensorType type) {
   ObjectPtr<DynTensorTypePatternNode> n = make_object<DynTensorTypePatternNode>();
-  n->pattern = std::move(pattern);
   n->type = std::move(type);
   data_ = std::move(n);
 }
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DynTensorTypePattern")
-    .set_body_typed([](DFPattern pattern, DynTensorType type) {
-      return DynTensorTypePattern(pattern, type);
-    });
+    .set_body_typed([](DynTensorType type) { return DynTensorTypePattern(type); });
 RELAX_PATTERN_PRINTER_DEF(DynTensorTypePatternNode, [](auto p, auto node) {
-  p->stream << "DynTensorTypePattern(" << node->pattern << " has type " << node->type << ")";
+  p->stream << "DynTensorTypePattern(" << node->type << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(RuntimeDepShapePatternNode);
@@ -187,7 +184,7 @@ AndPattern::AndPattern(DFPattern left, DFPattern right) {
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.AndPattern")
     .set_body_typed([](DFPattern left, DFPattern right) { return AndPattern(left, right); });
 RELAX_PATTERN_PRINTER_DEF(AndPatternNode, [](auto p, auto node) {
-  p->stream << "AndPattern(" << node->left << " | " << node->right << ")";
+  p->stream << "AndPattern(" << node->left << " & " << node->right << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(OrPatternNode);
@@ -327,6 +324,10 @@ DFPattern DFPattern::HasDtype(const std::string& dtype) const {
 }
 DFPattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(GetRef<DFPattern>(this->get()), shape);
+}
+DFPattern DFPattern::IsRuntimeDepShape() const {
+  return AndPattern(GetRef<DFPattern>(this->get()),
+                    RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>()));
 }
 DFPattern IsVar(const String& name) { return VarPattern(name); }
 DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }

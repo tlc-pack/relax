@@ -182,6 +182,9 @@ class DFPattern(Node):
             The resulting Pattern
         """
         return self | option_constructor(self)
+    
+    def is_rt_dep_shape(self):
+        return self & is_rt_dep_shape()
 
 
 
@@ -392,6 +395,10 @@ def has_shape(shape: List[tvm.ir.PrimExpr], pattern: "DFPattern" = None) -> "DFP
     return ShapePattern(pattern, shape)
 
 
+def is_rt_dep_shape():
+    return RuntimeDepShapePattern()
+
+
 def has_attr(attrs, pattern=None) -> "DFPattern":
     """
     Syntatic sugar for creating an AttrPattern
@@ -469,10 +476,8 @@ class DynTensorTypePattern(DFPattern):
         The input pattern that needs type annotation.
     """
 
-    def __init__(self, type: DynTensorType, pattern: "DFPattern" = None):
-        if pattern is None:
-            pattern = wildcard()
-        self.__init_handle_by_constructor__(ffi.DynTensorTypePattern, pattern, type)
+    def __init__(self, type: DynTensorType):
+        self.__init_handle_by_constructor__(ffi.DynTensorTypePattern, type)
 
 
 @register_df_node
