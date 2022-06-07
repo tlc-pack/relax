@@ -32,9 +32,8 @@ from ..rpc.base import RPC_SESS_MASK
 class Executable(object):
     """The executable object emitted by the VM compiler or the ExecBuilder."""
 
-    def __init__(self, mod: Module, lib):
+    def __init__(self, mod: Module):
         self.mod = mod
-        self.lib = lib
         self._stats = self.mod["stats"]
         self._save_to_file = self.mod["save_to_file"]
         self._as_text = self.mod["as_text"]
@@ -55,9 +54,6 @@ class Executable(object):
     def as_python(self) -> str:
         """print the instructions as python program."""
         return self._as_python()
-
-    def get_lib(self):
-        return self.lib
 
 
 def load_exec_from_file(path: str) -> Executable:
@@ -214,7 +210,8 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
     lib = tvm.build(tir_mod, target=target)
-    return Executable(_ffi_api.VMCodeGen(rx_mod, lib), lib)
+
+    return Executable(_ffi_api.VMCodeGen(rx_mod, lib))
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:

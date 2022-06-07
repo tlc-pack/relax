@@ -296,10 +296,32 @@ class Session:
 
     def _relax_vm_executable_executor(
         self,
-        module,
+        exec,
     ):
-        vm_mod = self.load_module(module.get_lib())
+        vm_mod = self.load_vm_executable(exec)
         return vm_mod
+
+    def load_vm_executable(self, exec: Union[str, pathlib.Path, tvm.runtime.Module]):
+        assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
+        from tvm.contrib import utils
+
+        temp_dir = utils.tempdir()
+        path_exec = temp_dir.relpath("exec.so")
+
+        exec.mod.export_library(
+            path_exec,
+            fcompile=hexagon.create_aot_shared,
+            hexagon_arch="v68",
+        )
+
+        # exec.mod.export_library(
+        #     path_exec,
+        #     cc=hexagon.hexagon_clang_plus(),
+        # )
+
+        self.upload(path_exec, "exec.so")
+
+        return self._rpc.get_function("tvm.hexagon.load_module")("exec.so")
 
     def _get_relay_vm(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):
         import tvm.runtime.vm as vm_rt

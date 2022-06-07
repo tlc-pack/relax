@@ -46,7 +46,8 @@ def test_relax(hexagon_session: Session):
     f = relay.Function([data, weight], y)
     relay_mod = tvm.IRModule.from_expr(f)
 
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    # target_hexagon = "llvm -keys=hexagon -link-params=0 -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
+    target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target)
 

@@ -112,7 +112,7 @@ std::string Executable::Stats() const {
     } else if (it.IsObjectRef<ShapeTuple>()) {
       ShapeTuple shape = it.operator ShapeTuple();
       oss << "shapetuple[";
-      for (size_t i = 0; i < shape.size(); ++i) {
+      for (uint64_t i = 0; i < shape.size(); ++i) {
         oss << shape.at(i) << ", ";
       }
       oss.seekp(-2, oss.cur);
@@ -166,7 +166,7 @@ void Executable::SetInstructionData(Index i, Index j, ExecWord val) {
 }
 
 Instruction Executable::GetInstruction(Index i) const {
-  size_t offset = instr_offset[i];
+  uint64_t offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
   switch (op) {
     case Opcode::Call: {
@@ -318,14 +318,14 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
       ShapeTuple shape = it.operator ShapeTuple();
       strm->Write(ConstantType::kShapeTuple);
       strm->Write(shape.size());
-      for (size_t i = 0; i < shape.size(); ++i) {
+      for (uint64_t i = 0; i < shape.size(); ++i) {
         strm->Write(shape.at(i));
       }
     } else if (it.IsObjectRef<String>()) {
       String str = it.operator String();
       strm->Write(ConstantType::kString);
       strm->Write(str.size());
-      for (size_t i = 0; i < str.size(); ++i) {
+      for (uint64_t i = 0; i < str.size(); ++i) {
         strm->Write(str.at(i));
       }
     } else if (it.type_code() == kDLInt) {
@@ -353,12 +353,12 @@ void Executable::SaveCodeSection(dmlc::Stream* strm) {
 void Executable::LoadGlobalSection(dmlc::Stream* strm) {
   uint64_t sz;
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
-  size_t size = static_cast<size_t>(sz);
-  for (size_t i = 0; i < size; i++) {
+  uint64_t size = static_cast<uint64_t>(sz);
+  for (uint64_t i = 0; i < size; i++) {
     VMFunction func = DeserializeVMFunc(strm);
     this->global_funcs.push_back(func);
   }
-  for (size_t i = 0; i < global_funcs.size(); ++i) {
+  for (uint64_t i = 0; i < global_funcs.size(); ++i) {
     this->global_map[global_funcs[i].name] = i;
   }
 }
@@ -368,11 +368,11 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
   // Load the number of constants.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
 
-  size_t size = static_cast<size_t>(sz);
+  uint64_t size = static_cast<uint64_t>(sz);
   runtime::NDArray ndarray;
   DLDataType dtype;
   // Load each of the constants.
-  for (size_t i = 0; i < size; i++) {
+  for (uint64_t i = 0; i < size; i++) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
     if (constant_type == ConstantType::kNDArray) {
@@ -381,10 +381,10 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
       cell = ndarray;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kShapeTuple) {
-      size_t size;
+      uint64_t size;
       strm->Read(&size);
       std::vector<ShapeTuple::index_type> data(size);
-      for (size_t i = 0; i < size; ++i) {
+      for (uint64_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
       TVMRetValue cell;
@@ -396,10 +396,10 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
       cell = dtype;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kString) {
-      size_t size;
+      uint64_t size;
       strm->Read(&size);
       std::vector<char> data(size);
-      for (size_t i = 0; i < size; ++i) {
+      for (uint64_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
       TVMRetValue cell;
@@ -420,7 +420,7 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
 
 void Executable::LoadPackedFuncNames(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->func_names)), "packed func names");
-  for (size_t i = 0; i < func_names.size(); ++i) {
+  for (uint64_t i = 0; i < func_names.size(); ++i) {
     this->func2idx[func_names[i]] = i;
   }
 }
@@ -489,15 +489,15 @@ std::string InstrArgToPyStr(Instruction::Arg arg) {
 String Executable::AsText() const {
   // print the text format
   std::ostringstream os;
-  for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
+  for (uint64_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
     const VMFunction& gfunc = this->global_funcs[fidx];
     os << "@" << gfunc.name << ":\n";
-    size_t start_instr = gfunc.start_instr;
-    size_t end_instr = this->instr_offset.size();
+    uint64_t start_instr = gfunc.start_instr;
+    uint64_t end_instr = this->instr_offset.size();
     if ((fidx + 1) < global_funcs.size()) {
       end_instr = global_funcs[fidx + 1].start_instr;
     }
-    for (size_t idx = start_instr; idx < end_instr; ++idx) {
+    for (uint64_t idx = start_instr; idx < end_instr; ++idx) {
       os << "  ";
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {
@@ -537,15 +537,15 @@ String Executable::AsPython() const {
   // print the python format
   std::ostringstream os;
   os << "ib = rx.Builder()\n";
-  for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
+  for (uint64_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
     const VMFunction& gfunc = this->global_funcs[fidx];
     os << "with ib.function(\"" << gfunc.name << "\", num_inputs=" << gfunc.num_args << "):\n";
-    size_t start_instr = gfunc.start_instr;
-    size_t end_instr = this->instr_offset.size();
+    uint64_t start_instr = gfunc.start_instr;
+    uint64_t end_instr = this->instr_offset.size();
     if ((fidx + 1) < global_funcs.size()) {
       end_instr = global_funcs[fidx + 1].start_instr;
     }
-    for (size_t idx = start_instr; idx < end_instr; ++idx) {
+    for (uint64_t idx = start_instr; idx < end_instr; ++idx) {
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
