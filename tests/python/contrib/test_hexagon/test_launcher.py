@@ -18,6 +18,7 @@
 import sys
 import pytest
 import numpy as np
+from tvm.relay import testing
 
 import tvm.testing
 import tvm
@@ -26,11 +27,11 @@ from tvm import relay, relax
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
 from tvm.script import relax as R, tir as T
-from tvm.relax.testing import relay_translator
+from tvm.relax.testing import relay_translator, nn
 
 
 @tvm.testing.requires_hexagon
-def test_relax(hexagon_session: Session):
+def test_relax_conv2d(hexagon_session: Session):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
@@ -62,7 +63,28 @@ def test_relax(hexagon_session: Session):
     data = tvm.nd.array(np.random.rand(1, 64, 64, 3).astype(np.float32), dev)
     weight = tvm.nd.array(np.random.rand(5, 5, 3, 8).astype(np.float32), dev)
     res = vm_rt["main"](data, weight)
-    #loaded_exec = relax.vm.Executable(ex, vm_mod)
+
+
+@tvm.testing.requires_hexagon
+def test_relax_mlp(hexagon_session: Session):
+    relay_mod, _ = testing.mlp.get_workload(batch_size=1, dtype="float32")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
+
+    R.parser.pretty_print(relax_mod)
+
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+
+    shape = (1, 1, 28, 28)
+    data = tvm.nd.array(np.random.rand(*shape).astype(np.float32), dev)
+    params = nn.init_params(relax_mod, dev)
+    res = vm_rt["main"](data, *params)
 
 
 @tvm.testing.requires_hexagon

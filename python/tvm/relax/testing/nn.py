@@ -111,7 +111,7 @@ def _unpack_params(value: object) -> List[relax.Var]:
     raise TypeError("not supported type when unpacking parameters: {}".format(type(value)))
 
 
-def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
+def init_params(mod: tvm.IRModule, dev) -> List[tvm.nd.array]:
     """Utility function to initialize model's parameters."""
     shape_dict = {v.name_hint: v.shape_ for v in mod["main"].params}
     params = []
@@ -125,7 +125,7 @@ def init_params(mod: tvm.IRModule) -> List[tvm.nd.array]:
                     shape.append(int(i))
                 else:
                     raise TypeError("cannot initialize for unknown-shape parameters.")
-            params.append(tvm.nd.array(np.zeros(shape).astype(np.float32)))
+            params.append(tvm.nd.array(np.zeros(shape).astype(np.float32), dev))
         else:
             raise TypeError("cannot initialize for unknown-shape parameters.")
     return params
