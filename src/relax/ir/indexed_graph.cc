@@ -199,7 +199,12 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
    protected:
     IndexedGraph<DFPattern> graph_;
-    void VisitDFPattern_(const AltPatternNode* op, NodePtr parent) override {
+    void VisitDFPattern_(const OrPatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->left, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->right, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const AndPatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->left, graph_.node_map_[GetRef<DFPattern>(op)]);
       VisitDFPattern(op->right, graph_.node_map_[GetRef<DFPattern>(op)]);
     }

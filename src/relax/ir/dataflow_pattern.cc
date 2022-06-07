@@ -177,17 +177,30 @@ RELAX_PATTERN_PRINTER_DEF(TupleGetItemPatternNode, [](auto p, auto node) {
   p->stream << "TupleGetItemPatternNode(" << node->tuple << ", " << node->index << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(AltPatternNode);
-AltPattern::AltPattern(DFPattern left, DFPattern right) {
-  ObjectPtr<AltPatternNode> n = make_object<AltPatternNode>();
+TVM_REGISTER_NODE_TYPE(AndPatternNode);
+AndPattern::AndPattern(DFPattern left, DFPattern right) {
+  ObjectPtr<AndPatternNode> n = make_object<AndPatternNode>();
   n->left = std::move(left);
   n->right = std::move(right);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.AltPattern")
-    .set_body_typed([](DFPattern left, DFPattern right) { return AltPattern(left, right); });
-RELAX_PATTERN_PRINTER_DEF(AltPatternNode, [](auto p, auto node) {
-  p->stream << "AltPattern(" << node->left << " | " << node->right << ")";
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.AndPattern")
+    .set_body_typed([](DFPattern left, DFPattern right) { return AndPattern(left, right); });
+RELAX_PATTERN_PRINTER_DEF(AndPatternNode, [](auto p, auto node) {
+  p->stream << "AndPattern(" << node->left << " | " << node->right << ")";
+});
+
+TVM_REGISTER_NODE_TYPE(OrPatternNode);
+OrPattern::OrPattern(DFPattern left, DFPattern right) {
+  ObjectPtr<OrPatternNode> n = make_object<OrPatternNode>();
+  n->left = std::move(left);
+  n->right = std::move(right);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.OrPattern")
+    .set_body_typed([](DFPattern left, DFPattern right) { return OrPattern(left, right); });
+RELAX_PATTERN_PRINTER_DEF(OrPatternNode, [](auto p, auto node) {
+  p->stream << "OrPattern(" << node->left << " | " << node->right << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
@@ -288,7 +301,11 @@ DFPattern DFPattern::operator/(const DFPattern& other) const {
   return IsOp("divide")({GetRef<DFPattern>(this->get()), other});
 }
 DFPattern DFPattern::operator||(const DFPattern& other) const {
-  return AltPattern(GetRef<DFPattern>(this->get()), other);
+  return OrPattern(GetRef<DFPattern>(this->get()), other);
+}
+
+DFPattern DFPattern::operator&&(const DFPattern& other) const {
+  return AndPattern(GetRef<DFPattern>(this->get()), other);
 }
 
 DFPattern DFPattern::Optional(const std::function<DFPattern(const DFPattern&)>& func) const {

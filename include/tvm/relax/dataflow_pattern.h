@@ -53,8 +53,10 @@ class DFPattern : public ObjectRef {
   DFPattern operator*(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "divide" op */
   DFPattern operator/(const DFPattern& other) const;
-  /*! \brief Syntatic Sugar for creating an AltPattern */
+  /*! \brief Syntatic Sugar for creating an OrPattern */
   DFPattern operator||(const DFPattern& other) const;
+  /*! \brief Syntatic Sugar for creating an OrPattern */
+  DFPattern operator&&(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an Optional Pattern */
   DFPattern Optional(const std::function<DFPattern(const DFPattern&)>& func) const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
@@ -272,11 +274,30 @@ class TupleGetItemPattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItemPattern, DFPattern, TupleGetItemPatternNode);
 };
 
-class AltPattern;
+class AndPattern;
+class AndPatternNode : public DFPatternNode {
+ public:
+  DFPattern left, right;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("left", &left);
+    v->Visit("right", &right);
+  }
+
+  static constexpr const char* _type_key = "relax.dataflow_pattern.AndPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AndPatternNode, DFPatternNode);
+};
+class AndPattern : public DFPattern {
+ public:
+  TVM_DLL AndPattern(DFPattern lhs, DFPattern rhs);
+  TVM_DEFINE_OBJECT_REF_METHODS(AndPattern, DFPattern, AndPatternNode);
+};
+
+class OrPattern;
 /*!
  * \brief Pattern for Alternate Expressions.
  */
-class AltPatternNode : public DFPatternNode {
+class OrPatternNode : public DFPatternNode {
  public:
   /*! \brief The left optional pattern. */
   DFPattern left;
@@ -288,17 +309,17 @@ class AltPatternNode : public DFPatternNode {
     v->Visit("right", &right);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.AltPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AltPatternNode, DFPatternNode);
+  static constexpr const char* _type_key = "relax.dataflow_pattern.OrPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OrPatternNode, DFPatternNode);
 };
 
 /*!
  * \brief A pattern which matches either of two patterns
  */
-class AltPattern : public DFPattern {
+class OrPattern : public DFPattern {
  public:
-  TVM_DLL AltPattern(DFPattern left, DFPattern right);
-  TVM_DEFINE_OBJECT_REF_METHODS(AltPattern, DFPattern, AltPatternNode);
+  TVM_DLL OrPattern(DFPattern left, DFPattern right);
+  TVM_DEFINE_OBJECT_REF_METHODS(OrPattern, DFPattern, OrPatternNode);
 };
 
 /*!

@@ -49,7 +49,10 @@ class DFPattern(Node):
         return CallPattern(self, args)
 
     def __or__(self, other):
-        return AltPattern(self, other)
+        return OrPattern(self, other)
+    
+    def __and__(self, other):
+        return AndPattern(self, other)
 
     def __add__(self, other):
         return is_op("add")(self, other)
@@ -649,7 +652,7 @@ class TupleGetItemPattern(DFPattern):
 
 
 @register_df_node
-class AltPattern(DFPattern):
+class OrPattern(DFPattern):
     """Create a Pattern that can match one of two conditions
 
     Parameters
@@ -661,7 +664,22 @@ class AltPattern(DFPattern):
     """
 
     def __init__(self, left: "DFPattern", right: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.AltPattern, left, right)
+        self.__init_handle_by_constructor__(ffi.OrPattern, left, right)
+
+@register_df_node
+class AndPattern(DFPattern):
+    """Create a Pattern that must match two conditions
+
+    Parameters
+    ----------
+    left: tvm.relax.dataflow_pattern.DFPattern
+        One must-matching pattern.
+    right: tvm.relax.dataflow_pattern.DFPattern
+        One must-matching pattern.
+    """
+
+    def __init__(self, left: "DFPattern", right: "DFPattern"):
+        self.__init_handle_by_constructor__(ffi.AndPattern, left, right)
 
 
 @register_df_node

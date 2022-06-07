@@ -36,7 +36,12 @@ void DFPatternVisitor::VisitDFPattern(const DFPattern& pattern) {
   }
 }
 
-void DFPatternVisitor::VisitDFPattern_(const AltPatternNode* op) {
+void DFPatternVisitor::VisitDFPattern_(const OrPatternNode* op) {
+  VisitDFPattern(op->left);
+  VisitDFPattern(op->right);
+}
+
+void DFPatternVisitor::VisitDFPattern_(const AndPatternNode* op) {
   VisitDFPattern(op->left);
   VisitDFPattern(op->right);
 }

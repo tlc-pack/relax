@@ -69,8 +69,12 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
   }
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const AltPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const OrPatternNode* op, const Expr& expr) {
   return VisitDFPattern(op->left, expr) || VisitDFPattern(op->right, expr);
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const AndPatternNode* op, const Expr& expr) {
+  return VisitDFPattern(op->left, expr) && VisitDFPattern(op->right, expr);
 }
 
 bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
