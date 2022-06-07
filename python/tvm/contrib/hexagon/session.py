@@ -321,6 +321,7 @@ class Session:
 
         self.upload(path_exec, "exec.so")
 
+        print("hexagon loading.... ")
         return self._rpc.get_function("tvm.hexagon.load_module")("exec.so")
 
     def _get_relay_vm(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):

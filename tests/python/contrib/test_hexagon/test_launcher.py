@@ -88,6 +88,28 @@ def test_relax_mlp(hexagon_session: Session):
 
 
 @tvm.testing.requires_hexagon
+def test_relax_mobilenet(hexagon_session: Session):
+    relay_mod, _ = testing.vgg.get_workload(batch_size=1, dtype="float32")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
+
+    R.parser.pretty_print(relax_mod)
+
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+
+    shape = (1, 3, 224, 224)
+    data = tvm.nd.array(np.random.rand(*shape).astype(np.float32), dev)
+    params = nn.init_params(relax_mod, dev)
+    res = vm_rt["main"](data, *params)
+
+
+@tvm.testing.requires_hexagon
 def test_add(hexagon_session: Session):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
