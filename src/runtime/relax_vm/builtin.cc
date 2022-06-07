@@ -121,9 +121,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
       }
 
       int64_t size_imm = buffer_size[0];
-      DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
-                 << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
-                 << ", device_index=" << device_index;
+      //DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
+      //           << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
+      //           << ", device_index=" << device_index;
 
       auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
       auto* alloc = vm->allocators[device_index];
@@ -147,8 +147,8 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
         if (lhs_dim == 1 || rhs_dim == 1 || lhs_dim == rhs_dim) {
           output_shape.push_back(std::max(lhs_dim, rhs_dim));
         } else {
-          LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
-                     << " for broadcasting";
+          //LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
+          //           << " for broadcasting";
         }
       }
       size_t max_ndim = std::max(ndim0, ndim1);

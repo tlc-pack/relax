@@ -57,11 +57,12 @@ def test_relax(hexagon_session: Session):
     dev = hexagon_session.device
 
     vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
     print(vm_mod)
-    # data = tvm.nd.array(np.random.rand(1, 64, 64, 3).astype(np.float32), dev)
-    # weight = tvm.nd.array(np.random.rand(5, 5, 3, 8).astype(np.float32), dev)
-    # res = vm["main"](data, weight)
-    # loaded_exec = relax.vm.Executable(ex, vm_mod)
+    data = tvm.nd.array(np.random.rand(1, 64, 64, 3).astype(np.float32), dev)
+    weight = tvm.nd.array(np.random.rand(5, 5, 3, 8).astype(np.float32), dev)
+    res = vm_rt["main"](data, weight)
+    #loaded_exec = relax.vm.Executable(ex, vm_mod)
 
 
 @tvm.testing.requires_hexagon
