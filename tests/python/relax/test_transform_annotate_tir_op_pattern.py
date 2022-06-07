@@ -158,7 +158,7 @@ def test_annotate_opkind_bias_add():
 
     mod = InputModule
     new_mod = relax.transform.AnnotateTIROpPattern()(mod)
-    assert new_mod["tir_bias_add"].attrs["op_pattern"] == OpPatternKind.kBroadcast
+    assert new_mod["tir_bias_add"].attrs["op_pattern"] == OpPatternKind.kElemWise
 
 
 def test_annotate_opkind_add_broadcast_with_unit_shape():
@@ -180,9 +180,7 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
 
     mod = InputModule
     new_mod = relax.transform.AnnotateTIROpPattern()(mod)
-    assert (
-        new_mod["add_with_unit_dim_len_broadcast"].attrs["op_pattern"] == OpPatternKind.kBroadcast
-    )
+    assert new_mod["add_with_unit_dim_len_broadcast"].attrs["op_pattern"] == OpPatternKind.kElemWise
 
 
 def test_annotate_opkind_add_zero_dim_element_wise():
