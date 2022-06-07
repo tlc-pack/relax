@@ -37,7 +37,7 @@ namespace relax {
  *
  * \return Return true if the pattern and the expression match, return false otherwise.
  */
-bool MatchPattern(DFPattern pattern, Expr expr);
+bool MatchPattern(DFPattern pattern, Expr expr, runtime::Map<Var, Expr> = {});
 
 }  // namespace relax
 }  // namespace tvm

@@ -238,7 +238,16 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
         if (pattern_args.defined()) {
           if (pattern_args.size() == expr_args.size()) {
             while (matches && i < pattern_args.size()) {
-              matches &= VisitDFPattern(pattern_args[i], expr_args[i]);
+              bool cur_match = VisitDFPattern(pattern_args[i], expr_args[i]);
+              // Only perform jump match when:
+              if (!cur_match /* otherwise no bother */ &&
+                  !var2val_.empty() /* so we can jump var -> val */)
+                if (auto var_node = expr_args[i].as<VarNode>()) {
+                  auto may = var2val_.Get(GetRef<Var>(var_node));
+                  if (may.defined()) cur_match = VisitDFPattern(pattern_args[i], may.value());
+                }
+              matches &= cur_match;
+
               ++i;
             }
           } else {
@@ -501,14 +510,11 @@ bool DFPatternMatcher::VisitDFPattern_(const DynTensorTypePatternNode* op, const
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
-  bool matches = false;
   if (const auto* var_node = expr.as<VarNode>()) {
-    matches = true;
-    if (op->name_hint() != "") {
-      matches &= op->name_hint() == var_node->name_hint();
-    }
+    // either no name or name matches.
+    return op->name_hint() != "" || op->name_hint() == var_node->name_hint();
   }
-  return matches;
+  return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) {
@@ -544,8 +550,8 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchPattern(DFPattern pattern, Expr expr) {
-  return DFPatternMatcher(expr).Match(pattern, expr);
+bool MatchPattern(DFPattern pattern, Expr expr, runtime::Map<Var, Expr> var2val) {
+  return DFPatternMatcher(expr, var2val).Match(pattern, expr);
 }
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match").set_body_typed(MatchPattern);

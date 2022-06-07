@@ -117,7 +117,7 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match(self, expr: Expr) -> bool:
+    def match(self, expr: Expr, var2val=None) -> bool:
         """
         Match this pattern to an expression
 
@@ -131,7 +131,7 @@ class DFPattern(Node):
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match(self, expr)
+        return match(self, expr, var2val)
 
     def dominates(self, parent: "DFPattern", path: "DFPattern" = None):
         """
@@ -728,8 +728,6 @@ def is_call_tir(op_name: str, args: TuplePattern = None, shape: List[tvm.ir.Prim
         pass
     elif isinstance(args, (list, tuple, tvm.ir.container.Array)):
         args = TuplePattern(args)
-    else:
-        raise ValueError("`args` must be list/tuple/tvm.ir.container.Array or just TuplePattern")
     
     if shape is None:
         shape = wildcard()
@@ -785,7 +783,7 @@ def dominates(parent: "DFPattern", path: "DFPattern", child: "DFPattern") -> "DF
     return DominatorPattern(parent, path, child)
 
 
-def match(pattern: "DFPattern", expr: Expr) -> bool:
+def match(pattern: "DFPattern", expr: Expr, var2val = None) -> bool:
     """
     Match a pattern to an expression
 
@@ -796,4 +794,4 @@ def match(pattern: "DFPattern", expr: Expr) -> bool:
     expr : tvm.relax.Expr
         The expression to match.
     """
-    return ffi.match(pattern, expr)
+    return ffi.match(pattern, expr, var2val)

@@ -36,10 +36,14 @@ namespace relax {
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
-  explicit DFPatternMatcher(const Expr& root_expr) : expr_graph_(CreateIndexedGraph(root_expr)) {}
+  using var2val_t = runtime::Map<Var, Expr>;
+
+  explicit DFPatternMatcher(const Expr& root_expr, var2val_t var2val)
+      : expr_graph_(CreateIndexedGraph(root_expr)), var2val_(var2val) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
   const IndexedGraph<Expr> expr_graph_;
+  const var2val_t var2val_;
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
