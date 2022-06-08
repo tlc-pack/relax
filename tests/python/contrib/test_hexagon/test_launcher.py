@@ -258,9 +258,7 @@ def test_relax_dyn_mobilenet(hexagon_session: Session):
     vm_exec = relay.vm.compile(relay_mod, target=target)
     vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
     relay_res = vm_factory.invoke("main", data, **params)
-    tvm.testing.assert_allclose(
-        hexagon_res.numpy().flatten()[10:20], relay_res.numpy().flatten()[10:20], rtol=1e-3
-    )
+    tvm.testing.assert_allclose(hexagon_res.numpy(), relay_res.numpy(), rtol=1e-3)
 
 
 @tvm.testing.requires_hexagon
