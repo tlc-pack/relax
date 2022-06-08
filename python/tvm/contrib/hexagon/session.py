@@ -294,14 +294,7 @@ class Session:
 
         return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
 
-    def _relax_vm_executable_executor(
-        self,
-        exec,
-    ):
-        vm_mod = self.load_vm_executable(exec)
-        return vm_mod
-
-    def load_vm_executable(self, exec: Union[str, pathlib.Path, tvm.runtime.Module]):
+    def _relax_vm_executable_executor(self, exec: relax.vm.Executable):
         assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
         from tvm.contrib import utils
 
@@ -314,14 +307,8 @@ class Session:
             hexagon_arch="v68",
         )
 
-        # exec.mod.export_library(
-        #     path_exec,
-        #     cc=hexagon.hexagon_clang_plus(),
-        # )
-
         self.upload(path_exec, "exec.so")
 
-        print("hexagon loading.... ")
         return self._rpc.get_function("tvm.hexagon.load_module")("exec.so")
 
     def _get_relay_vm(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):

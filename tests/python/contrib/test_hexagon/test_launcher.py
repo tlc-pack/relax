@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations  # must import to defer parsing of annotations
 import sys
 import pytest
 import numpy as np
@@ -87,26 +88,78 @@ def test_relax_mlp(hexagon_session: Session):
     res = vm_rt["main"](data, *params)
 
 
+def get_onnx_mobilenet():
+    """Download and import mobilenet model with ONNX"""
+    import onnx  # pylint: disable=import-outside-toplevel
+
+    model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
+    model_path = tvm.contrib.download.download_testdata(
+        model_url, "mobilenetv2-7.onnx", module="onnx"
+    )
+    return onnx.load(model_path)
+
+
 @tvm.testing.requires_hexagon
-def test_relax_mobilenet(hexagon_session: Session):
-    relay_mod, _ = testing.vgg.get_workload(batch_size=1, dtype="float32")
+def test_relax_mobilenet_onnx(hexagon_session: Session):
+    onnx_model = get_onnx_mobilenet()
+    data_np = np.random.rand(1, 3, 224, 224).astype("float32")
+    shape_dict = {"input": data_np.shape}
+    relay_mod, params = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
 
     target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
-    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
-
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target_hexagon)
     R.parser.pretty_print(relax_mod)
 
+    # Compile and run on Hexagon.
     ex = relax.vm.build(relax_mod, target)
     dev = hexagon_session.device
 
     vm_mod = hexagon_session.get_executor_from_factory(ex)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
+    data = tvm.nd.array(data_np, dev)
+    hexagon_res = vm_rt["main"](data)
 
-    shape = (1, 3, 224, 224)
-    data = tvm.nd.array(np.random.rand(*shape).astype(np.float32), dev)
-    params = nn.init_params(relax_mod, dev)
-    res = vm_rt["main"](data, *params)
+    # Compile and run on LLVM for comparison.
+    relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm")
+    ex = relax.vm.build(relax_mod, "llvm")
+    dev = tvm.cpu()
+    vm_rt = relax.VirtualMachine(ex, dev)
+    data = tvm.nd.array(data_np, dev)
+    llvm_res = vm_rt["main"](data)
+    tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
+
+
+@tvm.testing.requires_hexagon
+def test_relax_mobilenet_relay(hexagon_session: Session):
+    relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
+    data_np = np.random.rand(1, 3, 224, 224).astype("float32")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    # translate the relay mobilenet and bind params
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
+
+    R.parser.pretty_print(relax_mod)
+
+    # Compile and run on Hexagon.
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+    data = tvm.nd.array(data_np, dev)
+    hexagon_res = vm_rt["main"](data)
+
+    # Compile and run on LLVM for comparison.
+    relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm", params)
+    ex = relax.vm.build(relax_mod, "llvm")
+    dev = tvm.cpu()
+    vm_rt = relax.VirtualMachine(ex, dev)
+    data = tvm.nd.array(data_np, dev)
+    llvm_res = vm_rt["main"](data)
+    tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
 
 
 @tvm.testing.requires_hexagon
