@@ -311,6 +311,7 @@ def test_class_irmodule():
 
         @R.function
         def f(x: Tensor((n, n), _)) -> Tensor:
+            # todo(@yongwww): Update the check_type_ function's body is a call_node
             r = g(x)
             return r
 

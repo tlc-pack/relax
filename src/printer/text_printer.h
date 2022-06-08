@@ -260,6 +260,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   NameTable name_table_;
   /*! \brief Whether to print meta data. */
   bool show_meta_data_;
+  /*! \brief A counter for naming local functions. */
+  size_t local_func_counter_ = 0;
   /*! \brief meta data context */
   TextMetaDataContext* meta_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;

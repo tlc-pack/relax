@@ -24,6 +24,9 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
+#include <tvm/relax/expr.h>
+#include <tvm/relax/type.h>
+
 #include <algorithm>
 #include <string>
 #include <unordered_map>
@@ -72,6 +75,57 @@ class NameTable {
  * \return The updated expression.
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+
+/*!
+ * \brief Get all bound variables from expression expr.
+ *
+ * Bound variables are all variables that are declared in the expr.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param expr the expression.
+ *
+ * \return List of bound vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> BoundVars(const relax::Expr& expr);
+
+/*!
+ * \brief Get free type parameters from expression expr.
+ *
+ * Free variables are variables that are not bound by a
+ * varbinding or a function parameter in the context.
+ *
+ * \param expr the expression.
+ *
+ * \return List of free vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> FreeVars(const relax::Expr& expr);
+
+/*!
+ * \brief Get all variables from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> AllVars(const relax::Expr& expr);
+
+/*!
+ * \brief Get all glabal variables for recursive call from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all global variables for recursive all.
+ */
+TVM_DLL Array<GlobalVar> RecGlobalVars(const relax::Expr& expr);
+
+/*!
+ * \brief Get all glabal variables from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all global variables, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const relax::Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm

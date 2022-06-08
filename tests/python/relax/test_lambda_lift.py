@@ -112,9 +112,9 @@ def test_closure():
             @R.function
             def outer_func(c1: Tensor((2, 3), "float32")):
                 @R.function
-                def inner_func(x1: Tensor((2, 3), "float32")) -> Tensor((2, 3), "float32"):
-                    r_1: Tensor((2, 3), "float32") = relax.add(x1, c1)
-                    return r_1
+                def inner_func(x1: Tensor((2, 3), "float32")):
+                    s: Tensor((2, 3), "float32") = relax.add(x1, c1)
+                    return s
 
                 return inner_func
 
@@ -186,6 +186,79 @@ def test_recursive():
     # Perform Lamda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
+    assert_structural_equal(after, expected, map_free_vars=True)
+    _check_save_roundtrip(after)
+
+
+def test_multi_func():
+    # expected IRModule
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def glob_func_1(
+            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
+        ) -> Tensor(None, "float32", ndim=2):
+            inner = lifted_func_1
+            gv1 = inner(x1, y1)
+            return gv1
+
+        @R.function
+        def glob_func_2(
+            x11: Tensor((10, 5), "float32"), y11: Tensor((10, 5), "float32")
+        ) -> Tensor(None, "float32", ndim=2):
+            inner1 = lifted_func_0
+            gv11 = inner1(x11, y11)
+            return gv11
+
+        @R.function
+        def lifted_func_0(
+            x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
+        ) -> Tensor(None, "float32", ndim=2):
+            s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+            return s
+
+        @R.function
+        def lifted_func_1(
+            x21: Tensor((10, 5), "float32"), y21: Tensor((10, 5), "float32")
+        ) -> Tensor(None, "float32", ndim=2):
+            s1: Tensor((10, 5), "float32") = relax.add(x21, y21)
+            return s1
+
+    # the IRModule to apply lambda lifting
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def glob_func_1(
+            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
+        ) -> Tensor((10, 5), "float32"):
+            @R.function
+            def inner(
+                x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
+            ) -> Tensor((10, 5), "float32"):
+                s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+                return s
+
+            gv1: Tensor((10, 5), "float32") = inner(x1, y1)
+            return gv1
+
+        @R.function
+        def glob_func_2(
+            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
+        ) -> Tensor((10, 5), "float32"):
+            @R.function
+            def inner(
+                x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
+            ) -> Tensor((10, 5), "float32"):
+                s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+                return s
+
+            gv1: Tensor((10, 5), "float32") = inner(x1, y1)
+            return gv1
+
+    before = Before
+    after = transform.LambdaLift()(before)
+    expected = Expected
+    # Perform Lamda Lifting
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 

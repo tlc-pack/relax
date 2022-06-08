@@ -202,15 +202,15 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, DictAttrs attrs,
 
   if (!ret_type.defined()) {
     CHECK(body->checked_type_.defined())
-        << "relax.Function " << attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).value()
-        << " requires body to contain deduced checked_type_ or ret_type to be supplied";
+        << "relax.Function requires body to contain deduced checked_type_"
+        << " or ret_type to be supplied";
     ret_type = body->checked_type_;
   } else {
     if (body->checked_type_.defined()) {
       CHECK(IsBaseOf(ret_type, body->checked_type_))
-          << "relax.Function " << attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).value()
-          << " requires the deduced body->checked_type_ to be a subtype of the annotated ret_type "
-          << "but meet body->checked_type_: " << body->checked_type_ << ", ret_type: " << ret_type;
+          << "relax.Function requires the deduced body->checked_type_ to be a subtype of the "
+             "annotated ret_type but meet body->checked_type_: "
+          << body->checked_type_ << ", ret_type: " << ret_type;
 
       // Use the more refined body->checked_type_ as the return type.
       ret_type = body->checked_type_;

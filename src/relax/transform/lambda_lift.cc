@@ -22,10 +22,10 @@
  * \brief Lift local functions into global functions.
  */
 
-#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 
 #include <iostream>
@@ -42,7 +42,7 @@ namespace relax {
  */
 class LambdaLifter : public ExprMutator {
  public:
-  explicit LambdaLifter(const IRModule& module) : module_(std::move(module)) {}
+  explicit LambdaLifter(const IRModule& module) : mod_(std::move(module)) {}
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
@@ -91,22 +91,10 @@ class LambdaLifter : public ExprMutator {
 
     String lift_func_name = std::string("lifted_func_") + std::to_string(lift_func_num_++);
     auto global = GlobalVar(lift_func_name);
-    auto free_vars = FreeVars(func);
-    auto rec_vars = RecGlobalVars(func);
+    Array<Var> captured_vars = FreeVars(func);
+    recur_vars_ = RecGlobalVars(func);
     auto all_global_vars = AllGlobalVars(func);
 
-    for (const auto& var : rec_vars) {
-      recur_vars_.push_back(var);
-    }
-
-    Array<Var> captured_vars;
-    bool recursive = false;
-    for (const auto& var : free_vars) {
-      captured_vars.push_back(var);
-    }
-    if (!rec_vars.empty()) {
-      recursive = true;
-    }
     Array<Var> typed_captured_vars;
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
@@ -117,7 +105,7 @@ class LambdaLifter : public ExprMutator {
     }
 
     // recursive call
-    if (recursive) {
+    if (!recur_vars_.empty()) {
       if (!captured_vars.empty()) {
         Array<Expr> fvs;
         for (auto fv : captured_vars) {
@@ -143,24 +131,6 @@ class LambdaLifter : public ExprMutator {
           /*ret_type=*/body->ret_type,
           /*attrs=*/DictAttrs(attrs));
     } else {
-      // Inner function before Flattening
-      // String inner_name = "inner_func_" + inner_func_num_++;
-      // attrs.Set(tvm::attr::kGlobalSymbol, inner_name);
-      // auto before = Downcast<Function>(body)->params.size();
-      // auto rebound_body = Function(/*params=*/func->params,
-      //                              /*body=*/Bind(body->body, rebinding_map),
-      //                              /*ret_type=*/func->ret_type,
-      //                              /*attrs=*/DictAttrs(attrs),
-      //                              /*span=*/func->span);
-      // auto after = Downcast<Function>(rebound_body)->params.size();
-      // CHECK_EQ(before, after);
-      // attrs.Set(tvm::attr::kGlobalSymbol, lift_func_name);
-      // lifted_func = Function(/*params=*/typed_captured_vars,
-      //                        /*body=*/rebound_body,
-      //                        /*ret_type=*/func->checked_type_,
-      //                        /*attrs=*/DictAttrs(attrs),
-      //                        /*span=*/func->span);
-
       // Flatten the Closure
       std::vector<Var> closure_params;
       closure_params.reserve(func->params.size() + typed_captured_vars.size());
@@ -173,7 +143,7 @@ class LambdaLifter : public ExprMutator {
 
       lifted_func = Function(/*params=*/closure_params,
                              /*body=*/Bind(body->body, rebinding_map),
-                             /*ret_type=*/func->ret_type,
+                             /*ret_type=*/body->ret_type,
                              /*attrs=*/DictAttrs(attrs),
                              /*span=*/func->span);
 
@@ -183,23 +153,14 @@ class LambdaLifter : public ExprMutator {
             << "relax.Function requires params to contain checked_type_";
         param_types.push_back(param->checked_type_);
       }
-      lifted_func->checked_type_ = FuncType(param_types, body->ret_type, {}, {});
     }
 
     ICHECK(lifted_func.defined());
 
     auto ctx_mod = builder_->GetContextIRModule();
 
-    if (ctx_mod->ContainGlobalVar(lift_func_name)) {
-      const auto existing_func = ctx_mod->Lookup(lift_func_name);
-      ICHECK(tvm::StructuralEqual()(lifted_func, existing_func))
-          << "lifted function hash collision";
-      // If an identical function already exists, use its global var.
-      global = ctx_mod->GetGlobalVar(lift_func_name);
-    } else {
-      // Add the lifted function to the module.
-      builder_->UpdateFunction(global, lifted_func);
-    }
+    // Add the lifted function to the module.
+    builder_->UpdateFunction(global, lifted_func);
 
     if (captured_vars.size() == 0) {
       return std::move(global);
@@ -248,7 +209,7 @@ class LambdaLifter : public ExprMutator {
   }
 
   IRModule Lift() {
-    auto glob_funcs = module_->functions;
+    auto glob_funcs = mod_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(n);
@@ -261,8 +222,8 @@ class LambdaLifter : public ExprMutator {
 
  private:
   std::unordered_map<GlobalVar, Expr, ObjectPtrHash, ObjectPtrEqual> lambda_map_;
-  std::vector<GlobalVar> recur_vars_;
-  IRModule module_;
+  Array<GlobalVar> recur_vars_;
+  IRModule mod_;
   size_t lift_func_num_ = 0;
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
   const Op& make_closure_op_ = Op::Get("relax.make_closure");

@@ -128,24 +128,6 @@ bool IsBaseOf(const Type& base, const Type& derived) {
     return false;
   } else if (base.as<ObjectTypeNode>()) {
     return true;
-  } else if (base.as<FuncTypeNode>()) {
-    // todo (@yongwww): comment out the code with parser/printer change
-    // if (auto derived_func = derived.as<FuncTypeNode>()) {
-    //   if (base_func->arg_types.size() != derived_func->arg_types.size()) {
-    //     return false;
-    //   }
-    //   for (size_t i = 0; i < base_func->arg_types.size(); ++i) {
-    //     if (!IsBaseOf(base_func->arg_types[i], derived_func->arg_types[i])) {
-    //       return false;
-    //     }
-    //   }
-    //   if (!IsBaseOf(base_func->ret_type, derived_func->ret_type)) {
-    //     return false;
-    //   }
-    //   return true;
-    // }
-    // loose the check here since parser doesn't support functype yet
-    return true;
   } else {
     LOG(FATAL) << "TypeError: cannot handle base type: " << base->GetTypeKey();
   }
