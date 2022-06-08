@@ -17,16 +17,59 @@
 # pylint: disable=invalid-name, redefined-builtin
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
+from tvm._ffi import base as _base
+import numpy as np
+
 
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relay import Any
-from tvm.runtime import Device, Module, PackedFunc
+from tvm.runtime import Device, Module, PackedFunc, container
 from tvm.runtime.object import Object
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
+
 from ..rpc.base import RPC_SESS_MASK
+
+
+def _convert(arg, cargs):
+    def _gettype(arg):
+        if isinstance(arg, np.float16):
+            return "float16"
+        elif isinstance(arg, (_base.integer_types, bool)):
+            return "int32"
+        else:
+            return "float32"
+
+    if isinstance(arg, Object):
+        cargs.append(arg)
+    elif isinstance(arg, np.ndarray):
+        nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
+        cargs.append(nd_arr)
+    elif isinstance(arg, tvm.runtime.NDArray):
+        cargs.append(arg)
+    elif isinstance(arg, (tuple, list)):
+        field_args = []
+        for field in arg:
+            _convert(field, field_args)
+        cargs.append(container.tuple_object(field_args))
+    elif isinstance(arg, (_base.numeric_types, bool)):
+        dtype = _gettype(arg)
+        value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+        cargs.append(value)
+    elif isinstance(arg, str):
+        cargs.append(arg)
+    else:
+        raise TypeError("Unsupported type: %s" % (type(arg)))
+
+
+def convert(args):
+    cargs = []
+    for arg in args:
+        _convert(arg, cargs)
+
+    return cargs
 
 
 class Executable(object):
@@ -97,6 +140,9 @@ class VirtualMachine(object):
             else exec["vm_load_executable"]()
         )
         self._invoke_closure = self.module["invoke_closure"]
+        self._set_input = self.module["set_input"]
+        self._get_output = self.module["get_output"]
+
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
@@ -160,6 +206,37 @@ class VirtualMachine(object):
             The output.
         """
         return self._invoke_closure(closure, *args)
+
+    def set_input(self, func_name, *args, **kwargs):
+        """Set the input to a function.
+        If device type and device id for input tensor are the same as
+        for target one the zero copy is used. It means that internal
+        tensor is reference to memory allocated by input one.
+        Otherwise new internal NDarray is created and data is copied
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+        """
+
+        cargs = convert(args)
+        self._set_input(func_name, *cargs)
+
+    def get_outputs(self):
+        """Get the outputs from a call to :py:func`invoke_stateful`.
+
+        Returns
+        -------
+        outputs : List[NDArray]
+        """
+        return self._get_output()
 
 
 def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:

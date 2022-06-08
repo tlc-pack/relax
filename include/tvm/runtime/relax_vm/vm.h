@@ -167,6 +167,11 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
+  void SetInput(std::string func_name, TVMArgs args, int offset);
+
+  void SetInputTensorWithIndex(std::vector<RegType>& tensors, const TVMArgValue& inp_tensor,
+                               int index, Device dev);
+
  private:
   /*! \brief The loaded executable. */
   ObjectPtr<Executable> exec_;
@@ -187,6 +192,9 @@ class VirtualMachine : public runtime::ModuleNode {
   Index pc_{0};
   /*! \brief The special return register. */
   RegType return_value_;
+
+  /*! \brief The function name to inputs mapping. */
+  std::unordered_map<std::string, std::vector<RegType>> inputs_;
   /*! \brief The global constant pool */
   std::vector<TVMRetValue> constants;
 };

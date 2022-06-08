@@ -41,9 +41,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_method(&NDArray::Shape);
 
 TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](NDArray src) { return src; });
 
-TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap").set_body_typed([](ShapeTuple size) {
-  return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, DLDevice{kDLCPU, 0});
-});
+TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap")
+    .set_body_typed([](void* vm_ptr, ShapeTuple size) {
+      VirtualMachine* vm = static_cast<VirtualMachine*>(vm_ptr);
+      return NDArray::Empty(size, DLDataType{kDLInt, 64, 1}, vm->devices[0]);
+    });
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<ObjectRef> cap_vars;
@@ -121,7 +123,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
       }
 
       int64_t size_imm = buffer_size[0];
-      //DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
+      // DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
       //           << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
       //           << ", device_index=" << device_index;
 
@@ -147,7 +149,7 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
         if (lhs_dim == 1 || rhs_dim == 1 || lhs_dim == rhs_dim) {
           output_shape.push_back(std::max(lhs_dim, rhs_dim));
         } else {
-          //LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
+          // LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
           //           << " for broadcasting";
         }
       }

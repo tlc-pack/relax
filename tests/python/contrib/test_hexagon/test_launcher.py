@@ -141,8 +141,6 @@ def test_relax_mobilenet_relay(hexagon_session: Session):
     # translate the relay mobilenet and bind params
     relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
 
-    R.parser.pretty_print(relax_mod)
-
     # Compile and run on Hexagon.
     ex = relax.vm.build(relax_mod, target)
     dev = hexagon_session.device
@@ -160,6 +158,109 @@ def test_relax_mobilenet_relay(hexagon_session: Session):
     data = tvm.nd.array(data_np, dev)
     llvm_res = vm_rt["main"](data)
     tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
+
+
+@tvm.testing.requires_hexagon
+def test_relax_dyn_shape(hexagon_session: Session):
+    @tvm.script.ir_module
+    class TestDynShape:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.var("int32")
+            n = T.var("int32")
+            k = T.var("int32")
+            A = T.match_buffer(x, (m, n))
+            B = T.match_buffer(y, (n, k))
+            C = T.match_buffer(z, (m, k))
+
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+        @R.function
+        def func(x: Tensor((m, n), "float32")) -> Tensor:
+            gv0 = R.call_tir(tir_matmul, (x, x), (m, n), dtype="float32")
+            return gv0
+
+    relax_mod = TestDynShape
+    R.parser.pretty_print(relax_mod)
+
+    data_np = np.random.rand(16, 16).astype("float32")
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+
+    data = tvm.nd.array(data_np, dev)
+    vm_rt.set_input("func", data)
+    vm_rt["func"]()
+    outputs = vm_rt.get_outputs()
+    print(outputs)
+
+
+# @tvm.testing.requires_hexagon
+# def test_relax_dynamic(hexagon_session: Session):
+#     @tvm.script.ir_module
+#     class TestVMMove:
+#         @R.function
+#         def main(x: Tensor((3, 4), "float32")):
+#             return x
+
+#     relax_mod = TestVMMove
+
+#     mod = TestVMMove
+#     target = tvm.target.Target("llvm", host="llvm")
+#     ex = relax.vm.build(mod, target)
+#     vm = relax.VirtualMachine(ex, tvm.cpu())
+#     data = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+#     res = vm["main"](data)
+
+
+@tvm.testing.requires_hexagon
+def test_relax_dyn_mobilenet(hexagon_session: Session):
+    relay_mod, params = testing.mobilenet.get_workload(batch_size=relay.Any(), dtype="float32")
+    # relay_mod, params = testing.mlp.get_workload(batch_size=relay.Any(), dtype="float32")
+    data_np = np.random.rand(1, 3, 224, 224).astype("float32")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    # translate the relay mobilenet and bind params
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
+    R.parser.pretty_print(relax_mod)
+
+    # Compile and run on Hexagon.
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    print("module loaded on hexagon")
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+    data = tvm.nd.array(data_np, dev)
+    vm_rt.set_input("main", data)
+    print("start running on hexagon")
+    vm_rt["main"]()
+    hexagon_res = vm_rt.get_outputs()
+    print("hexagon finished")
+
+    # Run relay vm for comparison.
+    from tvm import runtime
+
+    dev = tvm.cpu()
+    data = tvm.nd.array(data_np, dev)
+    target = tvm.target.Target("llvm", host="llvm")
+    vm_exec = relay.vm.compile(relay_mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    relay_res = vm_factory.invoke("main", data, **params)
+    tvm.testing.assert_allclose(
+        hexagon_res.numpy().flatten()[10:20], relay_res.numpy().flatten()[10:20], rtol=1e-3
+    )
 
 
 @tvm.testing.requires_hexagon
@@ -575,4 +676,5 @@ def test_vm(hexagon_session: Session):
 
 
 if __name__ == "__main__":
+    # test_relax_dyn_shape()
     tvm.testing.main()
