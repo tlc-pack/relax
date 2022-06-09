@@ -67,6 +67,53 @@ def test_relax_conv2d(hexagon_session: Session):
 
 
 @tvm.testing.requires_hexagon
+def test_relax_conv2d_dyn(hexagon_session: Session):
+    dtype = "float32"
+    data = relay.var("data", relay.TensorType((relay.Any(), 64, 64, 3), dtype))
+    weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    relay_mod = tvm.IRModule.from_expr(f)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
+
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+
+    data_np = np.random.rand(1, 64, 64, 3).astype(np.float32)
+    weight_np = np.random.rand(5, 5, 3, 8).astype(np.float32)
+
+    # Run on hexagon and get result
+    data = tvm.nd.array(data_np, dev)
+    weight = tvm.nd.array(weight_np, dev)
+    hexagon_res = vm_rt["main"](data, weight)
+
+    # Compile and run on Relay for comparison.
+    dev = tvm.cpu()
+    data = tvm.nd.array(data_np, dev)
+    weight = tvm.nd.array(weight_np, dev)
+    from tvm import runtime
+
+    target = tvm.target.Target("llvm", host="llvm")
+    vm_exec = relay.vm.compile(relay_mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    relay_res = vm_factory.invoke("main", data, weight)
+    tvm.testing.assert_allclose(hexagon_res.numpy(), relay_res.numpy(), rtol=1e-3)
+
+
+@tvm.testing.requires_hexagon
 def test_relax_mlp(hexagon_session: Session):
     relay_mod, _ = testing.mlp.get_workload(batch_size=1, dtype="float32")
 
@@ -131,6 +178,41 @@ def test_relax_mobilenet_onnx(hexagon_session: Session):
 
 
 @tvm.testing.requires_hexagon
+def test_relax_mlp_dyn(hexagon_session: Session):
+    relay_mod, params = testing.mlp.get_workload(batch_size=relay.Any(), dtype="float32")
+    shape = (1, 1, 28, 28)
+    data_np = np.random.rand(*shape).astype("float32")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    # translate the relay mobilenet and bind params
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
+
+    # Compile and run on Hexagon.
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+    data = tvm.nd.array(data_np, dev)
+    hexagon_res = vm_rt["main"](data)
+
+    # Compile and run on Relay for comparison.
+    dev = tvm.cpu()
+    data = tvm.nd.array(data_np, dev)
+    from tvm import runtime
+
+    target = tvm.target.Target("llvm", host="llvm")
+    vm_exec = relay.vm.compile(relay_mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    relay_res = vm_factory.invoke("main", data, **params)
+    print(hexagon_res)
+    print(relay_res)
+    tvm.testing.assert_allclose(hexagon_res.numpy(), relay_res.numpy(), rtol=1e-3)
+
+
+@tvm.testing.requires_hexagon
 def test_relax_mobilenet_relay(hexagon_session: Session):
     relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
     data_np = np.random.rand(1, 3, 224, 224).astype("float32")
@@ -160,6 +242,38 @@ def test_relax_mobilenet_relay(hexagon_session: Session):
     data = tvm.nd.array(data_np, dev)
     llvm_res = vm_rt["main"](data)
     tvm.testing.assert_allclose(hexagon_res.numpy(), llvm_res.numpy(), rtol=1e-3)
+
+
+@tvm.testing.requires_hexagon
+def test_relax_mobilenet_dyn(hexagon_session: Session):
+    relay_mod, params = testing.mobilenet.get_workload(batch_size=relay.Any(), dtype="float32")
+    data_np = np.random.rand(1, 3, 224, 224).astype("float32")
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+    # translate the relay mobilenet and bind params
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
+
+    # Compile and run on Hexagon.
+    ex = relax.vm.build(relax_mod, target)
+    dev = hexagon_session.device
+
+    vm_mod = hexagon_session.get_executor_from_factory(ex)
+    vm_rt = relax.VirtualMachine(vm_mod, dev)
+    data = tvm.nd.array(data_np, dev)
+    hexagon_res = vm_rt["main"](data)
+
+    # Compile and run on Relay for comparison.
+    dev = tvm.cpu()
+    data = tvm.nd.array(data_np, dev)
+    from tvm import runtime
+
+    target = tvm.target.Target("llvm", host="llvm")
+    vm_exec = relay.vm.compile(relay_mod, target=target)
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    relay_res = vm_factory.invoke("main", data, **params)
+    tvm.testing.assert_allclose(hexagon_res.numpy(), relay_res.numpy(), rtol=1e-3)
 
 
 @tvm.testing.requires_hexagon
