@@ -37,7 +37,7 @@ def from_relay(
     opt_level: int = 3,
     pass_config: Optional[Dict[str, Any]] = None,
     disabled_pass: Optional[List[str]] = None,
-    replace_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]] = None,
+    translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]] = None,
 ) -> IRModule:
     """Convert a Relay function into a Relax program.
 
@@ -61,7 +61,7 @@ def from_relay(
     disabled_pass: Optional[List[str]]
         Passes to disable.
 
-    replace_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]]
+    translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]]
         Replace default topi functions with user-provided TIR PrimFuncs.
 
     Returns
@@ -126,8 +126,8 @@ def from_relay(
             attrs = node.attrs
             out_type = node.checked_type
 
-            if replace_op_with_tir and op_name in replace_op_with_tir:
-                tir_gvar = bb.add_func(replace_op_with_tir[op_name], op_name)
+            if translate_op_with_tir and op_name in translate_op_with_tir:
+                tir_gvar = bb.add_func(translate_op_with_tir[op_name], op_name)
                 call = relax.call_tir(tir_gvar, new_args, out_type.shape, out_type.dtype)
                 var = bb.emit(call)
             else:

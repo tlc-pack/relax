@@ -190,7 +190,7 @@ def test_verify_extracted_tasks_gpu(layout, batch_size, image_shape):
     verify_extracted_tasks("cuda", layout, batch_size, image_shape)
 
 
-def translate_and_build_vms(relay_mod, target_str="llvm", replace_op_with_tir=None):
+def translate_and_build_vms(relay_mod, target_str="llvm", translate_op_with_tir=None):
     target = tvm.target.Target(target_str)
 
     # build the relay IRModule and create relay vm
@@ -199,7 +199,7 @@ def translate_and_build_vms(relay_mod, target_str="llvm", replace_op_with_tir=No
 
     # build the relax IRModule and create relax vm
     relax_mod = relay_translator.from_relay(
-        relay_mod["main"], target, replace_op_with_tir=replace_op_with_tir
+        relay_mod["main"], target, translate_op_with_tir=translate_op_with_tir
     )
     relax_ex = relax.vm.build(relax_mod, target)
     relax_vm = relax.VirtualMachine(relax_ex, tvm.cpu())
@@ -261,7 +261,7 @@ def test_layout_transform():
     verify_vm_outputs([1, 3, 224, 224], relay_vm, relax_vm)
 
 
-def test_replace_op_with_tir():
+def test_translate_op_with_tir():
     @T.prim_func
     def tir_matmul(
         A: T.Buffer[(512, 512), "float32"],
@@ -287,7 +287,7 @@ def test_replace_op_with_tir():
     relay_mod = tvm.IRModule.from_expr(relay.Function([a], a * a))
 
     relay_vm, relax_vm, relax_mod = translate_and_build_vms(
-        relay_mod, replace_op_with_tir={"multiply": tir_matmul}
+        relay_mod, translate_op_with_tir={"multiply": tir_matmul}
     )
     assert_structural_equal(relax_mod["multiply"], tir_matmul)
 
