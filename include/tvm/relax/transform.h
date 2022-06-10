@@ -190,6 +190,12 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass RunCodegen(Optional<Array<runtime::String>> target_codegens,
                         Array<runtime::String> entry_functions);
 
+/*!
+ * \brief Annotate the TIR func with the buffers to perform layout rewrite
+ * \return The Pass.
+ */
+TVM_DLL Pass AnnotateLayoutFreeBuffers();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

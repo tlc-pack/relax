@@ -370,6 +370,16 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()
 
 
+def AnnotateLayoutFreeBuffers() -> tvm.ir.transform.Pass:
+    """Annotate the TIR func with the buffers to perform layout rewrite
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.AnnotateLayoutFreeBuffers()
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
