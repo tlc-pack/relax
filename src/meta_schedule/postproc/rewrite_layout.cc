@@ -114,9 +114,9 @@ bool RewriteLayout(const Schedule& sch) {
     if (prim_func == nullptr) {
       continue;
     }
-    // Only rewrite PrimFuncs with attr "layout_rewrite_buffers"
+    // Only rewrite PrimFuncs with attr "layout_free_buffers"
     Array<Integer> layout_free_buffer_index =
-        prim_func->GetAttr("layout_rewrite_buffers", Array<Integer>()).value();
+        prim_func->GetAttr(attr::layout_free_buffers, Array<Integer>()).value();
 
     Array<Buffer> layout_free_buffers;
     for (const Integer& index : layout_free_buffer_index) {

@@ -47,7 +47,7 @@ def tir_matmul(
     B: T.Buffer[(16, 16), "float32"],
     C: T.Buffer[(16, 16), "float32"],
 ) -> None:
-    T.func_attr({"layout_rewrite_buffers": [1]})
+    T.func_attr({"layout_free_buffers": [1]})
     for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
         with T.block("matmul"):
             vi = T.axis.S(16, i0 * 4 + i1)
@@ -64,7 +64,7 @@ def rewritten_tir_matmul(
     B: T.Buffer[(16, 16), "float32"],
     C: T.Buffer[(16, 16), "float32"],
 ) -> None:
-    T.func_attr({"layout_rewrite_buffers": [1]})
+    T.func_attr({"layout_free_buffers": [1]})
     B_reindex = T.alloc_buffer([16, 4, 4], dtype="float32")
     for ax0, ax1 in T.grid(16, 16):
         with T.block("layout_rewrite"):

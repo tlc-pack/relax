@@ -836,3 +836,14 @@ def InjectPTXAsyncCopy():
         The result pass
     """
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
+
+
+def RemoveWeightLayoutRewriteBlock():
+    """Remove weight layout rewrite block before benchmarking during tuning stage.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore
