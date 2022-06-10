@@ -20,6 +20,7 @@ from .postproc import Postproc, PyPostproc
 from .rewrite_cooperative_fetch import RewriteCooperativeFetch
 from .rewrite_layout import RewriteLayout
 from .rewrite_parallel_vectorize_unroll import RewriteParallelVectorizeUnroll
+from .rewrite_layout import RewriteLayout
 from .rewrite_reduction_block import RewriteReductionBlock
 from .rewrite_tensorize import RewriteTensorize
 from .rewrite_unbound_block import RewriteUnboundBlock
