@@ -196,6 +196,12 @@ TVM_DLL Pass RunCodegen(Optional<Array<runtime::String>> target_codegens,
  */
 TVM_DLL Pass AnnotateLayoutFreeBuffers();
 
+/*!
+ * \brief Split the layout rewrite preproc block into a separate tir function
+ * \return The Pass.
+ */
+TVM_DLL Pass SplitLayoutRewritePreproc();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

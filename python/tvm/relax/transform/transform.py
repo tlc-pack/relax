@@ -380,6 +380,16 @@ def AnnotateLayoutFreeBuffers() -> tvm.ir.transform.Pass:
     return _ffi_api.AnnotateLayoutFreeBuffers()
 
 
+def SplitLayoutRewritePreproc() -> tvm.ir.transform.Pass:
+    """Split the layout rewrite preproc block into a separate tir function
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.SplitLayoutRewritePreproc()
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
