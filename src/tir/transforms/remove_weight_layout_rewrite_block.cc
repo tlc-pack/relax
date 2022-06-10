@@ -43,6 +43,16 @@ class WeightLayoutRewriteBlockRemover : public StmtMutator {
         n->buffer_map.Set(param, (*it).second);
       }
     }
+    // Remove "layout_free_buffers" attr
+    if (n->attrs->dict.count(attr::layout_free_buffers)) {
+      Map<String, ObjectRef> new_attr_dict = n->attrs->dict;
+      new_attr_dict.erase(attr::layout_free_buffers);
+      if (new_attr_dict.empty()) {
+        n->attrs = NullValue<DictAttrs>();
+      } else {
+        n->attrs = DictAttrs(new_attr_dict);
+      }
+    }
     return f;
   }
 

@@ -29,7 +29,6 @@ def _check(before, expect):
         expect = IRModule({"main": expect})
 
     mod = tvm.tir.transform.RemoveWeightLayoutRewriteBlock()(before)
-    print(mod["main"].script())
     tvm.ir.assert_structural_equal(mod, expect)
 
 
@@ -66,7 +65,6 @@ def test_matmul():
         B: T.Buffer[(16, 4, 4), "float32"],
         C: T.Buffer[(16, 16), "float32"],
     ) -> None:
-        T.func_attr({"layout_free_buffers": [1]})
         for i0_o, i1_o in T.grid(16, 16):
             with T.block("layout_rewrite"):
                 i0, i1 = T.axis.remap("SS", [i0_o, i1_o])

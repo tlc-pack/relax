@@ -138,6 +138,7 @@ class ConstantArgFinder : public ExprVisitor {
     }
   }
 
+  /*! \brief Pattern match op to a TIR function and look it up. */
   static Array<Integer> GetIntersection(const Array<Integer>& lhs, const Array<Integer>& rhs) {
     Array<Integer> result;
     for (const Integer& x : lhs) {

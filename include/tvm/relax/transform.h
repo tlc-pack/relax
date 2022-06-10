@@ -171,6 +171,12 @@ TVM_DLL Pass FuseTIR();
  */
 TVM_DLL Pass AnnotateLayoutFreeBuffers();
 
+/*!
+ * \brief Split the layout rewrite preproc block into a separate tir function
+ * \return The Pass.
+ */
+TVM_DLL Pass SplitLayoutRewritePreproc();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
