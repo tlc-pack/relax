@@ -1514,11 +1514,11 @@ constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_expl
 /*! \brief Mark auto-unroll setting on the block. */
 constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
 
-/*!
- * \brief Mark that a block should be further rewritten using tensorization.
- */
+/*! \brief Mark that a block should be further rewritten using tensorization. */
 constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
 
+/*! \brief Mark that a block is a preprocessor block for layout rewrite. */
+constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
