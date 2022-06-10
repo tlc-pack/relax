@@ -37,13 +37,32 @@ def from_relay(
     opt_level: int = 3,
     pass_config: Optional[Dict[str, Any]] = None,
     disabled_pass: Optional[List[str]] = None,
+    replace_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]] = None,
 ) -> IRModule:
     """Convert a Relay function into a Relax program.
 
     Parameters
     ----------
     func : relay.Function
-        Relay function to be converted
+        Relay function to be converted.
+
+    target: Target
+        The target to compile the model, used for selecting topi functions.
+
+    relay_params: Optional[Dict[str, NDArray]]
+        Parameters to bind.
+
+    opt_level: int
+        The optimization level.
+
+    pass_config: Optional[Dict[str, Any]]
+        Pass configuration.
+
+    disabled_pass: Optional[List[str]]
+        Passes to disable.
+
+    replace_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]]
+        Replace default topi functions with user-provided TIR PrimFuncs.
 
     Returns
     -------
@@ -107,19 +126,25 @@ def from_relay(
             attrs = node.attrs
             out_type = node.checked_type
 
-            best_impl, outputs = select_implementation(
-                node.op,
-                attrs,
-                te_inputs,
-                out_type,
-                target,
-                use_autotvm=False,
-            )
-            compute_func = best_impl.compute
-            name_hint = op_name.split(".")[-1]
-            var = bb.emit_te(
-                compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
-            )
+            if replace_op_with_tir and op_name in replace_op_with_tir:
+                tir_gvar = bb.add_func(replace_op_with_tir[op_name], op_name)
+                call = relax.call_tir(tir_gvar, new_args, out_type.shape, out_type.dtype)
+                var = bb.emit(call)
+            else:
+                best_impl, outputs = select_implementation(
+                    node.op,
+                    attrs,
+                    te_inputs,
+                    out_type,
+                    target,
+                    use_autotvm=False,
+                )
+                compute_func = best_impl.compute
+                name_hint = op_name.split(".")[-1]
+                var = bb.emit_te(
+                    compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
+                )
+
             output_var = var
             var_map[node] = var
         elif isinstance(node, relay.Constant):
