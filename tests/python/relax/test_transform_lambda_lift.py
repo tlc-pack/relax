@@ -20,7 +20,7 @@ import tvm
 from tvm import relax
 from tvm.runtime.object import Object
 import tvm.script
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 from tvm.relax import transform
 from tvm.ir.base import assert_structural_equal
 
@@ -255,11 +255,31 @@ def test_multi_func():
             gv1: Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
+
+def test_no_local_func():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def sub(
+            A: T.Buffer[(16, 16), "float32"],
+            B: T.Buffer[(16, 16), "float32"],
+            C: T.Buffer[(16, 16), "float32"],
+        ) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("sub"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = A[vi, vj] - B[vi, vj]
+
+        @R.function
+        def before(c0: Tensor((16, 16), "float32"), x: Tensor((_, _), "float32")):
+            s = relax.call_tir(sub, (c0, x), (16, 16), dtype="float32")
+            return s
+
     before = Before
+    # Perform lambda lifting
     after = transform.LambdaLift()(before)
-    expected = Expected
-    # Perform Lamda Lifting
-    assert_structural_equal(after, expected, map_free_vars=True)
+    # No local functions are lifted
+    assert_structural_equal(after, before, map_free_vars=True)
     _check_save_roundtrip(after)
 
 

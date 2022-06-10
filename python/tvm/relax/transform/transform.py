@@ -72,7 +72,7 @@ def FuseFMA() -> tvm.ir.transform.Pass:
 
 def LambdaLift():
     """
-    Lift local function into global.
+    Lift local functions into global.
 
     Returns
     -------

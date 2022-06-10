@@ -21,7 +21,7 @@
  *
  * \file analysis.cc
  *
- * \brief Utility functions for Relax.
+ * \brief Analysis functions for Relax.
  */
 
 #include <tvm/relax/analysis.h>

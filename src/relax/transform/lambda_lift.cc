@@ -22,10 +22,10 @@
  * \brief Lift local functions into global functions.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 
 #include <iostream>
@@ -42,7 +42,7 @@ namespace relax {
  */
 class LambdaLifter : public ExprMutator {
  public:
-  explicit LambdaLifter(const IRModule& module) : mod_(std::move(module)) {}
+  explicit LambdaLifter(const IRModule& module) : ExprMutator(module) { mod_ = module; }
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
@@ -83,11 +83,6 @@ class LambdaLifter : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
     auto func = GetRef<Function>(func_node);
-
-    // We should not transform primitive functions.
-    if (func->HasNonzeroAttr(attr::kPrimitive)) {
-      return std::move(func);
-    }
 
     String lift_func_name = std::string("lifted_func_") + std::to_string(lift_func_num_++);
     auto global = GlobalVar(lift_func_name);
@@ -156,8 +151,6 @@ class LambdaLifter : public ExprMutator {
     }
 
     ICHECK(lifted_func.defined());
-
-    auto ctx_mod = builder_->GetContextIRModule();
 
     // Add the lifted function to the module.
     builder_->UpdateFunction(global, lifted_func);
