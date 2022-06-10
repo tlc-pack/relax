@@ -62,7 +62,8 @@ def from_relay(
         Passes to disable.
 
     translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]]
-        Replace default topi functions with user-provided TIR PrimFuncs.
+        Dict that maps op names to user-defined PrimFuncs.
+        Takes relay operator names and forces them to user-defined PrimFuncs during translation.
 
     Returns
     -------
