@@ -21,6 +21,24 @@ import numpy as np
 import tvm
 from tvm import relay
 
+from .. import op as reg
+from . import _canonicalize
+
+
+@reg.register_qnn_canonicalize("qnn.conv2d")
+def canonicalize_qnn_conv2d(attrs, inputs, types):
+    return qnn_conv2d_canonicalize(attrs, inputs, types)
+
+
+@tvm.target.generic_func
+def qnn_conv2d_canonicalize(attrs, inputs, types):
+    return _canonicalize.conv2d(attrs, inputs, types)
+
+
+@qnn_conv2d_canonicalize.register("hexagon")
+def _qnn_conv2d_hexagon(attrs, inputs, types):
+    return None
+
 
 def run_const_expr(expr: "relay.Expr") -> np.ndarray:
     """Evaluate a const expression, receiving result as np array."""

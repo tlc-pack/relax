@@ -858,10 +858,10 @@ operator to understand how to scale back the int32 output to (u)int8 or (u)int16
     .set_support_level(11)
     .add_type_rel("QnnConv2D", QnnConv2DRel)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConvInferCorrectLayout);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.conv2d").set_body_typed(MakeQnnConv2D);
+TVM_REGISTER_GLOBAL("relay.qnn.op._canonicalize.conv2d").set_body_typed(QnnConv2DCanonicalize);
 
 }  // namespace qnn
 }  // namespace relay

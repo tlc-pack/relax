@@ -50,3 +50,6 @@ def simulated_dequantize_compute(attrs, inputs, output_type):
 
 register_injective_schedule("qnn.simulated_dequantize")
 register_pattern("qnn.simulated_dequantize", OpPattern.ELEMWISE)
+
+
+register_pattern("qnn.conv2d", OpPattern.OPAQUE)

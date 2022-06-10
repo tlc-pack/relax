@@ -27,6 +27,35 @@ from tvm.relay.backend.te_compiler import select_implementation
 from tvm.runtime import NDArray
 from tvm.target import Target
 from tvm.meta_schedule.utils import autotvm_silencer
+from tvm.relax.op.base import call_tir
+from tvm.script import tir as T
+
+
+@T.prim_func
+def conv2d_nhwc(
+    Input: T.Buffer[(1, 224, 224, 3), "float32"],
+    Weight: T.Buffer[(7, 7, 3, 64), "float32"],
+    Conv2d_nhwc: T.Buffer[(1, 112, 112, 64), "float32"],
+) -> None:
+    PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+    for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
+        with T.block("PadInput"):
+            i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+            PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
+                ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
+                Input[i0_1, (i1_1 - 3), (i2_1 - 3), i3_1],
+                T.float32(0),
+                dtype="float32",
+            )
+    for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
+        with T.block("conv2d_nhwc"):
+            n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
+            with T.init():
+                Conv2d_nhwc[n, h, w, co] = T.float32(0)
+            Conv2d_nhwc[n, h, w, co] = Conv2d_nhwc[n, h, w, co] + (
+                PadInput[n, ((h * 2) + rh), ((w * 2) + rw), ((T.floordiv(co, 64) * 3) + rc)]
+                * Weight[rh, rw, rc, co]
+            )
 
 
 def from_relay(
@@ -104,22 +133,32 @@ def from_relay(
                     te_inputs.append(tvm.relax.expr.te_tensor(new_args[-1]))
 
             op_name = node.op.name
+            name_hint = op_name.split(".")[-1]
             attrs = node.attrs
             out_type = node.checked_type
 
-            best_impl, outputs = select_implementation(
-                node.op,
-                attrs,
-                te_inputs,
-                out_type,
-                target,
-                use_autotvm=False,
-            )
-            compute_func = best_impl.compute
-            name_hint = op_name.split(".")[-1]
-            var = bb.emit_te(
-                compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
-            )
+            if node.op == relay.op.get("qnn.conv2d"):
+                s_tir_func = conv2d_nhwc
+                output_shape = node.checked_type.shape
+                output_dtype = node.checked_type.dtype
+                _, te_args = bb._convert_te_arg([new_args, attrs])
+                call_args = [x.op.value for x in te_args]
+                gvar = bb.add_func(s_tir_func, name_hint)
+                call_node = call_tir(gvar, call_args, output_shape, output_dtype)
+                var = bb.emit(call_node)
+            else:
+                best_impl, outputs = select_implementation(
+                    node.op,
+                    attrs,
+                    te_inputs,
+                    out_type,
+                    target,
+                    use_autotvm=False,
+                )
+                compute_func = best_impl.compute
+                var = bb.emit_te(
+                    compute_func, attrs, new_args, node.checked_type, primfunc_name_hint=name_hint
+                )
             output_var = var
             var_map[node] = var
         elif isinstance(node, relay.Constant):
