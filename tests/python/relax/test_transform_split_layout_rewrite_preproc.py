@@ -74,6 +74,7 @@ def test_split_preproc():
             B: T.Buffer[(16, 4, 4), "float32"],
             C: T.Buffer[(16, 16), "float32"],
         ):
+            T.func_attr({"layout_free_buffers": [1]})
             for i0_o, i1_o in T.grid(16, 16):
                 with T.block("layout_rewrite"):
                     i0, i1 = T.axis.remap("SS", [i0_o, i1_o])

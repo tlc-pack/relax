@@ -136,6 +136,7 @@ def apply_opt_before_tuning(
         relax_mod = relax.transform.AnnotateTIROpPattern()(relax_mod)
         relax_mod = relax.transform.FuseOps()(relax_mod)
         relax_mod = relax.transform.FuseTIR()(relax_mod)
+        relax_mod = relax.transform.AnnotateLayoutFreeBuffers()(relax_mod)
     return relax_mod
 
 

@@ -213,8 +213,8 @@ Array<MeasureCandidate> AssembleCandidates(const std::vector<Schedule>& picks) {
 /*!
  * \brief Predict the normalized score of each candidate.
  * \param candidates The candidates for prediction
- * \param task The search task
- * \param space The search space
+ * \param context The tuning context
+ * \param cost_model The cost model
  * \return The normalized score in the prediction
  */
 std::vector<double> PredictNormalizedScore(const std::vector<Schedule>& candidates,
