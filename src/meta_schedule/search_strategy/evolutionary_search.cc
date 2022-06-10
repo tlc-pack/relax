@@ -200,11 +200,12 @@ struct ConcurrentBitmask {
  * \param traces The picked candidate traces.
  * \return The assembled measure candidates.
  */
-Array<MeasureCandidate> AssembleCandidates(const std::vector<Schedule>& picks,
-                                           const Array<ArgInfo>& args_info) {
+Array<MeasureCandidate> AssembleCandidates(const std::vector<Schedule>& picks) {
   Array<MeasureCandidate> measure_inputs;
   measure_inputs.reserve(picks.size());
   for (const Schedule& sch : picks) {
+    IRModule mod_wo_preprocess = tir::transform::RemoveWeightLayoutRewriteBlock()(sch->mod());
+    Array<ArgInfo> args_info = ArgInfo::FromPrimFunc(FindEntryFunc(mod_wo_preprocess));
     measure_inputs.push_back(MeasureCandidate(sch, args_info));
   }
   return measure_inputs;
@@ -213,16 +214,15 @@ Array<MeasureCandidate> AssembleCandidates(const std::vector<Schedule>& picks,
 /*!
  * \brief Predict the normalized score of each candidate.
  * \param candidates The candidates for prediction
- * \param task The search task
- * \param space The search space
+ * \param context The tuning context
+ * \param cost_model The cost model
  * \return The normalized score in the prediction
  */
-std::vector<double> PredictNormalizedScore(const std::vector<Schedule>& candidates,
-                                           const TuneContext& context, const CostModel& cost_model,
-                                           const Array<ArgInfo>& args_info) {
+std::vector<double> PredictNormalizedScore(const std::vector<Schedule>& candidates,  //
+                                           const TuneContext& context,               //
+                                           const CostModel& cost_model) {
   ICHECK(!candidates.empty()) << "Candidates given for score prediction can not be empty list!";
-  std::vector<double> scores =
-      cost_model->Predict(context, AssembleCandidates(candidates, args_info));
+  std::vector<double> scores = cost_model->Predict(context, AssembleCandidates(candidates));
   for (double& score : scores) {
     score = std::max(0.0, score);
   }
@@ -381,7 +381,6 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     CHECK(context.defined()) << "TuneContext must be defined!";
     CHECK(context->num_threads > 0) << "Number of threads has to be larger than 0.";
     CHECK(context->target.defined()) << "Target must be defined!";
-    this->context_ = context.get();
     this->rand_state_ = ForkSeed(&context->rand_state);
     for (const auto& kv : context->mutator_probs) {
       double mass = kv.second->value;
@@ -504,8 +503,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     // Predict normalized score with the cost model,
     std::vector<double> scores = PredictNormalizedScore(population,                           //
                                                         GetRef<TuneContext>(self->context_),  //
-                                                        this->cost_model_,                    //
-                                                        this->args_info_);
+                                                        self->cost_model_);
     ICHECK_EQ(scores.size(), population.size());
     for (int i = 0, n = population.size(); i < n; ++i) {
       Schedule sch = population.at(i);
@@ -675,7 +673,7 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
       return NullOpt;
     }
   }
-  return AssembleCandidates(picks, this->args_info_);
+  return AssembleCandidates(picks);
 }
 
 void EvolutionarySearchNode::State::NotifyRunnerResults(
