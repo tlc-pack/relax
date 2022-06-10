@@ -290,24 +290,6 @@ RELAX_PATTERN_PRINTER_DEF(AttrPatternNode, [](auto p, auto node) {
   p->stream << "AttrPattern(" << node->pattern << " has attributes " << node->attrs << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(DominatorPatternNode);
-DominatorPattern::DominatorPattern(DFPattern parent, DFPattern path, DFPattern child) {
-  ObjectPtr<DominatorPatternNode> n = make_object<DominatorPatternNode>();
-  n->parent = std::move(parent);
-  n->path = std::move(path);
-
-  n->child = std::move(child);
-  data_ = std::move(n);
-}
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DominatorPattern")
-    .set_body_typed([](DFPattern parent, DFPattern path, DFPattern child) {
-      return DominatorPattern(parent, path, child);
-    });
-RELAX_PATTERN_PRINTER_DEF(DominatorPatternNode, [](auto p, auto node) {
-  p->stream << "DominatorPattern(" << node->parent << ", " << node->path << ", " << node->child
-            << ")";
-});
-
 // Syntatic Sugar
 DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
   return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));

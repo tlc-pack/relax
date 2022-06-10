@@ -38,11 +38,9 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
  public:
   using var2val_t = runtime::Map<Var, Expr>;
 
-  explicit DFPatternMatcher(const Expr& root_expr, var2val_t var2val)
-      : expr_graph_(CreateIndexedGraph(root_expr)), var2val_(var2val) {}
+  explicit DFPatternMatcher(const Expr& root_expr, var2val_t var2val) : var2val_(var2val) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
-  const IndexedGraph<Expr> expr_graph_;
   const var2val_t var2val_;
 
  protected:
@@ -53,7 +51,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const CallPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
@@ -72,8 +69,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr) override;
 
   void ClearMap(size_t watermark);
-  bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);
-  bool DominatesParent(const DominatorPatternNode* op, const Expr& expr);
 
   std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::vector<DFPattern> matched_nodes_;

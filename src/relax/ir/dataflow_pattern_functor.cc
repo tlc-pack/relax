@@ -61,12 +61,6 @@ void DFPatternVisitor::VisitDFPattern_(const DataTypePatternNode* op) {
   VisitDFPattern(op->pattern);
 }
 
-void DFPatternVisitor::VisitDFPattern_(const DominatorPatternNode* op) {
-  VisitDFPattern(op->parent);
-  VisitDFPattern(op->path);
-  VisitDFPattern(op->child);
-}
-
 void DFPatternVisitor::VisitDFPattern_(const ExprPatternNode* op) {}
 
 void DFPatternVisitor::VisitDFPattern_(const FunctionPatternNode* op) {

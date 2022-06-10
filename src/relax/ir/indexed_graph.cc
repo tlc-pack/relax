@@ -225,16 +225,11 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
     void VisitDFPattern_(const ConstantPatternNode* op, NodePtr parent) override {}
     void VisitDFPattern_(const RuntimeDepShapePatternNode* op, NodePtr parent) override {}
     void VisitDFPattern_(const DataflowVarPatternNode* op, NodePtr parent) override {}
+    void VisitDFPattern_(const GlobalVarPatternNode* op, NodePtr parent) override {}
     void VisitDFPattern_(const ExternFuncPatternNode* op, NodePtr parent) override {}
 
     void VisitDFPattern_(const DataTypePatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->pattern, graph_.node_map_[GetRef<DFPattern>(op)]);
-    }
-
-    void VisitDFPattern_(const DominatorPatternNode* op, NodePtr parent) override {
-      VisitDFPattern(op->parent, graph_.node_map_[GetRef<DFPattern>(op)]);
-      VisitDFPattern(op->path, graph_.node_map_[GetRef<DFPattern>(op)]);
-      VisitDFPattern(op->child, graph_.node_map_[GetRef<DFPattern>(op)]);
     }
 
     void VisitDFPattern_(const ExprPatternNode* op, NodePtr parent) override {}

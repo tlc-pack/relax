@@ -87,7 +87,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   virtual R VisitDFPattern_(const CallPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const ConstantPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const DataTypePatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitDFPattern_(const DominatorPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const ExprPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const FunctionPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const IfPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
@@ -126,7 +125,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(CallPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(ConstantPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(DataTypePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(DominatorPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(ExprPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(FunctionPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(IfPatternNode);
@@ -162,7 +160,6 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const CallPatternNode* op) override;
   void VisitDFPattern_(const ConstantPatternNode* op) override;
   void VisitDFPattern_(const DataTypePatternNode* op) override;
-  void VisitDFPattern_(const DominatorPatternNode* op) override;
   void VisitDFPattern_(const ExprPatternNode* op) override;
   void VisitDFPattern_(const FunctionPatternNode* op) override;
   void VisitDFPattern_(const IfPatternNode* op) override;

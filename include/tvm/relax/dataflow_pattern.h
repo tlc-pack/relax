@@ -525,40 +525,6 @@ class RuntimeDepShapePattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(RuntimeDepShapePattern, DFPattern, RuntimeDepShapePatternNode);
 };
 
-class DominatorPattern;
-/*!
- * \brief Dominated Graph Pattern
- * Pattern for fuzzy subgraphs where all outputs of the parent are used finally by the child, and
- * every operation between the parent and the child matches the path.
- */
-class DominatorPatternNode : public DFPatternNode {
- public:
-  /*! \brief The parent. */
-  DFPattern parent;
-  /*! \brief The path. */
-  DFPattern path;
-  /*! \brief The child. */
-  DFPattern child;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("parent", &parent);
-    v->Visit("path", &path);
-    v->Visit("child", &child);
-  }
-
-  static constexpr const char* _type_key = "relax.dataflow_pattern.DominatorPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DominatorPatternNode, DFPatternNode);
-};
-
-/*!
- * \brief A pattern which matches a variable length dominator path
- */
-class DominatorPattern : public DFPattern {
- public:
-  TVM_DLL DominatorPattern(DFPattern parent, DFPattern path, DFPattern child);
-  TVM_DEFINE_OBJECT_REF_METHODS(DominatorPattern, DFPattern, DominatorPatternNode);
-};
-
 /*! \brief Syntatic Sugar for creating a VarPattern with a name */
 DFPattern IsVar(const String& name);
 /*! \brief Syntatic Sugar for creating a ConstantPattern */

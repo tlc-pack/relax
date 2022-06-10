@@ -27,6 +27,7 @@ from ...runtime import Object
 from ...ir.base import Node
 from . import _ffi as ffi
 
+
 def register_df_node(type_key=None):
     """Register a Relax node type.
 
@@ -39,6 +40,7 @@ def register_df_node(type_key=None):
         return tvm._ffi.register_object("relax.dataflow_pattern." + type_key.__name__)(type_key)
     return tvm._ffi.register_object(type_key)
 
+
 class DFPattern(Node):
     """Base class of all Patterns."""
 
@@ -50,7 +52,7 @@ class DFPattern(Node):
 
     def __or__(self, other):
         return OrPattern(self, other)
-    
+
     def __and__(self, other):
         return AndPattern(self, other)
 
@@ -133,26 +135,6 @@ class DFPattern(Node):
         """
         return match(self, expr, var2val)
 
-    def dominates(self, parent: "DFPattern", path: "DFPattern" = None):
-        """
-        Create a dominator for this pattern.
-
-        Parameters
-        ----------
-        parent: tvm.relax.dataflow_pattern.DFPattern
-            The parent pattern this pattern dominates.
-        path: tvm.relax.dataflow_pattern.DFPattern
-            The fuzzy path pattern.
-
-        Returns
-        -------
-        result: tvm.relax.dataflow_pattern.DFPattern
-            The resulting DominatorPattern.
-        """
-        if path is None:
-            path = wildcard()
-        return DominatorPattern(parent, path, self)
-
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
         Create a optional user of this pattern.
@@ -169,7 +151,7 @@ class DFPattern(Node):
             The resulting Pattern
         """
         return self | option_constructor(self)
-    
+
     def has_rt_dep_shape(self):
         return self & has_rt_dep_shape()
 
@@ -180,6 +162,7 @@ class RuntimeDepShapePattern(DFPattern):
 
     def __init__(self):
         self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern)
+
 
 @register_df_node
 class DynTensorTypePattern(DFPattern):
@@ -247,6 +230,7 @@ class DataflowVarPattern(DFPattern):
     def __init__(self, name_hint: str = ""):
         self.__init_handle_by_constructor__(ffi.DataflowVarPattern, name_hint)
 
+
 @register_df_node
 class GlobalVarPattern(DFPattern):
     """A global variable pattern.
@@ -269,6 +253,7 @@ class GlobalVarPattern(DFPattern):
 class ExternFuncPattern(DFPattern):
     def __init__(self, global_symbol: str = ""):
         self.__init_handle_by_constructor__(ffi.ExternFuncPattern, global_symbol)
+
 
 @register_df_node
 class ConstantPattern(DFPattern):
@@ -400,6 +385,7 @@ class OrPattern(DFPattern):
     def __init__(self, left: "DFPattern", right: "DFPattern"):
         self.__init_handle_by_constructor__(ffi.OrPattern, left, right)
 
+
 @register_df_node
 class AndPattern(DFPattern):
     """Create a Pattern that must match two conditions
@@ -474,10 +460,12 @@ class ShapePattern(DFPattern):
     def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)
 
+
 @register_df_node
 class PrimArrPattern(DFPattern):
-    def __init__(self,  shape: List[tvm.ir.PrimExpr]):
+    def __init__(self, shape: List[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)
+
 
 @register_df_node
 class AttrPattern(DFPattern):
@@ -497,26 +485,6 @@ class AttrPattern(DFPattern):
         self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)
 
 
-@register_df_node
-class DominatorPattern(DFPattern):
-    """Match a domination graph.
-
-    Parameters
-    ----------
-    parent: tvm.relax.dataflow_pattern.DFPattern
-        The parent, i.e., the single node which produces something,
-        later aggregated by the child.
-    path: tvm.relax.dataflow_pattern.DFPattern
-        The fuzzy path pattern between parent and child,
-        typically matches elementwise ops.
-    child: tvm.relax.dataflow_pattern.DFPattern
-        The last node in the domination which is the end user
-        for all nodes in the path and the parent.
-    """
-
-    def __init__(self, parent: "DFPattern", path: "DFPattern", child: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.DominatorPattern, parent, path, child)
-
 def is_var(name: str = "") -> "DFPattern":
     """
     Syntatic sugar for creating an optionally named VarPattern.
@@ -533,11 +501,14 @@ def is_var(name: str = "") -> "DFPattern":
     """
     return VarPattern(name)
 
+
 def is_gv(name) -> "DFPattern":
     return GlobalVarPattern(name)
 
+
 def is_dfv(name) -> "DFPattern":
     return DataflowVarPattern(name)
+
 
 def is_constant() -> "DFPattern":
     """
@@ -708,33 +679,37 @@ def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
 
 
 def has_shape(*args, pattern: "DFPattern" = None) -> "DFPattern":
-    """Either has_shape(a, b, c) or has_shape([a, b, c, ...])
-    """
+    """Either has_shape(a, b, c) or has_shape([a, b, c, ...])"""
     if pattern is None:
         pattern = wildcard()
     if len(args) == 1 and isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
         return ShapePattern(pattern, args[0])
     return ShapePattern(pattern, args)
 
+
 def is_shape(*args):
     if len(args) == 1 and isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
         return PrimArrPattern(args[0])
     return PrimArrPattern(args)
 
-def is_call_tir(op_name: str, args: TuplePattern = None, shape: List[tvm.ir.PrimExpr] = None) -> "DFPattern":
+
+def is_call_tir(
+    op_name: str, args: TuplePattern = None, shape: List[tvm.ir.PrimExpr] = None
+) -> "DFPattern":
     if args is None:
         args = wildcard()
     elif isinstance(args, TuplePattern):
         pass
     elif isinstance(args, (list, tuple, tvm.ir.container.Array)):
         args = TuplePattern(args)
-    
+
     if shape is None:
         shape = wildcard()
     elif isinstance(shape, (list, tuple, tvm.ir.container.Array)):
         shape = is_tuple(shape)
 
     return is_op("relax.call_tir")(GlobalVarPattern(op_name), args, shape)
+
 
 def has_rt_dep_shape():
     return RuntimeDepShapePattern()
@@ -762,28 +737,7 @@ def has_attr(attrs, pattern=None) -> "DFPattern":
     return pattern.has_attr(attrs)
 
 
-def dominates(parent: "DFPattern", path: "DFPattern", child: "DFPattern") -> "DFPattern":
-    """
-    Syntatic sugar for creating an Dominator pattern
-
-    Parameters
-    ----------
-    parent: tvm.relax.dataflow_pattern.DFPattern
-        The parent pattern.
-    path: tvm.relax.dataflow_pattern.DFPattern
-        The fuzzy path pattern.
-    child: tvm.relax.dataflow_pattern.DFPattern
-        The child pattern.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting DominatorPattern.
-    """
-    return DominatorPattern(parent, path, child)
-
-
-def match(pattern: "DFPattern", expr: Expr, var2val = None) -> bool:
+def match(pattern: "DFPattern", expr: Expr, var2val=None) -> bool:
     """
     Match a pattern to an expression
 

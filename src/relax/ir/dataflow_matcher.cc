@@ -314,58 +314,6 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   return false;
 }
 
-// Recursively find the Dominator parent along all inputs paths.
-bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
-  auto call_node = expr.as<CallNode>();
-  for (auto node : expr_graph_.node_map_.at(expr)->inputs_) {
-    if (!(call_node && node->ref_ == call_node->op)) {
-      memoize_ = true;
-      if (VisitDFPattern(op->parent, node->ref_)) {
-        return true;
-      } else {
-        memoize_ = false;
-        if (!VisitDFPattern(op->path, node->ref_) || !MatchesPath(op, node->ref_)) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
-// Iteratively ensure that the parent is dominated somewhere by the child or the path
-bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Expr& expr) {
-  std::stack<Expr> stack;
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visited;
-  stack.push(expr);
-  while (!stack.empty()) {
-    Expr current = stack.top();
-    stack.pop();
-    for (auto node : expr_graph_.node_map_.at(current)->dominator_children_) {
-      if (visited.count(node->ref_) == 0) {
-        if (VisitDFPattern(op->parent, node->ref_)) {
-          return true;
-        } else {
-          stack.push(node->ref_);
-        }
-        visited.insert(node->ref_);
-      }
-    }
-  }
-  return false;
-}
-
-bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
-  if (VisitDFPattern(op->child, expr)) {
-    bool matches_path = MatchesPath(op, expr);
-    memoize_ = true;
-    if (matches_path) {
-      return DominatesParent(op, expr);
-    }
-  }
-  return false;
-}
-
 bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) {
   return StructuralEqual()(op->expr, expr);
 }
