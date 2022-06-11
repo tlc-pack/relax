@@ -398,6 +398,23 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       //   LOG(FATAL) << "ValueError: Cannot find function " << gv->name_hint
       //              << " in the context IRModule.";
       // }
+    } else if (const auto* var = call->op.as<VarNode>()) {
+      if (var->shape_) {
+        return Downcast<Expr>(var->shape_.value());
+      }
+      Optional<Expr> val = builder_->LookupBinding(GetRef<Var>(var));
+      if (const auto* func_node = val.value().as<FunctionNode>()) {
+        Function func = GetRef<Function>(func_node);
+        if (func->ret_type.as<DynTensorTypeNode>()) {
+          Expr func_shape = Downcast<Expr>(func_node->body->shape_);
+          if (IsConstantShapes(func_shape)) {
+            return func_shape;
+          } else {
+            // TODO(@yuchen, @yongwww): add deducer for other cases
+            return RuntimeDepShape(Span());
+          }
+        }
+      }
     } else {
       LOG(FATAL) << "ValueError: Failed to do shape inference for " << call->op->GetTypeKey();
     }
@@ -440,6 +457,15 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         //   LOG(FATAL) << "ValueError: Cannot find function " << gv->name_hint
         //              << " in the context IRModule.";
         // }
+      }
+    } else if (auto* var = call->op.as<VarNode>()) {
+      // TODO(@yongwww, yuchen): handle the infer with more specific cases
+      Optional<Expr> val = builder_->LookupBinding(GetRef<Var>(var));
+      if (const auto* func_node = val.value().as<FunctionNode>()) {
+        return func_node->ret_type;
+      }
+      if (auto* ft_node = var->checked_type_.as<FuncTypeNode>()) {
+        return ft_node->ret_type;
       }
     } else {
       // TODO(@yuchen): call to local var/function support

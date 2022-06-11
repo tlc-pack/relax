@@ -70,6 +70,17 @@ def FuseFMA() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseFMA()
 
 
+def LambdaLift():
+    """
+    Lift local functions into global.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.LambdaLift()
+
+
 def ToNonDataflow() -> tvm.ir.transform.Pass:
     """Transform all dataflow structure to non-dataflow version.
 
