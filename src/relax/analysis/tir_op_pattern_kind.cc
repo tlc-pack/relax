@@ -30,8 +30,8 @@ using namespace tir;
 
 class PatternKindAnalyzer : public StmtExprVisitor {
  public:
-  explicit PatternKindAnalyzer(const PrimFunc& func) {
-    for (const Var& param : func->params) {
+  explicit PatternKindAnalyzer(const tir::PrimFunc& func) {
+    for (const tir::Var& param : func->params) {
       param_buffers_.insert(func->buffer_map.Get(param).value());
     }
   }
@@ -111,7 +111,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
     // Step 4. Checking if the block contains reduce axis by looking into block iterators.
     bool has_reduction = false;
-    Array<Var> reduce_vars;
+    Array<tir::Var> reduce_vars;
     for (const IterVar& it : op->iter_vars) {
       if (it->iter_type == kCommReduce) {
         has_reduction = true;
@@ -203,9 +203,9 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i, j] = B[i - j] is injective since the load indice vars are only i, j
    */
   static bool IsInjectivePattern(const BufferStore& store, const BufferLoad& load) {
-    std::unordered_set<const VarNode*> vars;
+    std::unordered_set<const tir::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
-      if (const auto* v = store_index.as<VarNode>()) {
+      if (const auto* v = store_index.as<tir::VarNode>()) {
         vars.insert(v);
       } else {
         return false;
@@ -213,7 +213,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     }
     for (const PrimExpr& load_index : load->indices) {
       // return false if there are vars used in load indices but not in store indices.
-      if (tir::UsesVar(load_index, [&vars](const VarNode* var) { return !vars.count(var); })) {
+      if (tir::UsesVar(load_index, [&vars](const tir::VarNode* var) { return !vars.count(var); })) {
         return false;
       }
     }
@@ -227,9 +227,9 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      Store = A[i, j] and Load = B[i, j + k] allow data reuse.
    */
   static bool IsAllowReusePattern(const BufferStore& store, const BufferLoad& load) {
-    std::unordered_set<const VarNode*> vars;
+    std::unordered_set<const tir::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
-      if (const auto* v = index.as<VarNode>()) {
+      if (const auto* v = index.as<tir::VarNode>()) {
         vars.insert(v);
       } else {
         return false;
@@ -237,7 +237,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     }
     for (const PrimExpr& index : load->indices) {
       PreOrderVisit(index, [&](const ObjectRef& node) {
-        if (const auto* v = node.as<VarNode>()) {
+        if (const auto* v = node.as<tir::VarNode>()) {
           if (vars.count(v)) {
             vars.erase(v);
           }
@@ -276,10 +276,10 @@ class PatternKindAnalyzer : public StmtExprVisitor {
    *      A[i] = sum(B[i, j + k]) is not pure reduce
    *      pooling is not pure reduce
    */
-  static bool IsPureReducePattern(Array<Var> reduce_loops, Array<PrimExpr> indices) {
+  static bool IsPureReducePattern(Array<tir::Var> reduce_loops, Array<PrimExpr> indices) {
     for (const PrimExpr& e : indices) {
       int id = -1;
-      if (UsesVar(e, [&](const VarNode* var) {
+      if (UsesVar(e, [&](const tir::VarNode* var) {
             for (size_t i = 0; i < reduce_loops.size(); ++i) {
               if (reduce_loops[i].get() == var) {
                 id = i;

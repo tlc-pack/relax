@@ -253,6 +253,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   NameTable name_table_;
   /*! \brief Whether to print meta data. */
   bool show_meta_data_;
+  /*! \brief A counter for naming local functions. */
+  size_t local_func_counter_ = 0;
   /*! \brief meta data context */
   TextMetaDataContext* meta_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
@@ -589,9 +591,10 @@ class TextPrinter {
                (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
                 node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
-    } else if (node.defined() && (node->IsInstance<relax::FunctionNode>() ||
-                                  node->IsInstance<relax::ShapeExprNode>() ||
-                                  node->IsInstance<relax::RuntimeDepShapeNode>())) {
+    } else if (node.defined() &&
+               (node->IsInstance<relax::VarNode>() || node->IsInstance<relax::FunctionNode>() ||
+                node->IsInstance<relax::ShapeExprNode>() ||
+                node->IsInstance<relax::RuntimeDepShapeNode>())) {
       doc << relax_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

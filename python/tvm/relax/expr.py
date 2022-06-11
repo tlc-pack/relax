@@ -204,6 +204,16 @@ class Function(BaseFunc):
         """Construct a relax.Function but without type checking."""
         return _ffi_api.Function_CreateUnchecked(params, body, ret_type, attrs, span)
 
+    def __call__(self, *args):
+        """Invoke the global function.
+
+        Parameters
+        ----------
+        args: List[relax.Expr]
+            Arguments.
+        """
+        return Call(self, args, None, None)
+
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):
