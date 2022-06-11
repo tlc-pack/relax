@@ -87,5 +87,16 @@ def test_layout_rewrite():
     tvm.ir.assert_structural_equal(sch.mod["main"], rewritten_tir_matmul)
 
 
+def test_layout_rewrite_conv():
+    target = _target()
+    ctx = _create_context(fused_conv2d18_add14, target)
+    sch = tvm.tir.Schedule(fused_conv2d18_add14, debug_mask="all")
+    sch.enter_postproc()
+    assert ctx.postprocs[0].apply(sch)
+    print(sch.mod["main"].script())
+    # tvm.ir.assert_structural_equal(sch.mod["main"], rewritten_tir_matmul)
+
+
 if __name__ == "__main__":
-    test_layout_rewrite()
+    # test_layout_rewrite()
+    test_layout_rewrite_conv()
