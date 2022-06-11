@@ -781,8 +781,8 @@ def test_class_irmodule():
     j = my_module[var_j]
     k = my_module[var_k]
 
-    assert f.body.body.op == var_g
-    assert g.body.body.args[0] == var_my_matmul
+    assert f.body.op == var_g
+    assert g.body.args[0] == var_my_matmul
 
     gv_bind = j.body.blocks[0].bindings[0]
     assert gv_bind.value.checked_type.ndim == 2
