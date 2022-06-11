@@ -417,9 +417,6 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
 
   if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body)) {
     return GetRef<Expr>(op);
-  } else if (body->checked_type_.as<ObjectTypeNode>()) {
-    // todo(@yongwww): generic support for closure as checked_type_ of body of FunctionNode
-    return Function(params, body, body->checked_type_, op->attrs);
   } else {
     return Function(params, body, ret_type, op->attrs);
   }

@@ -255,6 +255,14 @@ def test_multi_func():
             gv1: Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
+    before = Before
+    expected = Expected
+    # Perform Lamda Lifting
+    after = transform.LambdaLift()(before)
+    assert len(after.functions) == 4
+    assert_structural_equal(after, expected, map_free_vars=True)
+    _check_save_roundtrip(after)
+
 
 def test_no_local_func():
     @tvm.script.ir_module

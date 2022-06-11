@@ -84,7 +84,8 @@ class LambdaLifter : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* func_node) final {
     auto func = GetRef<Function>(func_node);
 
-    String lift_func_name = std::string("lifted_func_") + std::to_string(lift_func_num_++);
+    // TODO(@yongwww): consider appending inner func name into the lifted func name
+    String lift_func_name = "lifted_func_" + std::to_string(lift_func_num_++);
     auto global = GlobalVar(lift_func_name);
     Array<Var> captured_vars = FreeVars(func);
     recur_vars_ = RecGlobalVars(func);
@@ -114,17 +115,36 @@ class LambdaLifter : public ExprMutator {
       }
     }
 
-    auto body = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
-    Function lifted_func;
-    Map<String, ObjectRef> attrs;
-    attrs.Set(tvm::attr::kGlobalSymbol, lift_func_name);
+    tvm::Array<Var> params;
+    bool all_params_unchanged = true;
+    for (Var param : func_node->params) {
+      Var new_param = this->VisitVarDef(param);
+      params.push_back(new_param);
+      all_params_unchanged &= param.same_as(new_param);
+    }
 
-    if (captured_vars.size() == 0) {
+    Expr body = this->VisitWithNewScope(func_node->body);
+    Expr visited_func;
+
+    if (all_params_unchanged && body.same_as(func_node->body)) {
+      visited_func = GetRef<Expr>(func_node);
+    } else if (body->checked_type_.as<ObjectTypeNode>()) {
+      // make_closure was introduced
+      visited_func = Function(params, body, body->checked_type_, func_node->attrs);
+    } else {
+      visited_func = Function(params, body, func_node->ret_type, func_node->attrs);
+    }
+    auto new_func = Downcast<Function>(visited_func);
+
+    Function lifted_func;
+    bool is_closure = IsClosure(captured_vars);
+    if (!is_closure) {
       lifted_func = Function(
-          /*params=*/body->params,
-          /*body=*/body->body,
-          /*ret_type=*/body->ret_type,
-          /*attrs=*/DictAttrs(attrs));
+          /*params=*/new_func->params,
+          /*body=*/new_func->body,
+          /*ret_type=*/new_func->ret_type,
+          /*attrs=*/new_func->attrs,
+          /*span=*/new_func->span);
     } else {
       // Flatten the Closure
       std::vector<Var> closure_params;
@@ -137,9 +157,9 @@ class LambdaLifter : public ExprMutator {
       }
 
       lifted_func = Function(/*params=*/closure_params,
-                             /*body=*/Bind(body->body, rebinding_map),
-                             /*ret_type=*/body->ret_type,
-                             /*attrs=*/DictAttrs(attrs),
+                             /*body=*/Bind(new_func->body, rebinding_map),
+                             /*ret_type=*/new_func->ret_type,
+                             /*attrs=*/new_func->attrs,
                              /*span=*/func->span);
 
       Array<Type> param_types;
@@ -149,13 +169,14 @@ class LambdaLifter : public ExprMutator {
         param_types.push_back(param->checked_type_);
       }
     }
+    lifted_func = WithAttr(std::move(lifted_func), tvm::attr::kGlobalSymbol, lift_func_name);
 
     ICHECK(lifted_func.defined());
 
     // Add the lifted function to the module.
     builder_->UpdateFunction(global, lifted_func);
 
-    if (captured_vars.size() == 0) {
+    if (!is_closure) {
       return std::move(global);
     } else {
       // If we need to allocate a closure,
@@ -200,6 +221,8 @@ class LambdaLifter : public ExprMutator {
     }
     return false;
   }
+
+  bool IsClosure(const Array<Var>& captured_vars) { return captured_vars.size() > 0; }
 
   IRModule Lift() {
     auto glob_funcs = mod_->functions;

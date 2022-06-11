@@ -99,6 +99,9 @@ TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
 /*!
  * \brief Get all glabal variables from expression expr.
  *
+ * AllVars is a superset of BoundVars and FreeVars.
+ * The union of BoundVars and FreeVars is Allvars.
+ *
  * \param expr the expression.
  *
  * \return List of all global variables, in the PostDFS order in the expression.
