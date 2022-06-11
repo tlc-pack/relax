@@ -128,7 +128,7 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
         }
       }
       if (!failed) {
-        result.push_back(MeasureCandidate(sch, this->args_info_));
+        result.push_back(MeasureCandidate(sch, ArgInfo::FromSchedule(sch)));
         break;
       }
     }

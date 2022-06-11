@@ -142,7 +142,7 @@ bool RewriteLayout(const Schedule& sch) {
       // Get IndexMap
       const Optional<IndexMap> index_map = index_maps.at(buffer.get());
       if (!index_map.defined()) {
-        return false;
+        continue;
       }
 
       // Apply schedule

@@ -204,9 +204,7 @@ Array<MeasureCandidate> AssembleCandidates(const std::vector<Schedule>& picks) {
   Array<MeasureCandidate> measure_inputs;
   measure_inputs.reserve(picks.size());
   for (const Schedule& sch : picks) {
-    IRModule mod_wo_preprocess = tir::transform::RemoveWeightLayoutRewriteBlock()(sch->mod());
-    Array<ArgInfo> args_info = ArgInfo::FromPrimFunc(FindEntryFunc(mod_wo_preprocess));
-    measure_inputs.push_back(MeasureCandidate(sch, args_info));
+    measure_inputs.push_back(MeasureCandidate(sch, ArgInfo::FromSchedule(sch)));
   }
   return measure_inputs;
 }
