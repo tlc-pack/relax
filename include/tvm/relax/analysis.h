@@ -26,6 +26,7 @@
 
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/function.h>
 
@@ -52,6 +53,60 @@ TVM_DLL bool WellFormed(const IRModule& m,
  *       As a result we place it under the relax namespace.
  */
 TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
+
+/*!
+ * \brief Get all bound variables from expression expr.
+ *
+ * Bound variables are all variables that are declared in the expr.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param expr the expression.
+ *
+ * \return List of bound vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
+
+/*!
+ * \brief Get free type parameters from expression expr.
+ *
+ * Free variables are variables that are not bound by a
+ * varbinding or a function parameter in the context.
+ *
+ * \param expr the expression.
+ *
+ * \return List of free vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
+
+/*!
+ * \brief Get all variables from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
+
+/*!
+ * \brief Get all glabal variables for recursive call from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all global variables for recursive call.
+ */
+TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
+
+/*!
+ * \brief Get all glabal variables from expression expr.
+ *
+ * AllVars is a superset of BoundVars and FreeVars.
+ * The union of BoundVars and FreeVars is Allvars.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all global variables, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm

@@ -25,9 +25,9 @@
  * the cost of using functional updates.
  */
 #include <tvm/ir/type_functor.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/relay/analysis.h>
 #include <tvm/relay/pattern_functor.h>
 
 namespace tvm {
@@ -658,6 +658,5 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
 
   return var;
 }
-
 }  // namespace relax
 }  // namespace tvm

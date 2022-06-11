@@ -311,11 +311,14 @@ def test_class_irmodule():
 
         @R.function
         def f(x: Tensor((n, n), _)) -> Tensor:
-            return g(x)
+            # todo(@yongwww): Update the check_type_ function's body is a call_node
+            r = g(x)
+            return r
 
         @R.function
         def g(y: Tensor((n, n), _)) -> Tensor:
-            return relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+            r = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+            return r
 
         @R.function
         def h(x: Tensor((n, n), _), y: Tensor((n, n), _), z: Tensor((n, n), _)) -> Tensor:

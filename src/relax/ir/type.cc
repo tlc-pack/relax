@@ -102,7 +102,7 @@ bool IsBaseOf(const Type& base, const Type& derived) {
         return false;
       }
 
-      for (size_t i = 0; i < base_tuple->fields.size(); i++) {
+      for (size_t i = 0; i < base_tuple->fields.size(); ++i) {
         if (!IsBaseOf(base_tuple->fields[i], derived_tuple->fields[i])) {
           return false;
         }
