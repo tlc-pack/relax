@@ -82,6 +82,13 @@ TVM_DLL Pass FailTestRewrite();
 TVM_DLL Pass FMARewrite();
 
 /*!
+ * \brief Perform lambda lifting to lift functions from nested into global.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass LambdaLift();
+
+/*!
  * \brief Transform all dataflow structure to non-dataflow version.
  *
  * \return The Pass.
