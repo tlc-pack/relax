@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm.ir.base import assert_structural_equal
 from tvm.runtime import vm
 import tvm.testing
 from tvm.relay import testing
@@ -29,6 +30,7 @@ import os, shutil
 from tvm.meta_schedule.database import JSONDatabase
 import tempfile
 from tvm.meta_schedule.task_scheduler import RoundRobin
+from tvm.script import tir as T
 
 
 def get_resnet(batch_size, dtype, layout, image_shape):
@@ -188,7 +190,7 @@ def test_verify_extracted_tasks_gpu(layout, batch_size, image_shape):
     verify_extracted_tasks("cuda", layout, batch_size, image_shape)
 
 
-def translate_and_build_vms(relay_mod, target_str="llvm"):
+def translate_and_build_vms(relay_mod, target_str="llvm", translate_op_with_tir=None):
     target = tvm.target.Target(target_str)
 
     # build the relay IRModule and create relay vm
@@ -196,11 +198,13 @@ def translate_and_build_vms(relay_mod, target_str="llvm"):
     relay_vm = vm.VirtualMachine(relay_ex, tvm.cpu())
 
     # build the relax IRModule and create relax vm
-    relax_mod = relay_translator.from_relay(relay_mod["main"], target)
+    relax_mod = relay_translator.from_relay(
+        relay_mod["main"], target, translate_op_with_tir=translate_op_with_tir
+    )
     relax_ex = relax.vm.build(relax_mod, target)
     relax_vm = relax.VirtualMachine(relax_ex, tvm.cpu())
 
-    return relay_vm, relax_vm
+    return relay_vm, relax_vm, relax_mod
 
 
 def verify_vm_outputs(
@@ -227,7 +231,7 @@ def test_single_dynamic_dim():
     y = relay.nn.matmul(data, weights)
     relay_mod = tvm.IRModule.from_expr(relay.Function([data, weights, bias], y + bias))
 
-    relay_vm, relax_vm = translate_and_build_vms(relay_mod)
+    relay_vm, relax_vm, _ = translate_and_build_vms(relay_mod)
     weights = tvm.nd.array(np.random.rand(wx, wy).astype(np.float32))
     bias = tvm.nd.array(np.random.rand(wy).astype(np.float32))
     # verify for different batch sizes
@@ -241,7 +245,7 @@ def test_multiple_dynamic_dims():
     a = relay.var("a", shape=shape)
 
     relay_mod = tvm.IRModule.from_expr(relay.Function([a], a + a))
-    relay_vm, relax_vm = translate_and_build_vms(relay_mod)
+    relay_vm, relax_vm, _ = translate_and_build_vms(relay_mod)
     # verify for different shapes
     verify_vm_outputs([2, 5, 10], relay_vm, relax_vm)
     verify_vm_outputs([12, 5, 24], relay_vm, relax_vm)
@@ -253,8 +257,39 @@ def test_layout_transform():
     b = relay.layout_transform(a, "NCHW", "NHWC")
     relay_mod = tvm.IRModule.from_expr(relay.Function([a], b))
 
-    relay_vm, relax_vm = translate_and_build_vms(relay_mod)
+    relay_vm, relax_vm, _ = translate_and_build_vms(relay_mod)
     verify_vm_outputs([1, 3, 224, 224], relay_vm, relax_vm)
+
+
+def test_translate_op_with_tir():
+    @T.prim_func
+    def tir_matmul(
+        A: T.Buffer[(512, 512), "float32"],
+        B: T.Buffer[(512, 512), "float32"],
+        C: T.Buffer[(512, 512), "float32"],
+    ) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "multiply", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(512, 512, 512):
+            with T.block("C"):
+                i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+                T.reads(C[i, j], A[i, k], B[k, j])
+                T.writes(C[i, j])
+                with T.init():
+                    C[i, j] = T.float32(0)
+                C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
+    shape = (512, 512)
+    a = relay.var("a", shape=shape)
+
+    relay_mod = tvm.IRModule.from_expr(relay.Function([a], a * a))
+
+    relay_vm, relax_vm, relax_mod = translate_and_build_vms(
+        relay_mod, translate_op_with_tir={"multiply": tir_matmul}
+    )
+    assert_structural_equal(relax_mod["multiply"], tir_matmul)
 
 
 if __name__ == "__main__":
