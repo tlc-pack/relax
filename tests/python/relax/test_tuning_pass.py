@@ -36,7 +36,6 @@ from tvm import relax
 from tvm.relax.expr import Expr, DataflowBlock, Function
 import numpy as np
 import tvm.meta_schedule as ms
-from tvm.meta_schedule.testing import DummyDatabase
 import tempfile
 
 
@@ -686,7 +685,7 @@ def test_metaschedule_tuning():
         trace = ctx.pop_trace()
 
         def meta_schedule_tuning(mod):
-            target = ms.tune.Parse._target(target_str)
+            target = ms.default_config.target(target_str)
             config = ms.TuneConfig(
                 strategy="evolutionary",
                 num_trials_per_iter=2,
@@ -696,7 +695,7 @@ def test_metaschedule_tuning():
             with tempfile.TemporaryDirectory() as work_dir:
                 extracted_tasks = ms.relax_integration.extract_task_from_relax(mod, target)
                 database = ms.tune.tune_extracted_tasks(
-                    extracted_tasks, config, work_dir, database=DummyDatabase()
+                    extracted_tasks, config, work_dir, database=ms.database.MemoryDatabase()
                 )
 
                 return relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
