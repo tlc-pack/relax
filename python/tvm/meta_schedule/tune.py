@@ -652,7 +652,7 @@ def tune_relax(
 
     logger.info("Working directory: %s", work_dir)
     # pylint: disable=protected-access
-    target = Parse._target(target)
+    target = default_config.target(target)
     # parse the tuning contexts
     extracted_tasks = extract_task_from_relax(mod, target)
     database = tune_extracted_tasks(
