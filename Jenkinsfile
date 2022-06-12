@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-11T13:17:04.679404
+// Generated at 2022-04-29T08:49:28.997200
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
@@ -91,13 +91,6 @@ docker_run = 'docker/bash.sh'
 // timeout in minutes
 max_time = 240
 
-// Filenames for stashing between build and test steps
-s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
-
-
-// General note: Jenkins has limits on the size of a method (or top level code)
-// that are pretty strict, so most usage of groovy methods in these templates
-// are purely to satisfy the JVM
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
@@ -105,8 +98,6 @@ def per_exec_ws(folder) {
 // initialize source codes
 def init_git() {
   checkout scm
-
-
   // Add more info about job node
   sh (
     script: './tests/scripts/task_show_node_info.sh',
@@ -193,83 +184,6 @@ stage('Sanity Check') {
     node('CPU') {
       ws(per_exec_ws('tvm/sanity')) {
         init_git()
-
-        if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
-          sh(
-            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_minimal=${ci_minimal} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_cortexm=${ci_cortexm} ci_wasm=${ci_wasm} ",
-            label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
-          )
-          // Pull image names from the results of should_rebuild_docker.py
-          ci_arm = sh(
-            script: "cat .docker-image-names/ci_arm",
-            label: "Find docker image name for ci_arm",
-            returnStdout: true,
-          ).trim()
-          ci_cpu = sh(
-            script: "cat .docker-image-names/ci_cpu",
-            label: "Find docker image name for ci_cpu",
-            returnStdout: true,
-          ).trim()
-          ci_minimal = sh(
-            script: "cat .docker-image-names/ci_minimal",
-            label: "Find docker image name for ci_minimal",
-            returnStdout: true,
-          ).trim()
-          ci_gpu = sh(
-            script: "cat .docker-image-names/ci_gpu",
-            label: "Find docker image name for ci_gpu",
-            returnStdout: true,
-          ).trim()
-          ci_hexagon = sh(
-            script: "cat .docker-image-names/ci_hexagon",
-            label: "Find docker image name for ci_hexagon",
-            returnStdout: true,
-          ).trim()
-          ci_i386 = sh(
-            script: "cat .docker-image-names/ci_i386",
-            label: "Find docker image name for ci_i386",
-            returnStdout: true,
-          ).trim()
-          ci_lint = sh(
-            script: "cat .docker-image-names/ci_lint",
-            label: "Find docker image name for ci_lint",
-            returnStdout: true,
-          ).trim()
-          ci_cortexm = sh(
-            script: "cat .docker-image-names/ci_cortexm",
-            label: "Find docker image name for ci_cortexm",
-            returnStdout: true,
-          ).trim()
-          ci_wasm = sh(
-            script: "cat .docker-image-names/ci_wasm",
-            label: "Find docker image name for ci_wasm",
-            returnStdout: true,
-          ).trim()
-        }
-
-        ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cpu = params.ci_cpu_param ?: ci_cpu
-        ci_minimal = params.ci_minimal_param ?: ci_minimal
-        ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-        ci_i386 = params.ci_i386_param ?: ci_i386
-        ci_lint = params.ci_lint_param ?: ci_lint
-        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
-        ci_wasm = params.ci_wasm_param ?: ci_wasm
-
-        sh (script: """
-          echo "Docker images being used in this build:"
-          echo " ci_arm = ${ci_arm}"
-          echo " ci_cpu = ${ci_cpu}"
-          echo " ci_minimal = ${ci_minimal}"
-          echo " ci_gpu = ${ci_gpu}"
-          echo " ci_hexagon = ${ci_hexagon}"
-          echo " ci_i386 = ${ci_i386}"
-          echo " ci_lint = ${ci_lint}"
-          echo " ci_cortexm = ${ci_cortexm}"
-          echo " ci_wasm = ${ci_wasm}"
-        """, label: 'Docker image names')
-
         is_docs_only_build = sh (
           returnStatus: true,
           script: './tests/scripts/git_change_docs.sh',
@@ -314,10 +228,57 @@ def make(docker_type, path, make_flag) {
       cmake_build(docker_type, path, make_flag)
       cpp_unittest(docker_type)
     }
-  },
-    )
   }
 }
+
+// Specifications to Jenkins "stash" command for use with various pack_ and unpack_ functions.
+tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'  // use libtvm_runtime.so.
+tvm_lib = 'build/libtvm.so, ' + tvm_runtime  // use libtvm.so to run the full compiler.
+// LLVM upstream lib
+tvm_multilib = 'build/libtvm.so, ' +
+               'build/libvta_fsim.so, ' +
+               tvm_runtime
+
+tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
+                    tvm_multilib
+
+microtvm_tar_gz = 'build/microtvm_template_projects.tar.gz'
+
+// pack libraries for later use
+def pack_lib(name, libs) {
+  sh (script: """
+     echo "Packing ${libs} into ${name}"
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
+     """, label: 'Stash libraries and show md5')
+  stash includes: libs, name: name
+}
+
+// unpack libraries saved before
+def unpack_lib(name, libs) {
+  unstash name
+  sh (script: """
+     echo "Unpacked ${libs} from ${name}"
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
+     """, label: 'Unstash libraries and show md5')
+}
+
+// compress microtvm template projects and pack the tar.
+def pack_microtvm_template_projects(name) {
+  sh(
+    script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
+    label: 'Compress microtvm_template_projects'
+  )
+  pack_lib(name + '-microtvm-libs', microtvm_tar_gz)
+}
+
+def unpack_microtvm_template_projects(name) {
+  unpack_lib(name + '-microtvm-libs', microtvm_tar_gz)
+  sh(
+    script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
+    label: 'Unpack microtvm_template_projects'
+  )
+}
+
 def ci_setup(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh",
