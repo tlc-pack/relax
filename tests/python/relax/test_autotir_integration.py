@@ -21,12 +21,12 @@ import pytest
 import tempfile
 import time
 import tvm
+import tvm.testing
 
 from tvm import meta_schedule as ms
 from tvm import relax
 from tvm import transform
 from tvm.ir.module import IRModule
-from tvm.meta_schedule.testing import DummyDatabase
 from tvm.script import relax as R, tir as T
 from tvm.target.target import Target
 
@@ -129,7 +129,7 @@ def test_autotir(dev: str):
         target = Target("nvidia/nvidia-t4")
         dev = tvm.cuda()
 
-    database = DummyDatabase()
+    database = ms.database.MemoryDatabase()
 
     with tempfile.TemporaryDirectory() as work_dir:
         relax_ex = ms.tune_relax(

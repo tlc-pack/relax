@@ -30,26 +30,17 @@ trap cleanup 0
 function shard1 {
   echo "Convert scripts to Python..."
   tests/scripts/task_convert_scripts_to_python.sh
-# TODO: Remove this ad-hoc pip install once https://github.com/apache/tvm/pull/10741
-# is added to the ci_lint Docker image
-# python3 -m pip install --user -r jenkins/requirements.txt
-# echo "Check Jenkinsfile generation"
-# python3 jenkins/generate.py --check
-
-  echo "Check Jenkinsfile generation"
-  python3 jenkins/generate.py --check
+  # TODO: Remove this ad-hoc pip install once https://github.com/apache/tvm/pull/10741
+  # is added to the ci_lint Docker image
+  # python3 -m pip install --user -r jenkins/requirements.txt
+  # echo "Check Jenkinsfile generation"
+  # python3 jenkins/generate.py --check
 
   echo "Checking file types..."
   python3 tests/lint/check_file_type.py
 
   echo "Checking CMake <-> LibInfo options mirroring"
   python3 tests/lint/check_cmake_options.py
-
-  echo "black check..."
-  tests/lint/git-black.sh
-
-  echo "Linting the Python code with flake8..."
-  tests/lint/flake8.sh
 
   echo "black check..."
   tests/lint/git-black.sh --rev HEAD~5
@@ -61,9 +52,10 @@ function shard1 {
 function shard2 {
   echo "Linting the Python code with pylint..."
   tests/lint/pylint.sh
+  tests/lint/flake8.sh
 
-  echo "Checking C++ documentation..."
-  tests/lint/cppdocs.sh
+  # echo "Checking C++ documentation..."
+  # tests/lint/cppdocs.sh
 
   echo "Checking ASF license headers..."
   tests/lint/check_asf_header.sh --local
@@ -74,8 +66,8 @@ function shard2 {
   echo "clang-format check..."
   tests/lint/git-clang-format.sh
 
-  echo "Rust check..."
-  tests/lint/rust_format.sh
+  # echo "Rust check..."
+  # tests/lint/rust_format.sh
 }
 
 

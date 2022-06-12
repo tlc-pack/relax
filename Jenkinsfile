@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-10T12:12:40.419262
+// Generated at 2022-04-29T08:49:28.997200
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
@@ -91,21 +91,6 @@ docker_run = 'docker/bash.sh'
 // timeout in minutes
 max_time = 240
 
-// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
-// execute this before anything else, including requesting any time on an agent
-if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
-}
-
-// Filenames for stashing between build and test steps
-s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
-
-
-// General note: Jenkins has limits on the size of a method (or top level code)
-// that are pretty strict, so most usage of groovy methods in these templates
-// are purely to satisfy the JVM
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
@@ -113,8 +98,6 @@ def per_exec_ws(folder) {
 // initialize source codes
 def init_git() {
   checkout scm
-
-
   // Add more info about job node
   sh (
     script: './tests/scripts/task_show_node_info.sh',
@@ -201,27 +184,6 @@ stage('Sanity Check') {
     node('CPU') {
       ws(per_exec_ws('tvm/sanity')) {
         init_git()
-        ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cpu = params.ci_cpu_param ?: ci_cpu
-        ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-        ci_i386 = params.ci_i386_param ?: ci_i386
-        ci_lint = params.ci_lint_param ?: ci_lint
-        ci_qemu = params.ci_qemu_param ?: ci_qemu
-        ci_wasm = params.ci_wasm_param ?: ci_wasm
-
-        sh (script: """
-          echo "Docker images being used in this build:"
-          echo " ci_arm = ${ci_arm}"
-          echo " ci_cpu = ${ci_cpu}"
-          echo " ci_gpu = ${ci_gpu}"
-          echo " ci_hexagon = ${ci_hexagon}"
-          echo " ci_i386 = ${ci_i386}"
-          echo " ci_lint = ${ci_lint}"
-          echo " ci_qemu = ${ci_qemu}"
-          echo " ci_wasm = ${ci_wasm}"
-        """, label: 'Docker image names')
-
         is_docs_only_build = sh (
           returnStatus: true,
           script: './tests/scripts/git_change_docs.sh',
@@ -266,10 +228,57 @@ def make(docker_type, path, make_flag) {
       cmake_build(docker_type, path, make_flag)
       cpp_unittest(docker_type)
     }
-  },
-    )
   }
 }
+
+// Specifications to Jenkins "stash" command for use with various pack_ and unpack_ functions.
+tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'  // use libtvm_runtime.so.
+tvm_lib = 'build/libtvm.so, ' + tvm_runtime  // use libtvm.so to run the full compiler.
+// LLVM upstream lib
+tvm_multilib = 'build/libtvm.so, ' +
+               'build/libvta_fsim.so, ' +
+               tvm_runtime
+
+tvm_multilib_tsim = 'build/libvta_tsim.so, ' +
+                    tvm_multilib
+
+microtvm_tar_gz = 'build/microtvm_template_projects.tar.gz'
+
+// pack libraries for later use
+def pack_lib(name, libs) {
+  sh (script: """
+     echo "Packing ${libs} into ${name}"
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
+     """, label: 'Stash libraries and show md5')
+  stash includes: libs, name: name
+}
+
+// unpack libraries saved before
+def unpack_lib(name, libs) {
+  unstash name
+  sh (script: """
+     echo "Unpacked ${libs} from ${name}"
+     echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
+     """, label: 'Unstash libraries and show md5')
+}
+
+// compress microtvm template projects and pack the tar.
+def pack_microtvm_template_projects(name) {
+  sh(
+    script: 'cd build && tar -czvf microtvm_template_projects.tar.gz microtvm_template_projects/',
+    label: 'Compress microtvm_template_projects'
+  )
+  pack_lib(name + '-microtvm-libs', microtvm_tar_gz)
+}
+
+def unpack_microtvm_template_projects(name) {
+  unpack_lib(name + '-microtvm-libs', microtvm_tar_gz)
+  sh(
+    script: 'cd build && tar -xzvf microtvm_template_projects.tar.gz',
+    label: 'Unpack microtvm_template_projects'
+  )
+}
+
 def ci_setup(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh",

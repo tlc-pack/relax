@@ -33,7 +33,7 @@ class MetaScheduleAHB {
       : mod_(mod), db_(db), target_(target) {}
   IRModule Apply() {
     ret_mod_ = IRModule();
-    tvm::meta_schedule::ApplyHistoryBest ahb(db_);
+    tvm::meta_schedule::ApplyHistoryBest ahb(db_, nullptr);
     for (auto& p : mod_->functions) {
       GlobalVar gv = p.first;
       BaseFunc func = p.second;
