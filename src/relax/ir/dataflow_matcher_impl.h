@@ -29,8 +29,6 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
 
-#include "indexed_graph.h"
-
 namespace tvm {
 namespace relax {
 
