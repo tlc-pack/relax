@@ -81,18 +81,6 @@ RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
   p->stream << "GlobalVarPattern(" << node->name_hint() << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(DynTensorTypePatternNode);
-DynTensorTypePattern::DynTensorTypePattern(DynTensorType type) {
-  ObjectPtr<DynTensorTypePatternNode> n = make_object<DynTensorTypePatternNode>();
-  n->type = std::move(type);
-  data_ = std::move(n);
-}
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DynTensorTypePattern")
-    .set_body_typed([](DynTensorType type) { return DynTensorTypePattern(type); });
-RELAX_PATTERN_PRINTER_DEF(DynTensorTypePatternNode, [](auto p, auto node) {
-  p->stream << "DynTensorTypePattern(" << node->type << ")";
-});
-
 TVM_REGISTER_NODE_TYPE(RuntimeDepShapePatternNode);
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.RuntimeDepShapePattern").set_body_typed([] {
   return RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());

@@ -165,23 +165,6 @@ class RuntimeDepShapePattern(DFPattern):
 
 
 @register_df_node
-class DynTensorTypePattern(DFPattern):
-    """A pattern that matches another pattern with a certain DynTensorTypePattern.
-
-    Parameters
-    ----------
-    ttype: tvm.relax.DynTensorType
-        The type to match.
-
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The input pattern that needs type annotation.
-    """
-
-    def __init__(self, type: DynTensorType):
-        self.__init_handle_by_constructor__(ffi.DynTensorTypePattern, type)
-
-
-@register_df_node
 class ExprPattern(DFPattern):
     """A pattern which matches a constant expression.
 

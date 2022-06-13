@@ -99,8 +99,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
 
   virtual R VisitDFPattern_(const RuntimeDepShapePatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitDFPattern_(const DynTensorTypePatternNode* op,
-                            Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const DataflowVarPatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const GlobalVarPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
@@ -134,7 +132,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(VarPatternNode);
 
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(RuntimeDepShapePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(DynTensorTypePatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(DataflowVarPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(GlobalVarPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(ExternFuncPatternNode);
@@ -168,7 +165,6 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const VarPatternNode* op) override;
 
   void VisitDFPattern_(const RuntimeDepShapePatternNode* op) override;
-  void VisitDFPattern_(const DynTensorTypePatternNode* op) override;
   void VisitDFPattern_(const DataflowVarPatternNode* op) override;
   void VisitDFPattern_(const GlobalVarPatternNode* op) override;
   void VisitDFPattern_(const ExternFuncPatternNode* op) override;

@@ -464,26 +464,6 @@ class ExternFuncPattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFuncPattern, DFPattern, ExternFuncPatternNode);
 };
 
-class DynTensorTypePattern;
-class DynTensorTypePatternNode : public DFPatternNode {
- public:
-  /*! \brief The type to match */
-  DynTensorType type;
-
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("type", &type); }
-  static constexpr const char* _type_key = "relax.dataflow_pattern.DynTensorTypePattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DynTensorTypePatternNode, DFPatternNode);
-};
-
-/*!
- * \brief A pattern to match expressions with a specific dynamic tensor type.
- */
-class DynTensorTypePattern : public DFPattern {
- public:
-  TVM_DLL DynTensorTypePattern(DynTensorType type);
-  TVM_DEFINE_OBJECT_REF_METHODS(DynTensorTypePattern, DFPattern, DynTensorTypePatternNode);
-};
-
 class RuntimeDepShapePattern;
 /*!
  * \brief Pattern for RuntimeDepShape.

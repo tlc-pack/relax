@@ -368,46 +368,8 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
   return matches;
 }
 
-Expr InferType(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = InferType()(mod);
-  if (expr.as<FunctionNode>()) {
-    return mod->Lookup("main");
-  } else {
-    return mod->Lookup("main").as<FunctionNode>()->body;
-  }
-}
-
-Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
-  IRModule mod(m->functions, m->type_definitions, m->Imports());
-  int idx = 0;
-  std::string gv_name;
-  do {
-    std::ostringstream oss;
-    oss << "_tmp" << idx;
-    gv_name = oss.str();
-    ++idx;
-  } while (mod->ContainGlobalVar(gv_name));
-  GlobalVar gvar(gv_name);
-  BaseFunc func;
-  if (expr.as<FunctionNode>()) {
-    func = Downcast<Function>(expr);
-  } else {
-    func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
-  }
-  mod->Add(gvar, func);
-  mod = InferType()(mod);
-  Expr ret;
-  if (expr.as<FunctionNode>()) {
-    ret = mod->Lookup(gvar);
-  } else {
-    ret = mod->Lookup(gvar).as<FunctionNode>()->body;
-  }
-  return ret;
-}
-
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
-  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  auto expr_type = expr.as<ExprNode>()->checked_type();
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
 
@@ -432,17 +394,10 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
-  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  auto expr_type = expr.as<ExprNode>()->checked_type();
   if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
     return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
   }
-  return false;
-}
-
-bool DFPatternMatcher::VisitDFPattern_(const DynTensorTypePatternNode* op, const Expr& expr) {
-  auto expr_type = expr->checked_type();
-  if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>())
-    return (StructuralEqual()(op->type, GetRef<DynTensorType>(tensor_type)));
   return false;
 }
 
