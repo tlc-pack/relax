@@ -37,8 +37,6 @@ class ReplayTraceNode : public SearchStrategyNode {
 
     /*! \brief The module to be tuned. */
     Array<IRModule> per_thread_mod_{nullptr};
-    /*! \brief The metadata of the function arguments. */
-    Array<ArgInfo> args_info_{nullptr};
 
     explicit State(ReplayTraceNode* self, Array<tir::Trace> design_spaces)
         : self(self), design_spaces(design_spaces), st(0), ed(self->num_trials_per_iter) {
@@ -49,7 +47,6 @@ class ReplayTraceNode : public SearchStrategyNode {
       for (int i = 0; i < ctx->num_threads; i++) {
         this->per_thread_mod_.push_back(DeepCopyIRModule(mod));
       }
-      this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(mod));
     }
 
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();

@@ -244,8 +244,6 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     int ed;
     /*! \brief The counter of returning empty results. */
     int num_empty_iters;
-    /*! \brief The metadata of the function arguments. */
-    Array<ArgInfo> args_info_{nullptr};
     /*! \brief Pre thread data including module to be tuned and random state. */
     std::vector<PerThreadData> per_thread_data_;
     /*!
@@ -269,7 +267,6 @@ class EvolutionarySearchNode : public SearchStrategyNode {
           num_empty_iters(0) {
       const TuneContextNode* ctx = self->context_;
       IRModule mod = ctx->mod.value();
-      this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(mod));
       this->per_thread_data_.resize(ctx->num_threads);
       for (PerThreadData& data : this->per_thread_data_) {
         data.mod = DeepCopyIRModule(mod);
@@ -379,6 +376,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     CHECK(context.defined()) << "TuneContext must be defined!";
     CHECK(context->num_threads > 0) << "Number of threads has to be larger than 0.";
     CHECK(context->target.defined()) << "Target must be defined!";
+    this->context_ = context.get();
     this->rand_state_ = ForkSeed(&context->rand_state);
     for (const auto& kv : context->mutator_probs) {
       double mass = kv.second->value;
@@ -499,9 +497,8 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
   SizedHeap heap(num);
   for (int iter = 0;; ++iter) {
     // Predict normalized score with the cost model,
-    std::vector<double> scores = PredictNormalizedScore(population,                           //
-                                                        GetRef<TuneContext>(self->context_),  //
-                                                        self->cost_model_);
+    std::vector<double> scores =
+        PredictNormalizedScore(population, GetRef<TuneContext>(self->context_), this->cost_model_);
     ICHECK_EQ(scores.size(), population.size());
     for (int i = 0, n = population.size(); i < n; ++i) {
       Schedule sch = population.at(i);
