@@ -368,17 +368,6 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
   return matches;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const IfPatternNode* op, const Expr& expr) {
-  if (const auto* if_node = expr.as<IfNode>()) {
-    auto cond = if_node->cond;
-    auto true_branch = if_node->true_branch;
-    auto false_branch = if_node->false_branch;
-    return VisitDFPattern(op->cond, cond) && VisitDFPattern(op->true_branch, true_branch) &&
-           VisitDFPattern(op->false_branch, false_branch);
-  }
-  return false;
-}
-
 Expr InferType(const Expr& expr) {
   auto mod = IRModule::FromExpr(expr);
   mod = InferType()(mod);

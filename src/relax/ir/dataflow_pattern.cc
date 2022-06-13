@@ -159,23 +159,6 @@ RELAX_PATTERN_PRINTER_DEF(FunctionPatternNode, [](auto p, auto node) {
   p->stream << "FunctionPatternNode(" << node->params << ", " << node->body << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(IfPatternNode);
-IfPattern::IfPattern(DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
-  ObjectPtr<IfPatternNode> n = make_object<IfPatternNode>();
-  n->cond = std::move(cond);
-  n->true_branch = std::move(true_branch);
-  n->false_branch = std::move(false_branch);
-  data_ = std::move(n);
-}
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.IfPattern")
-    .set_body_typed([](DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
-      return IfPattern(cond, true_branch, false_branch);
-    });
-RELAX_PATTERN_PRINTER_DEF(IfPatternNode, [](auto p, auto node) {
-  p->stream << "IfPattern(" << node->cond << ", " << node->true_branch << ", " << node->false_branch
-            << ")";
-});
-
 TVM_REGISTER_NODE_TYPE(TuplePatternNode);
 TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
   ObjectPtr<TuplePatternNode> n = make_object<TuplePatternNode>();

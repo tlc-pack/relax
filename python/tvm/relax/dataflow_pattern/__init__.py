@@ -308,26 +308,6 @@ class FunctionPattern(DFPattern):
 
 
 @register_df_node
-class IfPattern(DFPattern):
-    """A patern matching a Relax If.
-
-    Parameters
-    ----------
-    cond: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the condition of If.
-
-    true_branch: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the true branch of If.
-
-    false_branch: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the false branch of If.
-    """
-
-    def __init__(self, cond: "DFPattern", true_branch: "DFPattern", false_branch: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.IfPattern, cond, true_branch, false_branch)
-
-
-@register_df_node
 class TuplePattern(DFPattern):
     """A patern matching a Relax Tuple.
 
@@ -597,29 +577,6 @@ def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> 
         The resulting pattern.
     """
     return TupleGetItemPattern(tuple_value, index)
-
-
-def is_if(cond, true_branch, false_branch):
-    """
-    Syntatic sugar for creating an IfPattern.
-
-    Parameters
-    ----------
-    cond: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the condition of If.
-
-    true_branch: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the true branch of If.
-
-    false_branch: tvm.relax.dataflow_pattern.DFPattern
-        The pattern describing the false branch of If.
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting pattern.
-    """
-    return IfPattern(cond, true_branch, false_branch)
 
 
 def wildcard() -> "DFPattern":
