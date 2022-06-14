@@ -119,7 +119,7 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match(self, expr: Expr, var2val=None) -> bool:
+    def match(self, expr: Expr, mod=None) -> bool:
         """
         Match this pattern to an expression
 
@@ -133,7 +133,7 @@ class DFPattern(Node):
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match(self, expr, var2val)
+        return match(self, expr, mod)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """

@@ -36,7 +36,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
  public:
   using var2val_t = runtime::Map<Var, Expr>;
 
-  explicit DFPatternMatcher(const Expr& root_expr, var2val_t var2val) : var2val_(var2val) {}
+  explicit DFPatternMatcher(const Expr& root_expr, Optional<IRModule> mod = NullOpt);
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
   const var2val_t var2val_;

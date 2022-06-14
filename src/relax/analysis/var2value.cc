@@ -35,6 +35,19 @@ tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const Function& f) {
   return std::move(var2val_analysis.var2value_);
 }
 
+tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
+  Var2ValAnalysis var2val_analysis;
+
+  for (const auto& it : m->functions) {
+    // visit relax.Function
+    if (auto* n = it.second.as<FunctionNode>()) {
+      var2val_analysis.VisitExpr(GetRef<Function>(n));
+    }
+  }
+
+  return std::move(var2val_analysis.var2value_);
+}
+
 TVM_REGISTER_GLOBAL(("relax.analysis.get_var2val")).set_body_typed([](const Function& f) {
   return AnalyzeVar2Value(f);
 });

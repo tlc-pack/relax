@@ -122,6 +122,13 @@ TVM_DLL std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const IRModule
  * \return Var -> Value (Expr)
  */
 TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
+/**
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param f the Function to check.
+ * \return TVM_DLL Var -> Value (Expr)
+ */
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Function& f);
 
 }  // namespace relax
 }  // namespace tvm

@@ -22,6 +22,7 @@
  * \brief The dataflow pattern matcher for Relax.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
@@ -43,6 +44,9 @@ bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   matched_nodes_.clear();
   return VisitDFPattern(pattern, expr);
 }
+
+DFPatternMatcher::DFPatternMatcher(const Expr& root_expr, Optional<IRModule> mod)
+    : var2val_(mod.defined() ? AnalyzeVar2Value(mod.value()) : Map<Var, Expr>()) {}
 
 void DFPatternMatcher::ClearMap(size_t watermark) {
   for (size_t i = watermark; i < matched_nodes_.size(); ++i) {
@@ -439,8 +443,8 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchPattern(DFPattern pattern, Expr expr, runtime::Map<Var, Expr> var2val) {
-  return DFPatternMatcher(expr, var2val).Match(pattern, expr);
+bool MatchPattern(DFPattern pattern, Expr expr, Optional<IRModule> mod) {
+  return DFPatternMatcher(expr, mod).Match(pattern, expr);
 }
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match").set_body_typed(MatchPattern);
