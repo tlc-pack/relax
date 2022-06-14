@@ -213,3 +213,21 @@ def test_rt_dep_shape_pattern():
 def test_extern_fn_pattern():
     pattern = ExternFuncPattern("test.blockbuilder.nop")
     assert pattern.match(rx.ExternFunc("test.blockbuilder.nop"))
+
+
+def test_match_call_attr():
+    ttype = rx.DynTensorType(-1, "float32")
+    x = rx.Var("x", type_annotation=ttype)
+    y = rx.Var("y", type_annotation=ttype)
+    fn = rx.Function([x, y], rx.op.add(x, y), ret_type=ttype)
+    annotated_fn = fn.with_attr({"Codegen": "test-codegen", "global_symbol": "test-symbol"})
+    xp = is_var("x")
+    yp = is_var("y")
+    root_pattern = FunctionPattern([xp, yp], is_op("relax.add")(xp, yp))
+    assert root_pattern.has_attr({"Codegen": "test-codegen", "global_symbol": "test-symbol"}).match(
+        annotated_fn
+    )
+
+    assert root_pattern.has_attr({"Codegen": "test-codegen"}).match(annotated_fn)
+    assert not root_pattern.has_attr({"ping": "pong"}).match(annotated_fn)
+    assert root_pattern.has_attr({}).match(annotated_fn)
