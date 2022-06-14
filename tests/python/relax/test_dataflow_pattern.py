@@ -1,0 +1,197 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+from __future__ import annotations
+import pytest
+
+from tvm.relax.dataflow_pattern import *
+from tvm import relax as rx
+from tvm.script import relax as R, tir as T
+
+
+@tvm.script.ir_module
+class Module:
+    @T.prim_func
+    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        T.func_attr({"global_symbol": "tir_matmul"})
+        k = T.var("int32")
+        A = T.match_buffer(x, (32, 32))
+        B = T.match_buffer(y, (32, 32))
+        C = T.match_buffer(z, (32, 32))
+
+        for (i0, j0, k0) in T.grid(32, 32, 32):
+            with T.block():
+                i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+                with T.init():
+                    C[i, j] = 0.0
+                C[i, j] += A[i, k] * B[j, k]
+
+    @T.prim_func
+    def tir_relu(x: T.handle, y: T.handle):
+        T.func_attr({"global_symbol": "tir_relu"})
+        A = T.match_buffer(x, (32, 32))
+        B = T.match_buffer(y, (32, 32))
+        for (i, j) in T.grid(32, 32):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = T.max(A[vi, vj], 0.0)
+
+    @R.function
+    def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+            relax.output(lv1)
+        return lv1
+
+
+main_fn = Module["main"]
+bindings = main_fn.body.blocks[0].bindings
+
+## Node-wise Matching
+def test_expr_pattern():
+    ep = is_expr(rx.Var("x"))
+    assert isinstance(ep, ExprPattern)
+    assert isinstance(ep.expr, rx.Var)
+
+
+def test_var_pattern():
+    v = is_var("x")
+    assert isinstance(v, VarPattern)
+    assert v.name == "x"
+    assert v.match(rx.Var("x"))
+    assert not v.match(rx.GlobalVar("x"))
+
+
+def test_dataflow_var_pattern():
+    v = is_dfv("x")
+    assert isinstance(v, DataflowVarPattern)
+    assert v.name == "x"
+    assert v.match(rx.DataflowVar("x"))
+    assert not v.match(rx.GlobalVar("x"))
+    assert is_dfv().match(bindings[0].var)
+
+
+def test_constant_pattern():
+    c = is_constant()
+    assert isinstance(c, ConstantPattern)
+    assert c.match(rx.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]]))
+
+
+def test_wildcard_pattern():
+    wc = wildcard()
+    assert isinstance(wc, WildcardPattern)
+    assert wc.match(rx.Var("x"))
+
+
+def test_call_pattern():
+    wc1 = wildcard()
+    wc2 = wildcard()
+    c = is_op("relax.add")(wc1, wc2)
+    assert isinstance(c, CallPattern)
+    assert isinstance(c.args[0], WildcardPattern)
+    assert isinstance(c.args[1], WildcardPattern)
+    assert c.match(rx.op.add(rx.Var("x"), rx.Var("y")))
+
+
+def test_function_pattern():
+    wc1 = wildcard()
+    wc2 = wildcard()
+    c = is_op("add")(wc1, wc2)
+    f = FunctionPattern([wc1, wc2], c)
+    assert isinstance(f, FunctionPattern)
+    assert isinstance(f.params[0], WildcardPattern)
+    assert isinstance(f.params[1], WildcardPattern)
+    assert isinstance(f.body, CallPattern)
+    assert isinstance(f.body.args[0], WildcardPattern)
+    assert isinstance(f.body.args[1], WildcardPattern)
+
+
+def test_tuple_pattern():
+    wc1 = wildcard()
+    wc2 = is_dfv()
+    t = is_tuple([wc1, wc2])
+    assert isinstance(t, TuplePattern)
+    assert isinstance(t.fields[0], WildcardPattern)
+    assert isinstance(t.fields[1], DataflowVarPattern)
+    assert t.match(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]))
+    assert not t.match(rx.Tuple([rx.DataflowVar("x"), rx.GlobalVar("y")]))
+
+
+def test_tuple_get_item_pattern():
+    pass
+
+
+def test_or_pattern():
+    dfv_or_gv = is_dfv("x") | is_gv("x")
+    assert isinstance(dfv_or_gv, OrPattern)
+    assert dfv_or_gv.match(rx.DataflowVar("x"))
+    assert dfv_or_gv.match(rx.GlobalVar("x"))
+    assert not dfv_or_gv.match(rx.Var("x"))
+    assert not dfv_or_gv.match(rx.DataflowVar("y"))
+    assert not dfv_or_gv.match(rx.GlobalVar("y"))
+
+
+def test_and_pattern():
+    # float[2, 3, 3]
+    f32_233 = has_shape((2, 3, 3)) & has_dtype("float32")
+    assert isinstance(f32_233, AndPattern)
+    assert f32_233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
+    assert not f32_233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
+    assert not f32_233.match(rx.Var("x", rx.RuntimeDepShape(), rx.DynTensorType(3, "float32")))
+
+
+def test_type_pattern():
+    assert has_type(rx.DynTensorType(2, "float32")).match(bindings[0].var)
+
+
+def test_dtype_pattern():
+    dtype = "float16"
+    pattern = has_dtype(dtype)
+    assert isinstance(pattern, DataTypePattern)
+    assert pattern.dtype == dtype
+    assert has_dtype("float32").match(bindings[0].var)
+
+
+def test_shape_pattern():
+    shape = [32, 32]
+    pattern = has_shape(shape)
+    assert isinstance(pattern, ShapePattern)
+    tvm.ir.structural_equal(pattern.shape, shape)
+    assert pattern.match(bindings[0].var)
+    assert has_shape(32, 32).match(bindings[0].var)
+
+
+def test_prim_arr_pattern():
+    pattern = is_shape(32, 32)
+    assert isinstance(pattern, PrimArrPattern)
+    assert pattern.match(bindings[0].var.shape)
+
+
+def test_rt_dep_shape_pattern():
+    # runtime-dep-shape var
+    rts_var = rx.Var("rts_var", rx.RuntimeDepShape(), rx.DynTensorType(4, "float32"))
+    # static-shape var
+    ss_var = rx.Var("ss_var", rx.ShapeExpr([32, 32]), rx.DynTensorType(4, "float32"))
+    assert isinstance(has_rt_dep_shape(), RuntimeDepShapePattern)
+    assert has_rt_dep_shape().match(rts_var)
+    assert not has_rt_dep_shape().match(ss_var)
+
+
+def test_extern_fn_pattern():
+    pattern = ExternFuncPattern("test.blockbuilder.nop")
+    assert pattern.match(rx.ExternFunc("test.blockbuilder.nop"))
