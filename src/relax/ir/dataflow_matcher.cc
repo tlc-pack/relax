@@ -401,15 +401,15 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
 
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
   if (const auto* var_node = expr.as<VarNode>()) {
-    // either no name or name matches.
-    return op->name_hint() == "" || op->name_hint() == var_node->name_hint();
+    // "" means any name.
+    return "" == op->name_hint() || op->name_hint() == var_node->name_hint();
   }
   return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) {
   if (const auto* extern_fn = expr.as<ExternFuncNode>()) {
-    return op->global_symbol() == "" || op->global_symbol() == extern_fn->global_symbol;
+    return "" == op->global_symbol() || op->global_symbol() == extern_fn->global_symbol;
   }
   return false;
 }
@@ -427,8 +427,7 @@ bool DFPatternMatcher::VisitDFPattern_(const DataflowVarPatternNode* op, const E
 bool DFPatternMatcher::VisitDFPattern_(const GlobalVarPatternNode* op, const Expr& expr) {
   // GlobalVarPattern is not inherited from Var, so we need to handle it separately.
   if (const auto* var_node = expr.as<GlobalVarNode>())
-    return op->name_hint() ==
-           var_node->name_hint;  // global are usually func names which are not allowed to be "".
+    return "" == op->name_hint() || op->name_hint() == var_node->name_hint;
   return false;
 }
 

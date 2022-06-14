@@ -74,6 +74,8 @@ def test_var_pattern():
     assert isinstance(v, VarPattern)
     assert v.name == "x"
     assert v.match(rx.Var("x"))
+    assert is_var().match(rx.Var("x"))
+    assert is_var().match(rx.DataflowVar("x"))  # DataflowVar is also a Var
     assert not v.match(rx.GlobalVar("x"))
 
 
@@ -84,6 +86,13 @@ def test_dataflow_var_pattern():
     assert v.match(rx.DataflowVar("x"))
     assert not v.match(rx.GlobalVar("x"))
     assert is_dfv().match(bindings[0].var)
+
+
+def test_global_var_pattern():
+    assert is_gv("x").match(rx.GlobalVar("x"))
+    assert is_gv().match(rx.GlobalVar("x"))
+    assert not is_gv("x").match(rx.GlobalVar("y"))
+    assert not is_gv("x").match(rx.Var("x"))
 
 
 def test_constant_pattern():
@@ -111,14 +120,18 @@ def test_call_pattern():
 def test_function_pattern():
     wc1 = wildcard()
     wc2 = wildcard()
-    c = is_op("add")(wc1, wc2)
-    f = FunctionPattern([wc1, wc2], c)
+    f = FunctionPattern([wc1, wc2], is_op("relax.add")(wc1, wc2))
     assert isinstance(f, FunctionPattern)
     assert isinstance(f.params[0], WildcardPattern)
     assert isinstance(f.params[1], WildcardPattern)
     assert isinstance(f.body, CallPattern)
     assert isinstance(f.body.args[0], WildcardPattern)
     assert isinstance(f.body.args[1], WildcardPattern)
+    ttype = rx.DynTensorType(-1, "float32")
+    x = rx.Var("x", type_annotation=ttype)
+    y = rx.Var("y", type_annotation=ttype)
+    assert f.match(rx.Function([x, y], rx.op.add(x, y), ret_type=ttype))
+    assert not f.match(rx.Function([x, y], rx.op.multiply(x, y), ret_type=ttype))
 
 
 def test_tuple_pattern():
@@ -133,7 +146,12 @@ def test_tuple_pattern():
 
 
 def test_tuple_get_item_pattern():
-    pass
+    assert is_tuple_get_item(is_tuple([is_gv("x"), is_dfv("y")]), 0).match(
+        rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 0)
+    )
+    assert is_tuple_get_item(is_tuple([is_gv("x"), is_dfv("y")]), 0).match(
+        rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 0)
+    )
 
 
 def test_or_pattern():
