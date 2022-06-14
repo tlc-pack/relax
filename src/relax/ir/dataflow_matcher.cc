@@ -26,8 +26,7 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relay/analysis.h>
-#include <tvm/relay/transform.h>
+#include <tvm/tir/op.h>
 
 #include <stack>
 
@@ -36,7 +35,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::transform::InferType;
 using tvm::arith::Analyzer;
 
 // Pattern Matcher
@@ -395,7 +393,7 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
   auto expr_type = expr.as<ExprNode>()->checked_type();
-  if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
+  if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>()) {
     return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
   }
   return false;
