@@ -59,19 +59,21 @@ def well_formed(mod: tvm.IRModule) -> bool:
     """
     return _ffi_api.well_formed(mod)
 
+
 def udchain(mod: tvm.IRModule) -> Dict[VarBinding, List[VarBinding]]:
     """Compute the UD chain of the given module.
 
     Parameters
     ----------
     mod : tvm.IRModule
-    
+
     Returns
     -------
     ret: tvm.container.Map[VarBinding, tvm.container.Array[VarBinding]]
         The UD chain of the module (values are used by key).
     """
     return _ffi_api.udchain(mod)
+
 
 def get_var2val(func: Function) -> Dict[Var, Expr]:
     return _ffi_api.get_var2val(func)

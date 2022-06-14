@@ -231,3 +231,11 @@ def test_match_call_attr():
     assert root_pattern.has_attr({"Codegen": "test-codegen"}).match(annotated_fn)
     assert not root_pattern.has_attr({"ping": "pong"}).match(annotated_fn)
     assert root_pattern.has_attr({}).match(annotated_fn)
+
+
+def test_is_call_tir():
+    lv1_val = bindings[1].value
+    assert is_call_tir("tir_relu", is_call_tir("tir_matmul")).match(lv1_val, mod=Module)
+    # if mod is not given, topological relation cannot be infered.
+    # FIXME: maybe throwing an exception is better to avoid silent error?
+    assert not is_call_tir("tir_relu", is_call_tir("tir_matmul")).match(lv1_val)

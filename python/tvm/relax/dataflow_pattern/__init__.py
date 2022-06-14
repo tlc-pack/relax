@@ -16,9 +16,12 @@
 # under the License.
 """The Relax Pattern Language and tooling."""
 # pylint: disable=no-member
+# pylint: disable=missing-function-docstring
+
 from typing import List, Optional, Callable, Dict, Union, Tuple
 
-import tvm._ffi
+import tvm
+import tvm._ffi as tvm_ffi
 from tvm.relax import Expr
 from tvm.relay.op import get
 
@@ -37,8 +40,8 @@ def register_df_node(type_key=None):
         The type key of the node.
     """
     if not isinstance(type_key, str):
-        return tvm._ffi.register_object("relax.dataflow_pattern." + type_key.__name__)(type_key)
-    return tvm._ffi.register_object(type_key)
+        return tvm_ffi.register_object("relax.dataflow_pattern." + type_key.__name__)(type_key)
+    return tvm_ffi.register_object(type_key)
 
 
 class DFPattern(Node):
@@ -225,7 +228,7 @@ class GlobalVarPattern(DFPattern):
     ----------
     name_hint: str
         The name of the variable. Optional, if not provided,
-        the pattern will match any VarNode.
+        the pattern will match any GlobalVarNode.
     """
 
     def __init__(self, name_hint: str = ""):
@@ -234,6 +237,15 @@ class GlobalVarPattern(DFPattern):
 
 @register_df_node
 class ExternFuncPattern(DFPattern):
+    """A external function pattern.
+
+    Parameters
+    ----------
+    global_symbol: str
+        The name of the function. Optional, if not provided,
+        the pattern will match any ExternFuncNode.
+    """
+
     def __init__(self, global_symbol: str = ""):
         self.__init_handle_by_constructor__(ffi.ExternFuncPattern, global_symbol)
 
