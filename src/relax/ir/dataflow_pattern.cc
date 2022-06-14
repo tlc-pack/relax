@@ -24,8 +24,6 @@
 
 #include <tvm/relax/dataflow_pattern.h>
 
-#include "tvm/ir/expr.h"
-
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
       .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
@@ -64,6 +62,11 @@ RELAX_PATTERN_PRINTER_DEF(VarPatternNode, [](auto p, auto node) {
 TVM_REGISTER_NODE_TYPE(DataflowVarPatternNode);
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.DataflowVarPattern")
     .set_body_typed([](String name_hint) { return DataflowVarPattern(name_hint); });
+DataflowVarPattern::DataflowVarPattern(String name_hint) {
+  ObjectPtr<DataflowVarPatternNode> n = make_object<DataflowVarPatternNode>();
+  n->name = std::move(name_hint);
+  data_ = std::move(n);
+}
 RELAX_PATTERN_PRINTER_DEF(DataflowVarPatternNode, [](auto p, auto node) {
   p->stream << "DataflowVarPattern(" << node->name_hint() << ")";
 });
@@ -305,7 +308,7 @@ DFPattern DFPattern::HasDtype(const std::string& dtype) const {
 DFPattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(GetRef<DFPattern>(this->get()), shape);
 }
-DFPattern DFPattern::IsRuntimeDepShape() const {
+DFPattern DFPattern::HasRuntimeDepShape() const {
   return AndPattern(GetRef<DFPattern>(this->get()),
                     RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>()));
 }
@@ -314,6 +317,34 @@ DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>
 DFPattern IsWildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
 DFPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
 DFPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
+DFPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
+                    Optional<Array<PrimExpr>> oshape) {
+  DFPattern arg_pattern;
+  if (!var_args.defined()) {
+    arg_pattern = IsWildcard();
+  } else {
+    arg_pattern = var_args.value();
+  }
+
+  DFPattern shape_pattern;
+  if (!oshape.defined()) {
+    shape_pattern = IsWildcard();
+  } else {
+    shape_pattern = PrimArrPattern(oshape.value());
+  }
+
+  return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern, shape_pattern);
+}
+
+DFPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes) {
+  Array<DFPattern> shape_patterns;
+  shape_patterns.reserve(oshapes.size());
+  for (auto shape : oshapes) shape_patterns.push_back(PrimArrPattern(std::move(shape)));
+
+  return IsOp("relax.call_tir")(GlobalVarPattern(name), var_args,
+                                IsTuple(std::move(shape_patterns)));
+}
+
 DFPattern IsTuple(const Array<DFPattern>& fields) { return TuplePattern(fields); }
 DFPattern IsTupleGetItem(const DFPattern tuple, int index) {
   return TupleGetItemPattern(tuple, index);

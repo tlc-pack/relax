@@ -24,14 +24,14 @@
 #ifndef TVM_RELAX_DATAFLOW_PATTERN_H_
 #define TVM_RELAX_DATAFLOW_PATTERN_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/container/optional.h>
 
 #include <cstdint>
 #include <string>
 #include <vector>
-
-#include "tvm/ir/expr.h"
 
 namespace tvm {
 namespace relax {
@@ -45,6 +45,8 @@ class DFPatternNode : public Object {
 
 class DFPattern : public ObjectRef {
  public:
+  template <typename... Args>
+  DFPattern operator()(Args&&... args) const;
   /*! \brief Syntatic Sugar for creating a CallPattern */
   DFPattern operator()(const std::vector<DFPattern>& args) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with an "add" op */
@@ -72,7 +74,7 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   DFPattern HasShape(const Array<PrimExpr>& shape) const;
   /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
-  DFPattern IsRuntimeDepShape() const;
+  DFPattern HasRuntimeDepShape() const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
 };
@@ -102,7 +104,7 @@ class VarPatternNode : public DFPatternNode {
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "relax.dataflow_pattern.VarPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarPatternNode, DFPatternNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(VarPatternNode, DFPatternNode);
 };
 
 class VarPattern : public DFPattern {
@@ -122,10 +124,10 @@ class DataflowVarPatternNode : public VarPatternNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarPatternNode, DFPatternNode);
 };
 
-class DataflowVarPattern : public VarPattern {
+class DataflowVarPattern : public DFPattern {
  public:
-  using VarPattern::VarPattern;
-  TVM_DEFINE_OBJECT_REF_METHODS(DataflowVarPattern, VarPattern, DataflowVarPatternNode);
+  TVM_DLL DataflowVarPattern(String name_hint);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataflowVarPattern, DFPattern, DataflowVarPatternNode);
 };
 
 /*!
@@ -494,10 +496,21 @@ DFPattern IsWildcard();
 DFPattern IsExpr(const Expr& expr);
 /*! \brief Syntatic Sugar for creating a ExprPattern base on an Op*/
 DFPattern IsOp(const String& op_name);
+/*! \brief Syntatic Sugar for call_tir (return a tensor) */
+DFPattern IsCallTIR(const String& name, const Optional<TuplePattern> args = NullOpt,
+                    Optional<Array<PrimExpr>> oshape = NullOpt);
+/*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
+DFPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes);
 /*! \brief Syntatic Sugar for creating a TuplePattern*/
 DFPattern IsTuple(const Array<DFPattern>& fields);
 /*! \brief Syntatic Sugar for creating a TupleGetItemPattern*/
 DFPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
+
+template <typename... Args>
+DFPattern DFPattern::operator()(Args&&... args) const {
+  return CallPattern(GetRef<DFPattern>(this->get()),
+                     Array<DFPattern>({std::forward<Args>(args)...}));
+}
 
 }  // namespace relax
 }  // namespace tvm

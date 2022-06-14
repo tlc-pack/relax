@@ -16,10 +16,10 @@
 # under the License.
 """The Relax Pattern Language and tooling."""
 # pylint: disable=no-member
-from typing import List, Optional, Callable, Dict
+from typing import List, Optional, Callable, Dict, Union, Tuple
 
 import tvm._ffi
-from tvm.relax import Expr, DynTensorType
+from tvm.relax import Expr
 from tvm.relay.op import get
 
 from ...ir import make_node
@@ -465,11 +465,11 @@ def is_var(name: str = "") -> "DFPattern":
     return VarPattern(name)
 
 
-def is_gv(name) -> "DFPattern":
+def is_gv(name: str = "") -> "DFPattern":
     return GlobalVarPattern(name)
 
 
-def is_dfv(name) -> "DFPattern":
+def is_dfv(name: str = "") -> "DFPattern":
     return DataflowVarPattern(name)
 
 
@@ -634,21 +634,28 @@ def is_shape(*args):
 
 
 def is_call_tir(
-    op_name: str, args: TuplePattern = None, shape: List[tvm.ir.PrimExpr] = None
+    func_name: str,
+    args: Union[List, Tuple, TuplePattern] = None,
+    shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
 ) -> "DFPattern":
     if args is None:
         args = wildcard()
-    elif isinstance(args, TuplePattern):
-        pass
-    elif isinstance(args, (list, tuple, tvm.ir.container.Array)):
+    elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
-    if shape is None:
-        shape = wildcard()
-    elif isinstance(shape, (list, tuple, tvm.ir.container.Array)):
-        shape = is_tuple(shape)
+    def single_shape_pattern(shape):
+        # map a single shape to some kind of pattern.
+        if shape is None:
+            shape = wildcard()
+        elif isinstance(shape, (list, tvm.ir.container.Array)):
+            shape = is_shape(shape)
+        return shape
 
-    return is_op("relax.call_tir")(GlobalVarPattern(op_name), args, shape)
+    shape = single_shape_pattern(shape)
+    if isinstance(shape, tuple):
+        shape = is_tuple([single_shape_pattern(s) for s in shape])
+
+    return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
 
 
 def has_rt_dep_shape():
