@@ -21,8 +21,8 @@
  * \file relax/backend/utils.h
  * \brief Utils function for backend
  */
-#ifndef TVM_RELAX_BACKEND_UTILS_H_
-#define TVM_RELAX_BACKEND_UTILS_H_
+#ifndef TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
+#define TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 
 #include <dmlc/json.h>
 #include <tvm/driver/driver_api.h>
@@ -154,4 +154,4 @@ inline std::string DType2String(const tvm::DataType dtype) {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_BACKEND_UTILS_H_
+#endif  // TVM_RELAX_BACKEND_CONTRIB_UTILS_H_

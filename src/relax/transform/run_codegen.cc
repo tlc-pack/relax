@@ -40,7 +40,7 @@ class CodeGenRunner : ExprMutator {
         target_codegens_.insert(target);
       }
     }
-  };
+  }
 
   IRModule Run() {
     IRModule mod = builder_->GetContextIRModule();
