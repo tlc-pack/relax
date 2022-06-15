@@ -164,6 +164,23 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * \return The Pass.
  */
 TVM_DLL Pass FuseTIR();
+
+/*!
+ * \brief Remove unused global relax functions in a IRModule.
+ * \param entry_functions list of entry functions
+ * \return The Pass.
+ */
+TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
+
+/*!
+ * \brief Run codegen.
+ * \param target_codegens list of codegens
+ * \param entry_functions list of entry functions
+ * \return The Pass.
+ */
+TVM_DLL Pass RunCodegen(Optional<Array<runtime::String>> target_codegens,
+                        Array<runtime::String> entry_functions);
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

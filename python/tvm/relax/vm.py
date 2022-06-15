@@ -162,7 +162,11 @@ class VirtualMachine(object):
         return self._invoke_closure(closure, *args)
 
 
-def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
+def build(
+    mod: tvm.IRModule,
+    target: Union[str, tvm.target.Target],
+    params: Optional[Dict[str, list]] = None,
+) -> Executable:
     """
     Build an IRModule to VM executable.
 
@@ -171,7 +175,7 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
     mod: IRModule
         The input IRModule to be built.
 
-    target : tvm.target.Target
+    target : Union[str, tvm.target.Target]
         A build target which can have optional host side compilation target.
 
         When TVM compiles device specific program such as CUDA,
@@ -180,6 +184,9 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
         host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
         otherwise a stackvm interpreter is used.
+
+    params: Optional[Dict[str, list]]
+        Parameters for the input IRModule that will be bound.
 
     Returns
     -------
@@ -200,6 +207,9 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
         target = tvm.target.Target("llvm", host="llvm")
         ex = relax.vm.build(mod, target)
     """
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
+
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.VMMemoryLower())
@@ -210,7 +220,15 @@ def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:
     # split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
     lib = tvm.build(tir_mod, target=target)
-    return Executable(_ffi_api.VMCodeGen(rx_mod, lib))
+
+    ext_libs = []
+    if mod.attrs and "external_mods" in mod.attrs:
+        ext_libs = mod.attrs["external_mods"]
+
+    if params is None:
+        params = {}
+
+    return Executable(_ffi_api.VMCodeGen(rx_mod, lib, ext_libs, target, params))
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
