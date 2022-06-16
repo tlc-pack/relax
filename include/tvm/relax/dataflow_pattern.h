@@ -62,6 +62,8 @@ class DFPattern : public ObjectRef {
   DFPattern operator|(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an AndPattern */
   DFPattern operator&(const DFPattern& other) const;
+  /*! \brief Syntatic Sugar for creating a NotPattern */
+  DFPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an Optional Pattern */
   DFPattern Optional(const std::function<DFPattern(const DFPattern&)>& func) const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
@@ -337,6 +339,29 @@ class OrPattern : public DFPattern {
  public:
   TVM_DLL OrPattern(DFPattern left, DFPattern right);
   TVM_DEFINE_OBJECT_REF_METHODS(OrPattern, DFPattern, OrPatternNode);
+};
+
+class NotPattern;
+/*!
+ * \brief Pattern for rejecting certain patterns.
+ */
+class NotPatternNode : public DFPatternNode {
+ public:
+  DFPattern reject;
+
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("reject", &reject); }
+
+  static constexpr const char* _type_key = "relax.dataflow_pattern.NotPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(NotPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief A pattern which must not matches a certain pattern.
+ */
+class NotPattern : public DFPattern {
+ public:
+  TVM_DLL NotPattern(DFPattern reject);
+  TVM_DEFINE_OBJECT_REF_METHODS(NotPattern, DFPattern, NotPatternNode);
 };
 
 /*!

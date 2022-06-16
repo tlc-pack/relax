@@ -72,6 +72,9 @@ class DFPattern(Node):
     def __truediv__(self, other):
         return is_op("divide")(self, other)
 
+    def __invert__(self):
+        return deny(self)
+
     def has_attr(self, attrs: Dict[str, Object]):
         """
         Add an attribute constraint to this pattern
@@ -372,6 +375,20 @@ class AndPattern(DFPattern):
 
 
 @register_df_node
+class NotPattern(DFPattern):
+    """Create a Pattern that matches the negation of a condition.
+
+     Parameters
+    ----------
+    reject: tvm.relax.dataflow_pattern.DFPattern
+        The pattern to deny.
+    """
+
+    def __init__(self, reject: "DFPattern"):
+        self.__init_handle_by_constructor__(ffi.NotPattern, reject)
+
+
+@register_df_node
 class WildcardPattern(DFPattern):
     """A pattern which matches anything."""
 
@@ -662,6 +679,10 @@ def is_call_tir(
         shape = is_tuple([single_shape_pattern(s) for s in shape])
 
     return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
+
+
+def deny(pattern: "DFPattern") -> "DFPattern":
+    return NotPattern(pattern)
 
 
 def has_rt_dep_shape():

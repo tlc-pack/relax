@@ -201,6 +201,18 @@ RELAX_PATTERN_PRINTER_DEF(OrPatternNode, [](auto p, auto node) {
   p->stream << "OrPattern(" << node->left << " | " << node->right << ")";
 });
 
+TVM_REGISTER_NODE_TYPE(NotPatternNode);
+NotPattern::NotPattern(DFPattern reject) {
+  ObjectPtr<NotPatternNode> n = make_object<NotPatternNode>();
+  n->reject = std::move(reject);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.NotPattern").set_body_typed([](DFPattern reject) {
+  return NotPattern(reject);
+});
+RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
+                          [](auto p, auto node) { p->stream << "!(" << node->reject << ")"; });
+
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.WildcardPattern").set_body_typed([]() {
   auto w = WildcardPattern(make_object<WildcardPatternNode>());
@@ -287,6 +299,8 @@ DFPattern DFPattern::operator|(const DFPattern& other) const {
 DFPattern DFPattern::operator&(const DFPattern& other) const {
   return AndPattern(GetRef<DFPattern>(this->get()), other);
 }
+
+DFPattern DFPattern::operator~() const { return NotPattern(GetRef<DFPattern>(this->get())); }
 
 DFPattern DFPattern::Optional(const std::function<DFPattern(const DFPattern&)>& func) const {
   DFPattern current = GetRef<DFPattern>(this->get());

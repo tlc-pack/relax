@@ -80,6 +80,10 @@ bool DFPatternMatcher::VisitDFPattern_(const AndPatternNode* op, const Expr& exp
   return VisitDFPattern(op->left, expr) && VisitDFPattern(op->right, expr);
 }
 
+bool DFPatternMatcher::VisitDFPattern_(const NotPatternNode* op, const Expr& expr) {
+  return !VisitDFPattern(op->reject, expr);
+}
+
 bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
   switch (rhs.type_code()) {
     case kDLInt:

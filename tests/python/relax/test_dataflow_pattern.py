@@ -173,6 +173,13 @@ def test_and_pattern():
     assert not f32_233.match(rx.Var("x", rx.RuntimeDepShape(), rx.DynTensorType(3, "float32")))
 
 
+def test_not_pattern():
+    no_shape233 = ~has_shape((2, 3, 3))
+    assert isinstance(no_shape233, NotPattern)
+    assert no_shape233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
+    assert not no_shape233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
+
+
 def test_type_pattern():
     assert has_type(rx.DynTensorType(2, "float32")).match(bindings[0].var)
 

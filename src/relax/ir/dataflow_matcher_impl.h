@@ -48,6 +48,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
   bool VisitDFPattern_(const OrPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const AndPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const NotPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const AttrPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const CallPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) override;
