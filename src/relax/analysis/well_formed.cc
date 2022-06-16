@@ -128,7 +128,7 @@ class WellFormedChecker : public relax::ExprVisitor {
       // register symbolic var defined in the shape annotation of function params
       if (param->shape_) {
         Expr var_shape = Downcast<Expr>(param->shape_);
-        if (var_shape.as<RuntimeDepShapeNode>()) {
+        if (var_shape.as<RuntimeDepShapeNode>() || var_shape.as<TupleNode>()) {
           VisitExpr(var_shape);
         } else {
           for (PrimExpr expr : Downcast<ShapeExpr>(var_shape)->values) {
