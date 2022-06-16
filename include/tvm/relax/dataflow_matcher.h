@@ -29,15 +29,16 @@
 namespace tvm {
 namespace relax {
 
-/*!
+/**
  * \brief Determine if a pattern matches an expression
  *
  * \param pattern The pattern to match
  * \param expr The expression to match
- *
- * \return Return true if the pattern and the expression match, return false otherwise.
+ * \param fn The function containing the expression (used for graph-level patterns)
+ * \return true if matched
+ * \return false if unmatched
  */
-bool MatchPattern(DFPattern pattern, Expr expr, Optional<IRModule> mod = NullOpt);
+bool MatchPattern(DFPattern pattern, Expr expr, Optional<Function> fn = NullOpt);
 
 }  // namespace relax
 }  // namespace tvm

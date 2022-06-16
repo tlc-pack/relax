@@ -45,8 +45,8 @@ bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   return VisitDFPattern(pattern, expr);
 }
 
-DFPatternMatcher::DFPatternMatcher(const Expr& root_expr, Optional<IRModule> mod)
-    : var2val_(mod.defined() ? AnalyzeVar2Value(mod.value()) : Map<Var, Expr>()) {}
+DFPatternMatcher::DFPatternMatcher(const Expr& root_expr, Optional<Function> fn)
+    : var2val_(fn.defined() ? AnalyzeVar2Value(fn.value()) : Map<Var, Expr>()) {}
 
 void DFPatternMatcher::ClearMap(size_t watermark) {
   for (size_t i = watermark; i < matched_nodes_.size(); ++i) {
@@ -443,8 +443,8 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchPattern(DFPattern pattern, Expr expr, Optional<IRModule> mod) {
-  return DFPatternMatcher(expr, mod).Match(pattern, expr);
+bool MatchPattern(DFPattern pattern, Expr expr, Optional<Function> fn) {
+  return DFPatternMatcher(expr, fn).Match(pattern, expr);
 }
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match").set_body_typed(MatchPattern);

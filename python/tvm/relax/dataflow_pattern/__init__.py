@@ -21,6 +21,7 @@
 from typing import List, Optional, Callable, Dict, Union, Tuple
 
 import tvm
+from tvm import relax
 import tvm._ffi as tvm_ffi
 from tvm.relax import Expr
 from tvm.relay.op import get
@@ -122,7 +123,7 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match(self, expr: Expr, mod=None) -> bool:
+    def match(self, expr: Expr, func: relax.Function = None) -> bool:
         """
         Match this pattern to an expression
 
@@ -130,13 +131,15 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
+        func : tvm.relay.Function
+            The function that includes the expression.
 
         Returns
         -------
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match(self, expr, mod)
+        return match(self, expr, func)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
