@@ -338,29 +338,6 @@ class ExprMutator : public ExprMutatorBase {
   std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
-class MixedModeVisitor : public ::tvm::relax::ExprVisitor {
- public:
-  using ::tvm::relax::ExprFunctor<void(const Expr& n)>::VisitExpr_;
-
-  /*! \brief The constructor of MixedModeVisitor
-   */
-  explicit MixedModeVisitor() = default;
-
-  /*!
-   * \brief VisitExpr is finalized to preserve call expansion of dataflow regions
-   */
-  void VisitExpr(const Expr& expr) final;
-  void VisitExpr_(const CallNode* op) override;
-  void VisitExpr_(const TupleNode* op) override;
-  void VisitExpr_(const TupleGetItemNode* op) override;
-
- protected:
-  /*!
-   * \brief A function to apply when reaching a leaf of the graph non-recursively
-   */
-  virtual void VisitLeaf(const Expr& expr);
-};
-
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_EXPR_FUNCTOR_H_
