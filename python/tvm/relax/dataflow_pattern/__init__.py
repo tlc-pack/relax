@@ -131,7 +131,7 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
-        func : tvm.relay.Function
+        func : tvm.relax.Function
             The function that includes the expression.
 
         Returns
@@ -172,7 +172,7 @@ class RuntimeDepShapePattern(DFPattern):
 
 @register_df_node
 class ExprPattern(DFPattern):
-    """A pattern which matches a constant expression.
+    """A pattern which matches an expression.
 
     Parameters
     ----------
@@ -186,10 +186,7 @@ class ExprPattern(DFPattern):
 
 @register_df_node
 class VarPattern(DFPattern):
-    """A local variable pattern.
-
-    Local variable can be used to declare input
-    arguments to a function, or intermediate variables.
+    """A pattern for Var.
 
     Parameters
     ----------
@@ -204,10 +201,7 @@ class VarPattern(DFPattern):
 
 @register_df_node
 class DataflowVarPattern(DFPattern):
-    """A local dataflow variable pattern.
-
-    Local variable can be used to declare input
-    arguments to a function, or intermediate variables.
+    """A pattern for DataflowVar.
 
     Parameters
     ----------
@@ -222,10 +216,7 @@ class DataflowVarPattern(DFPattern):
 
 @register_df_node
 class GlobalVarPattern(DFPattern):
-    """A global variable pattern.
-
-    Global variable can be used to declare input
-    arguments to a function, or intermediate variables.
+    """A pattern for GlobalVar.
 
     Parameters
     ----------
