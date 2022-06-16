@@ -58,9 +58,9 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a CallPattern with a "divide" op */
   DFPattern operator/(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an OrPattern */
-  DFPattern operator||(const DFPattern& other) const;
-  /*! \brief Syntatic Sugar for creating an OrPattern */
-  DFPattern operator&&(const DFPattern& other) const;
+  DFPattern operator|(const DFPattern& other) const;
+  /*! \brief Syntatic Sugar for creating an AndPattern */
+  DFPattern operator&(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an Optional Pattern */
   DFPattern Optional(const std::function<DFPattern(const DFPattern&)>& func) const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */

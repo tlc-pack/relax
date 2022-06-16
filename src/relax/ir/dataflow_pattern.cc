@@ -280,17 +280,17 @@ DFPattern DFPattern::operator*(const DFPattern& other) const {
 DFPattern DFPattern::operator/(const DFPattern& other) const {
   return IsOp("divide")({GetRef<DFPattern>(this->get()), other});
 }
-DFPattern DFPattern::operator||(const DFPattern& other) const {
+DFPattern DFPattern::operator|(const DFPattern& other) const {
   return OrPattern(GetRef<DFPattern>(this->get()), other);
 }
 
-DFPattern DFPattern::operator&&(const DFPattern& other) const {
+DFPattern DFPattern::operator&(const DFPattern& other) const {
   return AndPattern(GetRef<DFPattern>(this->get()), other);
 }
 
 DFPattern DFPattern::Optional(const std::function<DFPattern(const DFPattern&)>& func) const {
   DFPattern current = GetRef<DFPattern>(this->get());
-  return current || func(current);
+  return current | func(current);
 }
 
 DFPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) const {
@@ -309,8 +309,8 @@ DFPattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(GetRef<DFPattern>(this->get()), shape);
 }
 DFPattern DFPattern::HasRuntimeDepShape() const {
-  return AndPattern(GetRef<DFPattern>(this->get()),
-                    RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>()));
+  return GetRef<DFPattern>(this->get()) &
+         RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
 }
 DFPattern IsVar(const String& name) { return VarPattern(name); }
 DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }
