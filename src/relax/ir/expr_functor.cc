@@ -35,8 +35,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::ExpandDataflow;
-
 // ==================
 // ExprVisitor
 

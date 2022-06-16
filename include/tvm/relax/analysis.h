@@ -30,6 +30,9 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/function.h>
 
+#include <map>
+#include <set>
+
 namespace tvm {
 namespace relax {
 

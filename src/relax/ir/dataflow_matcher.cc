@@ -243,11 +243,12 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
               bool cur_match = VisitDFPattern(pattern_args[i], expr_args[i]);
               // Only perform jump match when:
               if (!cur_match /* otherwise no bother */ &&
-                  !var2val_.empty() /* so we can jump var -> val */)
+                  !var2val_.empty() /* so we can jump var -> val */) {
                 if (auto var_node = expr_args[i].as<VarNode>()) {
                   auto may = var2val_.Get(GetRef<Var>(var_node));
                   if (may.defined()) cur_match = VisitDFPattern(pattern_args[i], may.value());
                 }
+              }
               matches &= cur_match;
 
               ++i;
