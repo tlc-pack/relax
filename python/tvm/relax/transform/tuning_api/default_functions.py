@@ -14,26 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax Tuning Pass API"""
-
-# TODO(sunggg):
-# 1) Better Integration with MetaSchedule
-#    1-1) Trace with MetaSchedule Trace
-#    1-2) Database (includes serialization)
-#    1-3) Other componets (e.g., MetaSchedule Instr, Cost model)
-# 2) Better example for subgraph-level tuning
-#    *** This is currently blocked by pattern matcher, modular compilation, etc. ***
-
-from typing import Callable, Union, Dict, List, Optional
+"""Relax Tuning Pass API default functions"""
+from typing import Dict, List, Optional
 import copy
 import sys
 import itertools
-import logging
 import numpy as np
+import logging
+
+from .primitives import Choice, Knob, Trace
+
+# from .database import TuningRecord
 import tvm
-from tvm.runtime import Object
 from tvm.ir.module import IRModule
-from tvm.relax import Expr
+from tvm.tir.schedule.trace import JSON_TYPE, _json_from_tvm
 from tvm.ir.transform import PassContext, Pass
 from tvm import meta_schedule
 from tvm.meta_schedule.arg_info import TensorInfo
@@ -44,208 +38,26 @@ from tvm.meta_schedule.runner import (
     LocalRunner,
     RunnerInput,
 )
-from tvm._ffi import register_object
+from tvm.meta_schedule.database import Workload
+
+from tvm.runtime._ffi_node_api import LoadJSON
 from tvm._ffi.registry import register_func
-from . import _ffi_api
 
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name
 
-# Default constraint func that always returns true
-def f_default_constr(mod: IRModule):  # pylint: disable=unused-argument
+# Default transform func that returns original IRModule.
+@tvm.register_func("relax.tuning_api.Choice.f_default_transform")
+def f_default_transform(mod):
+    return mod
+
+
+# Default constraint func that always returns true.
+@tvm.register_func("relax.tuning_api.Choice.f_default_constr")
+def f_default_constr(mod: IRModule) -> bool:  # pylint: disable=unused-argument
     return True
 
 
-@register_object("relax.transform.Choice")
-class Choice(Object):
-    """
-    A TVM object Choice that maintains a set of transformation and constraint functions.
-    Transformation function should be applied when constraint function returns true.
-    Parameters
-    ----------
-    f_transform : Callable
-        Transformation function.
-
-    f_constr : Callable
-        Constraint function.
-
-    Examples
-    --------
-    The following code block defines a Choice.
-
-    .. code-block:: python
-
-        def apply(mod):
-            return relax.transform.FoldConstant()(mod)
-        def constr(mod):
-            return len(mod.functions) == 3
-        # Define a choice to apply constant folding only when IRModule has three functions.
-        choice = Choice(apply, constr)
-    """
-
-    def __init__(self, f_transform: Callable, f_constr: Optional[Callable] = None):
-        """Constructor
-        Parameters
-        ----------
-        f_transform : Callable
-            Transformation function.
-
-        f_constr : Callable
-            Constraint function.
-        """
-        f_constr = f_constr if f_constr else f_default_constr
-        self.__init_handle_by_constructor__(
-            _ffi_api.Choice, f_transform, f_constr  # type: ignore # pylint: disable=no-member
-        )
-
-    def get_transform_func(self) -> Callable:
-        """Getter for f_transform
-        Returns
-        -------
-        ret: Callable
-           registered transformation function
-        """
-        return _ffi_api.ChoiceGetTransformFunc(self)
-
-    def get_constr_func(self) -> Callable:
-        """Getter for f_constr
-        Returns
-        -------
-        ret: Callable
-           registered constraint function
-        """
-        return _ffi_api.ChoiceGetConstrFunc(self)
-
-    def check_constr(self, mod: IRModule) -> bool:
-        """Perform f_constr
-        Returns
-        -------
-        ret: Bool
-           Returns whether the IRModule satisfies the constraint or not
-        """
-        return _ffi_api.ChoiceCheckConstr(self, mod)
-
-
-@register_object("relax.transform.Knob")
-class Knob(Object):
-    """
-    A TVM object Knob that maintains a set of valid Choices.
-    By using Knobs, a tuning pass can generate candidates and define the search space.
-    Parameters
-    ----------
-    name : str
-        Name of the knob.
-
-    choices: Union[List[Choice], Dict[str, Choice]]
-        A list of valid choices
-
-    Examples
-    --------
-    The following code block defines a Knob.
-
-    .. code-block:: python
-
-        def apply(mod):
-            return relax.transform.FoldConstant()(mod)
-        def noapply(mod):
-            return mod
-        choices = {"apply": Choice(apply), "noapply": Choice(noapply)}
-        # A knob manages a set of its valid choices
-        knob = Knob("MockTuningKnob", choices)
-    """
-
-    def __init__(self, name: str, choices: Union[List[Choice], Dict[str, Choice]]):
-        """Constructor."""
-        if isinstance(choices, list):
-            choices = {str(idx): val for idx, val in enumerate(choices)}
-
-        self.__init_handle_by_constructor__(
-            _ffi_api.Knob, name, choices  # type: ignore # pylint: disable=no-member
-        )
-
-    def verify(self, decision: Union[str, int]) -> bool:
-        """Verify if the decision is valid."""
-        if isinstance(decision, int):
-            decision = str(decision)
-        return _ffi_api.KnobVerify(self, decision)
-
-    def apply(self, mod: IRModule, decision: Union[str, int]) -> IRModule:
-        """Get choice if a decision is valid."""
-        if isinstance(decision, int):
-            decision = str(decision)
-        return _ffi_api.KnobApply(self, mod, decision)
-
-    def __str__(self) -> str:
-        msg = f"{self.name} (# of choices: {len(self.choices)})\n"
-        for name, choice in self.choices.items():
-            msg += f"  - {name}: {choice}\n"
-        return msg
-
-
-@register_object("relax.transform.Trace")
-class Trace(Object):
-    """
-    A TVM object Trace logs the history of transformations (decisions).
-    Parameters
-    ----------
-    in_mod : IRModule
-        Input IRModule.
-    knobs: Optional[List[Knob]]
-        A list of knobs applied in the trace.
-    decisions: Optional[List[Union[str, int]]]
-        A list of decisions made for each knob
-
-    Examples
-    --------
-    The following code block defines a Trace.
-
-    .. code-block:: python
-
-        trace = Trace(mod, [knob1, knob2, knob3], ["c1", "c0", "c3"])
-        assert trace.size == 3 # Length of history.
-        # 'out' contains IRModule that applies transformations in the trace.
-        out: IRModule = trace.add(knob4, "c2")
-        assert trace.size == 4 # Length of history.
-        trace.set_perf(0.03) # Set the performance number of the trace.
-    """
-
-    def __init__(
-        self,
-        in_mod: IRModule,
-        knobs: Optional[List[Knob]] = None,
-        decisions: Optional[List[Union[str, int]]] = None,
-    ):
-        """Constructor."""
-        knobs = knobs if knobs else list()
-        decisions = (
-            [str(v) if isinstance(v, int) else v for v in decisions] if decisions else list()
-        )
-        self.__init_handle_by_constructor__(
-            _ffi_api.Trace, in_mod, knobs, decisions  # type: ignore # pylint: disable=no-member
-        )
-
-    def verify(self) -> bool:
-        """Verify if current history is valid."""
-        return _ffi_api.TraceVerify()
-
-    def add(self, knob: Knob, decision: Union[str, int]) -> IRModule:
-        """Add & Apply new decision (with knob)."""
-        if isinstance(decision, int):
-            decision = str(decision)
-        return _ffi_api.TraceAdd(self, knob, decision)
-
-    def set_perf(self, perf: float) -> None:
-        """Set performance number for the trace."""
-        return _ffi_api.TraceSetPerf(self, perf)
-
-    def __str__(self) -> str:
-        n = len(self.knobs)
-        msg = f"Trace length: {n}\n"
-        for idx in range(n):
-            msg += f"[{idx+1}] {self.knobs[idx].name}: {self.decisions[idx]}\n"
-        return msg
-
-
-@register_func("relax.transform.default_generate_candidate")
+@register_func("relax.tuning_api.default_generate_candidate")
 def default_generate_candidate(
     knobs: List[Knob], trace: Trace, eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
@@ -295,7 +107,7 @@ def default_generate_candidate(
     return candidates
 
 
-@register_func("relax.transform.default_consider_eval_passes")
+@register_func("relax.tuning_api.default_consider_eval_passes")
 def default_consider_eval_passes(
     init_candidates: List[Trace], eval_passes: Optional[List[Pass]] = None
 ) -> List[Trace]:
@@ -333,7 +145,7 @@ def default_consider_eval_passes(
     return candidates
 
 
-@register_func("relax.transform.default_evaluate")
+@register_func("relax.tuning_api.default_evaluate")
 def default_evaluate(
     candidates: List[Trace],
     target_str: str,
@@ -429,16 +241,20 @@ def default_evaluate(
             continue
 
         # If build passes, set up runner input and measure the performance.
-        runner_input = RunnerInput(
-            builder_result.artifact_path,
-            target_str,
-            args_info=[
-                TensorInfo(shape=[int(i) for i in p.shape], dtype=p.checked_type.dtype)
-                for p in mod["main"].params
-            ],  # convert list[Var] to list[TensorInfo]
-        )
+        args_info = [
+            TensorInfo(shape=[int(i) for i in p.shape], dtype=p.checked_type.dtype)
+            for p in mod["main"].params
+        ]  # convert list[Var] to list[TensorInfo]
+        runner_input = RunnerInput(builder_result.artifact_path, target_str, args_info=args_info)
         (runner_future,) = runner.run([runner_input])
         runner_result = runner_future.result()
+
+        # record = TuningRecord(candidate, runner_result.run_secs, Workload(mod), target, args_info)
+        # json = record.as_json()
+        # new_record = TuningRecord.from_json(json)
+        # print(new_record)
+        # assert 0
+        # runner_result.run_sec
 
         # Runtime error
         # Assign the worst performance and move on to the next candidate.
@@ -487,26 +303,3 @@ def select_best_candidate(candidates: List[Trace]) -> Trace:
             best_perf = avg
             best_trace = candidate
     return best_trace
-
-
-def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
-    """
-    Getter for a trace wrapper.
-
-    Parameters
-    ----------
-    in_: Union[Trace, IRModule, Expr]
-        Input entity
-    Return
-    ----------
-    wrapped: Trace
-        Traced entity
-    """
-    if isinstance(in_, Trace):
-        return in_
-    if isinstance(in_, IRModule):
-        return Trace(in_)
-    if isinstance(in_, Expr):
-        return Trace(tvm.IRModule.from_expr(in_))
-
-    raise Exception(f"Invalid input type for trace: {type(in_)}")

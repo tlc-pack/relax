@@ -18,62 +18,105 @@
  */
 
 /*!
- * \file tvm/relax/tuning.h
+ * \file tvm/relax/tuning_api.h
  * \brief Relax Tuning Pass APIs.
  */
 #ifndef TVM_RELAX_TUNING_H_
 #define TVM_RELAX_TUNING_H_
 #include <tvm/ir/module.h>
-
+#include <tvm/ir/transform.h>
+#include <tvm/meta_schedule/database.h>
 namespace tvm {
 namespace relax {
-/*! \brief The function type of `f_transform` method. */
-using FTransform = runtime::TypedPackedFunc<IRModule(IRModule)>;
-/*! \brief The function type of `f_constr` method. */
-using FConstr = runtime::TypedPackedFunc<bool(IRModule)>;
 
-/*! \brief Choice manages a set of transformation and constraint functions. */
+/*! \brief Helper function to unpack arguments in the array as parameters for the given packed
+ * function. */
+TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFunc f,
+                                                        const Array<ObjectRef>& args) {
+  const size_t kNumArgs = args.size();
+  TVMValue tvm_values[kNumArgs];
+  int tvm_type_codes[kNumArgs];
+  runtime::TVMArgsSetter setter(tvm_values, tvm_type_codes);
+  const ObjectRef* ptr = args.template as<ArrayNode>()->begin();
+  for (size_t i = 0; i < kNumArgs; ++i) {
+    setter(i, *(ptr + i));
+  }
+
+  TVMRetValue rv;
+  f.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
+  return rv;
+}
+
+/*! \brief Choice manages a set of keys for transformation and constraint functions. */
 class ChoiceNode : public runtime::Object {
  public:
-  /*! \brief transformation function. */
-  FTransform f_transform;
-  /*! \brief constraint function.
+  /*! \brief key for transformation function. */
+  String f_transform_key;
+  /*! \brief key for constraint function.
      f_transform will be applied only when this function returns true. */
-  FConstr f_constr;
+  String f_constr_key;
+  Array<ObjectRef> f_transform_args;
+  Array<ObjectRef> f_constr_args;
 
   /*! \brief The default destructor. */
   virtual ~ChoiceNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_transform` is not visited.
-    // `f_constr` is not visited.
-  }
-
-  /*! \brief Getter for f_transform. */
-  FTransform GetTransformFunc() {
-    ICHECK(f_transform != nullptr) << "Choice's f_transform method not implemented!";
-    return f_transform;
+    v->Visit("f_transform_key", &f_transform_key);
+    v->Visit("f_transform_args", &f_transform_args);
+    v->Visit("f_constr_key", &f_constr_key);
+    v->Visit("f_constr_args", &f_constr_args);
   }
 
   /*! \brief Getter for f_constr. */
-  FConstr GetConstrFunc() {
-    ICHECK(f_constr != nullptr) << "Choice's f_constr method not implemented!";
-    return f_constr;
+  const runtime::PackedFunc GetConstrFunc() {
+    const auto* f_constr = tvm::runtime::Registry::Get(f_constr_key);
+    ICHECK(f_constr != nullptr) << "f_constr_key is not registered: " << f_constr_key;
+    return *f_constr;
+  }
+
+  /*! \brief Getter for f_transform. */
+  const runtime::PackedFunc GetTransformFunc() {
+    auto* f_transform = tvm::runtime::Registry::Get(f_transform_key);
+    ICHECK(f_transform != nullptr) << "f_transform_key is not registered: " << f_transform_key;
+    return *f_transform;
   }
 
   /*! \brief Perform f_constr. */
-  bool CheckConstr(IRModule mod) { return f_constr(mod); }
+  bool CheckConstr(IRModule mod) {
+    Array<ObjectRef> args(f_constr_args);
+    args.insert(args.begin(), mod);
+    return CallPackedWithArgsInArray(GetConstrFunc(), args);
+  }
 
-  static constexpr const char* _type_key = "relax.transform.Choice";
+  /*! \brief Perform f_transform. */
+  IRModule ApplyTransformFunc(IRModule mod) {
+    // Apply transformation when constraint is satisfied.
+    if (CheckConstr(mod)) {
+      Array<ObjectRef> args(f_transform_args);
+      args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
+      return CallPackedWithArgsInArray(GetTransformFunc(), args);
+    }
+    return mod;
+  }
+
+  /*!
+   * \brief Serialize Choice as a JSON-style object
+   * \return The JSON-style object
+   */
+  ObjectRef AsJSON() const;
+
+  static constexpr const char* _type_key = "relax.tuning_api.Choice";
   TVM_DECLARE_BASE_OBJECT_INFO(ChoiceNode, Object);
 };
 
 /*! \brief Managed reference to ChoiceNode */
 class Choice : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit Choice(FTransform f_transform, FConstr f_constr);
-
-  // TODO(sunggg): Double-check this
+  TVM_DLL explicit Choice(String f_transform_key, Array<ObjectRef> f_transform_args,
+                          String f_constr_key, Array<ObjectRef> f_constr_args);
+  /*! \brief Deserialize JSON-style object into Choice */
+  TVM_DLL static Choice FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);
 };
 
@@ -96,14 +139,21 @@ class KnobNode : public runtime::Object {
   /*! \brief Check if a decision is valid. */
   bool Verify(String decision) { return choices.count(decision) > 0; }
 
-  /*! \brief Apply decision. */
+  /*! \brief Apply decision if the constraint is satisfied.
+      Otherwise, return the original IRModule.
+   */
   IRModule Apply(IRModule mod, String decision) {
     ICHECK(Verify(decision)) << "Invalid choice for this knob: " << decision << "\n";
-    ICHECK(choices[decision]->CheckConstr(mod)) << "Constraint is not satisfied.\n";
-    return choices[decision]->f_transform(mod);
+    return choices[decision]->ApplyTransformFunc(mod);
   }
 
-  static constexpr const char* _type_key = "relax.transform.Knob";
+  /*!
+   * \brief Serialize Knob as a JSON-style object
+   * \return The JSON-style object
+   */
+  ObjectRef AsJSON() const;
+
+  static constexpr const char* _type_key = "relax.tuning_api.Knob";
   TVM_DECLARE_BASE_OBJECT_INFO(KnobNode, Object);
 };
 
@@ -111,8 +161,8 @@ class KnobNode : public runtime::Object {
 class Knob : public runtime::ObjectRef {
  public:
   TVM_DLL explicit Knob(String name, Map<String, Choice> choices);
-
-  // TODO(sunggg): Double-check this
+  /*! \brief Deserialize JSON-style object into Knob */
+  TVM_DLL static Knob FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Knob, ObjectRef, KnobNode);
 };
 
@@ -146,7 +196,7 @@ class TraceNode : public runtime::Object {
   }
 
   /*! \brief Verify current decision history. */
-  bool Verify() {
+  bool Verify() const {
     if (knobs.size() != decisions.size()) return false;
     int n = knobs.size();
     for (int i = 0; i < n; i++) {
@@ -167,22 +217,37 @@ class TraceNode : public runtime::Object {
     return out_mod;
   }
 
+  /*!
+   * \brief Serialize Trace as a JSON-style object
+   * \return The JSON-style object
+   */
+  ObjectRef AsJSON() const;
+
   /*! \brief Set the performance. */
   void SetPerf(double _perf) { perf = _perf; }
 
-  static constexpr const char* _type_key = "relax.transform.Trace";
+  void SetOutMod(IRModule mod_) { out_mod = mod_; }
+
+  static constexpr const char* _type_key = "relax.tuning_api.Trace";
   TVM_DECLARE_BASE_OBJECT_INFO(TraceNode, Object);
 };
 
 /*! \brief Managed reference to TraceNode */
 class Trace : public runtime::ObjectRef {
  public:
+  /*! \brief Default constructor. Creating an empty trace. */
+  Trace();
+  /*!
+   * \brief Constructor. Creating a trace from existing knobs and their decisions
+   * \param in_mod Input IRModule
+   * \param knobs The knobs used
+   * \param decisions The decisions made in sampling
+   */
   TVM_DLL explicit Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions);
-
-  // TODO(sunggg): Double-check this
+  /*! \brief Deserialize JSON-style object into Trace */
+  TVM_DLL static Trace FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Trace, ObjectRef, TraceNode);
 };
-
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_TUNING_H_

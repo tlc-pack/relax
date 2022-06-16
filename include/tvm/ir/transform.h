@@ -60,7 +60,6 @@
 #include <tvm/ir/error.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
-#include <tvm/relax/tuning.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
@@ -91,7 +90,7 @@ class PassContextNode : public Object {
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
   /*! \brief Trace stack for relax pass infra. */
-  mutable Array<relax::Trace> trace_stack;
+  mutable Array<ObjectRef> trace_stack;
   /*! \brief List of passes to be traced. If not defined, make every pass traceable. */
   Optional<Map<String, Bool>> make_traceable;
   /*! \brief Number of evaluations conducted in the pass pipeline. */
@@ -139,14 +138,14 @@ class PassContextNode : public Object {
     v->Visit("num_evals", &num_evals);
   }
 
-  Array<relax::Trace> GetTraceStack() { return trace_stack; }
-  void PushTrace(relax::Trace new_trace) { trace_stack.push_back(new_trace); }
+  Array<ObjectRef> GetTraceStack() { return trace_stack; }
+  void PushTrace(ObjectRef new_trace) { trace_stack.push_back(new_trace); }
   void PopTrace() {
     ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
     trace_stack.pop_back();
   }
   int GetTraceStackSize() { return trace_stack.size(); }
-  relax::Trace GetCurrentTrace() {
+  ObjectRef GetCurrentTrace() {
     ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
     return trace_stack.back();
   }

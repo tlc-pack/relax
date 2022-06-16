@@ -25,6 +25,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
@@ -461,11 +462,31 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
     if (pass_ctx->trace_stack.size() && !pass_info->traceable &&
         (!pass_ctx->make_traceable.defined() ||
          pass_ctx->make_traceable.value().count(pass_info->name))) {
-      relax::FTransform f_transform = [=](IRModule m) { return pass(std::move(mod), pass_ctx); };
-      relax::Knob knob =
-          relax::Knob(pass_info->name, {{"enabled", relax::Choice(f_transform, nullptr)}});
+      // TODO(tvm-team): Currently, there are some inconsistency in the pass registration.
+      // 1. Some passes are not registered in ffi registry.
+      // 2. Some passes do not follow the name convention. (e.g., <ffi key> = <namespace> + <pass
+      // name>)
+
+      // Due to these problems, serialization with non-traceable passes is handled in a hacky way
+      // now. Find a systematic way to identify such inconsistencies and fix them.
+
+      // In the future, we should pass the ffi key for a pass by deducing from its name.
+      String f_transform_key = "relax.tuning_api.Choice.f_default_transform";
+      String f_constr_key = "relax.tuning_api.Choice.f_default_constr";
+
+      relax::Knob knob = relax::Knob(
+          pass_info->name, {{"Applied", relax::Choice(f_transform_key, Array<ObjectRef>(),
+                                                      f_constr_key, Array<ObjectRef>())}});
+
       // Add new decision to the trace at the top of the stack.
-      mod = pass_ctx->trace_stack.back()->Add(knob, "enabled");
+      auto trace = Downcast<relax::Trace>(pass_ctx->trace_stack.back());
+      trace->Add(knob, "Applied");
+      // In the future, we should just have
+      // mod = trace->Add(knob, "enabled");
+      // instead of the two lines below.
+      mod = pass(std::move(mod), pass_ctx);
+      trace->SetOutMod(mod);
+
     } else {
       mod = pass(std::move(mod), pass_ctx);
     }
@@ -558,7 +579,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
-                       Optional<Map<String, ObjectRef>> config, Array<relax::Trace> trace_stack,
+                       Optional<Map<String, ObjectRef>> config, Array<ObjectRef> trace_stack,
                        Optional<Map<String, Bool>> make_traceable, int num_evals) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
