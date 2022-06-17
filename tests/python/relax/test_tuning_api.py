@@ -15,27 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
+from __future__ import annotations
+from hashlib import new  # must import to defer parsing of annotations
 import pytest
-import tempfile
 import numpy as np
+import os.path as osp
+import tempfile
 from typing import List
-
+from math import isclose
 
 import tvm
-from tvm import ir, tir
+from tvm import ir
 from tvm.ir import transform
 from tvm.ir.transform import PassContext
 from tvm.ir.module import IRModule
-from tvm.tir import PrimFunc
 from tvm.script import tir as T, relax as R
 from tvm import relax
 from tvm.relax.expr import Expr, DataflowBlock, Function
-import tvm.meta_schedule as ms
 from tvm.relax.transform.tuning_api import (
     Choice,
     Knob,
     Trace,
+    TuningRecord,
+    JSONDatabase,
     default_generate_candidate,
     default_consider_eval_passes,
     default_evaluate,
@@ -45,7 +47,7 @@ from tvm.relax.transform.tuning_api import (
 
 
 @tvm.script.ir_module
-class MyModule:
+class TestModule:
     @T.prim_func
     def addone(A: T.Buffer[(16, 16), "int32"], B: T.Buffer[(16, 16), "int32"]) -> None:
         T.func_attr(({"global_symbol": "addone"}))
@@ -54,53 +56,46 @@ class MyModule:
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] + T.int32(1)
 
+    # Input IRModule.
     @R.function
-    def main(c0: Tensor((16, 16), "int32")):
+    def before(c0: Tensor((16, 16), "int32")):
         lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="int32")
         return lv0
+
+    # Expected IRModule after transformation.
+    @R.function
+    def expected(c1: Tensor((16, 16), "int32")):
+        lv0 = c1
+        return c1
+
+
+def gen_mod(mod, name, binding):
+    funcs = {}
+    binding = {k: tvm.nd.array(v) for k, v in binding.items()}
+
+    for k, v in mod.functions.items():
+        if isinstance(v, tvm.relax.Function):
+            if k.name_hint == name:
+                # rename to main.
+                gv = tvm.ir.GlobalVar("main")
+                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type).with_attr(
+                    "global_symbol", "main"
+                )
+        else:
+            funcs[k] = v
+    mod = tvm.IRModule(funcs)
+    return relax.transform.BindParams("main", binding)(mod)
+
+
+# Setup for simple testing with IRModule.
+def setup_test():
+    mod = TestModule
+    assert isinstance(mod, tvm.IRModule)
+    return gen_mod(mod, "before", {})
 
 
 # Setup for testing with constant folding.
 def setup_test_const_folding():
-    @tvm.script.ir_module
-    class TestModule:
-        @T.prim_func
-        def addone(A: T.Buffer[(16, 16), "int32"], B: T.Buffer[(16, 16), "int32"]) -> None:
-            T.func_attr(({"global_symbol": "addone"}))
-            for i, j in T.grid(16, 16):
-                with T.block("addone"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    B[vi, vj] = A[vi, vj] + T.int32(1)
-
-        # Input IRModule.
-        @R.function
-        def before(c0: Tensor((16, 16), "int32")):
-            lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="int32")
-            return lv0
-
-        # Expected IRModule after transformation.
-        @R.function
-        def expected(c1: Tensor((16, 16), "int32")):
-            lv0 = c1
-            return c1
-
-    def gen_mod(mod, name, binding):
-        funcs = {}
-        binding = {k: tvm.nd.array(v) for k, v in binding.items()}
-
-        for k, v in mod.functions.items():
-            if isinstance(v, tvm.relax.Function):
-                if k.name_hint == name:
-                    # rename to main.
-                    gv = tvm.ir.GlobalVar("main")
-                    funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type).with_attr(
-                        "global_symbol", "main"
-                    )
-            else:
-                funcs[k] = v
-        mod = tvm.IRModule(funcs)
-        return relax.transform.BindParams("main", binding)(mod)
-
     mod = TestModule
     assert isinstance(mod, tvm.IRModule)
     # Test setup.
@@ -338,17 +333,72 @@ def test_trace():
     # Import JSON.
     new_trace = Trace.from_json(json_obj)
     tvm.ir.assert_structural_equal(trace.in_mod, new_trace.in_mod)
+    assert str(trace) == str(new_trace)
     assert new_trace.size == 3
     tvm.ir.assert_structural_equal(trace.out_mod, new_trace.out_mod)
 
 
 def test_trace_wrapper():
-    mod = MyModule
+    mod = setup_test()
     assert isinstance(mod, tvm.IRModule)
     assert isinstance(Trace(mod), Trace)
     assert isinstance(get_trace(mod), Trace)
     assert isinstance(get_trace(mod["main"]), Trace)
     assert isinstance(get_trace(mod["addone"]), Trace)
+
+
+def create_tmp_database(tmpdir: str) -> JSONDatabase:
+    path_workload = osp.join(tmpdir, "workloads.json")
+    path_tuning_record = osp.join(tmpdir, "tuning_records.json")
+    path_measurement_record = osp.join(tmpdir, "measurement_records.json")
+    return JSONDatabase(path_workload, path_tuning_record, path_measurement_record)
+
+
+def test_database():
+    def equal_measurement_record(a: List[float], b: List[float]):
+        assert len(a) == len(b)
+        for i in range(len(a)):
+            assert isclose(a[i], b[i], rel_tol=1e-5)
+
+    def equal_tuning_record(a: TuningRecord, b: TuningRecord):
+        assert str(a.trace) == str(b.trace)
+        equal_measurement_record(a.run_secs, b.run_secs)
+
+    # Test setup.
+    (
+        mod1,
+        mod2,
+    ) = setup_test_const_folding()
+    knob = Knob("test", {"noapply": Choice()})
+    trace = Trace(mod1, [knob, knob], ["noapply", "noapply"])
+    target = tvm.target.Target("llvm")
+
+    # Test roundtrip
+    run_secs = [1.0, 0.9, 0.4]
+    tuning_record = TuningRecord(
+        trace,
+        run_secs,
+    )
+    new_tuning_record = TuningRecord.from_json(json_obj=tuning_record.as_json())
+    equal_tuning_record(tuning_record, new_tuning_record)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = create_tmp_database(tmpdir)
+        workload1 = database.commit_workload(mod1)
+
+        database.commit_measurement_record(workload1, target, run_secs)
+        new_run_secs1 = database.get_measurement_record(workload1, target)
+        equal_measurement_record(run_secs, new_run_secs1)
+        workload2 = database.commit_workload(mod2)
+        new_run_secs2 = database.get_measurement_record(workload2, target)
+        assert len(new_run_secs2) == 0
+
+        database.commit_tuning_record(workload1, target, tuning_record)
+        new_tuning_records = database.get_top_k(workload1, target, top_k=1)
+        assert len(new_tuning_records) == 1
+        equal_tuning_record(tuning_record, new_tuning_records[0])
+        new_tuning_records = database.get_top_k(workload1, target, top_k=0)
+        assert len(new_tuning_records) == 0
 
 
 # Mock tuning pass that determines whether to apply relax.transform.FoldConstant().
@@ -388,7 +438,7 @@ class MockConstFoldingTuningPass(transform.Pass):
 
 
 def test_default_functions():
-    mod = MyModule
+    mod = setup_test()
     assert isinstance(mod, tvm.IRModule)
 
     # Define choice, knob, trace.
@@ -397,58 +447,60 @@ def test_default_functions():
     trace = Trace(mod)
 
     # Launch a pass pipeline in trace mode.
-    with transform.PassContext(trace=trace):
-        # Default generation function expands every valid choice.
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 2
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = create_tmp_database("tmp")
+        with transform.PassContext(trace=trace, tuning_api_database=database):
+            # Default generation function expands every valid choice.
+            candidates = default_generate_candidate([knob], trace)
+            assert len(candidates) == 2
 
-        # Default evaluate function uses MetaSchedule builder/runner.
-        # Since builder/runner are not provided, local builder/runner will be used.
-        default_evaluate(candidates, "llvm --num-cores=16")
-        assert PassContext.current().num_evals == 2
+            # Default evaluate function uses MetaSchedule builder/runner.
+            # Since builder/runner are not provided, local builder/runner will be used.
+            default_evaluate(candidates, "llvm --num-cores=16")
+            assert PassContext.current().num_evals == 2
 
-        # Because these candidates are already evaluated, num_evals stays the same.
-        default_evaluate(candidates, "llvm --num-cores=16")
-        assert PassContext.current().num_evals == 2
+            # Because these candidates are already evaluated, num_evals stays the same.
+            default_evaluate(candidates, "llvm --num-cores=16")
+            assert PassContext.current().num_evals == 2
 
-        # Test with multiple knobs
-        candidates = default_generate_candidate([knob, knob], trace)
-        assert len(candidates) == 4
+            # Test with multiple knobs
+            candidates = default_generate_candidate([knob, knob], trace)
+            assert len(candidates) == 4
 
-    # Launch new pass pipeline in trace mode.
-    with transform.PassContext(trace=trace):
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 2
-        # Provide tuning pass as an eval pass.
-        # Note that MockConstFoldingTuningPass() has its own generation function, evaluation function.
-        # Evaluation would be done in a tornament fashion.
-        # `default_consider_eval_passes` will convert candidates into the best version by considering eval_passes.
-        # For example, if we say candidates = [C1, C2]
-        # `default_consider_eval_passes` will return best form of C1 variant (C11 vs C12) and C2 variant (C21 vs C22)
-        # that can be generated by eval_passes.
-        # Assume C11 > C12, C21 < C22,
-        # new_candidates = [C11, C22]
-        new_candidates = default_consider_eval_passes(
-            candidates, [MockConstFoldingTuningPass(eval_passes=[])]
-        )
+        # Launch new pass pipeline in trace mode.
+        with transform.PassContext(trace=trace, tuning_api_database=database):
+            candidates = default_generate_candidate([knob], trace)
+            assert len(candidates) == 2
+            # Provide tuning pass as an eval pass.
+            # Note that MockConstFoldingTuningPass() has its own generation function, evaluation function.
+            # Evaluation would be done in a tornament fashion.
+            # `default_consider_eval_passes` will convert candidates into the best version by considering eval_passes.
+            # For example, if we say candidates = [C1, C2]
+            # `default_consider_eval_passes` will return best form of C1 variant (C11 vs C12) and C2 variant (C21 vs C22)
+            # that can be generated by eval_passes.
+            # Assume C11 > C12, C21 < C22,
+            # new_candidates = [C11, C22]
+            new_candidates = default_consider_eval_passes(
+                candidates, [MockConstFoldingTuningPass(eval_passes=[])]
+            )
 
-        # len(candidates) == len(new candidates).
-        assert len(new_candidates) == 2
-        # To find the best version of each candidate, it would take 4 evals (C11, C12, C21, C22).
-        assert PassContext.current().num_evals == 4
+            # len(candidates) == len(new candidates).
+            assert len(new_candidates) == 2
+            # To find the best version of each candidate, it would take 4 evals (C11, C12, C21, C22).
+            assert PassContext.current().num_evals == 4
 
-    HeuristicPass = relax.transform.FoldConstant
-    with transform.PassContext(trace=trace):
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 2
-        # Provide heuristic pass as an eval pass.
-        new_candidates = default_consider_eval_passes(candidates, [HeuristicPass()])
-        # Since heuristic pass has single decision, it won't need any tornament.
-        # new_candidates = [C11, C21]
-        assert len(new_candidates) == 2
-        # We only conduct evaluation when its necessary (e.g., choose better candidate in tuning pass).
-        # Heuristic pass won't conduct any evaluation.
-        assert PassContext.current().num_evals == 0
+        HeuristicPass = relax.transform.FoldConstant
+        with transform.PassContext(trace=trace, tuning_api_database=database):
+            candidates = default_generate_candidate([knob], trace)
+            assert len(candidates) == 2
+            # Provide heuristic pass as an eval pass.
+            new_candidates = default_consider_eval_passes(candidates, [HeuristicPass()])
+            # Since heuristic pass has single decision, it won't need any tornament.
+            # new_candidates = [C11, C21]
+            assert len(new_candidates) == 2
+            # We only conduct evaluation when its necessary (e.g., choose better candidate in tuning pass).
+            # Heuristic pass won't conduct any evaluation.
+            assert PassContext.current().num_evals == 0
 
 
 # TODO(sunggg): Do we need to serialize pass context as well?
@@ -487,7 +539,7 @@ def test_pass_context():
 
 
 def test_module_pass():
-    mod = MyModule
+    mod = setup_test()
     assert isinstance(mod, tvm.IRModule)
     # Test setup
     c0 = np.arange((16 * 16)).astype("int32").reshape(16, 16)
@@ -565,7 +617,7 @@ def test_module_pass():
 
 
 def test_sequential():
-    mod = MyModule
+    mod = setup_test()
     assert isinstance(mod, tvm.IRModule)
     # Test setup.
     c0 = np.arange((16 * 16)).astype("int32").reshape(16, 16)
@@ -727,142 +779,11 @@ def test_passes_with_mixed_granularities():
         # Trace length and num eval can be different depending on how each function/dataflow block is treated.
 
 
-@tvm.register_func("testing.meta_schedule_tuning_module")
-def meta_schedule_tuning_module(mod, target_str):
-    target = ms.default_config.target(target_str)
-    config = ms.TuneConfig(
-        strategy="evolutionary",
-        num_trials_per_iter=2,
-        max_trials_per_task=4,
-        max_trials_global=4,
-    )
-    database = ms.database.MemoryDatabase()
-    with tempfile.TemporaryDirectory() as work_dir:
-        extracted_tasks = ms.relax_integration.extract_task_from_relax(mod, target)
-        database = ms.tune.tune_extracted_tasks(
-            extracted_tasks, config, work_dir, database=database
-        )
-
-        return relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-
-
-@tvm.register_func("testing.meta_schedule_tuning_primfunc")
-def meta_schedule_tuning_primfunc(mod, target_str):
-    target = ms.default_config.target(target_str)
-    config = ms.TuneConfig(
-        strategy="evolutionary",
-        num_trials_per_iter=2,
-        max_trials_per_task=4,
-        max_trials_global=4,
-    )
-    database = ms.database.MemoryDatabase()
-
-    with tempfile.TemporaryDirectory() as work_dir:
-        ms.tune.tune_tir(mod, target, config, work_dir, database=database)
-        return relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-
-
-def test_metaschedule_tuning():
-    @tvm.script.ir_module
-    class InputModule:
-        @T.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
-            A = T.match_buffer(x, (32, 32))
-            B = T.match_buffer(y, (32, 32))
-            C = T.match_buffer(z, (32, 32))
-
-            for (i0, j0, k0) in T.grid(32, 32, 32):
-                with T.block():
-                    i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-                    with T.init():
-                        C[i, j] = 0.0
-                    C[i, j] += A[i, k] * B[j, k]
-
-        @T.prim_func
-        def tir_relu(x: T.handle, y: T.handle):
-            T.func_attr({"global_symbol": "tir_relu"})
-            m = T.var("int32")
-            n = T.var("int32")
-            A = T.match_buffer(x, (32, 32))
-            B = T.match_buffer(y, (32, 32))
-            for (i, j) in T.grid(32, 32):
-                with T.block():
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    B[vi, vj] = T.max(A[vi, vj], 0.0)
-
-        @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
-            with R.dataflow():
-                lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
-                lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
-                relax.output(lv1)
-            return lv1
-
-    mod = InputModule
-    assert isinstance(mod, IRModule)
-    target_str = "llvm --num-cores=16"
-
-    # One naive implementation of MetaSchedule with module tuning pass.
-    # It takes the IRModule, extract tasks from the IRModule, tune each task and apply the best settings.
-    @ir.transform.module_pass(opt_level=0, traceable=True)
-    def MockMetaSchedTuningPass1(mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.pop_trace()
-
-        # We can create a choice with tuning-based transformation as well.
-        choices = [Choice("testing.meta_schedule_tuning_module", [target_str])]
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockMetaSched", choices)
-
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 1
-        best_trace = candidates[0]
-        ctx.push_trace(best_trace)
-        return best_trace.out_mod
-
-    seq = transform.Sequential([MockMetaSchedTuningPass1])
-    with transform.PassContext(trace=Trace(mod)):
-        _ = seq(mod)
-        assert PassContext.current().get_trace_stack_size() == 1
-        assert PassContext.current().get_current_trace().size == 1
-
-    # Another naive implementation of MetaSchedule with prim func tuning pass.
-    # It takes each PrimFuncs in IRModule, tune it and apply its best settings.
-    @tir.transform.prim_func_pass(opt_level=0, traceable=True)
-    def MockMetaSchedTuningPass2(func: PrimFunc, mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.pop_trace()
-
-        # Setup Meta Schedule tuning
-        new_mod = ms.default_config.mod(func)
-        trace = Trace(new_mod)
-
-        # We can create a choice with tuning-based transformation as well.
-        choices = [Choice("testing.meta_schedule_tuning_primfunc", [target_str])]
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockMetaSched", choices)
-
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 1
-        best_trace = candidates[0]
-        ctx.push_trace(best_trace)
-        gvars = best_trace.out_mod.get_global_vars()
-        assert len(gvars) == 1
-        return best_trace.out_mod[gvars[0]]
-
-    seq = transform.Sequential([MockMetaSchedTuningPass2])
-    with transform.PassContext(trace=Trace(mod)):
-        _ = seq(mod)
-        assert PassContext.current().get_trace_stack_size() == 1
-        assert PassContext.current().get_current_trace().size == 1
-
-
 if __name__ == "__main__":
     # test_choice()
     # test_knob()
     # test_trace()
-    # test_default_functions()
-    test_pass_context()
+    # test_database()
+    test_default_functions()
+    # test_pass_context()
     # pytest.main([__file__])

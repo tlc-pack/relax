@@ -298,29 +298,34 @@ class Trace(Object):
         """Set out_mod for the trace."""
         return _ffi_api.TraceSetOutMod(self, mod)
 
-    def as_json(self) -> JSON_TYPE:
-        """Serialize the trace as a JSON-style object
+    def as_json(self, include_irmod: bool = True) -> JSON_TYPE:
+        """Serialize the trace as a JSON-style object.
+        Parameters
+        ----------
+        include_irmod: bool
+            Decides whether to serialize in_mod as well.
+
         Returns
         -------
         json: JSON_TYPE
-            The JSON-style object
+            The JSON-style object.
         """
-        obj = _ffi_api.TraceAsJSON(self)
+        obj = _ffi_api.TraceAsJSON(self, include_irmod)
         return _json_from_tvm(obj)
 
     @staticmethod
     def from_json(json_obj: JSON_TYPE) -> "Trace":
-        """Create Trace from JSON obj
+        """Create Trace from JSON obj.
 
         Parameters
         ----------
         json_obj: JSON_TYPE
-            Trace serialized with JSON
+            Trace serialized with JSON.
 
         Return
         ----------
         trace: Trace
-            Deserialized trace
+            Deserialized trace.
         """
         return _ffi_api.TraceFromJSON(json_obj)
 

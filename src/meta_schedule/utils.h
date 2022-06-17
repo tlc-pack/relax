@@ -444,6 +444,45 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   return results;
 }
 
+/*!
+ * \brief Read lines from a json file.
+ * \param path The path to the json file.
+ * \param num_lines The number of threads used to concurrently parse the lines.
+ * \param allow_missing Whether to create new file when the given path is not found.
+ * \return An array containing lines read from the json file.
+ */
+inline std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads,
+                                                bool allow_missing) {
+  std::ifstream is(path);
+  if (is.good()) {
+    std::vector<String> json_strs;
+    for (std::string str; std::getline(is, str);) {
+      json_strs.push_back(str);
+    }
+    int n = json_strs.size();
+    std::vector<ObjectRef> json_objs;
+    json_objs.resize(n);
+    support::parallel_for_dynamic(0, n, num_threads, [&](int thread_id, int task_id) {
+      json_objs[task_id] = JSONLoads(json_strs[task_id]);
+    });
+    return json_objs;
+  }
+  CHECK(allow_missing) << "ValueError: File doesn't exist: " << path;
+  std::ofstream os(path);
+  CHECK(os.good()) << "ValueError: Cannot create new file: " << path;
+  return {};
+}
+
+/*!
+ * \brief Append a line to a json file.
+ * \param path The path to the json file.
+ * \param line The line to append.
+ */
+inline void JSONFileAppendLine(const String& path, const std::string& line) {
+  std::ofstream os(path, std::ofstream::app);
+  CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
+  os << line << std::endl;
+}
 }  // namespace meta_schedule
 }  // namespace tvm
 

@@ -19,3 +19,4 @@
 
 from .primitives import *
 from .default_functions import *
+from .database import *

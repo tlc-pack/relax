@@ -172,6 +172,7 @@ def default_evaluate(
 
     ctx = PassContext.current()
     target = tvm.target.Target(target_str)
+    database = PassContext.current().get_tuning_api_database()
     # Setup default local builder if not provided
     if builder is None:
 
@@ -211,7 +212,9 @@ def default_evaluate(
             return costs
 
         runner = LocalRunner(
-            evaluator_config=EvaluatorConfig(),
+            evaluator_config=EvaluatorConfig(
+                number=3, repeat=5, min_repeat_ms=100, enable_cpu_cache_flush=False
+            ),
             f_run_evaluator=relax_eval_func,
         )
 
@@ -230,53 +233,56 @@ def default_evaluate(
         # Evaluate candidates
         num_evals += 1
         mod = candidate.out_mod
-        # Build candidate
-        (builder_result,) = builder.build([BuilderInput(mod, target, params)])
+        workload = database.commit_workload(mod)
 
-        # Build error
-        # Assign the worst performance and move on to the next candidate.
-        if builder_result.artifact_path is None:
-            logger.warning(builder_result.error_msg)
-            candidate.set_perf(1e100)
-            continue
-
-        # If build passes, set up runner input and measure the performance.
-        args_info = [
-            TensorInfo(shape=[int(i) for i in p.shape], dtype=p.checked_type.dtype)
-            for p in mod["main"].params
-        ]  # convert list[Var] to list[TensorInfo]
-        runner_input = RunnerInput(builder_result.artifact_path, target_str, args_info=args_info)
-        (runner_future,) = runner.run([runner_input])
-        runner_result = runner_future.result()
-
-        # record = TuningRecord(candidate, runner_result.run_secs, Workload(mod), target, args_info)
-        # json = record.as_json()
-        # new_record = TuningRecord.from_json(json)
-        # print(new_record)
-        # assert 0
-        # runner_result.run_sec
-
-        # Runtime error
-        # Assign the worst performance and move on to the next candidate.
-        if runner_result.error_msg is not None:
-            logger.warning(runner_result.error_msg)
-            candidate.set_perf(1e100)
-        # For valid measurments, compute the average and update the trace performance.
+        # If this workload and target pair has measured before, fetch its data.
+        if database.has_measurement_record(workload, target):
+            run_secs = database.get_measurement_record(workload, target)
+        # Otherwise, measure it.
         else:
-            perfs = []
-            for result in runner_result.run_secs:
-                if isinstance(result, tvm.tir.FloatImm):
-                    result = result.value
-                assert isinstance(result, float)
-                assert result >= 0.0
-                perfs.append(result)
+            # Build candidate
+            (builder_result,) = builder.build([BuilderInput(mod, target, params)])
 
-            # Store the evaluation result
-            # TODO(sunggg): Match with MetaSchedule
-            candidate.set_perf(np.mean(perfs))
+            if builder_result.artifact_path is None:
+                # Build error
+                # Assign the worst performance and move on to the next candidate.
+                logger.warning(builder_result.error_msg)
+                run_secs = [1e100]
+            else:
+                # If build passes, set up runner input and measure the performance.
+                args_info = [
+                    TensorInfo(shape=[int(i) for i in p.shape], dtype=p.checked_type.dtype)
+                    for p in mod["main"].params
+                ]  # convert list[Var] to list[TensorInfo]
+                runner_input = RunnerInput(
+                    builder_result.artifact_path, target_str, args_info=args_info
+                )
+                (runner_future,) = runner.run([runner_input])
+                runner_result = runner_future.result()
 
-        # Clean up the artifact
-        f_clean_build(builder_result.artifact_path)
+                run_secs = runner_result.run_secs
+                # Runtime error
+                # Assign the worst performance and move on to the next candidate.
+                if runner_result.error_msg is not None:
+                    logger.warning(runner_result.error_msg)
+                    run_secs = [1e100]
+
+                database.commit_measurement_record(workload, target, run_secs)
+
+            # Clean up the artifact
+            f_clean_build(builder_result.artifact_path)
+
+        # For valid measurments, compute the average and update the trace performance.
+        perfs = []
+        for result in run_secs:
+            if isinstance(result, tvm.tir.FloatImm):
+                result = result.value
+            assert isinstance(result, float)
+            assert result >= 0.0
+            perfs.append(result)
+
+        # Store the evaluation result
+        candidate.set_perf(np.mean(perfs))
 
     ctx.inc_num_evals(num_evals)
 

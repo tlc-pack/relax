@@ -95,6 +95,8 @@ class PassContextNode : public Object {
   Optional<Map<String, Bool>> make_traceable;
   /*! \brief Number of evaluations conducted in the pass pipeline. */
   mutable int num_evals{0};
+  /*! \brief Database for tunign API. */
+  Optional<ObjectRef> tuning_api_database;
   PassContextNode() = default;
   /*!
    * \brief Get a config value from the pass context.
@@ -136,6 +138,7 @@ class PassContextNode : public Object {
     v->Visit("trace_stack", &trace_stack);
     v->Visit("make_traceable", &make_traceable);
     v->Visit("num_evals", &num_evals);
+    v->Visit("tuning_api_daatabase", &tuning_api_database);
   }
 
   Array<ObjectRef> GetTraceStack() { return trace_stack; }
@@ -151,6 +154,8 @@ class PassContextNode : public Object {
   }
   void SetNumEvals(int _num_evals) { num_evals = _num_evals; }
   void IncNumEvals(int _num_evals) { num_evals += _num_evals; }
+
+  Optional<ObjectRef> GetTuningAPIDatabase() { return tuning_api_database; }
 
   static constexpr const char* _type_key = "transform.PassContext";
   static constexpr bool _type_has_method_sequal_reduce = false;

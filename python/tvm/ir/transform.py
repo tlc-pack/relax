@@ -75,7 +75,7 @@ class PassContext(tvm.runtime.Object):
     trace: Optional[relax.tuning.Trace]
         Initial trace for trace mode.
 
-    trace_stack: Optional[List[relax.tuning.Trace]]
+    trace_stack: Optional[List[relax.tuning_api.Trace]]
         Initial trace stack for trace mode.
 
     make_traceable: Optional[List[str]]
@@ -83,6 +83,8 @@ class PassContext(tvm.runtime.Object):
 
     num_evals: int
         initial number of evaluations conducted in the pipeline.
+
+    tunign_api_database: Optional[relax.tuning_api.JSONDatabase]
     """
 
     def __init__(
@@ -96,6 +98,7 @@ class PassContext(tvm.runtime.Object):
         trace_stack=None,
         make_traceable=None,
         num_evals=0,
+        tuning_api_database=None,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -127,6 +130,7 @@ class PassContext(tvm.runtime.Object):
             trace_stack,
             make_traceable,
             num_evals,
+            tuning_api_database,
         )
 
     def __enter__(self):
@@ -199,6 +203,10 @@ class PassContext(tvm.runtime.Object):
     def inc_num_evals(self, num: int):
         """Increment the number of evaluations conducted in the pipeline."""
         return _ffi_transform_api.IncNumEvals(self, num)
+
+    def get_tuning_api_database(self):
+        """Get tuning api database."""
+        return _ffi_transform_api.GetTuningAPIDatabase(self)
 
 
 @tvm._ffi.register_object("transform.Pass")

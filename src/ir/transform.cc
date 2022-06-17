@@ -580,7 +580,8 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
                        Optional<Map<String, ObjectRef>> config, Array<ObjectRef> trace_stack,
-                       Optional<Map<String, Bool>> make_traceable, int num_evals) {
+                       Optional<Map<String, Bool>> make_traceable, int num_evals,
+                       Optional<ObjectRef> tuning_api_database) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
@@ -593,6 +594,7 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       pctx->trace_stack = std::move(trace_stack);
       pctx->make_traceable = std::move(make_traceable);
       pctx->num_evals = std::move(num_evals);
+      pctx->tuning_api_database = std::move(tuning_api_database);
       PassConfigManager::Global()->Legalize(&(pctx->config));
       return pctx;
     });
@@ -632,6 +634,8 @@ TVM_REGISTER_GLOBAL("transform.SetNumEvals")
     .set_body_method<PassContext>(&PassContextNode::SetNumEvals);
 TVM_REGISTER_GLOBAL("transform.IncNumEvals")
     .set_body_method<PassContext>(&PassContextNode::IncNumEvals);
+TVM_REGISTER_GLOBAL("transform.GetTuningAPIDatabase")
+    .set_body_method<PassContext>(&PassContextNode::GetTuningAPIDatabase);
 
 TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 

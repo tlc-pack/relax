@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/transform/tuning_api/primitives.cc
- * \brief Implementation of tuning APIs.
+ * \brief Primitives of tuning APIs.
  */
 
 #include <tvm/relax/tuning_api.h>
@@ -165,10 +165,8 @@ Trace::Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
   data_ = std::move(n);
 }
 
-ObjectRef TraceNode::AsJSON() const {
+ObjectRef TraceNode::AsJSON(bool include_irmod) const {
   ICHECK(this->Verify()) << "Trace should be valid";
-  std::string json_mod = tvm::SaveJSON(this->in_mod);
-  std::string b64_mod = meta_schedule::Base64Encode(json_mod);
 
   Array<ObjectRef> json_knobs;
   Array<ObjectRef> json_decisions;
@@ -184,8 +182,13 @@ ObjectRef TraceNode::AsJSON() const {
     json_knobs.push_back(knob->AsJSON());
     json_decisions.push_back(decision);
   }
-
-  return Array<ObjectRef>{String(b64_mod), json_knobs, json_decisions};
+  if (include_irmod) {
+    std::string json_mod = tvm::SaveJSON(this->in_mod);
+    std::string b64_mod = meta_schedule::Base64Encode(json_mod);
+    return Array<ObjectRef>{json_knobs, json_decisions, String(b64_mod)};
+  } else {
+    return Array<ObjectRef>{json_knobs, json_decisions};
+  }
 }
 
 Trace Trace::FromJSON(const ObjectRef& json) {
@@ -195,27 +198,32 @@ Trace Trace::FromJSON(const ObjectRef& json) {
   Array<String> decisions;
   try {
     const ArrayNode* arr = json.as<ArrayNode>();
-    ICHECK(arr && arr->size() == 3);
-    const auto* arr0 = arr->at(0).as<StringObj>();
+    // A trace will have 2 or 3 entries depending on `include_irmod` parameter.
+    ICHECK(arr && (arr->size() == 2 || arr->size() == 3));
+
+    const auto* arr0 = arr->at(0).as<ArrayNode>();
     const auto* arr1 = arr->at(1).as<ArrayNode>();
-    const auto* arr2 = arr->at(2).as<ArrayNode>();
-    ICHECK(arr0 && arr1 && arr2);
+    ICHECK(arr0 && arr1);
 
-    String b64_mod = GetRef<String>(arr0);
-    std::string json_mod = meta_schedule::Base64Decode(b64_mod);
-    in_mod = Downcast<IRModule>(LoadJSON(json_mod));
-
-    for (const ObjectRef& elem : *arr1) {
+    for (const ObjectRef& elem : *arr0) {
       knobs.push_back(Knob::FromJSON(elem));
     }
 
-    for (const ObjectRef& elem : *arr2) {
+    for (const ObjectRef& elem : *arr1) {
       decisions.push_back(Downcast<String>(elem));
     }
+
+    // When `include_irmod = true`
+    if (arr->size() == 3) {
+      const auto* arr2 = arr->at(2).as<StringObj>();
+      String b64_mod = GetRef<String>(arr2);
+      ICHECK(arr2);
+      std::string json_mod = meta_schedule::Base64Decode(b64_mod);
+      in_mod = Downcast<IRModule>(LoadJSON(json_mod));
+    }
+
   } catch (const tvm::Error& e) {
-    LOG(FATAL)
-        << "ValueError: The json entry of a choice should contain a set of two strings, but gets: "
-        << json;
+    LOG(FATAL) << "ValueError: Malformed Trace format - " << json;
     throw;
   }
   return Trace(in_mod, knobs, decisions);

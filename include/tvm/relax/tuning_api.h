@@ -26,6 +26,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/meta_schedule/database.h>
+
 namespace tvm {
 namespace relax {
 
@@ -221,7 +222,7 @@ class TraceNode : public runtime::Object {
    * \brief Serialize Trace as a JSON-style object
    * \return The JSON-style object
    */
-  ObjectRef AsJSON() const;
+  ObjectRef AsJSON(bool include_irmod = true) const;
 
   /*! \brief Set the performance. */
   void SetPerf(double _perf) { perf = _perf; }
@@ -248,6 +249,134 @@ class Trace : public runtime::ObjectRef {
   TVM_DLL static Trace FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Trace, ObjectRef, TraceNode);
 };
+
+/*! \brief The class of tuning records. */
+class TuningRecordNode : public runtime::Object {
+ public:
+  /*! \brief The trace tuned. */
+  Trace trace;
+  /*! \brief The profiling result in seconds. */
+  Optional<Array<FloatImm>> run_secs;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("trace", &trace);
+    v->Visit("run_secs", &run_secs);
+  }
+
+  static constexpr const char* _type_key = "relax.tuning_api.TuningRecord";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TuningRecordNode, runtime::Object);
+
+  /*!
+   * \brief Export the tuning record to a JSON string.
+   * \return An array containing the trace, running secs, serialized target, and
+   * argument information.
+   */
+  ObjectRef AsJSON(bool include_irmod = false) const;
+};
+
+/*!
+ * \brief The managed reference of TuningRecordNode.
+ * \sa TuningRecordNode
+ */
+class TuningRecord : public runtime::ObjectRef {
+ public:
+  /*!
+   \brief Constructor of a tuning record.
+   \param trace The trace of the tuning record.
+   \param run_secs The running time of the tuning record.
+  */
+  TVM_DLL explicit TuningRecord(Trace trace, Optional<Array<FloatImm>> run_secs);
+  /*!
+   * \brief Create a tuning record from a json object.
+   * \param json_obj The json object.
+   * \param workload The workload.
+   * \return The tuning record created.
+   */
+  TVM_DLL static TuningRecord FromJSON(const ObjectRef& json_obj);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TuningRecord, runtime::ObjectRef, TuningRecordNode);
+};
+
+/* \brief The abstract interface of database. */
+class DatabaseNode : public runtime::Object {
+ public:
+  /*! \brief Default destructor */
+  virtual ~DatabaseNode() = default;
+  /*!
+   * \brief Check if the database has the given workload.
+   * \param mod The IRModule to be searched for.
+   * \return Whether the database has the given workload.
+   */
+  virtual bool HasWorkload(const IRModule& mod) = 0;
+  /*!
+   * \brief Check if the database has a measurement record for the given workload and target pair.
+   * \param workload The workload to be searched for.
+   * \param target The target to be searched for.
+   * \return Whether the database has the measurement record for given workload and target pair.
+   */
+  virtual bool HasMeasurementRecord(const meta_schedule::Workload& workload,
+                                    const Target& target) = 0;
+  /*!
+   * \brief Check if the database has a tuning record for the given workload and target pair.
+   * \param workload The workload to be searched for.
+   * \param target The target to be searched for.
+   * \return Whether the database has the tuning record for the given workload and target pair.
+   */
+  virtual bool HasTuningRecord(const meta_schedule::Workload& workload, const Target& target) = 0;
+  /*!
+   * \brief Look up or add workload to the database if missing.
+   * \param mod The IRModule to be searched for or added.
+   * \return The workload corresponding to the given IRModule.
+   */
+  virtual meta_schedule::Workload CommitWorkload(const IRModule& mod) = 0;
+  /*!
+   * \brief Add a measurement to the database.
+   */
+  virtual void CommitMeasurementRecord(const meta_schedule::Workload& workload,
+                                       const Target& target, const Array<FloatImm>& record) = 0;
+  /*!
+   * \brief Add a tuning record to the database.
+   * \param record The tuning record to be added.
+   */
+  virtual void CommitTuningRecord(const meta_schedule::Workload& workload, const Target& target,
+                                  const TuningRecord& record) = 0;
+  /*!
+   * \brief Get the top K tuning records of given workload from the database.
+   * \param workload The workload to be searched for.
+   * \param top_k The number of top records to be returned.
+   * \return An array of top K tuning records for the given workload.
+   */
+  virtual Array<TuningRecord> GetTopK(const meta_schedule::Workload& workload, const Target& target,
+                                      int top_k) = 0;
+  /*!
+   * \brief Get the top K tuning records of given workload from the database.
+   * \param workload The workload to be searched for.
+   * \return Measurement.
+   */
+  virtual Array<FloatImm> GetMeasurementRecord(const meta_schedule::Workload& workload,
+                                               const Target target) = 0;
+
+  static constexpr const char* _type_key = "relax.tuning_api.Database";
+  TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
+};
+
+/*!
+ * \brief Managed reference to DatabaseNode.
+ * \sa DatabaseNode
+ */
+class Database : public runtime::ObjectRef {
+ public:
+  /*!
+   * \brief Create a default database that uses JSON file for tuning records.
+   * \param path_workload The path to the workload table.
+   * \param path_tuning_record The path to the tuning record table.
+   * \param path_measurement_record The path to the measurement_record table.
+   * \param allow_missing Whether to create new file when the given path is not found.
+   */
+  TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
+                                       String path_measurement_record, bool allow_missing);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
+};
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_TUNING_H_
