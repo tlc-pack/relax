@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relax/backend/utils.h
+ * \file relax/backend/contrib/utils.h
  * \brief Utils function for backend
  */
 #ifndef TVM_RELAX_BACKEND_CONTRIB_UTILS_H_

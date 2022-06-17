@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relax/backend/contrib/codegen_json.h
+ * \file relax/backend/contrib/codegen_json/codegen_json.h
  * \brief Utilities for json codegen and runtime
  */
 #ifndef TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_

@@ -16,8 +16,9 @@
 # under the License.
 
 from __future__ import annotations
+from cv2 import exp
 import pytest
-
+import os
 import tvm
 import tvm.testing
 from tvm import relax
@@ -41,6 +42,25 @@ has_tensorrt_runtime = pytest.mark.skipif(
 pytestmark = [has_tensorrt_codegen, has_tensorrt_runtime]
 
 
+def check_executable(exec, dev, inputs, expected):
+    vm = relax.VirtualMachine(exec, dev)
+    # Measure the performance w/o tuning log
+    out = vm["main"](*inputs)
+    tvm.testing.assert_allclose(out.numpy(), expected)
+
+
+# TODO(sunggg): Serialize TRT runtime module. This might be helpful: `module.export_library(file_name)``
+def check_roundtrip(exec0, dev, inputs, expected):
+    exec0.save_to_file("exec.tmp")
+    exec1 = relax.load_exec_from_file("exec.tmp")
+    assert exec0.stats() == exec1.stats()
+    assert exec0.as_text() == exec1.as_text()
+    os.remove("exec.tmp")
+
+    check_executable(exec0, dev, inputs, expected)
+    check_executable(exec1, dev, inputs, expected)
+
+
 def test_single_annot_func():
     @tvm.script.ir_module
     class InputModule:
@@ -60,9 +80,9 @@ def test_single_annot_func():
     assert isinstance(mod, tvm.IRModule)
     # TODO(@sunggg): Revisit when TVMScript supports annotation.
     # Annotate target function.
-    new_relax_mod = mod["relax_func"].with_attr("Codegen", "tensorrt")
-    new_relax_mod = new_relax_mod.with_attr("global_symbol", "trt_relax_func")
-    mod["relax_func"] = new_relax_mod
+    new_relax_func = mod["relax_func"].with_attr("Codegen", "tensorrt")
+    new_relax_func = new_relax_func.with_attr("global_symbol", "trt_relax_func")
+    mod["relax_func"] = new_relax_func
 
     # Run Codegen pass
     seq = transform.Sequential(
@@ -77,21 +97,19 @@ def test_single_annot_func():
     with transform.PassContext(opt_level=0):
         ex0 = relax.vm.build(new_mod, target, params={})
 
-    vm0 = relax.VirtualMachine(ex0, dev)
+    # Correct output: Current relax cannot lower relax.add.
+    # Use numpy baseline instead.
     np0 = np.random.rand(2, 3).astype(np.float32)
     np1 = np.random.rand(2, 3).astype(np.float32)
     data0 = tvm.nd.array(np0, tvm.cpu())
     data1 = tvm.nd.array(np1, tvm.cpu())
 
-    # Measure the performance w/o tuning log
-    out0 = vm0["main"](data0, data1)
-
-    # Correct output: Current relax cannot lower relax.add.
-    # Use numpy baseline instead.
     tmp = np0 + np1
     out1 = tmp + tmp
-    out1 = out1 + tmp
-    tvm.testing.assert_allclose(out0.numpy(), out1)
+    expected = out1 + tmp
+
+    # Check if serialization works and the correctness of both original and deserialized execs.
+    check_roundtrip(ex0, dev, [data0, data1], expected)
 
     # If the annotation does not match with the target codegen, do not perform the codegen process.
     new_mod = relax.transform.RunCodegen(target_codegens=["INVALID_CODEGEN"])(mod)
@@ -101,4 +119,5 @@ def test_single_annot_func():
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_single_annot_func()
+    # pytest.main([__file__])

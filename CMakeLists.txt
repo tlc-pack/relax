@@ -29,6 +29,7 @@ tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 
+
 # Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
 #
 # Possible values:
@@ -123,6 +124,7 @@ include_directories(SYSTEM ${PICOJSON_PATH})
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
 
+
 # Check if this is being run on its own or as a subdirectory for another project
 # If we update to CMake 2.21+, we can use PROJECT_IS_TOP_LEVEL instead
 get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
@@ -139,7 +141,6 @@ if(MSVC)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
   add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
   add_definitions(-DNOMINMAX)
-
   # regeneration does not work well with msbuild custom rules.
   set(CMAKE_SUPPRESS_REGENERATION ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
@@ -151,49 +152,38 @@ if(MSVC)
 
   if(USE_MSVC_MT)
     foreach(flag_var
-      CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-      CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
       if(${flag_var} MATCHES "/MD")
         string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
   endif()
-
   # Disable common MSVC warnings
   # Integer conversion warnings(e.g. int64 to int)
   add_compile_options(/wd4244)
   add_compile_options(/wd4267)
-
   # Signed unsigned constant comparison
   add_compile_options(/wd4018)
-
   # Aligned alloc may not met(need c++17)
   add_compile_options(/wd4316)
-
   # unreferenced local variables(usually in exception catch)
   add_compile_options(/wd4101)
-
   # always inline keyword not necessary
   add_compile_options(/wd4180)
-
   # DLL interface warning in c++
   add_compile_options(/wd4251)
-
   # destructor was implicitly defined as deleted
   add_compile_options(/wd4624)
-
   # unary minus operator applied to unsigned type, result still unsigned
   add_compile_options(/wd4146)
-
   # 'inline': used more than once
   add_compile_options(/wd4141)
-
   # unknown pragma
   add_compile_options(/wd4068)
 else(MSVC)
   set(WARNING_FLAG -Wall)
-
-  if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+  if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message(STATUS "Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
@@ -203,15 +193,13 @@ else(MSVC)
     set(CMAKE_CXX_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O2 -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
     set(TVM_VISIBILITY_FLAG "")
-
-    if(HIDE_PRIVATE_SYMBOLS)
+    if (HIDE_PRIVATE_SYMBOLS)
       message(STATUS "Hide private symbols...")
       set(TVM_VISIBILITY_FLAG "-fvisibility=hidden")
     endif(HIDE_PRIVATE_SYMBOLS)
-  endif()
-
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
-    CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
+  endif ()
+  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
+      CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
 
@@ -223,46 +211,42 @@ else(MSVC)
   else()
     set(TVM_NO_UNDEFINED_SYMBOLS "-Wl,--no-undefined")
   endif()
-
   message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
-    "#ifndef __hexagon__"
-    "#error"
-    "#endif"
-    "int main() {}"
-
-    # Define _start_main to avoid linking errors with -fPIC.
-    "extern \"C\" void _start_main() {}")
+      "#ifndef __hexagon__"
+      "#error"
+      "#endif"
+      "int main() {}"
+      # Define _start_main to avoid linking errors with -fPIC.
+      "extern \"C\" void _start_main() {}")
   set(TEST_FOR_HEXAGON_DIR
-    "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
   set(TEST_FOR_HEXAGON_FILE "${TEST_FOR_HEXAGON_DIR}/test_for_hexagon.cc")
   string(REPLACE ";" "\n" TEST_FOR_HEXAGON_CXX_TEXT "${TEST_FOR_HEXAGON_CXX}")
   file(WRITE "${TEST_FOR_HEXAGON_FILE}" "${TEST_FOR_HEXAGON_CXX_TEXT}")
   try_compile(BUILD_FOR_HEXAGON "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
-    "${TEST_FOR_HEXAGON_FILE}")
+              "${TEST_FOR_HEXAGON_FILE}")
   file(REMOVE "${TEST_FOR_HEXAGON_FILE}")
-
   if(BUILD_FOR_HEXAGON)
     message(STATUS "Building for Hexagon")
   endif()
 
   # Detect if we're compiling for Android.
   set(TEST_FOR_ANDROID_CXX
-    "#ifndef __ANDROID__"
-    "#error"
-    "#endif"
-    "int main() {}")
+      "#ifndef __ANDROID__"
+      "#error"
+      "#endif"
+      "int main() {}")
   set(TEST_FOR_ANDROID_DIR
-    "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
   set(TEST_FOR_ANDROID_FILE "${TEST_FOR_ANDROID_DIR}/test_for_android.cc")
   string(REPLACE ";" "\n" TEST_FOR_ANDROID_CXX_TEXT "${TEST_FOR_ANDROID_CXX}")
   file(WRITE "${TEST_FOR_ANDROID_FILE}" "${TEST_FOR_ANDROID_CXX_TEXT}")
   try_compile(BUILD_FOR_ANDROID "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
-    "${TEST_FOR_ANDROID_FILE}")
+              "${TEST_FOR_ANDROID_FILE}")
   file(REMOVE "${TEST_FOR_ANDROID_FILE}")
-
   if(BUILD_FOR_ANDROID)
     message(STATUS "Building for Android")
   endif()
@@ -281,52 +265,52 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
 tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
-  src/auto_scheduler/*.cc
-  src/meta_schedule/*.cc
-  src/node/*.cc
-  src/ir/*.cc
-  src/arith/*.cc
-  src/te/*.cc
-  src/autotvm/*.cc
-  src/tir/*.cc
-  src/topi/*.cc
-  src/driver/*.cc
-  src/parser/*.cc
-  src/printer/*.cc
-  src/support/*.cc
-  src/relax/ir/*.cc
-  src/relax/op/*.cc
-  src/relax/analysis/*.cc
-  src/relax/transform/*.cc
-  src/relax/backend/vm/*.cc
-  src/relax/backend/task_extraction.cc
-  src/relax/utils.cc
-)
+    src/auto_scheduler/*.cc
+    src/meta_schedule/*.cc
+    src/node/*.cc
+    src/ir/*.cc
+    src/arith/*.cc
+    src/te/*.cc
+    src/autotvm/*.cc
+    src/tir/*.cc
+    src/topi/*.cc
+    src/driver/*.cc
+    src/parser/*.cc
+    src/printer/*.cc
+    src/support/*.cc
+    src/relax/ir/*.cc
+    src/relax/op/*.cc
+    src/relax/analysis/*.cc
+    src/relax/transform/*.cc
+    src/relax/backend/vm/*.cc
+    src/relax/backend/task_extraction.cc
+    src/relax/utils.cc
+    )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
-)
+    )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
 tvm_file_glob(GLOB_RECURSE RELAY_OP_SRCS
-  src/relay/op/*.cc
-)
+    src/relay/op/*.cc
+    )
 tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
-  src/relay/analysis/*.cc
-  src/relay/transforms/*.cc
-  src/relay/quantize/*.cc
-)
+    src/relay/analysis/*.cc
+    src/relay/transforms/*.cc
+    src/relay/quantize/*.cc
+    )
 tvm_file_glob(GLOB RELAY_BACKEND_SRCS
-  src/relay/backend/*.cc
-  src/relay/backend/vm/*.cc
-)
+    src/relay/backend/*.cc
+    src/relay/backend/vm/*.cc
+    )
 tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
-  src/relay/ir/*.cc
-)
+    src/relay/ir/*.cc
+    )
 tvm_file_glob(GLOB_RECURSE RELAY_QNN_SRCS
-  src/relay/qnn/*.cc
+    src/relay/qnn/*.cc
 )
 
 list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
@@ -361,7 +345,7 @@ if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
 endif()
 
-if(INDEX_DEFAULT_I64)
+if (INDEX_DEFAULT_I64)
   add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
 endif()
 
@@ -374,7 +358,6 @@ endif(USE_RPC)
 tvm_file_glob(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
 tvm_file_glob(GLOB STACKVM_CODEGEN_SRCS src/target/stackvm/*.cc)
 list(APPEND COMPILER_SRCS ${STACKVM_CODEGEN_SRCS})
-
 if(USE_STACKVM_RUNTIME)
   message(STATUS "Build with stackvm support in runtime...")
   list(APPEND RUNTIME_SRCS ${STACKVM_RUNTIME_SRCS})
@@ -400,6 +383,7 @@ if(USE_GRAPH_EXECUTOR)
   message(STATUS "Build with Graph Executor support...")
   tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_SRCS})
+
 endif(USE_GRAPH_EXECUTOR)
 
 # convert old options for profiler
@@ -408,7 +392,6 @@ if(USE_GRAPH_EXECUTOR_DEBUG)
   unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
   set(USE_PROFILER ON)
 endif()
-
 if(USE_VM_PROFILER)
   message(WARNING "USE_VM_PROFILER renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_VM_PROFILER CACHE)
@@ -432,6 +415,7 @@ if(USE_AOT_EXECUTOR)
   message(STATUS "Build with AOT Executor support...")
   file(GLOB RUNTIME_AOT_EXECUTOR_SRCS src/runtime/aot_executor/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_AOT_EXECUTOR_SRCS})
+
 endif(USE_AOT_EXECUTOR)
 
 # Enable ctest if gtest is available
@@ -440,7 +424,6 @@ if(USE_GTEST)
   # locations is to use CMAKE_PREFIX_PATH or other standard cmake mechanism
   # (see cmake documentation for `find_package`).
   set(GTEST_ROOT "$ENV{GTEST_LIB}")
-
   if("${USE_GTEST}" STREQUAL "AUTO")
     # If USE_GTEST is AUTO, treat GTest as optional: enable if found.
     find_package(GTest)
@@ -448,7 +431,6 @@ if(USE_GTEST)
     # USE_GTEST is set to ON, TRUE, etc. Treat GTest as a required package.
     find_package(GTest REQUIRED)
   endif()
-
   if(GTEST_FOUND)
     if(NOT TARGET GTest::gmock)
       # GMock is formally supported in CMake 3.20; for now, expect libgmock.a in the same directory,
@@ -456,20 +438,17 @@ if(USE_GTEST)
       # (for the includes dir).
       add_library(GTest::gmock STATIC IMPORTED GLOBAL)
       get_target_property(GTEST_LIB_PATH GTest::GTest IMPORTED_LOCATION)
-
       if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
         # CMake >= 3.20 makes GTest::GTest into a compatibility target. The real import location is in
         # GTest::gtest.
         get_target_property(GTEST_LIB_PATH GTest::gtest IMPORTED_LOCATION)
-
         if("${GTEST_LIB_PATH}" STREQUAL "GTEST_LIB_PATH-NOTFOUND")
           message(FATAL_ERROR "Neither GTest::GTest nor GTest::gtest targets defined IMPORTED_LOCATION")
         endif()
       endif()
-
       get_filename_component(GTEST_LIB_DIR "${GTEST_LIB_PATH}" DIRECTORY)
       set_target_properties(GTest::gmock PROPERTIES
-        IMPORTED_LOCATION "${GTEST_LIB_DIR}/libgmock.a")
+          IMPORTED_LOCATION "${GTEST_LIB_DIR}/libgmock.a")
     endif()
 
     enable_testing()
@@ -527,7 +506,6 @@ include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
 
 include(CheckCXXCompilerFlag)
-
 if(NOT MSVC)
   check_cxx_compiler_flag("-std=c++14" SUPPORT_CXX14)
   set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
@@ -550,7 +528,6 @@ add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_o
 target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
-
 if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set(NOTICE_MULTILINE
@@ -563,7 +540,6 @@ else()
   add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
-
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
@@ -668,15 +644,13 @@ target_include_directorieS(
   PRIVATE "${CRC16_INCLUDE_PATH}")
 
 set(TVM_TEST_LIBRARY_NAME tvm)
-
-if(HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
   target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
 
   set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
-
   # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
@@ -691,19 +665,16 @@ endif()
 if(GTEST_FOUND)
   tvm_file_glob(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
-
   # include runtime files for unit testing
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-
   if(USE_RELAY_DEBUG)
     target_compile_definitions(cpptest PRIVATE "USE_RELAY_DEBUG")
     target_compile_definitions(cpptest PRIVATE "TVM_LOG_DEBUG")
   else()
     target_compile_definitions(cpptest PRIVATE "NDEBUG")
   endif()
-
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
   target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
@@ -715,16 +686,14 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
-
 if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
 
-if(INSTALL_DEV)
+if (INSTALL_DEV)
   install(
     DIRECTORY "include/" DESTINATION "include"
     FILES_MATCHING
@@ -734,18 +703,18 @@ if(INSTALL_DEV)
     DIRECTORY "3rdparty/dlpack/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
   install(
     DIRECTORY "3rdparty/dmlc-core/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
 else(INSTALL_DEV)
   install(
     DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
-  )
+    )
 endif(INSTALL_DEV)
 
 include(GNUInstallDirs)
@@ -754,7 +723,7 @@ set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
 string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
 string(APPEND PROJECT_CONFIG_CONTENT "find_dependency(Threads REQUIRED)\n")
 string(APPEND PROJECT_CONFIG_CONTENT
-  "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
+       "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_CONFIG_CONTENT})
 
 install(EXPORT ${PROJECT_NAME}Targets
@@ -779,7 +748,6 @@ if(MSVC)
 endif()
 
 set(TVM_IS_DEBUG_BUILD OFF)
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_CXX_FLAGS MATCHES "-g")
   set(TVM_IS_DEBUG_BUILD ON)
 endif()
@@ -789,7 +757,6 @@ if(TVM_IS_DEBUG_BUILD)
   set(FILE_PREFIX_MAP_FLAG "-ffile-prefix-map=..=${CMAKE_CURRENT_SOURCE_DIR}")
   target_compile_options(tvm PRIVATE "${FILE_PREFIX_MAP_FLAG}")
   CHECK_CXX_COMPILER_FLAG("${FILE_PREFIX_MAP_FLAG}" FILE_PREFIX_MAP_SUPPORTED)
-
   if(FILE_PREFIX_MAP_SUPPORTED)
     target_compile_options(tvm PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
     target_compile_options(tvm_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FILE_PREFIX_MAP_FLAG}>)
@@ -804,18 +771,17 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
   find_program(DSYMUTIL dsymutil)
   mark_as_advanced(DSYMUTIL)
   add_custom_command(TARGET tvm
-    POST_BUILD
-    COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:tvm>
-    COMMENT "Running dsymutil"
-    VERBATIM
-  )
+      POST_BUILD
+      COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:tvm>
+      COMMENT "Running dsymutil"
+      VERBATIM
+		  )
 endif()
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
-    "-Wl,--wrap=pthread_create")
-
+                        "-Wl,--wrap=pthread_create")
   # Link tvm_runtime into the RPC skel library. Make sure it's built
   # as a part of the "runtime" target.
   if(USE_HEXAGON_RPC)
