@@ -15,21 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Tuning Pass API default functions"""
-from typing import Dict, List, Optional
-import copy
-import sys
-import itertools
-import numpy as np
+from typing import List, Optional
 import logging
 
 from tvm.runtime import Object
 from tvm.ir.module import IRModule
-from tvm.meta_schedule.arg_info import ArgInfo
 from tvm.meta_schedule.utils import _json_de_tvm
 from tvm.meta_schedule.database import Workload
 from tvm.tir.schedule.trace import JSON_TYPE
 from tvm.target import Target
-from .primitives import Choice, Knob, Trace
+from .primitives import Trace
 from tvm._ffi import register_object
 from . import _ffi_api
 
@@ -44,14 +39,11 @@ class TuningRecord(Object):
     ----------
     trace : tvm.relax.transform.tuning_api.Trace
         The trace of the tuning record.
-    target : Optional[Target]
-        The target of the tuning record.
     run_secs : Optional[List[float]]
-        The run time of the tuning record.
+        The run-time of the tuning record.
     """
 
     trace: Trace
-    target: Optional[Target]
     run_secs: Optional[List[float]]
 
     def __init__(  # type: ignore # pylint: disable=too-many-arguments
@@ -106,6 +98,7 @@ class Database(Object):
         ----------
         mod : IRModule
             The IRModule to be searched for.
+
         Returns
         -------
         result : bool
@@ -121,6 +114,7 @@ class Database(Object):
             The workload to be searched for.
         target: Target
             The target to be searched for.
+
         Returns
         -------
         result : bool
@@ -136,6 +130,7 @@ class Database(Object):
             The workload to be searched for.
         target: Target
             The target to be searched for.
+
         Returns
         -------
         result : bool
@@ -161,19 +156,19 @@ class Database(Object):
     def commit_measurement_record(
         self, workload: Workload, target: Target, run_secs: List[float]
     ) -> None:
-        """Commit a measurement to the database.
+        """Commit a measurement record to the database. A pair of workload and target will be used as a key.
 
         Parameters
         ----------
         run_secs : Optional[List[float]]
-            The measurement to add.
+            The measurement record to add.
         """
         _ffi_api.DatabaseCommitMeasurementRecord(self, workload, target, run_secs)  # type: ignore # pylint: disable=no-member
 
     def commit_tuning_record(
         self, workload: Workload, target: Target, record: TuningRecord
     ) -> None:
-        """Commit a tuning record to the database.
+        """Commit a tuning record to the database. A pair of workload and target will be used as a key.
 
         Parameters
         ----------
@@ -183,27 +178,31 @@ class Database(Object):
         _ffi_api.DatabaseCommitTuningRecord(self, workload, target, record)  # type: ignore # pylint: disable=no-member
 
     def get_measurement_record(self, workload: Workload, target: Target) -> Optional[List[float]]:
-        """Get the top K tuning records of given workload from the database.
+        """Get the measurement record of given workload and target from the database.
 
         Parameters
         ----------
         workload : Workload
             The workload to be searched for.
+        target: Target
+            The target to be searched for.
 
         Returns
         -------
-        top_k_records : List[TuningRecord]
-            The top K records.
+        measurement_record : Optional[List[float]]
+            Measurement record if exists.
         """
         return _ffi_api.DatabaseGetMeasurementRecord(self, workload, target)  # type: ignore # pylint: disable=no-member
 
     def get_top_k(self, workload: Workload, target: Target, top_k: int) -> List[TuningRecord]:
-        """Get the top K tuning records of given workload from the database.
+        """Get the top K tuning records of given workload and target from the database.
 
         Parameters
         ----------
         workload : Workload
             The workload to be searched for.
+        target: Target
+            The target to be searched for.
         top_k : int
             The number of top records to get.
 

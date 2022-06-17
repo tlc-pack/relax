@@ -15,13 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
+from __future__ import annotations
 import pytest
 import tempfile
-import numpy as np
-from typing import List
-
-
 import tvm
 from tvm import ir, tir
 from tvm.ir import transform
@@ -30,7 +26,6 @@ from tvm.ir.module import IRModule
 from tvm.tir import PrimFunc
 from tvm.script import tir as T, relax as R
 from tvm import relax
-from tvm.relax.expr import Expr, DataflowBlock, Function
 import tvm.meta_schedule as ms
 from tvm.relax.transform.tuning_api import (
     Choice,
@@ -39,7 +34,7 @@ from tvm.relax.transform.tuning_api import (
     default_generate_candidate,
 )
 
-
+# TODO(@sunggg): Next PR will migrate this to C++ and integrate with ApplyHistoryBest.
 @tvm.register_func("testing.meta_schedule_tuning_module")
 def meta_schedule_tuning_module(mod, target_str):
     target = ms.default_config.target(target_str)
@@ -173,5 +168,4 @@ def test_metaschedule_tuning():
 
 
 if __name__ == "__main__":
-    test_metaschedule_tuning()
-    # pytest.main([__file__])
+    pytest.main([__file__])

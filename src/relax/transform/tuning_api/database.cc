@@ -120,6 +120,7 @@ class JSONDatabaseNode : public DatabaseNode {
     v->Visit("path_measurement_record", &path_measurement_record);
     // `workloads2idx_` is not visited
     // `tuning_records_` is not visited
+    // `measurement_records_` is not visited
   }
 
   static constexpr const char* _type_key = "relax.tuning_api.JSONDatabase";

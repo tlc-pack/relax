@@ -39,9 +39,12 @@ class Choice(Object):
     ----------
     f_transform_key : Optional[str]
         Key for transformation function.
-
+    f_transform_args : Optional[List]
+        Arguments for transformation function.
     f_constr_key : Optional[str]
-        Key for Constraint function.
+        Key for constraint function.
+    f_constr_args : Optional[List]
+        Arguments for constraint function.
 
     Examples
     --------
@@ -55,7 +58,7 @@ class Choice(Object):
         def constr(mod):
             return len(mod.functions) == 3
         # Define a choice to apply constant folding only when IRModule has three functions.
-        choice = Choice("relax.tuning_api.test.f_transform", "relax.tuning_api.test.f_constr")
+        choice = Choice(f_transform_key = "relax.tuning_api.test.f_transform", f_constr_key = "relax.tuning_api.test.f_constr")
     """
 
     def __init__(
@@ -72,9 +75,13 @@ class Choice(Object):
             Key for transformation function.
 
         f_tramsform_args: Optional[List]
+            Arguments for transformation function.
 
         f_constr_key : Optional[str]
             Key for constraint function.
+
+        f_constr_args: Optional[List]
+            Arguments for constraint function.
         """
 
         if f_transform_key is None:
@@ -116,7 +123,7 @@ class Choice(Object):
         return _ffi_api.ChoiceGetConstrFunc(self)
 
     def apply_transform_func(self, mod: IRModule) -> IRModule:
-        """Perform f_transform with its args
+        """Perform f_transform with its arguments
         Returns
         -------
         ret: Callable
@@ -125,7 +132,7 @@ class Choice(Object):
         return _ffi_api.ChoiceApplyTransformFunc(self, mod)
 
     def check_constr(self, mod: IRModule) -> bool:
-        """Perform f_constr with its args
+        """Perform f_constr with its arguments
         Returns
         -------
         ret: bool

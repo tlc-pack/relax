@@ -16,7 +16,6 @@
 # under the License.
 
 from __future__ import annotations
-from hashlib import new  # must import to defer parsing of annotations
 import pytest
 import numpy as np
 import os.path as osp
@@ -105,24 +104,6 @@ def setup_test_const_folding():
     expected = gen_mod(mod, "expected", {"c1": c1_np})
 
     return before, expected
-
-
-# Mock evaluation pass for testing.
-# Assigns arbitrary performance number to each candidate.
-def mock_evaluate(candidates: List[Trace], target_str: str, ctx: PassContext):
-    num_evals = 0
-    # Evaluation
-    for candidate in candidates:
-        # If this candidate is already evaluated, skip the measurement.
-        if candidate.perf != -1:
-            continue
-
-        num_evals += 1
-        # Assign arbitrary performance.
-        mock_perf = 100 - (ctx.num_evals + num_evals)
-        candidate.set_perf(mock_perf)
-    # Update number of evals for testing.
-    ctx.inc_num_evals(num_evals)
 
 
 # Define a choice by using FoldConstant pass.
@@ -401,42 +382,6 @@ def test_database():
         assert len(new_tuning_records) == 0
 
 
-# Mock tuning pass that determines whether to apply relax.transform.FoldConstant().
-# Each pass invocation will generate two candidates for the incoming IRModule.
-# In relax pass infra, each pass will define its own way of generating candidates and evaluating them without needing to know how other passes generate its candidate and evaluate them.
-# This will significantly alleviate the development process since it is known to be HARD problem to consider the interaction with (potentially hundreds of) other passes.
-@ir.transform.module_pass(opt_level=0, traceable=True)
-class MockConstFoldingTuningPass(transform.Pass):
-    def __init__(
-        self,
-        f_generate_candidate=None,
-        f_evaluate=mock_evaluate,
-        eval_passes: List[transform.Pass] = None,
-        required: List[transform.Pass] = [],
-    ):
-        self.f_generate_candidate = (
-            f_generate_candidate if f_generate_candidate else default_generate_candidate
-        )
-        self.f_evaluate = f_evaluate if f_evaluate else default_evaluate
-        self.eval_passes = eval_passes
-        self.required = required
-
-    def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.pop_trace()
-
-        # Create mock choices for testing.
-        choices = {"apply": Choice("testing.apply_fold_constant"), "noapply": Choice()}
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockTuningKnob", choices)
-
-        candidates = self.f_generate_candidate([knob], trace, self.eval_passes)
-        self.f_evaluate(candidates, "llvm", ctx)
-        best_trace = select_best_candidate(candidates)
-
-        ctx.push_trace(best_trace)
-        return best_trace.out_mod
-
-
 def test_default_functions():
     mod = setup_test()
     assert isinstance(mod, tvm.IRModule)
@@ -448,7 +393,7 @@ def test_default_functions():
 
     # Launch a pass pipeline in trace mode.
     with tempfile.TemporaryDirectory() as tmpdir:
-        database = create_tmp_database("tmp")
+        database = create_tmp_database(tmpdir)
         with transform.PassContext(trace=trace, tuning_api_database=database):
             # Default generation function expands every valid choice.
             candidates = default_generate_candidate([knob], trace)
@@ -536,6 +481,60 @@ def test_pass_context():
         assert PassContext.current().get_trace_stack_size() == 1
         PassContext.current().pop_trace()
         assert PassContext.current().get_trace_stack_size() == 0
+
+
+# Mock evaluation pass for testing.
+# Assigns arbitrary performance number to each candidate.
+def mock_evaluate(candidates: List[Trace], target_str: str, ctx: PassContext):
+    num_evals = 0
+    # Evaluation
+    for candidate in candidates:
+        # If this candidate is already evaluated, skip the measurement.
+        if candidate.perf != -1:
+            continue
+
+        num_evals += 1
+        # Assign arbitrary performance.
+        mock_perf = 100 - (ctx.num_evals + num_evals)
+        candidate.set_perf(mock_perf)
+    # Update number of evals for testing.
+    ctx.inc_num_evals(num_evals)
+
+
+# Mock tuning pass that determines whether to apply relax.transform.FoldConstant().
+# Each pass invocation will generate two candidates for the incoming IRModule.
+# In relax pass infra, each pass will define its own way of generating candidates and evaluating them without needing to know how other passes generate its candidate and evaluate them.
+# This will significantly alleviate the development process since it is known to be HARD problem to consider the interaction with (potentially hundreds of) other passes.
+@ir.transform.module_pass(opt_level=0, traceable=True)
+class MockConstFoldingTuningPass(transform.Pass):
+    def __init__(
+        self,
+        f_generate_candidate=None,
+        f_evaluate=mock_evaluate,
+        eval_passes: List[transform.Pass] = None,
+        required: List[transform.Pass] = [],
+    ):
+        self.f_generate_candidate = (
+            f_generate_candidate if f_generate_candidate else default_generate_candidate
+        )
+        self.f_evaluate = f_evaluate if f_evaluate else default_evaluate
+        self.eval_passes = eval_passes
+        self.required = required
+
+    def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
+        trace = ctx.pop_trace()
+
+        # Create mock choices for testing.
+        choices = {"apply": Choice("testing.apply_fold_constant"), "noapply": Choice()}
+        # Tuning pass manages a set of transformation functions registered via knob.
+        knob = Knob("MockTuningKnob", choices)
+
+        candidates = self.f_generate_candidate([knob], trace, self.eval_passes)
+        self.f_evaluate(candidates, "llvm", ctx)
+        best_trace = select_best_candidate(candidates)
+
+        ctx.push_trace(best_trace)
+        return best_trace.out_mod
 
 
 def test_module_pass():
@@ -780,10 +779,4 @@ def test_passes_with_mixed_granularities():
 
 
 if __name__ == "__main__":
-    # test_choice()
-    # test_knob()
-    # test_trace()
-    # test_database()
-    test_default_functions()
-    # test_pass_context()
-    # pytest.main([__file__])
+    pytest.main([__file__])

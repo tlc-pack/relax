@@ -180,7 +180,6 @@ class TraceNode : public runtime::Object {
   /*! \brief Decisions made for the knobs. */
   Array<String> decisions;
   /*! \brief Performance of out_mod. */
-  // TODO(sunggg): Match with MetaSchedule
   mutable double perf = -1;
   /*! \brief Length of the decision history. */
   mutable int size = 0;
@@ -220,13 +219,14 @@ class TraceNode : public runtime::Object {
 
   /*!
    * \brief Serialize Trace as a JSON-style object
+   * \param include_irmod Boolean config to include IRModules in the output.
    * \return The JSON-style object
    */
   ObjectRef AsJSON(bool include_irmod = true) const;
 
   /*! \brief Set the performance. */
   void SetPerf(double _perf) { perf = _perf; }
-
+  /*! \brief Set output module. */
   void SetOutMod(IRModule mod_) { out_mod = mod_; }
 
   static constexpr const char* _type_key = "relax.tuning_api.Trace";
@@ -255,7 +255,7 @@ class TuningRecordNode : public runtime::Object {
  public:
   /*! \brief The trace tuned. */
   Trace trace;
-  /*! \brief The profiling result in seconds. */
+  /*! \brief The measurement record in seconds. */
   Optional<Array<FloatImm>> run_secs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -268,8 +268,8 @@ class TuningRecordNode : public runtime::Object {
 
   /*!
    * \brief Export the tuning record to a JSON string.
-   * \return An array containing the trace, running secs, serialized target, and
-   * argument information.
+   * \param include_irmod Boolean config to include IRModules in the output.
+   * \return JSON object
    */
   ObjectRef AsJSON(bool include_irmod = false) const;
 };
@@ -329,27 +329,34 @@ class DatabaseNode : public runtime::Object {
    */
   virtual meta_schedule::Workload CommitWorkload(const IRModule& mod) = 0;
   /*!
-   * \brief Add a measurement to the database.
+   * \brief Add a measurement record for a given pair of target and workload to the database.
+   * \param workload Workload to be searched for.
+   * \param target Target to be searched for.
+   * \param record Measurement record to be added.
    */
   virtual void CommitMeasurementRecord(const meta_schedule::Workload& workload,
                                        const Target& target, const Array<FloatImm>& record) = 0;
   /*!
-   * \brief Add a tuning record to the database.
-   * \param record The tuning record to be added.
+   * \brief Add a tuning record for a given pair of target and workload to the database.
+   * \param workload Workload to be searched for.
+   * \param target Target to be searched for.
+   * \param record Tuning record to be added.
    */
   virtual void CommitTuningRecord(const meta_schedule::Workload& workload, const Target& target,
                                   const TuningRecord& record) = 0;
   /*!
-   * \brief Get the top K tuning records of given workload from the database.
+   * \brief Get the top K tuning records of given workload and target from the database.
    * \param workload The workload to be searched for.
+   * \param target Target to be searched for.
    * \param top_k The number of top records to be returned.
    * \return An array of top K tuning records for the given workload.
    */
   virtual Array<TuningRecord> GetTopK(const meta_schedule::Workload& workload, const Target& target,
                                       int top_k) = 0;
   /*!
-   * \brief Get the top K tuning records of given workload from the database.
+   * \brief Get the measurement record of given workload and target from the database.
    * \param workload The workload to be searched for.
+   * \param target Target to be searched for.
    * \return Measurement.
    */
   virtual Array<FloatImm> GetMeasurementRecord(const meta_schedule::Workload& workload,
