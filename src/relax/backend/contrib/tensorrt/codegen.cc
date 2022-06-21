@@ -361,9 +361,8 @@ Array<Integer> GetTensorRTVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
-TVM_REGISTER_GLOBAL("relax.op.is_tensorrt_runtime_enabled")
-    .set_body_typed(IsTensorRTRuntimeEnabled);
-TVM_REGISTER_GLOBAL("relax.op.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
+TVM_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled").set_body_typed(IsTensorRTRuntimeEnabled);
+TVM_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
 
 }  // namespace contrib
 }  // namespace relax
