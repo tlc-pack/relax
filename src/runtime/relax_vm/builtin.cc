@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/backend/vm/builtin.cc
+ * \file src/runtime/relax_vm/builtin.cc
  */
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/data_type.h>
@@ -121,9 +121,6 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage")
       }
 
       int64_t size_imm = buffer_size[0];
-      DLOG(INFO) << "AllocStorage: allocation_size=" << size_imm << ", alignment=" << alignment
-                 << ", dtype_hint=" << runtime::DLDataType2String(dtype_hint)
-                 << ", device_index=" << device_index;
 
       auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
       auto* alloc = vm->allocators[device_index];
@@ -144,12 +141,8 @@ TVM_REGISTER_GLOBAL("vm.binary_broadcast_shape_infer")
       for (; i <= std::min(ndim0, ndim1); ++i) {
         int64_t lhs_dim = lhs_shape[ndim0 - i];
         int64_t rhs_dim = rhs_shape[ndim1 - i];
-        if (lhs_dim == 1 || rhs_dim == 1 || lhs_dim == rhs_dim) {
-          output_shape.push_back(std::max(lhs_dim, rhs_dim));
-        } else {
-          LOG(FATAL) << "Incompatible shapes " << lhs_shape << " and " << rhs_shape
-                     << " for broadcasting";
-        }
+        ICHECK(lhs_dim == rhs_dim || lhs_dim == 1 || rhs_dim == 1);
+        output_shape.push_back(std::max(lhs_dim, rhs_dim));
       }
       size_t max_ndim = std::max(ndim0, ndim1);
       ShapeTuple& longer_shape = (ndim0 > ndim1) ? lhs_shape : rhs_shape;
