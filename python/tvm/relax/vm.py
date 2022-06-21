@@ -201,7 +201,7 @@ class VirtualMachine(object):
         """Set the inputs to a function.
         This interface works when using VM over RPC by internally converting NDArray in
         the arguments to DLTensor, which is supported in RPC where remote could only
-        has a minimal C runtime.
+        have a minimal C runtime.
 
         Parameters
         ----------

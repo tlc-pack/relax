@@ -174,7 +174,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * correct device for the function, they will be copied to the device.
    * \param offset Starting offset of the arguments in \p args.
    * \note This interface works when using VM over RPC by internally converting NDArray in
-   * the arguments to DLTensor, which is supported in RPC where remote could only has a minimal C
+   * the arguments to DLTensor, which is supported in RPC where remote could only have a minimal C
    * runtime.
    */
   void SetInput(std::string func_name, TVMArgs args, int offset);
