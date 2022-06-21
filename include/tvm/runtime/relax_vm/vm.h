@@ -167,6 +167,29 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
+  /*!
+   * \brief Set inputs to a function.
+   * \param func_name The function name.
+   * \param args args[offset:] are arguments to the function. If the arguments are not of the
+   * correct device for the function, they will be copied to the device.
+   * \param offset Starting offset of the arguments in \p args.
+   * \note This interface works when using VM over RPC by internally converting NDArray in
+   * the arguments to DLTensor, which is supported in RPC where remote could only has a minimal C
+   * runtime.
+   */
+  void SetInput(std::string func_name, TVMArgs args, int offset);
+
+  /*!
+   * \brief Set a function argument with a given index to an input tensor.
+   * \param func_args the function arguments.
+   * \param inp_tensor some input tensor (not necessarily DLTensor). When it's an NDArray or a list
+   * of NDArray, they will be converted.
+   * \param index The input tensor index in the function arguments.
+   * \param dev device to copy to if needed.
+   */
+  void SetInputTensorWithIndex(std::vector<RegType>& func_args, const TVMArgValue& inp_tensor,
+                               int index, Device dev);
+
  private:
   /*! \brief The loaded executable. */
   ObjectPtr<Executable> exec_;
@@ -189,6 +212,8 @@ class VirtualMachine : public runtime::ModuleNode {
   RegType return_value_;
   /*! \brief The global constant pool */
   std::vector<TVMRetValue> constants;
+  /*! \brief The function name to input register mapping. */
+  std::unordered_map<std::string, std::vector<RegType>> inputs_;
 };
 
 }  // namespace relax_vm
