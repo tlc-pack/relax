@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relax/ir/dataflow_pattern.cc
+ * \file src/relax/ir/dataflow_pattern.cc
  * \brief The dataflow pattern language for Relax (inherited from Relay).
  */
 
