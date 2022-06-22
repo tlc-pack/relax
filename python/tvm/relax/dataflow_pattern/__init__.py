@@ -126,7 +126,7 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match(self, expr: Expr, func: relax.Function = None) -> bool:
+    def match(self, expr: Expr) -> bool:
         """
         Match this pattern to an expression
 
@@ -134,15 +134,13 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
-        func : tvm.relax.Function
-            The function that includes the expression.
 
         Returns
         -------
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match(self, expr, func)
+        return match(self, expr)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
@@ -711,7 +709,7 @@ def has_attr(attrs, pattern=None) -> "DFPattern":
     return pattern.has_attr(attrs)
 
 
-def match(pattern: "DFPattern", expr: Expr, var2val=None) -> bool:
+def match(pattern: "DFPattern", expr: Expr) -> bool:
     """
     Match a pattern to an expression
 
@@ -722,4 +720,4 @@ def match(pattern: "DFPattern", expr: Expr, var2val=None) -> bool:
     expr : tvm.relax.Expr
         The expression to match.
     """
-    return ffi.match(pattern, expr, var2val)
+    return ffi.match(pattern, expr)

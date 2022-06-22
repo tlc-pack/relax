@@ -22,7 +22,6 @@
  * \brief The dataflow pattern matcher for Relax.
  */
 
-#include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
@@ -44,9 +43,6 @@ bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   matched_nodes_.clear();
   return VisitDFPattern(pattern, expr);
 }
-
-DFPatternMatcher::DFPatternMatcher(const Expr& root_expr, Optional<Function> fn)
-    : var2val_(fn.defined() ? AnalyzeVar2Value(fn.value()) : Map<Var, Expr>()) {}
 
 void DFPatternMatcher::ClearMap(size_t watermark) {
   for (size_t i = watermark; i < matched_nodes_.size(); ++i) {
@@ -244,17 +240,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
         if (pattern_args.defined()) {
           if (pattern_args.size() == expr_args.size()) {
             while (matches && i < pattern_args.size()) {
-              bool cur_match = VisitDFPattern(pattern_args[i], expr_args[i]);
-              // Only perform jump match when:
-              if (!cur_match /* otherwise no bother */ &&
-                  !var2val_.empty() /* so we can jump var -> val */) {
-                if (auto var_node = expr_args[i].as<VarNode>()) {
-                  auto may = var2val_.Get(GetRef<Var>(var_node));
-                  if (may.defined()) cur_match = VisitDFPattern(pattern_args[i], may.value());
-                }
-              }
-              matches &= cur_match;
-
+              matches &= VisitDFPattern(pattern_args[i], expr_args[i]);
               ++i;
             }
           } else {
@@ -448,9 +434,7 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchPattern(DFPattern pattern, Expr expr, Optional<Function> fn) {
-  return DFPatternMatcher(expr, fn).Match(pattern, expr);
-}
+bool MatchPattern(DFPattern pattern, Expr expr) { return DFPatternMatcher().Match(pattern, expr); }
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match").set_body_typed(MatchPattern);
 

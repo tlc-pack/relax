@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/dataflow_matcher_impl.h
+ * \file src/tvm/relax/dataflow_matcher_impl.h
  * \brief The auxiliary data structure for dataflow matcher.
  */
 #ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
@@ -37,12 +37,8 @@ namespace relax {
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
-  using var2val_t = runtime::Map<Var, Expr>;
-
-  explicit DFPatternMatcher(const Expr& root_expr, Optional<Function> fn = NullOpt);
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
-  const var2val_t var2val_;
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;

@@ -35,25 +35,32 @@ namespace relax {
  *
  * \param pattern The pattern to match
  * \param expr The expression to match
- * \param fn The function containing the expression (used for graph-level patterns)
  * \return true if matched
  * \return false if unmatched
  */
-bool MatchPattern(DFPattern pattern, Expr expr, Optional<Function> fn = NullOpt);
+bool MatchPattern(DFPattern pattern, Expr expr);
 
 /**
  * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns
  * the first matched sub-graph. Use `start_hint` to specify the starting point of the matching so
  * that we can distinguish multiple matches.
  *
- * \param fn The function to match.
  * \param gpatterns The graph-wise patterns.
+ * \param fn The function to match.
  * \param start_hint The starting point expression to match to distinguish multiple matches.
  * \return tvm::runtime::Map<DFPattern, VarBinding>
  */
-tvm::runtime::Map<DFPattern, VarBinding> match(const Function& fn,
-                                               std::shared_ptr<GraphPattern> gpatterns,
-                                               Optional<Expr> start_hint = NullOpt);
+tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<GraphPattern> gpatterns,
+                                                           const Function& fn,
+                                                           Optional<Expr> start_hint = NullOpt);
+
+/** \brief Call MatchGraphPattern through pattern's graph constraints */
+inline tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(
+    DFPattern pattern, const Function& fn, Optional<Expr> start_hint = NullOpt) {
+  ICHECK(nullptr != pattern->graph_constraint)
+      << "Graph constraints are required to match graph patterns";
+  return MatchGraphPattern(pattern->graph_constraint, fn, start_hint);
+}
 
 }  // namespace relax
 }  // namespace tvm

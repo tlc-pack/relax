@@ -253,7 +253,4 @@ def test_match_call_attr():
 
 def test_is_call_tir():
     lv1_val = bindings[1].value
-    assert is_call_tir("tir_relu", is_call_tir("tir_matmul")).match(lv1_val, func=main_fn)
-    # if mod is not given, topological relation cannot be infered.
-    # FIXME: maybe throwing an exception is better to avoid silent error?
-    assert not is_call_tir("tir_relu", is_call_tir("tir_matmul")).match(lv1_val)
+    assert is_call_tir("tir_relu").match(lv1_val)
