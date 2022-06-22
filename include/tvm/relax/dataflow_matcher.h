@@ -25,6 +25,7 @@
 #define TVM_RELAX_DATAFLOW_MATCHER_H_
 
 #include <tvm/relax/dataflow_pattern.h>
+#include <tvm/runtime/container/optional.h>
 
 namespace tvm {
 namespace relax {
@@ -39,6 +40,20 @@ namespace relax {
  * \return false if unmatched
  */
 bool MatchPattern(DFPattern pattern, Expr expr, Optional<Function> fn = NullOpt);
+
+/**
+ * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns
+ * the first matched sub-graph. Use `start_hint` to specify the starting point of the matching so
+ * that we can distinguish multiple matches.
+ *
+ * \param fn The function to match.
+ * \param gpatterns The graph-wise patterns.
+ * \param start_hint The starting point expression to match to distinguish multiple matches.
+ * \return tvm::runtime::Map<DFPattern, VarBinding>
+ */
+tvm::runtime::Map<DFPattern, VarBinding> match(const Function& fn,
+                                               std::shared_ptr<GraphPattern> gpatterns,
+                                               Optional<Expr> start_hint = NullOpt);
 
 }  // namespace relax
 }  // namespace tvm

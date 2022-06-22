@@ -24,6 +24,10 @@
 
 #include <tvm/relax/dataflow_pattern.h>
 
+#include <memory>
+
+#include "df_graph_constraint_impl.h"
+
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
       .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
@@ -326,6 +330,53 @@ DFPattern DFPattern::HasRuntimeDepShape() const {
   return GetRef<DFPattern>(this->get()) &
          RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
 }
+
+std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPattern> lhs,
+                                                      std::shared_ptr<GraphPattern> rhs) {
+  std::shared_ptr<GraphPattern> gcons = nullptr;
+  if (nullptr == lhs && nullptr == rhs) {
+    gcons = std::make_shared<GraphPattern>();
+  } else if (nullptr != lhs && nullptr != rhs) {
+    // may need to merge
+    if (lhs == rhs)
+      gcons = lhs;
+    else {
+      // going to merge and update.
+      gcons = lhs;  // default to lhs
+      // merge and change all rhs.
+      for (auto&& kv : rhs->constraints) {
+        kv.first->graph_constraint = gcons;
+        auto&& vec = kv.second;
+        auto& dst_vec = gcons->constraints[kv.first];
+        dst_vec.reserve(dst_vec.size() + vec.size());
+        for (auto&& v : vec) {
+          v.first->graph_constraint = gcons;  // purify.
+          dst_vec.push_back(v);
+        }
+      }
+    }
+  } else {  // one of them has graph constraint so we use that.
+    gcons = lhs ? lhs : rhs;
+  }
+
+  return gcons;
+}
+
+DFPattern DFPattern::UsedBy(const DFPattern& other) const {
+  auto gcons =
+      get_or_merge_graph_cons(this->get()->graph_constraint, other.get()->graph_constraint);
+  gcons->add_constraint(this->get(), other.get(), PairCons::kUsedBy);
+  return *this;
+}
+DFPattern DFPattern::operator>(const DFPattern& other) const { return this->UsedBy(other); }
+DFPattern DFPattern::OnlyUsedBy(const DFPattern& other) const {
+  auto gcons =
+      get_or_merge_graph_cons(this->get()->graph_constraint, other.get()->graph_constraint);
+  gcons->add_constraint(this->get(), other.get(), PairCons::kUsedBy);
+  return *this;
+}
+DFPattern DFPattern::operator>>(const DFPattern& other) const { return this->OnlyUsedBy(other); }
+
 DFPattern IsVar(const String& name) { return VarPattern(name); }
 DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }
 DFPattern IsWildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }

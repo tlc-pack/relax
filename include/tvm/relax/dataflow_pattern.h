@@ -37,9 +37,12 @@
 namespace tvm {
 namespace relax {
 
+struct GraphPattern;
+
 // FIXME: Document those APIs.
 class DFPatternNode : public Object {
  public:
+  mutable std::shared_ptr<GraphPattern> graph_constraint = nullptr;
   static constexpr const char* _type_key = "DFPatternNode";
   TVM_DECLARE_BASE_OBJECT_INFO(DFPatternNode, Object);
 };
@@ -78,6 +81,11 @@ class DFPattern : public ObjectRef {
   DFPattern HasShape(const Array<PrimExpr>& shape) const;
   /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
   DFPattern HasRuntimeDepShape() const;
+
+  DFPattern UsedBy(const DFPattern& other) const;
+  DFPattern operator>(const DFPattern& other) const;
+  DFPattern OnlyUsedBy(const DFPattern& other) const;
+  DFPattern operator>>(const DFPattern& other) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
 };
