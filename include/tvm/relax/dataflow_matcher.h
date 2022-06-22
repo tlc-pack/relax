@@ -38,7 +38,7 @@ namespace relax {
  * \return true if matched
  * \return false if unmatched
  */
-bool MatchPattern(DFPattern pattern, Expr expr);
+bool MatchExprPattern(DFPattern pattern, Expr expr);
 
 /**
  * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns

@@ -18,12 +18,12 @@
 # pylint: disable=no-member
 # pylint: disable=missing-function-docstring
 
+from argparse import ArgumentError
 from typing import List, Optional, Callable, Dict, Union, Tuple
 
 import tvm
-from tvm import relax
 import tvm._ffi as tvm_ffi
-from tvm.relax import Expr
+from tvm.relax import Expr, Function, VarBinding
 from tvm.relay.op import get
 
 from ...ir import make_node
@@ -126,21 +126,32 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match(self, expr: Expr) -> bool:
+    def match(
+        self, expr: Expr = None, func: Function = None
+    ) -> Union[bool, Dict["DFPattern", VarBinding]]:
         """
-        Match this pattern to an expression
+        Match the given expression or function against this pattern.
 
         Parameters
         ----------
-        expr : tvm.relay.Expr
+        expr : tvm.relax.Expr
             The expression to match.
+        func : tvm.relax.Function
+            The function to match.
 
         Returns
         -------
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match(self, expr)
+        if expr is None and func is None:
+            raise ArgumentError("Either expr or func must be specified")
+        elif expr is not None and func is not None:
+            raise ArgumentError("Either expr or func must be specified, but not both")
+
+        if expr is not None:
+            return match_expr(self, expr)
+        return match_func(self, func)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
@@ -709,7 +720,7 @@ def has_attr(attrs, pattern=None) -> "DFPattern":
     return pattern.has_attr(attrs)
 
 
-def match(pattern: "DFPattern", expr: Expr) -> bool:
+def match_expr(pattern: "DFPattern", expr: Expr) -> bool:
     """
     Match a pattern to an expression
 
@@ -720,4 +731,18 @@ def match(pattern: "DFPattern", expr: Expr) -> bool:
     expr : tvm.relax.Expr
         The expression to match.
     """
-    return ffi.match(pattern, expr)
+    return ffi.match_expr(pattern, expr)
+
+
+def match_func(pattern: "DFPattern", expr: Function) -> Dict[DFPattern, VarBinding]:
+    """
+    Match a pattern to a function
+
+    Parameters
+    ----------
+    pattern: tvm.relax.dataflow_pattern.DFPattern
+        The input pattern with graph constraints.
+    expr : tvm.relax.Function
+        The function to match.
+    """
+    return ffi.match_func(pattern, expr)

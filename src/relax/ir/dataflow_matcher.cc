@@ -434,9 +434,11 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchPattern(DFPattern pattern, Expr expr) { return DFPatternMatcher().Match(pattern, expr); }
+bool MatchExprPattern(DFPattern pattern, Expr expr) {
+  return DFPatternMatcher().Match(pattern, expr);
+}
 
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match").set_body_typed(MatchPattern);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExprPattern);
 
 }  // namespace relax
 }  // namespace tvm
