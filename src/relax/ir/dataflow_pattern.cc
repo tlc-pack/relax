@@ -362,17 +362,17 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
   return gcons;
 }
 
-DFPattern DFPattern::UsedBy(const DFPattern& other) const {
+DFPattern DFPattern::UsedBy(const DFPattern& other, int index) const {
   auto gcons =
       get_or_merge_graph_cons(this->get()->graph_constraint, other.get()->graph_constraint);
-  gcons->add_constraint(this->get(), other.get(), PairCons::kUsedBy);
+  gcons->add_constraint(this->get(), other.get(), PairCons{PairCons::kUsedBy, index});
   return *this;
 }
 DFPattern DFPattern::operator>(const DFPattern& other) const { return this->UsedBy(other); }
-DFPattern DFPattern::OnlyUsedBy(const DFPattern& other) const {
+DFPattern DFPattern::OnlyUsedBy(const DFPattern& other, int index) const {
   auto gcons =
       get_or_merge_graph_cons(this->get()->graph_constraint, other.get()->graph_constraint);
-  gcons->add_constraint(this->get(), other.get(), PairCons::kUsedBy);
+  gcons->add_constraint(this->get(), other.get(), PairCons{PairCons::kOnlyUsedBy, index});
   return *this;
 }
 DFPattern DFPattern::operator>>(const DFPattern& other) const { return this->OnlyUsedBy(other); }

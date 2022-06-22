@@ -38,6 +38,7 @@ struct PairCons {
     kOnlyUsedBy,
   } type = kUsedBy;
   int index = -1; /* means whatever */
+  inline explicit PairCons(Type t, int index = -1) : type(t), index(index) {}
 };
 
 struct GraphPattern final {
@@ -52,7 +53,8 @@ struct GraphPattern final {
   // special constraints.
   enum ExternUse { kMay, kMust, kMustNot } allow_extern_use = kMay;
   // src node -> <dst node, constraint type> constraints.
-  std::map<const DFPatternNode*, std::vector<std::pair<DFPatternNode*, PairCons>>> constraints;
+  std::map<const DFPatternNode*, std::vector<std::pair<const DFPatternNode*, PairCons>>>
+      constraints;
 };
 }  // namespace relax
 }  // namespace tvm

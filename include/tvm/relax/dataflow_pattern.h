@@ -81,10 +81,13 @@ class DFPattern : public ObjectRef {
   DFPattern HasShape(const Array<PrimExpr>& shape) const;
   /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
   DFPattern HasRuntimeDepShape() const;
-
-  DFPattern UsedBy(const DFPattern& other) const;
+  /*! \brief Return the same pattern but add used-by constraint to each other. */
+  DFPattern UsedBy(const DFPattern& other, int index = -1) const;
+  /*! \brief Return the same pattern but add used-by constraint to each other. */
   DFPattern operator>(const DFPattern& other) const;
-  DFPattern OnlyUsedBy(const DFPattern& other) const;
+  /*! \brief Return the same pattern but add only-used-by constraint to each other. */
+  DFPattern OnlyUsedBy(const DFPattern& other, int index = -1) const;
+  /*! \brief Return the same pattern but add only-used-by constraint to each other. */
   DFPattern operator>>(const DFPattern& other) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
