@@ -290,6 +290,7 @@ void SerializeVMFunc(const VMFunction& func, dmlc::Stream* strm) {
   strm->Write(func.start_instr);
   strm->Write(func.num_args);
   strm->Write(func.register_file_size);
+  strm->Write(func.param_names);
 }
 
 VMFunction DeserializeVMFunc(dmlc::Stream* strm) {
@@ -298,6 +299,7 @@ VMFunction DeserializeVMFunc(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&func.start_instr), "vmfunc start_instr");
   STREAM_CHECK(strm->Read(&func.num_args), "vmfunc num_args");
   STREAM_CHECK(strm->Read(&func.register_file_size), "vmfunc register_file_size");
+  STREAM_CHECK(strm->Read(&func.param_names), "vmfunc params");
   return func;
 }
 
