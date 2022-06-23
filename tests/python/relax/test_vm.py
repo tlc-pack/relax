@@ -954,5 +954,34 @@ def test_vm_invoke_closure():
     )
 
 
+def test_set_input():
+    @tvm.script.ir_module
+    class TestVMSetInput:
+        @R.function
+        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+            gv0 = relax.call_packed(
+                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
+            )
+            return gv0
+
+    target = tvm.target.Target("llvm", host="llvm")
+    exec = relax.vm.build(TestVMSetInput, target)
+    exec.save_to_file("exec.tmp")
+    exec_loaded = relax.load_exec_from_file("exec.tmp")
+    print(exec_loaded.as_python())
+    vm = relax.VirtualMachine(exec_loaded, tvm.cpu())
+
+    a = tvm.nd.array(np.random.rand(32, 32))
+    b = tvm.nd.array(np.random.rand(32, 32))
+    vm.set_input("main", a, b)
+    res0 = vm["main"]()
+
+    data_dict = {"x": a, "w": b}
+    vm.set_input("main", **data_dict)
+    res1 = vm["main"]()
+    tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(res0.numpy(), res1.numpy(), rtol=1e-7, atol=1e-7)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
