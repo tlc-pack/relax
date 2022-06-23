@@ -52,8 +52,9 @@ class ExecBuilderNode : public Object {
    * \brief To annotate the start of a vm function.
    * \param func The function name.
    * \param num_inputs The number of inputs.
+   * \param param_names The function parameter names.
    */
-  void EmitFunction(std::string func, int64_t num_inputs);
+  void EmitFunction(std::string func, int64_t num_inputs, Array<String> param_names);
   /*!
    * \brief Emit a call instruction for a packed function.
    * \param func The packed function name.

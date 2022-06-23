@@ -129,15 +129,18 @@ def apply_opt_before_tuning(
     return relax_mod
 
 
-def f_measurement(rt_mod: runtime.Module, device: runtime.ndarray.Device, *input_data):
+def f_measurement(
+    rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
+):
     vm = relax.vm.VirtualMachine(exec=rt_mod, device=device)
+    vm.set_input("main", **input_data)
     evaluator = vm.module.time_evaluator(
         func_name="main",
         dev=device,
         repeat=5,
         min_repeat_ms=500,
     )
-    print(evaluator(*input_data))
+    print(evaluator())
 
 
 def get_runner():
@@ -166,10 +169,12 @@ def main():
         ARGS.input_shape,
         cache_dir=ARGS.cache_dir,
     )
-    print(f"Workload: {ARGS.workload}")
-    print(f"  input_name: {input_name}")
-    print(f"  input_shape: {input_shape}")
-    print(f"  input_dtype: {input_dtype}")
+    input_info = {input_name: input_shape}
+    input_data = {}
+    for input_name, input_shape in input_info.items():
+        print(f"  input_name: {input_name}")
+        print(f"  input_shape: {input_shape}")
+        print(f"  input_dtype: {input_dtype}")
 
     # translate the ResNet model from Relay to Relax
     relax_mod = apply_opt_before_tuning(relay_mod, params, target=ARGS.target)
@@ -189,10 +194,13 @@ def main():
         num_threads=os.cpu_count(),
     )
 
-    if input_dtype.startswith("float"):
-        input_data = [np.random.uniform(size=input_shape).astype(input_dtype)]
-    else:
-        input_data = [np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)]
+    for input_name, input_shape in input_info.items():
+        if input_dtype.startswith("float"):
+            input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
+        else:
+            input_data[input_name] = np.random.randint(
+                low=0, high=10000, size=input_shape, dtype=input_dtype
+            )
 
     if ARGS.rpc_config:
         run_module_via_rpc(
@@ -204,8 +212,7 @@ def main():
         )
     else:
         dev = tvm.device(ARGS.target.kind.name)
-        input_data = [runtime.ndarray.array(arg, dev) for arg in input_data]
-        f_measurement(executable.mod, dev, *input_data)
+        f_measurement(executable.mod, dev, input_data)
 
 
 if __name__ == "__main__":

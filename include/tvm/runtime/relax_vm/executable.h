@@ -78,6 +78,8 @@ struct VMFunction {
   Index num_args;
   /*! \brief The register file size of the function. */
   Index register_file_size;
+  /*! \brief The function parameter names.*/
+  std::vector<std::string> param_names;
 };
 
 /*!
