@@ -66,15 +66,19 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   size_t NewRegister() { return registers_num_++; }
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     Optional<String> gsymbol = func_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    Array<String> param_names;
+    for (Var param : func_node->params) {
+      param_names.push_back(param->name_hint());
+    }
     if (gsymbol.defined()) {
-      builder_->EmitFunction(gsymbol.value(), func_node->params.size());
+      builder_->EmitFunction(gsymbol.value(), func_node->params.size(), param_names);
     } else {
       // TODO(@yuchen): handle local functions that capture local vars outside the func
       // TODO(@yuchen): a renaming pass to resolve name conflicts, e.g. the input module has a
       // function named "local_funcN"
       // lift the local func to a global func and process it normally
       builder_->EmitFunction("local_func" + std::to_string(local_func_counter_++),
-                             func_node->params.size());
+                             func_node->params.size(), param_names);
     }
 
     for (Var param : func_node->params) {
