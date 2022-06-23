@@ -14,15 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, redefined-builtin
+# pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
+from tvm._ffi import base as _base
+import numpy as np
 
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relay import Any
-from tvm.runtime import Device, Module, PackedFunc
+from tvm.runtime import Device, Module, PackedFunc, container
 from tvm.runtime.object import Object
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
@@ -97,6 +99,8 @@ class VirtualMachine(object):
             else exec["vm_load_executable"]()
         )
         self._invoke_closure = self.module["invoke_closure"]
+        self._set_input = self.module["set_input"]
+        self._get_func_param_names = self.module["get_func_param_names"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
@@ -160,6 +164,79 @@ class VirtualMachine(object):
             The output.
         """
         return self._invoke_closure(closure, *args)
+
+    def _convert(self, arg: Any, cargs: List) -> None:
+        """helper function to convert arguments to vm function."""
+
+        def _gettype(arg):
+            if isinstance(arg, np.float16):
+                return "float16"
+            elif isinstance(arg, (_base.integer_types, bool)):
+                return "int32"
+            else:
+                return "float32"
+
+        if isinstance(arg, Object):
+            cargs.append(arg)
+        elif isinstance(arg, np.ndarray):
+            nd_arr = tvm.nd.array(arg, device=tvm.cpu(0))
+            cargs.append(nd_arr)
+        elif isinstance(arg, tvm.runtime.NDArray):
+            cargs.append(arg)
+        elif isinstance(arg, (tuple, list)):
+            field_args = []
+            for field in arg:
+                self._convert(field, field_args)
+            cargs.append(container.tuple_object(field_args))
+        elif isinstance(arg, (_base.numeric_types, bool)):
+            dtype = _gettype(arg)
+            value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
+            cargs.append(value)
+        elif isinstance(arg, str):
+            cargs.append(arg)
+        else:
+            raise TypeError("Unsupported type: %s" % (type(arg)))
+
+    def set_input(self, func_name: str, *args: Any, **kwargs: Any) -> None:
+        """Set the inputs to a function.
+        This interface works when using VM over RPC by internally converting NDArray in
+        the arguments to DLTensor, which is supported in RPC where remote could only
+        have a minimal C runtime.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+        args: List[tvm.runtime.NDArray] or List[np.ndarray]
+            The arguments to the function.
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+        """
+        cargs = []
+
+        if kwargs:
+            # kwargs can be a super set of the required function parameters.
+            # We only find the ones that are needed.
+            func_params = list(self._get_func_param_names(func_name))
+            new_args = [None] * len(func_params)
+            cnt = 0
+            for k in kwargs:
+                if k in func_params:
+                    idx = func_params.index(k)
+                    new_args[idx] = kwargs[k]
+                    cnt += 1
+            assert len(args) + cnt == len(func_params)
+            idx = 0
+            for i, arg in enumerate(new_args):
+                if arg is None:
+                    new_args[i] = args[idx]
+                    idx += 1
+            args = new_args
+
+        for arg in args:
+            self._convert(arg, cargs)
+
+        self._set_input(func_name, *cargs)
 
 
 def build(mod: tvm.IRModule, target: tvm.target.Target) -> Executable:

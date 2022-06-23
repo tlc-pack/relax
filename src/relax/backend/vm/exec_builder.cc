@@ -43,13 +43,19 @@ vm::Index ExecBuilderNode::EmitConstant(TVMRetValue obj) {
   return vm::Instruction::Arg(vm::Instruction::kConstIdx, idx).data;
 }
 
-void ExecBuilderNode::EmitFunction(std::string func_name, int64_t num_inputs) {
+void ExecBuilderNode::EmitFunction(std::string func_name, int64_t num_inputs,
+                                   Array<String> param_names) {
   const auto& m = exec->global_map;
   ICHECK(m.find(func_name) == m.end());
   VMFunction vmfunc;
   vmfunc.name = func_name;
   vmfunc.start_instr = exec->instr_offset.size();
   vmfunc.num_args = num_inputs;
+  std::vector<std::string> names;
+  for (size_t i = 0; i < param_names.size(); ++i) {
+    names.push_back(param_names[i]);
+  }
+  vmfunc.param_names = names;
   exec->global_map[func_name] = exec->global_funcs.size();
   exec->global_funcs.push_back(vmfunc);
 }
