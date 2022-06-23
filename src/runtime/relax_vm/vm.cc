@@ -21,6 +21,8 @@
  * \file src/runtime/relax_vm/vm.cc
  */
 
+#include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 namespace tvm {
@@ -95,20 +97,44 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       Index func_idx = it->second;
       *rv = Invoke(func_idx, new_args);
     });
+  } else if (name == "set_input") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
+  } else if (name == "get_func_param_names") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      const auto& m = exec_->global_map;
+      ICHECK(exec_) << "The executable is not created yet.";
+      if (m.find(func_name) != m.end()) {
+        Index gf_idx = m.at(func_name);
+        const VMFunction& vm_func = exec_->global_funcs[gf_idx];
+        Array<String> param_names;
+        for (size_t i = 0; i < vm_func.param_names.size(); i++) {
+          param_names.push_back(vm_func.param_names[i]);
+        }
+        *rv = param_names;
+      } else {
+        LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+      }
+    });
   }
 
   const auto& m = exec_->global_map;
   if (m.find(name) != m.end()) {
     Index gf_idx = m.at(name);
-    return PackedFunc([sptr_to_self, this, gf_idx](TVMArgs args, TVMRetValue* rv) {
-      std::vector<RegType> inputs(args.size());
-      for (int i = 0; i < args.size(); ++i) {
-        inputs[i] = args[i];
+    return PackedFunc([sptr_to_self, this, gf_idx, name](TVMArgs args, TVMRetValue* rv) {
+      if (inputs_.count(name)) {
+        *rv = this->Invoke(gf_idx, inputs_[name]);
+      } else {
+        std::vector<RegType> inputs(args.size());
+        for (int i = 0; i < args.size(); ++i) {
+          inputs[i] = args[i];
+        }
+        *rv = this->Invoke(gf_idx, inputs);
       }
-      *rv = this->Invoke(gf_idx, inputs);
     });
   } else {
-    LOG(FATAL) << "Unknown function: " << name;
+    LOG(FATAL) << "ValueError: Unknown function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
 }
@@ -123,7 +149,9 @@ RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
   const VMFunction& gfunc = exec_->global_funcs[gf_idx];
   PushFrame(this->pc_, gfunc);
   // load arguments to the register file
-  ICHECK(static_cast<size_t>(gfunc.num_args) == args.size());
+  ICHECK_EQ(static_cast<size_t>(gfunc.num_args), args.size())
+      << "ValueError: Invoking function " << gfunc.name << " requires " << gfunc.num_args
+      << " inputs but only " << args.size() << " inputs are provided.";
   for (size_t i = 0; i < args.size(); ++i) {
     WriteRegister(frames_.back().get(), i, args[i]);
   }
@@ -216,7 +244,7 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
         break;
       }
       default: {
-        LOG(FATAL) << "";
+        LOG(FATAL) << "ValueError: Unknown argument kind: " << int(arg.kind());
       }
     }
   }
@@ -294,6 +322,61 @@ inline void VirtualMachine::WriteRegister(VMFrame* frame, Index r, const RegType
 
 inline RegType VirtualMachine::ReadRegister(VMFrame* frame, Index r) const {
   return frame->register_file[r];
+}
+
+void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
+  const auto& m = exec_->global_map;
+  if (m.find(func_name) != m.end()) {
+    Index gf_idx = m.at(func_name);
+    const VMFunction& vm_func = exec_->global_funcs[gf_idx];
+    size_t params_num = vm_func.num_args;
+    ICHECK_EQ(args.size() - offset, params_num)
+        << "The number of provided parameters doesn't match the number of arguments";
+    std::vector<RegType> func_args(params_num);
+    for (int i = offset; i < args.size(); ++i) {
+      int index = i - offset;
+      SetInputTensorWithIndex(func_args, args[i], index, devices[0]);
+    }
+    inputs_.emplace(func_name, func_args);
+  } else {
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+  }
+}
+
+inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev) {
+  if (src->IsInstance<NDArray::ContainerType>()) {
+    auto nd_array = Downcast<NDArray>(src);
+    if (nd_array->device.device_type != dev.device_type ||
+        nd_array->device.device_id != dev.device_id) {
+      VLOG(2) << "copying from " << nd_array->device.device_type << "["
+              << nd_array->device.device_id << "] to " << dev.device_type << "[" << dev.device_id
+              << "]";
+      return nd_array.CopyTo(dev);
+    }
+    return src;
+  } else {
+    ICHECK(src->IsInstance<ADTObj>())
+        << "VM data must be NDArray or a list of NDArray, but received: " << src->_type_key;
+    std::vector<ObjectRef> ret;
+    ADT adt = Downcast<ADT>(src);
+    for (size_t i = 0; i < adt.size(); i++) {
+      ret.push_back(CopyTo(adt[i], dev));
+    }
+    return ADT(adt->tag, ret.begin(), ret.end());
+  }
+}
+
+void VirtualMachine::SetInputTensorWithIndex(std::vector<RegType>& func_args,
+                                             const TVMArgValue& inp_tensor, int index, Device dev) {
+  if (inp_tensor.type_code() == kTVMDLTensorHandle) {
+    if (NDArray::AbilityOfZeroCopyForDLTensor(inp_tensor, dev)) {
+      func_args[index] = NDArray::FromExternalDLTensor(*inp_tensor);
+    } else {
+      func_args[index] = NDArray::NewFromDLTensor(inp_tensor, dev);
+    }
+  } else {
+    func_args[index] = CopyTo(inp_tensor, dev);
+  }
 }
 
 }  // namespace relax_vm
