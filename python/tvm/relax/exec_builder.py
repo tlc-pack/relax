@@ -71,9 +71,11 @@ class ExecBuilder(Object):
     def vm_state(self) -> int:
         return self.r(SpecialReg.VM_STATE)
 
-    def function(self, func_name: str, num_inputs: Optional[int] = 0) -> VMFuncScope:
+    def function(
+        self, func_name: str, num_inputs: Optional[int] = 0, param_names: List[str] = None
+    ) -> VMFuncScope:
         """annotate a VM function."""
-        _ffi_api.ExecBuilderFunction(self, func_name, num_inputs)
+        _ffi_api.ExecBuilderFunction(self, func_name, num_inputs, param_names)
         return VMFuncScope()
 
     def _check_scope(self) -> None:
