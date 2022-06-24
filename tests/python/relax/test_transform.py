@@ -124,6 +124,7 @@ def test_fma_fuse():
     assert sub_func_call_var.shape.values[0] == 3
     assert sub_func_call_var.shape.values[1] == 4
 
+
 def test_fma_fuse_python():
     @tvm.script.ir_module
     class Before:
