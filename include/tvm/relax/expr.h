@@ -116,7 +116,7 @@ class RuntimeDepShapeNode : public ExprNode {
 class RuntimeDepShape : public Expr {
  public:
   TVM_DLL explicit RuntimeDepShape(Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(RuntimeDepShape, Expr, RuntimeDepShapeNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RuntimeDepShape, Expr, RuntimeDepShapeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RuntimeDepShapeNode);
 };
 

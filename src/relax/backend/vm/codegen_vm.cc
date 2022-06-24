@@ -76,12 +76,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     if (gsymbol.defined()) {
       builder_->EmitFunction(gsymbol.value(), func_node->params.size(), param_names);
     } else {
-      // TODO(@yuchen): handle local functions that capture local vars outside the func
-      // TODO(@yuchen): a renaming pass to resolve name conflicts, e.g. the input module has a
-      // function named "local_funcN"
-      // lift the local func to a global func and process it normally
-      builder_->EmitFunction("local_func" + std::to_string(local_func_counter_++),
-                             func_node->params.size(), param_names);
+      LOG(FATAL) << "ValueError: there should be no local functions in Relax VM codegen phase.";
     }
 
     for (Var param : func_node->params) {

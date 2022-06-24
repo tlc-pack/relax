@@ -53,9 +53,9 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 
 Type ReturnVoidType(const Call& call, DiagnosticContext diag_ctx) { return VoidType(); }
 
-Type ReturnObjectType(const Call& call, DiagnosticContext diag_ctx) { return ObjectType(Span()); }
+Type ReturnObjectType(const Call& call, DiagnosticContext diag_ctx) { return ObjectType(); }
 
-Type ReturnShapeType(const Call& call, DiagnosticContext diag_ctx) { return ShapeType(Span()); }
+Type ReturnShapeType(const Call& call, DiagnosticContext diag_ctx) { return ShapeType(); }
 
 // call_tir
 

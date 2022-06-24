@@ -85,7 +85,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
 
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   if (op->op == call_tir_op) {
-    doc << "relax.call_tir";
+    doc << "R.call_tir";
 
     for (const Expr& arg : op->args) {
       args.push_back(Print(arg));
@@ -114,7 +114,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   }
 
   if (op->op.as<relax::ExternFuncNode>()) {
-    doc << "relax.call_packed";
+    doc << "R.call_packed";
     args.push_back(Print(op->op));
   } else {
     doc << Print(op->op);
@@ -253,7 +253,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
   if (op->var.defined()) {
     doc << Print(op->var) << PrintVarAnnotation(op->var) << " = ";
   }
-  doc << "relax.match_shape(";
+  doc << "R.match_shape(";
   // TODO(@altanh): maybe op->pattern should just be a ShapeExpr?
   doc << Print(op->value) << ", " << Print(relax::ShapeExpr(op->pattern));
   doc << ")";
@@ -311,8 +311,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
     }
   }
   ICHECK(!return_vars.empty()) << "dataflow blocks should have at least one output variable";
-  body << "relax.output(" << Doc::Concat(return_vars, Doc::Text(", ")) << ")";
-  block << "with relax.dataflow():" << Doc::NewLine(4);
+  body << "R.output(" << Doc::Concat(return_vars, Doc::Text(", ")) << ")";
+  block << "with R.dataflow():" << Doc::NewLine(4);
   block << Doc::Indent(4, body) << Doc::NewLine();
   return block;
 }
@@ -367,13 +367,13 @@ TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ")
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::CastNode* op) {
   Doc doc;
-  doc << "tir.cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
+  doc << "T.cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
   return doc;
 }
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::MaxNode* op) {
   Doc doc;
-  doc << "tir.max(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << "T.max(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
@@ -515,7 +515,7 @@ Doc RelaxScriptPrinter::PrintPrimFunc(const String& name, const tir::PrimFunc& f
   // refactoring to avoid this?
   IRModule mod;
   mod->Add(relay::GlobalVar(name), func);
-  return tir::AsTVMScriptDoc(mod, "tir", false, func);
+  return tir::AsTVMScriptDoc(mod, "T", false, func);
 }
 
 Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite) {
@@ -547,9 +547,9 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     params.push_back(param);
   }
   if (ShowMetaData()) {
-    doc << "@relax.function(metadata=metadata)" << Doc::NewLine();
+    doc << "@R.function(metadata=metadata)" << Doc::NewLine();
   } else {
-    doc << "@relax.function" << Doc::NewLine();
+    doc << "@R.function" << Doc::NewLine();
   }
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
   if (func->ret_type.defined()) {
