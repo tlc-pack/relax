@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
+# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression functor of Relax."""
 from typing import Optional
 from tvm.ir import Op
@@ -264,9 +264,9 @@ class ExprMutatorBase(ExprFunctor):
     """
     A mutator works in unnormalized form.
 
-    ExprMutatorBase expects input AST to be in the unnormalized form, i.e., _checked_type_ and shape_
-    of expressions can be None, and the expressions may nest(and as a result the AST is not in
-    ANF).
+    ExprMutatorBase expects input AST to be in the unnormalized form,
+    i.e., _checked_type_ and shape_ of expressions can be None,
+    and the expressions may nest (and as a result the AST is not in ANF).
     """
 
     def visit_expr(self, expr: Expr) -> Expr:
@@ -347,7 +347,7 @@ class ExprMutatorBase(ExprFunctor):
         if get_item.tuple_value.same_as(t):
             return get_item
         else:
-            return TupleGetItem(t, get_item.index, get_item.span)
+            return TupleGetItem(t, get_item.index)
 
     def visit_shape_expr_(self, op: ShapeExpr) -> ShapeExpr:
         return op
@@ -374,6 +374,18 @@ class ExprMutatorBase(ExprFunctor):
             return SeqExpr(blocks, body, op.span)
 
     def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
+        """Mutate BindingBlock.
+
+        Parameters
+        ----------
+        block: BindingBlock
+            The binding block to be visited.
+
+        Returns
+        -------
+        block: BindingBlock
+            The binding block after transformation.
+        """
         bindings = []
         if isinstance(block, BindingBlock):
             for binding in block.bindings:
@@ -493,6 +505,13 @@ class ExprMutator(ExprMutatorBase):
             return SeqExpr(blocks, body, op.span)
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
+        """Visit VarBinding, a new VarBinding will be emitted
+
+        Parameters
+        ----------
+        binding: VarBinding
+            The VarBinding to be visited.
+        """
         new_value = self.visit_expr(binding.value)
         new_var = self.visit_var_def(binding.var)
 
@@ -514,6 +533,13 @@ class ExprMutator(ExprMutatorBase):
         emit(VarBinding(new_var, new_value))
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
+        """Visit MatchShape, a new MatchShape will be emitted
+
+        Parameters
+        ----------
+        binding: MatchShape
+            The MatchShape binding to be visited.
+        """
         new_value = self.visit_expr(binding.value)
         new_pattern = self.visit_expr(ShapeExpr(binding.pattern))
 
@@ -547,6 +573,18 @@ class ExprMutator(ExprMutatorBase):
         return self.builder_._end_block()
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> DataflowVar:
+        """Rewrite the dataflow var definition site.
+
+        Parameters
+        ----------
+        var: DataflowVar
+            The dataflow var to be visited.
+
+        Returns
+        -------
+        var: Dataflowvar
+            The dataflow var after post-order rewritten.
+        """
         shape_unchanged = True
         new_shape = None
         if var.shape_:
@@ -563,6 +601,18 @@ class ExprMutator(ExprMutatorBase):
             return new_var
 
     def visit_var_def_(self, var: Var) -> Var:
+        """Rewrite the var definition site.
+
+        Parameters
+        ----------
+        var: Var
+            The var to be visited.
+
+        Returns
+        -------
+        var: Var
+            The var after post-order rewritten.
+        """
         shape_unchanged = True
         new_shape = None
         if var.shape_:
@@ -614,16 +664,31 @@ class ExprMutator(ExprMutatorBase):
             ret = SeqExpr([prologue], ret)
         return ret
 
-    def with_shape_and_type(self, var: Var, shape: Optional[Expr], type: Type) -> Var:
+    def with_shape_and_type(self, var: Var, shape: Optional[Expr], t: Type) -> Var:
+        """Create a new var with specified shape and type if the original var's shape or type
+        does not match with the specified ones.
+
+        Parameters
+        ----------
+        var: Var
+            The var to be updated.
+        shape: Optional[Expr]
+            The specified shape.
+        t: Type
+            The specified type.
+
+        Returns
+        -------
+        var: Var
+            The var filled with shape and type.
+        """
         shape_changed = (var.shape_ is not None) ^ (shape is not None)
         shape_changed |= (
             var.shape_ and shape and not self.builder_.can_prove_shape_equal(var.shape_, shape)
         )
 
-        type_changed = (var._checked_type_ is not None) ^ (type is not None)
-        type_changed |= (
-            var._checked_type_ and type and not structural_equal(var._checked_type_, type)
-        )
+        type_changed = (var._checked_type_ is not None) ^ (t is not None)
+        type_changed |= var._checked_type_ and t and not structural_equal(var._checked_type_, t)
 
         if shape_changed or type_changed:
             new_var = (
@@ -639,7 +704,7 @@ class ExprMutator(ExprMutatorBase):
             var.shape_ = shape
 
         if type_changed:
-            var._checked_type_ = type
+            var._checked_type_ = t
 
         return var
 

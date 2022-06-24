@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument, invalid-name
 """Perform fused multiply-add rewriting in Python"""
 from tvm.ir import Op
 from tvm.ir.module import IRModule
@@ -24,7 +25,8 @@ from ..transform import dataflowblock_pass
 
 
 class EwiseFMARewriter(ExprMutator):
-    """Rewrites the relax.add call to a relax.ewise_fma call when detecting the multiply-add pattern.
+    """Rewrites the relax.add call to a relax.ewise_fma call
+    when detecting the multiply-add pattern.
 
     Example
     --------
@@ -34,8 +36,8 @@ class EwiseFMARewriter(ExprMutator):
     z0 = ewise_fma(a, b, c)
     """
 
-    def visit_call_(self, call: Call) -> Call:
-        call = self.builder_.normalize(ExprMutator.visit_call_(self, call))
+    def visit_call_(self, call_node: Call) -> Call:
+        call = self.builder_.normalize(ExprMutator.visit_call_(self, call_node))
 
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
@@ -59,9 +61,9 @@ def ewise_fma_rewriter(block, mod, ctx):
 
 class EwiseFuseFMAMutator(ExprMutator):
     """Performs multiply add fusion. The difference of EwiseFMARewriter and this
-    EwiseFuseFMAMutator class is that this mutator generates a sub function(subgraph) whose body is a
-    CallNode that calls to the relax.ewise_fma op, and rewrites the relax.add call in the main
-    function to calling to the subgraph.
+    EwiseFuseFMAMutator class is that this mutator generates a sub function(subgraph)
+    whose body is a CallNode that calls to the relax.ewise_fma op, and rewrites the
+    relax.add call in the main function to calling to the subgraph.
 
     Example
     --------
@@ -82,7 +84,7 @@ class EwiseFuseFMAMutator(ExprMutator):
         super().__init__()
         self.mod_ = mod
 
-    def Transform(self) -> IRModule:
+    def transform(self) -> IRModule:
         for global_var, func in self.mod_.functions.items():
             if isinstance(func, Function):
                 func = self.visit_expr(func)
@@ -90,8 +92,8 @@ class EwiseFuseFMAMutator(ExprMutator):
 
         return self.builder_.get()
 
-    def visit_call_(self, call: Call) -> Call:
-        call = self.builder_.normalize(ExprMutator.visit_call_(self, call))
+    def visit_call_(self, call_node: Call) -> Call:
+        call = self.builder_.normalize(ExprMutator.visit_call_(self, call_node))
 
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
@@ -123,4 +125,4 @@ class EwiseFuseFMAMutator(ExprMutator):
 
 @module_pass(opt_level=2, name="ewise_fuse_fma_rewriter")
 def ewise_fuse_fma_rewriter(mod, ctx):
-    return EwiseFuseFMAMutator(mod).Transform()
+    return EwiseFuseFMAMutator(mod).transform()
