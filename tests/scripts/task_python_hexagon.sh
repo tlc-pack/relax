@@ -40,7 +40,9 @@ if [[ "${device_serial}" == "simulator" ]]; then
 fi
 
 export ANDROID_SERIAL_NUMBER=${device_serial}
-run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
+
+# Only test integration with Relax
+run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon/test_relax_integration.py
 
 if [[ "${device_serial}" == "simulator" ]]; then
     kill ${TRACKER_PID}
