@@ -352,7 +352,12 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
   } else {
     LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
   }
-  return BindingBlock(bindings);
+
+  if (block.as<DataflowBlockNode>()) {
+    return DataflowBlock(bindings);
+  } else {
+    return BindingBlock(bindings);
+  }
 }
 
 Type ExprMutatorBase::VisitType(const Type& t) { return t; }

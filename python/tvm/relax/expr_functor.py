@@ -16,17 +16,17 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression functor of Relax."""
-from typing import Union, Optional
+from typing import Optional
 from tvm.ir import Op
 from tvm.ir.base import structural_equal
 from .ty import DynTensorType
-from .expr import Type, Span
-from .expr import Function, ExternFunc, Expr
+from .expr import Type, Span, Expr
+from .expr import Function, ExternFunc
 from .expr import Constant, Var, DataflowVar
 from .expr import ShapeExpr, RuntimeDepShape
 from .expr import GlobalVar, SeqExpr, Tuple
 from .expr import Call, If, TupleGetItem
-from .expr import MatchShape, VarBinding
+from .expr import Binding, MatchShape, VarBinding
 from .expr import BindingBlock, DataflowBlock
 from .expr import _update_shape, _update_type
 from .block_builder import BlockBuilder
@@ -40,7 +40,6 @@ class ExprFunctor:
     implements memoization.
     """
 
-    # pylint: disable=no-else-return
     def visit_expr(self, expr):
         """Apply the visitor to an expression."""
         if isinstance(expr, Constant):
@@ -236,7 +235,7 @@ class ExprVisitor(ExprFunctor):
         if var.shape_:
             self.visit_expr(var.shape_)
 
-    def visit_binding(self, binding) -> None:
+    def visit_binding(self, binding: Binding) -> None:
         if isinstance(binding, MatchShape):
             self.visit_match_shape_(binding)
         elif isinstance(binding, VarBinding):
@@ -244,7 +243,7 @@ class ExprVisitor(ExprFunctor):
         else:
             raise TypeError("Invalid type: {0}".format(type(binding)))
 
-    def visit_binding_block(self, block) -> None:
+    def visit_binding_block(self, block: BindingBlock) -> None:
         if isinstance(block, DataflowBlock):
             self.visit_dataflow_block_(block)
         elif isinstance(block, BindingBlock):
@@ -252,7 +251,7 @@ class ExprVisitor(ExprFunctor):
         else:
             raise TypeError("Invalid type: {0}".format(type(block)))
 
-    def visit_var_def(self, var):
+    def visit_var_def(self, var: Var):
         if isinstance(var, DataflowVar):
             self.visit_dataflow_var_def_(var)
         elif isinstance(var, Var):
@@ -265,8 +264,8 @@ class ExprMutatorBase(ExprFunctor):
     """
     A mutator works in unnormalized form.
 
-    ExprMutatorBase expects input AST to be in the unnormalized form, i.e., checked_type_ and shape_
-    of expressions can be nullptr, and the expressions may nest(and as a result the AST is not in
+    ExprMutatorBase expects input AST to be in the unnormalized form, i.e., _checked_type_ and shape_
+    of expressions can be None, and the expressions may nest(and as a result the AST is not in
     ANF).
     """
 
@@ -374,9 +373,7 @@ class ExprMutatorBase(ExprFunctor):
         else:
             return SeqExpr(blocks, body, op.span)
 
-    def visit_binding_block(
-        self, block: Union[DataflowBlock, BindingBlock]
-    ) -> Union[DataflowBlock, BindingBlock]:
+    def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
         bindings = []
         if isinstance(block, BindingBlock):
             for binding in block.bindings:
@@ -402,7 +399,13 @@ class ExprMutatorBase(ExprFunctor):
 
 
 class ExprMutator(ExprMutatorBase):
-    """ """
+    """
+    A mutator works in normal form.
+
+    ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
+    nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+    available.
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -449,6 +452,7 @@ class ExprMutator(ExprMutatorBase):
         ret_type = self.visit_type(op.ret_type)
         body = self.visit_with_new_scope(op.body)
 
+        # TODO(@lesheng): op.ret_type.same_as(ret_type) after Type.same_as is fixed
         if all_params_unchanged and (op.ret_type == ret_type) and op.body.same_as(body):
             return op
         else:
@@ -574,7 +578,7 @@ class ExprMutator(ExprMutatorBase):
             self.var_remap_[var.vid] = new_var
             return new_var
 
-    def visit_binding(self, binding) -> None:
+    def visit_binding(self, binding: Binding) -> None:
         if isinstance(binding, MatchShape):
             self.visit_match_shape_(binding)
         elif isinstance(binding, VarBinding):
@@ -582,9 +586,7 @@ class ExprMutator(ExprMutatorBase):
         else:
             raise TypeError("Invalid type: {0}".format(type(binding)))
 
-    def visit_binding_block(
-        self, block: Union[DataflowBlock, BindingBlock]
-    ) -> Union[DataflowBlock, BindingBlock]:
+    def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
         if isinstance(block, DataflowBlock):
             ret = self.visit_dataflow_block_(block)
         elif isinstance(block, BindingBlock):
@@ -594,7 +596,7 @@ class ExprMutator(ExprMutatorBase):
 
         return ret
 
-    def visit_var_def(self, var: Var) -> Union[DataflowVar, Var]:
+    def visit_var_def(self, var: Var) -> Var:
         ret = None
         if isinstance(var, DataflowVar):
             ret = self.visit_dataflow_var_def_(var)
@@ -640,3 +642,6 @@ class ExprMutator(ExprMutatorBase):
             var._checked_type_ = type
 
         return var
+
+    def lookup_binding(self, var: Var) -> Optional[Expr]:
+        return self.builder_.lookup_binding(var)

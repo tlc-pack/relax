@@ -765,14 +765,29 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder bui
   return builder->Emit(expr);
 });
 
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitVarBinding")
+    .set_body_typed([](BlockBuilder builder, VarBinding binding) {
+      return builder->Emit(binding);
+    });
+
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
     .set_body_typed([](BlockBuilder builder, Expr value, Array<PrimExpr> pattern) {
       return builder->EmitMatchShape(value, pattern);
     });
 
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShapeBinding")
+    .set_body_typed([](BlockBuilder builder, MatchShape binding) {
+      return builder->EmitMatchShape(binding);
+    });
+
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
     .set_body_typed([](BlockBuilder builder, const Expr& output) {
       return builder->EmitOutput(output);
+    });
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutputVarBinding")
+    .set_body_typed([](BlockBuilder builder, VarBinding binding) {
+      return builder->EmitOutput(binding);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
@@ -789,5 +804,13 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderUpdateFunction")
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
 
+TVM_REGISTER_GLOBAL("relax.BlockBuilderCanProveShapeEqual")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::CanProveShapeEqual);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderCurrentBlockIsDataFlow")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::CurrentBlockIsDataFlow);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderLookupBinding")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::LookupBinding);
 }  // namespace relax
 }  // namespace tvm
