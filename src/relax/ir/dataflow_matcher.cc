@@ -38,10 +38,27 @@ namespace relax {
 using tvm::arith::Analyzer;
 
 // Pattern Matcher
-bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
+bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr, bool autojump) {
+  autojump_ = autojump;
   memo_.clear();
   matched_nodes_.clear();
   return VisitDFPattern(pattern, expr);
+}
+
+static Expr TryGetValOfVar(const Expr& expr, const runtime::Map<Var, Expr>& var2val,
+                           bool autojump) {
+  // `autojump` means when meeting a relax.Var, we automatically jump to
+  // match its corresponding expression instead.
+  if (!autojump) return expr;
+
+  // if not match, try to match value of var if expr is a var.
+  if (const VarNode* var = expr.as<VarNode>()) {
+    ICHECK(var2val.defined()) << "The relax.Var->Expr mapping should be given to perform autojump.";
+    auto may = var2val.Get(GetRef<Var>(var));
+    if (may.defined()) return may.value();
+  }
+
+  return expr;
 }
 
 void DFPatternMatcher::ClearMap(size_t watermark) {
@@ -51,7 +68,8 @@ void DFPatternMatcher::ClearMap(size_t watermark) {
   matched_nodes_.erase(matched_nodes_.begin() + watermark, matched_nodes_.end());
 }
 
-bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   if (memoize_ && memo_.count(pattern)) {
     ICHECK_EQ(memo_[pattern].size(), 1);
     return expr.same_as(memo_[pattern][0]);
@@ -68,15 +86,18 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
   }
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const OrPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const OrPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   return VisitDFPattern(op->left, expr) || VisitDFPattern(op->right, expr);
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const AndPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const AndPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   return VisitDFPattern(op->left, expr) && VisitDFPattern(op->right, expr);
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const NotPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const NotPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   return !VisitDFPattern(op->reject, expr);
 }
 
@@ -130,11 +151,10 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   bool matches = VisitDFPattern(attr_pattern->pattern, expr);
-  if (!matches) {
-    return matches;
-  }
+  if (!matches) return matches;
   VLOG(1) << "considering AttrPatternNode at:\n" << PrettyPrint(expr);
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
   if (const auto* op_node = expr.as<OpNode>()) {
@@ -197,7 +217,8 @@ Array<DFPattern> reverse(const Array<DFPattern>& args) {
   return new_args;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   // utilities
   auto get_op_node = [](const CallPatternNode* op) -> const tvm::OpNode* {
     if (op) {
@@ -307,11 +328,13 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   return StructuralEqual()(op->expr, expr);
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   bool matches = false;
   if (const auto* func = expr.as<FunctionNode>()) {
     matches = true;
@@ -333,7 +356,8 @@ bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr
   return matches;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
     matches = (op->index == -1 || op->index == tuple_get_item_node->index) &&
@@ -342,7 +366,8 @@ bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const 
   return matches;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   bool matches = false;
   if (const auto* tuple_node = expr.as<TupleNode>()) {
     matches = true;
@@ -361,7 +386,8 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
   return matches;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   auto expr_type = expr.as<ExprNode>()->checked_type();
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
@@ -374,19 +400,22 @@ auto shape_equal = [](Analyzer& analyzer, const Array<PrimExpr>& lhs, const Arra
 };
 
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
+  // no need to jump, as var.shape == value.shape
   if (const ShapeExprNode* shape_expr = expr->shape().as<ShapeExprNode>())
     return shape_equal(analyzer_, op->shape, shape_expr->values) &&
            VisitDFPattern(op->pattern, expr);
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
     return shape_equal(analyzer_, op->array, shape_expr->values);
   return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
+  // no need to jump, as var.dtype == value.dtype
   auto expr_type = expr.as<ExprNode>()->checked_type();
   if (const DynTensorTypeNode* tensor_type = expr_type.as<DynTensorTypeNode>()) {
     return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
@@ -395,6 +424,7 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
+  // We don't jump for var pattern, as there's no need to access its value to judge it.
   if (const auto* var_node = expr.as<VarNode>()) {
     // "" means any name.
     return "" == op->name_hint() || op->name_hint() == var_node->name_hint();
@@ -402,7 +432,8 @@ bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& exp
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) {
+bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   if (const auto* extern_fn = expr.as<ExternFuncNode>()) {
     return "" == op->global_symbol() || op->global_symbol() == extern_fn->global_symbol;
   }
@@ -410,6 +441,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Ex
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) {
+  // No need to bother var's value when checking constants.
   return expr.as<ConstantNode>() != nullptr;
 }
 
@@ -434,8 +466,11 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchExprPattern(DFPattern pattern, Expr expr) {
-  return DFPatternMatcher().Match(pattern, expr);
+bool MatchExprPattern(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val) {
+  if (var2val.defined())  // autojump is enabled with var2val.
+    return DFPatternMatcher(std::move(var2val.value())).Match(pattern, expr, true);
+  else
+    return DFPatternMatcher().Match(pattern, expr, false);
 }
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExprPattern);

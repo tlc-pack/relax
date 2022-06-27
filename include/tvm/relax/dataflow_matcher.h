@@ -35,10 +35,12 @@ namespace relax {
  *
  * \param pattern The pattern to match
  * \param expr The expression to match
+ * \param var2val The mapping from relax.Var to relax.Expr
  * \return true if matched
  * \return false if unmatched
  */
-bool MatchExprPattern(DFPattern pattern, Expr expr);
+bool MatchExprPattern(DFPattern pattern, Expr expr,
+                      Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
 
 /**
  * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns

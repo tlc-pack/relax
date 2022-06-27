@@ -37,7 +37,11 @@ namespace relax {
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
-  bool Match(const DFPattern& pattern, const Expr& expr);
+  using var2val_t = runtime::Map<Var, Expr>;
+
+  explicit DFPatternMatcher() {}
+  explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}
+  bool Match(const DFPattern& pattern, const Expr& expr, bool autojump);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
 
  protected:
@@ -67,9 +71,11 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   void ClearMap(size_t watermark);
 
   std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
+  var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
   arith::Analyzer analyzer_;
   bool memoize_ = true;
+  bool autojump_ = false;
 };
 
 }  // namespace relax

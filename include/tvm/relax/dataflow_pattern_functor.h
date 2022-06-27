@@ -46,7 +46,7 @@ class DFPatternFunctor;
 #define DFPATTERN_FUNCTOR_DEFAULT \
   { return VisitDFPatternDefault_(op, std::forward<Args>(args)...); }
 
-#define RELAY_DFPATTERN_FUNCTOR_DISPATCH(OP)                                                    \
+#define RELAX_DFPATTERN_FUNCTOR_DISPATCH(OP)                                                    \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {          \
     return self->VisitDFPattern_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
@@ -117,27 +117,27 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(OrPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(AndPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(NotPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(AttrPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(CallPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(ConstantPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(DataTypePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(ExprPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(FunctionPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(ShapePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(TupleGetItemPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(TuplePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(TypePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(WildcardPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(VarPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(OrPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(AndPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(NotPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(AttrPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(CallPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(ConstantPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(DataTypePatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(ExprPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(FunctionPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(ShapePatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(TupleGetItemPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(TuplePatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(TypePatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(WildcardPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(VarPatternNode);
 
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(RuntimeDepShapePatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(DataflowVarPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(GlobalVarPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(ExternFuncPatternNode);
-    RELAY_DFPATTERN_FUNCTOR_DISPATCH(PrimArrPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(RuntimeDepShapePatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(DataflowVarPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(GlobalVarPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(ExternFuncPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(PrimArrPatternNode);
     return vtable;
   }
 };
