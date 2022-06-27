@@ -440,8 +440,9 @@ bool DFPatternMatcher::VisitDFPattern_(const ExternFuncPatternNode* op, const Ex
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) {
-  // No need to bother var's value when checking constants.
+bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr0) {
+  // constants can be binded to relax.Var as well.
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   return expr.as<ConstantNode>() != nullptr;
 }
 
