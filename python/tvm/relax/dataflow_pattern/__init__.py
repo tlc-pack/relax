@@ -147,9 +147,10 @@ class DFPattern(Node):
             Whether or not the expression matches the pattern
         """
         if expr is None and func is None:
-            raise ArgumentError("Either expr or func must be specified")
-        elif expr is not None and func is not None:
-            raise ArgumentError("Either expr or func must be specified, but not both")
+            raise RuntimeError("Either expr or func must be specified")
+
+        if expr is not None and func is not None:
+            raise RuntimeError("Either expr or func must be specified, but not both")
 
         if expr is not None:
             return match_expr(self, expr, var2val)
