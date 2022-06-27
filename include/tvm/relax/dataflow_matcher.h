@@ -36,11 +36,13 @@ namespace relax {
  * \param pattern The pattern to match
  * \param expr The expression to match
  * \param var2val The mapping from relax.Var to relax.Expr
+ * \param disable_autojump disable autojump given var2val
  * \return true if matched
  * \return false if unmatched
  */
 bool MatchExprPattern(DFPattern pattern, Expr expr,
-                      Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
+                      Optional<runtime::Map<Var, Expr>> var2val = NullOpt,
+                      bool disable_autojump = false);
 
 /**
  * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns
@@ -49,19 +51,22 @@ bool MatchExprPattern(DFPattern pattern, Expr expr,
  *
  * \param gpatterns The graph-wise patterns.
  * \param fn The function to match.
+ * \param disable_autojump disable autojump given var2val (implicitly inferred from Function)
  * \param start_hint The starting point expression to match to distinguish multiple matches.
  * \return tvm::runtime::Map<DFPattern, VarBinding>
  */
 tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<GraphPattern> gpatterns,
                                                            const Function& fn,
+                                                           bool disable_autojump = false,
                                                            Optional<Expr> start_hint = NullOpt);
 
 /** \brief Call MatchGraphPattern through pattern's graph constraints */
 inline tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(
-    DFPattern pattern, const Function& fn, Optional<Expr> start_hint = NullOpt) {
+    DFPattern pattern, const Function& fn, bool disable_autojump = false,
+    Optional<Expr> start_hint = NullOpt) {
   ICHECK(nullptr != pattern->graph_constraint)
       << "Graph constraints are required to match graph patterns";
-  return MatchGraphPattern(pattern->graph_constraint, fn, start_hint);
+  return MatchGraphPattern(pattern->graph_constraint, fn, disable_autojump, start_hint);
 }
 
 }  // namespace relax
