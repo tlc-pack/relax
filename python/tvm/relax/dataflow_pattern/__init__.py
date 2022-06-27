@@ -23,7 +23,7 @@ from typing import List, Optional, Callable, Dict, Union, Tuple
 
 import tvm
 import tvm._ffi as tvm_ffi
-from tvm.relax import Expr, Function, VarBinding
+from tvm.relax import Expr, Function, VarBinding, Var
 from tvm.relay.op import get
 
 from ...ir import make_node
@@ -127,7 +127,7 @@ class DFPattern(Node):
         return has_shape(*args, pattern=self)
 
     def match(
-        self, expr: Expr = None, func: Function = None
+        self, expr: Expr = None, func: Function = None, var2val=None
     ) -> Union[bool, Dict["DFPattern", VarBinding]]:
         """
         Match the given expression or function against this pattern.
@@ -138,6 +138,8 @@ class DFPattern(Node):
             The expression to match.
         func : tvm.relax.Function
             The function to match.
+        var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
+            A mapping from Var to Expr for autojump (only for match_expr).
 
         Returns
         -------
@@ -150,7 +152,7 @@ class DFPattern(Node):
             raise ArgumentError("Either expr or func must be specified, but not both")
 
         if expr is not None:
-            return match_expr(self, expr)
+            return match_expr(self, expr, var2val)
         return match_func(self, func)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
@@ -720,7 +722,7 @@ def has_attr(attrs, pattern=None) -> "DFPattern":
     return pattern.has_attr(attrs)
 
 
-def match_expr(pattern: "DFPattern", expr: Expr) -> bool:
+def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None) -> bool:
     """
     Match a pattern to an expression
 
@@ -730,8 +732,10 @@ def match_expr(pattern: "DFPattern", expr: Expr) -> bool:
         The input pattern.
     expr : tvm.relax.Expr
         The expression to match.
+    var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
+        A mapping from variables to values for autojump.
     """
-    return ffi.match_expr(pattern, expr)
+    return ffi.match_expr(pattern, expr, var2val, False)
 
 
 def match_func(pattern: "DFPattern", expr: Function) -> Dict[DFPattern, VarBinding]:

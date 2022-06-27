@@ -19,6 +19,7 @@ from __future__ import annotations
 import pytest
 
 from tvm.relax.dataflow_pattern import *
+from tvm.relax.analysis import get_var2val
 from tvm import relax as rx, tir
 from tvm.script import relax as R, tir as T
 
@@ -253,4 +254,7 @@ def test_match_call_attr():
 
 def test_is_call_tir():
     lv1_val = bindings[1].value
+    var2val = get_var2val(Module["main"])
     assert is_call_tir("tir_relu").match(lv1_val)
+    assert is_call_tir("tir_relu", is_call_tir("tir_matmul")).match(expr=lv1_val, var2val=var2val)
+    assert not is_call_tir("tir_relu", is_call_tir("tir_relu")).match(expr=lv1_val, var2val=var2val)
