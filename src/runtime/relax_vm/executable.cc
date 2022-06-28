@@ -166,7 +166,7 @@ void Executable::SetInstructionData(Index i, Index j, ExecWord val) {
 }
 
 Instruction Executable::GetInstruction(Index i) const {
-  size_t offset = instr_offset[i];
+  Index offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
   switch (op) {
     case Opcode::Call: {
@@ -383,7 +383,7 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
       cell = ndarray;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kShapeTuple) {
-      size_t size;
+      uint64_t size;
       strm->Read(&size);
       std::vector<ShapeTuple::index_type> data(size);
       for (size_t i = 0; i < size; ++i) {
@@ -398,7 +398,7 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
       cell = dtype;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kString) {
-      size_t size;
+      uint64_t size;
       strm->Read(&size);
       std::vector<char> data(size);
       for (size_t i = 0; i < size; ++i) {
