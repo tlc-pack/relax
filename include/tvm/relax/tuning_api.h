@@ -21,8 +21,8 @@
  * \file tvm/relax/tuning_api.h
  * \brief Relax Tuning Pass APIs.
  */
-#ifndef TVM_RELAX_TUNING_H_
-#define TVM_RELAX_TUNING_H_
+#ifndef TVM_RELAX_TUNING_API_H_
+#define TVM_RELAX_TUNING_API_H_
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/meta_schedule/database.h>
@@ -386,4 +386,4 @@ class Database : public runtime::ObjectRef {
 
 }  // namespace relax
 }  // namespace tvm
-#endif  // TVM_RELAX_TUNING_H_
+#endif  // TVM_RELAX_TUNING_API_H_

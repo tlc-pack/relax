@@ -38,7 +38,7 @@ Choice::Choice(String f_transform_key, Array<ObjectRef> f_transform_args, String
   data_ = std::move(n);
 }
 
-// TODO (sunggg): Currently, it only supports an array of primitive data types.
+// TODO(sunggg): Currently, it only supports an array of primitive data types.
 ObjectRef ChoiceNode::AsJSON() const {
   Array<ObjectRef> json_transfrom_args, json_constr_args;
   for (ObjectRef arg : this->f_transform_args) {
@@ -91,7 +91,6 @@ Choice Choice::FromJSON(const ObjectRef& json) {
         f_constr_args.push_back(arg);
       }
     }
-
   } catch (const tvm::Error& e) {
     LOG(FATAL)
         << "ValueError: The json entry of a choice should contain a set of two strings, but gets: "
@@ -221,7 +220,6 @@ Trace Trace::FromJSON(const ObjectRef& json) {
       std::string json_mod = meta_schedule::Base64Decode(b64_mod);
       in_mod = Downcast<IRModule>(LoadJSON(json_mod));
     }
-
   } catch (const tvm::Error& e) {
     LOG(FATAL) << "ValueError: Malformed Trace format - " << json;
     throw;
