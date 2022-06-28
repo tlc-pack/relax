@@ -27,6 +27,8 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/runtime/container/optional.h>
 
+#include <memory>
+
 namespace tvm {
 namespace relax {
 

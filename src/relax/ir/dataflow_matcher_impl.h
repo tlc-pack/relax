@@ -30,6 +30,7 @@
 #include <tvm/relax/dataflow_pattern_functor.h>
 
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {

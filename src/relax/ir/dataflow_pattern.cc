@@ -338,9 +338,9 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
     gcons = std::make_shared<GraphPattern>();
   } else if (nullptr != lhs && nullptr != rhs) {
     // may need to merge
-    if (lhs == rhs)
+    if (lhs == rhs) {
       gcons = lhs;
-    else {
+    } else {
       // going to merge and update.
       gcons = lhs;  // default to lhs
       // merge and change all rhs.

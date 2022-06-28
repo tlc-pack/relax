@@ -392,17 +392,17 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
 
-auto shape_equal = [](Analyzer& analyzer, const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+static bool ShapeEqual(Analyzer* analyzer, const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
-    if (!tir::is_one(analyzer.Simplify(lhs[i] == rhs[i]))) return false;
+    if (!tir::is_one(analyzer->Simplify(lhs[i] == rhs[i]))) return false;
   return true;
-};
+}
 
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
   // no need to jump, as var.shape == value.shape
   if (const ShapeExprNode* shape_expr = expr->shape().as<ShapeExprNode>())
-    return shape_equal(analyzer_, op->shape, shape_expr->values) &&
+    return ShapeEqual(&analyzer_, op->shape, shape_expr->values) &&
            VisitDFPattern(op->pattern, expr);
   return false;
 }
@@ -410,7 +410,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
   auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
-    return shape_equal(analyzer_, op->array, shape_expr->values);
+    return ShapeEqual(&analyzer_, op->array, shape_expr->values);
   return false;
 }
 

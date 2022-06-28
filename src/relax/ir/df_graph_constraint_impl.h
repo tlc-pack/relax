@@ -21,12 +21,14 @@
  * \file src/relax/ir/dataflow_graph_constraint.h
  * \brief Describing and matching graph-wise patterns.
  */
-#ifndef TVM_RELAX_DATAFLOW_GRAPH_CONSTRAINT_H_
-#define TVM_RELAX_DATAFLOW_GRAPH_CONSTRAINT_H_
+#ifndef TVM_RELAX_IR_DF_GRAPH_CONSTRAINT_IMPL_H_
+#define TVM_RELAX_IR_DF_GRAPH_CONSTRAINT_IMPL_H_
 
 #include <tvm/relax/dataflow_pattern.h>
 
 #include <initializer_list>
+#include <map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -59,4 +61,4 @@ struct GraphPattern final {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_DATAFLOW_GRAPH_CONSTRAINT_H_
+#endif  // TVM_RELAX_IR_DF_GRAPH_CONSTRAINT_IMPL_H_
