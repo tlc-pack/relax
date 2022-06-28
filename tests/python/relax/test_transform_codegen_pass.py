@@ -119,5 +119,4 @@ def test_single_annot_func():
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
 
 if __name__ == "__main__":
-    test_single_annot_func()
-    # pytest.main([__file__])
+    pytest.main([__file__])

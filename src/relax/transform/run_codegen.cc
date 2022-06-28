@@ -116,13 +116,7 @@ class CodeGenRunner : ExprMutator {
       // Return the external function with given global symbol.
       return ExternFunc(opt_gsymbol.value());
     } else {
-      Array<Var> new_params;
-      for (const auto& param : func->params) {
-        Var new_param = this->VisitVarDef(param);
-        new_params.push_back(new_param);
-      }
-      Expr new_body = VisitExpr(func->body);
-      return Function(new_params, new_body, func->ret_type, func->attrs, func->span);
+      return ExprMutator::VisitExpr_(func_node);
     }
   }
 
