@@ -144,6 +144,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       LOG(FATAL) << "CodeGenVM does not support calls to " << call_node->op->GetTypeKey();
     }
     std::vector<Instruction::Arg> args;
+    // TODO(prakalp): For extern function `vm.builtin.alloc_shape_heap` we must pass vm register as
+    // well to find the device in which shape heap must be allocated.
+    if (name == "vm.builtin.alloc_shape_heap") {
+      args.push_back(Instruction::Arg(Instruction::kRegister, Instruction::kVMRegister));
+    }
     for (auto arg : call_node->args) {
       args.push_back(this->VisitExpr(arg));
     }
@@ -472,6 +477,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       TVMRetValue shape_tuple_value;
       shape_tuple_value = shape_tuple;
       Index index = builder_->EmitConstant(shape_tuple_value);
+      return Instruction::Arg(Instruction::kConstIdx, index);
+    } else if (arg->IsInstance<ConstantNode>()) {
+      TVMRetValue constant_data;
+      constant_data = Downcast<Constant>(arg)->data;
+      Index index = builder_->EmitConstant(constant_data);
       return Instruction::Arg(Instruction::kConstIdx, index);
     } else {
       LOG(FATAL) << "CodeGenVM does not support this argument type:\n" << arg->GetTypeKey();
