@@ -58,7 +58,10 @@ class Choice(Object):
         def constr(mod):
             return len(mod.functions) == 3
         # Define a choice to apply constant folding only when IRModule has three functions.
-        choice = Choice(f_transform_key = "relax.tuning_api.test.f_transform", f_constr_key = "relax.tuning_api.test.f_constr")
+        choice = Choice(
+            f_transform_key = "relax.tuning_api.test.f_transform",
+            f_constr_key = "relax.tuning_api.test.f_constr"
+            )
     """
 
     def __init__(

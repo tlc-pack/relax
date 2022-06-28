@@ -24,8 +24,8 @@ from tvm.meta_schedule.utils import _json_de_tvm
 from tvm.meta_schedule.database import Workload
 from tvm.tir.schedule.trace import JSON_TYPE
 from tvm.target import Target
-from .primitives import Trace
 from tvm._ffi import register_object
+from .primitives import Trace
 from . import _ffi_api
 
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name
@@ -156,7 +156,8 @@ class Database(Object):
     def commit_measurement_record(
         self, workload: Workload, target: Target, run_secs: List[float]
     ) -> None:
-        """Commit a measurement record to the database. A pair of workload and target will be used as a key.
+        """Commit a measurement record to the database.
+        A pair of workload and target will be used as a key.
 
         Parameters
         ----------
@@ -168,7 +169,8 @@ class Database(Object):
     def commit_tuning_record(
         self, workload: Workload, target: Target, record: TuningRecord
     ) -> None:
-        """Commit a tuning record to the database. A pair of workload and target will be used as a key.
+        """Commit a tuning record to the database.
+        A pair of workload and target will be used as a key.
 
         Parameters
         ----------

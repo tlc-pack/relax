@@ -19,15 +19,11 @@ from typing import Dict, List, Optional
 import copy
 import sys
 import itertools
-import numpy as np
 import logging
+import numpy as np
 
-from .primitives import Choice, Knob, Trace
-
-# from .database import TuningRecord
 import tvm
 from tvm.ir.module import IRModule
-from tvm.tir.schedule.trace import JSON_TYPE, _json_from_tvm
 from tvm.ir.transform import PassContext, Pass
 from tvm import meta_schedule
 from tvm.meta_schedule.arg_info import TensorInfo
@@ -38,10 +34,8 @@ from tvm.meta_schedule.runner import (
     LocalRunner,
     RunnerInput,
 )
-from tvm.meta_schedule.database import Workload
-
-from tvm.runtime._ffi_node_api import LoadJSON
 from tvm._ffi.registry import register_func
+from .primitives import Knob, Trace
 
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name
 
