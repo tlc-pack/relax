@@ -72,7 +72,6 @@ def test_conv2d(hexagon_session: Session):
     tvm.testing.assert_allclose(hexagon_res.numpy(), relay_res.numpy(), rtol=1e-3)
 
 
-@pytest.mark.skip("Dynamic shape bug")
 @tvm.testing.requires_hexagon
 def test_conv2d_dyn(hexagon_session: Session):
     dtype = "float32"
@@ -106,8 +105,7 @@ def test_conv2d_dyn(hexagon_session: Session):
     data = tvm.nd.array(data_np, hexgaon_device)
     weight = tvm.nd.array(weight_np, hexgaon_device)
     vm_rt.set_input("main", data, weight)
-    vm_rt["main"]()
-    hexagon_res = vm_rt.get_outputs()
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on Relay for comparison.
     cpu_device = tvm.cpu()
@@ -151,7 +149,6 @@ def test_mlp(hexagon_session: Session):
     tvm.testing.assert_allclose(hexagon_res.numpy(), relay_res.numpy(), rtol=1e-3)
 
 
-@pytest.mark.skip("Dynamic shape bug")
 @tvm.testing.requires_hexagon
 def test_mlp_dyn(hexagon_session: Session):
     relay_mod, params = testing.mlp.get_workload(batch_size=relay.Any(), dtype="float32")
@@ -171,7 +168,8 @@ def test_mlp_dyn(hexagon_session: Session):
     vm_mod = hexagon_session.get_executor_from_factory(ex)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
-    hexagon_res = vm_rt["main"](data)
+    vm_rt.set_input("main", data)
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on Relay for comparison.
     dev = tvm.cpu()
@@ -179,7 +177,7 @@ def test_mlp_dyn(hexagon_session: Session):
 
     target = tvm.target.Target("llvm", host="llvm")
     vm_exec = relay.vm.compile(relay_mod, target=target)
-    vm_factory = runtime.vm.VirtualMachine(vm_exec, tvm.cpu())
+    vm_factory = runtime.vm.VirtualMachine(vm_exec, dev)
     relay_res = vm_factory.invoke("main", data, **params)
     print(hexagon_res)
     print(relay_res)
