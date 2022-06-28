@@ -18,6 +18,7 @@
 import logging
 import tempfile
 import numpy as np
+import sys
 
 import pytest
 import tvm
@@ -42,6 +43,20 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def matmul_with_layout_free_attr(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    T.func_attr({"layout_free_buffers": [1]})
     for i, j, k in T.grid(128, 128, 128):
         with T.block("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -95,6 +110,7 @@ def test_tune_matmul_cuda():
             print(sch.trace)
 
 
+@pytest.mark.skip("Integration test")
 def test_tune_run_module_via_rpc():
     target = tvm.target.Target("llvm")
     rt_mod = tvm.build(matmul, target)
@@ -136,8 +152,27 @@ def test_tune_run_module_via_rpc():
         )
         tvm.testing.assert_allclose(result.numpy(), c_np, rtol=1e-3)
 
+@pytest.mark.skip("Integration test")
+@pytest.mark.parametrize("strategy", ["replay_trace", "replay_func", "evolutionary"])
+def test_tune_matmul_layout_rewrite(strategy):
+    with tempfile.TemporaryDirectory() as work_dir:
+        sch: Schedule = tune_tir(
+            mod=matmul_with_layout_free_attr,
+            target=Target("llvm --num-cores=16"),
+            config=TuneConfig(
+                strategy=strategy,
+                num_trials_per_iter=32,
+                max_trials_per_task=32,
+                max_trials_global=32,
+            ),
+            work_dir=work_dir,
+        )
+        if sch is None:
+            print("No valid schedule found!")
+        else:
+            print(sch.mod.script())
+            print(sch.trace)
+
 
 if __name__ == """__main__""":
-    test_tune_matmul_cpu()
-    test_tune_matmul_cuda()
-    test_tune_run_module_via_rpc()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

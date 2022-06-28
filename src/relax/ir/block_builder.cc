@@ -208,7 +208,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     if (!constant->shape_) {
       Array<PrimExpr> values;
       for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
-        values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
+        values.push_back(IntImm(DataType::Int(32), shape_tuple[dim]));
       }
       UpdateShape(constant, relax::ShapeExpr(values));
     }

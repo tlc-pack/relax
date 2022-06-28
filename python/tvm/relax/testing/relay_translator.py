@@ -95,9 +95,9 @@ def from_relay(
         ret = []
         for dim in shape:
             if isinstance(dim, tvm.tir.IntImm):
-                ret.append(tvm.tir.IntImm("int64", int(dim)))
+                ret.append(tvm.tir.IntImm("int32", int(dim)))
             elif isinstance(dim, tvm.tir.Any):
-                ret.append(tvm.tir.Var("d", "int64"))
+                ret.append(tvm.tir.Var("d", "int32"))
             else:
                 ret.append(dim)
         return ret

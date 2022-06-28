@@ -25,6 +25,7 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -60,6 +61,12 @@ class ArgInfo : public runtime::ObjectRef {
    * \return An array of the argument information derived.
    */
   TVM_DLL static Array<ArgInfo, void> FromPrimFunc(const tir::PrimFunc& func);
+  /*!
+   * \brief Extract a list of the argument information from tir schedule.
+   * \param sch The Schedule result to get argument information from.
+   * \return An array of the argument information derived.
+   */
+  TVM_DLL static Array<ArgInfo, void> FromSchedule(const tir::Schedule& sch);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ArgInfo, runtime::ObjectRef, ArgInfoNode);
 

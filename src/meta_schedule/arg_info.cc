@@ -60,6 +60,12 @@ Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
   return result;
 }
 
+Array<ArgInfo> ArgInfo::FromSchedule(const tir::Schedule& sch) {
+  // For layout-rewrite workloads, the args info will change due to weight buffer schedule
+  IRModule mod_wo_preprocess = tir::transform::RemoveWeightLayoutRewriteBlock()(sch->mod());
+  return ArgInfo::FromPrimFunc(FindEntryFunc(mod_wo_preprocess));
+}
+
 /******** TensorInfo ********/
 
 TensorInfo::TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape) {

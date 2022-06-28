@@ -627,6 +627,7 @@ TVM_DLL Pass ExtractPrimFuncConstants();
 TVM_DLL Pass RenormalizeSplitPattern();
 
 /*!
+
  * \brief Annotate a PrimFunc with a given target.
  * \return The pass.
  */
@@ -649,6 +650,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
  * \return The pass.
  */
 TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Remove the weight layout rewrite block
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
 
 }  // namespace transform
 }  // namespace tir

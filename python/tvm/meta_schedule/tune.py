@@ -634,8 +634,8 @@ def tune_relax(
         The built runtime module for the given relax workload.
     """
 
+    from tvm import relax
     from tvm.relax.vm import build as relax_build
-    from tvm.relax.transform import MetaScheduleApplyHistoryBest
     from .relax_integration import extract_task_from_relax
 
     logger.info("Working directory: %s", work_dir)
@@ -660,6 +660,8 @@ def tune_relax(
     )
 
     with PassContext(opt_level=3):
-        relax_mod = MetaScheduleApplyHistoryBest(database, target)(mod)
+        relax_mod = relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
+        relax_mod = relax.transform.SplitLayoutRewritePreproc()(relax_mod)
+        relax_mod = relax.transform.FoldConstant()(relax_mod)
         relax_ex = relax_build(relax_mod, target=target)
     return relax_ex
