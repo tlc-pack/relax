@@ -19,11 +19,12 @@
  */
 
 /*!
- * \file tvm/relax/backend/remove_unused_funcs.cc
+ * \file tvm/relax/transform/remove_unused_funcs.cc
  * \brief Remove unused global relax functions in a IRModule.
  */
 
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/transform.h>
 
 #include <iostream>
 #include <unordered_set>
