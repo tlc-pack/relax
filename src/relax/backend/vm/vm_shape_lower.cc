@@ -36,10 +36,10 @@ class VMShapeLowerMutator : public ExprMutator {
  public:
   static DataType ShapeDType() { return DataType::Int(64); }
 
-  explicit VMShapeLowerMutator(IRModule mod) : ExprMutator(mod) { mod_ = mod; }
+  explicit VMShapeLowerMutator(IRModule mod) : ExprMutator(mod) {}
 
   IRModule Lower() {
-    for (auto& p : mod_->functions) {
+    for (auto& p : builder_->GetContextIRModule()->functions) {
       Expr func = p.second;
       if (func->IsInstance<FunctionNode>()) {
         // prepare mapping and heap var
@@ -217,8 +217,6 @@ class VMShapeLowerMutator : public ExprMutator {
   }
 
  private:
-  IRModule mod_;
-
   // function-wise members
   IntImm heap_size_;
   Var shape_heap_;
