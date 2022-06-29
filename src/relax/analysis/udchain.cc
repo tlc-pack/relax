@@ -36,8 +36,8 @@ class UseDefAnalysis : public relax::ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding) override {
     v2binding_[binding->var.get()] = cur_vbinding_ = binding;
     this->VisitExpr(binding->value);
+    cur_vbinding_ = nullptr;  // only check if cur binding's expr using vars elsewhere.
     this->VisitVarDef(binding->var);
-    cur_vbinding_ = nullptr;
   }
 
   void VisitExpr_(const VarNode* op) override {
@@ -54,6 +54,12 @@ class UseDefAnalysis : public relax::ExprVisitor {
     VisitExpr_(static_cast<const VarNode*>(op));
   }
 };
+
+std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const Function& f) {
+  UseDefAnalysis udanalysis;
+  udanalysis.VisitExpr(f);
+  return std::move(udanalysis.udmap_);
+}
 
 std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const IRModule& m) {
   UseDefAnalysis udanalysis;
