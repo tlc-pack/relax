@@ -286,7 +286,13 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/printer/*.cc
     src/support/*.cc
     src/script/*.cc
-    src/relax/*.cc
+    src/relax/ir/*.cc
+    src/relax/op/*.cc
+    src/relax/analysis/*.cc
+    src/relax/transform/*.cc
+    src/relax/backend/vm/*.cc
+    src/relax/backend/task_extraction.cc
+    src/relax/utils.cc
     )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
