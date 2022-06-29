@@ -19,7 +19,7 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Union, Optional, List
 import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase
@@ -183,12 +183,12 @@ def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir
     return _ffi_api.BindParams(func_name, params)
 
 
-def RemoveUnusedFunctions(entry_functions=None) -> tvm.ir.transform.Pass:
+def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
     """Remove unused relax/prim functions without external linkage in a IRModule.
 
     Parameters
     ----------
-    entry_functions: list[string]
+    entry_functions: Optional[List[str]]
         The set of entry functions to start from.
 
     Returns
@@ -199,6 +199,28 @@ def RemoveUnusedFunctions(entry_functions=None) -> tvm.ir.transform.Pass:
     if entry_functions is None:
         entry_functions = ["main"]
     return _ffi_api.RemoveUnusedFunctions(entry_functions)
+
+
+def RunCodegen(
+    target_codegens: Optional[List[str]] = None, entry_functions: Optional[List[str]] = None
+) -> tvm.ir.transform.Pass:
+    """Produce the runtime::Module with an annotated codegen and global symbol.
+
+    Parameters
+    ----------
+    target_codegens: Optional[List[str]]
+        List of target codegens. If empty, perform all codegens by default.
+    entry_functions: Optional[List[str]]
+        The set of entry functions to start from.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass to remove unused functions.
+    """
+    if entry_functions is None:
+        entry_functions = ["main"]
+    return _ffi_api.RunCodegen(target_codegens, entry_functions)
 
 
 def FoldConstant() -> tvm.ir.transform.Pass:

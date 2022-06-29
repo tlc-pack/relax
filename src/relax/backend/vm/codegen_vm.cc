@@ -36,6 +36,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../../target/metadata_module.h"
+#include "../../../target/source/codegen_source_base.h"
+
 namespace tvm {
 namespace relax {
 namespace relax_vm {
@@ -533,13 +536,28 @@ ObjectPtr<Executable> VMCodeGen::GetExec() { return builder_->Get(); }
  * \param lib The kernel library.
  * \return The constructed Relax VM executable.
  */
-Module CodeGen(IRModule mod, Optional<Module> lib) {
+Module CodeGen(IRModule mod, Optional<Module> lib, Array<Module> ext_libs, Target target,
+               Map<String, runtime::NDArray> params) {
   VMCodeGen codegen;
   codegen.CodeGen(mod);
   ObjectPtr<Executable> executable = codegen.GetExec();
-  if (lib.defined()) {
-    executable->Import(lib.value());
+  if (!lib.defined()) {
+    lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
+  std::unordered_map<std::string, runtime::NDArray> conv_params;
+  for (const auto& kv : params) {
+    conv_params[kv.first] = kv.second;
+  }
+  Module combined_lib = codegen::CreateMetadataModule(
+      conv_params, lib.value(), ext_libs, target,
+
+      // TODO(@sunggg): Currently, CRT uses relay-specific executor for uTVM support.
+      // Before jumping into details, only support cpp runtime for now.
+      relay::Runtime::Create("cpp"),
+      relay::Executor::Create("graph"),  // TODO(@sunggg): pass arbitrarily executor. CPP runtime
+                                         // won't use this anyways.
+      relay::backend::ExecutorCodegenMetadata());
+  executable->Import(combined_lib);
   return Module(executable);
 }
 
