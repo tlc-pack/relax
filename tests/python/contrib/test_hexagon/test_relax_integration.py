@@ -58,7 +58,8 @@ def test_conv2d(hexagon_session: Session):
     # Run on hexagon and get result
     data = tvm.nd.array(data_np, dev)
     weight = tvm.nd.array(weight_np, dev)
-    hexagon_res = vm_rt["main"](data, weight)
+    vm_rt.set_input("main", data, weight)
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on Relay for comparison.
     dev = tvm.cpu()
@@ -136,7 +137,8 @@ def test_mlp(hexagon_session: Session):
     shape = (1, 1, 28, 28)
     data_np = np.random.rand(*shape).astype("float32")
     data = tvm.nd.array(data_np, hexagon_device)
-    hexagon_res = vm_rt["main"](data)
+    vm_rt.set_input("main", data)
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on Relay for comparison.
     cpu_dev = tvm.cpu()
@@ -214,7 +216,8 @@ def test_mobilenet_onnx(hexagon_session: Session):
     vm_mod = hexagon_session.get_executor_from_factory(ex)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
-    hexagon_res = vm_rt["main"](data)
+    vm_rt.set_input("main", data)
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm")
@@ -245,7 +248,8 @@ def test_mobilenet(hexagon_session: Session):
     vm_mod = hexagon_session.get_executor_from_factory(ex)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
-    hexagon_res = vm_rt["main"](data)
+    vm_rt.set_input("main", data)
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm", params)
@@ -276,7 +280,8 @@ def test_mobilenet_dyn(hexagon_session: Session):
     vm_mod = hexagon_session.get_executor_from_factory(ex)
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
-    hexagon_res = vm_rt["main"](data)
+    vm_rt.set_input("main", data)
+    hexagon_res = vm_rt["main"]()
 
     # Compile and run on Relay for comparison.
     dev = tvm.cpu()
