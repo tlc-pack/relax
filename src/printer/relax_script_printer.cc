@@ -44,6 +44,8 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
     return VisitType(Downcast<Type>(node));
   } else if (node->IsInstance<PrimExprNode>()) {
     return VisitExpr(Downcast<PrimExpr>(node));
+  } else if (node->IsInstance<tir::PrimFuncNode>()) {
+    return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node));
   } else {
     return VisitNode(node);
   }
@@ -652,7 +654,8 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
 bool RelaxScriptPrinter::ShowMetaData() { return show_meta_data_; }
 
 String AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
-  ICHECK(mod->IsInstance<relax::FunctionNode>() || mod->IsInstance<IRModuleNode>());
+  ICHECK(mod->IsInstance<IRModuleNode>() || mod->IsInstance<relax::FunctionNode>() ||
+         mod->IsInstance<tir::PrimFuncNode>());
   Doc doc;
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
   doc << TextPrinter(show_meta_data, ftyped).PrintRelax(mod);
