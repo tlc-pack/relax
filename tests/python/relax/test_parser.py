@@ -770,6 +770,9 @@ def test_class_irmodule():
     assert isinstance(my_module, tvm.IRModule)
 
     R.parser.pretty_print(my_module)
+    # check that we can print TIR and Relax functions too using the same api.
+    R.parser.pretty_print(my_module["my_matmul"])
+    R.parser.pretty_print(my_module["f"])
 
     var_f = my_module.get_global_var("f")
     var_g = my_module.get_global_var("g")
