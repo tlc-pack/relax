@@ -42,7 +42,7 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
   n->values = std::move(values);
   n->span = span;
   n->shape_ = NullOpt;
-  n->checked_type_ = ShapeType(Span());
+  n->checked_type_ = ShapeType();
   data_ = std::move(n);
 }
 

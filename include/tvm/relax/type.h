@@ -53,7 +53,7 @@ class ShapeType : public Type {
  public:
   TVM_DLL ShapeType(Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapeType, Type, ShapeTypeNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeType, Type, ShapeTypeNode);
 };
 
 class ObjectTypeNode : public TypeNode {
@@ -72,7 +72,7 @@ class ObjectType : public Type {
  public:
   TVM_DLL ObjectType(Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ObjectType, Type, ObjectTypeNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectType, Type, ObjectTypeNode);
 };
 
 class DynTensorTypeNode : public BaseTensorTypeNode {
