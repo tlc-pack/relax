@@ -45,7 +45,7 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   } else if (node->IsInstance<PrimExprNode>()) {
     return VisitExpr(Downcast<PrimExpr>(node));
   } else if (node->IsInstance<tir::PrimFuncNode>()) {
-    return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node));
+    return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node), "T", false);
   } else {
     return VisitNode(node);
   }
