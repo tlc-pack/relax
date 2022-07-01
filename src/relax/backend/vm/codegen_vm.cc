@@ -69,15 +69,15 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   size_t NewRegister() { return registers_num_++; }
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     Optional<String> gsymbol = func_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    ICHECK(gsymbol.defined()) << "there should be no local functions in Relax VM codegen phase. "
+                                 "Did you forget to apply LambdaLift pass?";
+
     Array<String> param_names;
     for (Var param : func_node->params) {
       param_names.push_back(param->name_hint());
     }
-    if (gsymbol.defined()) {
-      builder_->EmitFunction(gsymbol.value(), func_node->params.size(), param_names);
-    } else {
-      LOG(FATAL) << "ValueError: there should be no local functions in Relax VM codegen phase.";
-    }
+
+    builder_->EmitFunction(gsymbol.value(), func_node->params.size(), param_names);
 
     for (Var param : func_node->params) {
       Instruction::Arg reg = this->VisitExpr(param);

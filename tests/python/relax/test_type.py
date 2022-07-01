@@ -36,7 +36,9 @@ def test_dyn_tensor_type():
 
 
 def test_subtype():
-    # DynTensorType
+    # check the subtype relation for DynTensorType
+    # e.g., DynTensorType(ndim=3, dtype="float32") is a subtype of DynTensorType(ndim=-1, dtype="float32")
+    # and DynTensorType(ndim=-1, "float32") is a subtype of DynTensorType(ndim=-1, dtype=None)
     t0 = rx.DynTensorType(-1, None)
     t1 = rx.DynTensorType(3, None)
     t2 = rx.DynTensorType(3, "int32")
@@ -52,13 +54,16 @@ def test_subtype():
     assert is_base_of(t2, t3) == False
     assert is_base_of(t3, t2) == False
 
-    # ShapeType
+    # check the subtype relation for ShapeType
     t5 = rx.ShapeType()
     t6 = rx.ShapeType()
     assert is_base_of(t5, t6)
     assert is_base_of(t5, t0) == False
 
-    # TupleType
+    # check the subtype relation for TupleType by checking if each field
+    # of the base TupleType is subtype of the field of the derived TupleType
+    # e.g., TupleType([DynTensorType(ndim=3, dtype="float32"), ShapeType()])
+    # is a subtype of TupleType([DynTensorType(ndim=-1, dtype="float32"), ShapeType()])
     t7 = rx.TupleType([t0, t1, t5])
     t8 = rx.TupleType([t1, t1, t5])
     t9 = rx.TupleType([t1, t3, t5])
@@ -72,7 +77,9 @@ def test_subtype():
     assert is_base_of(t11, t7) == False
     assert is_base_of(t7, t11) == False
 
-    # FunctionType
+    # check the subtype relation for FunctionType by checking the subtype relations of arg_types and ret_type
+    # e.g., FuncType([DynTensorType(ndim=3, dtype="float32")], DynTensorType(ndim=2, dtype="float32"))
+    # is a subtype of FuncType([DynTensorType(ndim=-1, dtype=None)], DynTensorType(ndim=-1, dtype="float32"))
     t12 = rx.FuncType([t7], t0)
     t13 = rx.FuncType([t7], t1)
     t14 = rx.FuncType([t8], t0)
@@ -89,7 +96,8 @@ def test_subtype():
     assert is_base_of(t12, t16) == False
     assert is_base_of(t13, t16) == False
 
-    # ObjectType
+    # check the subtype relation for ObjectType
+    # ObjectType is the base type of every type in Relax
     t18 = rx.ObjectType()
     assert is_base_of(t18, t0)
     assert is_base_of(t18, t5)
