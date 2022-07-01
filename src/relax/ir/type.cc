@@ -21,6 +21,7 @@
  * \file src/relax/type.cc
  * \brief Relax's type system AST nodes throughout the IR.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/registry.h>
 
@@ -79,60 +80,75 @@ TVM_REGISTER_NODE_TYPE(DimTypeNode);
 
 TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimType(span); });
 
-bool IsBaseOf(const Type& base, const Type& derived) {
-  // TODO(@yuchen): refactor to use generic type functor, dispatching on base.
+/*!
+ * \brief Utility class for generic type dispatching:
+ * VisitType dispatches on the base type and checks if the derived type is a subtype of the base
+ * type.
+ */
+class BaseTypeChecker : public TypeFunctor<bool(const Type& n)> {
+ public:
+  explicit BaseTypeChecker(const Type& derived) : derived_{derived} {}
 
-  if (auto base_tensor = base.as<DynTensorTypeNode>()) {
-    if (auto derived_tensor = derived.as<DynTensorTypeNode>()) {
-      if (base_tensor->IsUnknownNdim() || base_tensor->ndim == derived_tensor->ndim) {
-        if (base_tensor->IsUnknownDtype() || base_tensor->dtype == derived_tensor->dtype) {
+  bool VisitType_(const ShapeTypeNode* base) final {
+    if (derived_.as<ShapeTypeNode>()) {
+      return true;
+    }
+    return false;
+  }
+  bool VisitType_(const ObjectTypeNode* base) final { return true; }
+
+  bool VisitType_(const DynTensorTypeNode* base) final {
+    if (auto derived_tensor = derived_.as<DynTensorTypeNode>()) {
+      if (base->IsUnknownNdim() || base->ndim == derived_tensor->ndim) {
+        if (base->IsUnknownDtype() || base->dtype == derived_tensor->dtype) {
           return true;
         }
       }
     }
     return false;
-  } else if (base.as<ShapeTypeNode>()) {
-    if (derived.as<ShapeTypeNode>()) {
-      return true;
-    }
-    return false;
-  } else if (auto base_tuple = base.as<TupleTypeNode>()) {
-    if (auto derived_tuple = derived.as<TupleTypeNode>()) {
-      if (base_tuple->fields.size() != derived_tuple->fields.size()) {
-        return false;
-      }
-
-      for (size_t i = 0; i < base_tuple->fields.size(); ++i) {
-        if (!IsBaseOf(base_tuple->fields[i], derived_tuple->fields[i])) {
-          return false;
-        }
-      }
-      return true;
-    }
-    return false;
-  } else if (auto base_func = base.as<FuncTypeNode>()) {
-    if (auto derived_func = derived.as<FuncTypeNode>()) {
-      if (base_func->arg_types.size() != derived_func->arg_types.size()) {
-        return false;
-      }
-      for (size_t i = 0; i < base_func->arg_types.size(); ++i) {
-        if (!IsBaseOf(base_func->arg_types[i], derived_func->arg_types[i])) {
-          return false;
-        }
-      }
-      if (!IsBaseOf(base_func->ret_type, derived_func->ret_type)) {
-        return false;
-      }
-      return true;
-    }
-    return false;
-  } else if (base.as<ObjectTypeNode>()) {
-    return true;
-  } else {
-    LOG(FATAL) << "TypeError: cannot handle base type: " << base->GetTypeKey();
   }
 
-  return false;
+  bool VisitType_(const TupleTypeNode* base) final {
+    if (auto derived_tuple = derived_.as<TupleTypeNode>()) {
+      if (base->fields.size() != derived_tuple->fields.size()) {
+        return false;
+      }
+
+      for (size_t i = 0; i < base->fields.size(); ++i) {
+        if (!IsBaseOf(base->fields[i], derived_tuple->fields[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  bool VisitType_(const FuncTypeNode* base) final {
+    if (auto derived_func = derived_.as<FuncTypeNode>()) {
+      if (base->arg_types.size() != derived_func->arg_types.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < base->arg_types.size(); ++i) {
+        if (!IsBaseOf(base->arg_types[i], derived_func->arg_types[i])) {
+          return false;
+        }
+      }
+      if (!IsBaseOf(base->ret_type, derived_func->ret_type)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  Type derived_;
+};
+
+bool IsBaseOf(const Type& base, const Type& derived) {
+  BaseTypeChecker visitor(derived);
+  return visitor.VisitType(base);
 }
 
 TVM_REGISTER_GLOBAL("relax.IsBaseOf").set_body_typed([](const Type& base, const Type& derived) {
