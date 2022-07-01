@@ -51,12 +51,16 @@ def test_subtype():
     assert is_base_of(t1, t2)
     assert is_base_of(t1, t3)
     assert is_base_of(t4, t3)
+    # a type is subtype of itself
+    assert is_base_of(t2, t2)
+    assert is_base_of(t3, t3)
     assert is_base_of(t2, t3) == False
     assert is_base_of(t3, t2) == False
 
     # check the subtype relation for ShapeType
     t5 = rx.ShapeType()
     t6 = rx.ShapeType()
+    assert is_base_of(t5, t5)
     assert is_base_of(t5, t6)
     assert is_base_of(t5, t0) == False
 
@@ -72,6 +76,7 @@ def test_subtype():
     assert is_base_of(t7, t8)
     assert is_base_of(t7, t9)
     assert is_base_of(t8, t9)
+    assert is_base_of(t8, t8)
     assert is_base_of(t9, t7) == False
     assert is_base_of(t7, t10) == False
     assert is_base_of(t11, t7) == False
@@ -89,10 +94,12 @@ def test_subtype():
     assert is_base_of(t12, t13)
     assert is_base_of(t12, t14)
     assert is_base_of(t12, t15)
+    assert is_base_of(t12, t12)
     assert is_base_of(t13, t14) == False
     assert is_base_of(t13, t15)
     assert is_base_of(t14, t15)
     assert is_base_of(t16, t17)
+    assert is_base_of(t16, t16)
     assert is_base_of(t12, t16) == False
     assert is_base_of(t13, t16) == False
 
@@ -103,6 +110,7 @@ def test_subtype():
     assert is_base_of(t18, t5)
     assert is_base_of(t18, t7)
     assert is_base_of(t18, t12)
+    assert is_base_of(t18, t18)
     assert is_base_of(t0, t18) == False
     assert is_base_of(t5, t18) == False
     assert is_base_of(t7, t18) == False
