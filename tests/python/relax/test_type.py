@@ -116,6 +116,34 @@ def test_subtype():
     assert is_base_of(t7, t18) == False
     assert is_base_of(t12, t18) == False
 
+    # more complicated cases
+    # TupleType with all possible types as fields
+    t19 = rx.TupleType([t7, t0, t5, t12, t18])
+    t20 = rx.TupleType([t8, t1, t5, t15, t18])
+    t21 = rx.TupleType([t18, t18, t18, t18, t18])
+    assert is_base_of(t19, t20)
+    assert is_base_of(t21, t19)
+    assert is_base_of(t21, t20)
+    assert is_base_of(t20, t19) == False
+    assert is_base_of(t18, t20)
+    # FuncType with all possible types as arg_types and ret_type
+    t22 = rx.FuncType([t7, t0, t5, t12, t18], t0)
+    t23 = rx.FuncType([t8, t1, t5, t15, t18], t1)
+    t24 = rx.FuncType([t7], t0)
+    t25 = rx.FuncType([t18, t18, t18, t18, t18], t18)
+    t26 = rx.FuncType([t18], t18)
+    t27 = rx.FuncType([t7, t0, t5, t12, t18], t19)
+    t28 = rx.FuncType([t7, t0, t5, t12, t18], t20)
+    assert is_base_of(t22, t23)
+    assert is_base_of(t25, t23)
+    assert is_base_of(t18, t23)
+    assert is_base_of(t18, t22)
+    assert is_base_of(t27, t28)
+    assert is_base_of(t24, t22) == False
+    assert is_base_of(t24, t23) == False
+    assert is_base_of(t26, t23) == False
+    assert is_base_of(t28, t27) == False
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
