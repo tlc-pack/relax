@@ -370,7 +370,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
     if (call->op.as<ExternFuncNode>()) {
       // call_packed: return RuntimeDepShape
-      return RuntimeDepShape(Span());
+      return RuntimeDepShape();
     } else if (call->op.as<OpNode>()) {
       // primitive op: look up FInferShape attribute
       Op op = Downcast<Op>(call->op);
@@ -389,7 +389,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
             return func_shape;
           } else {
             // TODO(@yuchen): add deducer for other cases
-            return RuntimeDepShape(Span());
+            return RuntimeDepShape();
           }
         }
       }
@@ -411,7 +411,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
             return func_shape;
           } else {
             // TODO(@yuchen, @yongwww): add deducer for other cases
-            return RuntimeDepShape(Span());
+            return RuntimeDepShape();
           }
         }
       }
@@ -429,7 +429,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     if (call->op.as<ExternFuncNode>()) {
       if (call->type_args.defined()) {
         if (call->type_args.size() == 0) {
-          return ObjectType(Span());
+          return ObjectType();
         } else if (call->type_args.size() == 1) {
           return call->type_args.front();
         } else {
@@ -605,7 +605,7 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
       cur_frame->is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
 
   if (value->checked_type().as<ShapeTypeNode>()) {
-    UpdateType(var, ShapeType(Span()));
+    UpdateType(var, ShapeType());
   } else if (const DynTensorTypeNode* tty = value->checked_type().as<DynTensorTypeNode>()) {
     ShapeExpr shape = ShapeExpr(pattern);
     UpdateShape(var, shape);
