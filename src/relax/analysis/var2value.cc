@@ -29,9 +29,9 @@ class Var2ValAnalysis : public relax::ExprVisitor {
   }
 };
 
-tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const Function& f) {
+tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr) {
   Var2ValAnalysis var2val_analysis;
-  var2val_analysis.VisitExpr(f);
+  var2val_analysis.VisitExpr(expr);
   return std::move(var2val_analysis.var2value_);
 }
 

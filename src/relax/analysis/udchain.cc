@@ -55,9 +55,9 @@ class UseDefAnalysis : public relax::ExprVisitor {
   }
 };
 
-std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const Function& f) {
+std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const Expr& expr) {
   UseDefAnalysis udanalysis;
-  udanalysis.VisitExpr(f);
+  udanalysis.VisitExpr(expr);
   return std::move(udanalysis.udmap_);
 }
 
