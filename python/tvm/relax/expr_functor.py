@@ -19,6 +19,7 @@
 from typing import Optional
 from tvm.ir import Op
 from tvm.ir.base import structural_equal
+from tvm.ir.module import IRModule
 from .ty import DynTensorType
 from .expr import Type, Span, Expr
 from .expr import Function, ExternFunc
@@ -416,12 +417,13 @@ class ExprMutator(ExprMutatorBase):
 
     ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
     nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
-    available.
+    available. Note: We can use relax.transform.Normalize()(mod) to transform relax IR into
+    the normal form.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, mod: Optional[IRModule] = None) -> None:
         super().__init__()
-        self.builder_ = BlockBuilder()
+        self.builder_ = BlockBuilder(mod)
         self.var_remap_ = dict()
 
     def visit_expr(self, expr) -> Expr:
