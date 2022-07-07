@@ -103,10 +103,8 @@ def test_fma_fuse():
 
     # TODO(@yuchen): add assert_structural_equal after normalization in parser
     assert len(After.get_global_vars()) == 2
-    gv_main = After.get_global_var("main")
-    main = After[gv_main]
-    gv_ewise_fma_fused = After.get_global_var("ewise_fma_fused")
-    ewise_fma_fused = After[gv_ewise_fma_fused]
+    main = After["main"]
+    ewise_fma_fused = After["ewise_fma_fused"]
 
     # check sub function call type inference
     assert_structural_equal(ewise_fma_fused.body.checked_type, relax.DynTensorType(2, "float32"))
@@ -140,10 +138,8 @@ def test_fma_fuse_python():
 
     # TODO(@yuchen): add assert_structural_equal after normalization in parser
     assert len(After.get_global_vars()) == 2
-    gv_main = After.get_global_var("main")
-    main = After[gv_main]
-    gv_ewise_fma_fused = After.get_global_var("ewise_fma_fused")
-    ewise_fma_fused = After[gv_ewise_fma_fused]
+    main = After["main"]
+    ewise_fma_fused = After["ewise_fma_fused"]
 
     # check sub function call type inference
     assert_structural_equal(ewise_fma_fused.body.checked_type, relax.DynTensorType(2, "float32"))
