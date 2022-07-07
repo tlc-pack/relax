@@ -79,7 +79,7 @@ class EwiseFuseFMAMutator(ExprMutator):
     def ewise_fused(x, y, z):
         return relax.ewise_fma(x, y, z)
 
-        def main():
+    def main():
         z0 = ewise_fused(a, b, c)
     """
 
