@@ -343,12 +343,12 @@ class ExprMutatorBase(ExprFunctor):
     def visit_op_(self, op: Op) -> Op:
         return op
 
-    def visit_tuple_getitem_(self, get_item: TupleGetItem) -> TupleGetItem:
-        t = self.visit_expr(get_item.tuple_value)
-        if get_item.tuple_value.same_as(t):
-            return get_item
+    def visit_tuple_getitem_(self, op: TupleGetItem) -> TupleGetItem:
+        t = self.visit_expr(op.tuple_value)
+        if op.tuple_value.same_as(t):
+            return op
         else:
-            return TupleGetItem(t, get_item.index)
+            return TupleGetItem(t, op.index)
 
     def visit_shape_expr_(self, op: ShapeExpr) -> ShapeExpr:
         return op
