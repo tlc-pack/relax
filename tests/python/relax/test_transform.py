@@ -83,7 +83,7 @@ def test_fma_rewrite_python():
             gv2 = relax.add(gv1, y)
             return (gv0, gv1, gv2)
 
-    After = relax.transform.ewise_fma_rewriter(Before)
+    After = relax.transform.EwiseRewriteFMA()(Before)
 
     assert_structural_equal(After, Expected)
 
@@ -134,7 +134,7 @@ def test_fma_fuse_python():
                 relax.output(gv0)
             return gv0
 
-    After = relax.transform.ewise_fuse_fma_rewriter(Before)
+    After = relax.transform.EwiseFuseFMA()(Before)
 
     # TODO(@yuchen): add assert_structural_equal after normalization in parser
     assert len(After.get_global_vars()) == 2

@@ -55,8 +55,11 @@ class EwiseFMARewriter(ExprMutator):
 
 
 @dataflowblock_pass(opt_level=2, name="ewise_fma_rewriter")
-def ewise_fma_rewriter(block, mod, ctx):
-    return EwiseFMARewriter().visit_binding_block(block)
+class EwiseRewriteFMA:
+    """The wrapper for the EwiseFMARewriter pass."""
+
+    def transform_dataflowblock(self, block, mod, ctx):
+        return EwiseFMARewriter().visit_binding_block(block)
 
 
 class EwiseFuseFMAMutator(ExprMutator):
@@ -124,5 +127,8 @@ class EwiseFuseFMAMutator(ExprMutator):
 
 
 @module_pass(opt_level=2, name="ewise_fuse_fma_rewriter")
-def ewise_fuse_fma_rewriter(mod, ctx):
-    return EwiseFuseFMAMutator(mod).transform()
+class EwiseFuseFMA:
+    """The wrapper for the EwiseFuseFMA pass."""
+
+    def transform_module(self, mod, ctx):
+        return EwiseFuseFMAMutator(mod).transform()
