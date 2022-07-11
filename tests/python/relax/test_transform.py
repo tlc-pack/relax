@@ -101,7 +101,7 @@ def test_fma_fuse():
 
     After = relax.transform.FuseFMA()(Before)
 
-    # TODO(@yuchen): add assert_structural_equal after normalization in parser
+    # TODO(@yuchen): add assert_structural_equal after parser allows CallNode as Function's body
     assert len(After.get_global_vars()) == 2
     main = After["main"]
     ewise_fma_fused = After["ewise_fma_fused"]
@@ -136,7 +136,7 @@ def test_fma_fuse_python():
 
     After = relax.transform.EwiseFuseFMA()(Before)
 
-    # TODO(@yuchen): add assert_structural_equal after normalization in parser
+    # TODO(@yuchen): add assert_structural_equal after parser allows CallNode as Function's body
     assert len(After.get_global_vars()) == 2
     main = After["main"]
     ewise_fma_fused = After["ewise_fma_fused"]
