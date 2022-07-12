@@ -67,7 +67,6 @@ FuncType = ty.FuncType
 # VM
 ExecBuilder = exec_builder.ExecBuilder
 VirtualMachine = vm.VirtualMachine
-load_exec_from_file = vm.load_exec_from_file
 
 # Operator
 from .op.base import call_tir, make_closure, invoke_closure
