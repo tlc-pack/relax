@@ -110,21 +110,6 @@ TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
  * \return List of all global variables, in the PostDFS order in the expression.
  */
 TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
-/**
- * \brief Perform use-def analysis to get a UDChain.
- *
- * \param m the IRModule to check.
- * \return A map showing used-by information.
- */
-TVM_DLL std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const IRModule& m);
-
-/**
- * \brief Perform use-def analysis to get a UDChain.
- *
- * \param expr The expression to analyze.
- * \return  A map showing used-by information.
- */
-TVM_DLL std::map<VarBinding, std::set<VarBinding>> AnalyzeUDChain(const Expr& expr);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
@@ -140,7 +125,15 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
  * \param expr the expression to check.
  * \return TVM_DLL Var -> Value (Expr)
  */
-TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& f);
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
+
+/**
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param dfb the dataflow block to check.
+ * \return TVM_DLL Var -> Value (Expr)
+ */
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
 
 }  // namespace relax
 }  // namespace tvm

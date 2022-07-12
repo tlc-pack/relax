@@ -18,12 +18,11 @@
 # pylint: disable=no-member
 # pylint: disable=missing-function-docstring
 
-from argparse import ArgumentError
 from typing import List, Optional, Callable, Dict, Union, Tuple
 
 import tvm
 import tvm._ffi as tvm_ffi
-from tvm.relax import Expr, Function, VarBinding, Var
+from tvm.relax import DataflowBlock, Expr, VarBinding, Var
 from tvm.relay.op import get
 
 from ...ir import make_node
@@ -126,9 +125,7 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match(
-        self, expr: Expr = None, func: Function = None, var2val=None
-    ) -> Union[bool, Dict["DFPattern", VarBinding]]:
+    def match_expr(self, expr, var2val=None) -> bool:
         """
         Match the given expression or function against this pattern.
 
@@ -136,8 +133,6 @@ class DFPattern(Node):
         ----------
         expr : tvm.relax.Expr
             The expression to match.
-        func : tvm.relax.Function
-            The function to match.
         var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
             A mapping from Var to Expr for autojump (only for match_expr).
 
@@ -146,15 +141,29 @@ class DFPattern(Node):
         result: bool
             Whether or not the expression matches the pattern
         """
-        if expr is None and func is None:
-            raise RuntimeError("Either expr or func must be specified")
+        return match_expr(self, expr, var2val)
 
-        if expr is not None and func is not None:
-            raise RuntimeError("Either expr or func must be specified, but not both")
+    def match_dfb(
+        self,
+        dfb: DataflowBlock,
+        start_hint: Optional[VarBinding] = None,
+        match_once: bool = False,
+        disable_autojump: bool = False,
+    ):
+        """
+        Match the given dataflow block against this pattern.
 
-        if expr is not None:
-            return match_expr(self, expr, var2val)
-        return match_func(self, func)
+        Parameters
+        ----------
+        dfb : tvm.relax.DataflowBlock
+            The dataflow block to match.
+
+        Returns
+        -------
+        result: bool
+            Whether or not the dataflow block matches the pattern
+        """
+        return match_dfb(self, dfb, start_hint, match_once, disable_autojump)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
@@ -175,6 +184,15 @@ class DFPattern(Node):
 
     def has_rt_dep_shape(self):
         return self & has_rt_dep_shape()
+
+    def used_by(self, other: "DFPattern", index=-1):
+        return ub(self, other, index)
+
+    def only_used_by(self, other: "DFPattern", index=-1):
+        return oub(self, other, index)
+
+    ub = used_by
+    oub = only_used_by
 
 
 @register_df_node
@@ -739,7 +757,13 @@ def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None
     return ffi.match_expr(pattern, expr, var2val, False)
 
 
-def match_func(pattern: "DFPattern", expr: Function) -> Dict[DFPattern, VarBinding]:
+def match_dfb(
+    pattern: "DFPattern",
+    dfb: DataflowBlock,
+    start_hint: Optional[VarBinding] = None,
+    match_once: bool = False,
+    disable_autojump: bool = False,
+) -> Dict[DFPattern, VarBinding]:
     """
     Match a pattern to a function
 
@@ -750,4 +774,18 @@ def match_func(pattern: "DFPattern", expr: Function) -> Dict[DFPattern, VarBindi
     expr : tvm.relax.Function
         The function to match.
     """
-    return ffi.match_func(pattern, expr)
+    return ffi.match_dfb(pattern, dfb, start_hint, match_once, disable_autojump)
+
+
+def used_by(lhs: "DFPattern", rhs: "DFPattern", index=-1) -> "DFPattern":
+    return ffi.used_by(lhs, rhs, index)
+
+
+ub = used_by
+
+
+def only_used_by(lhs: "DFPattern", rhs: "DFPattern", index=-1) -> "DFPattern":
+    return ffi.only_used_by(lhs, rhs, index)
+
+
+oub = only_used_by

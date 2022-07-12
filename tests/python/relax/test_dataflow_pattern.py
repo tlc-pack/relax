@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 import pytest
+from tvm._ffi.base import TVMError
 
 from tvm.relax.dataflow_pattern import *
 from tvm.relax.analysis import get_var2val
@@ -74,38 +75,38 @@ def test_var_pattern():
     v = is_var("x")
     assert isinstance(v, VarPattern)
     assert v.name == "x"
-    assert v.match(rx.Var("x"))
-    assert is_var().match(rx.Var("x"))
-    assert is_var().match(rx.DataflowVar("x"))  # DataflowVar is also a Var
-    assert not v.match(rx.GlobalVar("x"))
+    assert v.match_expr(rx.Var("x"))
+    assert is_var().match_expr(rx.Var("x"))
+    assert is_var().match_expr(rx.DataflowVar("x"))  # DataflowVar is also a Var
+    assert not v.match_expr(rx.GlobalVar("x"))
 
 
 def test_dataflow_var_pattern():
     v = is_dfv("x")
     assert isinstance(v, DataflowVarPattern)
     assert v.name == "x"
-    assert v.match(rx.DataflowVar("x"))
-    assert not v.match(rx.GlobalVar("x"))
-    assert is_dfv().match(bindings[0].var)
+    assert v.match_expr(rx.DataflowVar("x"))
+    assert not v.match_expr(rx.GlobalVar("x"))
+    assert is_dfv().match_expr(bindings[0].var)
 
 
 def test_global_var_pattern():
-    assert is_gv("x").match(rx.GlobalVar("x"))
-    assert is_gv().match(rx.GlobalVar("x"))
-    assert not is_gv("x").match(rx.GlobalVar("y"))
-    assert not is_gv("x").match(rx.Var("x"))
+    assert is_gv("x").match_expr(rx.GlobalVar("x"))
+    assert is_gv().match_expr(rx.GlobalVar("x"))
+    assert not is_gv("x").match_expr(rx.GlobalVar("y"))
+    assert not is_gv("x").match_expr(rx.Var("x"))
 
 
 def test_constant_pattern():
     c = is_constant()
     assert isinstance(c, ConstantPattern)
-    assert c.match(rx.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]]))
+    assert c.match_expr(rx.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]]))
 
 
 def test_wildcard_pattern():
     wc = wildcard()
     assert isinstance(wc, WildcardPattern)
-    assert wc.match(rx.Var("x"))
+    assert wc.match_expr(rx.Var("x"))
 
 
 def test_call_pattern():
@@ -115,7 +116,7 @@ def test_call_pattern():
     assert isinstance(c, CallPattern)
     assert isinstance(c.args[0], WildcardPattern)
     assert isinstance(c.args[1], WildcardPattern)
-    assert c.match(rx.op.add(rx.Var("x"), rx.Var("y")))
+    assert c.match_expr(rx.op.add(rx.Var("x"), rx.Var("y")))
 
 
 def test_function_pattern():
@@ -131,8 +132,8 @@ def test_function_pattern():
     ttype = rx.DynTensorType(-1, "float32")
     x = rx.Var("x", type_annotation=ttype)
     y = rx.Var("y", type_annotation=ttype)
-    assert f.match(rx.Function([x, y], rx.op.add(x, y), ret_type=ttype))
-    assert not f.match(rx.Function([x, y], rx.op.multiply(x, y), ret_type=ttype))
+    assert f.match_expr(rx.Function([x, y], rx.op.add(x, y), ret_type=ttype))
+    assert not f.match_expr(rx.Function([x, y], rx.op.multiply(x, y), ret_type=ttype))
 
 
 def test_tuple_pattern():
@@ -142,15 +143,15 @@ def test_tuple_pattern():
     assert isinstance(t, TuplePattern)
     assert isinstance(t.fields[0], WildcardPattern)
     assert isinstance(t.fields[1], DataflowVarPattern)
-    assert t.match(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]))
-    assert not t.match(rx.Tuple([rx.DataflowVar("x"), rx.GlobalVar("y")]))
+    assert t.match_expr(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]))
+    assert not t.match_expr(rx.Tuple([rx.DataflowVar("x"), rx.GlobalVar("y")]))
 
 
 def test_tuple_get_item_pattern():
-    assert is_tuple_get_item(is_tuple([is_gv("x"), is_dfv("y")]), 0).match(
+    assert is_tuple_get_item(is_tuple([is_gv("x"), is_dfv("y")]), 0).match_expr(
         rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 0)
     )
-    assert is_tuple_get_item(is_tuple([is_gv("x"), is_dfv("y")]), 0).match(
+    assert is_tuple_get_item(is_tuple([is_gv("x"), is_dfv("y")]), 0).match_expr(
         rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 0)
     )
 
@@ -158,31 +159,31 @@ def test_tuple_get_item_pattern():
 def test_or_pattern():
     dfv_or_gv = is_dfv("x") | is_gv("x")
     assert isinstance(dfv_or_gv, OrPattern)
-    assert dfv_or_gv.match(rx.DataflowVar("x"))
-    assert dfv_or_gv.match(rx.GlobalVar("x"))
-    assert not dfv_or_gv.match(rx.Var("x"))
-    assert not dfv_or_gv.match(rx.DataflowVar("y"))
-    assert not dfv_or_gv.match(rx.GlobalVar("y"))
+    assert dfv_or_gv.match_expr(rx.DataflowVar("x"))
+    assert dfv_or_gv.match_expr(rx.GlobalVar("x"))
+    assert not dfv_or_gv.match_expr(rx.Var("x"))
+    assert not dfv_or_gv.match_expr(rx.DataflowVar("y"))
+    assert not dfv_or_gv.match_expr(rx.GlobalVar("y"))
 
 
 def test_and_pattern():
     # float[2, 3, 3]
     f32_233 = has_shape((2, 3, 3)) & has_dtype("float32")
     assert isinstance(f32_233, AndPattern)
-    assert f32_233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
-    assert not f32_233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
-    assert not f32_233.match(rx.Var("x", rx.RuntimeDepShape(), rx.DynTensorType(3, "float32")))
+    assert f32_233.match_expr(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
+    assert not f32_233.match_expr(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
+    assert not f32_233.match_expr(rx.Var("x", rx.RuntimeDepShape(), rx.DynTensorType(3, "float32")))
 
 
 def test_not_pattern():
     no_shape233 = ~has_shape((2, 3, 3))
     assert isinstance(no_shape233, NotPattern)
-    assert no_shape233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
-    assert not no_shape233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
+    assert no_shape233.match_expr(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
+    assert not no_shape233.match_expr(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
 
 
 def test_type_pattern():
-    assert has_type(rx.DynTensorType(2, "float32")).match(bindings[0].var)
+    assert has_type(rx.DynTensorType(2, "float32")).match_expr(bindings[0].var)
 
 
 def test_dtype_pattern():
@@ -190,7 +191,7 @@ def test_dtype_pattern():
     pattern = has_dtype(dtype)
     assert isinstance(pattern, DataTypePattern)
     assert pattern.dtype == dtype
-    assert has_dtype("float32").match(bindings[0].var)
+    assert has_dtype("float32").match_expr(bindings[0].var)
 
 
 def test_shape_pattern():
@@ -198,25 +199,25 @@ def test_shape_pattern():
     pattern = has_shape(shape)
     assert isinstance(pattern, ShapePattern)
     tvm.ir.structural_equal(pattern.shape, shape)
-    assert pattern.match(bindings[0].var)
-    assert has_shape(32, 32).match(bindings[0].var)
+    assert pattern.match_expr(bindings[0].var)
+    assert has_shape(32, 32).match_expr(bindings[0].var)
     n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     symsh_var = rx.Var("x", symbolic_shape, rx.DynTensorType(3, "float32"))
-    assert has_shape(n, m, n + m).match(symsh_var)
-    assert has_shape(n, m, m + n).match(symsh_var)  # + is commutative.
-    assert not has_shape(1, 2, 3).match(symsh_var)
-    assert not has_shape(m, n, n + m).match(symsh_var)
+    assert has_shape(n, m, n + m).match_expr(symsh_var)
+    assert has_shape(n, m, m + n).match_expr(symsh_var)  # + is commutative.
+    assert not has_shape(1, 2, 3).match_expr(symsh_var)
+    assert not has_shape(m, n, n + m).match_expr(symsh_var)
 
 
 def test_prim_arr_pattern():
     pattern = is_shape(32, 32)
     assert isinstance(pattern, PrimArrPattern)
-    assert pattern.match(bindings[0].var.shape)
+    assert pattern.match_expr(bindings[0].var.shape)
     n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
-    assert is_shape([n, m, n + m]).match(symbolic_shape)
-    assert not is_shape([n, m, n * m]).match(symbolic_shape)
+    assert is_shape([n, m, n + m]).match_expr(symbolic_shape)
+    assert not is_shape([n, m, n * m]).match_expr(symbolic_shape)
 
 
 def test_rt_dep_shape_pattern():
@@ -225,13 +226,13 @@ def test_rt_dep_shape_pattern():
     # static-shape var
     ss_var = rx.Var("ss_var", rx.ShapeExpr([32, 32]), rx.DynTensorType(4, "float32"))
     assert isinstance(has_rt_dep_shape(), RuntimeDepShapePattern)
-    assert has_rt_dep_shape().match(rts_var)
-    assert not has_rt_dep_shape().match(ss_var)
+    assert has_rt_dep_shape().match_expr(rts_var)
+    assert not has_rt_dep_shape().match_expr(ss_var)
 
 
 def test_extern_fn_pattern():
     pattern = ExternFuncPattern("test.blockbuilder.nop")
-    assert pattern.match(rx.ExternFunc("test.blockbuilder.nop"))
+    assert pattern.match_expr(rx.ExternFunc("test.blockbuilder.nop"))
 
 
 def test_match_call_attr():
@@ -243,18 +244,47 @@ def test_match_call_attr():
     xp = is_var("x")
     yp = is_var("y")
     root_pattern = FunctionPattern([xp, yp], is_op("relax.add")(xp, yp))
-    assert root_pattern.has_attr({"Codegen": "test-codegen", "global_symbol": "test-symbol"}).match(
-        annotated_fn
-    )
+    assert root_pattern.has_attr(
+        {"Codegen": "test-codegen", "global_symbol": "test-symbol"}
+    ).match_expr(annotated_fn)
 
-    assert root_pattern.has_attr({"Codegen": "test-codegen"}).match(annotated_fn)
-    assert not root_pattern.has_attr({"ping": "pong"}).match(annotated_fn)
-    assert root_pattern.has_attr({}).match(annotated_fn)
+    assert root_pattern.has_attr({"Codegen": "test-codegen"}).match_expr(annotated_fn)
+    assert not root_pattern.has_attr({"ping": "pong"}).match_expr(annotated_fn)
+    assert root_pattern.has_attr({}).match_expr(annotated_fn)
 
 
 def test_is_call_tir():
     lv1_val = bindings[1].value
     var2val = get_var2val(Module["main"])
-    assert is_call_tir("tir_relu").match(lv1_val)
-    assert is_call_tir("tir_relu", is_call_tir("tir_matmul")).match(expr=lv1_val, var2val=var2val)
-    assert not is_call_tir("tir_relu", is_call_tir("tir_relu")).match(expr=lv1_val, var2val=var2val)
+    assert is_call_tir("tir_relu").match_expr(lv1_val)
+    assert is_call_tir("tir_relu", is_call_tir("tir_matmul")).match_expr(lv1_val, var2val=var2val)
+    assert not is_call_tir("tir_relu", is_call_tir("tir_relu")).match_expr(lv1_val, var2val=var2val)
+
+
+## Graph-wise Matching
+def test_single_node_cannot():
+    with pytest.raises(TVMError):
+        # Match a DFPattern without graph constraints (e.g., single node) is not allowed.
+        wildcard().match_dfb(main_fn.body.blocks[0])
+
+
+def test_simple_edge():
+    n0 = wildcard()
+    n1 = wildcard()
+    n0.ub(n1)
+    dfb = main_fn.body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert matched
+    assert matched[n0] == dfb.bindings[0]
+    assert matched[n1] == dfb.bindings[1]
+
+
+def test_simple_call_tir_edge():
+    n0 = is_call_tir("tir_matmul")
+    n1 = is_call_tir("tir_relu")
+    n0.ub(n1)
+    dfb = main_fn.body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert matched
+    assert matched[n0] == dfb.bindings[0]
+    assert matched[n1] == dfb.bindings[1]

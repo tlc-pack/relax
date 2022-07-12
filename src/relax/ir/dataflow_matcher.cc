@@ -22,15 +22,24 @@
  * \brief The dataflow pattern matcher for Relax.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/op.h>
 
+#include <array>
+#include <cstddef>
 #include <stack>
+#include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include "dataflow_matcher_impl.h"
+#include "df_graph_constraint_impl.h"
 
 namespace tvm {
 namespace relax {
@@ -38,8 +47,7 @@ namespace relax {
 using tvm::arith::Analyzer;
 
 // Pattern Matcher
-bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr, bool autojump) {
-  autojump_ = autojump;
+bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   memo_.clear();
   matched_nodes_.clear();
   return VisitDFPattern(pattern, expr);
@@ -470,12 +478,241 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
 bool MatchExprPattern(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val,
                       bool disable_autojump) {
   if (var2val.defined())  // autojump is enabled with var2val.
-    return DFPatternMatcher(std::move(var2val.value())).Match(pattern, expr, !disable_autojump);
+    return DFPatternMatcher(std::move(var2val.value()), !disable_autojump).Match(pattern, expr);
   else
-    return DFPatternMatcher().Match(pattern, expr, false);
+    return DFPatternMatcher().Match(pattern, expr);
 }
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExprPattern);
+
+struct PNode {
+  const DFPatternNode* ptr;
+  const VarBindingNode* matched = nullptr;
+  std::vector<std::pair<PNode*, PairCons>> children;
+  std::vector<std::pair<PNode*, PairCons>> parents;
+};
+
+struct RNode {
+  const VarBindingNode* ptr;
+  const DFPatternNode* matched = nullptr;
+  std::vector<RNode*> children;
+  std::vector<RNode*> parents;
+};
+
+/**
+ * \brief This method try to match a real node and a pattern node along with its neighbors.
+ */
+static bool try_match(PNode* p, RNode* r, DFPatternMatcher* matcher) {
+  // TODO(@ganler): consider graph constraints.
+  LOG(INFO) << "Matching " << GetRef<DFPattern>(p->ptr) << " ~ " << r->ptr->value;
+  if (!matcher->Match(GetRef<DFPattern>(p->ptr), r->ptr->value)) return false;
+
+  std::stack<std::pair<PNode*, RNode*>> undo_stack{};
+
+  const auto commit = [&undo_stack](PNode* p, RNode* r) {
+    // match with each other.
+    p->matched = r->ptr;
+    r->matched = p->ptr;
+    undo_stack.emplace(p, r);
+  };
+
+  const auto undo = [&undo_stack] {
+    while (!undo_stack.empty()) {
+      auto& top = undo_stack.top();
+      top.first->matched = nullptr;
+      top.second->matched = nullptr;
+      undo_stack.pop();
+    }
+  };
+
+  commit(p, r);
+
+  // match parent patterns.
+  for (auto& pparent_pairs : p->parents) {
+    PNode* pparent = pparent_pairs.first;
+    const PairCons& constraint = pparent_pairs.second;
+    ICHECK(PairCons::kUsedBy == constraint.type) << "OUB is not supported yet.";
+    ICHECK(constraint.index == -1) << "Argument index is not supported yet.";
+    if (!pparent->matched) {
+      for (auto& rparent : r->parents) {
+        // try all parent R nodes that are not matched yet.
+        // as long as ppattern can match one node.
+        if (!rparent->matched && try_match(pparent, rparent, matcher)) {
+          commit(pparent, rparent);
+          break;
+        }
+      }
+      if (!pparent->matched) {
+        undo();
+        return false;
+      }
+    }
+  }
+
+  // forward matching;
+  for (auto& pchild_pairs : p->children) {
+    PNode* pchild = pchild_pairs.first;
+    const PairCons& constraint = pchild_pairs.second;
+    ICHECK(PairCons::kUsedBy == constraint.type) << "OUB is not supported yet.";
+    ICHECK(constraint.index == -1) << "Argument index is not supported yet.";
+    if (!pchild->matched) {
+      for (auto& rchild : r->children) {
+        if (!rchild->matched && try_match(pchild, rchild, matcher)) {
+          commit(pchild, rchild);
+          break;
+        }
+      }
+      if (!pchild->matched) {
+        undo();
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+class UseDefAnalysis : public relax::ExprVisitor {
+ public:
+  std::map<const VarBindingNode*, std::set<const VarBindingNode*>> def2use, use2def;
+  std::map<const VarNode*, const VarBindingNode*> v2binding_;
+  const VarBindingNode* cur_vbinding_;
+
+  void VisitBinding_(const VarBindingNode* binding) override {
+    // init.
+    use2def[binding] = {};
+    def2use[binding] = {};
+
+    v2binding_[binding->var.get()] = cur_vbinding_ = binding;
+    this->VisitExpr(binding->value);
+    cur_vbinding_ = nullptr;  // only check if cur binding's expr using vars elsewhere.
+    this->VisitVarDef(binding->var);
+  }
+
+  void VisitExpr_(const VarNode* op) override {
+    if (nullptr == cur_vbinding_) return;
+
+    auto it = v2binding_.find(op);
+    if (it != v2binding_.end()) {
+      const auto def = it->second;
+      const auto use = cur_vbinding_;
+      def2use[def].insert(use);
+      use2def[use].insert(def);
+    }
+  }
+
+  void VisitExpr_(const DataflowVarNode* op) override {
+    VisitExpr_(static_cast<const VarNode*>(op));
+  }
+};
+
+tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<GraphPattern> gp,
+                                                           const DataflowBlock& dfb,
+                                                           Optional<VarBinding> start_hint,
+                                                           bool match_once, bool disable_autojump) {
+  tvm::runtime::Map<DFPattern, VarBinding> ret{};
+  // FIXME(@ganler): consider callee index.
+  ICHECK(!start_hint.defined()) << "start_hint is not supported yet.";
+  // TODO(@ganler): Handle non-may external use.
+  ICHECK(gp->allow_extern_use == GraphPattern::kMay) << "Only kMay is supported yet.";
+  ICHECK(!match_once || start_hint.defined()) << "match_once is only supported with start_hint.";
+
+  const auto var2val = AnalyzeVar2Value(dfb);
+  DFPatternMatcher matcher(var2val, !disable_autojump);
+
+  UseDefAnalysis ud;
+  ud.VisitBindingBlock_(dfb.get());
+  // std::map<const VarBindingNode*, std::set<const VarBindingNode*>>
+  const auto &def2use = ud.def2use, &use2def = ud.use2def;
+
+  // First construct a graph of PNode and RNode.
+  std::unordered_map<const VarBindingNode*, RNode> varbind2node;
+  varbind2node.reserve(dfb->bindings.size());
+
+  for (Binding b : dfb->bindings) {
+    // FIXME(@ganler): shall we consider MatchShape here?
+    if (const VarBindingNode* vbn = b.as<VarBindingNode>()) {
+      auto& node = varbind2node[vbn];
+      node.ptr = vbn;
+      ICHECK(def2use.count(vbn)) << "No def for " << vbn->var << " = " << vbn->value;
+      ICHECK(use2def.count(vbn)) << "No use for " << vbn->var << " = " << vbn->value;
+      node.children.reserve(def2use.at(vbn).size());
+      node.parents.reserve(use2def.at(vbn).size());
+    }
+  }
+
+  for (const auto& du : def2use) {
+    const VarBindingNode* cur_vb = du.first;
+    const std::set<const VarBindingNode*>& uses = du.second;
+    RNode& cur_node = varbind2node[cur_vb];
+    for (const VarBindingNode* use : uses) {
+      auto& use_node = varbind2node[use];
+      // cur_node is a def to use_node.
+      cur_node.children.push_back(&use_node);
+      use_node.parents.push_back(&cur_node);
+    }
+  }
+
+  std::unordered_map<const DFPatternNode*, PNode> pattern2node;
+  pattern2node.reserve(gp->constraints.size());
+
+  for (const auto& src2dsts : gp->constraints) {
+    const DFPatternNode* src = src2dsts.first;
+    const std::map<const DFPatternNode*, PairCons>& dsts = src2dsts.second;
+    PNode& src_node = pattern2node[src];
+    src_node.ptr = src;
+    src_node.children.reserve(dsts.size());
+    for (const auto pp : dsts) {
+      const PairCons& cons = pp.second;
+      const DFPatternNode* dst = pp.first;
+      PNode& dst_node = pattern2node[pp.first];
+      dst_node.ptr = dst;
+      dst_node.parents.emplace_back(&src_node, cons);
+      src_node.children.emplace_back(&dst_node, cons);
+    }
+  }
+
+  PNode* pnode_start = &pattern2node.begin()->second;
+
+  if (start_hint.defined()) {
+    VarBinding vb = start_hint.value();
+    auto rnode_ptr = varbind2node.find(vb.get());
+    ICHECK(varbind2node.cend() != rnode_ptr) << "start_hint " << vb << " is not part of the graph.";
+    if (try_match(pnode_start, &rnode_ptr->second, &matcher)) {
+      for (auto ppair : pattern2node) {
+        ret.Set(GetRef<DFPattern>(ppair.first), GetRef<VarBinding>(ppair.second.matched));
+      }
+      return ret;
+    }
+
+    if (match_once) return ret;
+  }
+
+  if (!pnode_start->matched) {
+    for (auto& rpair : varbind2node) {
+      if (start_hint.defined() && start_hint.value().get() == rpair.first) continue;
+      if (try_match(pnode_start, &rpair.second, &matcher)) {
+        for (auto ppair : pattern2node) {
+          ret.Set(GetRef<DFPattern>(ppair.first), GetRef<VarBinding>(ppair.second.matched));
+        }
+        return ret;
+      }
+    }
+  }
+
+  return ret;
+}
+
+/** \brief Call MatchGraphPattern through pattern's graph constraints */
+tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern_(
+    DFPattern pattern, const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt,
+    bool match_once = false, bool disable_autojump = false) {
+  ICHECK(pattern->graph_constraint) << "Graph constraints are missing (at least one edge required)";
+  return MatchGraphPattern(pattern->graph_constraint, dfb, start_hint, match_once,
+                           disable_autojump);
+}
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_dfb").set_body_typed(MatchGraphPattern_);
 
 }  // namespace relax
 }  // namespace tvm

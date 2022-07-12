@@ -348,10 +348,9 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
         kv.first->graph_constraint = gcons;
         auto&& vec = kv.second;
         auto& dst_vec = gcons->constraints[kv.first];
-        dst_vec.reserve(dst_vec.size() + vec.size());
         for (auto&& v : vec) {
           v.first->graph_constraint = gcons;  // purify.
-          dst_vec.push_back(v);
+          dst_vec.insert(v);
         }
       }
     }
@@ -362,10 +361,19 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
   return gcons;
 }
 
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.used_by")
+    .set_body_typed([](DFPattern lhs, DFPattern rhs, int index) { return lhs.UsedBy(rhs, index); });
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.only_used_by")
+    .set_body_typed([](DFPattern lhs, DFPattern rhs, int index) {
+      return lhs.OnlyUsedBy(rhs, index);
+    });
+
 DFPattern DFPattern::UsedBy(const DFPattern& other, int index) const {
   auto gcons =
       get_or_merge_graph_cons(this->get()->graph_constraint, other.get()->graph_constraint);
   gcons->add_constraint(this->get(), other.get(), PairCons{PairCons::kUsedBy, index});
+  this->get()->graph_constraint = other->graph_constraint = gcons;
   return *this;
 }
 DFPattern DFPattern::operator>(const DFPattern& other) const { return this->UsedBy(other); }
@@ -373,6 +381,7 @@ DFPattern DFPattern::OnlyUsedBy(const DFPattern& other, int index) const {
   auto gcons =
       get_or_merge_graph_cons(this->get()->graph_constraint, other.get()->graph_constraint);
   gcons->add_constraint(this->get(), other.get(), PairCons{PairCons::kOnlyUsedBy, index});
+  this->get()->graph_constraint = other->graph_constraint = gcons;
   return *this;
 }
 DFPattern DFPattern::operator>>(const DFPattern& other) const { return this->OnlyUsedBy(other); }

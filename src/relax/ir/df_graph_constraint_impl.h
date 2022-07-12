@@ -48,15 +48,13 @@ struct GraphPattern final {
   inline void add_constraint(const DFPatternNode* src, const DFPatternNode* dst, Cons... cons) {
     static_assert(sizeof...(cons) > 0, "Constraints should not be empty!");
     auto& src_cons = constraints[src];
-    src_cons.reserve(src_cons.size() + sizeof...(cons));
     // same as `(src_cons.push_back(cons), ...)` in C++17.
-    (void)std::initializer_list<int>{(src_cons.emplace_back(dst, cons), 0)...};
+    (void)std::initializer_list<int>{(src_cons.emplace(dst, cons), 0)...};
   }
   // special constraints.
   enum ExternUse { kMay, kMust, kMustNot } allow_extern_use = kMay;
   // src node -> <dst node, constraint type> constraints.
-  std::map<const DFPatternNode*, std::vector<std::pair<const DFPatternNode*, PairCons>>>
-      constraints;
+  std::map<const DFPatternNode*, std::map<const DFPatternNode*, PairCons>> constraints;
 };
 }  // namespace relax
 }  // namespace tvm

@@ -52,24 +52,16 @@ bool MatchExprPattern(DFPattern pattern, Expr expr,
  * that we can distinguish multiple matches.
  *
  * \param gpatterns The graph-wise patterns.
- * \param fn The function to match.
- * \param disable_autojump disable autojump given var2val (implicitly inferred from Function)
+ * \param dfb The function to match.
  * \param start_hint The starting point expression to match to distinguish multiple matches.
+ * \param match_once If start_hint is given, only try to match start_hint once.
+ * \param disable_autojump disable autojump given var2val (implicitly inferred from Function)
  * \return tvm::runtime::Map<DFPattern, VarBinding>
  */
-tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<GraphPattern> gpatterns,
-                                                           const Function& fn,
-                                                           bool disable_autojump = false,
-                                                           Optional<Expr> start_hint = NullOpt);
-
-/** \brief Call MatchGraphPattern through pattern's graph constraints */
-inline tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(
-    DFPattern pattern, const Function& fn, bool disable_autojump = false,
-    Optional<Expr> start_hint = NullOpt) {
-  ICHECK(nullptr != pattern->graph_constraint)
-      << "Graph constraints are required to match graph patterns";
-  return MatchGraphPattern(pattern->graph_constraint, fn, disable_autojump, start_hint);
-}
+tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(
+    std::shared_ptr<GraphPattern> gp, const DataflowBlock& dfb,
+    Optional<VarBinding> start_hint = NullOpt, bool match_once = false,
+    bool disable_autojump = false);
 
 }  // namespace relax
 }  // namespace tvm

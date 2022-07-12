@@ -35,6 +35,12 @@ tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr) {
   return std::move(var2val_analysis.var2value_);
 }
 
+tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb) {
+  Var2ValAnalysis var2val_analysis;
+  var2val_analysis.VisitBindingBlock_(dfb.get());
+  return std::move(var2val_analysis.var2value_);
+}
+
 tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
   Var2ValAnalysis var2val_analysis;
 
