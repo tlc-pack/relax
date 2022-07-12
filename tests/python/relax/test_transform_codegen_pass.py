@@ -50,11 +50,11 @@ def check_executable(exec, dev, inputs, expected):
 
 # TODO(sunggg): Serialize TRT runtime module. This might be helpful: `module.export_library(file_name)``
 def check_roundtrip(exec0, dev, inputs, expected):
-    exec0.save_to_file("exec.tmp")
-    exec1 = relax.load_exec_from_file("exec.tmp")
+    exec0.mod.export_library("exec.so")
+    exec1 = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
+    os.remove("exec.so")
     assert exec0.stats() == exec1.stats()
     assert exec0.as_text() == exec1.as_text()
-    os.remove("exec.tmp")
 
     check_executable(exec0, dev, inputs, expected)
     check_executable(exec1, dev, inputs, expected)
