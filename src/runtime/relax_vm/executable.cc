@@ -63,12 +63,6 @@ VMClosure::VMClosure(String func_name, Array<ObjectRef> free_vars) {
 PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "stats") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
-  } else if (name == "save_to_file") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 1);
-      std::string path = args[0];
-      this->SaveToFile(path, "");
-    });
   } else if (name == "as_text") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsText(); });
