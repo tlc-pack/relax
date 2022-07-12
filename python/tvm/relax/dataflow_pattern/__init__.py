@@ -186,13 +186,10 @@ class DFPattern(Node):
         return self & has_rt_dep_shape()
 
     def used_by(self, other: "DFPattern", index=-1):
-        return ub(self, other, index)
+        return used_by(self, other, index)
 
     def only_used_by(self, other: "DFPattern", index=-1):
-        return oub(self, other, index)
-
-    ub = used_by
-    oub = only_used_by
+        return only_used_by(self, other, index)
 
 
 @register_df_node
@@ -781,11 +778,5 @@ def used_by(lhs: "DFPattern", rhs: "DFPattern", index=-1) -> "DFPattern":
     return ffi.used_by(lhs, rhs, index)
 
 
-ub = used_by
-
-
 def only_used_by(lhs: "DFPattern", rhs: "DFPattern", index=-1) -> "DFPattern":
     return ffi.only_used_by(lhs, rhs, index)
-
-
-oub = only_used_by

@@ -271,7 +271,7 @@ def test_single_node_cannot():
 def test_simple_edge():
     n0 = wildcard()
     n1 = wildcard()
-    n0.ub(n1)
+    n0.used_by(n1)
     dfb = main_fn.body.blocks[0]
     matched = n0.match_dfb(dfb)
     assert matched
@@ -282,7 +282,7 @@ def test_simple_edge():
 def test_simple_call_tir_edge():
     n0 = is_call_tir("tir_matmul")
     n1 = is_call_tir("tir_relu")
-    n0.ub(n1)
+    n0.used_by(n1)
     dfb = main_fn.body.blocks[0]
     matched = n0.match_dfb(dfb)
     assert matched
