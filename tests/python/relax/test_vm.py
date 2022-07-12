@@ -113,26 +113,6 @@ def test_vm_multiple_func():
     tvm.testing.assert_allclose(mul_res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_serialize():
-    ib = relax.ExecBuilder()
-    with ib.function("func0", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    arr = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    with ib.function("func1", num_inputs=2):
-        ib.emit_call("test.vm.mul", args=[ib.r(0), arr], dst=ib.r(1))
-        ib.emit_ret(ib.r(1))
-    exec0 = ib.get()
-    exec0.save_to_file("exec.tmp")
-    exec1 = relax.load_exec_from_file("exec.tmp")
-    assert exec0.as_text() == exec1.as_text()
-    os.remove("exec.tmp")
-
-
 def test_vm_exec_serialize_export_library():
     @tvm.script.ir_module
     class TestVMMove:
@@ -153,34 +133,6 @@ def test_vm_exec_serialize_export_library():
 
     loaded_exec = relax.vm.Executable(tvm.runtime.load_module(path_exec))
     assert ex.as_text() == loaded_exec.as_text()
-
-
-def test_vm_constant_serialize():
-    dtype = tvm.DataType("float32")
-    shape = (4, 6)
-    inp = tvm.nd.array(np.random.rand(4, 6).astype(np.float32))
-    ib = relax.ExecBuilder()
-    # add a few integer constants in constant pool
-    ib.emit_constant(2)
-    ib.emit_constant(5)
-    with ib.function("main", num_inputs=1):
-        ib.emit_call(
-            "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(0), dtype], dst=ib.r(1)
-        )
-        ib.emit_call(
-            "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)
-        )
-        ib.emit_call("test.vm.identity", args=[ib.r(0), ib.r(2)])
-        ib.emit_ret(ib.r(2))
-    exec0 = ib.get()
-    exec0.save_to_file("exec.tmp")
-    exec1 = relax.load_exec_from_file("exec.tmp")
-    assert exec0.stats() == exec1.stats()
-    assert exec0.as_text() == exec1.as_text()
-    vm = relax.VirtualMachine(exec0, tvm.cpu())
-    res = vm["main"](inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
-    os.remove("exec.tmp")
 
 
 def test_vm_checker():
@@ -755,8 +707,9 @@ def test_vm_relax_dyn_tir_shape():
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target)
 
-    ex.save_to_file("exec.tmp")
-    exec1 = relax.load_exec_from_file("exec.tmp")
+    ex.mod.export_library("exec.so")
+    exec1 = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
+    os.remove("exec.so")
     assert ex.as_text() == exec1.as_text()
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -766,7 +719,6 @@ def test_vm_relax_dyn_tir_shape():
     res = vm["rx_func"](inp, inp2)
 
     tvm.testing.assert_allclose(res.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
-    os.remove("exec.tmp")
 
 
 def test_vm_tuple():
@@ -966,8 +918,9 @@ def test_set_input():
 
     target = tvm.target.Target("llvm", host="llvm")
     exec = relax.vm.build(TestVMSetInput, target)
-    exec.save_to_file("exec.tmp")
-    exec_loaded = relax.load_exec_from_file("exec.tmp")
+    exec.mod.export_library("exec.so")
+    exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
+    os.remove("exec.so")
     print(exec_loaded.as_python())
     vm = relax.VirtualMachine(exec_loaded, tvm.cpu())
 
