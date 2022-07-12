@@ -37,17 +37,12 @@ class Executable(object):
     def __init__(self, mod: Module):
         self.mod = mod
         self._stats = self.mod["stats"]
-        self._save_to_file = self.mod["save_to_file"]
         self._as_text = self.mod["as_text"]
         self._as_python = self.mod["as_python"]
 
     def stats(self) -> str:
         """print the detailed statistics of the executable."""
         return self._stats()
-
-    def save_to_file(self, path: str) -> None:
-        """serialize and write the executable to a file."""
-        self._save_to_file(path)
 
     def as_text(self) -> str:
         """print the instructions as text format."""
@@ -56,10 +51,6 @@ class Executable(object):
     def as_python(self) -> str:
         """print the instructions as python program."""
         return self._as_python()
-
-
-def load_exec_from_file(path: str) -> Executable:
-    return Executable(_ffi_api.ExecutableLoadFromFile(path))
 
 
 class VirtualMachine(object):
