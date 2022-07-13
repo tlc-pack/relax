@@ -45,10 +45,10 @@ class UsedBySeq;
 class OnlyUsedBySeq;
 
 UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index = -1);
-UsedBySeq operator>(const UsedBySeq& lhs, const UsedBySeq& rhs);
+UsedBySeq operator^(const UsedBySeq& lhs, const UsedBySeq& rhs);
 
 OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int index = -1);
-OnlyUsedBySeq operator>=(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs);
+OnlyUsedBySeq operator>>(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs);
 
 // FIXME: Document those APIs.
 class DFPatternNode : public Object {

@@ -419,7 +419,7 @@ UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index) {
   ret.insert(ret.end(), rhs->patterns.begin(), rhs->patterns.end());
   return UsedBySeq(std::move(ret));
 }
-UsedBySeq operator>(const UsedBySeq& lhs, const UsedBySeq& rhs) { return lhs.UsedBy(rhs); }
+UsedBySeq operator^(const UsedBySeq& lhs, const UsedBySeq& rhs) { return lhs.UsedBy(rhs); }
 
 OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int index) {
   auto& lhs_cons = lhs->patterns.back()->graph_constraint;
@@ -434,7 +434,7 @@ OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int
   ret.insert(ret.end(), rhs->patterns.begin(), rhs->patterns.end());
   return OnlyUsedBySeq(std::move(ret));
 }
-OnlyUsedBySeq operator>=(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs) {
+OnlyUsedBySeq operator>>(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs) {
   return lhs.OnlyUsedBy(rhs);
 }
 
