@@ -27,6 +27,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/optional.h>
 
 #include <cstdint>
@@ -39,6 +40,15 @@ namespace tvm {
 namespace relax {
 
 struct GraphPattern;
+
+class UsedBySeq;
+class OnlyUsedBySeq;
+
+UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index = -1);
+UsedBySeq operator>(const UsedBySeq& lhs, const UsedBySeq& rhs);
+
+OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int index = -1);
+OnlyUsedBySeq operator>=(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs);
 
 // FIXME: Document those APIs.
 class DFPatternNode : public Object {
@@ -82,16 +92,55 @@ class DFPattern : public ObjectRef {
   DFPattern HasShape(const Array<PrimExpr>& shape) const;
   /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
   DFPattern HasRuntimeDepShape() const;
-  /*! \brief Return the same pattern but add used-by constraint to each other. */
-  DFPattern UsedBy(const DFPattern& other, int index = -1) const;
-  /*! \brief Return the same pattern but add used-by constraint to each other. */
-  DFPattern operator>(const DFPattern& other) const;
-  /*! \brief Return the same pattern but add only-used-by constraint to each other. */
-  DFPattern OnlyUsedBy(const DFPattern& other, int index = -1) const;
-  /*! \brief Return the same pattern but add only-used-by constraint to each other. */
-  DFPattern operator>>(const DFPattern& other) const;
+
+  operator UsedBySeq() const;
+  operator OnlyUsedBySeq() const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
+};
+
+class PatternSeqNode : public Object {
+ public:
+  tvm::Array<DFPattern> patterns;
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("patterns", &patterns); }
+  static constexpr const char* _type_key = "relax.dataflow_pattern.PatternSeq";
+  TVM_DECLARE_BASE_OBJECT_INFO(PatternSeqNode, Object);
+};
+
+class PatternSeq : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternSeq, ObjectRef, PatternSeqNode);
+};
+
+class UsedBySeqNode : public PatternSeqNode {
+ public:
+  static constexpr const char* _type_key = "relax.dataflow_pattern.UsedBySeq";
+  TVM_DECLARE_BASE_OBJECT_INFO(UsedBySeqNode, PatternSeqNode);
+};
+
+class UsedBySeq : public PatternSeq {
+ public:
+  explicit UsedBySeq(tvm::Array<DFPattern> patterns);
+  inline UsedBySeq UsedBy(UsedBySeq other, int index = -1) const {
+    return relax::UsedBy(*this, other, index);
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(UsedBySeq, PatternSeq, UsedBySeqNode);
+};
+
+class OnlyUsedBySeqNode : public PatternSeqNode {
+ public:
+  static constexpr const char* _type_key = "relax.dataflow_pattern.OnlyUsedBySeq";
+  TVM_DECLARE_BASE_OBJECT_INFO(OnlyUsedBySeqNode, PatternSeqNode);
+};
+
+class OnlyUsedBySeq : public PatternSeq {
+ public:
+  explicit OnlyUsedBySeq(tvm::Array<DFPattern> patterns);
+  inline OnlyUsedBySeq OnlyUsedBy(OnlyUsedBySeq other, int index = -1) const {
+    return relax::OnlyUsedBy(*this, other, index);
+  }
+  TVM_DEFINE_OBJECT_REF_METHODS(OnlyUsedBySeq, PatternSeq, OnlyUsedBySeqNode);
 };
 
 class ExprPatternNode : public DFPatternNode {

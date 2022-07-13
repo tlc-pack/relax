@@ -17,8 +17,8 @@
 
 from __future__ import annotations
 import pytest
-from tvm._ffi.base import TVMError
 
+from tvm._ffi.base import TVMError
 from tvm.relax.dataflow_pattern import *
 from tvm.relax.analysis import get_var2val
 from tvm import relax as rx, tir
@@ -283,6 +283,17 @@ def test_simple_call_tir_edge():
     n0 = is_call_tir("tir_matmul")
     n1 = is_call_tir("tir_relu")
     n0.used_by(n1)
+    dfb = main_fn.body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert matched
+    assert matched[n0] == dfb.bindings[0]
+    assert matched[n1] == dfb.bindings[1]
+
+
+def test_simple_used_by():
+    n0 = wildcard()
+    n1 = wildcard()
+    n0 > n1
     dfb = main_fn.body.blocks[0]
     matched = n0.match_dfb(dfb)
     assert matched

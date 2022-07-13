@@ -504,7 +504,6 @@ struct RNode {
  */
 static bool try_match(PNode* p, RNode* r, DFPatternMatcher* matcher) {
   // TODO(@ganler): consider graph constraints.
-  LOG(INFO) << "Matching " << GetRef<DFPattern>(p->ptr) << " ~ " << r->ptr->value;
   if (!matcher->Match(GetRef<DFPattern>(p->ptr), r->ptr->value)) return false;
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};

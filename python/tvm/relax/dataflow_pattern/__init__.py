@@ -185,11 +185,17 @@ class DFPattern(Node):
     def has_rt_dep_shape(self):
         return self & has_rt_dep_shape()
 
-    def used_by(self, other: "DFPattern", index=-1):
+    def used_by(self, other: Union["DFPattern", "UsedBySeq"], index=-1) -> "UsedBySeq":
         return used_by(self, other, index)
 
-    def only_used_by(self, other: "DFPattern", index=-1):
+    def __gt__(self, other: Union["DFPattern", "UsedBySeq"]) -> "UsedBySeq":
+        return self.used_by(other, -1)
+
+    def only_used_by(self, other: Union["DFPattern", "OnlyUsedBySeq"], index=-1) -> "OnlyUsedBySeq":
         return only_used_by(self, other, index)
+
+    def __ge__(self, other) -> "OnlyUsedBySeq":
+        return self.only_used_by(other, -1)
 
 
 @register_df_node
@@ -754,6 +760,30 @@ def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None
     return ffi.match_expr(pattern, expr, var2val, False)
 
 
+@register_df_node
+class UsedBySeq(Node):
+    def __init__(self, patterns: List[DFPattern]):
+        self.__init_handle_by_constructor__(ffi.UsedBySeq, patterns)
+
+    def used_by(self, other: Union[DFPattern, "UsedBySeq"], index=-1) -> "UsedBySeq":
+        return used_by(self, other, index)
+
+    def __gt__(self, other) -> "UsedBySeq":
+        return self.used_by(other, -1)
+
+
+@register_df_node
+class OnlyUsedBySeq(Node):
+    def __init__(self, patterns: List[DFPattern]):
+        self.__init_handle_by_constructor__(ffi.OnlyUsedBySeq, patterns)
+
+    def only_used_by(self, other: Union[DFPattern, "OnlyUsedBySeq"], index=-1) -> "OnlyUsedBySeq":
+        return only_used_by(self, other, index)
+
+    def __ge__(self, other) -> "OnlyUsedBySeq":
+        return self.only_used_by(other, -1)
+
+
 def match_dfb(
     pattern: "DFPattern",
     dfb: DataflowBlock,
@@ -774,9 +804,21 @@ def match_dfb(
     return ffi.match_dfb(pattern, dfb, start_hint, match_once, disable_autojump)
 
 
-def used_by(lhs: "DFPattern", rhs: "DFPattern", index=-1) -> "DFPattern":
+def used_by(
+    lhs: Union[DFPattern, UsedBySeq], rhs: Union[DFPattern, UsedBySeq], index=-1
+) -> UsedBySeq:
+    if isinstance(lhs, DFPattern):
+        lhs = UsedBySeq([lhs])
+    if isinstance(rhs, DFPattern):
+        rhs = UsedBySeq([rhs])
     return ffi.used_by(lhs, rhs, index)
 
 
-def only_used_by(lhs: "DFPattern", rhs: "DFPattern", index=-1) -> "DFPattern":
+def only_used_by(
+    lhs: Union[DFPattern, OnlyUsedBySeq], rhs: Union[DFPattern, OnlyUsedBySeq], index=-1
+) -> OnlyUsedBySeq:
+    if isinstance(lhs, DFPattern):
+        lhs = OnlyUsedBySeq([lhs])
+    if isinstance(rhs, DFPattern):
+        rhs = OnlyUsedBySeq([rhs])
     return ffi.only_used_by(lhs, rhs, index)
