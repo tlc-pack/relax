@@ -364,8 +364,19 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
   return gcons;
 }
 
+static void sync_graph_constraints(const DFPattern& lhs, const DFPattern& rhs, PairCons pcon) {
+  auto& lhs_cons = lhs->graph_constraint;
+  auto& rhs_cons = rhs->graph_constraint;
+  auto gcons = get_or_merge_graph_cons(lhs_cons, rhs_cons);
+  gcons->add_constraint(lhs.get(), rhs.get(), pcon);
+  lhs_cons = rhs_cons = gcons;
+}
+
 TVM_REGISTER_NODE_TYPE(UsedBySeqNode);
 UsedBySeq::UsedBySeq(Array<DFPattern> patterns) {
+  for (size_t i = 1; i < patterns.size(); ++i)
+    sync_graph_constraints(patterns[i - 1], patterns[i], PairCons{PairCons::kUsedBy, -1});
+
   ObjectPtr<UsedBySeqNode> n = make_object<UsedBySeqNode>();
   n->patterns = std::move(patterns);
   data_ = std::move(n);
@@ -383,6 +394,9 @@ RELAX_PATTERN_PRINTER_DEF(UsedBySeqNode, [](auto p, auto node) {
 
 TVM_REGISTER_NODE_TYPE(OnlyUsedBySeqNode);
 OnlyUsedBySeq::OnlyUsedBySeq(Array<DFPattern> patterns) {
+  for (size_t i = 1; i < patterns.size(); ++i)
+    sync_graph_constraints(patterns[i - 1], patterns[i], PairCons{PairCons::kOnlyUsedBy, -1});
+
   ObjectPtr<OnlyUsedBySeqNode> n = make_object<OnlyUsedBySeqNode>();
   n->patterns = std::move(patterns);
   data_ = std::move(n);
@@ -407,12 +421,9 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.only_used_by")
     });
 
 UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index) {
-  auto& lhs_cons = lhs->patterns.back()->graph_constraint;
-  auto& rhs_cons = rhs->patterns.front()->graph_constraint;
-  auto gcons = get_or_merge_graph_cons(lhs_cons, rhs_cons);
-  gcons->add_constraint(lhs->patterns.back().get(), rhs->patterns.front().get(),
-                        PairCons{PairCons::kUsedBy, index});
-  lhs_cons = rhs_cons = gcons;
+  sync_graph_constraints(lhs->patterns.back(), rhs->patterns.front(),
+                         PairCons{PairCons::kUsedBy, index});
+
   Array<DFPattern> ret;
   ret.reserve(lhs->patterns.size() + rhs->patterns.size());
   ret.insert(ret.end(), lhs->patterns.begin(), lhs->patterns.end());
@@ -422,12 +433,8 @@ UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index) {
 UsedBySeq operator^(const UsedBySeq& lhs, const UsedBySeq& rhs) { return lhs.UsedBy(rhs); }
 
 OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int index) {
-  auto& lhs_cons = lhs->patterns.back()->graph_constraint;
-  auto& rhs_cons = rhs->patterns.front()->graph_constraint;
-  auto gcons = get_or_merge_graph_cons(lhs_cons, rhs_cons);
-  gcons->add_constraint(lhs->patterns.back().get(), rhs->patterns.front().get(),
-                        PairCons{PairCons::kOnlyUsedBy, index});
-  lhs_cons = rhs_cons = gcons;
+  sync_graph_constraints(lhs->patterns.back(), rhs->patterns.front(),
+                         PairCons{PairCons::kOnlyUsedBy, index});
   Array<DFPattern> ret;
   ret.reserve(lhs->patterns.size() + rhs->patterns.size());
   ret.insert(ret.end(), lhs->patterns.begin(), lhs->patterns.end());
