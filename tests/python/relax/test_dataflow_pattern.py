@@ -293,9 +293,114 @@ def test_simple_call_tir_edge():
 def test_simple_used_by():
     n0 = wildcard()
     n1 = wildcard()
-    n0 > n1
+    n0 ^ n1
     dfb = main_fn.body.blocks[0]
     matched = n0.match_dfb(dfb)
     assert matched
     assert matched[n0] == dfb.bindings[0]
     assert matched[n1] == dfb.bindings[1]
+
+
+def test_simple_oub():
+    n0 = is_call_tir("tir_matmul")
+    n1 = is_call_tir("tir_relu")
+    n0 >> n1
+    dfb = main_fn.body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert matched
+    assert matched[n0] == dfb.bindings[0]
+    assert matched[n1] == dfb.bindings[1]
+
+
+def test_counter_oub_syntax():
+    n0 = is_call_tir("tir_matmul")
+    n1 = is_call_tir("tir_impossible")
+    n0 >> n1
+    dfb = main_fn.body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert not matched
+
+
+@tvm.script.ir_module
+class Diamond:
+    @R.function
+    def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+            lv2 = R.call_tir(tir_sigmoid, (lv0), (32, 32), dtype="float32")
+            lv3 = R.call_tir(tir_add, (lv1, lv2), (32, 32), dtype="float32")
+            relax.output(lv3)
+        return lv3
+
+
+def test_diamond():
+    n0 = is_call_tir("tir_matmul")
+    n1 = is_call_tir("tir_relu")
+    n2 = is_call_tir("tir_sigmoid")
+    n3 = is_call_tir("tir_add")
+
+    n0 ^ n1
+    n0 ^ n2
+    n1 >> n3
+    n2 >> n3
+
+    dfb = Diamond["main"].body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert matched
+
+
+def test_diamond_counter_oub():
+    n0 = is_call_tir("tir_matmul")
+    n1 = is_call_tir("tir_relu")
+    n2 = is_call_tir("tir_sigmoid")
+    n3 = is_call_tir("tir_add")
+
+    n0 >> n1
+    n0 >> n2
+    n1 >> n3
+    n2 >> n3
+
+    dfb = Diamond["main"].body.blocks[0]
+    matched = n0.match_dfb(dfb)
+    assert not matched
+
+
+@tvm.script.ir_module
+class CBRx2:
+    @R.function
+    def main(
+        x: Tensor((32, 32), "float32"),
+        w0: Tensor((1, 1), "float32"),
+        bias0: Tensor((32, 32), "float32"),
+        w1: Tensor((1, 1), "float32"),
+        bias1: Tensor((32, 32), "float32"),
+    ) -> Tensor:
+        with R.dataflow():
+            lv0 = R.call_tir(conv1x1, (x, w0), (32, 32), dtype="float32")
+            lv1 = R.call_tir(bias_add, (lv0, bias0), (32, 32), dtype="float32")
+            lv2 = R.call_tir(relu, (lv1), (32, 32), dtype="float32")
+            #     CBR_0
+            #   /       \
+            # X        concat
+            #   \       /
+            #     CBR_1
+            lv3 = R.call_tir(conv1x1, (x, w1), (32, 32), dtype="float32")
+            lv4 = R.call_tir(bias_add, (lv3, bias1), (32, 32), dtype="float32")
+            lv5 = R.call_tir(relu, (lv4), (32, 32), dtype="float32")
+
+            lv6 = R.call_tir(concat, (lv2, lv5), (32, 64), dtype="float32")
+            relax.output(lv6)
+        return lv6
+
+
+def test_single_cbr():
+    cbr = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+    dfb = CBRx2["main"].body.blocks[0]
+    assert cbr.patterns[0].match_dfb(dfb)
+
+
+def test_counter_single_crb():
+    crb = is_call_tir("conv1x1") >> is_call_tir("relu") >> is_call_tir("bias_add")
+    dfb = CBRx2["main"].body.blocks[0]
+    assert not crb.patterns[0].match_dfb(dfb)

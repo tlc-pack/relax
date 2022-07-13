@@ -45,11 +45,8 @@ struct PairCons {
 
 struct GraphPattern final {
   template <typename... Cons>
-  inline void add_constraint(const DFPatternNode* src, const DFPatternNode* dst, Cons... cons) {
-    static_assert(sizeof...(cons) > 0, "Constraints should not be empty!");
-    auto& src_cons = constraints[src];
-    // same as `(src_cons.push_back(cons), ...)` in C++17.
-    (void)std::initializer_list<int>{(src_cons.emplace(dst, cons), 0)...};
+  inline void add_constraint(const DFPatternNode* def, const DFPatternNode* use, PairCons cons) {
+    constraints[def].emplace(use, cons);
   }
   // special constraints.
   enum ExternUse { kMay, kMust, kMustNot } allow_extern_use = kMay;

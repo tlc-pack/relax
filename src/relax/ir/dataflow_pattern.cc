@@ -375,7 +375,7 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.UsedBySeq")
 RELAX_PATTERN_PRINTER_DEF(UsedBySeqNode, [](auto p, auto node) {
   p->stream << "(";
   for (size_t i = 0; i < node->patterns.size(); ++i) {
-    if (i != 0) p->stream << " > ";
+    if (i != 0) p->stream << " ^ ";
     p->stream << node->patterns[i];
   }
   p->stream << ")";

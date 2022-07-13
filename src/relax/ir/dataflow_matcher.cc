@@ -40,6 +40,7 @@
 
 #include "dataflow_matcher_impl.h"
 #include "df_graph_constraint_impl.h"
+#include "tvm/runtime/object.h"
 
 namespace tvm {
 namespace relax {
@@ -485,95 +486,10 @@ bool MatchExprPattern(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, E
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExprPattern);
 
-struct PNode {
-  const DFPatternNode* ptr;
-  const VarBindingNode* matched = nullptr;
-  std::vector<std::pair<PNode*, PairCons>> children;
-  std::vector<std::pair<PNode*, PairCons>> parents;
-};
-
-struct RNode {
-  const VarBindingNode* ptr;
-  const DFPatternNode* matched = nullptr;
-  std::vector<RNode*> children;
-  std::vector<RNode*> parents;
-};
-
-/**
- * \brief This method try to match a real node and a pattern node along with its neighbors.
- */
-static bool try_match(PNode* p, RNode* r, DFPatternMatcher* matcher) {
-  // TODO(@ganler): consider graph constraints.
-  if (!matcher->Match(GetRef<DFPattern>(p->ptr), r->ptr->value)) return false;
-
-  std::stack<std::pair<PNode*, RNode*>> undo_stack{};
-
-  const auto commit = [&undo_stack](PNode* p, RNode* r) {
-    // match with each other.
-    p->matched = r->ptr;
-    r->matched = p->ptr;
-    undo_stack.emplace(p, r);
-  };
-
-  const auto undo = [&undo_stack] {
-    while (!undo_stack.empty()) {
-      auto& top = undo_stack.top();
-      top.first->matched = nullptr;
-      top.second->matched = nullptr;
-      undo_stack.pop();
-    }
-  };
-
-  commit(p, r);
-
-  // match parent patterns.
-  for (auto& pparent_pairs : p->parents) {
-    PNode* pparent = pparent_pairs.first;
-    const PairCons& constraint = pparent_pairs.second;
-    ICHECK(PairCons::kUsedBy == constraint.type) << "OUB is not supported yet.";
-    ICHECK(constraint.index == -1) << "Argument index is not supported yet.";
-    if (!pparent->matched) {
-      for (auto& rparent : r->parents) {
-        // try all parent R nodes that are not matched yet.
-        // as long as ppattern can match one node.
-        if (!rparent->matched && try_match(pparent, rparent, matcher)) {
-          commit(pparent, rparent);
-          break;
-        }
-      }
-      if (!pparent->matched) {
-        undo();
-        return false;
-      }
-    }
-  }
-
-  // forward matching;
-  for (auto& pchild_pairs : p->children) {
-    PNode* pchild = pchild_pairs.first;
-    const PairCons& constraint = pchild_pairs.second;
-    ICHECK(PairCons::kUsedBy == constraint.type) << "OUB is not supported yet.";
-    ICHECK(constraint.index == -1) << "Argument index is not supported yet.";
-    if (!pchild->matched) {
-      for (auto& rchild : r->children) {
-        if (!rchild->matched && try_match(pchild, rchild, matcher)) {
-          commit(pchild, rchild);
-          break;
-        }
-      }
-      if (!pchild->matched) {
-        undo();
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-class UseDefAnalysis : public relax::ExprVisitor {
+class UDChain : public relax::ExprVisitor {
  public:
-  std::map<const VarBindingNode*, std::set<const VarBindingNode*>> def2use, use2def;
+  using map_t = std::map<const VarBindingNode*, std::set<const VarBindingNode*>>;
+  map_t def2use, use2def;
   std::map<const VarNode*, const VarBindingNode*> v2binding_;
   const VarBindingNode* cur_vbinding_;
 
@@ -605,6 +521,104 @@ class UseDefAnalysis : public relax::ExprVisitor {
   }
 };
 
+struct PNode {
+  const DFPatternNode* ptr;
+  const VarBindingNode* matched = nullptr;
+  std::vector<std::pair<PNode*, PairCons>> children;
+  std::vector<std::pair<PNode*, PairCons>> parents;
+};
+
+struct RNode {
+  const VarBindingNode* ptr;
+  const DFPatternNode* matched = nullptr;
+  std::vector<RNode*> children;
+  std::vector<RNode*> parents;
+};
+
+/**
+ * \brief This method try to match a real node and a pattern node along with its neighbors.
+ */
+static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::map_t& def2use) {
+  if (!m->Match(GetRef<DFPattern>(p->ptr), r->ptr->value)) return false;
+
+  std::stack<std::pair<PNode*, RNode*>> undo_stack{};
+
+  const auto commit = [&undo_stack](PNode* p, RNode* r) {
+    // match with each other.
+    p->matched = r->ptr;
+    r->matched = p->ptr;
+    undo_stack.emplace(p, r);
+  };
+
+  const auto undo = [&undo_stack] {
+    while (!undo_stack.empty()) {
+      auto& top = undo_stack.top();
+      top.first->matched = nullptr;
+      top.second->matched = nullptr;
+      undo_stack.pop();
+    }
+  };
+
+  commit(p, r);
+
+  // match parent patterns.
+  for (auto& pparent_pairs : p->parents) {
+    PNode* pparent = pparent_pairs.first;
+    const PairCons& constraint = pparent_pairs.second;
+    ICHECK(constraint.index == -1)
+        << "Matching index is unsupported as Callee indexing is not standarized.";
+    if (!pparent->matched) {
+      for (auto& rparent : r->parents) {
+        if (rparent->matched) continue;
+        const auto& uses = def2use.at(rparent->ptr);
+        // `rparent` is used by `r`.
+        if (uses.cend() == uses.find(r->ptr)) continue;
+        // check if `rparent` is used and only used by `r`.
+        if (PairCons::kOnlyUsedBy == constraint.type && uses.size() != 1) continue;
+
+        // try all parent R nodes that are not matched yet.
+        // as long as ppattern can match one node.
+        if (try_match(pparent, rparent, m, def2use)) {
+          commit(pparent, rparent);
+          break;
+        }
+      }
+      if (!pparent->matched) {
+        undo();
+        return false;
+      }
+    }
+  }
+
+  // forward matching;
+  for (auto& pchild_pairs : p->children) {
+    PNode* pchild = pchild_pairs.first;
+    const PairCons& constraint = pchild_pairs.second;
+    ICHECK(constraint.index == -1)
+        << "Matching index is unsupported as Callee indexing is not standarized.";
+    if (!pchild->matched) {
+      for (auto& rchild : r->children) {
+        if (rchild->matched) continue;
+        const auto& uses = def2use.at(r->ptr);
+        // `r` is used by `rchild`.
+        if (uses.cend() == uses.find(rchild->ptr)) continue;
+        // check if `r` is used and only used by `rchild`.
+        if (PairCons::kOnlyUsedBy == constraint.type && uses.size() != 1) continue;
+        if (try_match(pchild, rchild, m, def2use)) {
+          commit(pchild, rchild);
+          break;
+        }
+      }
+      if (!pchild->matched) {
+        undo();
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<GraphPattern> gp,
                                                            const DataflowBlock& dfb,
                                                            Optional<VarBinding> start_hint,
@@ -619,7 +633,7 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   const auto var2val = AnalyzeVar2Value(dfb);
   DFPatternMatcher matcher(var2val, !disable_autojump);
 
-  UseDefAnalysis ud;
+  UDChain ud;
   ud.VisitBindingBlock_(dfb.get());
   // std::map<const VarBindingNode*, std::set<const VarBindingNode*>>
   const auto &def2use = ud.def2use, &use2def = ud.use2def;
@@ -633,8 +647,6 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
     if (const VarBindingNode* vbn = b.as<VarBindingNode>()) {
       auto& node = varbind2node[vbn];
       node.ptr = vbn;
-      ICHECK(def2use.count(vbn)) << "No def for " << vbn->var << " = " << vbn->value;
-      ICHECK(use2def.count(vbn)) << "No use for " << vbn->var << " = " << vbn->value;
       node.children.reserve(def2use.at(vbn).size());
       node.parents.reserve(use2def.at(vbn).size());
     }
@@ -655,19 +667,19 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   std::unordered_map<const DFPatternNode*, PNode> pattern2node;
   pattern2node.reserve(gp->constraints.size());
 
-  for (const auto& src2dsts : gp->constraints) {
-    const DFPatternNode* src = src2dsts.first;
-    const std::map<const DFPatternNode*, PairCons>& dsts = src2dsts.second;
-    PNode& src_node = pattern2node[src];
-    src_node.ptr = src;
-    src_node.children.reserve(dsts.size());
-    for (const auto pp : dsts) {
-      const PairCons& cons = pp.second;
-      const DFPatternNode* dst = pp.first;
-      PNode& dst_node = pattern2node[pp.first];
-      dst_node.ptr = dst;
-      dst_node.parents.emplace_back(&src_node, cons);
-      src_node.children.emplace_back(&dst_node, cons);
+  for (const auto& def2uses : gp->constraints) {
+    const DFPatternNode* def_pattern = def2uses.first;
+    const std::map<const DFPatternNode*, PairCons>& uses = def2uses.second;
+    PNode& def_node = pattern2node[def_pattern];
+    def_node.ptr = def_pattern;
+    def_node.children.reserve(uses.size());
+    for (const auto use : uses) {
+      const PairCons& cons = use.second;
+      const DFPatternNode* use_pattern = use.first;
+      PNode& use_node = pattern2node[use.first];
+      use_node.ptr = use_pattern;
+      use_node.parents.emplace_back(&def_node, cons);
+      def_node.children.emplace_back(&use_node, cons);
     }
   }
 
@@ -677,7 +689,7 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
     VarBinding vb = start_hint.value();
     auto rnode_ptr = varbind2node.find(vb.get());
     ICHECK(varbind2node.cend() != rnode_ptr) << "start_hint " << vb << " is not part of the graph.";
-    if (try_match(pnode_start, &rnode_ptr->second, &matcher)) {
+    if (try_match(pnode_start, &rnode_ptr->second, &matcher, def2use)) {
       for (auto ppair : pattern2node) {
         ret.Set(GetRef<DFPattern>(ppair.first), GetRef<VarBinding>(ppair.second.matched));
       }
@@ -690,7 +702,7 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   if (!pnode_start->matched) {
     for (auto& rpair : varbind2node) {
       if (start_hint.defined() && start_hint.value().get() == rpair.first) continue;
-      if (try_match(pnode_start, &rpair.second, &matcher)) {
+      if (try_match(pnode_start, &rpair.second, &matcher, def2use)) {
         for (auto ppair : pattern2node) {
           ret.Set(GetRef<DFPattern>(ppair.first), GetRef<VarBinding>(ppair.second.matched));
         }
