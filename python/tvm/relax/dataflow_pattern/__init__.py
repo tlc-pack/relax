@@ -126,7 +126,7 @@ class DFPattern(Node):
     def has_shape(self, *args):
         return has_shape(*args, pattern=self)
 
-    def match_expr(self, expr, var2val=None) -> bool:
+    def match(self, expr, var2val=None) -> bool:
         """
         Match the given expression or function against this pattern.
 
@@ -142,7 +142,7 @@ class DFPattern(Node):
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match(self, expr, var2val)
+        return match_expr(self, expr, var2val)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
@@ -734,7 +734,7 @@ def has_attr(attrs, pattern=None) -> "DFPattern":
     return pattern.has_attr(attrs)
 
 
-def match(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None) -> bool:
+def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None) -> bool:
     """
     Match a pattern to an expression
 
