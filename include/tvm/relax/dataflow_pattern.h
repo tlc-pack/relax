@@ -31,6 +31,7 @@
 #include <tvm/runtime/container/optional.h>
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
