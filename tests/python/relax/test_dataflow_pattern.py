@@ -262,63 +262,61 @@ def test_is_call_tir():
 
 
 ## Graph-wise Matching
-def test_single_node_cannot():
-    with pytest.raises(TVMError):
-        # Match a DFPattern without graph constraints (e.g., single node) is not allowed.
-        wildcard().match_dfb(main_fn.body.blocks[0])
-
-
 def test_simple_edge():
-    n0 = wildcard()
-    n1 = wildcard()
-    n0.used_by(n1)
-    dfb = main_fn.body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert matched
-    assert matched[n0] == dfb.bindings[0]
-    assert matched[n1] == dfb.bindings[1]
+    with PatternContext():
+        n0 = wildcard()
+        n1 = wildcard()
+        n0.used_by(n1)
+        dfb = main_fn.body.blocks[0]
+        matched = match_dfb(None, dfb)
+        assert matched
+        assert matched[n0] == dfb.bindings[0]
+        assert matched[n1] == dfb.bindings[1]
 
 
 def test_simple_call_tir_edge():
-    n0 = is_call_tir("tir_matmul")
-    n1 = is_call_tir("tir_relu")
-    n0.used_by(n1)
-    dfb = main_fn.body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert matched
-    assert matched[n0] == dfb.bindings[0]
-    assert matched[n1] == dfb.bindings[1]
+    with PatternContext():
+        n0 = is_call_tir("tir_matmul")
+        n1 = is_call_tir("tir_relu")
+        n0.used_by(n1)
+        dfb = main_fn.body.blocks[0]
+        matched = match_dfb(None, dfb)
+        assert matched
+        assert matched[n0] == dfb.bindings[0]
+        assert matched[n1] == dfb.bindings[1]
 
 
 def test_simple_used_by():
-    n0 = wildcard()
-    n1 = wildcard()
-    n0 ^ n1
-    dfb = main_fn.body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert matched
-    assert matched[n0] == dfb.bindings[0]
-    assert matched[n1] == dfb.bindings[1]
+    with PatternContext():
+        n0 = wildcard()
+        n1 = wildcard()
+        n0 ^ n1
+        dfb = main_fn.body.blocks[0]
+        matched = match_dfb(None, dfb)
+        assert matched
+        assert matched[n0] == dfb.bindings[0]
+        assert matched[n1] == dfb.bindings[1]
 
 
 def test_simple_oub():
-    n0 = is_call_tir("tir_matmul")
-    n1 = is_call_tir("tir_relu")
-    n0 >> n1
-    dfb = main_fn.body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert matched
-    assert matched[n0] == dfb.bindings[0]
-    assert matched[n1] == dfb.bindings[1]
+    with PatternContext():
+        n0 = is_call_tir("tir_matmul")
+        n1 = is_call_tir("tir_relu")
+        n0 >> n1
+        dfb = main_fn.body.blocks[0]
+        matched = match_dfb(None, dfb)
+        assert matched
+        assert matched[n0] == dfb.bindings[0]
+        assert matched[n1] == dfb.bindings[1]
 
 
 def test_counter_oub_syntax():
-    n0 = is_call_tir("tir_matmul")
-    n1 = is_call_tir("tir_impossible")
-    n0 >> n1
-    dfb = main_fn.body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert not matched
+    with PatternContext():
+        n0 = is_call_tir("tir_matmul")
+        n1 = is_call_tir("tir_impossible")
+        n0 >> n1
+        dfb = main_fn.body.blocks[0]
+        assert not match_dfb(None, dfb)
 
 
 @tvm.script.ir_module
@@ -335,35 +333,35 @@ class Diamond:
 
 
 def test_diamond():
-    n0 = is_call_tir("tir_matmul")
-    n1 = is_call_tir("tir_relu")
-    n2 = is_call_tir("tir_sigmoid")
-    n3 = is_call_tir("tir_add")
+    with PatternContext():
+        n0 = is_call_tir("tir_matmul")
+        n1 = is_call_tir("tir_relu")
+        n2 = is_call_tir("tir_sigmoid")
+        n3 = is_call_tir("tir_add")
 
-    n0 ^ n1
-    n0 ^ n2
-    n1 >> n3
-    n2 >> n3
+        n0 ^ n1
+        n0 ^ n2
+        n1 >> n3
+        n2 >> n3
 
-    dfb = Diamond["main"].body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert matched
+        dfb = Diamond["main"].body.blocks[0]
+        assert match_dfb(None, dfb)
 
 
 def test_diamond_counter_oub():
-    n0 = is_call_tir("tir_matmul")
-    n1 = is_call_tir("tir_relu")
-    n2 = is_call_tir("tir_sigmoid")
-    n3 = is_call_tir("tir_add")
+    with PatternContext():
+        n0 = is_call_tir("tir_matmul")
+        n1 = is_call_tir("tir_relu")
+        n2 = is_call_tir("tir_sigmoid")
+        n3 = is_call_tir("tir_add")
 
-    n0 >> n1
-    n0 >> n2
-    n1 >> n3
-    n2 >> n3
+        n0 >> n1
+        n0 >> n2
+        n1 >> n3
+        n2 >> n3
 
-    dfb = Diamond["main"].body.blocks[0]
-    matched = n0.match_dfb(dfb)
-    assert not matched
+        dfb = Diamond["main"].body.blocks[0]
+        assert not match_dfb(None, dfb)
 
 
 @tvm.script.ir_module
@@ -397,30 +395,32 @@ class CBRx2:
 
 
 def test_single_cbr():
-    cbr = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
-    dfb = CBRx2["main"].body.blocks[0]
-    assert cbr.patterns[0].match_dfb(dfb)
+    with PatternContext() as ctx:
+        is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        dfb = CBRx2["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)
 
 
 def test_counter_single_crb():
-    crb = is_call_tir("conv1x1") >> is_call_tir("relu") >> is_call_tir("bias_add")
-    dfb = CBRx2["main"].body.blocks[0]
-    assert not crb.patterns[0].match_dfb(dfb)
+    with PatternContext() as ctx:
+        is_call_tir("conv1x1") >> is_call_tir("relu") >> is_call_tir("bias_add")
+        dfb = CBRx2["main"].body.blocks[0]
+        assert not ctx.match_dfb(dfb)
 
 
 def test_two_cbr():
-    cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
-    cbr1 = cbr0.dup()
+    with PatternContext() as ctx:
+        cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        cbr1 = cbr0.dup()
 
-    assert cbr0.patterns[0] == cbr0.patterns[0]
-    assert cbr0.patterns[1] == cbr0.patterns[1]
-    assert cbr0.patterns[2] == cbr0.patterns[2]
+        assert cbr0.patterns[0] == cbr0.patterns[0]
+        assert cbr0.patterns[1] == cbr0.patterns[1]
+        assert cbr0.patterns[2] == cbr0.patterns[2]
 
-    assert cbr0.patterns[0] != cbr1.patterns[0]
-    assert cbr0.patterns[1] != cbr1.patterns[1]
-    assert cbr0.patterns[2] != cbr1.patterns[2]
+        assert cbr0.patterns[0] != cbr1.patterns[0]
+        assert cbr0.patterns[1] != cbr1.patterns[1]
+        assert cbr0.patterns[2] != cbr1.patterns[2]
 
-    softmax = is_call_tir("softmax")
-    softmax.fork_to(cbr0, cbr1)
-    dfb = CBRx2["main"].body.blocks[0]
-    assert softmax.match_dfb(dfb)
+        is_call_tir("softmax").fork_to(cbr0, cbr1)
+        dfb = CBRx2["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)

@@ -17,6 +17,7 @@
 """The Relax Pattern Language and tooling."""
 # pylint: disable=no-member
 # pylint: disable=missing-function-docstring
+# pylint: disable=pointless-statement
 
 from typing import List, Optional, Callable, Dict, Union, Tuple
 
@@ -141,29 +142,7 @@ class DFPattern(Node):
         result: bool
             Whether or not the expression matches the pattern
         """
-        return match_expr(self, expr, var2val)
-
-    def match_dfb(
-        self,
-        dfb: DataflowBlock,
-        start_hint: Optional[VarBinding] = None,
-        match_once: bool = False,
-        disable_autojump: bool = False,
-    ):
-        """
-        Match the given dataflow block against this pattern.
-
-        Parameters
-        ----------
-        dfb : tvm.relax.DataflowBlock
-            The dataflow block to match.
-
-        Returns
-        -------
-        result: bool
-            Whether or not the dataflow block matches the pattern
-        """
-        return match_dfb(self, dfb, start_hint, match_once, disable_autojump)
+        return match(self, expr, var2val)
 
     def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
         """
@@ -755,7 +734,7 @@ def has_attr(attrs, pattern=None) -> "DFPattern":
     return pattern.has_attr(attrs)
 
 
-def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None) -> bool:
+def match(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None) -> bool:
     """
     Match a pattern to an expression
 
@@ -773,7 +752,14 @@ def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None
 
 @register_df_node
 class UsedBySeq(Node):
+    """A sequence of patterns that patterns[i] is used by patterns[i+1]"""
+
     def __init__(self, patterns: List[DFPattern]):
+        """Create a chain that a pattern is used by its follower.
+
+        Args:
+            patterns (List[DFPattern]): patterns with used-by relation.
+        """
         self.__init_handle_by_constructor__(ffi.UsedBySeq, patterns)
 
     def used_by(self, other: Union[DFPattern, "UsedBySeq"], index=-1) -> "UsedBySeq":
@@ -788,7 +774,14 @@ class UsedBySeq(Node):
 
 @register_df_node
 class OnlyUsedBySeq(Node):
+    """A sequence of patterns that patterns[i] is ONLY used by patterns[i+1]"""
+
     def __init__(self, patterns: List[DFPattern]):
+        """Create a chain that a pattern is only used by its follower.
+
+        Args:
+            patterns (List[DFPattern]): patterns with only-used-by relation.
+        """
         self.__init_handle_by_constructor__(ffi.OnlyUsedBySeq, patterns)
 
     def only_used_by(self, other: Union[DFPattern, "OnlyUsedBySeq"], index=-1) -> "OnlyUsedBySeq":
@@ -802,7 +795,7 @@ class OnlyUsedBySeq(Node):
 
 
 def match_dfb(
-    pattern: "DFPattern",
+    ctx: "PatternContext",
     dfb: DataflowBlock,
     start_hint: Optional[VarBinding] = None,
     match_once: bool = False,
@@ -818,7 +811,9 @@ def match_dfb(
     expr : tvm.relax.Function
         The function to match.
     """
-    return ffi.match_dfb(pattern, dfb, start_hint, match_once, disable_autojump)
+    if ctx is None:
+        ctx = PatternContext.current()
+    return ffi.match_dfb(ctx, dfb, start_hint, match_once, disable_autojump)
 
 
 def used_by(
@@ -857,8 +852,7 @@ def dup(*args):
     if len(args) == 1:
         if isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
             return [x.dup() for x in args[0]]
-        else:
-            return args[0].dup()
+        return args[0].dup()
     return tuple([v.dup() for v in args])
 
 
@@ -866,3 +860,30 @@ def fork_to(*args):
     root_pattern = wildcard()
     for arg in args:
         root_pattern ^ arg
+
+
+class PatternContext(tvm.runtime.Object):
+    """A context object for doing graph (topogical) pattern matching."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(ffi.PatternContext)
+
+    def __enter__(self):
+        ffi.enter_context(self)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        ffi.exit_context(self)
+
+    @staticmethod
+    def current():
+        return ffi.current_context()
+
+    def match_dfb(
+        self,
+        dfb: DataflowBlock,
+        start_hint: Optional[VarBinding] = None,
+        match_once: bool = False,
+        disable_autojump: bool = False,
+    ) -> Dict[DFPattern, VarBinding]:
+        return match_dfb(self, dfb, start_hint, match_once, disable_autojump)

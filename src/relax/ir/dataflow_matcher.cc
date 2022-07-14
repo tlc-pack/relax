@@ -616,7 +616,7 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::ma
   return true;
 }
 
-tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<GraphPattern> gp,
+tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(const PatternContext& ctx,
                                                            const DataflowBlock& dfb,
                                                            Optional<VarBinding> start_hint,
                                                            bool match_once, bool disable_autojump) {
@@ -624,7 +624,7 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   // FIXME(@ganler): consider callee index.
   ICHECK(!start_hint.defined()) << "start_hint is not supported yet.";
   // TODO(@ganler): Handle non-may external use.
-  ICHECK(gp->allow_extern_use == GraphPattern::kMay) << "Only kMay is supported yet.";
+  ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
   ICHECK(!match_once || start_hint.defined()) << "match_once is only supported with start_hint.";
 
   const auto var2val = AnalyzeVar2Value(dfb);
@@ -662,18 +662,18 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   }
 
   std::unordered_map<const DFPatternNode*, PNode> pattern2node;
-  pattern2node.reserve(gp->constraints.size());
+  pattern2node.reserve(ctx->constraints.size());
 
-  for (const auto& def2use_pattern : gp->constraints) {
-    const DFPatternNode* def_pattern = def2use_pattern.first;
-    const std::map<const DFPatternNode*, PairCons>& uses = def2use_pattern.second;
+  for (const auto& def2use_pattern : ctx->constraints) {
+    const DFPatternNode* def_pattern = def2use_pattern.first.get();
+    const std::map<DFPattern, PairCons>& uses = def2use_pattern.second;
     PNode& def_node = pattern2node[def_pattern];
     def_node.ptr = def_pattern;
     def_node.children.reserve(uses.size());
-    for (const auto use : uses) {
+    for (const auto& use : uses) {
       const PairCons& cons = use.second;
-      const DFPatternNode* use_pattern = use.first;
-      PNode& use_node = pattern2node[use.first];
+      const DFPatternNode* use_pattern = use.first.get();
+      PNode& use_node = pattern2node[use_pattern];
       use_node.ptr = use_pattern;
       use_node.parents.emplace_back(&def_node, cons);
       def_node.children.emplace_back(&use_node, cons);
@@ -711,16 +711,7 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   return ret;
 }
 
-/** \brief Call MatchGraphPattern through pattern's graph constraints */
-tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern_(
-    DFPattern pattern, const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt,
-    bool match_once = false, bool disable_autojump = false) {
-  ICHECK(pattern->graph_constraint) << "Graph constraints are missing (at least one edge required)";
-  return MatchGraphPattern(pattern->graph_constraint, dfb, start_hint, match_once,
-                           disable_autojump);
-}
-
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_dfb").set_body_typed(MatchGraphPattern_);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_dfb").set_body_typed(MatchGraphPattern);
 
 }  // namespace relax
 }  // namespace tvm

@@ -28,6 +28,7 @@
 #include <memory>
 
 #include "df_graph_constraint_impl.h"
+#include "tvm/runtime/memory.h"
 
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
@@ -393,42 +394,25 @@ DFPattern DFPattern::HasRuntimeDepShape() const {
 DFPattern::operator UsedBySeq() const { return UsedBySeq{{*this}}; }
 DFPattern::operator OnlyUsedBySeq() const { return OnlyUsedBySeq{{*this}}; }
 
-std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPattern> lhs,
-                                                      std::shared_ptr<GraphPattern> rhs) {
-  std::shared_ptr<GraphPattern> gcons = nullptr;
-  if (nullptr == lhs && nullptr == rhs) {
-    gcons = std::make_shared<GraphPattern>();
-  } else if (nullptr != lhs && nullptr != rhs) {
-    // may need to merge
-    if (lhs == rhs) {
-      gcons = lhs;
-    } else {
-      ICHECK(lhs->allow_extern_use == rhs->allow_extern_use);
-      // going to merge and update.
-      gcons = lhs;  // default to lhs
-      // merge and change all rhs.
-      for (auto&& kv : rhs->constraints) {
-        const auto& def = kv.first;
-        const auto& rhs_uses = kv.second;
-        def->graph_constraint = gcons;
-        auto& lhs_uses = gcons->constraints[def];
-        for (const auto& v : rhs_uses) {
-          v.first->graph_constraint = gcons;  // purify.
-          lhs_uses.insert(v);
-        }
-      }
-    }
-  } else {  // one of them has graph constraint so we use that.
-    gcons = lhs ? lhs : rhs;
-  }
+std::stack<PatternContext>& pattern_ctx_stack() {
+  thread_local std::stack<PatternContext> graph_pattern_managers;
+  return graph_pattern_managers;
+}
 
-  return gcons;
+PatternContext PatternContext::Current() {
+  ICHECK(!pattern_ctx_stack().empty()) << "No active PatternContext found.";
+  return pattern_ctx_stack().top();
+}
+
+void PatternContext::EnterWithScope() { pattern_ctx_stack().push(*this); }
+
+void PatternContext::ExitWithScope() {
+  ICHECK(pattern_ctx_stack().top().same_as(*this));
+  pattern_ctx_stack().pop();
 }
 
 static void sync_graph_constraints(const DFPattern& lhs, const DFPattern& rhs, PairCons pcon) {
-  auto gcons = get_or_merge_graph_cons(lhs->graph_constraint, rhs->graph_constraint);
-  gcons->add_constraint(lhs.get(), rhs.get(), pcon);
-  lhs->graph_constraint = rhs->graph_constraint = gcons;
+  PatternContext::Current().add_constraint(lhs, rhs, pcon);
 }
 
 TVM_REGISTER_NODE_TYPE(UsedBySeqNode);
@@ -558,6 +542,26 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_ubseq").set_body_typed([](UsedBy
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_oubseq").set_body_typed([](OnlyUsedBySeq oub_seq) {
   return oub_seq.dup();
 });
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.PatternContext").set_body_typed([] {
+  return PatternContext(make_object<PatternContextNode>());
+});
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.current_context").set_body_typed([] {
+  return PatternContext::Current();
+});
+
+class PatternContext::Internal {
+ public:
+  static void EnterScope(PatternContext pass_ctx) { pass_ctx.EnterWithScope(); }
+  static void ExitScope(PatternContext pass_ctx) { pass_ctx.ExitWithScope(); }
+};
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.enter_context")
+    .set_body_typed(PatternContext::Internal::EnterScope);
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.exit_context")
+    .set_body_typed(PatternContext::Internal::ExitScope);
 
 }  // namespace relax
 }  // namespace tvm

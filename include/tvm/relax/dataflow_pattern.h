@@ -39,8 +39,6 @@
 namespace tvm {
 namespace relax {
 
-struct GraphPattern;
-
 class UsedBySeq;
 class OnlyUsedBySeq;
 
@@ -53,7 +51,6 @@ OnlyUsedBySeq operator>>(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs);
 // FIXME: Document those APIs.
 class DFPatternNode : public Object {
  public:
-  mutable std::shared_ptr<GraphPattern> graph_constraint = nullptr;
   static constexpr const char* _type_key = "DFPatternNode";
   TVM_DECLARE_BASE_OBJECT_INFO(DFPatternNode, Object);
 };
@@ -154,6 +151,56 @@ class OnlyUsedBySeq : public PatternSeq {
     return OnlyUsedBySeq(patterns);
   }
   TVM_DEFINE_OBJECT_REF_METHODS(OnlyUsedBySeq, PatternSeq, OnlyUsedBySeqNode);
+};
+
+struct PairCons {
+  enum Type {
+    kUsedBy,
+    kOnlyUsedBy,
+  } type = kUsedBy;
+  int index = -1; /* means whatever */
+  inline explicit PairCons(Type t, int index = -1) : type(t), index(index) {}
+};
+
+class PatternContextNode : public Object {
+ public:
+  // special constraints.
+  enum ExternUse { kMay, kMust, kMustNot } allow_extern_use = kMay;
+  // src node -> <dst node, constraint type> constraints.
+  std::map<DFPattern, std::map<DFPattern, PairCons>> constraints;
+
+  static constexpr const char* _type_key = "relax.dataflow_pattern.PatternContext";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextNode, Object);
+};
+
+class PatternContext : public ObjectRef {
+ public:
+  explicit PatternContext(ObjectPtr<Object> n) : ObjectRef(n) {}
+  inline const PatternContextNode* operator->() const {
+    ICHECK(get() != nullptr);
+    return static_cast<const PatternContextNode*>(get());
+  }
+
+  inline PatternContextNode* operator->() {
+    ICHECK(get() != nullptr);
+    return static_cast<PatternContextNode*>(get_mutable());
+  }
+
+  inline void add_constraint(DFPattern def, DFPattern use, PairCons cons) {
+    (*this)->constraints[def].emplace(use, cons);
+  }
+
+  TVM_DLL static PatternContext Current();
+
+  class Internal;
+
+ private:
+  // The entry of a pass context scope.
+  TVM_DLL void EnterWithScope();
+  // The exit of a pass context scope.
+  TVM_DLL void ExitWithScope();
+  friend class Internal;
+  friend class With<PatternContext>;
 };
 
 class ExprPatternNode : public DFPatternNode {
