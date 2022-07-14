@@ -39,7 +39,6 @@
 #include <vector>
 
 #include "dataflow_matcher_impl.h"
-#include "df_graph_constraint_impl.h"
 
 namespace tvm {
 namespace relax {

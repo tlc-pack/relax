@@ -27,7 +27,6 @@
 
 #include <memory>
 
-#include "df_graph_constraint_impl.h"
 #include "tvm/runtime/memory.h"
 
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
