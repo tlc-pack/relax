@@ -377,15 +377,17 @@ class CBRx2:
         bias1: Tensor((32, 32), "float32"),
     ) -> Tensor:
         with R.dataflow():
-            lv0 = R.call_tir(conv1x1, (x, w0), (32, 32), dtype="float32")
+            lv_init = R.call_tir(softmax, (x), (32, 32), dtype="float32")
+
+            lv0 = R.call_tir(conv1x1, (lv_init, w0), (32, 32), dtype="float32")
             lv1 = R.call_tir(bias_add, (lv0, bias0), (32, 32), dtype="float32")
             lv2 = R.call_tir(relu, (lv1), (32, 32), dtype="float32")
-            #     CBR_0
-            #   /       \
-            # X        concat
-            #   \       /
-            #     CBR_1
-            lv3 = R.call_tir(conv1x1, (x, w1), (32, 32), dtype="float32")
+            #        CBR_0
+            #      /       \
+            # softmax      concat
+            #      \       /
+            #        CBR_1
+            lv3 = R.call_tir(conv1x1, (lv_init, w1), (32, 32), dtype="float32")
             lv4 = R.call_tir(bias_add, (lv3, bias1), (32, 32), dtype="float32")
             lv5 = R.call_tir(relu, (lv4), (32, 32), dtype="float32")
 
@@ -404,3 +406,21 @@ def test_counter_single_crb():
     crb = is_call_tir("conv1x1") >> is_call_tir("relu") >> is_call_tir("bias_add")
     dfb = CBRx2["main"].body.blocks[0]
     assert not crb.patterns[0].match_dfb(dfb)
+
+
+def test_two_cbr():
+    cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+    cbr1 = cbr0.dup()
+
+    assert cbr0.patterns[0] == cbr0.patterns[0]
+    assert cbr0.patterns[1] == cbr0.patterns[1]
+    assert cbr0.patterns[2] == cbr0.patterns[2]
+
+    assert cbr0.patterns[0] != cbr1.patterns[0]
+    assert cbr0.patterns[1] != cbr1.patterns[1]
+    assert cbr0.patterns[2] != cbr1.patterns[2]
+
+    softmax = is_call_tir("softmax")
+    softmax.fork_to(cbr0, cbr1)
+    dfb = CBRx2["main"].body.blocks[0]
+    assert softmax.match_dfb(dfb)

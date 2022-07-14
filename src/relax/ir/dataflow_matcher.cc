@@ -40,7 +40,6 @@
 
 #include "dataflow_matcher_impl.h"
 #include "df_graph_constraint_impl.h"
-#include "tvm/runtime/object.h"
 
 namespace tvm {
 namespace relax {
@@ -571,9 +570,9 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::ma
       for (auto& rparent : r->parents) {
         if (rparent->matched) continue;
         const auto& uses = def2use.at(rparent->ptr);
-        // `rparent` is used by `r`.
+        // skip if `rparent` is not used by `r`.
         if (uses.cend() == uses.find(r->ptr)) continue;
-        // check if `rparent` is used and only used by `r`.
+        // skip if `rparent` is not used and only used by `r`.
         if (PairCons::kOnlyUsedBy == constraint.type && uses.size() != 1) continue;
 
         // try all parent R nodes that are not matched yet.
@@ -600,9 +599,7 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::ma
       for (auto& rchild : r->children) {
         if (rchild->matched) continue;
         const auto& uses = def2use.at(r->ptr);
-        // `r` is used by `rchild`.
         if (uses.cend() == uses.find(rchild->ptr)) continue;
-        // check if `r` is used and only used by `rchild`.
         if (PairCons::kOnlyUsedBy == constraint.type && uses.size() != 1) continue;
         if (try_match(pchild, rchild, m, def2use)) {
           commit(pchild, rchild);
@@ -667,9 +664,9 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(std::shared_ptr<Graph
   std::unordered_map<const DFPatternNode*, PNode> pattern2node;
   pattern2node.reserve(gp->constraints.size());
 
-  for (const auto& def2uses : gp->constraints) {
-    const DFPatternNode* def_pattern = def2uses.first;
-    const std::map<const DFPatternNode*, PairCons>& uses = def2uses.second;
+  for (const auto& def2use_pattern : gp->constraints) {
+    const DFPatternNode* def_pattern = def2use_pattern.first;
+    const std::map<const DFPatternNode*, PairCons>& uses = def2use_pattern.second;
     PNode& def_node = pattern2node[def_pattern];
     def_node.ptr = def_pattern;
     def_node.children.reserve(uses.size());

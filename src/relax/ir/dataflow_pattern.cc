@@ -23,6 +23,7 @@
  */
 
 #include <tvm/relax/dataflow_pattern.h>
+#include <tvm/relax/dataflow_pattern_functor.h>
 
 #include <memory>
 
@@ -280,6 +281,64 @@ RELAX_PATTERN_PRINTER_DEF(AttrPatternNode, [](auto p, auto node) {
   p->stream << "AttrPattern(" << node->pattern << " has attributes " << node->attrs << ")";
 });
 
+class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)> {
+ public:
+  DFPattern VisitDFPattern(const DFPattern& pattern) override {
+    return DFPatternFunctor::VisitDFPattern(pattern);
+  }
+  DFPattern VisitDFPattern_(const OrPatternNode* op) override {
+    return OrPattern(op->left, op->right);
+  }
+  DFPattern VisitDFPattern_(const AndPatternNode* op) override {
+    return AndPattern(op->left, op->right);
+  }
+  DFPattern VisitDFPattern_(const NotPatternNode* op) override { return NotPattern(op->reject); }
+  DFPattern VisitDFPattern_(const VarPatternNode* op) override { return VarPattern(op->name); }
+  DFPattern VisitDFPattern_(const ConstantPatternNode* op) override {
+    return ConstantPattern(make_object<ConstantPatternNode>());
+  }
+  DFPattern VisitDFPattern_(const WildcardPatternNode* op) override {
+    return WildcardPattern(make_object<WildcardPatternNode>());
+  }
+  DFPattern VisitDFPattern_(const ExprPatternNode* op) override { return ExprPattern(op->expr); }
+  DFPattern VisitDFPattern_(const GlobalVarPatternNode* op) override {
+    return GlobalVarPattern(op->name);
+  }
+  DFPattern VisitDFPattern_(const TuplePatternNode* op) override {
+    return TuplePattern(op->fields);
+  }
+  DFPattern VisitDFPattern_(const TupleGetItemPatternNode* op) override {
+    return TupleGetItemPattern(op->tuple, op->index);
+  }
+  DFPattern VisitDFPattern_(const CallPatternNode* op) override {
+    return CallPattern(op->op, op->args);
+  }
+  DFPattern VisitDFPattern_(const DataTypePatternNode* op) override {
+    return DataTypePattern(op->pattern, op->dtype);
+  }
+  DFPattern VisitDFPattern_(const FunctionPatternNode* op) override {
+    return FunctionPattern(op->params, op->body);
+  }
+  DFPattern VisitDFPattern_(const ShapePatternNode* op) override {
+    return ShapePattern(op->pattern, op->shape);
+  }
+  DFPattern VisitDFPattern_(const TypePatternNode* op) override {
+    return TypePattern(op->pattern, op->type);
+  }
+  DFPattern VisitDFPattern_(const RuntimeDepShapePatternNode* op) override {
+    return RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
+  }
+  DFPattern VisitDFPattern_(const DataflowVarPatternNode* op) override {
+    return DataflowVarPattern(op->name);
+  }
+  DFPattern VisitDFPattern_(const ExternFuncPatternNode* op) override {
+    return ExternFuncPattern(op->global_symbol());
+  }
+  DFPattern VisitDFPattern_(const PrimArrPatternNode* op) override {
+    return PrimArrPattern(op->array);
+  }
+};
+
 // Syntatic Sugar
 DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
   return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));
@@ -344,16 +403,18 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
     if (lhs == rhs) {
       gcons = lhs;
     } else {
+      ICHECK(lhs->allow_extern_use == rhs->allow_extern_use);
       // going to merge and update.
       gcons = lhs;  // default to lhs
       // merge and change all rhs.
       for (auto&& kv : rhs->constraints) {
-        kv.first->graph_constraint = gcons;
-        auto&& vec = kv.second;
-        auto& dst_vec = gcons->constraints[kv.first];
-        for (auto&& v : vec) {
+        const auto& def = kv.first;
+        const auto& rhs_uses = kv.second;
+        def->graph_constraint = gcons;
+        auto& lhs_uses = gcons->constraints[def];
+        for (const auto& v : rhs_uses) {
           v.first->graph_constraint = gcons;  // purify.
-          dst_vec.insert(v);
+          lhs_uses.insert(v);
         }
       }
     }
@@ -365,11 +426,9 @@ std::shared_ptr<GraphPattern> get_or_merge_graph_cons(std::shared_ptr<GraphPatte
 }
 
 static void sync_graph_constraints(const DFPattern& lhs, const DFPattern& rhs, PairCons pcon) {
-  auto& lhs_cons = lhs->graph_constraint;
-  auto& rhs_cons = rhs->graph_constraint;
-  auto gcons = get_or_merge_graph_cons(lhs_cons, rhs_cons);
+  auto gcons = get_or_merge_graph_cons(lhs->graph_constraint, rhs->graph_constraint);
   gcons->add_constraint(lhs.get(), rhs.get(), pcon);
-  lhs_cons = rhs_cons = gcons;
+  lhs->graph_constraint = rhs->graph_constraint = gcons;
 }
 
 TVM_REGISTER_NODE_TYPE(UsedBySeqNode);
@@ -482,6 +541,23 @@ DFPattern IsTuple(const Array<DFPattern>& fields) { return TuplePattern(fields);
 DFPattern IsTupleGetItem(const DFPattern tuple, int index) {
   return TupleGetItemPattern(tuple, index);
 }
+
+DFPattern DFPattern::dup() const {
+  auto pattern = DFPatternDuplicator().VisitDFPattern(*this);
+  return pattern;
+}
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_pattern").set_body_typed([](DFPattern pattern) {
+  return pattern.dup();
+});
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_ubseq").set_body_typed([](UsedBySeq ub_seq) {
+  return ub_seq.dup();
+});
+
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_oubseq").set_body_typed([](OnlyUsedBySeq oub_seq) {
+  return oub_seq.dup();
+});
 
 }  // namespace relax
 }  // namespace tvm

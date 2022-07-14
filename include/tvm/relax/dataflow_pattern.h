@@ -96,6 +96,8 @@ class DFPattern : public ObjectRef {
   operator UsedBySeq() const;
   operator OnlyUsedBySeq() const;
 
+  DFPattern dup() const;
+
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
 };
 
@@ -124,7 +126,12 @@ class UsedBySeq : public PatternSeq {
   inline UsedBySeq UsedBy(UsedBySeq other, int index = -1) const {
     return relax::UsedBy(*this, other, index);
   }
-
+  inline UsedBySeq dup() const {
+    Array<DFPattern> patterns;
+    patterns.reserve(this->get()->patterns.size());
+    for (const DFPattern& pattern : this->get()->patterns) patterns.push_back(pattern.dup());
+    return UsedBySeq(patterns);
+  }
   TVM_DEFINE_OBJECT_REF_METHODS(UsedBySeq, PatternSeq, UsedBySeqNode);
 };
 
@@ -139,6 +146,12 @@ class OnlyUsedBySeq : public PatternSeq {
   explicit OnlyUsedBySeq(tvm::Array<DFPattern> patterns);
   inline OnlyUsedBySeq OnlyUsedBy(OnlyUsedBySeq other, int index = -1) const {
     return relax::OnlyUsedBy(*this, other, index);
+  }
+  inline OnlyUsedBySeq dup() const {
+    Array<DFPattern> patterns;
+    patterns.reserve(this->get()->patterns.size());
+    for (const DFPattern& pattern : this->get()->patterns) patterns.push_back(pattern.dup());
+    return OnlyUsedBySeq(patterns);
   }
   TVM_DEFINE_OBJECT_REF_METHODS(OnlyUsedBySeq, PatternSeq, OnlyUsedBySeqNode);
 };
@@ -308,7 +321,6 @@ class FunctionPattern : public DFPattern {
   TVM_DLL FunctionPattern(tvm::Array<DFPattern> params, DFPattern body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FunctionPattern, DFPattern, FunctionPatternNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionPatternNode);
 };
 
 /*! \brief Tuple of multiple Exprs */

@@ -185,17 +185,28 @@ class DFPattern(Node):
     def has_rt_dep_shape(self):
         return self & has_rt_dep_shape()
 
-    def used_by(self, other: Union["DFPattern", "UsedBySeq"], index=-1) -> "UsedBySeq":
+    def used_by(
+        self, other: Union["DFPattern", "UsedBySeq", "OnlyUsedBySeq"], index=-1
+    ) -> "UsedBySeq":
         return used_by(self, other, index)
 
-    def __xor__(self, other: Union["DFPattern", "UsedBySeq"]) -> "UsedBySeq":
+    def __xor__(self, other) -> "UsedBySeq":
         return self.used_by(other, -1)
 
-    def only_used_by(self, other: Union["DFPattern", "OnlyUsedBySeq"], index=-1) -> "OnlyUsedBySeq":
+    def only_used_by(
+        self, other: Union["DFPattern", "UsedBySeq", "OnlyUsedBySeq"], index=-1
+    ) -> "OnlyUsedBySeq":
         return only_used_by(self, other, index)
 
     def __rshift__(self, other) -> "OnlyUsedBySeq":
         return self.only_used_by(other, -1)
+
+    def dup(self) -> "DFPattern":
+        return ffi.dup_pattern(self)
+
+    def fork_to(self, *args) -> None:
+        for v in args:
+            self ^ v
 
 
 @register_df_node
@@ -771,6 +782,9 @@ class UsedBySeq(Node):
     def __xor__(self, other) -> "UsedBySeq":
         return self.used_by(other, -1)
 
+    def dup(self) -> "UsedBySeq":
+        return ffi.dup_ubseq(self)
+
 
 @register_df_node
 class OnlyUsedBySeq(Node):
@@ -782,6 +796,9 @@ class OnlyUsedBySeq(Node):
 
     def __rshift__(self, other) -> "OnlyUsedBySeq":
         return self.only_used_by(other, -1)
+
+    def dup(self) -> "OnlyUsedBySeq":
+        return ffi.dup_oubseq(self)
 
 
 def match_dfb(
@@ -805,13 +822,25 @@ def match_dfb(
 
 
 def used_by(
-    lhs: Union[DFPattern, UsedBySeq], rhs: Union[DFPattern, UsedBySeq], index=-1
+    lhs: Union[DFPattern, UsedBySeq, OnlyUsedBySeq],
+    rhs: Union[DFPattern, UsedBySeq, OnlyUsedBySeq],
+    index=-1,
 ) -> UsedBySeq:
     if isinstance(lhs, DFPattern):
-        lhs = UsedBySeq([lhs])
+        lhs_ = UsedBySeq([lhs])
+    elif isinstance(lhs, OnlyUsedBySeq):
+        lhs_ = UsedBySeq([lhs.patterns[-1]])
+    else:
+        lhs_ = lhs
+
     if isinstance(rhs, DFPattern):
-        rhs = UsedBySeq([rhs])
-    return ffi.used_by(lhs, rhs, index)
+        rhs_ = UsedBySeq([rhs])
+    elif isinstance(rhs, OnlyUsedBySeq):
+        rhs_ = UsedBySeq([rhs.patterns[0]])
+    else:
+        rhs_ = rhs
+
+    return ffi.used_by(lhs_, rhs_, index)
 
 
 def only_used_by(
@@ -822,3 +851,18 @@ def only_used_by(
     if isinstance(rhs, DFPattern):
         rhs = OnlyUsedBySeq([rhs])
     return ffi.only_used_by(lhs, rhs, index)
+
+
+def dup(*args):
+    if len(args) == 1:
+        if isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
+            return [x.dup() for x in args[0]]
+        else:
+            return args[0].dup()
+    return tuple([v.dup() for v in args])
+
+
+def fork_to(*args):
+    root_pattern = wildcard()
+    for arg in args:
+        root_pattern ^ arg
