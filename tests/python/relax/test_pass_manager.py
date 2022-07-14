@@ -19,7 +19,7 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import numpy as np
 import pytest
 import tvm
-from tvm import relax, tir
+from tvm import relax, ir
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExprMutator
 from tvm.relax.expr import Call
@@ -67,18 +67,21 @@ def test_function_class_pass():
 
 # Swap Multiply and Add Ops
 class SwapMAVar(ExprMutator):
-    def __init__(self):
-        ExprMutator.__init__(self)
+    def __init__(self) -> None:
+        super().__init__()
 
-    def visit_call(self, call: Call):
-        if call.op == tir.op.Op.get("relax.add"):
-            new_op = tir.op.Op.get("relax.multiply")
-        elif call.op == tir.op.Op.get("relax.multiply"):
-            new_op = tir.op.Op.get("relax.add")
+    def visit_call_(self, call: Call) -> Call:
+        call = ExprMutator.visit_call_(self, call)
+
+        if call.op == ir.Op.get("relax.add"):
+            new_op = ir.Op.get("relax.multiply")
+        elif call.op == ir.Op.get("relax.multiply"):
+            new_op = ir.Op.get("relax.add")
         else:
-            new_op = self.visit(call.op)
-        new_args = [self.visit(arg) for arg in call.args]
-        return Call(new_op, new_args, call.attrs, call.type_args, call.span)
+            new_op = self.visit_expr(call.op)
+
+        new_call = Call(new_op, call.args, call.attrs, call.type_args, call.span)
+        return self.builder_.normalize(new_call)
 
 
 def test_function_pass():
@@ -111,8 +114,8 @@ def test_function_pass():
 
     # create FunctionPass with the function_pass decorator
     @relax.transform.function_pass(opt_level=opt_level, name=pass_name)
-    def decorator_transform(expr, mod, ctx):
-        return SwapMAVar().visit(expr)
+    def decorator_transform(func, mod, ctx):
+        return SwapMAVar().visit_expr(func)
 
     # check the transform info
     assert isinstance(decorator_transform, relax.transform.FunctionPass)
@@ -123,8 +126,8 @@ def test_function_pass():
     check_equal(After, Expected)
 
     # create FunctionPass directly with the function_pass init call
-    def direct_transform(expr, mod, ctx):
-        return SwapMAVar().visit(expr)
+    def direct_transform(func, mod, ctx):
+        return SwapMAVar().visit_expr(func)
 
     direct_transform = relax.transform.function_pass(direct_transform, opt_level=opt_level)
     assert isinstance(direct_transform, relax.transform.FunctionPass)
@@ -211,8 +214,8 @@ def test_dataflowblock_pass():
 
     # create DataflowBlockPass with the dataflowblock_pass decorator
     @relax.transform.dataflowblock_pass(opt_level=opt_level, name=pass_name)
-    def decorator_transform(expr, mod, ctx):
-        return SwapMAVar().visit(expr)
+    def decorator_transform(block, mod, ctx):
+        return SwapMAVar().visit_binding_block(block)
 
     # check the transform info
     assert isinstance(decorator_transform, relax.transform.DataflowBlockPass)
@@ -223,8 +226,8 @@ def test_dataflowblock_pass():
     check_equal(After, Expected)
 
     # create DataflowBlockPass directly with the dataflowblock_pass init call
-    def direct_transform(expr, mod, ctx):
-        return SwapMAVar().visit(expr)
+    def direct_transform(block, mod, ctx):
+        return SwapMAVar().visit_binding_block(block)
 
     direct_transform = relax.transform.dataflowblock_pass(direct_transform, opt_level=opt_level)
     assert isinstance(direct_transform, relax.transform.DataflowBlockPass)

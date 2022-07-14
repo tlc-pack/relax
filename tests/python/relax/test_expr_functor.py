@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
 import pytest
 
 import tvm
 from tvm import relax, tir
-from tvm.relax import ExprFunctor, ExprMutator, ExprVisitor
+from tvm.relax import ExprFunctor, ExprVisitor, ExprMutatorBase, ExprMutator
 from tvm.ir.base import assert_structural_equal
 
 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
@@ -27,18 +26,31 @@ type_anno1 = relax.DynTensorType(1, "float32")
 type_anno2 = relax.DynTensorType(2, "float32")
 x = relax.Var("x", [n], type_anno1)
 y = relax.Var("y", [m, n], type_anno2)
+bb = relax.BlockBuilder()
 
 
 def check_visit(expr):
-    with pytest.raises(NotImplementedError):
-        ef = ExprFunctor()
-        ef.visit(expr)
+    def visit(f, expr):
+        if isinstance(expr, relax.Expr):
+            return f.visit_expr(expr)
+        elif isinstance(expr, relax.BindingBlock):
+            return f.visit_binding_block(expr)
+
+    if isinstance(expr, relax.Expr):
+        with pytest.raises(NotImplementedError):
+            ef = ExprFunctor()
+            visit(ef, expr)
 
     ev = ExprVisitor()
-    ev.visit(expr)
+    visit(ev, expr)
+
+    em_base = ExprMutatorBase()
+    assert_structural_equal(visit(em_base, expr), expr)
 
     em = ExprMutator()
-    assert_structural_equal(em.visit(expr), expr)
+    if isinstance(expr, relax.Expr):
+        expr = bb.normalize(expr)
+    assert_structural_equal(visit(em, expr), expr)
 
 
 def test_constant():
@@ -96,36 +108,20 @@ def test_tuple_getitem():
     check_visit(op)
 
 
-def test_match_shape():
-    shape = relax.const([16, 8], "int32")
-    b0 = relax.MatchShape(shape, [m, n], y)
-    check_visit(b0)
-
-
-def test_var_binding():
-    val = relax.const(np.random.rand(24, 56))
-    b0 = relax.VarBinding(y, val)
-    check_visit(b0)
-
-
 def test_binding_block():
-    shape = relax.const([16, 8], "int32")
-    b0 = relax.MatchShape(shape, [m, n], y)
-    val = relax.const(np.random.rand(24, 56))
-    b1 = relax.VarBinding(y, val)
-
-    block0 = relax.BindingBlock([b0, b1])
-    check_visit(block0)
+    bb._begin_binding_block()
+    gv0 = bb.emit(relax.op.add(x, y))
+    gv1 = bb.match_shape(y, [m, n])
+    b0 = bb._end_block()
+    check_visit(b0)
 
 
 def test_dataflow_block():
-    shape = relax.const([16, 8], "int32")
-    b0 = relax.MatchShape(shape, [m, n], y)
-    val = relax.const(np.random.rand(24, 56))
-    b1 = relax.VarBinding(y, val)
-
-    block0 = relax.DataflowBlock([b0, b1])
-    check_visit(block0)
+    bb._begin_dataflow_block()
+    lv0 = bb.emit(relax.op.add(x, y))
+    gv1 = bb.match_shape(y, [m, n])
+    b0 = bb._end_block()
+    check_visit(b0)
 
 
 def test_function():
