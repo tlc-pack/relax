@@ -58,6 +58,36 @@ def test_fma_rewrite():
     assert_structural_equal(After, Expected)
 
 
+def test_fma_rewrite_python():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, y)
+                gv0 = relax.add(lv0, y)
+                relax.output(gv0)
+            gv1 = relax.multiply(x, y)
+            gv2 = relax.add(gv1, y)
+            return (gv0, gv1, gv2)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, y)
+                gv0 = relax.ewise_fma(x, y, y)
+                relax.output(gv0)
+            gv1 = relax.multiply(x, y)
+            gv2 = relax.add(gv1, y)
+            return (gv0, gv1, gv2)
+
+    After = relax.transform.EwiseRewriteFMA()(Before)
+
+    assert_structural_equal(After, Expected)
+
+
 def test_fma_fuse():
     @tvm.script.ir_module
     class Before:
@@ -71,12 +101,45 @@ def test_fma_fuse():
 
     After = relax.transform.FuseFMA()(Before)
 
-    # TODO(@yuchen): add assert_structural_equal after normalization in parser
+    # TODO(@yuchen): add assert_structural_equal after parser allows CallNode as Function's body
     assert len(After.get_global_vars()) == 2
-    gv_main = After.get_global_var("main")
-    main = After[gv_main]
-    gv_ewise_fma_fused = After.get_global_var("ewise_fma_fused")
-    ewise_fma_fused = After[gv_ewise_fma_fused]
+    main = After["main"]
+    ewise_fma_fused = After["ewise_fma_fused"]
+
+    # check sub function call type inference
+    assert_structural_equal(ewise_fma_fused.body.checked_type, relax.DynTensorType(2, "float32"))
+    sub_func_call = main.body.blocks[0].bindings[1].value
+    sub_func_call_var = main.body.blocks[0].bindings[1].var
+    assert_structural_equal(sub_func_call.checked_type, relax.DynTensorType(2, "float32"))
+    assert_structural_equal(sub_func_call_var.checked_type, relax.DynTensorType(2, "float32"))
+
+    # check sub function call shape inference
+    assert isinstance(ewise_fma_fused.body.shape, relax.ShapeExpr)
+    assert ewise_fma_fused.body.shape.values[0] == 3
+    assert ewise_fma_fused.body.shape.values[1] == 4
+    assert sub_func_call.shape.values[0] == 3
+    assert sub_func_call.shape.values[1] == 4
+    assert sub_func_call_var.shape.values[0] == 3
+    assert sub_func_call_var.shape.values[1] == 4
+
+
+def test_fma_fuse_python():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
+            with relax.dataflow():
+                lv0 = relax.multiply(x, y)
+                gv0 = relax.add(lv0, y)
+                relax.output(gv0)
+            return gv0
+
+    After = relax.transform.EwiseFuseFMA()(Before)
+
+    # TODO(@yuchen): add assert_structural_equal after parser allows CallNode as Function's body
+    assert len(After.get_global_vars()) == 2
+    main = After["main"]
+    ewise_fma_fused = After["ewise_fma_fused"]
 
     # check sub function call type inference
     assert_structural_equal(ewise_fma_fused.body.checked_type, relax.DynTensorType(2, "float32"))
