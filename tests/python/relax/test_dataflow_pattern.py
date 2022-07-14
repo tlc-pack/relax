@@ -145,6 +145,18 @@ def test_tuple_pattern():
     assert isinstance(t.fields[1], DataflowVarPattern)
     assert t.match(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]))
     assert not t.match(rx.Tuple([rx.DataflowVar("x"), rx.GlobalVar("y")]))
+    assert not t.match(rx.Tuple([]))
+
+
+def test_unordered_tuple_pattern():
+    t = is_tuple([is_constant(), is_dfv()], unordered=True)
+    assert isinstance(t, UnorderedTuplePattern)
+    assert isinstance(t.fields[0], ConstantPattern)
+    assert isinstance(t.fields[1], DataflowVarPattern)
+    assert t.match(rx.Tuple([rx.const([]), rx.DataflowVar("x")]))
+    assert t.match(rx.Tuple([rx.DataflowVar("x"), rx.const([])]))
+    assert not t.match(rx.Tuple([rx.DataflowVar("x"), rx.DataflowVar("y")]))
+    assert not t.match(rx.Tuple([]))
 
 
 def test_tuple_get_item_pattern():

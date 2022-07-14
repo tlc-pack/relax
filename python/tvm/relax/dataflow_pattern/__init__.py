@@ -348,6 +348,28 @@ class TuplePattern(DFPattern):
 
 
 @register_df_node
+class UnorderedTuplePattern(DFPattern):
+    """A patern matching a Relax Tuple unorderedly.
+
+    Parameters
+    ----------
+    fields : Array[tvm.relax.dataflow_pattern.DFPattern]
+        The fields in the tuple.
+    """
+
+    def __init__(self, fields: tvm.ir.container.Array):
+        self.__init_handle_by_constructor__(ffi.UnorderedTuplePattern, fields)
+
+    def __getitem__(self, index: int):
+        if index >= len(self):
+            raise IndexError("UnorderedTuplePattern index out of range")
+        return self.fields[index]
+
+    def __len__(self):
+        return len(self.fields)
+
+
+@register_df_node
 class TupleGetItemPattern(DFPattern):
     """Get index-th item from a TuplePattern.
 
@@ -571,7 +593,7 @@ def is_op(op_name: str) -> "DFPattern":
     return ExprPattern(op)
 
 
-def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
+def is_tuple(fields: tvm.ir.container.Array, unordered=False) -> "DFPattern":
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -585,6 +607,8 @@ def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
     result: tvm.relax.dataflow_pattern.DFPattern
         The resulting pattern.
     """
+    if unordered:
+        return UnorderedTuplePattern(fields)
     return TuplePattern(fields)
 
 

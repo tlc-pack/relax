@@ -31,6 +31,7 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <stack>
 #include <type_traits>
 #include <unordered_map>
@@ -81,8 +82,8 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
     ICHECK_EQ(memo_[pattern].size(), 1);
     return expr.same_as(memo_[pattern][0]);
   } else {
-    auto watermark = matched_nodes_.size();
-    auto out = DFPatternFunctor::VisitDFPattern(pattern, expr);
+    size_t watermark = matched_nodes_.size();
+    bool out = DFPatternFunctor::VisitDFPattern(pattern, expr);
     if (out) {
       memo_[pattern].push_back(expr);
       matched_nodes_.push_back(pattern);
@@ -378,19 +379,56 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
   bool matches = false;
   if (const auto* tuple_node = expr.as<TupleNode>()) {
     matches = true;
-    if (op->fields.defined()) {
-      if (op->fields.size() == tuple_node->fields.size()) {
-        size_t i = 0;
-        while (matches && i < op->fields.size()) {
-          matches &= VisitDFPattern(op->fields[i], tuple_node->fields[i]);
-          ++i;
-        }
-      } else {
-        matches = false;
+    if (op->fields.size() == tuple_node->fields.size()) {
+      size_t i = 0;
+      while (matches && i < op->fields.size()) {
+        matches &= VisitDFPattern(op->fields[i], tuple_node->fields[i]);
+        ++i;
       }
+    } else {
+      matches = false;
     }
   }
   return matches;
+}
+
+bool DFPatternMatcher::TryUnorderedMatch(size_t idx, const tvm::Array<DFPattern> patterns,
+                                         const tvm::Array<Expr> fields,
+                                         std::vector<int8_t>& match_cache,
+                                         std::vector<bool>& matched) {
+  if (idx >= patterns.size()) return true;
+  constexpr int8_t kUnknown = -1;
+  auto this_pattern = patterns[idx];
+  for (size_t i = 0; i < fields.size(); ++i) {
+    if (matched[i]) continue;
+    const size_t table_idx = idx * fields.size() + i;
+    match_cache[table_idx] =
+        kUnknown ? VisitDFPattern(this_pattern, fields[i]) : match_cache[table_idx];
+    if (match_cache[table_idx]) {
+      // continue to match the rest;
+      matched[i] = true;
+      if (TryUnorderedMatch(idx + 1, patterns, fields, match_cache, matched)) return true;
+      matched[i] = false;
+    }
+  }
+
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, const Expr& expr0) {
+  auto expr = TryGetValOfVar(expr0, var2val_, autojump_);
+
+  if (const auto* tuple_node = expr.as<TupleNode>()) {
+    if (op->fields.size() == tuple_node->fields.size()) {
+      constexpr int8_t kUnknown = -1;
+      ICHECK_LE(op->fields.size(), std::numeric_limits<uint8_t>::max()) << "Too many fields!";
+      // dynamic programming.
+      std::vector<int8_t> match_cache(op->fields.size() * op->fields.size(), kUnknown);
+      std::vector<bool> field_match_bitmap(op->fields.size(), false);
+      return TryUnorderedMatch(0, op->fields, tuple_node->fields, match_cache, field_match_bitmap);
+    }
+  }
+  return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {

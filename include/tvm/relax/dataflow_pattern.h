@@ -390,6 +390,26 @@ class TuplePattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(TuplePattern, DFPattern, TuplePatternNode);
 };
 
+/*! \brief unordered Tuple of multiple Exprs */
+class UnorderedTuplePattern;
+/*! \brief Tuple container */
+class UnorderedTuplePatternNode : public DFPatternNode {
+ public:
+  /*! \brief the fields of the tuple */
+  tvm::Array<DFPattern> fields;
+
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
+
+  static constexpr const char* _type_key = "relax.dataflow_pattern.UnorderedTuplePattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(UnorderedTuplePatternNode, DFPatternNode);
+};
+
+class UnorderedTuplePattern : public DFPattern {
+ public:
+  TVM_DLL explicit UnorderedTuplePattern(tvm::Array<DFPattern> fields);
+  TVM_DEFINE_OBJECT_REF_METHODS(UnorderedTuplePattern, DFPattern, UnorderedTuplePatternNode);
+};
+
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItemPattern;
 class TupleGetItemPatternNode : public DFPatternNode {

@@ -88,6 +88,14 @@ void DFPatternVisitor::VisitDFPattern_(const TuplePatternNode* op) {
   }
 }
 
+void DFPatternVisitor::VisitDFPattern_(const UnorderedTuplePatternNode* op) {
+  if (op->fields.defined()) {
+    for (auto field : op->fields) {
+      VisitDFPattern(field);
+    }
+  }
+}
+
 void DFPatternVisitor::VisitDFPattern_(const TypePatternNode* op) { VisitDFPattern(op->pattern); }
 
 // leaf nodes.

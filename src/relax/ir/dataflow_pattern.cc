@@ -167,6 +167,18 @@ RELAX_PATTERN_PRINTER_DEF(TuplePatternNode, [](auto p, auto node) {
   p->stream << "TuplePattern(" << node->fields << ")";
 });
 
+TVM_REGISTER_NODE_TYPE(UnorderedTuplePatternNode);
+UnorderedTuplePattern::UnorderedTuplePattern(tvm::Array<DFPattern> fields) {
+  ObjectPtr<UnorderedTuplePatternNode> n = make_object<UnorderedTuplePatternNode>();
+  n->fields = std::move(fields);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.UnorderedTuplePattern")
+    .set_body_typed([](tvm::Array<DFPattern> fields) { return UnorderedTuplePattern(fields); });
+RELAX_PATTERN_PRINTER_DEF(UnorderedTuplePatternNode, [](auto p, auto node) {
+  p->stream << "UnorderedTuplePattern(" << node->fields << ")";
+});
+
 TVM_REGISTER_NODE_TYPE(TupleGetItemPatternNode);
 TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) {
   ObjectPtr<TupleGetItemPatternNode> n = make_object<TupleGetItemPatternNode>();
@@ -306,6 +318,9 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   }
   DFPattern VisitDFPattern_(const TuplePatternNode* op) override {
     return TuplePattern(op->fields);
+  }
+  DFPattern VisitDFPattern_(const UnorderedTuplePatternNode* op) override {
+    return UnorderedTuplePattern(op->fields);
   }
   DFPattern VisitDFPattern_(const TupleGetItemPatternNode* op) override {
     return TupleGetItemPattern(op->tuple, op->index);

@@ -106,6 +106,8 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   virtual R VisitDFPattern_(const ExternFuncPatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const PrimArrPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitDFPattern_(const UnorderedTuplePatternNode* op,
+                            Args... args) DFPATTERN_FUNCTOR_DEFAULT;
 
   virtual R VisitDFPatternDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
@@ -138,6 +140,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(GlobalVarPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(ExternFuncPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(PrimArrPatternNode);
+    RELAX_DFPATTERN_FUNCTOR_DISPATCH(UnorderedTuplePatternNode);
     return vtable;
   }
 };
@@ -172,6 +175,7 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const GlobalVarPatternNode* op) override;
   void VisitDFPattern_(const ExternFuncPatternNode* op) override;
   void VisitDFPattern_(const PrimArrPatternNode* op) override;
+  void VisitDFPattern_(const UnorderedTuplePatternNode* op) override;
 
  protected:
   // set of already-visited nodes

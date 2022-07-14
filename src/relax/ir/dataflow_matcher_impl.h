@@ -69,8 +69,12 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const GlobalVarPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExternFuncPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const UnorderedTuplePatternNode* op, const Expr& expr) override;
 
   void ClearMap(size_t watermark);
+  bool TryUnorderedMatch(size_t idx, const tvm::Array<DFPattern> patterns,
+                         const tvm::Array<Expr> fields, std::vector<int8_t>& match_cache,
+                         std::vector<bool>& matched);
 
   std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
   var2val_t var2val_;
