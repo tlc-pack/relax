@@ -299,12 +299,12 @@ Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
 
 Expr ExprMutatorBase::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* get_item) {
-  auto t = this->VisitExpr(get_item->tuple);
-  if (get_item->tuple.same_as(t)) {
-    return GetRef<Expr>(get_item);
+Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* op) {
+  auto t = this->VisitExpr(op->tuple);
+  if (op->tuple.same_as(t)) {
+    return GetRef<Expr>(op);
   } else {
-    return TupleGetItem(t, get_item->index, get_item->span);
+    return TupleGetItem(t, op->index, op->span);
   }
 }
 
@@ -352,7 +352,12 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
   } else {
     LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
   }
-  return BindingBlock(bindings);
+
+  if (block.as<DataflowBlockNode>()) {
+    return DataflowBlock(bindings);
+  } else {
+    return BindingBlock(bindings);
+  }
 }
 
 Type ExprMutatorBase::VisitType(const Type& t) { return t; }
