@@ -18,3 +18,4 @@
 """Relax IR analysis. """
 
 from .transform import *
+from .fma_rewrite import *
