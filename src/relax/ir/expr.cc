@@ -94,6 +94,10 @@ TVM_REGISTER_GLOBAL("relax.Var")
       return Var(name_hint, shape_annotation, type_annotation, span);
     });
 
+TVM_REGISTER_GLOBAL("relax.VarFromId")
+    .set_body_typed([](Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
+                       Span span) { return Var(vid, shape_annotation, type_annotation, span); });
+
 TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
 DataflowVar::DataflowVar(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
@@ -112,6 +116,12 @@ TVM_REGISTER_GLOBAL("relax.DataflowVar")
     .set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
                        Optional<Type> type_annotation, Span span) {
       return DataflowVar(name_hint, shape_annotation, type_annotation, span);
+    });
+
+TVM_REGISTER_GLOBAL("relax.DataflowVarFromId")
+    .set_body_typed([](Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
+                       Span span) {
+      return DataflowVar(vid, shape_annotation, type_annotation, span);
     });
 
 TVM_REGISTER_NODE_TYPE(BindingNode);

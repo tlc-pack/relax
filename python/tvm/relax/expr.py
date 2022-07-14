@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-import, super-init-not-called
 # pylint: disable=redefined-builtin
 """The expression nodes of Relax."""
-from typing import List, Optional
+from typing import List, Optional, Union
 import tvm._ffi
 import tvm
 from ..ir import Node, Span, SourceName, BaseFunc
@@ -85,7 +85,11 @@ class Var(Expr):
         if isinstance(shape_annotation, (list, tuple)):
             shape_annotation = make_shape(shape_annotation)
         self.__init_handle_by_constructor__(
-            _ffi_api.Var, name_hint, shape_annotation, type_annotation, span
+            _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,
+            name_hint,
+            shape_annotation,
+            type_annotation,
+            span,
         )
 
     @property
@@ -102,15 +106,20 @@ class DataflowVar(Var):
 
     def __init__(
         self,
-        name_hint: str,
+        name_hint: Union[str, Id],
         shape_annotation: Optional[Expr] = None,
         type_annotation: Optional[Type] = None,
         span: Span = None,
     ) -> None:
         if isinstance(shape_annotation, (list, tuple)):
             shape_annotation = make_shape(shape_annotation)
+
         self.__init_handle_by_constructor__(
-            _ffi_api.DataflowVar, name_hint, shape_annotation, type_annotation, span
+            _ffi_api.DataflowVar if isinstance(name_hint, str) else _ffi_api.DataflowVarFromId,
+            name_hint,
+            shape_annotation,
+            type_annotation,
+            span,
         )
 
 
