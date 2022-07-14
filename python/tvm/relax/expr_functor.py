@@ -273,13 +273,13 @@ class ExprMutatorBase(ExprFunctor):
     def visit_expr(self, expr: Expr) -> Expr:
         return ExprFunctor.visit_expr(self, expr)
 
-    def visit_constant_(self, op: Constant) -> Constant:
+    def visit_constant_(self, op: Constant) -> Expr:
         return op
 
-    def visit_global_var_(self, op: GlobalVar) -> GlobalVar:
+    def visit_global_var_(self, op: GlobalVar) -> Expr:
         return op
 
-    def visit_tuple_(self, op: Tuple) -> Tuple:
+    def visit_tuple_(self, op: Tuple) -> Expr:
         unchanged = True
         fields = []
         for field in op.fields:
@@ -292,13 +292,13 @@ class ExprMutatorBase(ExprFunctor):
         else:
             return Tuple(fields, op.span)
 
-    def visit_var_(self, op: Var) -> Var:
+    def visit_var_(self, op: Var) -> Expr:
         return op
 
-    def visit_dataflow_var_(self, op: DataflowVar) -> DataflowVar:
+    def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         return op
 
-    def visit_function_(self, op: Function) -> Function:
+    def visit_function_(self, op: Function) -> Expr:
         body = self.visit_expr(op.body)
 
         if op.body.same_as(body):
@@ -306,7 +306,7 @@ class ExprMutatorBase(ExprFunctor):
         else:
             return Function(op.params, body, op.ret_type, op.attrs, op.span)
 
-    def visit_call_(self, call_node: Call) -> Call:
+    def visit_call_(self, call_node: Call) -> Expr:
         new_op = self.visit_expr(call_node.op)
         unchanged = call_node.op.same_as(new_op)
 
@@ -327,7 +327,7 @@ class ExprMutatorBase(ExprFunctor):
         else:
             return Call(new_op, call_args, call_node.attrs, ty_args, call_node.span)
 
-    def visit_if_(self, op: If) -> If:
+    def visit_if_(self, op: If) -> Expr:
         guard = self.visit_expr(op.cond)
         true_b = self.visit_expr(op.true_branch)
         false_b = self.visit_expr(op.false_branch)
@@ -340,26 +340,26 @@ class ExprMutatorBase(ExprFunctor):
         else:
             return If(guard, true_b, false_b, op.span)
 
-    def visit_op_(self, op: Op) -> Op:
+    def visit_op_(self, op: Op) -> Expr:
         return op
 
-    def visit_tuple_getitem_(self, op: TupleGetItem) -> TupleGetItem:
+    def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         t = self.visit_expr(op.tuple_value)
         if op.tuple_value.same_as(t):
             return op
         else:
             return TupleGetItem(t, op.index)
 
-    def visit_shape_expr_(self, op: ShapeExpr) -> ShapeExpr:
+    def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         return op
 
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> RuntimeDepShape:
+    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
         return op
 
-    def visit_extern_func_(self, op: ExternFunc) -> ExternFunc:
+    def visit_extern_func_(self, op: ExternFunc) -> Expr:
         return op
 
-    def visit_seq_expr_(self, op: SeqExpr) -> SeqExpr:
+    def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         all_blocks_unchanged = True
         blocks = []
         for block in op.blocks:
@@ -429,7 +429,7 @@ class ExprMutator(ExprMutatorBase):
     def visit_expr(self, expr) -> Expr:
         return self.builder_.normalize(ExprFunctor.visit_expr(self, expr))
 
-    def visit_tuple_(self, op: Tuple) -> Tuple:
+    def visit_tuple_(self, op: Tuple) -> Expr:
         unchanged = True
         fields = []
         for field in op.fields:
@@ -443,19 +443,19 @@ class ExprMutator(ExprMutatorBase):
             new_tuple = Tuple(fields, op.span)
             return new_tuple
 
-    def visit_var_(self, op: Var) -> Var:
+    def visit_var_(self, op: Var) -> Expr:
         if op.vid in self.var_remap_:
             return self.var_remap_[op.vid]
 
         return op
 
-    def visit_dataflow_var_(self, op: DataflowVar) -> DataflowVar:
+    def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         if op.vid in self.var_remap_:
             return self.var_remap_[op.vid]
 
         return op
 
-    def visit_function_(self, op: Function) -> Function:
+    def visit_function_(self, op: Function) -> Expr:
         params = []
         all_params_unchanged = True
         for param in op.params:
@@ -472,7 +472,7 @@ class ExprMutator(ExprMutatorBase):
         else:
             return Function(params, body, ret_type, op.attrs, op.span)
 
-    def visit_if_(self, op: If) -> If:
+    def visit_if_(self, op: If) -> Expr:
         guard = self.visit_expr(op.cond)
         true_b = self.visit_with_new_scope(op.true_branch)
         false_b = self.visit_with_new_scope(op.false_branch)
@@ -485,7 +485,7 @@ class ExprMutator(ExprMutatorBase):
         else:
             return If(guard, true_b, false_b, op.span)
 
-    def visit_seq_expr_(self, op: SeqExpr) -> SeqExpr:
+    def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         all_blocks_unchanged = True
         blocks = []
         for block in op.blocks:
@@ -568,13 +568,13 @@ class ExprMutator(ExprMutatorBase):
             self.visit_binding(binding)
         return self.builder_._end_block()
 
-    def visit_dataflow_block_(self, block: DataflowBlock) -> DataflowBlock:
+    def visit_dataflow_block_(self, block: DataflowBlock) -> BindingBlock:
         self.builder_._begin_dataflow_block()
         for binding in block.bindings:
             self.visit_binding(binding)
         return self.builder_._end_block()
 
-    def visit_dataflow_var_def_(self, var: DataflowVar) -> DataflowVar:
+    def visit_dataflow_var_def_(self, var: DataflowVar) -> Var:
         """Rewrite the dataflow var definition site.
 
         Parameters
