@@ -315,7 +315,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     ICHECK(shape_attrs != nullptr) << "must be ShapeHeapAttrs";
     std::vector<int64_t> indices_vec;
     for (Integer ind : shape_attrs->indices) {
-      indices_vec.push_back(ind);
+      indices_vec.push_back(ind.IntValue());
     }
     ShapeTuple indices = ShapeTuple(indices_vec);
     TVMRetValue indices_const;

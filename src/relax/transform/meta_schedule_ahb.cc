@@ -33,14 +33,15 @@ class MetaScheduleAHB {
       : mod_(mod), db_(db), target_(target) {}
   IRModule Apply() {
     ret_mod_ = IRModule();
-    tvm::meta_schedule::ApplyHistoryBest ahb(db_, nullptr);
+    tvm::meta_schedule::ApplyHistoryBest ahb(db_, nullptr, nullptr);
     for (auto& p : mod_->functions) {
       GlobalVar gv = p.first;
       BaseFunc func = p.second;
       BaseFunc newfunc = func;
       if (func->IsInstance<tir::PrimFuncNode>()) {
         IRModule tir_mod(Map<GlobalVar, BaseFunc>({{gv, func}}));
-        ObjectRef res = ahb->Query(gv->name_hint, mod_, target_, Array<IRModule>{tir_mod});
+        ObjectRef res =
+            ahb->Query(gv->name_hint, mod_, target_, Array<IRModule>{tir_mod}, nullptr, nullptr);
         // replace the tir func only when the schedule is found in tuning database.
         if (res.defined()) {
           IRModule newmod = Downcast<IRModule>(res);
