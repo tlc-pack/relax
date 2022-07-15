@@ -782,7 +782,7 @@ Pass FuseOps(int fuse_opt_level) {
       [=](IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relax.FuseOps.max_depth", Integer(kMaxFusedOps));
-        return relax::FuseOps(m, opt_level, max_fuse_depth.value());
+        return relax::FuseOps(m, opt_level, max_fuse_depth.value().IntValue());
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
