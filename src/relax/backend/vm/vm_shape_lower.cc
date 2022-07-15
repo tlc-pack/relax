@@ -144,7 +144,7 @@ class VMShapeLowerMutator : public ExprMutator {
       PrimExpr value = tir::Substitute(e, var_mapping);
       // cast value to shape heap dtype
       if (value.dtype() != ShapeDType()) value = tir::Cast(ShapeDType(), value);
-      int idx = expr2slot_.at(e);
+      Integer idx = expr2slot_.at(e);
       seq.push_back(tir::BufferStore(buffer, value, {idx}));
     }
     tir::Stmt body = tir::SeqStmt(seq);
@@ -200,7 +200,7 @@ class VMShapeLowerMutator : public ExprMutator {
 
     Array<Integer> indices;
     for (size_t i = 0; i < pattern.size(); ++i) {
-      int idx = expr2slot_.at(pattern[i]);
+      Integer idx = expr2slot_.at(pattern[i]);
       indices.push_back(idx);
     }
     store_shape_attr->indices = indices;
