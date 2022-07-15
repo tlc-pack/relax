@@ -264,9 +264,10 @@ class TensorRTJSONSerializer : public JSONSerializer {
       cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
     }
     ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    std::vector<std::string> tensorrt_version = {std::to_string(cfg.value()->tensorrt_version[0]),
-                                                 std::to_string(cfg.value()->tensorrt_version[1]),
-                                                 std::to_string(cfg.value()->tensorrt_version[2])};
+    std::vector<std::string> tensorrt_version = {
+        std::to_string(cfg.value()->tensorrt_version[0].IntValue()),
+        std::to_string(cfg.value()->tensorrt_version[1].IntValue()),
+        std::to_string(cfg.value()->tensorrt_version[2].IntValue())};
     std::vector<std::string> use_implicit_batch = {std::to_string(cfg.value()->use_implicit_batch)};
     std::vector<std::string> max_workspace_size = {std::to_string(cfg.value()->max_workspace_size)};
     std::vector<std::string> use_fp16 = {std::to_string(cfg.value()->use_fp16)};
