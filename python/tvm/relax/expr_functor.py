@@ -101,10 +101,13 @@ def _wrap_visitor(visitor_cls):
                     packed_value.append(func_name)
                     packed_value.append(getattr(inst, func_name))
 
-            print(packed_value)
+            # print(packed_value)
             self.__init_handle_by_constructor__(
                 _ffi_api.MakeExprVisitor, *packed_value  # packed_funcs, packed_func_names
             )
+
+        def visit_expr(self, expr: Expr) -> None:
+            return _ffi_api.PyExprVisitorVisitExpr(self, expr)
 
     return PyVisitor
 

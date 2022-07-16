@@ -71,7 +71,7 @@ class ExprFunctor;
     if (it != operator->()->map_.end())           \
       it->second(T(op));                          \
     else                                          \
-      operator->()->visitor_->DEFAULT(op);        \
+      ExprVisitor::DEFAULT(op);                   \
   }
 
 #define PY_EXPR_MUTATOR_DEFAULT(T, F)          \
@@ -367,7 +367,7 @@ class PyExprVisitorNode : public Object {
 
 TVM_REGISTER_NODE_TYPE(PyExprVisitorNode);
 
-class PyExprVisitor : public ObjectRef {
+class PyExprVisitor : public ObjectRef, public ExprVisitor {
  public:
   TVM_DLL PyExprVisitor(std::unordered_map<std::string, PackedFunc> map, ExprVisitor* visitor) {
     ObjectPtr<PyExprVisitorNode> n = make_object<PyExprVisitorNode>();
@@ -408,7 +408,6 @@ class PyExprVisitor : public ObjectRef {
 
   void VisitBinding_(const VarBindingNode* op)
       PY_EXPR_VISITOR_DEFAULT(GetRef<VarBinding>, "visit_var_binding_", VisitBinding_);
-
   void VisitBinding_(const MatchShapeNode* op)
       PY_EXPR_VISITOR_DEFAULT(GetRef<MatchShape>, "visit_match_shape_", VisitBinding_);
 

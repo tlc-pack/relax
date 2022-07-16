@@ -670,8 +670,6 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
 // });
 
 TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::vector<PackedFunc> packed_funcs;
-  std::vector<std::string> func_names;
   std::unordered_map<std::string, PackedFunc> map;
 
   PackedFunc packed_func;
@@ -680,11 +678,11 @@ TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body([](TVMArgs args, TVMRetVal
     PackedFunc packed_func = args[i + 1];
     map.emplace(func_name, packed_func);
   }
-  // for (int i = 0; i < args.size(); i += 2) {
-  //   map.emplace(args[i], args[i + 1]);
-  // }
   *rv = PyExprVisitor(map, new ExprVisitor());
 });
+
+TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitExpr")
+    .set_body_typed([](PyExprVisitor visitor, const Expr& expr) { visitor.VisitExpr(expr); });
 
 }  // namespace relax
 }  // namespace tvm
