@@ -79,3 +79,5 @@ ExprFunctor = expr_functor.ExprFunctor
 ExprVisitor = expr_functor.ExprVisitor
 ExprMutatorBase = expr_functor.ExprMutatorBase
 ExprMutator = expr_functor.ExprMutator
+
+visitor = expr_functor.visitor

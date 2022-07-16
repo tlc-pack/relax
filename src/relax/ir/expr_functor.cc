@@ -664,5 +664,27 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
   return var;
 }
 
+// TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body_typed([](Array<String> func_names) {
+//   Array<PackedFunc> packed_funcs;
+//   return PyExprVisitor(packed_funcs, func_names);
+// });
+
+TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::vector<PackedFunc> packed_funcs;
+  std::vector<std::string> func_names;
+  std::unordered_map<std::string, PackedFunc> map;
+
+  PackedFunc packed_func;
+  for (int i = 0; i < args.size(); i += 2) {
+    std::string func_name = args[i];
+    PackedFunc packed_func = args[i + 1];
+    map.emplace(func_name, packed_func);
+  }
+  // for (int i = 0; i < args.size(); i += 2) {
+  //   map.emplace(args[i], args[i + 1]);
+  // }
+  *rv = PyExprVisitor(map, new ExprVisitor());
+});
+
 }  // namespace relax
 }  // namespace tvm
