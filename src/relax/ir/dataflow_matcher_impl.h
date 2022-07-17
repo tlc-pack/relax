@@ -41,8 +41,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   using var2val_t = runtime::Map<Var, Expr>;
 
   explicit DFPatternMatcher() {}
-  explicit DFPatternMatcher(var2val_t var2val, bool autojump = true)
-      : var2val_(std::move(var2val)), autojump_(autojump) {}
+  explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
 
@@ -81,7 +80,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   std::vector<DFPattern> matched_nodes_;
   arith::Analyzer analyzer_;
   bool memoize_ = true;
-  bool autojump_ = false;
 };
 
 }  // namespace relax

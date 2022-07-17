@@ -771,7 +771,7 @@ def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None
     var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
         A mapping from variables to values for autojump.
     """
-    return ffi.match_expr(pattern, expr, var2val, False)
+    return ffi.match_expr(pattern, expr, var2val)
 
 
 @register_df_node
@@ -823,7 +823,6 @@ def match_dfb(
     dfb: DataflowBlock,
     start_hint: Optional[VarBinding] = None,
     match_once: bool = False,
-    disable_autojump: bool = False,
 ) -> Dict[DFPattern, VarBinding]:
     """
     Match a pattern to a function
@@ -837,7 +836,7 @@ def match_dfb(
     """
     if ctx is None:
         ctx = PatternContext.current()
-    return ffi.match_dfb(ctx, dfb, start_hint, match_once, disable_autojump)
+    return ffi.match_dfb(ctx, dfb, start_hint, match_once)
 
 
 def used_by(
@@ -904,10 +903,6 @@ class PatternContext(tvm.runtime.Object):
         return ffi.current_context()
 
     def match_dfb(
-        self,
-        dfb: DataflowBlock,
-        start_hint: Optional[VarBinding] = None,
-        match_once: bool = False,
-        disable_autojump: bool = False,
+        self, dfb: DataflowBlock, start_hint: Optional[VarBinding] = None, match_once: bool = False
     ) -> Dict[DFPattern, VarBinding]:
-        return match_dfb(self, dfb, start_hint, match_once, disable_autojump)
+        return match_dfb(self, dfb, start_hint, match_once)

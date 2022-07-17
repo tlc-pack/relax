@@ -38,13 +38,11 @@ namespace relax {
  * \param pattern The pattern to match
  * \param expr The expression to match
  * \param var2val The mapping from relax.Var to relax.Expr
- * \param disable_autojump disable autojump given var2val
  * \return true if matched
  * \return false if unmatched
  */
 bool MatchExprPattern(DFPattern pattern, Expr expr,
-                      Optional<runtime::Map<Var, Expr>> var2val = NullOpt,
-                      bool disable_autojump = false);
+                      Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
 
 /**
  * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns
@@ -55,21 +53,18 @@ bool MatchExprPattern(DFPattern pattern, Expr expr,
  * \param dfb The function to match.
  * \param start_hint The starting point expression to match to distinguish multiple matches.
  * \param match_once If start_hint is given, only try to match start_hint once.
- * \param disable_autojump disable autojump given var2val (implicitly inferred from Function)
  * \return tvm::runtime::Map<DFPattern, VarBinding>
  */
 TVM_DLL tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(
     const PatternContext& ctx, const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt,
-    bool match_once = false, bool disable_autojump = false);
+    bool match_once = false);
 
 /**
  * \brief Match a graph-wise pattern with the current context (PatternContext::Current()).
  */
 inline tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPatternDefault(
-    const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt, bool match_once = false,
-    bool disable_autojump = false) {
-  return MatchGraphPattern(PatternContext::Current(), dfb, start_hint, match_once,
-                           disable_autojump);
+    const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt, bool match_once = false) {
+  return MatchGraphPattern(PatternContext::Current(), dfb, start_hint, match_once);
 }
 
 }  // namespace relax
