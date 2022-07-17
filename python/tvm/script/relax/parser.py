@@ -1711,8 +1711,8 @@ def from_source(
         )
     elif inspect.isfunction(input_func):
         env: Dict[str, Any] = input_func.__globals__
-        relax_prefix = [key for key in env.keys() if env[key] == relax_namespace]
-        tir_prefix = [key for key in env.keys() if env[key] == tir_namespace]
+        relax_prefix = [key for key in env.keys() if env[key] is relax_namespace]
+        tir_prefix = [key for key in env.keys() if env[key] is tir_namespace]
         return synr.to_ast(
             input_func, RelaxDiagnosticContext(mod), RelaxTransformer(mod, relax_prefix, tir_prefix)
         )
