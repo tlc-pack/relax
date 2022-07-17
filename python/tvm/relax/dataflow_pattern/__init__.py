@@ -541,7 +541,7 @@ def is_dfv(name: str = "") -> "DFPattern":
     return DataflowVarPattern(name)
 
 
-def is_constant() -> "DFPattern":
+def is_const() -> "DFPattern":
     """
     Syntatic sugar for creating a ConstantPattern.
 

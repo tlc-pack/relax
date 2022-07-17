@@ -24,6 +24,8 @@ from tvm.relax.analysis import get_var2val
 from tvm import relax as rx, tir
 from tvm.script import relax as R, tir as T
 
+import numpy as np
+
 
 @tvm.script.ir_module
 class Module:
@@ -57,7 +59,7 @@ class Module:
         with R.dataflow():
             lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
             lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
-            relax.output(lv1)
+            R.output(lv1)
         return lv1
 
 
@@ -98,7 +100,7 @@ def test_global_var_pattern():
 
 
 def test_constant_pattern():
-    c = is_constant()
+    c = is_const()
     assert isinstance(c, ConstantPattern)
     assert c.match(rx.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]]))
 
@@ -149,7 +151,7 @@ def test_tuple_pattern():
 
 
 def test_unordered_tuple_pattern():
-    t = is_tuple([is_constant(), is_dfv()], unordered=True)
+    t = is_tuple([is_const(), is_dfv()], unordered=True)
     assert isinstance(t, UnorderedTuplePattern)
     assert isinstance(t.fields[0], ConstantPattern)
     assert isinstance(t.fields[1], DataflowVarPattern)
@@ -352,7 +354,7 @@ class Diamond:
             lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
             lv2 = R.call_tir(tir_sigmoid, (lv0), (32, 32), dtype="float32")
             lv3 = R.call_tir(tir_add, (lv1, lv2), (32, 32), dtype="float32")
-            relax.output(lv3)
+            R.output(lv3)
         return lv3
 
 
@@ -398,6 +400,7 @@ class CBRx2:
         w1: Tensor((1, 1), "float32"),
         bias1: Tensor((32, 32), "float32"),
     ) -> Tensor:
+        # TensorRT's CBR Optimization Pattern
         with R.dataflow():
             lv_init = R.call_tir(softmax, (x), (32, 32), dtype="float32")
 
@@ -414,7 +417,7 @@ class CBRx2:
             lv5 = R.call_tir(relu, (lv4), (32, 32), dtype="float32")
 
             lv6 = R.call_tir(concat, (lv2, lv5), (32, 64), dtype="float32")
-            relax.output(lv6)
+            R.output(lv6)
         return lv6
 
 
@@ -448,3 +451,80 @@ def test_two_cbr():
         is_call_tir("softmax").fork_to(cbr0, cbr1)
         dfb = CBRx2["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
+
+
+def test_two_matmul():
+    # Same as Figure 2(a) in TASO paper.
+    @tvm.script.ir_module
+    class MatMul2:
+        @R.function
+        def main(
+            a: Tensor((32, 16), "float32"),
+            b: Tensor((16, 48), "float32"),
+            c: Tensor((48, 32), "float32"),
+        ) -> Tensor:
+            with R.dataflow():
+                lv0 = R.call_tir(matmul, (a, b), (32, 48), dtype="float32")
+                lv1 = R.call_tir(matmul, (lv0, c), (32, 32), dtype="float32")
+                relax.output(lv1)
+            return lv1
+
+    with PatternContext() as ctx:
+        is_call_tir("matmul") >> is_call_tir("matmul")
+        dfb = MatMul2["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)
+
+    with PatternContext() as ctx:
+        is_call_tir("matmul").has_shape([32, 48]) >> is_call_tir("matmul").has_shape([32, 32])
+        dfb = MatMul2["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)
+
+    with PatternContext() as ctx:
+        is_call_tir("matmul") >> is_call_tir("matmul") >> is_call_tir("matmul")
+        dfb = MatMul2["main"].body.blocks[0]
+        # Three MatMul cannot match
+        assert not ctx.match_dfb(dfb)
+
+
+def test_concat_mm_split():
+    # Same as Figure 2(b) in TASO paper.
+    @tvm.script.ir_module
+    class CMS:
+        @R.function
+        def main(
+            a: Tensor((32, 32), "float32"),
+            b: Tensor((16, 32), "float32"),
+            c: Tensor((16, 32), "float32"),
+        ) -> Tensor:
+            with R.dataflow():
+                lv0 = R.call_tir(my_concat, (b, c), (32, 32), dtype="float32")
+                lv1 = R.call_tir(my_matmul, (a, lv0), (32, 32), dtype="float32")
+                lv2 = R.call_tir(
+                    my_split,
+                    (lv1,),
+                    ((16, 32), (16, 32)),
+                    dtype=("float32", "float32"),
+                )
+                lv3 = R.TupleGetItem(lv2, 0)
+                lv4 = R.TupleGetItem(lv2, 1)
+                lv5 = R.add(lv3, lv4)
+                R.output(lv5)
+            return lv5
+
+    with PatternContext() as ctx:
+        is_call_tir("my_concat") >> is_call_tir("my_matmul") >> is_call_tir("my_split")
+        dfb = CMS["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)
+
+    with PatternContext():
+        split = is_call_tir("my_split")
+        lv3 = TupleGetItemPattern(split, 0).has_shape([16, 32])
+        lv4 = TupleGetItemPattern(split, 1).has_shape([16, 32])
+        split.fork_to(lv3, lv4)
+        add = is_op("relax.add")(lv3, lv4)
+        # TODO(@ganler): simplify this through implicit graph pattern.
+        lv3 >> add
+        lv4 >> add
+
+        dfb = CMS["main"].body.blocks[0]
+        assert match_dfb(None, dfb)
