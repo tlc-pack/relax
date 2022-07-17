@@ -402,19 +402,18 @@ class CBRx2:
         bias1: Tensor((32, 32), "float32"),
     ) -> Tensor:
         # TensorRT's CBR Optimization Pattern
+        #      CBR_0
+        #    /       \
+        # Input      concat
+        #    \       /
+        #      CBR_1
         with R.dataflow():
             lv0 = R.call_tir(conv1x1, (x, w0), (32, 32), dtype="float32")
             lv1 = R.call_tir(bias_add, (lv0, bias0), (32, 32), dtype="float32")
             lv2 = R.call_tir(relu, (lv1), (32, 32), dtype="float32")
-            #      CBR_0
-            #    /       \
-            # Input      concat
-            #    \       /
-            #      CBR_1
             lv3 = R.call_tir(conv1x1, (x, w1), (32, 32), dtype="float32")
             lv4 = R.call_tir(bias_add, (lv3, bias1), (32, 32), dtype="float32")
             lv5 = R.call_tir(relu, (lv4), (32, 32), dtype="float32")
-
             lv6 = R.call_tir(concat, (lv2, lv5), (32, 64), dtype="float32")
             R.output(lv6)
         return lv6

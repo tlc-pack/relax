@@ -521,7 +521,7 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExp
 class UDChain : public relax::ExprVisitor {
  public:
   using map_t = std::map<const VarNode*, std::set<const VarNode*>>;
-  map_t def2use, use2def;
+  map_t def2use;
   const VarNode* cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
@@ -535,13 +535,9 @@ class UDChain : public relax::ExprVisitor {
   void VisitExpr_(const VarNode* op) override {
     if (nullptr == cur_user_) return;
 
-    use2def[cur_user_].insert(op);
     def2use[op].insert(cur_user_);
   }
-  void VisitVarDef(const Var& var) override {
-    def2use[var.get()] = {};
-    use2def[var.get()] = {};
-  }
+  void VisitVarDef(const Var& var) override { def2use[var.get()] = {}; }
 
   void VisitExpr_(const DataflowVarNode* op) override {
     VisitExpr_(static_cast<const VarNode*>(op));
@@ -660,7 +656,7 @@ tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
   UDChain ud;
   ud.VisitBindingBlock_(dfb.get());
   // std::map<const VarNode*, std::set<const VarNode*>>
-  const auto &def2use = ud.def2use, &use2def = ud.use2def;
+  const auto& def2use = ud.def2use;
 
   // First construct a graph of PNode and RNode.
   std::unordered_map<const VarNode*, RNode> var2node;
