@@ -414,6 +414,12 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     }
     return header;
   }
+
+  void UpdateFuncName(const IRModule& mod) {
+    for (const auto& x : mod->functions) {
+      func2var_[x.second.get()] = x.first;
+    }
+  }
 };
 
 /*!
@@ -1488,9 +1494,7 @@ Doc TVMScriptPrinter::PrintIRModule(const IRModule& module) {
   Doc doc;
   doc << "@tvm.script.ir_module" << Doc::NewLine();
   doc << "class Module:";
-  for (const auto& x : op->functions) {
-    func2var_[x.second.operator->()] = x.first;
-  }
+  UpdateFuncName(module);
   Doc body = Doc::NewLine();
   std::vector<Doc> functions;
   for (auto it = op->functions.begin(); it != op->functions.end(); ++it) {
@@ -1877,10 +1881,12 @@ Doc AsTVMScriptDoc(const ObjectRef& mod, const String& tir_prefix, bool show_met
                    const PrimFunc& func) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
   TVMScriptPrinter printer(tir_prefix, show_meta);
-  Doc mod_doc = printer.Print(mod);
   // TODO(altan, tqchen): change to the first argument only?
   Doc doc;
-  doc << (func.defined() ? printer.Print(func) : mod_doc) << Doc::NewLine();
+  if (mod->IsInstance<IRModuleNode>()) {
+    printer.UpdateFuncName(Downcast<IRModule>(mod));
+  }
+  doc << (func.defined() ? printer.Print(func) : printer.Print(mod)) << Doc::NewLine();
   return doc;
 }
 
