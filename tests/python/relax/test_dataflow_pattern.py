@@ -170,6 +170,19 @@ def test_tuple_get_item_pattern():
     )
 
 
+def test_operators():
+    x = rx.Var("x")
+    y = rx.Var("y")
+    assert (is_var("x") + is_var("y")).match(rx.op.add(x, y))
+    assert (is_var("x") * is_var("y")).match(rx.op.multiply(x, y))
+    assert (is_var("x") + is_var("y")).match(rx.op.add(y, x))
+    assert (is_var("x") * is_var("y")).match(rx.op.multiply(y, x))
+
+    # TODO: Add the tests below when `divide` and `subtract` are implemented
+    # assert (is_var("x") / is_var("y")).match(rx.op.divide(x, y))
+    # assert (is_var("x") - is_var("y")).match(rx.op.subtract(x, y))
+
+
 def test_or_pattern():
     dfv_or_gv = is_dfv("x") | is_gv("x")
     assert isinstance(dfv_or_gv, OrPattern)

@@ -285,7 +285,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       }
       // Commutative Matching
       if (const OpNode* op_node = get_op_node(op)) {
-        if ((op_node->name == "add") || (op_node->name == "multiply")) {
+        if ((op_node->name == "relax.add") || (op_node->name == "relax.multiply")) {
           if (match_args(reverse(op->args), call_node->args)) {
             return true;
           }
@@ -294,11 +294,11 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     } else {
       ClearMap(watermark);
       // associate divide/multiply
-      if (is_pattern_op(op, "divide")) {
+      if (is_pattern_op(op, "relax.divide")) {
         if (const auto* arg_node = op->args[0].as<CallPatternNode>()) {
-          if (is_pattern_op(arg_node, "multiply") && is_expr_op(expr, "multiply") &&
-              (is_expr_op(call_node->args[0], "divide") ||
-               is_expr_op(call_node->args[1], "divide"))) {
+          if (is_pattern_op(arg_node, "relax.multiply") && is_expr_op(expr, "relax.multiply") &&
+              (is_expr_op(call_node->args[0], "relax.divide") ||
+               is_expr_op(call_node->args[1], "relax.divide"))) {
             bool out = false;
             for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
               auto div = CallPattern(op->op, {arg_node->args[arg_id], op->args[1]});
@@ -314,13 +314,13 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
           }
         }
       }
-      if (is_pattern_op(op, "multiply")) {
+      if (is_pattern_op(op, "relax.multiply")) {
         // associate multiply/divide
         for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
           if (auto* arg_node = op->args[arg_id].as<CallPatternNode>()) {
-            if (is_pattern_op(arg_node, "divide") && is_expr_op(expr, "divide") &&
-                (is_expr_op(call_node->args[0], "multiply") ||
-                 is_expr_op(call_node->args[1], "multiply"))) {
+            if (is_pattern_op(arg_node, "relax.divide") && is_expr_op(expr, "relax.divide") &&
+                (is_expr_op(call_node->args[0], "relax.multiply") ||
+                 is_expr_op(call_node->args[1], "relax.multiply"))) {
               auto mul = CallPattern(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]});
               auto div = CallPattern(arg_node->op, {mul, arg_node->args[1]});
               return VisitDFPattern(div, expr);
