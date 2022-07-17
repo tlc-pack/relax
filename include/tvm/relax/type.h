@@ -145,7 +145,7 @@ class DimType : public Type {
  public:
   TVM_DLL DimType(Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
 /*!
