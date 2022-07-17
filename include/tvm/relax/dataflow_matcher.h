@@ -53,17 +53,18 @@ bool MatchExprPattern(DFPattern pattern, Expr expr,
  * \param dfb The function to match.
  * \param start_hint The starting point expression to match to distinguish multiple matches.
  * \param match_once If start_hint is given, only try to match start_hint once.
- * \return tvm::runtime::Map<DFPattern, VarBinding>
+ * \return tvm::runtime::Map<DFPattern, Var>
  */
-TVM_DLL tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(
-    const PatternContext& ctx, const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt,
-    bool match_once = false);
+TVM_DLL tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
+                                                            const DataflowBlock& dfb,
+                                                            Optional<Var> start_hint = NullOpt,
+                                                            bool match_once = false);
 
 /**
  * \brief Match a graph-wise pattern with the current context (PatternContext::Current()).
  */
-inline tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPatternDefault(
-    const DataflowBlock& dfb, Optional<VarBinding> start_hint = NullOpt, bool match_once = false) {
+inline tvm::runtime::Map<DFPattern, Var> MatchGraphPatternDefault(
+    const DataflowBlock& dfb, Optional<Var> start_hint = NullOpt, bool match_once = false) {
   return MatchGraphPattern(PatternContext::Current(), dfb, start_hint, match_once);
 }
 

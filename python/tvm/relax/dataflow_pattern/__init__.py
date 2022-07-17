@@ -23,7 +23,7 @@ from typing import List, Optional, Callable, Dict, Union, Tuple
 
 import tvm
 import tvm._ffi as tvm_ffi
-from tvm.relax import DataflowBlock, Expr, VarBinding, Var
+from tvm.relax import DataflowBlock, Expr, Var
 from tvm.relay.op import get
 
 from ...ir import make_node
@@ -821,9 +821,9 @@ class OnlyUsedBySeq(Node):
 def match_dfb(
     ctx: "PatternContext",
     dfb: DataflowBlock,
-    start_hint: Optional[VarBinding] = None,
+    start_hint: Optional[Var] = None,
     match_once: bool = False,
-) -> Dict[DFPattern, VarBinding]:
+) -> Dict[DFPattern, Var]:
     """
     Match a pattern to a function
 
@@ -903,6 +903,6 @@ class PatternContext(tvm.runtime.Object):
         return ffi.current_context()
 
     def match_dfb(
-        self, dfb: DataflowBlock, start_hint: Optional[VarBinding] = None, match_once: bool = False
-    ) -> Dict[DFPattern, VarBinding]:
+        self, dfb: DataflowBlock, start_hint: Optional[Var] = None, match_once: bool = False
+    ) -> Dict[DFPattern, Var]:
         return match_dfb(self, dfb, start_hint, match_once)

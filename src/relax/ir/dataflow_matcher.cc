@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "dataflow_matcher_impl.h"
+#include "tvm/runtime/logging.h"
 
 namespace tvm {
 namespace relax {
@@ -58,7 +59,6 @@ static Expr TryGetValOfVar(const Expr& expr, const runtime::Map<Var, Expr>& var2
 
   // if not match, try to match value of var if expr is a var.
   if (const VarNode* var = expr.as<VarNode>()) {
-    ICHECK(var2val.defined()) << "The relax.Var->Expr mapping should be given to perform autojump.";
     auto may = var2val.Get(GetRef<Var>(var));
     if (may.defined()) return may.value();
   }
@@ -520,32 +520,27 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExp
 
 class UDChain : public relax::ExprVisitor {
  public:
-  using map_t = std::map<const VarBindingNode*, std::set<const VarBindingNode*>>;
+  using map_t = std::map<const VarNode*, std::set<const VarNode*>>;
   map_t def2use, use2def;
-  std::map<const VarNode*, const VarBindingNode*> v2binding_;
-  const VarBindingNode* cur_vbinding_;
+  const VarNode* cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
-    // init.
-    use2def[binding] = {};
-    def2use[binding] = {};
-
-    v2binding_[binding->var.get()] = cur_vbinding_ = binding;
-    this->VisitExpr(binding->value);
-    cur_vbinding_ = nullptr;  // only check if cur binding's expr using vars elsewhere.
+    // init
+    cur_user_ = binding->var.get();
     this->VisitVarDef(binding->var);
+    this->VisitExpr(binding->value);
+    cur_user_ = nullptr;
   }
 
   void VisitExpr_(const VarNode* op) override {
-    if (nullptr == cur_vbinding_) return;
+    if (nullptr == cur_user_) return;
 
-    auto it = v2binding_.find(op);
-    if (it != v2binding_.end()) {
-      const auto def = it->second;
-      const auto use = cur_vbinding_;
-      def2use[def].insert(use);
-      use2def[use].insert(def);
-    }
+    use2def[cur_user_].insert(op);
+    def2use[op].insert(cur_user_);
+  }
+  void VisitVarDef(const Var& var) override {
+    def2use[var.get()] = {};
+    use2def[var.get()] = {};
   }
 
   void VisitExpr_(const DataflowVarNode* op) override {
@@ -555,13 +550,13 @@ class UDChain : public relax::ExprVisitor {
 
 struct PNode {
   const DFPatternNode* ptr;
-  const VarBindingNode* matched = nullptr;
+  const VarNode* matched = nullptr;
   std::vector<std::pair<PNode*, PairCons>> children;
   std::vector<std::pair<PNode*, PairCons>> parents;
 };
 
 struct RNode {
-  const VarBindingNode* ptr;
+  const VarNode* ptr;
   const DFPatternNode* matched = nullptr;
   std::vector<RNode*> children;
   std::vector<RNode*> parents;
@@ -571,7 +566,7 @@ struct RNode {
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
 static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::map_t& def2use) {
-  if (!m->Match(GetRef<DFPattern>(p->ptr), r->ptr->value)) return false;
+  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};
 
@@ -649,11 +644,10 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::ma
   return true;
 }
 
-tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(const PatternContext& ctx,
-                                                           const DataflowBlock& dfb,
-                                                           Optional<VarBinding> start_hint,
-                                                           bool match_once) {
-  tvm::runtime::Map<DFPattern, VarBinding> ret{};
+tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
+                                                    const DataflowBlock& dfb,
+                                                    Optional<Var> start_hint, bool match_once) {
+  tvm::runtime::Map<DFPattern, Var> ret{};
   // FIXME(@ganler): consider callee index.
   ICHECK(!start_hint.defined()) << "start_hint is not supported yet.";
   // TODO(@ganler): Handle non-may external use.
@@ -665,30 +659,21 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(const PatternContext&
 
   UDChain ud;
   ud.VisitBindingBlock_(dfb.get());
-  // std::map<const VarBindingNode*, std::set<const VarBindingNode*>>
+  // std::map<const VarNode*, std::set<const VarNode*>>
   const auto &def2use = ud.def2use, &use2def = ud.use2def;
 
   // First construct a graph of PNode and RNode.
-  std::unordered_map<const VarBindingNode*, RNode> varbind2node;
-  varbind2node.reserve(dfb->bindings.size());
-
-  for (Binding b : dfb->bindings) {
-    // FIXME(@ganler): shall we consider MatchShape here?
-    if (const VarBindingNode* vbn = b.as<VarBindingNode>()) {
-      auto& node = varbind2node[vbn];
-      node.ptr = vbn;
-      node.children.reserve(def2use.at(vbn).size());
-      node.parents.reserve(use2def.at(vbn).size());
-    }
-  }
+  std::unordered_map<const VarNode*, RNode> var2node;
+  var2node.reserve(dfb->bindings.size());
 
   for (const auto& du : def2use) {
-    const VarBindingNode* cur_vb = du.first;
-    const std::set<const VarBindingNode*>& uses = du.second;
-    RNode& cur_node = varbind2node[cur_vb];
-    for (const VarBindingNode* use : uses) {
-      auto& use_node = varbind2node[use];
-      // cur_node is a def to use_node.
+    const VarNode* cur_var = du.first;
+    const std::set<const VarNode*>& uses = du.second;
+    RNode& cur_node = var2node[cur_var];
+    cur_node.ptr = cur_var;
+    for (const VarNode* use : uses) {
+      auto& use_node = var2node[use];
+      use_node.ptr = use;
       cur_node.children.push_back(&use_node);
       use_node.parents.push_back(&cur_node);
     }
@@ -716,13 +701,12 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(const PatternContext&
   PNode* pnode_start = &pattern2node.begin()->second;
 
   if (start_hint.defined()) {
-    VarBinding vb = start_hint.value();
-    auto rnode_ptr = varbind2node.find(vb.get());
-    ICHECK(varbind2node.cend() != rnode_ptr) << "start_hint " << vb << " is not part of the graph.";
+    Var v = start_hint.value();
+    auto rnode_ptr = var2node.find(v.get());
+    ICHECK(var2node.cend() != rnode_ptr) << "start_hint " << v << " is not part of the graph.";
     if (try_match(pnode_start, &rnode_ptr->second, &matcher, def2use)) {
-      for (auto ppair : pattern2node) {
-        ret.Set(GetRef<DFPattern>(ppair.first), GetRef<VarBinding>(ppair.second.matched));
-      }
+      for (auto ppair : pattern2node)
+        ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
       return ret;
     }
 
@@ -730,12 +714,12 @@ tvm::runtime::Map<DFPattern, VarBinding> MatchGraphPattern(const PatternContext&
   }
 
   if (!pnode_start->matched) {
-    for (auto& rpair : varbind2node) {
+    for (auto& rpair : var2node) {
       if (start_hint.defined() && start_hint.value().get() == rpair.first) continue;
       if (try_match(pnode_start, &rpair.second, &matcher, def2use)) {
-        for (auto ppair : pattern2node) {
-          ret.Set(GetRef<DFPattern>(ppair.first), GetRef<VarBinding>(ppair.second.matched));
-        }
+        for (auto ppair : pattern2node)
+          ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
+
         return ret;
       }
     }

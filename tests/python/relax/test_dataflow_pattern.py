@@ -288,16 +288,16 @@ def test_is_call_tir():
 
 
 ## Graph-wise Matching
-def test_simple_edge():
+def test_simple_used_by():
     with PatternContext():
-        n0 = wildcard()
+        n0 = is_var("x")  # x is a free var (fn arg)
         n1 = wildcard()
-        n0.used_by(n1)
+        n0 ^ n1
         dfb = main_fn.body.blocks[0]
         matched = match_dfb(None, dfb)
         assert matched
-        assert matched[n0] == dfb.bindings[0]
-        assert matched[n1] == dfb.bindings[1]
+        assert matched[n0] == main_fn.params[0]
+        assert matched[n1] == dfb.bindings[0].var
 
 
 def test_simple_call_tir_edge():
@@ -308,20 +308,8 @@ def test_simple_call_tir_edge():
         dfb = main_fn.body.blocks[0]
         matched = match_dfb(None, dfb)
         assert matched
-        assert matched[n0] == dfb.bindings[0]
-        assert matched[n1] == dfb.bindings[1]
-
-
-def test_simple_used_by():
-    with PatternContext():
-        n0 = wildcard()
-        n1 = wildcard()
-        n0 ^ n1
-        dfb = main_fn.body.blocks[0]
-        matched = match_dfb(None, dfb)
-        assert matched
-        assert matched[n0] == dfb.bindings[0]
-        assert matched[n1] == dfb.bindings[1]
+        assert matched[n0] == dfb.bindings[0].var
+        assert matched[n1] == dfb.bindings[1].var
 
 
 def test_simple_oub():
@@ -332,8 +320,8 @@ def test_simple_oub():
         dfb = main_fn.body.blocks[0]
         matched = match_dfb(None, dfb)
         assert matched
-        assert matched[n0] == dfb.bindings[0]
-        assert matched[n1] == dfb.bindings[1]
+        assert matched[n0] == dfb.bindings[0].var
+        assert matched[n1] == dfb.bindings[1].var
 
 
 def test_counter_oub_syntax():
@@ -402,17 +390,15 @@ class CBRx2:
     ) -> Tensor:
         # TensorRT's CBR Optimization Pattern
         with R.dataflow():
-            lv_init = R.call_tir(softmax, (x), (32, 32), dtype="float32")
-
-            lv0 = R.call_tir(conv1x1, (lv_init, w0), (32, 32), dtype="float32")
+            lv0 = R.call_tir(conv1x1, (x, w0), (32, 32), dtype="float32")
             lv1 = R.call_tir(bias_add, (lv0, bias0), (32, 32), dtype="float32")
             lv2 = R.call_tir(relu, (lv1), (32, 32), dtype="float32")
-            #        CBR_0
-            #      /       \
-            # softmax      concat
-            #      \       /
-            #        CBR_1
-            lv3 = R.call_tir(conv1x1, (lv_init, w1), (32, 32), dtype="float32")
+            #      CBR_0
+            #    /       \
+            # Input      concat
+            #    \       /
+            #      CBR_1
+            lv3 = R.call_tir(conv1x1, (x, w1), (32, 32), dtype="float32")
             lv4 = R.call_tir(bias_add, (lv3, bias1), (32, 32), dtype="float32")
             lv5 = R.call_tir(relu, (lv4), (32, 32), dtype="float32")
 
@@ -448,9 +434,19 @@ def test_two_cbr():
         assert cbr0.patterns[1] != cbr1.patterns[1]
         assert cbr0.patterns[2] != cbr1.patterns[2]
 
-        is_call_tir("softmax").fork_to(cbr0, cbr1)
+        is_var("x").fork_to(cbr0, cbr1)
         dfb = CBRx2["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
+
+    with PatternContext() as ctx:
+        # Deny the pattern
+        cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        cbr1 = cbr0.dup()
+
+        # input has no fork at y.
+        is_var("y").fork_to(cbr0, cbr1)
+        dfb = CBRx2["main"].body.blocks[0]
+        assert not ctx.match_dfb(dfb)
 
 
 def test_two_matmul():
@@ -528,3 +524,44 @@ def test_concat_mm_split():
 
         dfb = CMS["main"].body.blocks[0]
         assert match_dfb(None, dfb)
+
+
+def test_self_attention():
+    # The example comes from.
+    # https://developer.nvidia.com/blog/nlu-with-tensorrt-bert/
+    @tvm.script.ir_module
+    class SelfAttention:
+        @R.function
+        def main(
+            x: Tensor((b, s, n, h), "float32"),
+            wq: Tensor((h, h), "float32"),
+            wk: Tensor((h, h), "float32"),
+            wv: Tensor((h, h), "float32"),
+        ) -> Tensor:
+            with R.dataflow():
+                fcq = R.call_tir(my_fc, (x, wq), (b, s, n, h), dtype="float32")
+                tpq = R.call_tir(my_transpose, (fcq,), (b, s, h, n), dtype="float32")
+
+                fck = R.call_tir(my_fc, (x, wk), (b, s, n, h), dtype="float32")
+                tpk = R.call_tir(my_transpose, (fck,), (b, s, h, n), dtype="float32")
+
+                mul = R.multiply(tpq, tpk)
+                scale = R.multiply(mul, R.const(1.1, "float32"))
+                softmax = R.call_tir(softmax, (scale,), (b, s, n, h), dtype="float32")
+
+                fcv = R.call_tir(my_fc, (x, wv), (b, s, n, h), dtype="float32")
+                tpv = R.call_tir(my_transpose, (fcv,), (b, s, h, n), dtype="float32")
+
+                out = R.multiply(softmax, tpv)
+                R.output(out)
+
+            return out
+
+    with PatternContext() as ctx:
+        fc_trans_q = is_call_tir("my_fc") >> is_call_tir("my_transpose")
+        fc_trans_k = fc_trans_q.dup()
+        fc_trans_v = fc_trans_q.dup()
+
+        is_var("x").fork_to(fc_trans_q, fc_trans_k, fc_trans_v)
+        dfb = SelfAttention["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)
