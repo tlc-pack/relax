@@ -89,6 +89,8 @@ class PassContextNode : public Object {
   Map<String, ObjectRef> config;
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
+  // TODO(@sunggg): Fix dependency issue in the header file and correct the types
+  // e.g., relax::trace, relax::database in tvm/relax/tuning_api.h
   /*! \brief Trace stack for relax pass infra. */
   mutable Array<ObjectRef> trace_stack;
   /*! \brief List of passes to be traced. If not defined, make every pass traceable. */
