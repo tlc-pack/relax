@@ -359,16 +359,16 @@ DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
   return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));
 }
 DFPattern DFPattern::operator+(const DFPattern& other) const {
-  return IsOp("add")({GetRef<DFPattern>(this->get()), other});
+  return IsOp("relax.add")({GetRef<DFPattern>(this->get()), other});
 }
 DFPattern DFPattern::operator-(const DFPattern& other) const {
-  return IsOp("subtract")({GetRef<DFPattern>(this->get()), other});
+  return IsOp("relax.subtract")({GetRef<DFPattern>(this->get()), other});
 }
 DFPattern DFPattern::operator*(const DFPattern& other) const {
-  return IsOp("multiply")({GetRef<DFPattern>(this->get()), other});
+  return IsOp("relax.multiply")({GetRef<DFPattern>(this->get()), other});
 }
 DFPattern DFPattern::operator/(const DFPattern& other) const {
-  return IsOp("divide")({GetRef<DFPattern>(this->get()), other});
+  return IsOp("relax.divide")({GetRef<DFPattern>(this->get()), other});
 }
 DFPattern DFPattern::operator|(const DFPattern& other) const {
   return OrPattern(GetRef<DFPattern>(this->get()), other);

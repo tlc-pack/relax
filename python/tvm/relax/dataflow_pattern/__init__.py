@@ -61,16 +61,16 @@ class DFPattern(Node):
         return AndPattern(self, other)
 
     def __add__(self, other):
-        return is_op("add")(self, other)
+        return is_op("relax.add")(self, other)
 
     def __sub__(self, other):
-        return is_op("subtract")(self, other)
+        return is_op("relax.subtract")(self, other)
 
     def __mul__(self, other):
-        return is_op("multiply")(self, other)
+        return is_op("relax.multiply")(self, other)
 
     def __truediv__(self, other):
-        return is_op("divide")(self, other)
+        return is_op("relax.divide")(self, other)
 
     def __invert__(self):
         return deny(self)

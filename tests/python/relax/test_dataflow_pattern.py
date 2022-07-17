@@ -517,7 +517,7 @@ def test_concat_mm_split():
         lv3 = TupleGetItemPattern(split, 0).has_shape([16, 32])
         lv4 = TupleGetItemPattern(split, 1).has_shape([16, 32])
         split.fork_to(lv3, lv4)
-        add = is_op("relax.add")(lv3, lv4)
+        add = lv3 + lv4
         # TODO(@ganler): simplify this through implicit graph pattern.
         lv3 >> add
         lv4 >> add
