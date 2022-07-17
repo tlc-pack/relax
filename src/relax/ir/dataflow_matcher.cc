@@ -53,7 +53,7 @@ bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   return VisitDFPattern(pattern, expr);
 }
 
-static Expr TryGetValOfVar(const Expr& expr, runtime::Map<Var, Expr>& var2val) {
+static Expr TryGetValOfVar(const Expr& expr, const runtime::Map<Var, Expr>& var2val) {
   if (var2val.empty()) return expr;
 
   // if not match, try to match value of var if expr is a var.
