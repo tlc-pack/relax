@@ -37,13 +37,13 @@ class Choice(Object):
     Transformation function will be applied when constraint function returns true.
     Parameters
     ----------
-    f_transform_key : Optional[str]
+    transform_func_key : Optional[str]
         Key for transformation function.
-    f_transform_args : Optional[List]
+    transform_func_args : Optional[List]
         Arguments for transformation function.
-    f_constr_key : Optional[str]
+    constr_func_key : Optional[str]
         Key for constraint function.
-    f_constr_args : Optional[List]
+    constr_func_args : Optional[List]
         Arguments for constraint function.
 
     Examples
@@ -51,64 +51,64 @@ class Choice(Object):
     The following code block defines a Choice.
 
     .. code-block:: python
-        @tvm.register_func("relax.tuning_api.test.f_transform")
+        @tvm.register_func("relax.tuning_api.test.transform_func")
         def apply(mod):
             return relax.tuning_api.FoldConstant()(mod)
-        @tvm.register_func("relax.tuning_api.test.f_constr")
+        @tvm.register_func("relax.tuning_api.test.constr_func")
         def constr(mod):
             return len(mod.functions) == 3
         # Define a choice to apply constant folding only when IRModule has three functions.
         choice = Choice(
-            f_transform_key = "relax.tuning_api.test.f_transform",
-            f_constr_key = "relax.tuning_api.test.f_constr"
+            transform_func_key = "relax.tuning_api.test.transform_func",
+            constr_func_key = "relax.tuning_api.test.constr_func"
             )
     """
 
     def __init__(
         self,
-        f_transform_key: Optional[str] = None,
-        f_transform_args: Optional[List] = None,
-        f_constr_key: Optional[str] = None,
-        f_constr_args: Optional[List] = None,
+        transform_func_key: Optional[str] = None,
+        transform_func_args: Optional[List] = None,
+        constr_func_key: Optional[str] = None,
+        constr_func_args: Optional[List] = None,
     ):
         """Constructor
         Parameters
         ----------
-        f_transform_key : Optional[str]
+        transform_func_key : Optional[str]
             Key for transformation function.
 
         f_tramsform_args: Optional[List]
             Arguments for transformation function.
 
-        f_constr_key : Optional[str]
+        constr_func_key : Optional[str]
             Key for constraint function.
 
-        f_constr_args: Optional[List]
+        constr_func_args: Optional[List]
             Arguments for constraint function.
         """
 
-        if f_transform_key is None:
-            f_transform_key = "relax.tuning_api.Choice.f_default_transform"
+        if transform_func_key is None:
+            transform_func_key = "relax.tuning_api.Choice.default_transform_func"
 
-        if f_transform_args is None:
-            f_transform_args = []
+        if transform_func_args is None:
+            transform_func_args = []
 
-        if f_constr_key is None:
-            f_constr_key = "relax.tuning_api.Choice.f_default_constr"
+        if constr_func_key is None:
+            constr_func_key = "relax.tuning_api.Choice.default_constr_func"
 
-        if f_constr_args is None:
-            f_constr_args = []
+        if constr_func_args is None:
+            constr_func_args = []
 
         self.__init_handle_by_constructor__(
             _ffi_api.Choice,
-            f_transform_key,
-            f_transform_args,
-            f_constr_key,
-            f_constr_args,  # type: ignore # pylint: disable=no-member
+            transform_func_key,
+            transform_func_args,
+            constr_func_key,
+            constr_func_args,  # type: ignore # pylint: disable=no-member
         )
 
     def get_transform_func(self) -> Callable:
-        """Getter for f_transform
+        """Getter for transform_func
         Returns
         -------
         ret: Callable
@@ -117,7 +117,7 @@ class Choice(Object):
         return _ffi_api.ChoiceGetTransformFunc(self)
 
     def get_constr_func(self) -> Callable:
-        """Getter for f_constr
+        """Getter for constr_func
         Returns
         -------
         ret: Callable
@@ -126,16 +126,16 @@ class Choice(Object):
         return _ffi_api.ChoiceGetConstrFunc(self)
 
     def apply_transform_func(self, mod: IRModule) -> IRModule:
-        """Perform f_transform with its arguments
+        """Perform transform_func with its arguments
         Returns
         -------
-        ret: Callable
-           registered transformation function
+        ret: IRModule
+           Transformed IRModule
         """
         return _ffi_api.ChoiceApplyTransformFunc(self, mod)
 
     def check_constr(self, mod: IRModule) -> bool:
-        """Perform f_constr with its arguments
+        """Perform constr_func with its arguments
         Returns
         -------
         ret: bool
@@ -187,10 +187,10 @@ class Knob(Object):
     The following code block defines a Knob.
 
     .. code-block:: python
-        @tvm.register_func("relax.tuning_api.test.f_transform")
+        @tvm.register_func("relax.tuning_api.test.transform_func")
         def apply(mod):
             return relax.tuning_api.FoldConstant()(mod)
-        choices = {"apply": Choice("relax.tuning_api.test.f_transform"), "noapply": Choice()}
+        choices = {"apply": Choice("relax.tuning_api.test.transform_func"), "noapply": Choice()}
         # A knob manages a set of its valid choices
         knob = Knob("MockTuningKnob", choices)
     """
@@ -208,7 +208,7 @@ class Knob(Object):
         """Verify if the decision is valid."""
         if isinstance(decision, int):
             decision = str(decision)
-        return _ffi_api.KnobVerify(self, decision)
+        return _ffi_api.KnobIsValidDecision(self, decision)
 
     def apply(self, mod: IRModule, decision: Union[str, int]) -> IRModule:
         """Get choice if a decision is valid."""

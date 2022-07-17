@@ -95,7 +95,7 @@ class PassContextNode : public Object {
   Optional<Map<String, Bool>> make_traceable;
   /*! \brief Number of evaluations conducted in the pass pipeline. */
   mutable int num_evals{0};
-  /*! \brief Database for tunign API. */
+  /*! \brief Database for tuning API. */
   Optional<ObjectRef> tuning_api_database;
   PassContextNode() = default;
   /*!

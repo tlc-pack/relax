@@ -161,6 +161,10 @@ class Database(Object):
 
         Parameters
         ----------
+        workload: Workload
+            The workload to be searched for.
+        target: Target
+            The target to be searched for.
         run_secs : Optional[List[float]]
             The measurement record to add.
         """
@@ -174,6 +178,10 @@ class Database(Object):
 
         Parameters
         ----------
+        workload: Workload
+            The workload to be searched for.
+        target: Target
+            The target to be searched for.
         record : TuningRecord
             The tuning record to add.
         """
@@ -218,7 +226,7 @@ class Database(Object):
 
 @register_object("relax.tuning_api.JSONDatabase")
 class JSONDatabase(Database):
-    """The class of tuning records.
+    """The class of JSON database.
 
     Parameters
     ----------
@@ -251,6 +259,8 @@ class JSONDatabase(Database):
             The path to the workload table.
         path_tuning_record : str
             The path to the tuning record table.
+        path_measurement_record : str
+            The path to the path_measurement_record table.
         allow_missing : bool
             Whether to create new file when the given path is not found.
         """

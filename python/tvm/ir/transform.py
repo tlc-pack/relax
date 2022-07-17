@@ -84,7 +84,7 @@ class PassContext(tvm.runtime.Object):
     num_evals: int
         initial number of evaluations conducted in the pipeline.
 
-    tunign_api_database: Optional[relax.tuning_api.JSONDatabase]
+    tuning_api_database: Optional[relax.tuning_api.JSONDatabase]
     """
 
     def __init__(

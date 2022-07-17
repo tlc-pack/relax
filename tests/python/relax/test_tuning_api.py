@@ -136,8 +136,8 @@ def test_choice():
     # Without any argument, default setting will be used for both transformation and constraint functions.
     # default transformation function will return the original IRModule without any change.
     choice = Choice(
-        # - f_transform_key="relax.tuning_api.Choice.f_default_transform"
-        # - f_constr_key="relax.tuning_api.Choice.f_default_constr")
+        # - transform_func_key="relax.tuning_api.Choice.default_transform_func"
+        # - constr_func_key="relax.tuning_api.Choice.default_constr_func")
     )
     # Load transformation function from the choice and apply it.
     after = choice.apply_transform_func(before)
@@ -158,10 +158,10 @@ def test_choice():
 
     # Test choice with impossible constraint
     choice = Choice(
-        f_transform_key="testing.add_global_symbol",
-        f_transform_args=["addone", "test-symbol"],
-        f_constr_key="testing.check_num_functions",
-        f_constr_args=[1000],
+        transform_func_key="testing.add_global_symbol",
+        transform_func_args=["addone", "test-symbol"],
+        constr_func_key="testing.check_num_functions",
+        constr_func_args=[1000],
     )
     # Since the constraint is not met, it should return the original function
     after = choice.apply_transform_func(before)
@@ -169,10 +169,10 @@ def test_choice():
 
     # Test choice with the proper constraint
     choice = Choice(
-        f_transform_key="testing.add_global_symbol",
-        f_transform_args=["addone", "test-symbol"],
-        f_constr_key="testing.check_num_functions",
-        f_constr_args=[2],
+        transform_func_key="testing.add_global_symbol",
+        transform_func_args=["addone", "test-symbol"],
+        constr_func_key="testing.check_num_functions",
+        constr_func_args=[2],
     )
     # Since the constraint is not met, it should return the original function
     after = choice.apply_transform_func(before)
@@ -221,9 +221,9 @@ def test_knob():
         "apply": Choice("testing.apply_fold_constant"),
         "noapply": Choice(),
         "apply_with_impossible_constr": Choice(
-            f_transform_key="testing.apply_fold_constant",
-            f_constr_key="testing.check_num_functions",
-            f_constr_args=[1000],
+            transform_func_key="testing.apply_fold_constant",
+            constr_func_key="testing.check_num_functions",
+            constr_func_args=[1000],
         ),
     }
     # Define knob.
@@ -268,10 +268,10 @@ def test_trace():
     # Define choices and its knob.
     choices = {
         "apply": Choice(
-            f_transform_key="testing.apply_fold_constant",
-            f_transform_args=[],
-            f_constr_key="testing.check_num_functions",
-            f_constr_args=[2],
+            transform_func_key="testing.apply_fold_constant",
+            transform_func_args=[],
+            constr_func_key="testing.check_num_functions",
+            constr_func_args=[2],
         ),
         "noapply": Choice(),
     }
@@ -776,6 +776,7 @@ def test_passes_with_mixed_granularities():
     with transform.PassContext(trace=Trace(mod), make_traceable=[]):
         _ = seq(mod)
         # Trace length and num eval can be different depending on how each function/dataflow block is treated.
+        assert PassContext.current().get_trace_stack_size() == 1
 
 
 if __name__ == "__main__":

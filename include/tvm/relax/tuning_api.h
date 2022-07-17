@@ -51,50 +51,50 @@ TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFun
 /*! \brief Choice manages a set of keys for transformation and constraint functions. */
 class ChoiceNode : public runtime::Object {
  public:
-  /*! \brief key for transformation function. */
-  String f_transform_key;
-  /*! \brief key for constraint function.
-     f_transform will be applied only when this function returns true. */
-  String f_constr_key;
-  Array<ObjectRef> f_transform_args;
-  Array<ObjectRef> f_constr_args;
+  /*! \brief ffi key for transformation function. */
+  String transform_func_key;
+  /*! \brief ffi key for constraint function. */
+  String constr_func_key;
+  Array<ObjectRef> transform_func_args;
+  Array<ObjectRef> constr_func_args;
 
   /*! \brief The default destructor. */
   virtual ~ChoiceNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("f_transform_key", &f_transform_key);
-    v->Visit("f_transform_args", &f_transform_args);
-    v->Visit("f_constr_key", &f_constr_key);
-    v->Visit("f_constr_args", &f_constr_args);
+    v->Visit("transform_func_key", &transform_func_key);
+    v->Visit("transform_func_args", &transform_func_args);
+    v->Visit("constr_func_key", &constr_func_key);
+    v->Visit("constr_func_args", &constr_func_args);
   }
 
-  /*! \brief Getter for f_constr. */
+  /*! \brief Getter for constr_func. */
   const runtime::PackedFunc GetConstrFunc() {
-    const auto* f_constr = tvm::runtime::Registry::Get(f_constr_key);
-    ICHECK(f_constr != nullptr) << "f_constr_key is not registered: " << f_constr_key;
-    return *f_constr;
+    const auto* constr_func = tvm::runtime::Registry::Get(constr_func_key);
+    ICHECK(constr_func != nullptr) << "constr_func_key is not registered: " << constr_func_key;
+    return *constr_func;
   }
 
-  /*! \brief Getter for f_transform. */
+  /*! \brief Getter for transform_func. */
   const runtime::PackedFunc GetTransformFunc() {
-    auto* f_transform = tvm::runtime::Registry::Get(f_transform_key);
-    ICHECK(f_transform != nullptr) << "f_transform_key is not registered: " << f_transform_key;
-    return *f_transform;
+    auto* transform_func = tvm::runtime::Registry::Get(transform_func_key);
+    ICHECK(transform_func != nullptr)
+        << "transform_func_key is not registered: " << transform_func_key;
+    return *transform_func;
   }
 
-  /*! \brief Perform f_constr. */
-  bool CheckConstr(IRModule mod) {
-    Array<ObjectRef> args(f_constr_args);
+  /*! \brief Perform constr_func. */
+  bool CheckConstr(const IRModule& mod) {
+    Array<ObjectRef> args(constr_func_args);
     args.insert(args.begin(), mod);
     return CallPackedWithArgsInArray(GetConstrFunc(), args);
   }
 
-  /*! \brief Perform f_transform. */
+  /*! \brief Perform transform_func. */
   IRModule ApplyTransformFunc(IRModule mod) {
     // Apply transformation when constraint is satisfied.
     if (CheckConstr(mod)) {
-      Array<ObjectRef> args(f_transform_args);
+      Array<ObjectRef> args(transform_func_args);
       args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
       return CallPackedWithArgsInArray(GetTransformFunc(), args);
     }
@@ -114,8 +114,8 @@ class ChoiceNode : public runtime::Object {
 /*! \brief Managed reference to ChoiceNode */
 class Choice : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit Choice(String f_transform_key, Array<ObjectRef> f_transform_args,
-                          String f_constr_key, Array<ObjectRef> f_constr_args);
+  TVM_DLL explicit Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
+                          String constr_func_key, Array<ObjectRef> constr_func_args);
   /*! \brief Deserialize JSON-style object into Choice */
   TVM_DLL static Choice FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);
@@ -138,13 +138,13 @@ class KnobNode : public runtime::Object {
   }
 
   /*! \brief Check if a decision is valid. */
-  bool Verify(String decision) { return choices.count(decision) > 0; }
+  bool IsValidDecision(String decision) { return choices.count(decision) > 0; }
 
   /*! \brief Apply decision if the constraint is satisfied.
       Otherwise, return the original IRModule.
    */
   IRModule Apply(IRModule mod, String decision) {
-    ICHECK(Verify(decision)) << "Invalid choice for this knob: " << decision << "\n";
+    ICHECK(IsValidDecision(decision)) << "Invalid choice for this knob: " << decision;
     return choices[decision]->ApplyTransformFunc(mod);
   }
 
@@ -200,7 +200,7 @@ class TraceNode : public runtime::Object {
     if (knobs.size() != decisions.size()) return false;
     int n = knobs.size();
     for (int i = 0; i < n; i++) {
-      if (!knobs[i]->Verify(decisions[i])) return false;
+      if (!knobs[i]->IsValidDecision(decisions[i])) return false;
     }
     return true;
   }
@@ -219,10 +219,10 @@ class TraceNode : public runtime::Object {
 
   /*!
    * \brief Serialize Trace as a JSON-style object
-   * \param include_irmod Boolean config to include IRModules in the output.
+   * \param include_in_mod Boolean config to include input IRModule in the output.
    * \return The JSON-style object
    */
-  ObjectRef AsJSON(bool include_irmod = true) const;
+  ObjectRef AsJSON(bool include_in_mod = true) const;
 
   /*! \brief Set the performance. */
   void SetPerf(double _perf) { perf = _perf; }

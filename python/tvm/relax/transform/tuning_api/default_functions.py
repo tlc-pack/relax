@@ -40,14 +40,14 @@ from .primitives import Knob, Trace
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name
 
 # Default transform func that returns original IRModule.
-@tvm.register_func("relax.tuning_api.Choice.f_default_transform")
-def f_default_transform(mod):
+@tvm.register_func("relax.tuning_api.Choice.default_transform_func")
+def default_transform_func(mod):
     return mod
 
 
 # Default constraint func that always returns true.
-@tvm.register_func("relax.tuning_api.Choice.f_default_constr")
-def f_default_constr(mod: IRModule) -> bool:  # pylint: disable=unused-argument
+@tvm.register_func("relax.tuning_api.Choice.default_constr_func")
+def default_constr_func(mod: IRModule) -> bool:  # pylint: disable=unused-argument
     return True
 
 
@@ -128,7 +128,7 @@ def default_consider_eval_passes(
     eval_passes = list(eval_passes) if not isinstance(eval_passes, list) else eval_passes
     ctx = PassContext.current()
     candidates = []
-    # for _ in range(len(candidates)):
+
     for trace in init_candidates:
         ctx.push_trace(trace)
         tvm.transform.Sequential(eval_passes)(trace.out_mod)

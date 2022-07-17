@@ -471,12 +471,12 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
       // now. Find a systematic way to identify such inconsistencies and fix them.
 
       // In the future, we should pass the ffi key for a pass by deducing from its name.
-      String f_transform_key = "relax.tuning_api.Choice.f_default_transform";
-      String f_constr_key = "relax.tuning_api.Choice.f_default_constr";
+      String transform_func_key = "relax.tuning_api.Choice.default_transform_func";
+      String constr_func_key = "relax.tuning_api.Choice.default_constr_func";
 
       relax::Knob knob = relax::Knob(
-          pass_info->name, {{"Applied", relax::Choice(f_transform_key, Array<ObjectRef>(),
-                                                      f_constr_key, Array<ObjectRef>())}});
+          pass_info->name, {{"Applied", relax::Choice(transform_func_key, Array<ObjectRef>(),
+                                                      constr_func_key, Array<ObjectRef>())}});
 
       // Add new decision to the trace at the top of the stack.
       auto trace = Downcast<relax::Trace>(pass_ctx->trace_stack.back());

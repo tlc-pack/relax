@@ -28,41 +28,41 @@
 namespace tvm {
 namespace relax {
 
-Choice::Choice(String f_transform_key, Array<ObjectRef> f_transform_args, String f_constr_key,
-               Array<ObjectRef> f_constr_args) {
+Choice::Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
+               String constr_func_key, Array<ObjectRef> constr_func_args) {
   ObjectPtr<ChoiceNode> n = make_object<ChoiceNode>();
-  n->f_transform_key = std::move(f_transform_key);
-  n->f_transform_args = std::move(f_transform_args);
-  n->f_constr_key = std::move(f_constr_key);
-  n->f_constr_args = std::move(f_constr_args);
+  n->transform_func_key = std::move(transform_func_key);
+  n->transform_func_args = std::move(transform_func_args);
+  n->constr_func_key = std::move(constr_func_key);
+  n->constr_func_args = std::move(constr_func_args);
   data_ = std::move(n);
 }
 
 // TODO(sunggg): Currently, it only supports an array of primitive data types.
 ObjectRef ChoiceNode::AsJSON() const {
   Array<ObjectRef> json_transfrom_args, json_constr_args;
-  for (ObjectRef arg : this->f_transform_args) {
+  for (ObjectRef arg : this->transform_func_args) {
     std::string json_arg = tvm::SaveJSON(arg);
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_transfrom_args.push_back(String(b64_arg));
   }
-  for (ObjectRef arg : this->f_constr_args) {
+  for (ObjectRef arg : this->constr_func_args) {
     std::string json_arg = tvm::SaveJSON(arg);
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_constr_args.push_back(String(b64_arg));
   }
   return Array<ObjectRef>{
-      this->f_transform_key,
+      this->transform_func_key,
       json_transfrom_args,
-      this->f_constr_key,
+      this->constr_func_key,
       json_constr_args,
   };
 }
 
 Choice Choice::FromJSON(const ObjectRef& json) {
   // Parse `json` into `choice`
-  String f_transform_key, f_constr_key;
-  Array<ObjectRef> f_transform_args, f_constr_args;
+  String transform_func_key, constr_func_key;
+  Array<ObjectRef> transform_func_args, constr_func_args;
   try {
     const ArrayNode* arr = json.as<ArrayNode>();
     ICHECK(arr && arr->size() == 4);
@@ -71,24 +71,24 @@ Choice Choice::FromJSON(const ObjectRef& json) {
     const auto* arr2 = arr->at(2).as<StringObj>();
     const auto* arr3 = arr->at(3).as<ArrayNode>();
     ICHECK(arr0 && arr1 && arr2 && arr3);
-    f_transform_key = GetRef<String>(arr0);
+    transform_func_key = GetRef<String>(arr0);
     {
-      f_transform_args.reserve(arr1->size());
+      transform_func_args.reserve(arr1->size());
       for (const ObjectRef& elem : *arr1) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
         ObjectRef arg = LoadJSON(json_arg);
-        f_transform_args.push_back(arg);
+        transform_func_args.push_back(arg);
       }
     }
-    f_constr_key = GetRef<String>(arr2);
+    constr_func_key = GetRef<String>(arr2);
     {
-      f_constr_args.reserve(arr3->size());
+      constr_func_args.reserve(arr3->size());
       for (const ObjectRef& elem : *arr3) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
         ObjectRef arg = LoadJSON(json_arg);
-        f_constr_args.push_back(arg);
+        constr_func_args.push_back(arg);
       }
     }
   } catch (const tvm::Error& e) {
@@ -97,7 +97,7 @@ Choice Choice::FromJSON(const ObjectRef& json) {
         << json;
     throw;
   }
-  return Choice(f_transform_key, f_transform_args, f_constr_key, f_constr_args);
+  return Choice(transform_func_key, transform_func_args, constr_func_key, constr_func_args);
 }
 
 Knob::Knob(String name, Map<String, Choice> choices) {
@@ -164,7 +164,7 @@ Trace::Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
   data_ = std::move(n);
 }
 
-ObjectRef TraceNode::AsJSON(bool include_irmod) const {
+ObjectRef TraceNode::AsJSON(bool include_in_mod) const {
   ICHECK(this->Verify()) << "Trace should be valid";
 
   Array<ObjectRef> json_knobs;
@@ -181,7 +181,7 @@ ObjectRef TraceNode::AsJSON(bool include_irmod) const {
     json_knobs.push_back(knob->AsJSON());
     json_decisions.push_back(decision);
   }
-  if (include_irmod) {
+  if (include_in_mod) {
     std::string json_mod = tvm::SaveJSON(this->in_mod);
     std::string b64_mod = meta_schedule::Base64Encode(json_mod);
     return Array<ObjectRef>{json_knobs, json_decisions, String(b64_mod)};
@@ -230,9 +230,9 @@ Trace Trace::FromJSON(const ObjectRef& json) {
 /**************** FFI ****************/
 TVM_REGISTER_NODE_TYPE(ChoiceNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Choice")
-    .set_body_typed([](String f_transform_key, Array<ObjectRef> f_transform_args,
-                       String f_constr_key, Array<ObjectRef> f_constr_args) {
-      return Choice(f_transform_key, f_transform_args, f_constr_key, f_constr_args);
+    .set_body_typed([](String transform_func_key, Array<ObjectRef> transform_func_args,
+                       String constr_func_key, Array<ObjectRef> constr_func_args) {
+      return Choice(transform_func_key, transform_func_args, constr_func_key, constr_func_args);
     });
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceAsJSON").set_body_method<Choice>(&ChoiceNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceFromJSON").set_body_typed(Choice::FromJSON);
@@ -250,7 +250,8 @@ TVM_REGISTER_GLOBAL("relax.tuning_api.Knob")
     .set_body_typed([](String name, Map<String, Choice> choices) { return Knob(name, choices); });
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobAsJSON").set_body_method<Knob>(&KnobNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobFromJSON").set_body_typed(Knob::FromJSON);
-TVM_REGISTER_GLOBAL("relax.tuning_api.KnobVerify").set_body_method<Knob>(&KnobNode::Verify);
+TVM_REGISTER_GLOBAL("relax.tuning_api.KnobIsValidDecision")
+    .set_body_method<Knob>(&KnobNode::IsValidDecision);
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobApply").set_body_method<Knob>(&KnobNode::Apply);
 
 TVM_REGISTER_NODE_TYPE(TraceNode);
