@@ -788,6 +788,9 @@ class UsedBySeq(Node):
     def used_by(self, other: Union[DFPattern, "UsedBySeq"], index=-1) -> "UsedBySeq":
         return used_by(self, other, index)
 
+    def __getitem__(self, index: int) -> DFPattern:
+        return self.patterns[index]
+
     def __xor__(self, other) -> "UsedBySeq":
         return self.used_by(other, -1)
 
@@ -809,6 +812,9 @@ class OnlyUsedBySeq(Node):
 
     def only_used_by(self, other: Union[DFPattern, "OnlyUsedBySeq"], index=-1) -> "OnlyUsedBySeq":
         return only_used_by(self, other, index)
+
+    def __getitem__(self, index: int) -> DFPattern:
+        return self.patterns[index]
 
     def __rshift__(self, other) -> "OnlyUsedBySeq":
         return self.only_used_by(other, -1)

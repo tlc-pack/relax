@@ -40,7 +40,6 @@
 #include <vector>
 
 #include "dataflow_matcher_impl.h"
-#include "tvm/runtime/logging.h"
 
 namespace tvm {
 namespace relax {
@@ -561,7 +560,12 @@ struct RNode {
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
 static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::map_t& def2use) {
-  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
+  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) {
+    LOG(WARNING) << "[FAIL]" << GetRef<DFPattern>(p->ptr) << " -> " << r->ptr->name_hint();
+    return false;
+  }
+
+  LOG(INFO) << "[SUCC]" << GetRef<DFPattern>(p->ptr) << " -> " << r->ptr->name_hint();
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};
 
@@ -641,13 +645,14 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::ma
 
 tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
                                                     const DataflowBlock& dfb,
-                                                    Optional<Var> start_hint, bool match_once) {
+                                                    Optional<Var> start_hint,
+                                                    bool must_include_hint) {
   tvm::runtime::Map<DFPattern, Var> ret{};
   // FIXME(@ganler): consider callee index.
-  ICHECK(!start_hint.defined()) << "start_hint is not supported yet.";
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
-  ICHECK(!match_once || start_hint.defined()) << "match_once is only supported with start_hint.";
+  ICHECK(!must_include_hint || start_hint.defined())
+      << "must_include_hint is only supported with start_hint.";
 
   const auto var2val = AnalyzeVar2Value(dfb);
   DFPatternMatcher matcher(var2val);
@@ -693,20 +698,21 @@ tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
     }
   }
 
-  PNode* pnode_start = &pattern2node.begin()->second;
-
   if (start_hint.defined()) {
     Var v = start_hint.value();
     auto rnode_ptr = var2node.find(v.get());
-    ICHECK(var2node.cend() != rnode_ptr) << "start_hint " << v << " is not part of the graph.";
-    if (try_match(pnode_start, &rnode_ptr->second, &matcher, def2use)) {
-      for (auto ppair : pattern2node)
-        ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
-      return ret;
+    for (auto& ppair : pattern2node) {
+      if (try_match(&ppair.second, &rnode_ptr->second, &matcher, def2use)) {
+        for (auto ppair : pattern2node)
+          ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
+        return ret;
+      }
     }
 
-    if (match_once) return ret;
+    if (must_include_hint) return ret;
   }
+
+  PNode* pnode_start = &pattern2node.begin()->second;
 
   if (!pnode_start->matched) {
     for (auto& rpair : var2node) {

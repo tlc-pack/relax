@@ -433,6 +433,18 @@ def test_single_cbr():
         dfb = CBRx2["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
 
+    with PatternContext() as ctx:
+        chain = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        dfb = CBRx2["main"].body.blocks[0]
+        # we want to specifically match the first CBR (lv0)
+        matched = ctx.match_dfb(dfb, start_hint=dfb.bindings[0].var)
+        assert matched
+        assert matched[chain[0]] == dfb.bindings[0].var
+        # we want to specifically match the second CBR (lv3)
+        matched = ctx.match_dfb(dfb, start_hint=dfb.bindings[3].var)
+        assert matched
+        assert matched[chain[0]] == dfb.bindings[3].var
+
 
 def test_counter_single_crb():
     with PatternContext() as ctx:
