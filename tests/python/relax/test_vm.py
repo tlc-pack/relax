@@ -909,15 +909,32 @@ def test_vm_invoke_closure():
 
 @tvm.script.ir_module
 class TestVMSetInput:
+    @T.prim_func
+    def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
+        T.func_attr({"global_symbol": "test_vm_mul"})
+        m = T.var("int32")
+        n = T.var("int32")
+        A = T.match_buffer(x, (m, n))
+        B = T.match_buffer(y, (m, n))
+        C = T.match_buffer(z, (m, n))
+
+        for i, j in T.grid(m, n):
+            with T.block("mul"):
+                vi = T.axis.spatial(m, i)
+                vj = T.axis.spatial(n, j)
+                with T.init():
+                    C[vi, vj] = T.float32(0)
+                C[vi, vj] = A[vi, vj] * B[vi, vj]
+
     @R.function
     def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
-        gv0 = relax.call_packed("test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32")))
+        gv0 = R.call_tir("test_vm_mul", (x, w), (32, 32), dtype="float32")
         return gv0
 
 
-def perform_set_input_trial(vm):
-    a = tvm.nd.array(np.random.rand(32, 32))
-    b = tvm.nd.array(np.random.rand(32, 32))
+def perform_set_input_trial(vm, device):
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     res0 = vm["main"]()
 
@@ -935,9 +952,10 @@ def test_set_input():
     exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
     os.remove("exec.so")
     print(exec_loaded.as_python())
-    vm = relax.VirtualMachine(exec_loaded, tvm.cpu())
+    device = tvm.cpu()
+    vm = relax.VirtualMachine(exec_loaded, device)
 
-    perform_set_input_trial(vm)
+    perform_set_input_trial(vm, device)
 
 
 def test_set_input_rpc():
@@ -962,7 +980,7 @@ def test_set_input_rpc():
         device = remote.cpu()
         # Build a VM out of the executable and context.
         vm = relax.vm.VirtualMachine(exec=rexec, device=device)
-        perform_set_input_trial(vm)
+        perform_set_input_trial(vm, device)
 
     check_remote(rpc.Server("127.0.0.1"))
 
