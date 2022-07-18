@@ -932,7 +932,7 @@ class TestVMSetInput:
         return gv0
 
 
-def perform_set_input_trial(vm, device):
+def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
