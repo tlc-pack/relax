@@ -345,11 +345,18 @@ def test_simple_oub():
         assert matched[n1] == dfb.bindings[1].var
 
 
-def test_counter_oub_syntax():
+def test_counter_syntax_match():
     with PatternContext():
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_impossible")
         n0 >> n1
+        dfb = main_fn.body.blocks[0]
+        assert not match_dfb(None, dfb)
+
+    with PatternContext():
+        n0 = is_call_tir("tir_matmul")
+        n1 = is_call_tir("tir_impossible")
+        n0 ^ n1
         dfb = main_fn.body.blocks[0]
         assert not match_dfb(None, dfb)
 
@@ -464,10 +471,6 @@ def test_two_cbr():
     with PatternContext() as ctx:
         cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
         cbr1 = cbr0.dup()
-
-        assert cbr0.patterns[0] == cbr0.patterns[0]
-        assert cbr0.patterns[1] == cbr0.patterns[1]
-        assert cbr0.patterns[2] == cbr0.patterns[2]
 
         assert cbr0.patterns[0] != cbr1.patterns[0]
         assert cbr0.patterns[1] != cbr1.patterns[1]
