@@ -894,24 +894,98 @@ class PatternSeq(Node):
     """A sequence of patterns with consecutive constraints"""
 
     def __init__(self, patterns: List[DFPattern], only_use=False):
+        """
+        Initializer to PatternSeq
+
+        Parameters
+        ----------
+        patterns : List[DFPattern]
+            A chain of patterns
+        only_use : bool, optional
+            Whether the patterns follows only-used-by relations consecutively, by default False
+        """
         self.__init_handle_by_constructor__(ffi.PatternSeq, patterns, only_use)
 
     def used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
+        """
+        Assuming the right-most pattern must be used by the `other` pattern as a producer
+
+        Parameters
+        ----------
+        other : Union[DFPattern, PatternSeq]
+            The consumer pattern (sequence)
+        index : int, optional
+            The argument index called by the consumer pattern, by default -1
+
+        Returns
+        -------
+        PatternSeq
+            A chained pattern sequence
+
+        Notes
+        -----
+        If other is PatternSeq, it means the right-most pattern must be used by the left-most
+        pattern of the other sequence.
+        """
         return used_by(self, other, index)
 
     def only_used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
+
+        """
+        Assuming the right-most pattern must be **ONLY** used by the `other` pattern as a producer
+
+        Parameters
+        ----------
+        other : Union[DFPattern, PatternSeq]
+            The consumer pattern (sequence)
+        index : int, optional
+            The argument index called by the consumer pattern, by default -1
+
+        Returns
+        -------
+        PatternSeq
+            A chained pattern sequence
+
+        Notes
+        -----
+        If other is PatternSeq, it means the right-most pattern must be **ONLY** used by the
+        left-most pattern of the other sequence.
+        """
         return only_used_by(self, other, index)
 
     def __getitem__(self, index: int) -> DFPattern:
+        """
+        Access the pattern at the given index
+
+        Parameters
+        ----------
+        index : int
+            Index of the accessed pattern
+
+        Returns
+        -------
+        DFPattern
+            The accessed pattern
+        """
         return self.patterns[index]
 
-    def __rshift__(self, other) -> "PatternSeq":
-        return self.only_used_by(other, -1)
-
     def __xor__(self, other) -> "PatternSeq":
+        """Syntax sugar of PatternSeq.used_by"""
         return self.used_by(other, -1)
 
+    def __rshift__(self, other) -> "PatternSeq":
+        """Syntax sugar of PatternSeq.only_used_by"""
+        return self.only_used_by(other, -1)
+
     def dup(self) -> "PatternSeq":
+        """
+        Duplicate the pattern sequence (new object under different address)
+
+        Returns
+        -------
+        PatternSeq
+            A duplicated chain
+        """
         return ffi.dup_seq(self)
 
 
