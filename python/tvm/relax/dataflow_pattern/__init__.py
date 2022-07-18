@@ -827,21 +827,11 @@ def match_dfb(
     ctx: "PatternContext",
     dfb: DataflowBlock,
     start_hint: Optional[Var] = None,
-    match_once: bool = False,
+    must_include_hint: bool = False,
 ) -> Dict[DFPattern, Var]:
-    """
-    Match a pattern to a function
-
-    Parameters
-    ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The input pattern with graph constraints.
-    expr : tvm.relax.Function
-        The function to match.
-    """
     if ctx is None:
         ctx = PatternContext.current()
-    return ffi.match_dfb(ctx, dfb, start_hint, match_once)
+    return ffi.match_dfb(ctx, dfb, start_hint, must_include_hint)
 
 
 def used_by(
@@ -908,6 +898,6 @@ class PatternContext(tvm.runtime.Object):
         return ffi.current_context()
 
     def match_dfb(
-        self, dfb: DataflowBlock, start_hint: Optional[Var] = None, match_once: bool = False
+        self, dfb: DataflowBlock, start_hint: Optional[Var] = None, must_include_hint: bool = False
     ) -> Dict[DFPattern, Var]:
-        return match_dfb(self, dfb, start_hint, match_once)
+        return match_dfb(self, dfb, start_hint, must_include_hint)

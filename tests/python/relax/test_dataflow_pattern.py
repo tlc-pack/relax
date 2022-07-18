@@ -429,9 +429,10 @@ class CBRx2:
 
 def test_single_cbr():
     with PatternContext() as ctx:
-        is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        chain = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
         dfb = CBRx2["main"].body.blocks[0]
-        assert ctx.match_dfb(dfb)
+        matched = ctx.match_dfb(dfb)
+        assert matched
 
     with PatternContext() as ctx:
         chain = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
@@ -451,6 +452,12 @@ def test_counter_single_crb():
         is_call_tir("conv1x1") >> is_call_tir("relu") >> is_call_tir("bias_add")
         dfb = CBRx2["main"].body.blocks[0]
         assert not ctx.match_dfb(dfb)
+        # Quickly fails unpromising matches by assumiung `start_hint` must be matched by a pattern.
+        # This is usually faster than the full match:
+        # Full match: let one pattern to match -> all Var: complexity ~ #Var
+        # must_include_hint: let `start_hint` to match -> all patterns: complexity ~ #patterns
+        # Usually #patterns is much smaller than #Var, so this is faster.
+        assert not ctx.match_dfb(dfb, start_hint=dfb.bindings[0].var, must_include_hint=True)
 
 
 def test_two_cbr():
