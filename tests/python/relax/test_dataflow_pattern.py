@@ -148,6 +148,12 @@ def test_tuple_pattern():
     assert t.match(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]))
     assert not t.match(rx.Tuple([rx.DataflowVar("x"), rx.GlobalVar("y")]))
     assert not t.match(rx.Tuple([]))
+    assert t[0].match(rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 0))
+    assert t[1].match(rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 1))
+    # -1 means any index.
+    assert t[-1].match(rx.TupleGetItem(rx.Tuple([rx.GlobalVar("x"), rx.DataflowVar("y")]), 0))
+    with pytest.raises(IndexError):
+        t[2]  # index cannot be greater than or equal to the tuple size.
 
 
 def test_unordered_tuple_pattern():
@@ -239,6 +245,8 @@ def test_shape_pattern():
 
 def test_prim_arr_pattern():
     pattern = is_shape([32, 32])
+    assert pattern[0] == 32
+    assert pattern[1] == 32
     assert isinstance(pattern, PrimArrPattern)
     assert pattern.match(bindings[0].var.shape)
     n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")

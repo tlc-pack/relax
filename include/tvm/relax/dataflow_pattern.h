@@ -319,8 +319,8 @@ class PrimArrPattern;
 class PrimArrPatternNode : public DFPatternNode {
  public:
   /*! \brief The array to match */
-  Array<PrimExpr> array;
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("array", &array); }
+  Array<PrimExpr> fields;
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
   static constexpr const char* _type_key = "relax.dataflow_pattern.PrimArrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimArrPatternNode, DFPatternNode);
 };

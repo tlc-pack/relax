@@ -363,12 +363,11 @@ bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr
 
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr0) {
   auto expr = TryGetValOfVar(expr0, var2val_);
-  bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    matches = (op->index == -1 || op->index == tuple_get_item_node->index) &&
-              VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
+    return (op->index == -1 || op->index == tuple_get_item_node->index) &&
+           VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
   }
-  return matches;
+  return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& expr0) {
@@ -452,7 +451,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
   auto expr = TryGetValOfVar(expr0, var2val_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
-    return ShapeEqual(&analyzer_, op->array, shape_expr->values);
+    return ShapeEqual(&analyzer_, op->fields, shape_expr->values);
   return false;
 }
 

@@ -26,6 +26,7 @@ import tvm
 import tvm._ffi as tvm_ffi
 from tvm.relax import DataflowBlock, Expr, Var
 from tvm.relay.op import get
+from tvm.ir.container import Array
 
 from ...ir import make_node
 from ...runtime import Object
@@ -333,19 +334,16 @@ class TuplePattern(DFPattern):
         The fields in the tuple.
     """
 
-    def __init__(self, fields: tvm.ir.container.Array):
+    def __init__(self, fields: Array):
         self.__init_handle_by_constructor__(ffi.TuplePattern, fields)
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> "DFPattern":
         if index >= len(self):
             raise IndexError("TuplePattern index out of range")
-        return self.fields[index]
+        return TupleGetItemPattern(self, index)
 
     def __len__(self):
         return len(self.fields)
-
-    def astype(self, _):
-        raise TypeError("astype cannot be used on TuplePattern")
 
 
 @register_df_node
@@ -358,13 +356,8 @@ class UnorderedTuplePattern(DFPattern):
         The fields in the tuple.
     """
 
-    def __init__(self, fields: tvm.ir.container.Array):
+    def __init__(self, fields: Array):
         self.__init_handle_by_constructor__(ffi.UnorderedTuplePattern, fields)
-
-    def __getitem__(self, index: int):
-        if index >= len(self):
-            raise IndexError("UnorderedTuplePattern index out of range")
-        return self.fields[index]
 
     def __len__(self):
         return len(self.fields)
@@ -498,6 +491,14 @@ class PrimArrPattern(DFPattern):
     def __init__(self, shape: List[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)
 
+    def __getitem__(self, index: int):
+        if index >= len(self):
+            raise IndexError("PrimArrPattern index out of range")
+        return self.fields[index]
+
+    def __len__(self):
+        return len(self.fields)
+
 
 @register_df_node
 class AttrPattern(DFPattern):
@@ -594,7 +595,9 @@ def is_op(op_name: str) -> "DFPattern":
     return ExprPattern(op)
 
 
-def is_tuple(fields: tvm.ir.container.Array, unordered=False) -> "DFPattern":
+def is_tuple(
+    fields: Union[Array, List, Tuple], unordered=False
+) -> Union["TuplePattern", "UnorderedTuplePattern"]:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -716,7 +719,9 @@ def is_call_tir(
 
     if shape is None:
         shape = wildcard()
-    elif isinstance(shape, (list, tuple, tvm.ir.container.Array)):
+    elif isinstance(shape, (list, Array)):
+        shape = PrimArrPattern(shape)
+    elif isinstance(shape, (tuple)):
         shape = is_tuple(shape)  # multiple shape patterns
 
     return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
@@ -866,10 +871,10 @@ def only_used_by(
 
 
 def dup(*args):
-    if len(args) == 1:
-        if isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
-            return [x.dup() for x in args[0]]
-        return args[0].dup()
+    if len(args) > 0 and not isinstance(args[0], (DFPattern, OnlyUsedBySeq, UsedBySeq)):
+        raise ValueError(
+            "x_, y_, ... = dup(x, y, ...) where args are DFPattern/OnlyUsedBySeq/UsedBySeq"
+        )
     return tuple([v.dup() for v in args])
 
 

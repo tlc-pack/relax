@@ -131,13 +131,13 @@ RELAX_PATTERN_PRINTER_DEF(CallPatternNode, [](auto p, auto node) {
 TVM_REGISTER_NODE_TYPE(PrimArrPatternNode);
 PrimArrPattern::PrimArrPattern(Array<PrimExpr> arr) {
   ObjectPtr<PrimArrPatternNode> n = make_object<PrimArrPatternNode>();
-  n->array = std::move(arr);
+  n->fields = std::move(arr);
   data_ = std::move(n);
 }
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.PrimArrPattern")
     .set_body_typed([](Array<PrimExpr> arr) { return PrimArrPattern(std::move(arr)); });
 RELAX_PATTERN_PRINTER_DEF(PrimArrPatternNode, [](auto p, auto node) {
-  p->stream << "PrimArrPattern(" << node->array << ")";
+  p->stream << "PrimArrPattern(" << node->fields << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionPatternNode);
@@ -350,7 +350,7 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
     return ExternFuncPattern(op->global_symbol());
   }
   DFPattern VisitDFPattern_(const PrimArrPatternNode* op) override {
-    return PrimArrPattern(op->array);
+    return PrimArrPattern(op->fields);
   }
 };
 
