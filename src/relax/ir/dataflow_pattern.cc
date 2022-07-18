@@ -454,8 +454,6 @@ PatternSeq PatternSeq::dup() const {
   n->patterns.reserve(get()->patterns.size());
   n->pair_constraints = this->get()->pair_constraints;
 
-  LOG(INFO) << this->get()->pair_constraints.size();
-
   for (size_t i = 0; i < get()->patterns.size(); ++i) {
     n->patterns.push_back(get()->patterns[i].dup());
     if (i >= 1)
