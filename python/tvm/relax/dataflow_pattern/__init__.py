@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 """The Relax Pattern Language and tooling."""
 # pylint: disable=no-member
 # pylint: disable=missing-function-docstring
@@ -688,19 +689,19 @@ def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
     return DataTypePattern(pattern, dtype)
 
 
-def has_shape(*args, pattern: "DFPattern" = None) -> "DFPattern":
+def has_shape(shape: List[tvm.ir.PrimExpr], pattern: "DFPattern" = None) -> "DFPattern":
     """Either has_shape(a, b, c) or has_shape([a, b, c, ...])"""
+    if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
+        raise ValueError("has_shape takes a list or tuple as input.")
     if pattern is None:
         pattern = wildcard()
-    if len(args) == 1 and isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
-        return ShapePattern(pattern, args[0])
-    return ShapePattern(pattern, args)
+    return ShapePattern(pattern, shape)
 
 
-def is_shape(*args):
-    if len(args) == 1 and isinstance(args[0], (list, tuple, tvm.ir.container.Array)):
-        return PrimArrPattern(args[0])
-    return PrimArrPattern(args)
+def is_shape(shape: List[tvm.ir.PrimExpr]) -> "DFPattern":
+    if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
+        raise ValueError("is_shape takes a list or tuple as input.")
+    return PrimArrPattern(shape)
 
 
 def is_call_tir(
@@ -713,17 +714,10 @@ def is_call_tir(
     elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
-    def single_shape_pattern(shape):
-        # map a single shape to some kind of pattern.
-        if shape is None:
-            shape = wildcard()
-        elif isinstance(shape, (list, tvm.ir.container.Array)):
-            shape = is_shape(shape)
-        return shape
-
-    shape = single_shape_pattern(shape)
-    if isinstance(shape, tuple):
-        shape = is_tuple([single_shape_pattern(s) for s in shape])
+    if shape is None:
+        shape = wildcard()
+    elif isinstance(shape, (list, tuple, tvm.ir.container.Array)):
+        shape = is_tuple(shape)  # multiple shape patterns
 
     return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
 

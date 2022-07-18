@@ -227,18 +227,18 @@ def test_shape_pattern():
     assert isinstance(pattern, ShapePattern)
     tvm.ir.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
-    assert has_shape(32, 32).match(bindings[0].var)
+    assert has_shape([32, 32]).match(bindings[0].var)
     n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     symsh_var = rx.Var("x", symbolic_shape, rx.DynTensorType(3, "float32"))
-    assert has_shape(n, m, n + m).match(symsh_var)
-    assert has_shape(n, m, m + n).match(symsh_var)  # + is commutative.
-    assert not has_shape(1, 2, 3).match(symsh_var)
-    assert not has_shape(m, n, n + m).match(symsh_var)
+    assert has_shape([n, m, n + m]).match(symsh_var)
+    assert has_shape([n, m, m + n]).match(symsh_var)  # + is commutative.
+    assert not has_shape([1, 2, 3]).match(symsh_var)
+    assert not has_shape([m, n, n + m]).match(symsh_var)
 
 
 def test_prim_arr_pattern():
-    pattern = is_shape(32, 32)
+    pattern = is_shape([32, 32])
     assert isinstance(pattern, PrimArrPattern)
     assert pattern.match(bindings[0].var.shape)
     n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
