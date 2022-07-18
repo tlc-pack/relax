@@ -26,6 +26,7 @@
 #include <tvm/relax/dataflow_pattern_functor.h>
 
 #include <memory>
+#include <string>
 
 #include "tvm/runtime/memory.h"
 
@@ -405,8 +406,7 @@ DFPattern DFPattern::HasRuntimeDepShape() const {
          RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
 }
 
-DFPattern::operator UsedBySeq() const { return UsedBySeq{{*this}}; }
-DFPattern::operator OnlyUsedBySeq() const { return OnlyUsedBySeq{{*this}}; }
+DFPattern::operator PatternSeq() const { return PatternSeq{{*this}}; }
 
 std::stack<PatternContext>& pattern_ctx_stack() {
   thread_local std::stack<PatternContext> graph_pattern_managers;
@@ -429,78 +429,121 @@ static void sync_graph_constraints(const DFPattern& lhs, const DFPattern& rhs, P
   PatternContext::Current().add_constraint(lhs, rhs, pcon);
 }
 
-TVM_REGISTER_NODE_TYPE(UsedBySeqNode);
-UsedBySeq::UsedBySeq(Array<DFPattern> patterns) {
-  for (size_t i = 1; i < patterns.size(); ++i)
-    sync_graph_constraints(patterns[i - 1], patterns[i], PairCons{PairCons::kUsedBy, -1});
-
-  ObjectPtr<UsedBySeqNode> n = make_object<UsedBySeqNode>();
-  n->patterns = std::move(patterns);
+TVM_REGISTER_NODE_TYPE(PatternSeqNode);
+PatternSeq::PatternSeq(DFPattern init_pattern) {
+  ObjectPtr<PatternSeqNode> n = make_object<PatternSeqNode>();
+  n->patterns = {init_pattern};
+  n->pair_constraints = {};
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.UsedBySeq")
-    .set_body_typed([](Array<DFPattern> patterns) { return UsedBySeq(std::move(patterns)); });
-RELAX_PATTERN_PRINTER_DEF(UsedBySeqNode, [](auto p, auto node) {
-  p->stream << "(";
-  for (size_t i = 0; i < node->patterns.size(); ++i) {
-    if (i != 0) p->stream << " ^ ";
-    p->stream << node->patterns[i];
-  }
-  p->stream << ")";
-});
+PatternSeq::PatternSeq(tvm::Array<DFPattern> patterns, bool only_used_by) {
+  ICHECK_GE(patterns.size(), 1) << "PatternSeq must have at least one pattern";
+  const auto cons = PairCons(only_used_by ? PairCons::kOnlyUsedBy : PairCons::kUsedBy);
 
-TVM_REGISTER_NODE_TYPE(OnlyUsedBySeqNode);
-OnlyUsedBySeq::OnlyUsedBySeq(Array<DFPattern> patterns) {
-  for (size_t i = 1; i < patterns.size(); ++i)
-    sync_graph_constraints(patterns[i - 1], patterns[i], PairCons{PairCons::kOnlyUsedBy, -1});
-
-  ObjectPtr<OnlyUsedBySeqNode> n = make_object<OnlyUsedBySeqNode>();
+  ObjectPtr<PatternSeqNode> n = make_object<PatternSeqNode>();
   n->patterns = std::move(patterns);
+  n->pair_constraints = std::vector<PairCons>(n->patterns.size() - 1, cons);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.OnlyUsedBySeq")
-    .set_body_typed([](Array<DFPattern> patterns) { return OnlyUsedBySeq(std::move(patterns)); });
-RELAX_PATTERN_PRINTER_DEF(OnlyUsedBySeqNode, [](auto p, auto node) {
-  p->stream << "(";
+
+PatternSeq PatternSeq::dup() const {
+  PatternSeq ret;
+
+  ObjectPtr<PatternSeqNode> n = make_object<PatternSeqNode>();
+  n->patterns = Array<DFPattern>{};
+  n->patterns.reserve(get()->patterns.size());
+  n->pair_constraints = this->get()->pair_constraints;
+
+  LOG(INFO) << this->get()->pair_constraints.size();
+
+  for (size_t i = 0; i < get()->patterns.size(); ++i) {
+    n->patterns.push_back(get()->patterns[i].dup());
+    if (i >= 1)
+      sync_graph_constraints(n->patterns[i - 1], n->patterns[i], n->pair_constraints[i - 1]);
+  }
+
+  ret.data_ = std::move(n);
+
+  return ret;
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.PatternSeq")
+    .set_body_typed([](Array<DFPattern> patterns, bool only_used_by) {
+      return PatternSeq(std::move(patterns), only_used_by);
+    });
+RELAX_PATTERN_PRINTER_DEF(PatternSeqNode, [](auto p, auto node) {
+  p->stream << "[";
   for (size_t i = 0; i < node->patterns.size(); ++i) {
-    if (i != 0) p->stream << " >> ";
+    if (i != 0)
+      p->stream << (PairCons::kOnlyUsedBy == node->pair_constraints[i].type ? " >> " : " ^ ");
     p->stream << node->patterns[i];
   }
-  p->stream << ")";
+  p->stream << "]";
 });
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.used_by")
-    .set_body_typed([](UsedBySeq lhs, UsedBySeq rhs, int index) { return lhs.UsedBy(rhs, index); });
+    .set_body_typed([](PatternSeq lhs, PatternSeq rhs, int index) {
+      return lhs.UsedBy(rhs, index);
+    });
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.only_used_by")
-    .set_body_typed([](OnlyUsedBySeq lhs, OnlyUsedBySeq rhs, int index) {
+    .set_body_typed([](PatternSeq lhs, PatternSeq rhs, int index) {
       return lhs.OnlyUsedBy(rhs, index);
     });
 
-UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index) {
+PatternSeq UsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index) {
+  PatternSeq ret;
+
+  const auto constraint = PairCons{PairCons::kOnlyUsedBy, index};
+
   sync_graph_constraints(lhs->patterns.back(), rhs->patterns.front(),
                          PairCons{PairCons::kUsedBy, index});
 
-  Array<DFPattern> ret;
-  ret.reserve(lhs->patterns.size() + rhs->patterns.size());
-  ret.insert(ret.end(), lhs->patterns.begin(), lhs->patterns.end());
-  ret.insert(ret.end(), rhs->patterns.begin(), rhs->patterns.end());
-  return UsedBySeq(std::move(ret));
-}
-UsedBySeq operator^(const UsedBySeq& lhs, const UsedBySeq& rhs) { return lhs.UsedBy(rhs); }
+  Array<DFPattern> patterns;
+  patterns.reserve(lhs->patterns.size() + rhs->patterns.size());
+  patterns.insert(patterns.end(), lhs->patterns.begin(), lhs->patterns.end());
+  patterns.insert(patterns.end(), rhs->patterns.begin(), rhs->patterns.end());
 
-OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int index) {
-  sync_graph_constraints(lhs->patterns.back(), rhs->patterns.front(),
-                         PairCons{PairCons::kOnlyUsedBy, index});
-  Array<DFPattern> ret;
-  ret.reserve(lhs->patterns.size() + rhs->patterns.size());
-  ret.insert(ret.end(), lhs->patterns.begin(), lhs->patterns.end());
-  ret.insert(ret.end(), rhs->patterns.begin(), rhs->patterns.end());
-  return OnlyUsedBySeq(std::move(ret));
+  std::vector<PairCons> pair_constraints = lhs->pair_constraints;
+  pair_constraints.reserve(pair_constraints.size() + rhs->pair_constraints.size() + 1);
+  pair_constraints.push_back(constraint);
+  pair_constraints.insert(pair_constraints.end(), rhs->pair_constraints.begin(),
+                          rhs->pair_constraints.end());
+
+  ObjectPtr<PatternSeqNode> n = make_object<PatternSeqNode>();
+  n->patterns = std::move(patterns);
+  n->pair_constraints = std::move(pair_constraints);
+  ret.data_ = std::move(n);
+
+  return ret;
 }
-OnlyUsedBySeq operator>>(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs) {
-  return lhs.OnlyUsedBy(rhs);
+PatternSeq operator^(const PatternSeq& lhs, const PatternSeq& rhs) { return lhs.UsedBy(rhs); }
+
+PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index) {
+  PatternSeq ret;
+
+  const auto constraint = PairCons{PairCons::kOnlyUsedBy, index};
+
+  sync_graph_constraints(lhs->patterns.back(), rhs->patterns.front(), constraint);
+
+  Array<DFPattern> patterns;
+  patterns.reserve(lhs->patterns.size() + rhs->patterns.size());
+  patterns.insert(patterns.end(), lhs->patterns.begin(), lhs->patterns.end());
+  patterns.insert(patterns.end(), rhs->patterns.begin(), rhs->patterns.end());
+
+  std::vector<PairCons> pair_constraints = lhs->pair_constraints;
+  pair_constraints.reserve(pair_constraints.size() + rhs->pair_constraints.size() + 1);
+  pair_constraints.push_back(constraint);
+  pair_constraints.insert(pair_constraints.end(), rhs->pair_constraints.begin(),
+                          rhs->pair_constraints.end());
+
+  ObjectPtr<PatternSeqNode> n = make_object<PatternSeqNode>();
+  n->patterns = std::move(patterns);
+  n->pair_constraints = std::move(pair_constraints);
+  ret.data_ = std::move(n);
+
+  return ret;
 }
+PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs) { return lhs.OnlyUsedBy(rhs); }
 
 DFPattern IsVar(const String& name) { return VarPattern(name); }
 DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }
@@ -549,12 +592,8 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_pattern").set_body_typed([](DFPa
   return pattern.dup();
 });
 
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_ubseq").set_body_typed([](UsedBySeq ub_seq) {
-  return ub_seq.dup();
-});
-
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_oubseq").set_body_typed([](OnlyUsedBySeq oub_seq) {
-  return oub_seq.dup();
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.dup_seq").set_body_typed([](PatternSeq seq) {
+  return seq.dup();
 });
 
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.PatternContext").set_body_typed([] {

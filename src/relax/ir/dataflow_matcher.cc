@@ -560,12 +560,7 @@ struct RNode {
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
 static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::map_t& def2use) {
-  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) {
-    LOG(WARNING) << "[FAIL]" << GetRef<DFPattern>(p->ptr) << " -> " << r->ptr->name_hint();
-    return false;
-  }
-
-  LOG(INFO) << "[SUCC]" << GetRef<DFPattern>(p->ptr) << " -> " << r->ptr->name_hint();
+  if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};
 

@@ -40,14 +40,13 @@
 namespace tvm {
 namespace relax {
 
-class UsedBySeq;
-class OnlyUsedBySeq;
+class PatternSeq;
 
-UsedBySeq UsedBy(const UsedBySeq& lhs, const UsedBySeq& rhs, int index = -1);
-UsedBySeq operator^(const UsedBySeq& lhs, const UsedBySeq& rhs);
+PatternSeq UsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index = -1);
+PatternSeq operator^(const PatternSeq& lhs, const PatternSeq& rhs);
 
-OnlyUsedBySeq OnlyUsedBy(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs, int index = -1);
-OnlyUsedBySeq operator>>(const OnlyUsedBySeq& lhs, const OnlyUsedBySeq& rhs);
+PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index = -1);
+PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs);
 
 // FIXME: Document those APIs.
 class DFPatternNode : public Object {
@@ -91,67 +90,11 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
   DFPattern HasRuntimeDepShape() const;
 
-  operator UsedBySeq() const;
-  operator OnlyUsedBySeq() const;
+  operator PatternSeq() const;
 
   DFPattern dup() const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(DFPattern, ObjectRef, DFPatternNode);
-};
-
-class PatternSeqNode : public Object {
- public:
-  tvm::Array<DFPattern> patterns;
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("patterns", &patterns); }
-  static constexpr const char* _type_key = "relax.dataflow_pattern.PatternSeq";
-  TVM_DECLARE_BASE_OBJECT_INFO(PatternSeqNode, Object);
-};
-
-class PatternSeq : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(PatternSeq, ObjectRef, PatternSeqNode);
-};
-
-class UsedBySeqNode : public PatternSeqNode {
- public:
-  static constexpr const char* _type_key = "relax.dataflow_pattern.UsedBySeq";
-  TVM_DECLARE_BASE_OBJECT_INFO(UsedBySeqNode, PatternSeqNode);
-};
-
-class UsedBySeq : public PatternSeq {
- public:
-  explicit UsedBySeq(tvm::Array<DFPattern> patterns);
-  inline UsedBySeq UsedBy(UsedBySeq other, int index = -1) const {
-    return relax::UsedBy(*this, other, index);
-  }
-  inline UsedBySeq dup() const {
-    Array<DFPattern> patterns;
-    patterns.reserve(this->get()->patterns.size());
-    for (const DFPattern& pattern : this->get()->patterns) patterns.push_back(pattern.dup());
-    return UsedBySeq(patterns);
-  }
-  TVM_DEFINE_OBJECT_REF_METHODS(UsedBySeq, PatternSeq, UsedBySeqNode);
-};
-
-class OnlyUsedBySeqNode : public PatternSeqNode {
- public:
-  static constexpr const char* _type_key = "relax.dataflow_pattern.OnlyUsedBySeq";
-  TVM_DECLARE_BASE_OBJECT_INFO(OnlyUsedBySeqNode, PatternSeqNode);
-};
-
-class OnlyUsedBySeq : public PatternSeq {
- public:
-  explicit OnlyUsedBySeq(tvm::Array<DFPattern> patterns);
-  inline OnlyUsedBySeq OnlyUsedBy(OnlyUsedBySeq other, int index = -1) const {
-    return relax::OnlyUsedBy(*this, other, index);
-  }
-  inline OnlyUsedBySeq dup() const {
-    Array<DFPattern> patterns;
-    patterns.reserve(this->get()->patterns.size());
-    for (const DFPattern& pattern : this->get()->patterns) patterns.push_back(pattern.dup());
-    return OnlyUsedBySeq(patterns);
-  }
-  TVM_DEFINE_OBJECT_REF_METHODS(OnlyUsedBySeq, PatternSeq, OnlyUsedBySeqNode);
 };
 
 struct PairCons {
@@ -161,6 +104,34 @@ struct PairCons {
   } type = kUsedBy;
   int index = -1; /* means whatever */
   inline explicit PairCons(Type t, int index = -1) : type(t), index(index) {}
+};
+
+class PatternSeqNode final : public Object {
+ public:
+  tvm::Array<DFPattern> patterns;
+  std::vector<PairCons> pair_constraints;
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("patterns", &patterns); }
+  static constexpr const char* _type_key = "relax.dataflow_pattern.PatternSeq";
+  TVM_DECLARE_BASE_OBJECT_INFO(PatternSeqNode, Object);
+};
+
+class PatternSeq final : public ObjectRef {
+ public:
+  explicit PatternSeq(DFPattern init_pattern);
+  explicit PatternSeq(tvm::Array<DFPattern> patterns, bool only_used_by = false);
+
+  inline PatternSeq UsedBy(PatternSeq other, int index = -1) const {
+    return relax::UsedBy(*this, other, index);
+  }
+  inline PatternSeq OnlyUsedBy(PatternSeq other, int index = -1) const {
+    return relax::OnlyUsedBy(*this, other, index);
+  }
+  PatternSeq dup() const;
+
+  friend PatternSeq UsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index);
+  friend PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternSeq, ObjectRef, PatternSeqNode);
 };
 
 class PatternContextNode : public Object {
