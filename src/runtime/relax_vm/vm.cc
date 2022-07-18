@@ -41,14 +41,14 @@ inline TVMRetValue CopyConstantTo(TVMRetValue src, const DLDevice& dev) {
 }
 
 VMFunction VirtualMachine::LookupVMFunction(const std::string& func_name) {
-  const auto& m = this->exec_->global_map;
   ICHECK(exec_) << "The executable is not created yet.";
-  if (m.find(func_name) != m.end()) {
-    Index gf_idx = m.at(func_name);
-    const VMFunction& vm_func = exec_->global_funcs[gf_idx];
-    return vm_func;
+  const auto& m = this->exec_->global_map;
+  if (m.find(func_name) == m.end()) {
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
   }
-  LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+  Index gf_idx = m.at(func_name);
+  const VMFunction& vm_func = exec_->global_funcs[gf_idx];
+  return vm_func;
 }
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
