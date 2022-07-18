@@ -122,7 +122,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       std::string func_name = args[0];
       int index = args[1];
       const VMFunction& vm_func = LookupVMFunction(func_name);
-      if (index >= vm_func.param_names.size()) {
+      if (static_cast<size_t>(index) >= vm_func.param_names.size()) {
         LOG(FATAL) << "ValueError: Invalid index for " << func_name << " (" << index << " out of "
                    << vm_func.param_names.size() << ")";
       }
