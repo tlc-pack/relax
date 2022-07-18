@@ -20,10 +20,11 @@
 # pylint: disable=missing-function-docstring
 # pylint: disable=pointless-statement
 
-from typing import List, Optional, Callable, Dict, Union, Tuple
+from typing import List, Optional, Dict, Union, Tuple
 
 import tvm
 import tvm._ffi as tvm_ffi
+from tvm.ir.expr import PrimExpr
 from tvm.relax import DataflowBlock, Expr, Var
 from tvm.relay.op import get
 from tvm.ir.container import Array
@@ -35,12 +36,13 @@ from . import _ffi as ffi
 
 
 def register_df_node(type_key=None):
-    """Register a Relax node type.
+    """
+    Register a Relax node type
 
     Parameters
     ----------
     type_key : str or cls
-        The type key of the node.
+        The type key of the node
     """
     if not isinstance(type_key, str):
         return tvm_ffi.register_object("relax.dataflow_pattern." + type_key.__name__)(type_key)
@@ -50,34 +52,125 @@ def register_df_node(type_key=None):
 class DFPattern(Node):
     """Base class of all Patterns."""
 
-    def __call__(self, *args):
-        args = list(args)
-        if len(args) == 1 and args[0] is None:
-            args = None
+    def __call__(self, *args) -> "CallPattern":
+        """
+        Syntax sugar for creating a CallPattern with argument patterns
+
+        Returns
+        -------
+        result: CallPattern
+            The resulting CallPattern
+        """
         return CallPattern(self, args)
 
-    def __or__(self, other):
+    def __or__(self, other: "DFPattern") -> "OrPattern":
+        """
+        Syntax sugar for creating an OrPattern
+
+        Parameters
+        ----------
+        other: DFPattern
+            Alternative pattern
+
+        Returns
+        -------
+        result: OrPattern
+            The resulting OrPattern
+        """
         return OrPattern(self, other)
 
-    def __and__(self, other):
+    def __and__(self, other: "DFPattern") -> "AndPattern":
+        """
+        Syntax sugar for creating an AndPattern
+
+        Parameters
+        ----------
+        other: DFPattern
+            Additional pattern to satisfy
+
+        Returns
+        -------
+        result: AndPattern
+            The resulting AndPattern
+        """
         return AndPattern(self, other)
 
-    def __add__(self, other):
+    def __add__(self, other: "DFPattern") -> "CallPattern":
+        """
+        Syntax sugar for creating a relax.add CallPattern
+
+        Parameters
+        ----------
+        other: DFPattern
+            DFPattern representing a relax.Var to add
+
+        Returns
+        -------
+        result: CallPattern
+            The resulting CallPattern
+        """
         return is_op("relax.add")(self, other)
 
-    def __sub__(self, other):
+    def __sub__(self, other: "DFPattern") -> "CallPattern":
+        """
+        Syntax sugar for creating a relax.subtract CallPattern
+
+        Parameters
+        ----------
+        other: DFPattern
+            DFPattern representing a relax.Var to subtract
+
+        Returns
+        -------
+        result: CallPattern
+            The resulting CallPattern
+        """
         return is_op("relax.subtract")(self, other)
 
-    def __mul__(self, other):
+    def __mul__(self, other: "DFPattern") -> "CallPattern":
+        """
+        Syntax sugar for creating a relax.multiply CallPattern
+
+        Parameters
+        ----------
+        other: DFPattern
+            DFPattern representing a relax.Var to multiply
+
+        Returns
+        -------
+        result: CallPattern
+            The resulting CallPattern
+        """
         return is_op("relax.multiply")(self, other)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: "DFPattern") -> "CallPattern":
+        """
+        Syntax sugar for creating a relax.divide CallPattern
+
+        Parameters
+        ----------
+        other: DFPattern
+            DFPattern representing a relax.Var to divide
+
+        Returns
+        -------
+        result: CallPattern
+            The resulting CallPattern
+        """
         return is_op("relax.divide")(self, other)
 
-    def __invert__(self):
+    def __invert__(self) -> "NotPattern":
+        """
+        Syntax sugar for creating a DFPattern to reject
+
+        Returns
+        -------
+        result: NotPattern
+            The resulting NotPattern
+        """
         return deny(self)
 
-    def has_attr(self, attrs: Dict[str, Object]):
+    def has_attr(self, attrs: Dict[str, Object]) -> "AttrPattern":
         """
         Add an attribute constraint to this pattern
 
@@ -87,13 +180,13 @@ class DFPattern(Node):
 
         Returns
         -------
-        result: tvm.relax.dataflow_pattern.DFPattern
+        result: AttrPattern
             The resulting AttrPattern
         """
         attrs = make_node("DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
-    def has_type(self, ttype: tvm.ir.type.Type):
+    def has_type(self, ttype: tvm.ir.type.Type) -> "TypePattern":
         """
         Add a type constraint to this pattern
 
@@ -104,12 +197,12 @@ class DFPattern(Node):
 
         Returns
         -------
-        result: tvm.relax.dataflow_pattern.DFPattern
+        result: TypePattern
             The resulting TypePattern
         """
         return has_type(ttype, self)
 
-    def has_dtype(self, dtype: str):
+    def has_dtype(self, dtype: str) -> "DataTypePattern":
         """
         Add a type constraint to this pattern
 
@@ -120,50 +213,68 @@ class DFPattern(Node):
 
         Returns
         -------
-        result: tvm.relax.dataflow_pattern.DFPattern
+        result: DataTypePattern
             The resulting DataTypePattern
         """
         return has_dtype(dtype, self)
 
-    def has_shape(self, *args):
-        return has_shape(*args, pattern=self)
-
-    def match(self, expr, var2val=None) -> bool:
+    def has_shape(self, shape: List[PrimExpr]) -> "ShapePattern":
         """
-        Match the given expression or function against this pattern.
+        Add a shape constraint to this pattern
+
+        Parameters
+        ----------
+        shape: List[PrimExpr]
+            Expected shape list
+
+        Returns
+        -------
+        result: ShapePattern
+            The resulting ShapePattern
+
+        Notes
+        -----
+        has_shape assumes that the matched relax.Expr only has one
+        output tensor. Use is_tuple for those with multiple outputs.
+        """
+        return has_shape(shape, pattern=self)
+
+    def match(self, expr, var2val: Optional[Dict[Var, Expr]] = None) -> bool:
+        """
+        Match a relax.Expr syntactically
 
         Parameters
         ----------
         expr : tvm.relax.Expr
-            The expression to match.
+            The expression to match
         var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
-            A mapping from Var to Expr for autojump (only for match_expr).
+            A mapping from relax.Var to relax.Expr for autojump.
 
         Returns
         -------
         result: bool
             Whether or not the expression matches the pattern
+
+        Notes
+        -----
+        Unlike Relay whose function is an expression, functions in Relax consists
+        of blocks of bindings that they are not syntactically connected. We use a
+        mapping (i.e., var2val) to migrate the gap. For example, to when matching
+        "relax.add(lv0, lv1)", given var2val, we match lv0's binded expression
+        when the recursive pattern matching goes to check lv0. The var2val mapping
+        can be computed through the tvm.relax.analysis.get_var2val function.
         """
         return match_expr(self, expr, var2val)
 
-    def optional(self, option_constructor: Callable[["DFPattern"], "DFPattern"]):
+    def has_rt_dep_shape(self) -> "AndPattern":
         """
-        Create a optional user of this pattern.
-
-        Parameters
-        ----------
-        option_constructor: function
-            A function that takes a single Pattern parameter and returns
-            a constructed pattern matching the option
+        Syntax sugar for assuming current node has a runtime-dependent shape
 
         Returns
         -------
-        result: tvm.relax.dataflow_pattern.DFPattern
-            The resulting Pattern
+        result: AndPattern
+            The resulting AndPattern
         """
-        return self | option_constructor(self)
-
-    def has_rt_dep_shape(self):
         return self & has_rt_dep_shape()
 
     def used_by(
