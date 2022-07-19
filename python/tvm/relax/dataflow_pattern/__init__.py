@@ -17,7 +17,6 @@
 
 """The Relax Pattern Language and tooling."""
 # pylint: disable=no-member
-# pylint: disable=missing-function-docstring
 # pylint: disable=pointless-statement
 
 from typing import List, Optional, Dict, Union, Tuple
@@ -1055,22 +1054,52 @@ class PatternContext(tvm.runtime.Object):
     """A context object for doing graph (topogical) pattern matching."""
 
     def __init__(self):
+        """
+        Initialize the PatternContext
+        """
         self.__init_handle_by_constructor__(ffi.PatternContext)
 
     def __enter__(self):
+        """Enter the context"""
         ffi.enter_context(self)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the context"""
         ffi.exit_context(self)
 
     @staticmethod
-    def current():
+    def current() -> "PatternContext":
+        """
+        Get the current context
+
+        Returns
+        -------
+        PatternContext
+            The current context
+        """
         return ffi.current_context()
 
     def match_dfb(
         self, dfb: DataflowBlock, start_hint: Optional[Var] = None, must_include_hint: bool = False
     ) -> Dict[DFPattern, Var]:
+        """
+        Match a DataflowBlock via a graph of DFPattern and corresponding constraints
+
+        Parameters
+        ----------
+        dfb : DataflowBlock
+            The DataflowBlock to match
+        start_hint : Optional[Var], optional
+            Indicating the starting expression to match, by default None
+        must_include_hint : bool, optional
+            Whether the start_hint expression must be matched, by default False
+
+        Returns
+        -------
+        Dict[DFPattern, Var]
+            The mapping from DFPattern to matched expression
+        """
         return match_dfb(self, dfb, start_hint, must_include_hint)
 
 
