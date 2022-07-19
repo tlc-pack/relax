@@ -91,7 +91,8 @@ class VirtualMachine(object):
         )
         self._invoke_closure = self.module["invoke_closure"]
         self._set_input = self.module["set_input"]
-        self._get_func_param_names = self.module["get_func_param_names"]
+        self._get_function_arity = self.module["get_function_arity"]
+        self._get_function_param_name = self.module["get_function_param_name"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
@@ -208,7 +209,8 @@ class VirtualMachine(object):
         if kwargs:
             # kwargs can be a super set of the required function parameters.
             # We only find the ones that are needed.
-            func_params = list(self._get_func_param_names(func_name))
+            func_arity = self._get_function_arity(func_name)
+            func_params = [self._get_function_param_name(func_name, i) for i in range(func_arity)]
             new_args = [None] * len(func_params)
             cnt = 0
             for k in kwargs:
