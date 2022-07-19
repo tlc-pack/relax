@@ -810,7 +810,24 @@ def is_call_tir(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
     shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
-) -> "DFPattern":
+) -> CallPattern:
+    """
+    Syntax sugar for creating a CallPattern for call_tir
+
+    Parameters
+    ----------
+    func_name : str
+        Name of the CPS function to call.
+    args : Union[List[DFPattern], Tuple[DFPattern]], optional
+        Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
+    shape : Union[Tuple, List[tvm.ir.PrimExpr], DFPattern], optional
+        Shape (or shapes in a tuple) of the output, by default None meaning arbitrary shape(s)
+
+    Returns
+    -------
+    CallPattern
+        The resulting CallPattern
+    """
     if args is None:
         args = wildcard()
     elif isinstance(args, (list, tuple)):
@@ -826,13 +843,43 @@ def is_call_tir(
     return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
 
 
-def is_call_packed(func_name: str, args: Union[List, Tuple] = None):
+def is_call_packed(
+    func_name: str, args: Union[List[DFPattern], Tuple[DFPattern]] = None
+) -> CallPattern:
+    """
+    Syntax sugar for creating a CallPattern for call_packed
+
+    Parameters
+    ----------
+    func_name : str
+        Name of the external function to call
+    args : Union[List[DFPattern], Tuple[DFPattern]], optional
+        Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
+
+    Returns
+    -------
+    CallPattern
+        The resulting CallPattern
+    """
     if args is None:
         return ExternFuncPattern(func_name)(varg_default_wildcard=True)
     return ExternFuncPattern(func_name)(*args)
 
 
-def deny(pattern: "DFPattern") -> "DFPattern":
+def deny(pattern: DFPattern) -> NotPattern:
+    """
+    Syntax sugar for creating a DFPattern to reject
+
+    Parameters
+    ----------
+    pattern : DFPattern
+        The pattern to deny
+
+    Returns
+    -------
+    result: NotPattern
+        The resulting NotPattern
+    """
     return NotPattern(pattern)
 
 
@@ -980,6 +1027,25 @@ def match_dfb(
     start_hint: Optional[Var] = None,
     must_include_hint: bool = False,
 ) -> Dict[DFPattern, Var]:
+    """
+    Match a DataflowBlock via a graph of DFPattern and corresponding constraints
+
+    Parameters
+    ----------
+    ctx : PatternContext
+        The object to store graph-matching context (e.g., edge constraints)
+    dfb : DataflowBlock
+        The DataflowBlock to match
+    start_hint : Optional[Var], optional
+        Indicating the starting expression to match, by default None
+    must_include_hint : bool, optional
+        Whether the start_hint expression must be matched, by default False
+
+    Returns
+    -------
+    Dict[DFPattern, Var]
+        The mapping from DFPattern to matched expression
+    """
     if ctx is None:
         ctx = PatternContext.current()
     return ffi.match_dfb(ctx, dfb, start_hint, must_include_hint)
