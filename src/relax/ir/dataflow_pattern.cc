@@ -126,7 +126,7 @@ CallPattern::CallPattern(DFPattern op, Array<DFPattern> args) {
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.CallPattern")
     .set_body_typed([](DFPattern op, Array<DFPattern> args) { return CallPattern(op, args); });
 RELAX_PATTERN_PRINTER_DEF(CallPatternNode, [](auto p, auto node) {
-  p->stream << "CallPatternNode(" << node->op << ", " << node->args << ")";
+  p->stream << "CallPattern(" << node->op << ", " << node->args << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(PrimArrPatternNode);
@@ -153,7 +153,7 @@ TVM_REGISTER_GLOBAL("relax.dataflow_pattern.FunctionPattern")
       return FunctionPattern(params, body);
     });
 RELAX_PATTERN_PRINTER_DEF(FunctionPatternNode, [](auto p, auto node) {
-  p->stream << "FunctionPatternNode(" << node->params << ", " << node->body << ")";
+  p->stream << "FunctionPattern(" << node->params << ", " << node->body << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(TuplePatternNode);
@@ -190,7 +190,7 @@ TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) {
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.TupleGetItemPattern")
     .set_body_typed([](DFPattern tuple, int index) { return TupleGetItemPattern(tuple, index); });
 RELAX_PATTERN_PRINTER_DEF(TupleGetItemPatternNode, [](auto p, auto node) {
-  p->stream << "TupleGetItemPatternNode(" << node->tuple << ", " << node->index << ")";
+  p->stream << "TupleGetItemPattern(" << node->tuple << ", " << node->index << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(AndPatternNode);

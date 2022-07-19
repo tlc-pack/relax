@@ -729,6 +729,8 @@ def is_tuple(
     result: tvm.relax.dataflow_pattern.DFPattern
         The resulting pattern.
     """
+    if not isinstance(fields, (list, tuple, Array)):
+        raise ValueError("fields must be a list, tuple, or Array")
     if unordered:
         return UnorderedTuplePattern(fields)
     return TuplePattern(fields)
