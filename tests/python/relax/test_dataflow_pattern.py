@@ -308,13 +308,13 @@ def test_is_call_tir():
 
 
 @R.function
-def sample_call_packed(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+def simple_call_packed(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
     gv0 = R.call_packed("test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32")))
     return gv0
 
 
 def test_varg_default_wildcard():
-    expr = sample_call_packed.body.blocks[0].bindings[0].value
+    expr = simple_call_packed.body.blocks[0].bindings[0].value
     yes_pattern_explicit = ExternFuncPattern("test.vm.mul")(wildcard(), wildcard())
     yes_pattern_implicit = ExternFuncPattern("test.vm.mul")(varg_default_wildcard=True)
     no_pattern = ExternFuncPattern("test.vm.mul")(wildcard())
@@ -322,6 +322,12 @@ def test_varg_default_wildcard():
     assert yes_pattern_explicit.match(expr)
     assert yes_pattern_implicit.match(expr)
     assert not no_pattern.match(expr)
+
+
+def test_simple_call_packed():
+    expr = simple_call_packed.body.blocks[0].bindings[0].value
+    assert is_call_packed("test.vm.mul").match(expr)
+    assert is_call_packed("test.vm.mul", [is_var("x"), is_var("w")]).match(expr)
 
 
 ## Graph-wise Matching

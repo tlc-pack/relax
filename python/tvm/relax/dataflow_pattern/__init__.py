@@ -826,6 +826,12 @@ def is_call_tir(
     return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
 
 
+def is_call_packed(func_name: str, args: Union[List, Tuple] = None):
+    if args is None:
+        return ExternFuncPattern(func_name)(varg_default_wildcard=True)
+    return ExternFuncPattern(func_name)(*args)
+
+
 def deny(pattern: "DFPattern") -> "DFPattern":
     return NotPattern(pattern)
 
