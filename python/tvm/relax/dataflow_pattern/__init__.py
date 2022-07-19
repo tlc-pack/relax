@@ -1051,18 +1051,6 @@ def match_dfb(
     return ffi.match_dfb(ctx, dfb, start_hint, must_include_hint)
 
 
-def dup(*args):
-    if len(args) > 0 and not isinstance(args[0], (DFPattern, PatternSeq)):
-        raise ValueError("x_, y_, ... = dup(x, y, ...) where args are DFPattern/PatternSeq")
-    return tuple([v.dup() for v in args])
-
-
-def fork_to(*args):
-    root_pattern = wildcard()
-    for arg in args:
-        root_pattern ^ arg
-
-
 class PatternContext(tvm.runtime.Object):
     """A context object for doing graph (topogical) pattern matching."""
 
