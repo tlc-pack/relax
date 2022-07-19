@@ -200,7 +200,7 @@ class DFPattern(Node):
         result: TypePattern
             The resulting TypePattern
         """
-        return has_type(ttype, self)
+        return TypePattern(self, ttype)
 
     def has_dtype(self, dtype: str) -> "DataTypePattern":
         """
@@ -237,7 +237,9 @@ class DFPattern(Node):
         has_shape assumes that the matched relax.Expr only has one
         output tensor. Use is_tuple for those with multiple outputs.
         """
-        return has_shape(shape, pattern=self)
+        if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
+            raise ValueError("has_shape takes a list or tuple as input.")
+        return ShapePattern(pattern=self, shape=shape)
 
     def match(self, expr, var2val: Optional[Dict[Var, Expr]] = None) -> bool:
         """
@@ -275,16 +277,16 @@ class DFPattern(Node):
         result: AndPattern
             The resulting AndPattern
         """
-        return self & has_rt_dep_shape()
+        return self & RuntimeDepShapePattern()
 
     def used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
-        return used_by(self, other, index)
+        return _used_by(self, other, index)
 
     def __xor__(self, other: Union["DFPattern", "PatternSeq"]) -> "PatternSeq":
         return self.used_by(other, -1)
 
     def only_used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
-        return only_used_by(self, other, index)
+        return _only_used_by(self, other, index)
 
     def __rshift__(self, other: Union["DFPattern", "PatternSeq"]) -> "PatternSeq":
         return self.only_used_by(other, -1)
@@ -764,28 +766,6 @@ def wildcard() -> "DFPattern":
     return WildcardPattern()
 
 
-def has_type(ttype: tvm.ir.type.Type, pattern: "DFPattern" = None) -> "DFPattern":
-    """
-    Syntatic sugar for creating a TypePattern
-
-    Parameters
-    ----------
-    ttype: tvm.ir.type.Type
-        The type to match
-
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The pattern that needs type annotation
-
-    Returns
-    -------
-    result: tvm.relax.dataflow_pattern.DFPattern
-        The resulting TypePattern
-    """
-    if pattern is None:
-        pattern = wildcard()
-    return TypePattern(pattern, ttype)
-
-
 def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
     """
     Syntatic sugar for creating a DataTypePattern
@@ -806,15 +786,6 @@ def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
     if pattern is None:
         pattern = wildcard()
     return DataTypePattern(pattern, dtype)
-
-
-def has_shape(shape: List[tvm.ir.PrimExpr], pattern: "DFPattern" = None) -> "DFPattern":
-    """Either has_shape(a, b, c) or has_shape([a, b, c, ...])"""
-    if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
-        raise ValueError("has_shape takes a list or tuple as input.")
-    if pattern is None:
-        pattern = wildcard()
-    return ShapePattern(pattern, shape)
 
 
 def is_shape(shape: List[tvm.ir.PrimExpr]) -> "DFPattern":
@@ -845,10 +816,6 @@ def is_call_tir(
 
 def deny(pattern: "DFPattern") -> "DFPattern":
     return NotPattern(pattern)
-
-
-def has_rt_dep_shape():
-    return RuntimeDepShapePattern()
 
 
 def has_attr(attrs, pattern=None) -> "DFPattern":
@@ -927,7 +894,7 @@ class PatternSeq(Node):
         If other is PatternSeq, it means the right-most pattern must be used by the left-most
         pattern of the other sequence.
         """
-        return used_by(self, other, index)
+        return _used_by(self, other, index)
 
     def only_used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
 
@@ -951,7 +918,7 @@ class PatternSeq(Node):
         If other is PatternSeq, it means the right-most pattern must be **ONLY** used by the
         left-most pattern of the other sequence.
         """
-        return only_used_by(self, other, index)
+        return _only_used_by(self, other, index)
 
     def __getitem__(self, index: int) -> DFPattern:
         """
@@ -1000,28 +967,6 @@ def match_dfb(
     return ffi.match_dfb(ctx, dfb, start_hint, must_include_hint)
 
 
-def used_by(
-    lhs: Union[DFPattern, PatternSeq],
-    rhs: Union[DFPattern, PatternSeq],
-    index=-1,
-) -> PatternSeq:
-    if isinstance(lhs, DFPattern):
-        lhs = PatternSeq([lhs])
-    if isinstance(rhs, DFPattern):
-        rhs = PatternSeq([rhs])
-    return ffi.used_by(lhs, rhs, index)
-
-
-def only_used_by(
-    lhs: Union[DFPattern, PatternSeq], rhs: Union[DFPattern, PatternSeq], index=-1
-) -> PatternSeq:
-    if isinstance(lhs, DFPattern):
-        lhs = PatternSeq([lhs])
-    if isinstance(rhs, DFPattern):
-        rhs = PatternSeq([rhs])
-    return ffi.only_used_by(lhs, rhs, index)
-
-
 def dup(*args):
     if len(args) > 0 and not isinstance(args[0], (DFPattern, PatternSeq)):
         raise ValueError("x_, y_, ... = dup(x, y, ...) where args are DFPattern/PatternSeq")
@@ -1055,3 +1000,28 @@ class PatternContext(tvm.runtime.Object):
         self, dfb: DataflowBlock, start_hint: Optional[Var] = None, must_include_hint: bool = False
     ) -> Dict[DFPattern, Var]:
         return match_dfb(self, dfb, start_hint, must_include_hint)
+
+
+### Private functions
+
+
+def _used_by(
+    lhs: Union[DFPattern, PatternSeq],
+    rhs: Union[DFPattern, PatternSeq],
+    index=-1,
+) -> PatternSeq:
+    if isinstance(lhs, DFPattern):
+        lhs = PatternSeq([lhs])
+    if isinstance(rhs, DFPattern):
+        rhs = PatternSeq([rhs])
+    return ffi.used_by(lhs, rhs, index)
+
+
+def _only_used_by(
+    lhs: Union[DFPattern, PatternSeq], rhs: Union[DFPattern, PatternSeq], index=-1
+) -> PatternSeq:
+    if isinstance(lhs, DFPattern):
+        lhs = PatternSeq([lhs])
+    if isinstance(rhs, DFPattern):
+        rhs = PatternSeq([rhs])
+    return ffi.only_used_by(lhs, rhs, index)
