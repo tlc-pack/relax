@@ -22,7 +22,8 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, te, tir, topi, TVMError
+from tvm import relax, rpc, te, tir, topi, TVMError
+from tvm.contrib import utils
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
 
@@ -906,26 +907,34 @@ def test_vm_invoke_closure():
     )
 
 
-def test_set_input():
-    @tvm.script.ir_module
-    class TestVMSetInput:
-        @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
-            gv0 = relax.call_packed(
-                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
-            )
-            return gv0
+@tvm.script.ir_module
+class TestVMSetInput:
+    @T.prim_func
+    def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
+        T.func_attr({"global_symbol": "test_vm_mul"})
+        m = T.var("int32")
+        n = T.var("int32")
+        A = T.match_buffer(x, (m, n))
+        B = T.match_buffer(y, (m, n))
+        C = T.match_buffer(z, (m, n))
 
-    target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(TestVMSetInput, target)
-    exec.mod.export_library("exec.so")
-    exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
-    os.remove("exec.so")
-    print(exec_loaded.as_python())
-    vm = relax.VirtualMachine(exec_loaded, tvm.cpu())
+        for i, j in T.grid(m, n):
+            with T.block("mul"):
+                vi = T.axis.spatial(m, i)
+                vj = T.axis.spatial(n, j)
+                with T.init():
+                    C[vi, vj] = T.float32(0)
+                C[vi, vj] = A[vi, vj] * B[vi, vj]
 
-    a = tvm.nd.array(np.random.rand(32, 32))
-    b = tvm.nd.array(np.random.rand(32, 32))
+    @R.function
+    def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        gv0 = R.call_tir("test_vm_mul", (x, w), (32, 32), dtype="float32")
+        return gv0
+
+
+def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
     res0 = vm["main"]()
 
@@ -934,6 +943,46 @@ def test_set_input():
     res1 = vm["main"]()
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
     tvm.testing.assert_allclose(res0.numpy(), res1.numpy(), rtol=1e-7, atol=1e-7)
+
+
+def test_set_input():
+    target = tvm.target.Target("llvm", host="llvm")
+    exec = relax.vm.build(TestVMSetInput, target)
+    exec.mod.export_library("exec.so")
+    exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
+    os.remove("exec.so")
+    print(exec_loaded.as_python())
+    device = tvm.cpu()
+    vm = relax.VirtualMachine(exec_loaded, device)
+
+    perform_set_input_trial(vm, device)
+
+
+def test_set_input_rpc():
+    target = tvm.target.Target("llvm", host="llvm")
+    exec = relax.vm.build(TestVMSetInput, target)
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    exec.mod.export_library(path)
+
+    # Use local rpc server for testing.
+    # Server must use popen so it doesn't inherit the current process state. It
+    # will crash otherwise.
+    # Adapted from relay/test_vm.py
+    def check_remote(server):
+        remote = rpc.connect(server.host, server.port, session_timeout=10)
+
+        # Upload the serialized Executable.
+        remote.upload(path)
+        # Get a handle to remote Executable.
+        rexec = remote.load_module("vm_library.so")
+
+        device = remote.cpu()
+        # Build a VM out of the executable and context.
+        vm = relax.vm.VirtualMachine(exec=rexec, device=device)
+        perform_set_input_trial(vm, device)
+
+    check_remote(rpc.Server("127.0.0.1"))
 
 
 if __name__ == "__main__":
