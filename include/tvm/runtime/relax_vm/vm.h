@@ -190,6 +190,13 @@ class VirtualMachine : public runtime::ModuleNode {
   void SetInputTensorWithIndex(std::vector<RegType>& func_args, const TVMArgValue& inp_tensor,
                                int index, Device dev);
 
+  /*!
+   * \brief Look up whether the VM has a function by the given name.
+   * \param func_name the function's name
+   * \return The function, if it exists. Logs a fatal error if not.
+   */
+  VMFunction LookupVMFunction(const std::string& func_name);
+
  private:
   /*! \brief The loaded executable. */
   ObjectPtr<Executable> exec_;
