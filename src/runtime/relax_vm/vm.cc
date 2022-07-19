@@ -40,6 +40,17 @@ inline TVMRetValue CopyConstantTo(TVMRetValue src, const DLDevice& dev) {
   return ret;
 }
 
+VMFunction VirtualMachine::LookupVMFunction(const std::string& func_name) {
+  ICHECK(exec_) << "The executable is not created yet.";
+  const auto& m = this->exec_->global_map;
+  if (m.find(func_name) == m.end()) {
+    LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+  }
+  Index gf_idx = m.at(func_name);
+  const VMFunction& vm_func = exec_->global_funcs[gf_idx];
+  return vm_func;
+}
+
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "vm_initialization") {
@@ -100,22 +111,22 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "set_input") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
-  } else if (name == "get_func_param_names") {
+  } else if (name == "get_function_arity") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
-      const auto& m = exec_->global_map;
-      ICHECK(exec_) << "The executable is not created yet.";
-      if (m.find(func_name) != m.end()) {
-        Index gf_idx = m.at(func_name);
-        const VMFunction& vm_func = exec_->global_funcs[gf_idx];
-        Array<String> param_names;
-        for (size_t i = 0; i < vm_func.param_names.size(); i++) {
-          param_names.push_back(vm_func.param_names[i]);
-        }
-        *rv = param_names;
-      } else {
-        LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+      const VMFunction& vm_func = LookupVMFunction(func_name);
+      *rv = static_cast<int>(vm_func.param_names.size());
+    });
+  } else if (name == "get_function_param_name") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      int index = args[1];
+      const VMFunction& vm_func = LookupVMFunction(func_name);
+      if (static_cast<size_t>(index) >= vm_func.param_names.size()) {
+        LOG(FATAL) << "ValueError: Invalid index for " << func_name << " (" << index << " out of "
+                   << vm_func.param_names.size() << ")";
       }
+      *rv = vm_func.param_names[index];
     });
   }
 
