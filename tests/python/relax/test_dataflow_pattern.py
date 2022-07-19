@@ -201,7 +201,7 @@ def test_or_pattern():
 
 def test_and_pattern():
     # float[2, 3, 3]
-    f32_233 = has_shape((2, 3, 3)) & has_dtype("float32")
+    f32_233 = wildcard().has_shape((2, 3, 3)) & has_dtype("float32")
     assert isinstance(f32_233, AndPattern)
     assert f32_233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
     assert not f32_233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
@@ -209,14 +209,14 @@ def test_and_pattern():
 
 
 def test_not_pattern():
-    no_shape233 = ~has_shape((2, 3, 3))
+    no_shape233 = ~wildcard().has_shape((2, 3, 3))
     assert isinstance(no_shape233, NotPattern)
     assert no_shape233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
     assert not no_shape233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
 
 
 def test_type_pattern():
-    assert has_type(rx.DynTensorType(2, "float32")).match(bindings[0].var)
+    assert wildcard().has_type(rx.DynTensorType(2, "float32")).match(bindings[0].var)
 
 
 def test_dtype_pattern():
@@ -229,18 +229,18 @@ def test_dtype_pattern():
 
 def test_shape_pattern():
     shape = [32, 32]
-    pattern = has_shape(shape)
+    pattern = wildcard().has_shape(shape)
     assert isinstance(pattern, ShapePattern)
     tvm.ir.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
-    assert has_shape([32, 32]).match(bindings[0].var)
+    assert wildcard().has_shape([32, 32]).match(bindings[0].var)
     n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     symsh_var = rx.Var("x", symbolic_shape, rx.DynTensorType(3, "float32"))
-    assert has_shape([n, m, n + m]).match(symsh_var)
-    assert has_shape([n, m, m + n]).match(symsh_var)  # + is commutative.
-    assert not has_shape([1, 2, 3]).match(symsh_var)
-    assert not has_shape([m, n, n + m]).match(symsh_var)
+    assert wildcard().has_shape([n, m, n + m]).match(symsh_var)
+    assert wildcard().has_shape([n, m, m + n]).match(symsh_var)  # + is commutative.
+    assert not wildcard().has_shape([1, 2, 3]).match(symsh_var)
+    assert not wildcard().has_shape([m, n, n + m]).match(symsh_var)
 
 
 def test_prim_arr_pattern():
@@ -260,9 +260,8 @@ def test_rt_dep_shape_pattern():
     rts_var = rx.Var("rts_var", rx.RuntimeDepShape(), rx.DynTensorType(4, "float32"))
     # static-shape var
     ss_var = rx.Var("ss_var", rx.ShapeExpr([32, 32]), rx.DynTensorType(4, "float32"))
-    assert isinstance(has_rt_dep_shape(), RuntimeDepShapePattern)
-    assert has_rt_dep_shape().match(rts_var)
-    assert not has_rt_dep_shape().match(ss_var)
+    assert wildcard().has_rt_dep_shape().match(rts_var)
+    assert not wildcard().has_rt_dep_shape().match(ss_var)
 
 
 def test_extern_fn_pattern():
@@ -425,10 +424,10 @@ class CBRx2:
         with R.dataflow():
             lv0 = R.call_tir(conv1x1, (x, w0), (32, 32), dtype="float32")
             lv1 = R.call_tir(bias_add, (lv0, bias0), (32, 32), dtype="float32")
-            lv2 = R.call_tir(relu, (lv1), (32, 32), dtype="float32")
+            lv2 = R.call_tir(my_relu, (lv1), (32, 32), dtype="float32")
             lv3 = R.call_tir(conv1x1, (x, w1), (32, 32), dtype="float32")
             lv4 = R.call_tir(bias_add, (lv3, bias1), (32, 32), dtype="float32")
-            lv5 = R.call_tir(relu, (lv4), (32, 32), dtype="float32")
+            lv5 = R.call_tir(my_relu, (lv4), (32, 32), dtype="float32")
             lv6 = R.call_tir(concat, (lv2, lv5), (32, 64), dtype="float32")
             R.output(lv6)
         return lv6
@@ -436,13 +435,13 @@ class CBRx2:
 
 def test_single_cbr():
     with PatternContext() as ctx:
-        chain = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("my_relu")
         dfb = CBRx2["main"].body.blocks[0]
         matched = ctx.match_dfb(dfb)
         assert matched
 
     with PatternContext() as ctx:
-        chain = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        chain = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("my_relu")
         dfb = CBRx2["main"].body.blocks[0]
         # we want to specifically match the first CBR (lv0)
         matched = ctx.match_dfb(dfb, start_hint=dfb.bindings[0].var)
@@ -454,9 +453,12 @@ def test_single_cbr():
         assert matched[chain[0]] == dfb.bindings[3].var
 
 
+test_single_cbr()
+
+
 def test_counter_single_crb():
     with PatternContext() as ctx:
-        is_call_tir("conv1x1") >> is_call_tir("relu") >> is_call_tir("bias_add")
+        is_call_tir("conv1x1") >> is_call_tir("my_relu") >> is_call_tir("bias_add")
         dfb = CBRx2["main"].body.blocks[0]
         assert not ctx.match_dfb(dfb)
         # Quickly fails unpromising matches by assumiung `start_hint` must be matched by a pattern.
@@ -469,7 +471,7 @@ def test_counter_single_crb():
 
 def test_two_cbr():
     with PatternContext() as ctx:
-        cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("my_relu")
         cbr1 = cbr0.dup()
 
         assert cbr0.patterns[0] != cbr1.patterns[0]
@@ -482,7 +484,7 @@ def test_two_cbr():
 
     with PatternContext() as ctx:
         # Deny the pattern
-        cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("relu")
+        cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("my_relu")
         cbr1 = cbr0.dup()
 
         # input has no fork at y.
