@@ -271,6 +271,8 @@ class CallPatternNode : public DFPatternNode {
   /*! \brief The arguments(inputs) of the call */
   tvm::Array<DFPattern> args;
 
+  bool varg_default_wildcard;
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
@@ -282,7 +284,7 @@ class CallPatternNode : public DFPatternNode {
 
 class CallPattern : public DFPattern {
  public:
-  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args);
+  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args, bool varg_default_wildcard = false);
   TVM_DEFINE_OBJECT_REF_METHODS(CallPattern, DFPattern, CallPatternNode);
 };
 

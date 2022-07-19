@@ -117,16 +117,28 @@ RELAX_PATTERN_PRINTER_DEF(ConstantPatternNode,
                           [](auto p, auto node) { p->stream << "ConstantPattern()"; });
 
 TVM_REGISTER_NODE_TYPE(CallPatternNode);
-CallPattern::CallPattern(DFPattern op, Array<DFPattern> args) {
+CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, bool varg_default_wildcard) {
   ObjectPtr<CallPatternNode> n = make_object<CallPatternNode>();
   n->op = std::move(op);
   n->args = std::move(args);
+  n->varg_default_wildcard = varg_default_wildcard;
   data_ = std::move(n);
 }
 TVM_REGISTER_GLOBAL("relax.dataflow_pattern.CallPattern")
-    .set_body_typed([](DFPattern op, Array<DFPattern> args) { return CallPattern(op, args); });
+    .set_body_typed([](DFPattern op, Array<DFPattern> args, bool varg_default_wildcard) {
+      return CallPattern(op, args, varg_default_wildcard);
+    });
 RELAX_PATTERN_PRINTER_DEF(CallPatternNode, [](auto p, auto node) {
-  p->stream << "CallPattern(" << node->op << ", " << node->args << ")";
+  p->stream << node->op << "(";
+  for (size_t i = 0; i < node->args.size(); ++i) {
+    if (i != 0) p->stream << ", ";
+    p->stream << node->args[i];
+  }
+  if (node->varg_default_wildcard) {
+    if (node->args.size() != 0) p->stream << ", ";
+    p->stream << "...";
+  }
+  p->stream << ")";
 });
 
 TVM_REGISTER_NODE_TYPE(PrimArrPatternNode);

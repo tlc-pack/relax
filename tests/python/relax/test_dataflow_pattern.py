@@ -307,6 +307,23 @@ def test_is_call_tir():
     assert not is_call_tir("tir_relu", is_call_tir("tir_relu")).match(lv1_val, var2val=var2val)
 
 
+@R.function
+def sample_call_packed(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+    gv0 = R.call_packed("test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32")))
+    return gv0
+
+
+def test_varg_default_wildcard():
+    expr = sample_call_packed.body.blocks[0].bindings[0].value
+    yes_pattern_explicit = ExternFuncPattern("test.vm.mul")(wildcard(), wildcard())
+    yes_pattern_implicit = ExternFuncPattern("test.vm.mul")(varg_default_wildcard=True)
+    no_pattern = ExternFuncPattern("test.vm.mul")(wildcard())
+
+    assert yes_pattern_explicit.match(expr)
+    assert yes_pattern_implicit.match(expr)
+    assert not no_pattern.match(expr)
+
+
 ## Graph-wise Matching
 def test_simple_used_by():
     with PatternContext():
@@ -451,9 +468,6 @@ def test_single_cbr():
         matched = ctx.match_dfb(dfb, start_hint=dfb.bindings[3].var)
         assert matched
         assert matched[chain[0]] == dfb.bindings[3].var
-
-
-test_single_cbr()
 
 
 def test_counter_single_crb():

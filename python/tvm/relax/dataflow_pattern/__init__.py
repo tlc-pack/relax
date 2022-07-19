@@ -52,7 +52,7 @@ def register_df_node(type_key=None):
 class DFPattern(Node):
     """Base class of all Patterns."""
 
-    def __call__(self, *args) -> "CallPattern":
+    def __call__(self, *args, varg_default_wildcard=False) -> "CallPattern":
         """
         Syntax sugar for creating a CallPattern with argument patterns
 
@@ -61,7 +61,7 @@ class DFPattern(Node):
         result: CallPattern
             The resulting CallPattern
         """
-        return CallPattern(self, args)
+        return CallPattern(self, args, varg_default_wildcard)
 
     def __or__(self, other: "DFPattern") -> "OrPattern":
         """
@@ -401,14 +401,24 @@ class CallPattern(DFPattern):
     args: List[relax.dataflow_pattern.DFPattern]
         The arguments to the call or None to match any arguments.
 
+    varg_default_wildcard: bool
+        If True, args can be fewer than actual provided arguments.
+
+    Notes
+    -----
+    By setting varg_default_wildcard to True, we can only focus on the argument
+    patterns we specified. For example, CallPattern(Op, [A, B]) can match
+    a call of Op(A, B) or Op(A, B, C, ...) that has more arguments. However,
+    the specified argument patterns must be matched (i.e., A and B).
     """
 
     def __init__(
         self,
         op: "DFPattern",
         args: List["DFPattern"],
+        varg_default_wildcard: bool = False,
     ):
-        self.__init_handle_by_constructor__(ffi.CallPattern, op, args)
+        self.__init_handle_by_constructor__(ffi.CallPattern, op, args, varg_default_wildcard)
 
 
 @register_df_node

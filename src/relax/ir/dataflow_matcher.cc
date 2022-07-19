@@ -213,14 +213,6 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   return matches;
 }
 
-Array<DFPattern> reverse(const Array<DFPattern>& args) {
-  Array<DFPattern> new_args;
-  for (auto it = args.rbegin(); it != args.rend(); ++it) {
-    new_args.push_back(*it);
-  }
-  return new_args;
-}
-
 bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& expr0) {
   auto expr = TryGetValOfVar(expr0, var2val_);
   // utilities
@@ -258,34 +250,33 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     if (matches_op) {
       auto watermark2 = matched_nodes_.size();
 
-      auto match_args = [this, &watermark2](const Array<DFPattern> pattern_args,
-                                            const Array<Expr> expr_args) {
+      auto match_args = [this, &watermark2](const Array<DFPattern>& pattern_args, auto expr_begin,
+                                            auto expr_end) {
         bool matches = true;
-        size_t i = 0;
+        auto pattern_it = pattern_args.begin();
+        auto expr_it = expr_begin;
         if (pattern_args.defined()) {
-          if (pattern_args.size() == expr_args.size()) {
-            while (matches && i < pattern_args.size()) {
-              matches &= VisitDFPattern(pattern_args[i], expr_args[i]);
-              ++i;
-            }
-          } else {
-            matches = false;
-          }
+          while (matches && pattern_it != pattern_args.end())
+            matches &= VisitDFPattern(*(pattern_it++), *(expr_it++));
         }
-        if (!matches) {
-          ClearMap(watermark2);
-        }
+        if (!matches) ClearMap(watermark2);
         return matches;
       };
 
+      const size_t n_arg_pattern = op->args.size();
+      const size_t n_arg_expr = call_node->args.size();
+      // if allow variable args, #pattern must >= #expr.
+      if (op->varg_default_wildcard && n_arg_expr < n_arg_pattern) return false;
+      // if variable args are not allowed, #pattern must == #expr.
+      if (!op->varg_default_wildcard && n_arg_expr != n_arg_pattern) return false;
+
       // Standard case
-      if (match_args(op->args, call_node->args)) {
-        return true;
-      }
+      if (match_args(op->args, call_node->args.begin(), call_node->args.end())) return true;
+
       // Commutative Matching
       if (const OpNode* op_node = get_op_node(op)) {
         if ((op_node->name == "relax.add") || (op_node->name == "relax.multiply")) {
-          if (match_args(reverse(op->args), call_node->args)) {
+          if (match_args(op->args, call_node->args.rbegin(), call_node->args.rend())) {
             return true;
           }
         }
