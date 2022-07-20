@@ -33,7 +33,9 @@ namespace tvm {
 namespace relax {
 
 /**
- * \brief Determine if a pattern matches an expression
+ * \brief Determine if a pattern matches an expression.
+ * \note The behavior of MatchExpr is to match a relax.Expr (`expr`) syntactically through
+ * one given pattern (`pattern`).
  *
  * \param pattern The pattern to match
  * \param expr The expression to match
@@ -41,13 +43,12 @@ namespace relax {
  * \return true if matched
  * \return false if unmatched
  */
-bool MatchExprPattern(DFPattern pattern, Expr expr,
-                      Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
+bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
 
 /**
- * \brief Graph-wise pattern matcher to return node maps (pattern -> expr). This algorithm returns
- * the first matched sub-graph. Use `start_hint` to specify the starting point of the matching so
- * that we can distinguish multiple matches.
+ * \brief Match a sub-graph in a DataflowBlock with a graph of patterns and return the mapping.
+ * \note This algorithm returns the first matched sub-graph. Use `start_hint` to specify the
+ * starting point of the matching so that we can distinguish multiple matches.
  *
  * \param ctx The graph-wise patterns.
  * \param dfb The function to match.
@@ -55,17 +56,18 @@ bool MatchExprPattern(DFPattern pattern, Expr expr,
  * \param must_include_hint If start_hint is given, the return pattern must include start_hint.
  * \return tvm::runtime::Map<DFPattern, Var>
  */
-TVM_DLL tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
-                                                            const DataflowBlock& dfb,
-                                                            Optional<Var> start_hint = NullOpt,
-                                                            bool must_include_hint = false);
+TVM_DLL tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx,
+                                                     const DataflowBlock& dfb,
+                                                     Optional<Var> start_hint = NullOpt,
+                                                     bool must_include_hint = false);
 
 /**
  * \brief Match a graph-wise pattern with the current context (PatternContext::Current()).
  */
-inline tvm::runtime::Map<DFPattern, Var> MatchGraphPatternDefault(
-    const DataflowBlock& dfb, Optional<Var> start_hint = NullOpt, bool must_include_hint = false) {
-  return MatchGraphPattern(PatternContext::Current(), dfb, start_hint, must_include_hint);
+inline tvm::runtime::Map<DFPattern, Var> MatchGraphDefault(const DataflowBlock& dfb,
+                                                           Optional<Var> start_hint = NullOpt,
+                                                           bool must_include_hint = false) {
+  return MatchGraph(PatternContext::Current(), dfb, start_hint, must_include_hint);
 }
 
 }  // namespace relax

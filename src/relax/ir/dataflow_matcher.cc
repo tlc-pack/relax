@@ -498,14 +498,14 @@ bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, con
   return expr->shape_->IsInstance<RuntimeDepShapeNode>();
 }
 
-bool MatchExprPattern(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val) {
+bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val) {
   if (var2val.defined())  // autojump is enabled with var2val.
     return DFPatternMatcher(std::move(var2val.value())).Match(pattern, expr);
   else
     return DFPatternMatcher().Match(pattern, expr);
 }
 
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExprPattern);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExpr);
 
 class UDChain : public relax::ExprVisitor {
  public:
@@ -629,10 +629,8 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::ma
   return true;
 }
 
-tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
-                                                    const DataflowBlock& dfb,
-                                                    Optional<Var> start_hint,
-                                                    bool must_include_hint) {
+tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
+                                             Optional<Var> start_hint, bool must_include_hint) {
   tvm::runtime::Map<DFPattern, Var> ret{};
   // FIXME(@ganler): consider callee index.
   // TODO(@ganler): Handle non-may external use.
@@ -715,7 +713,7 @@ tvm::runtime::Map<DFPattern, Var> MatchGraphPattern(const PatternContext& ctx,
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_dfb").set_body_typed(MatchGraphPattern);
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_dfb").set_body_typed(MatchGraph);
 
 }  // namespace relax
 }  // namespace tvm

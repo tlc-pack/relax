@@ -637,7 +637,7 @@ DFPattern IsExpr(const Expr& expr);
 /*! \brief Syntatic Sugar for creating a ExprPattern base on an Op*/
 DFPattern IsOp(const String& op_name);
 /*! \brief Syntatic Sugar for call_tir (return a tensor) */
-DFPattern IsCallTIR(const String& name, const Optional<TuplePattern> args = NullOpt,
+DFPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt,
                     Optional<Array<PrimExpr>> oshape = NullOpt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
 DFPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes);
