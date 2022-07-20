@@ -123,7 +123,7 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
  * \brief Analyze var -> value mapping from VarBindings.
  *
  * \param expr the expression to check.
- * \return TVM_DLL Var -> Value (Expr)
+ * \return Var -> Value (Expr)
  */
 TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
 
@@ -131,7 +131,7 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
  * \brief Analyze var -> value mapping from VarBindings.
  *
  * \param dfb the dataflow block to check.
- * \return TVM_DLL Var -> Value (Expr)
+ * \return Var -> Value (Expr)
  */
 TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
 

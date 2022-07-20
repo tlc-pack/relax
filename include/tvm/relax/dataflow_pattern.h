@@ -304,7 +304,7 @@ class PrimArrPattern : public DFPattern {
 };
 
 /*!
- * \brief Relay Function container
+ * \brief Relax Function container
  * \sa Function
  */
 class FunctionPatternNode : public DFPatternNode {
@@ -329,8 +329,8 @@ class FunctionPatternNode : public DFPatternNode {
 };
 
 /*!
- * \brief Managed reference to FunctionNode.
- * \sa FunctionNode
+ * \brief Managed reference to FunctionPatternNode.
+ * \sa FunctionPatternNode
  */
 class FunctionPattern : public DFPattern {
  public:

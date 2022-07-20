@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relay/dataflow_pattern_functor.h
+ * \file tvm/relax/dataflow_pattern_functor.h
  * \brief A set of passes for operating on pattern graphs.
  */
 #ifndef TVM_RELAX_DATAFLOW_PATTERN_FUNCTOR_H_
