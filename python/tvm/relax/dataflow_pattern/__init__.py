@@ -279,21 +279,62 @@ class DFPattern(Node):
         return self & RuntimeDepShapePattern()
 
     def used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
+        """
+        The current pattern being used by another pattern (sequence)
+
+        Parameters
+        ----------
+        other : Union[DFPattern, DFPattern]
+            The consumer pattern (sequence)
+        index : int, optional
+            The argument index called by the consumer pattern, by default -1
+
+        Returns
+        -------
+        result: PatternSeq
+            A chained pattern sequence
+        """
         return _used_by(self, other, index)
 
     def __xor__(self, other: Union["DFPattern", "PatternSeq"]) -> "PatternSeq":
+        """Syntax sugar of DFPattern.used_by"""
         return self.used_by(other, -1)
 
     def only_used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
+        """
+        The current pattern being **ONLY** used by another pattern (sequence)
+
+        Parameters
+        ----------
+        other : Union[DFPattern, DFPattern]
+            The consumer pattern (sequence)
+        index : int, optional
+            The argument index called by the consumer pattern, by default -1
+
+        Returns
+        -------
+        result: PatternSeq
+            A chained pattern sequence
+        """
         return _only_used_by(self, other, index)
 
     def __rshift__(self, other: Union["DFPattern", "PatternSeq"]) -> "PatternSeq":
+        """Syntax sugar of DFPattern.only_used_by"""
         return self.only_used_by(other, -1)
 
     def dup(self) -> "DFPattern":
+        """
+        Duplicate the current pattern (new object under different address)
+
+        Returns
+        -------
+        DFPattern
+            A duplicated pattern
+        """
         return ffi.dup_pattern(self)
 
     def fork_to(self, *args) -> None:
+        """Fork the current pattern to multiple pattern branches"""
         for v in args:
             self ^ v
 
@@ -455,7 +496,7 @@ class TuplePattern(DFPattern):
     def __init__(self, fields: Array):
         self.__init_handle_by_constructor__(ffi.TuplePattern, fields)
 
-    def __getitem__(self, index: int) -> "DFPattern":
+    def __getitem__(self, index: int) -> "TupleGetItemPattern":
         if index >= len(self):
             raise IndexError("TuplePattern index out of range")
         return TupleGetItemPattern(self, index)
@@ -645,7 +686,7 @@ class AttrPattern(DFPattern):
         self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)
 
 
-def is_var(name: str = "") -> "DFPattern":
+def is_var(name: str = "") -> VarPattern:
     """
     Syntatic sugar for creating an optionally named VarPattern.
 
@@ -656,21 +697,23 @@ def is_var(name: str = "") -> "DFPattern":
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.VarPattern
         The resulting pattern.
     """
     return VarPattern(name)
 
 
-def is_gv(name: str = "") -> "DFPattern":
+def is_gv(name: str = "") -> GlobalVarPattern:
+    """Syntax sugar for creating an optionally (if name is empty) named GlobalVarPattern."""
     return GlobalVarPattern(name)
 
 
-def is_dfv(name: str = "") -> "DFPattern":
+def is_dfv(name: str = "") -> DataflowVarPattern:
+    """Syntax sugar for creating an optionally (if name is empty) named DataflowVarPattern."""
     return DataflowVarPattern(name)
 
 
-def is_const() -> "DFPattern":
+def is_const() -> ConstantPattern:
     """
     Syntatic sugar for creating a ConstantPattern.
 
@@ -681,13 +724,13 @@ def is_const() -> "DFPattern":
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.ConstantPattern
         The resulting pattern.
     """
     return ConstantPattern()
 
 
-def is_expr(expr: Expr) -> "DFPattern":
+def is_expr(expr: Expr) -> ExprPattern:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -698,13 +741,13 @@ def is_expr(expr: Expr) -> "DFPattern":
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.ExprPattern
         The resulting pattern.
     """
     return ExprPattern(expr)
 
 
-def is_op(op_name: str) -> "DFPattern":
+def is_op(op_name: str) -> ExprPattern:
     """
     Syntatic sugar for creating an operator ExprPattern.
 
@@ -715,7 +758,7 @@ def is_op(op_name: str) -> "DFPattern":
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.ExprPattern
         The resulting ExprPattern
     """
     op = get(op_name)
@@ -724,7 +767,7 @@ def is_op(op_name: str) -> "DFPattern":
 
 def is_tuple(
     fields: Union[Array, List, Tuple], unordered=False
-) -> Union["TuplePattern", "UnorderedTuplePattern"]:
+) -> Union[TuplePattern, UnorderedTuplePattern]:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -745,7 +788,7 @@ def is_tuple(
     return TuplePattern(fields)
 
 
-def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> "DFPattern":
+def is_tuple_get_item(tuple_value: DFPattern, index: Optional[int] = None) -> TupleGetItemPattern:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -759,25 +802,25 @@ def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> 
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.TupleGetItemPattern
         The resulting pattern.
     """
     return TupleGetItemPattern(tuple_value, index)
 
 
-def wildcard() -> "DFPattern":
+def wildcard() -> WildcardPattern:
     """
     Syntatic sugar for creating a WildcardPattern.
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.WildcardPattern
         The resulting pattern.
     """
     return WildcardPattern()
 
 
-def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
+def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     """
     Syntatic sugar for creating a DataTypePattern
 
@@ -791,7 +834,7 @@ def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dataflow_pattern.DataTypePattern
         The resulting DataTypePattern
     """
     if pattern is None:
@@ -799,7 +842,7 @@ def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
     return DataTypePattern(pattern, dtype)
 
 
-def is_shape(shape: List[tvm.ir.PrimExpr]) -> "DFPattern":
+def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
         raise ValueError("is_shape takes a list or tuple as input.")
     return PrimArrPattern(shape)
@@ -882,7 +925,7 @@ def deny(pattern: DFPattern) -> NotPattern:
     return NotPattern(pattern)
 
 
-def has_attr(attrs, pattern=None) -> "DFPattern":
+def has_attr(attrs, pattern=None) -> AttrPattern:
     """
     Syntatic sugar for creating an AttrPattern
 
