@@ -61,4 +61,17 @@ def well_formed(mod: tvm.IRModule) -> bool:
 
 
 def get_var2val(func: Function) -> Dict[Var, Expr]:
+    """
+    Get a mapping from Var to Expr for each variable in the function.
+
+    Parameters
+    ----------
+    func : Function
+        The input function to be analyzed.
+
+    Returns
+    -------
+    Dict[Var, Expr]
+        A mapping from Var to Expr.
+    """
     return _ffi_api.get_var2val(func)
