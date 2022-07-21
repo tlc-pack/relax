@@ -16,6 +16,9 @@
 # under the License.
 
 from __future__ import annotations  # must import to defer parsing of annotations
+import sys
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -24,8 +27,8 @@ import numpy as np
 import tvm.script
 from tvm.script import tir as T, relax as R
 
-
-def test_bind_params():
+use_np_array = tvm.testing.parameter(False, True)
+def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
         @T.prim_func
@@ -50,15 +53,18 @@ def test_bind_params():
             gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
             return gv0
 
-    w_tvm = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
-    x_tvm = tvm.nd.array(np.random.rand(16, 16).astype(np.float32))
-    mod = relax.transform.BindParams("main", {"x": x_tvm})(InputModule)
+    x_np = np.random.rand(16, 16).astype(np.float32)
+    w_np = np.random.rand(16, 16).astype(np.float32)
+    x_tvm = tvm.nd.array(x_np)
+    w_tvm = tvm.nd.array(w_np)
+    params_dict = {"w" : w_np if use_np_array else w_tvm}
+    mod = relax.transform.BindParams("main", params_dict)(InputModule)
     assert len(mod["main"].params) == 1
 
-    target = tvm.target.Target("llvm", host="llvm")
+    target = tvm.target.Target("llvm")
     ex_after = relax.vm.build(mod, target)
     vm_after = relax.VirtualMachine(ex_after, tvm.cpu())
-    res_after = vm_after["main"](w_tvm)
+    res_after = vm_after["main"](x_tvm)
 
     ex_before = relax.vm.build(InputModule, target)
     vm_before = relax.VirtualMachine(ex_before, tvm.cpu())
