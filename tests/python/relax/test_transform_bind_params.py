@@ -28,6 +28,8 @@ import tvm.script
 from tvm.script import tir as T, relax as R
 
 use_np_array = tvm.testing.parameter(False, True)
+
+
 def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
@@ -57,7 +59,7 @@ def test_bind_params(use_np_array):
     w_np = np.random.rand(16, 16).astype(np.float32)
     x_tvm = tvm.nd.array(x_np)
     w_tvm = tvm.nd.array(w_np)
-    params_dict = {"w" : w_np if use_np_array else w_tvm}
+    params_dict = {"w": w_np if use_np_array else w_tvm}
     mod = relax.transform.BindParams("main", params_dict)(InputModule)
     assert len(mod["main"].params) == 1
 
