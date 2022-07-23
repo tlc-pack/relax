@@ -20,6 +20,8 @@ import functools
 import inspect
 import types
 from typing import Callable, Dict, Union, Optional, List
+import numpy as np
+
 import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.database import PyDatabase
@@ -164,7 +166,10 @@ def MetaScheduleApplyHistoryBest(
     return _ffi_api.MetaScheduleApplyHistoryBest(database, target)
 
 
-def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir.transform.Pass:
+def BindParams(
+    func_name: str,
+    params: Dict[str, Union[tvm.runtime.NDArray, np.ndarray]],
+) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
     Parameters
@@ -173,14 +178,23 @@ def BindParams(func_name: str, params: Dict[str, tvm.runtime.NDArray]) -> tvm.ir
     func_name: str
         The function name to be bound
 
-    params : dict from str to ndarray
+    params : Dict[str, Union[tvm.runtime.NDArray, np.ndarray]]
         The map from param name to constant tensors.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.BindParams(func_name, params)
+    tvm_params = {}
+    for k, v in params.items():
+        if isinstance(v, np.ndarray):
+            v = tvm.nd.array(v)
+        assert isinstance(
+            v, tvm.runtime.NDArray
+        ), f"param values are expected to be TVM.NDArray or numpy.ndarray, but got {type(v)}"
+        tvm_params[k] = v
+
+    return _ffi_api.BindParams(func_name, tvm_params)
 
 
 def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
