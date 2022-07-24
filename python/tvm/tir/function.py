@@ -191,7 +191,9 @@ class PrimFunc(BaseFunc):
         script : str
             The TVM Script of the PrimFunc
         """
-        return tvm._ffi.get_global_func("script.AsTVMScript")(self, tir_prefix, show_meta)  # type: ignore
+        return tvm._ffi.get_global_func("script.AsTVMScript")(
+            self, tir_prefix, show_meta
+        )  # type: ignore
 
 
 @tvm._ffi.register_object("tir.TensorIntrin")
