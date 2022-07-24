@@ -64,6 +64,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         (
             "Base requirements needed to install tvm",
             [
+                "Pygments",
                 "attrs",
                 "cloudpickle",
                 "decorator",
@@ -72,7 +73,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "scipy",
                 "synr",
                 "tornado",
-                "Pygments",
             ],
         ),
     ),
