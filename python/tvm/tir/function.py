@@ -25,7 +25,6 @@ import tvm._ffi
 import tvm.runtime
 from tvm.runtime import Object
 from tvm.ir import BaseFunc, Range
-from tvm.ir.highlight import highlight
 from .buffer import Buffer
 from .expr import Var, PrimExpr
 from . import _ffi_api
@@ -192,9 +191,7 @@ class PrimFunc(BaseFunc):
         script : str
             The TVM Script of the PrimFunc
         """
-        return highlight(
-            tvm._ffi.get_global_func("script.AsTVMScript")(self, tir_prefix, show_meta)
-        )  # type: ignore
+        return tvm._ffi.get_global_func("script.AsTVMScript")(self, tir_prefix, show_meta)  # type: ignore
 
 
 @tvm._ffi.register_object("tir.TensorIntrin")

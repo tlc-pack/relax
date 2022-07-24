@@ -22,7 +22,6 @@ import tvm._ffi
 from .base import Node
 from . import expr as _expr
 from ..ir.function import BaseFunc
-from .highlight import highlight
 from . import type as _ty
 from . import _ffi_api
 
@@ -285,9 +284,7 @@ class IRModule(Node):
         script : str
             The TVM Script of the IRModule
         """
-        return highlight(
-            tvm._ffi.get_global_func("script.AsTVMScript")(self, tir_prefix, show_meta)
-        )  # type: ignore
+        return tvm._ffi.get_global_func("script.AsTVMScript")(self, tir_prefix, show_meta)  # type: ignore
 
     def get_attr(self, attr_key):
         """Get the IRModule attribute.

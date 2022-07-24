@@ -16,16 +16,17 @@
 # under the License.
 """Highlight printed TVM script.
 """
-import os
 
-from pygments import highlight as phl
+from typing import Union
+
+from pygments import highlight
 from pygments.lexers import Python3Lexer
 from pygments.formatters import Terminal256Formatter
 from pygments.style import Style
 from pygments.token import Keyword, Name, Comment, String, Number, Operator
 
-
-_SCRIPT_THEME = os.getenv("TVM_SCRIPT_THEME", default="LIGHT")
+from tvm.ir import IRModule
+from tvm.tir import PrimFunc
 
 
 class VSCDark(Style):
@@ -35,7 +36,6 @@ class VSCDark(Style):
         Keyword: "bold #c586c0",
         Keyword.Namespace: "#4ec9b0",
         Keyword.Type: "#82aaff",
-        Name: "#9cdcfe",
         Name.Function: "bold #dcdcaa",
         Name.Class: "bold #569cd6",
         Name.Decorator: "italic #fe4ef3",
@@ -49,9 +49,6 @@ class VSCDark(Style):
 
 class JupyterLight(Style):
     """A Jupyter-Notebook-like Pygment style configuration"""
-
-    background_color = "#f8f8f8"
-    default_style = ""
 
     styles = {
         Keyword: "bold #008000",
@@ -67,28 +64,24 @@ class JupyterLight(Style):
     }
 
 
-def highlight(text: str) -> str:
+def cprint(printable: Union[IRModule, PrimFunc], style="light") -> str:
     """
-    Highlight given TVM script string with Pygments
+    Print highlighted TVM script string with Pygments
 
     Parameters
     ----------
-    text : str
-        String of the TVM script
+    printable : Union[IRModule, PrimFunc]
+        The TVM script to be printed
+    style : str, optional
+        Style of the printed script
 
-    Returns
-    -------
-    str
-        The resulting string highlighted by ANSI escape code
+    Notes
+    -----
+    The style parameter follows the Pygments style names or Style objects. Two
+    built-in styles are extended: "light" (default) and "dark".
     """
-    style = None
-    if _SCRIPT_THEME == "LIGHT":
+    if style == "light":
         style = JupyterLight
-    elif _SCRIPT_THEME == "DARK":
+    elif style == "dark":
         style = VSCDark
-    else:
-        raise ValueError(
-            f"Unknown theme environement variable: `{_SCRIPT_THEME}`."
-            " Set TVM_SCRIPT_THEME to LIGHT or DARK"
-        )
-    return phl(text, Python3Lexer(), Terminal256Formatter(style=style))
+    print(highlight(printable.script(), Python3Lexer(), Terminal256Formatter(style=style)))
