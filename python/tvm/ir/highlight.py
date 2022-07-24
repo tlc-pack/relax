@@ -16,12 +16,16 @@
 # under the License.
 """Highlight printed TVM script.
 """
+import os
 
 from pygments import highlight as phl
 from pygments.lexers import Python3Lexer
 from pygments.formatters import Terminal256Formatter
 from pygments.style import Style
 from pygments.token import Keyword, Name, Comment, String, Number, Operator
+
+
+_SCRIPT_THEME = os.getenv("TVM_SCRIPT_THEME", default="LIGHT")
 
 
 class VSCDark(Style):
@@ -43,6 +47,26 @@ class VSCDark(Style):
     }
 
 
+class JupyterLight(Style):
+    """A Jupyter-Notebook-like Pygment style configuration"""
+
+    background_color = "#f8f8f8"
+    default_style = ""
+
+    styles = {
+        Keyword: "bold #008000",
+        Keyword.Type: "nobold #008000",
+        Name.Function: "#0000FF",
+        Name.Class: "bold #0000FF",
+        Name.Decorator: "#AA22FF",
+        String: "#BA2121",
+        Number: "#008000",
+        Operator: "bold #AA22FF",
+        Operator.Word: "bold #008000",
+        Comment: "italic #007979",
+    }
+
+
 def highlight(text: str) -> str:
     """
     Highlight given TVM script string with Pygment
@@ -57,4 +81,14 @@ def highlight(text: str) -> str:
     str
         The resulting string highlighted by ANSI escape code
     """
-    return phl(text, Python3Lexer(), Terminal256Formatter(style=VSCDark))
+    style = None
+    if _SCRIPT_THEME == "LIGHT":
+        style = JupyterLight
+    elif _SCRIPT_THEME == "DARK":
+        style = VSCDark
+    else:
+        raise ValueError(
+            f"Unknown theme environement variable: `{_SCRIPT_THEME}`."
+            " Set TVM_SCRIPT_THEME to LIGHT or DARK"
+        )
+    return phl(text, Python3Lexer(), Terminal256Formatter(style=style))
