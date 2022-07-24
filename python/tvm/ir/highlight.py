@@ -69,7 +69,7 @@ class JupyterLight(Style):
 
 def highlight(text: str) -> str:
     """
-    Highlight given TVM script string with Pygment
+    Highlight given TVM script string with Pygments
 
     Parameters
     ----------
