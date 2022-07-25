@@ -65,20 +65,56 @@ class ExprFunctor;
     return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
-#define PY_EXPR_VISITOR_DEFAULT(T, NAME, DEFAULT) \
+#define PY_EXPR_VISITOR_DEFAULT(N, NAME, DEFAULT) \
   {                                               \
     auto it = operator->()->map_.find(NAME);      \
     if (it != operator->()->map_.end())           \
-      it->second(T(op));                          \
+      it->second(N);                              \
     else                                          \
-      ExprVisitor::DEFAULT(op);                   \
+      DEFAULT;                                    \
   }
 
-#define PY_EXPR_MUTATOR_DEFAULT(T, F)          \
-  {                                            \
-    if (F != nullptr) return F(GetRef<T>(op)); \
-    return VisitExpr_(op);                     \
+#define PY_EXPR_MUTATOR_DEFAULT(N, NAME, DEFAULT, RET_TYPE) \
+  {                                                         \
+    auto it = operator->()->map_.find(NAME);                \
+    if (it != operator->()->map_.end()) {                   \
+      RET_TYPE ret = it->second(N);                         \
+      return ret;                                           \
+    } else                                                  \
+      return DEFAULT;                                       \
   }
+
+#define PY_EXPR_VISITOR_DISPATCH(OP, PY_NAME, POST_ORDER_NAME)           \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
+    auto post_it = self->operator->()->map_.find(POST_ORDER_NAME);       \
+    if (post_it != self->operator->()->map_.end()) {                     \
+      self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));        \
+      post_it->second(n);                                                \
+    } else {                                                             \
+      auto it = self->operator->()->map_.find(PY_NAME);                  \
+      if (it != self->operator->()->map_.end())                          \
+        it->second(n);                                                   \
+      else                                                               \
+        self->VisitExpr_(static_cast<const OP*>(n.get()));               \
+    }                                                                    \
+  });
+
+#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_NAME, POST_ORDER_NAME)                \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) {      \
+    auto post_it = self->operator->()->map_.find(POST_ORDER_NAME);            \
+    if (post_it != self->operator->()->map_.end()) {                          \
+      Expr expr = self->VisitExprPostOrder_(static_cast<const OP*>(n.get())); \
+      expr = post_it->second(expr);                                           \
+      return expr;                                                            \
+    } else {                                                                  \
+      auto it = self->operator->()->map_.find(PY_NAME);                       \
+      if (it != self->operator->()->map_.end()) {                             \
+        Expr expr = it->second(n);                                            \
+        return expr;                                                          \
+      } else                                                                  \
+        return self->VisitExpr_(static_cast<const OP*>(n.get()));             \
+    }                                                                         \
+  });
 
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
@@ -357,8 +393,6 @@ class PyExprVisitorNode : public Object {
  public:
   /*! TODO */
   std::unordered_map<std::string, PackedFunc> map_;
-  /*! TODO */
-  ExprVisitor* visitor_;
 
   void VisitAttrs(AttrVisitor* v) {}
   static constexpr const char* _type_key = "expr_functor.PyExprVisitor";
@@ -368,67 +402,184 @@ class PyExprVisitorNode : public Object {
 TVM_REGISTER_NODE_TYPE(PyExprVisitorNode);
 
 class PyExprVisitor : public ObjectRef, public ExprVisitor {
+ private:
+  using TSelf = PyExprVisitor;
+  using FType = tvm::NodeFunctor<void(const ObjectRef& n, TSelf* self)>;
+
  public:
-  TVM_DLL PyExprVisitor(std::unordered_map<std::string, PackedFunc> map, ExprVisitor* visitor) {
+  TVM_DLL PyExprVisitor(std::unordered_map<std::string, PackedFunc> map) {
     ObjectPtr<PyExprVisitorNode> n = make_object<PyExprVisitorNode>();
     n->map_ = std::move(map);
-    n->visitor_ = std::move(visitor);
     data_ = std::move(n);
   }
 
-  void VisitExpr(const Expr& op) PY_EXPR_VISITOR_DEFAULT(, "visit_expr", VisitExpr);
+  void VisitExpr(const Expr& expr) {
+    auto it = operator->()->map_.find("visit_expr");
+    if (it != operator->()->map_.end())
+      it->second(expr);
+    else {
+      static FType vtable = InitVTable();
+      vtable(expr, this);
+    }
+  }
 
-  void VisitExpr_(const ConstantNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<Constant>, "visit_constant_", VisitExpr_);
-  void VisitExpr_(const TupleNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<Tuple>, "visit_tuple_", VisitExpr_);
-  void VisitExpr_(const VarNode* op) PY_EXPR_VISITOR_DEFAULT(GetRef<Var>, "visit_var_", VisitExpr_);
-  void VisitExpr_(const DataflowVarNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowVar>, "visit_dataflow_var_", VisitExpr_);
-  void VisitExpr_(const ShapeExprNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<ShapeExpr>, "visit_shape_expr_", VisitExpr_);
-  void VisitExpr_(const RuntimeDepShapeNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<RuntimeDepShape>, "visit_runtime_dep_shape_", VisitExpr_);
-  void VisitExpr_(const ExternFuncNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<ExternFunc>, "visit_extern_func_", VisitExpr_);
-  void VisitExpr_(const GlobalVarNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<GlobalVar>, "visit_global_var_", VisitExpr_);
-  void VisitExpr_(const FunctionNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<Function>, "visit_function_", VisitExpr_);
-  void VisitExpr_(const CallNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<Call>, "visit_call_", VisitExpr_);
-  void VisitExpr_(const SeqExprNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<SeqExpr>, "visit_seq_expr_", VisitExpr_);
-  void VisitExpr_(const IfNode* op) PY_EXPR_VISITOR_DEFAULT(GetRef<If>, "visit_if_", VisitExpr_);
-  void VisitExpr_(const OpNode* op) PY_EXPR_VISITOR_DEFAULT(GetRef<Op>, "visit_op_", VisitExpr_);
-  void VisitExpr_(const TupleGetItemNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<TupleGetItem>, "visit_tuple_getitem_", VisitExpr_);
+  void VisitBinding(const Binding& binding)
+      PY_EXPR_VISITOR_DEFAULT(binding, "visit_binding", ExprVisitor::VisitBinding(binding));
 
-  void VisitBinding(const Binding& op) PY_EXPR_VISITOR_DEFAULT(, "visit_binding", VisitBinding);
+  void VisitBinding_(const VarBindingNode* binding)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<VarBinding>(binding), "visit_var_binding_",
+                              ExprVisitor::VisitBinding_(binding));
+  void VisitBinding_(const MatchShapeNode* binding)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<MatchShape>(binding), "visit_match_shape_",
+                              ExprVisitor::VisitBinding_(binding));
 
-  void VisitBinding_(const VarBindingNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<VarBinding>, "visit_var_binding_", VisitBinding_);
-  void VisitBinding_(const MatchShapeNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<MatchShape>, "visit_match_shape_", VisitBinding_);
+  void VisitBindingBlock(const BindingBlock& block)
+      PY_EXPR_VISITOR_DEFAULT(block, "visit_binding_block", ExprVisitor::VisitBindingBlock(block));
 
-  void VisitBindingBlock(const BindingBlock& op)
-      PY_EXPR_VISITOR_DEFAULT(, "visit_binding_block", VisitBindingBlock);
+  void VisitBindingBlock_(const BindingBlockNode* block)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<BindingBlock>(block), "visit_binding_block_",
+                              ExprVisitor::VisitBindingBlock_(block));
+  void VisitBindingBlock_(const DataflowBlockNode* block)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowBlock>(block), "visit_dataflow_block_",
+                              ExprVisitor::VisitBindingBlock_(block));
 
-  void VisitBindingBlock_(const BindingBlockNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<BindingBlock>, "visit_binding_block_", VisitBindingBlock_);
-  void VisitBindingBlock_(const DataflowBlockNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowBlock>, "visit_dataflow_block_", VisitBindingBlock_);
+  void VisitVarDef(const Var& var)
+      PY_EXPR_VISITOR_DEFAULT(var, "visit_var_def", ExprVisitor::VisitVarDef(var));
+  void VisitVarDef_(const VarNode* var)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<Var>(var), "visit_var_def_", ExprVisitor::VisitVarDef_(var));
+  void VisitVarDef_(const DataflowVarNode* var)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowVar>(var), "visit_dataflow_var_def_",
+                              ExprVisitor::VisitVarDef_(var));
 
-  void VisitVarDef(const Var& op) PY_EXPR_VISITOR_DEFAULT(, "visit_var_def", VisitVarDef);
-  void VisitVarDef_(const VarNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<Var>, "visit_var_def_", VisitVarDef_);
-  void VisitVarDef_(const DataflowVarNode* op)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowVar>, "visit_dataflow_var_def_", VisitVarDef_);
+  void VisitType(const Type& t) PY_EXPR_VISITOR_DEFAULT(t, "visit_type", ExprVisitor::VisitType(t));
+  void VisitSpan(const Span& span)
+      PY_EXPR_VISITOR_DEFAULT(span, "visit_span", ExprVisitor::VisitSpan(span));
 
-  void VisitType(const Type& op) PY_EXPR_VISITOR_DEFAULT(, "visit_type", VisitType);
-  void VisitSpan(const Span& op) PY_EXPR_VISITOR_DEFAULT(, "visit_span", VisitSpan);
+  template <typename T>
+  void VisitExprPostOrder_(const T* op) {
+    ExprVisitor::VisitExpr_(op);
+  }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PyExprVisitor, ObjectRef, PyExprVisitorNode);
+
+ private:
+  static FType InitVTable() {
+    FType vtable;
+    // Set dispatch
+    PY_EXPR_VISITOR_DISPATCH(ConstantNode, "visit_constant_", "rewrite_constant_post_order");
+    PY_EXPR_VISITOR_DISPATCH(TupleNode, "visit_tuple_", "rewrite_tuple_post_order");
+    PY_EXPR_VISITOR_DISPATCH(VarNode, "visit_var_", "rewrite_var_post_order");
+    PY_EXPR_VISITOR_DISPATCH(DataflowVarNode, "visit_dataflow_var_",
+                             "rewrite_dataflow_var_post_order");
+    PY_EXPR_VISITOR_DISPATCH(ShapeExprNode, "visit_shape_expr_", "rewrite_shape_expr_post_order");
+    PY_EXPR_VISITOR_DISPATCH(RuntimeDepShapeNode, "visit_runtime_dep_shape_",
+                             "rewrite_runtime_dep_post_order");
+    PY_EXPR_VISITOR_DISPATCH(ExternFuncNode, "visit_extern_func_",
+                             "rewrite_extern_func_post_order");
+    PY_EXPR_VISITOR_DISPATCH(GlobalVarNode, "visit_global_var_", "rewrite_global_var_post_order");
+    PY_EXPR_VISITOR_DISPATCH(FunctionNode, "visit_function_", "rewrite_function_post_order");
+    PY_EXPR_VISITOR_DISPATCH(CallNode, "visit_call_", "rewrite_call_post_order");
+    PY_EXPR_VISITOR_DISPATCH(SeqExprNode, "visit_seq_expr_", "rewrite_seq_expr_post_order");
+    PY_EXPR_VISITOR_DISPATCH(IfNode, "visit_if_", "rewrite_if_post_order");
+    PY_EXPR_VISITOR_DISPATCH(OpNode, "visit_op_", "rewrite_op_post_order");
+    PY_EXPR_VISITOR_DISPATCH(TupleGetItemNode, "visit_tuple_getitem_",
+                             "rewrite_tuple_getitem_post_order");
+    return vtable;
+  }
+};
+
+class PyExprMutatorNode : public Object {
+ public:
+  /*! TODO */
+  std::unordered_map<std::string, PackedFunc> map_;
+
+  void VisitAttrs(AttrVisitor* v) {}
+  static constexpr const char* _type_key = "expr_functor.PyExprMutator";
+  TVM_DECLARE_BASE_OBJECT_INFO(PyExprMutatorNode, Object);
+};
+
+TVM_REGISTER_NODE_TYPE(PyExprMutatorNode);
+
+class PyExprMutator : public ObjectRef, public ExprMutator {
+ private:
+  using TSelf = PyExprMutator;
+  using FType = tvm::NodeFunctor<Expr(const ObjectRef& n, TSelf* self)>;
+
+ public:
+  TVM_DLL PyExprMutator(std::unordered_map<std::string, PackedFunc> map) {
+    ObjectPtr<PyExprMutatorNode> n = make_object<PyExprMutatorNode>();
+    n->map_ = std::move(map);
+    data_ = std::move(n);
+  }
+
+  Expr VisitExpr(const Expr& expr) {
+    auto it = operator->()->map_.find("visit_expr");
+    if (it != operator->()->map_.end())
+      return builder_->Normalize(it->second(expr));
+    else {
+      static FType vtable = InitVTable();
+      return builder_->Normalize(vtable(expr, this));
+    }
+  }
+
+  void VisitBinding(const Binding& binding)
+      PY_EXPR_VISITOR_DEFAULT(binding, "visit_binding", ExprMutator::VisitBinding(binding));
+
+  void VisitBinding_(const VarBindingNode* binding)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<VarBinding>(binding), "visit_var_binding_",
+                              ExprMutator::VisitBinding_(binding));
+  void VisitBinding_(const MatchShapeNode* binding)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<MatchShape>(binding), "visit_match_shape_",
+                              ExprMutator::VisitBinding_(binding));
+
+  BindingBlock VisitBindingBlock(const BindingBlock& block)
+      PY_EXPR_MUTATOR_DEFAULT(block, "visit_binding_block", ExprMutator::VisitBindingBlock(block),
+                              BindingBlock);
+
+  BindingBlock VisitBindingBlock_(const BindingBlockNode* block)
+      PY_EXPR_MUTATOR_DEFAULT(GetRef<BindingBlock>(block), "visit_binding_block_",
+                              ExprMutator::VisitBindingBlock_(block), BindingBlock);
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block)
+      PY_EXPR_MUTATOR_DEFAULT(GetRef<DataflowBlock>(block), "visit_dataflow_block_",
+                              ExprMutator::VisitBindingBlock_(block), BindingBlock);
+
+  Var VisitVarDef(const Var& var)
+      PY_EXPR_MUTATOR_DEFAULT(var, "visit_var_def", ExprMutator::VisitVarDef(var), Var);
+  Var VisitVarDef_(const VarNode* var) PY_EXPR_MUTATOR_DEFAULT(GetRef<Var>(var), "visit_var_def_",
+                                                               ExprMutator::VisitVarDef_(var), Var);
+  Var VisitVarDef_(const DataflowVarNode* var)
+      PY_EXPR_MUTATOR_DEFAULT(GetRef<DataflowVar>(var), "visit_dataflow_var_def_",
+                              ExprMutator::VisitVarDef_(var), Var);
+
+  Type VisitType(const Type& t)
+      PY_EXPR_MUTATOR_DEFAULT(t, "visit_type", ExprMutator::VisitType(t), Type);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PyExprMutator, ObjectRef, PyExprMutatorNode);
+
+ private:
+  static FType InitVTable() {
+    FType vtable;
+    // Set dispatch
+    PY_EXPR_MUTATOR_DISPATCH(ConstantNode, "visit_constant_", "rewrite_constant_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(TupleNode, "visit_tuple_", "rewrite_tuple_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(VarNode, "visit_var_", "rewrite_var_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(DataflowVarNode, "visit_dataflow_var_",
+                             "rewrite_dataflow_var_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(ShapeExprNode, "visit_shape_expr_", "rewrite_shape_expr_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(RuntimeDepShapeNode, "visit_runtime_dep_shape_",
+                             "rewrite_runtime_dep_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(ExternFuncNode, "visit_extern_func_",
+                             "rewrite_extern_func_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(GlobalVarNode, "visit_global_var_", "rewrite_global_var_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(FunctionNode, "visit_function_", "rewrite_function_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(CallNode, "visit_call_", "rewrite_call_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(SeqExprNode, "visit_seq_expr_", "rewrite_seq_expr_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(IfNode, "visit_if_", "rewrite_if_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(OpNode, "visit_op_", "rewrite_op_post_order");
+    PY_EXPR_MUTATOR_DISPATCH(TupleGetItemNode, "visit_tuple_getitem_",
+                             "rewrite_tuple_getitem_post_order");
+    return vtable;
+  }
 };
 
 }  // namespace relax

@@ -449,6 +449,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
     }
     all_blocks_unchanged &= block.same_as(new_block);
   }
+  std::cout << all_blocks_unchanged << std::endl;
 
   builder_->BeginBindingBlock();
   Expr body = this->VisitExpr(op->body);
@@ -459,8 +460,10 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   }
 
   if (all_blocks_unchanged && body.same_as(op->body)) {
+    std::cout << "seqexpr1" << std::endl;
     return GetRef<Expr>(op);
   } else {
+    std::cout << "seqexpr2" << std::endl;
     return SeqExpr(blocks, body);
   }
 }
@@ -664,11 +667,6 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
   return var;
 }
 
-// TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body_typed([](Array<String> func_names) {
-//   Array<PackedFunc> packed_funcs;
-//   return PyExprVisitor(packed_funcs, func_names);
-// });
-
 TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::unordered_map<std::string, PackedFunc> map;
 
@@ -678,11 +676,54 @@ TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body([](TVMArgs args, TVMRetVal
     PackedFunc packed_func = args[i + 1];
     map.emplace(func_name, packed_func);
   }
-  *rv = PyExprVisitor(map, new ExprVisitor());
+  *rv = PyExprVisitor(map);
 });
 
 TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitExpr")
     .set_body_typed([](PyExprVisitor visitor, const Expr& expr) { visitor.VisitExpr(expr); });
+
+TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitBinding")
+    .set_body_typed([](PyExprVisitor visitor, const Binding& binding) {
+      visitor.VisitBinding(binding);
+    });
+
+TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitBindingBlock")
+    .set_body_typed([](PyExprVisitor visitor, const BindingBlock& block) {
+      visitor.VisitBindingBlock(block);
+    });
+
+TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitVarDef")
+    .set_body_typed([](PyExprVisitor visitor, const Var& var) { visitor.VisitVarDef(var); });
+
+TVM_REGISTER_GLOBAL("relax.MakeExprMutator").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::unordered_map<std::string, PackedFunc> map;
+
+  PackedFunc packed_func;
+  for (int i = 0; i < args.size(); i += 2) {
+    std::string func_name = args[i];
+    PackedFunc packed_func = args[i + 1];
+    map.emplace(func_name, packed_func);
+  }
+  *rv = PyExprMutator(map);
+});
+
+TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExpr")
+    .set_body_typed([](PyExprMutator visitor, const Expr& expr) {
+      return visitor.VisitExpr(expr);
+    });
+
+TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitBinding")
+    .set_body_typed([](PyExprMutator visitor, const Binding& binding) {
+      visitor.VisitBinding(binding);
+    });
+
+TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitBindingBlock")
+    .set_body_typed([](PyExprMutator visitor, const BindingBlock& block) {
+      return visitor.VisitBindingBlock(block);
+    });
+
+TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitVarDef")
+    .set_body_typed([](PyExprMutator visitor, const Var& var) { return visitor.VisitVarDef(var); });
 
 }  // namespace relax
 }  // namespace tvm
