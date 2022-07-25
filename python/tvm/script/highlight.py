@@ -30,7 +30,7 @@ from tvm.tir import PrimFunc
 
 
 class VSCDark(Style):
-    """A VSCode-Dark-like Pygment style configuration"""
+    """A VSCode-Dark-like Pygments style configuration"""
 
     styles = {
         Keyword: "bold #c586c0",
@@ -48,7 +48,7 @@ class VSCDark(Style):
 
 
 class JupyterLight(Style):
-    """A Jupyter-Notebook-like Pygment style configuration"""
+    """A Jupyter-Notebook-like Pygments style configuration"""
 
     styles = {
         Keyword: "bold #008000",
@@ -64,7 +64,7 @@ class JupyterLight(Style):
     }
 
 
-def cprint(printable: Union[IRModule, PrimFunc], style="light") -> str:
+def cprint(printable: Union[IRModule, PrimFunc], style="light") -> None:
     """
     Print highlighted TVM script string with Pygments
 
@@ -78,7 +78,8 @@ def cprint(printable: Union[IRModule, PrimFunc], style="light") -> str:
     Notes
     -----
     The style parameter follows the Pygments style names or Style objects. Two
-    built-in styles are extended: "light" (default) and "dark".
+    built-in styles are extended: "light" (default) and "dark". Other styles
+    can be found in https://pygments.org/styles/
     """
     if style == "light":
         style = JupyterLight
