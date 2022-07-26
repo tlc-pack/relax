@@ -81,7 +81,7 @@ def _parse_args():
     args.add_argument(
         "--rpc-timeout",
         type=int,
-        default=180
+        default=180,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
