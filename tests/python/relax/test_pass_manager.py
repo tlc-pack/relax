@@ -21,7 +21,6 @@ import pytest
 import tvm
 from tvm import relax, ir
 from tvm.ir.base import assert_structural_equal
-from tvm.relax import ExprMutator
 from tvm.relax.expr import Call
 
 import tvm.script
@@ -66,13 +65,12 @@ def test_function_class_pass():
 
 
 # Swap Multiply and Add Ops
-class SwapMAVar(ExprMutator):
+@relax.mutator
+class SwapMAVar(relax.PyExprMutator):
     def __init__(self) -> None:
         super().__init__()
 
-    def visit_call_(self, call: Call) -> Call:
-        call = ExprMutator.visit_call_(self, call)
-
+    def rewrite_call_post_order(self, call: Call) -> Call:
         if call.op == ir.Op.get("relax.add"):
             new_op = ir.Op.get("relax.multiply")
         elif call.op == ir.Op.get("relax.multiply"):
@@ -115,7 +113,8 @@ def test_function_pass():
     # create FunctionPass with the function_pass decorator
     @relax.transform.function_pass(opt_level=opt_level, name=pass_name)
     def decorator_transform(func, mod, ctx):
-        return SwapMAVar().visit_expr(func)
+        m = SwapMAVar()
+        return m.visit_expr(func)
 
     # check the transform info
     assert isinstance(decorator_transform, relax.transform.FunctionPass)
@@ -215,7 +214,8 @@ def test_dataflowblock_pass():
     # create DataflowBlockPass with the dataflowblock_pass decorator
     @relax.transform.dataflowblock_pass(opt_level=opt_level, name=pass_name)
     def decorator_transform(block, mod, ctx):
-        return SwapMAVar().visit_binding_block(block)
+        m = SwapMAVar()
+        return m.visit_binding_block(block)
 
     # check the transform info
     assert isinstance(decorator_transform, relax.transform.DataflowBlockPass)

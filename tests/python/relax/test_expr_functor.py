@@ -22,6 +22,7 @@ from tvm import relax, tir
 from tvm.relax import PyExprVisitor, PyExprMutator, visitor, mutator
 from tvm.ir.base import assert_structural_equal
 from tvm.ir import Op
+from tvm.relax.ty import DynTensorType
 from tvm.relax.expr import Type, Span, Expr
 from tvm.relax.expr import Function, ExternFunc
 from tvm.relax.expr import Constant, Var, DataflowVar
@@ -30,6 +31,7 @@ from tvm.relax.expr import GlobalVar, SeqExpr, Tuple
 from tvm.relax.expr import Call, If, TupleGetItem
 from tvm.relax.expr import Binding, MatchShape, VarBinding
 from tvm.relax.expr import BindingBlock, DataflowBlock
+from tvm.relax.expr import _update_shape, _update_type
 
 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
 type_anno1 = relax.DynTensorType(1, "float32")
@@ -219,7 +221,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("Call")
         return op
 
-    def rewrite_call_post_order(self, op: If) -> Expr:
+    def rewrite_if_post_order(self, op: If) -> Expr:
         self.log.add("If")
         return op
 
@@ -246,6 +248,98 @@ class ASTPostPrinterMutator(PyExprMutator):
     def rewrite_seq_expr_post_order(self, op: SeqExpr) -> Expr:
         self.log.add("SeqExpr")
         return op
+
+    def visit_var_binding_(self, binding: VarBinding) -> None:
+        new_value = self.visit_expr(binding.value)
+        new_var = self.visit_var_def(binding.var)
+
+        def emit(b: VarBinding):
+            if self.builder_.current_block_is_dataflow() and not isinstance(b.var, DataflowVar):
+                self.builder_.emit_output_var_binding(b)
+            else:
+                self.builder_.emit_var_binding(b)
+
+        self.log.add("VarBinding")
+        if binding.var.same_as(new_var) and binding.value.same_as(new_value):
+            emit(binding)
+            return
+
+        temp = self.with_shape_and_type(new_var, new_value.shape_, new_value._checked_type_)
+        if not temp.same_as(new_var):
+            new_var = temp
+            self.set_var_remap(binding.var.vid, new_var)
+
+        emit(VarBinding(new_var, new_value))
+
+    def visit_match_shape_(self, binding: MatchShape) -> None:
+        new_value = self.visit_expr(binding.value)
+        new_pattern = self.visit_expr(ShapeExpr(binding.pattern))
+
+        if binding.var:
+            new_shape = None
+            if new_value._checked_type_ and isinstance(new_value._checked_type_, DynTensorType):
+                new_shape = new_pattern
+            new_var = self.visit_var_def(binding.var)
+            temp = self.with_shape_and_type(new_var, new_shape, new_value._checked_type_)
+            if not temp.same_as(new_var):
+                new_var = temp
+                self.set_var_remap(binding.var.vid, new_var)
+
+        self.log.add("MatchShape")
+        if binding.value.same_as(new_value) and binding.pattern.same_as(new_pattern):
+            if not binding.var or (binding.var and binding.var.same_as(new_var)):
+                self.builder_.match_shape_binding(binding)
+                return
+
+        self.builder_.match_shape_binding(MatchShape(new_value, new_pattern.values, new_var))
+
+    def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
+        self.builder_._begin_binding_block()
+        for binding in block.bindings:
+            self.visit_binding(binding)
+        self.log.add("BindingBlock")
+        return self.builder_._end_block()
+
+    def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+        self.builder_._begin_dataflow_block()
+        for binding in block.bindings:
+            self.visit_binding(binding)
+        self.log.add("DataflowBlock")
+        return self.builder_._end_block()
+
+    def visit_var_def_(self, var: Var) -> None:
+        shape_unchanged = True
+        new_shape = None
+        if var.shape_:
+            new_shape = self.visit_expr(var.shape_)
+            shape_unchanged &= var.shape_.same_as(new_shape)
+
+        self.log.add("VarDef")
+        if shape_unchanged:
+            return var
+        else:
+            new_var = Var(var.vid, None, var._checked_type_, var.span)
+            _update_shape(new_var, new_shape)
+
+            self.set_var_remap(var.vid, new_var)
+            return new_var
+
+    def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+        shape_unchanged = True
+        new_shape = None
+        if var.shape_:
+            new_shape = self.visit_expr(var.shape_)
+            shape_unchanged &= var.shape_.same_as(new_shape)
+
+        self.log.add("DataflowVarDef")
+        if shape_unchanged:
+            return var
+        else:
+            new_var = DataflowVar(var.vid, None, var._checked_type_, var.span)
+            _update_shape(new_var, new_shape)
+
+            self.set_var_remap(var.vid, new_var)
+            return new_var
 
 
 def basic_check(expr, visitor_str, mutator_str):
@@ -313,7 +407,9 @@ def test_seq_expr():
                 "\tVar",
             ]
         ),
-        "",
+        "\n".join(
+            ["Constant", "ShapeExpr", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]
+        ),
     )
 
 
@@ -322,102 +418,162 @@ def test_shape_expr():
     basic_check(x, "ShapeExpr", "ShapeExpr")
 
 
-# def test_runtime_dep_shape():
-#     runtime_dep_shape = relax.RuntimeDepShape()
-#     basic_check(runtime_dep_shape, "RuntimeDepShape")
+def test_runtime_dep_shape():
+    runtime_dep_shape = relax.RuntimeDepShape()
+    basic_check(runtime_dep_shape, "RuntimeDepShape", "RuntimeDepShape")
 
 
-# def test_call():
-#     call_node = relax.op.add(x, y)
-#     basic_check(call_node, "\n".join(["Call", "\tOp", "\tVar", "\tVar"]))
+def test_call():
+    call_node = relax.op.add(x, y)
+    basic_check(
+        call_node,
+        "\n".join(["Call", "\tOp", "\tVar", "\tVar"]),
+        "\n".join(["Op", "Var", "Var", "Call"]),
+    )
 
 
-# def test_if():
-#     if_node = relax.If(x, x, x)
-#     basic_check(if_node, "\n".join(["If", "\tVar", "\tVar", "\tVar"]))
+def test_if():
+    if_node = relax.If(x, x, x)
+    basic_check(
+        if_node,
+        "\n".join(["If", "\tVar", "\tVar", "\tVar"]),
+        "\n".join(["Var", "Var", "Var", "If"]),
+    )
 
 
-# def test_tuple_getitem():
-#     tuple_getitem_node = relax.TupleGetItem(relax.Tuple([x, y]), 0)
-#     basic_check(tuple_getitem_node, "\n".join(["TupleGetItem", "\tTuple", "\t\tVar", "\t\tVar"]))
+def test_tuple_getitem():
+    tuple_getitem_node = relax.TupleGetItem(relax.Tuple([x, y]), 0)
+    basic_check(
+        tuple_getitem_node,
+        "\n".join(["TupleGetItem", "\tTuple", "\t\tVar", "\t\tVar"]),
+        "\n".join(["Var", "Var", "Tuple", "TupleGetItem"]),
+    )
 
 
-# def test_binding_block():
-#     bb._begin_binding_block()
-#     gv0 = bb.emit(relax.op.add(x, y))
-#     gv1 = bb.match_shape(y, [m, n])
-#     b0 = bb._end_block()
-#     basic_check(
-#         b0,
-#         "\n".join(
-#             [
-#                 "BindingBlock",
-#                 "\tVarBinding",
-#                 "\t\tCall",
-#                 "\t\t\tOp",
-#                 "\t\t\tVar",
-#                 "\t\t\tVar",
-#                 "\t\tVarDef",
-#                 "\tMatchShape",
-#                 "\t\tVar",
-#                 "\t\tShapeExpr",
-#                 "\t\tVarDef",
-#             ]
-#         ),
-#     )
+def test_binding_block():
+    bb._begin_binding_block()
+    gv0 = bb.emit(relax.op.add(x, y))
+    gv1 = bb.match_shape(y, [m, n])
+    b0 = bb._end_block()
+    basic_check(
+        b0,
+        "\n".join(
+            [
+                "BindingBlock",
+                "\tVarBinding",
+                "\t\tCall",
+                "\t\t\tOp",
+                "\t\t\tVar",
+                "\t\t\tVar",
+                "\t\tVarDef",
+                "\tMatchShape",
+                "\t\tVar",
+                "\t\tShapeExpr",
+                "\t\tVarDef",
+            ]
+        ),
+        "\n".join(
+            [
+                "Op",
+                "Var",
+                "Var",
+                "Call",
+                "ShapeExpr",
+                "VarDef",
+                "VarBinding",
+                "Var",
+                "ShapeExpr",
+                "ShapeExpr",
+                "VarDef",
+                "MatchShape",
+                "BindingBlock",
+            ]
+        ),
+    )
 
 
-# def test_dataflow_block():
-#     bb._begin_dataflow_block()
-#     lv0 = bb.emit(relax.op.add(x, y))
-#     gv1 = bb.match_shape(y, [m, n])
-#     b0 = bb._end_block()
-#     basic_check(
-#         b0,
-#         "\n".join(
-#             [
-#                 "DataflowBlock",
-#                 "\tVarBinding",
-#                 "\t\tCall",
-#                 "\t\t\tOp",
-#                 "\t\t\tVar",
-#                 "\t\t\tVar",
-#                 "\t\tDataflowVarDef",
-#                 "\tMatchShape",
-#                 "\t\tVar",
-#                 "\t\tShapeExpr",
-#                 "\t\tDataflowVarDef",
-#             ]
-#         ),
-#     )
+def test_dataflow_block():
+    bb._begin_dataflow_block()
+    lv0 = bb.emit(relax.op.add(x, y))
+    gv1 = bb.match_shape(y, [m, n])
+    b0 = bb._end_block()
+    basic_check(
+        b0,
+        "\n".join(
+            [
+                "DataflowBlock",
+                "\tVarBinding",
+                "\t\tCall",
+                "\t\t\tOp",
+                "\t\t\tVar",
+                "\t\t\tVar",
+                "\t\tDataflowVarDef",
+                "\tMatchShape",
+                "\t\tVar",
+                "\t\tShapeExpr",
+                "\t\tDataflowVarDef",
+            ]
+        ),
+        "\n".join(
+            [
+                "Op",
+                "Var",
+                "Var",
+                "Call",
+                "ShapeExpr",
+                "DataflowVarDef",
+                "VarBinding",
+                "Var",
+                "ShapeExpr",
+                "ShapeExpr",
+                "DataflowVarDef",
+                "MatchShape",
+                "DataflowBlock",
+            ]
+        ),
+    )
 
 
-# def test_function():
-#     bindings = [relax.VarBinding(x, relax.const(1))]
-#     blocks = [relax.BindingBlock(bindings)]
-#     seq_expr = relax.SeqExpr(blocks, x)
-#     ret_type = relax.DynTensorType(-1, "float32")
-#     func = relax.Function([x], seq_expr, ret_type)
-#     basic_check(
-#         func,
-#         "\n".join(
-#             [
-#                 "Function",
-#                 "\tVarDef",
-#                 "\tSeqExpr",
-#                 "\t\tBindingBlock",
-#                 "\t\t\tVarBinding",
-#                 "\t\t\t\tConstant",
-#                 "\t\t\t\tVarDef",
-#                 "\t\tVar",
-#             ]
-#         ),
-#     )
+def test_function():
+    bindings = [relax.VarBinding(x, relax.const(1))]
+    blocks = [relax.BindingBlock(bindings)]
+    seq_expr = relax.SeqExpr(blocks, x)
+    ret_type = relax.DynTensorType(-1, "float32")
+    func = relax.Function([x], seq_expr, ret_type)
+    basic_check(
+        func,
+        "\n".join(
+            [
+                "Function",
+                "\tVarDef",
+                "\tSeqExpr",
+                "\t\tBindingBlock",
+                "\t\t\tVarBinding",
+                "\t\t\t\tConstant",
+                "\t\t\t\tVarDef",
+                "\t\tVar",
+            ]
+        ),
+        "\n".join(
+            [
+                "ShapeExpr",
+                "VarDef",
+                "Constant",
+                "ShapeExpr",
+                "VarDef",
+                "VarBinding",
+                "BindingBlock",
+                "Var",
+                "SeqExpr",
+                "Function",
+            ]
+        ),
+    )
 
 
-# def test_extern_func():
-#     func = relax.ExternFunc("f")
-#     basic_check(func, "ExternFunc")
+def test_extern_func():
+    func = relax.ExternFunc("f")
+    basic_check(func, "ExternFunc", "ExternFunc")
 
 
 if __name__ == "__main__":
