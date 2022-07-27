@@ -295,7 +295,7 @@ class IRModule(Node):
         Parameters
         ----------
         style : str, optional
-            Pygements styles extended by "light" (default) and "dark", by default "light"
+            Pygments styles extended by "light" (default) and "dark", by default "light"
         """
         from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
 
