@@ -223,6 +223,35 @@ class Function(BaseFunc):
         """
         return Call(self, args, None, None)
 
+    def script(self, show_meta: bool = False) -> str:
+        """Print relax.Function into TVMScript
+
+        Parameters
+        ----------
+        show_meta : bool
+            Whether to show meta information
+
+        Returns
+        -------
+        script : str
+            The TVM Script of the relax.Function
+        """
+        return tvm._ffi.get_global_func("script.AsRelaxScript")(self, show_meta)  # type: ignore
+
+    def show(self, style: str = "light") -> None:
+        """
+        A sugar for print highlighted TVM script.
+
+        Parameters
+        ----------
+        style : str, optional
+            Pygments styles extended by "light" (default) and "dark", by default "light"
+        """
+        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+
+        # Use deferred import to avoid circular import while keeping cprint under tvm/script
+        cprint(self, style=style)
+
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):
