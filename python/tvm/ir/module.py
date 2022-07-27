@@ -292,6 +292,7 @@ class IRModule(Node):
     def show(self, style: Optional[str] = None) -> None:
         """
         A sugar for print highlighted TVM script.
+
         Parameters
         ----------
         style : str, optional

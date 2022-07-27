@@ -25,6 +25,7 @@ from tvm.ir import IRModule
 from tvm.tir import PrimFunc
 
 
+
 def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) -> None:
     """
     Print highlighted TVM script string with Pygments
