@@ -495,7 +495,7 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, const Expr& expr) {
-  return expr->shape_->IsInstance<RuntimeDepShapeNode>();
+  return expr->shape_->IsInstance<RuntimeDepShapeNode>() && VisitDFPattern(op->pattern, expr);
 }
 
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val) {

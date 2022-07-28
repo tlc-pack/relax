@@ -276,7 +276,7 @@ class DFPattern(Node):
         result: AndPattern
             The resulting AndPattern
         """
-        return self & RuntimeDepShapePattern()
+        return RuntimeDepShapePattern(self)
 
     def used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
         """
@@ -343,8 +343,8 @@ class DFPattern(Node):
 class RuntimeDepShapePattern(DFPattern):
     """A pattern matching a Relax RuntimeDepShape."""
 
-    def __init__(self):
-        self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern)
+    def __init__(self, pattern: DFPattern):
+        self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern, pattern)
 
 
 @register_df_node

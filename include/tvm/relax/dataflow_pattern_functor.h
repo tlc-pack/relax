@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/relax/dataflow_pattern_functor.h
- * \brief A set of passes for operating on pattern graphs.
+ * \brief Functors and visitors for dataflow patterns.
  */
 #ifndef TVM_RELAX_DATAFLOW_PATTERN_FUNCTOR_H_
 #define TVM_RELAX_DATAFLOW_PATTERN_FUNCTOR_H_

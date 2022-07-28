@@ -91,11 +91,16 @@ RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
 });
 
 TVM_REGISTER_NODE_TYPE(RuntimeDepShapePatternNode);
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.RuntimeDepShapePattern").set_body_typed([] {
-  return RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
+RuntimeDepShapePattern::RuntimeDepShapePattern(DFPattern root) {
+  ObjectPtr<RuntimeDepShapePatternNode> n = make_object<RuntimeDepShapePatternNode>();
+  n->pattern = std::move(root);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dataflow_pattern.RuntimeDepShapePattern")
+    .set_body_typed([](DFPattern root) { return RuntimeDepShapePattern(std::move(root)); });
+RELAX_PATTERN_PRINTER_DEF(RuntimeDepShapePatternNode, [](auto p, auto node) {
+  p->stream << "RuntimeDepShapePattern(" << node->pattern << " has runtime-dep shape)";
 });
-RELAX_PATTERN_PRINTER_DEF(RuntimeDepShapePatternNode,
-                          [](auto p, auto node) { p->stream << "RuntimeDepShapePattern()"; });
 
 TVM_REGISTER_NODE_TYPE(ExprPatternNode);
 ExprPattern::ExprPattern(Expr expr) {
@@ -354,7 +359,7 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
     return TypePattern(op->pattern, op->type);
   }
   DFPattern VisitDFPattern_(const RuntimeDepShapePatternNode* op) override {
-    return RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
+    return RuntimeDepShapePattern(op->pattern);
   }
   DFPattern VisitDFPattern_(const DataflowVarPatternNode* op) override {
     return DataflowVarPattern(op->name);
@@ -413,10 +418,7 @@ DFPattern DFPattern::HasDtype(const std::string& dtype) const {
 DFPattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(GetRef<DFPattern>(this->get()), shape);
 }
-DFPattern DFPattern::HasRuntimeDepShape() const {
-  return GetRef<DFPattern>(this->get()) &
-         RuntimeDepShapePattern(make_object<RuntimeDepShapePatternNode>());
-}
+DFPattern DFPattern::HasRuntimeDepShape() const { return RuntimeDepShapePattern(*this); }
 
 DFPattern::operator PatternSeq() const { return PatternSeq{{*this}}; }
 

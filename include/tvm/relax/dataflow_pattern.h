@@ -772,12 +772,13 @@ class ExternFuncPattern : public DFPattern {
 };
 
 /*!
- * \brief A pattern to match a runtime-dependent shape.
+ * \brief A pattern that asserting a root pattern has a runtime-dependent shape.
  * \sa RuntimeDepShape
  * \sa RuntimeDepShapePattern
  */
 class RuntimeDepShapePatternNode : public DFPatternNode {
  public:
+  DFPattern pattern; /*!< The root pattern to match */
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relax.dataflow_pattern.RuntimeDepShapePattern";
@@ -790,6 +791,7 @@ class RuntimeDepShapePatternNode : public DFPatternNode {
  */
 class RuntimeDepShapePattern : public DFPattern {
  public:
+  RuntimeDepShapePattern(DFPattern pattern);
   TVM_DEFINE_OBJECT_REF_METHODS(RuntimeDepShapePattern, DFPattern, RuntimeDepShapePatternNode);
 };
 
