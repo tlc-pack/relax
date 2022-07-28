@@ -41,6 +41,15 @@ namespace tvm {
 namespace relax {
 
 class PatternSeq;
+class CallPattern;
+class OrPattern;
+class AndPattern;
+class NotPattern;
+class ShapePattern;
+class RuntimeDepShapePattern;
+class TypePattern;
+class DataTypePattern;
+class AttrPattern;
 
 /*!
  * \brief Create used-by relationship between lhs[-1] and rhs[0], with [*lhs, *rhs] returned.
@@ -84,37 +93,35 @@ class DFPattern : public ObjectRef {
  public:
   /*! \brief Syntatic Sugar for creating a CallPattern */
   template <typename... Args>
-  DFPattern operator()(Args&&... args) const;
+  CallPattern operator()(Args&&... args) const;
   /*! \brief Syntatic Sugar for creating a CallPattern */
-  TVM_DLL DFPattern operator()(const std::vector<DFPattern>& args) const;
+  TVM_DLL CallPattern operator()(const std::vector<DFPattern>& args) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with an "add" op */
-  TVM_DLL DFPattern operator+(const DFPattern& other) const;
+  TVM_DLL CallPattern operator+(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "subtract" op */
-  TVM_DLL DFPattern operator-(const DFPattern& other) const;
+  TVM_DLL CallPattern operator-(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "multiply" op */
-  TVM_DLL DFPattern operator*(const DFPattern& other) const;
+  TVM_DLL CallPattern operator*(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a CallPattern with a "divide" op */
-  TVM_DLL DFPattern operator/(const DFPattern& other) const;
+  TVM_DLL CallPattern operator/(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an OrPattern */
-  TVM_DLL DFPattern operator|(const DFPattern& other) const;
+  TVM_DLL OrPattern operator|(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an AndPattern */
-  TVM_DLL DFPattern operator&(const DFPattern& other) const;
+  TVM_DLL AndPattern operator&(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating a NotPattern */
-  TVM_DLL DFPattern operator~() const;
-  /*! \brief Syntatic Sugar for creating an Optional Pattern */
-  TVM_DLL DFPattern Optional(const std::function<DFPattern(const DFPattern&)>& func) const;
+  TVM_DLL NotPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
-  TVM_DLL DFPattern HasAttr(const Map<String, ObjectRef>& attrs) const;
+  TVM_DLL AttrPattern HasAttr(const Map<String, ObjectRef>& attrs) const;
   /*! \brief Syntatic Sugar for creating a TypePattern */
-  TVM_DLL DFPattern HasType(const Type& type) const;
+  TVM_DLL TypePattern HasType(const Type& type) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
-  TVM_DLL DFPattern HasDtype(const DataType& dtype) const;
+  TVM_DLL DataTypePattern HasDtype(const DataType& dtype) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
-  TVM_DLL DFPattern HasDtype(const std::string& dtype) const;
+  TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
-  TVM_DLL DFPattern HasShape(const Array<PrimExpr>& shape) const;
+  TVM_DLL ShapePattern HasShape(const Array<PrimExpr>& shape) const;
   /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
-  TVM_DLL DFPattern HasRuntimeDepShape() const;
+  TVM_DLL RuntimeDepShapePattern HasRuntimeDepShape() const;
   /*! \brief Syntatic Sugar for duplicating the current pattern */
   TVM_DLL DFPattern dup() const;
 
@@ -796,28 +803,28 @@ class RuntimeDepShapePattern : public DFPattern {
 };
 
 /*! \brief Syntatic Sugar for creating a VarPattern with a name */
-DFPattern IsVar(const String& name);
+VarPattern IsVar(const String& name);
 /*! \brief Syntatic Sugar for creating a ConstantPattern */
-DFPattern IsConstant();
+ConstantPattern IsConst();
 /*! \brief Syntatic Sugar for creating a WildcardPattern */
-DFPattern IsWildcard();
+WildcardPattern Wildcard();
 /*! \brief Syntatic Sugar for creating a ExprPattern */
-DFPattern IsExpr(const Expr& expr);
-/*! \brief Syntatic Sugar for creating a ExprPattern base on an Op*/
-DFPattern IsOp(const String& op_name);
+ExprPattern IsExpr(const Expr& expr);
+/*! \brief Syntatic Sugar for creating a ExprPattern base on an Op */
+ExprPattern IsOp(const String& op_name);
 /*! \brief Syntatic Sugar for call_tir (return a tensor) */
-DFPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt,
-                    Optional<Array<PrimExpr>> oshape = NullOpt);
+CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt,
+                      Optional<Array<PrimExpr>> oshape = NullOpt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
-DFPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes);
-/*! \brief Syntatic Sugar for creating a TuplePattern*/
-DFPattern IsTuple(const Array<DFPattern>& fields);
-/*! \brief Syntatic Sugar for creating a TupleGetItemPattern*/
-DFPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
+CallPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes);
+/*! \brief Syntatic Sugar for creating TuplePattern or UnorderedTuplePattern (unordered=true) */
+DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered = false);
+/*! \brief Syntatic Sugar for creating a TupleGetItemPattern */
+TupleGetItemPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
 
 /*! \brief Implementation of the templated CallPattern syntax sugar */
 template <typename... Args>
-DFPattern DFPattern::operator()(Args&&... args) const {
+CallPattern DFPattern::operator()(Args&&... args) const {
   return CallPattern(GetRef<DFPattern>(this->get()),
                      Array<DFPattern>({std::forward<Args>(args)...}));
 }

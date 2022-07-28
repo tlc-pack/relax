@@ -373,52 +373,43 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
 };
 
 // Syntatic Sugar
-DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
-  return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));
+CallPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
+  return CallPattern(*this, Array<DFPattern>(args));
 }
-DFPattern DFPattern::operator+(const DFPattern& other) const {
-  return IsOp("relax.add")({GetRef<DFPattern>(this->get()), other});
+CallPattern DFPattern::operator+(const DFPattern& other) const {
+  return IsOp("relax.add")({*this, other});
 }
-DFPattern DFPattern::operator-(const DFPattern& other) const {
-  return IsOp("relax.subtract")({GetRef<DFPattern>(this->get()), other});
+CallPattern DFPattern::operator-(const DFPattern& other) const {
+  return IsOp("relax.subtract")({*this, other});
 }
-DFPattern DFPattern::operator*(const DFPattern& other) const {
-  return IsOp("relax.multiply")({GetRef<DFPattern>(this->get()), other});
+CallPattern DFPattern::operator*(const DFPattern& other) const {
+  return IsOp("relax.multiply")({*this, other});
 }
-DFPattern DFPattern::operator/(const DFPattern& other) const {
-  return IsOp("relax.divide")({GetRef<DFPattern>(this->get()), other});
+CallPattern DFPattern::operator/(const DFPattern& other) const {
+  return IsOp("relax.divide")({*this, other});
 }
-DFPattern DFPattern::operator|(const DFPattern& other) const {
-  return OrPattern(GetRef<DFPattern>(this->get()), other);
-}
+OrPattern DFPattern::operator|(const DFPattern& other) const { return OrPattern(*this, other); }
 
-DFPattern DFPattern::operator&(const DFPattern& other) const {
-  return AndPattern(GetRef<DFPattern>(this->get()), other);
-}
+AndPattern DFPattern::operator&(const DFPattern& other) const { return AndPattern(*this, other); }
 
-DFPattern DFPattern::operator~() const { return NotPattern(GetRef<DFPattern>(this->get())); }
+NotPattern DFPattern::operator~() const { return NotPattern(*this); }
 
-DFPattern DFPattern::Optional(const std::function<DFPattern(const DFPattern&)>& func) const {
-  DFPattern current = GetRef<DFPattern>(this->get());
-  return current | func(current);
+AttrPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) const {
+  return AttrPattern(*this, DictAttrs(attrs));
 }
-
-DFPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) const {
-  return AttrPattern(GetRef<DFPattern>(this->get()), DictAttrs(attrs));
+TypePattern DFPattern::HasType(const Type& type) const { return TypePattern(*this, type); }
+DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
+  return DataTypePattern(*this, dtype);
 }
-DFPattern DFPattern::HasType(const Type& type) const {
-  return TypePattern(GetRef<DFPattern>(this->get()), type);
-}
-DFPattern DFPattern::HasDtype(const DataType& dtype) const {
-  return DataTypePattern(GetRef<DFPattern>(this->get()), dtype);
-}
-DFPattern DFPattern::HasDtype(const std::string& dtype) const {
+DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
   return HasDtype(DataType(runtime::String2DLDataType(dtype)));
 }
-DFPattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
-  return ShapePattern(GetRef<DFPattern>(this->get()), shape);
+ShapePattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
+  return ShapePattern(*this, shape);
 }
-DFPattern DFPattern::HasRuntimeDepShape() const { return RuntimeDepShapePattern(*this); }
+RuntimeDepShapePattern DFPattern::HasRuntimeDepShape() const {
+  return RuntimeDepShapePattern(*this);
+}
 
 DFPattern::operator PatternSeq() const { return PatternSeq{{*this}}; }
 
@@ -565,23 +556,23 @@ PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index) {
 }
 PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs) { return lhs.OnlyUsedBy(rhs); }
 
-DFPattern IsVar(const String& name) { return VarPattern(name); }
-DFPattern IsConstant() { return ConstantPattern(make_object<ConstantPatternNode>()); }
-DFPattern IsWildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
-DFPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
-DFPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
-DFPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
-                    Optional<Array<PrimExpr>> oshape) {
+VarPattern IsVar(const String& name) { return VarPattern(name); }
+ConstantPattern IsConst() { return ConstantPattern(make_object<ConstantPatternNode>()); }
+WildcardPattern Wildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
+ExprPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
+ExprPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
+CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
+                      Optional<Array<PrimExpr>> oshape) {
   DFPattern arg_pattern;
   if (!var_args.defined()) {
-    arg_pattern = IsWildcard();
+    arg_pattern = Wildcard();
   } else {
     arg_pattern = var_args.value();
   }
 
   DFPattern shape_pattern;
   if (!oshape.defined()) {
-    shape_pattern = IsWildcard();
+    shape_pattern = Wildcard();
   } else {
     shape_pattern = PrimArrPattern(oshape.value());
   }
@@ -589,7 +580,7 @@ DFPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
   return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern, shape_pattern);
 }
 
-DFPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes) {
+CallPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes) {
   Array<DFPattern> shape_patterns;
   shape_patterns.reserve(oshapes.size());
   for (auto shape : oshapes) shape_patterns.push_back(PrimArrPattern(std::move(shape)));
@@ -598,8 +589,13 @@ DFPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimE
                                 IsTuple(std::move(shape_patterns)));
 }
 
-DFPattern IsTuple(const Array<DFPattern>& fields) { return TuplePattern(fields); }
-DFPattern IsTupleGetItem(const DFPattern tuple, int index) {
+DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered) {
+  if (unordered)
+    return UnorderedTuplePattern(fields);
+  else
+    return TuplePattern(fields);
+}
+TupleGetItemPattern IsTupleGetItem(const DFPattern tuple, int index) {
   return TupleGetItemPattern(tuple, index);
 }
 
