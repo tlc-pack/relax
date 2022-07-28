@@ -82,7 +82,7 @@ def test_metaschedule_tuning():
         seq = transform.Sequential(
             [relax.transform.MetaScheduleTuneIRMod(tvm.target.Target(target_str), config, work_dir)]
         )
-        with transform.PassContext(trace=Trace(mod)):
+        with transform.PassContext(trace=Trace(mod), opt_level=0):
             _ = seq(mod)
             assert PassContext.current().get_trace_stack_size() == 1
             assert PassContext.current().get_current_trace().size == 1
@@ -90,7 +90,7 @@ def test_metaschedule_tuning():
         seq = transform.Sequential(
             [relax.transform.MetaScheduleTuneTIR(tvm.target.Target(target_str), config, work_dir)]
         )
-        with transform.PassContext(trace=Trace(mod)):
+        with transform.PassContext(trace=Trace(mod), opt_level=0):
             _ = seq(mod)
             assert PassContext.current().get_trace_stack_size() == 1
             # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
