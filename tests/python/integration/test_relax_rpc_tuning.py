@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test tuning a model in Relax over RPC, end-to-end."""
-import pytest
 import os
 import subprocess
 import time
@@ -27,6 +26,9 @@ import tvm.testing
 
 @tvm.testing.slow
 def test_relax_auto_tir_e2e_rpc():
+    """
+    Run the e2e_auto_tir Relax example script over RPC on localhost.
+    """
     rpc_host = "127.0.0.1"
     rpc_key = "Test1"
     rpc_port = "5555"
@@ -110,6 +112,7 @@ def test_relax_auto_tir_e2e_rpc():
                 "--rpc-timeout",
                 "600",
             ],
+            check=False,
             capture_output=True,
         )
         # just checking that it completes successfully
@@ -120,4 +123,4 @@ def test_relax_auto_tir_e2e_rpc():
 
 
 if __name__ == "__main__":
-    test_relax_auto_tir_e2e_rpc()
+    tvm.testing.main()
