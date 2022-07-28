@@ -458,6 +458,14 @@ PatternSeq::PatternSeq(tvm::Array<DFPattern> patterns, bool only_used_by) {
   data_ = std::move(n);
 }
 
+PatternSeq PatternSeq::UsedBy(PatternSeq other, int index) const {
+  return relax::UsedBy(*this, other, index);
+}
+
+PatternSeq PatternSeq::OnlyUsedBy(PatternSeq other, int index) const {
+  return relax::OnlyUsedBy(*this, other, index);
+}
+
 PatternSeq PatternSeq::dup() const {
   PatternSeq ret;
 
