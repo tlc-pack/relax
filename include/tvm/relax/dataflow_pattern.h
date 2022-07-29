@@ -96,14 +96,6 @@ class DFPattern : public ObjectRef {
   CallPattern operator()(Args&&... args) const;
   /*! \brief Syntatic Sugar for creating a CallPattern */
   TVM_DLL CallPattern operator()(const std::vector<DFPattern>& args) const;
-  /*! \brief Syntatic Sugar for creating a CallPattern with an "add" op */
-  TVM_DLL CallPattern operator+(const DFPattern& other) const;
-  /*! \brief Syntatic Sugar for creating a CallPattern with a "subtract" op */
-  TVM_DLL CallPattern operator-(const DFPattern& other) const;
-  /*! \brief Syntatic Sugar for creating a CallPattern with a "multiply" op */
-  TVM_DLL CallPattern operator*(const DFPattern& other) const;
-  /*! \brief Syntatic Sugar for creating a CallPattern with a "divide" op */
-  TVM_DLL CallPattern operator/(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an OrPattern */
   TVM_DLL OrPattern operator|(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for creating an AndPattern */

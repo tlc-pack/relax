@@ -176,19 +176,6 @@ def test_tuple_get_item_pattern():
     )
 
 
-def test_operators():
-    x = rx.Var("x")
-    y = rx.Var("y")
-    assert (is_var("x") + is_var("y")).match(rx.op.add(x, y))
-    assert (is_var("x") * is_var("y")).match(rx.op.multiply(x, y))
-    assert (is_var("x") + is_var("y")).match(rx.op.add(y, x))
-    assert (is_var("x") * is_var("y")).match(rx.op.multiply(y, x))
-
-    # TODO: Add the tests below when `divide` and `subtract` are implemented
-    # assert (is_var("x") / is_var("y")).match(rx.op.divide(x, y))
-    # assert (is_var("x") - is_var("y")).match(rx.op.subtract(x, y))
-
-
 def test_or_pattern():
     dfv_or_gv = is_dfv("x") | is_gv("x")
     assert isinstance(dfv_or_gv, OrPattern)
@@ -581,7 +568,7 @@ def test_concat_mm_split():
         lv3 = TupleGetItemPattern(split, 0).has_shape([16, 32])
         lv4 = TupleGetItemPattern(split, 1).has_shape([16, 32])
         split.fork_to(lv3, lv4)
-        add = lv3 + lv4
+        add = is_op("relax.add")(lv3, lv4)
         # TODO(@ganler): simplify this through implicit graph pattern.
         lv3 >> add
         lv4 >> add

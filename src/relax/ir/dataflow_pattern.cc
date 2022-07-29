@@ -376,18 +376,6 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
 CallPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
   return CallPattern(*this, Array<DFPattern>(args));
 }
-CallPattern DFPattern::operator+(const DFPattern& other) const {
-  return IsOp("relax.add")({*this, other});
-}
-CallPattern DFPattern::operator-(const DFPattern& other) const {
-  return IsOp("relax.subtract")({*this, other});
-}
-CallPattern DFPattern::operator*(const DFPattern& other) const {
-  return IsOp("relax.multiply")({*this, other});
-}
-CallPattern DFPattern::operator/(const DFPattern& other) const {
-  return IsOp("relax.divide")({*this, other});
-}
 OrPattern DFPattern::operator|(const DFPattern& other) const { return OrPattern(*this, other); }
 
 AndPattern DFPattern::operator&(const DFPattern& other) const { return AndPattern(*this, other); }
