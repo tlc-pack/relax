@@ -19,17 +19,14 @@ from __future__ import annotations
 import pytest
 import numpy as np
 import tempfile
-import shutil
-
 import tvm
 import tvm.script
+import tvm.testing
 from tvm import relax
 from tvm.target import Target
-from tvm.ir.transform import PassContext
 from tvm.relax.testing import transform
 from tvm.script import relax as R
 from tvm import meta_schedule as ms
-from test_relay_translator import create_database
 
 
 @tvm.script.ir_module
@@ -44,8 +41,6 @@ class InputModule:
 
 
 def build_and_run(mod, target, dev, np_inputs):
-    dirpath = "relax_tmp"
-    db = create_database(f"{dirpath}/workload.json", f"{dirpath}/record.json")
     inputs = [tvm.nd.array(np_input, dev) for np_input in np_inputs]
     with tempfile.TemporaryDirectory() as work_dir:
         ex = ms.tune_relax(
@@ -53,24 +48,20 @@ def build_and_run(mod, target, dev, np_inputs):
             target=target,
             config=ms.TuneConfig(
                 strategy="evolutionary",
+                task_scheduler="round_robin",
                 num_trials_per_iter=4,
                 max_trials_per_task=8,
                 max_trials_global=8,
             ),
             work_dir=work_dir,
-            database=db,
         )
     vm = relax.VirtualMachine(ex, dev)
     vm["main"](*inputs)
-
-    # cleanup
-    shutil.rmtree(dirpath)
 
 
 def _test_lowering(target, dev):
     mod = InputModule
     assert mod
-
     with tvm.transform.PassContext(opt_level=3):
         out_mod = transform.LowerWithRelayOpStrategyPass(target)(mod)
 
@@ -92,6 +83,4 @@ def test_lowering_gpu(target_str="nvidia/geforce-rtx-3070"):
 
 
 if __name__ == "__main__":
-    test_lowering_cpu()
-    test_lowering_gpu()
-    # pytest.main([__file__])
+    pytest.main([__file__])
