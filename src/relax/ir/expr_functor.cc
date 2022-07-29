@@ -664,17 +664,8 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
   return var;
 }
 
-TVM_REGISTER_GLOBAL("relax.MakeExprVisitor").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::unordered_map<std::string, PackedFunc> map;
-
-  PackedFunc packed_func;
-  for (int i = 0; i < args.size(); i += 2) {
-    std::string func_name = args[i];
-    PackedFunc packed_func = args[i + 1];
-    map.emplace(func_name, packed_func);
-  }
-  *rv = PyExprVisitor(map);
-});
+// TODO relax.ExprFunctor.xx?
+TVM_REGISTER_GLOBAL("relax.MakePyExprVisitor").set_body_typed(PyExprVisitor::MakePyExprVisitor);
 
 TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitExpr")
     .set_body_typed([](PyExprVisitor visitor, const Expr& expr) { visitor->VisitExpr(expr); });
@@ -692,17 +683,7 @@ TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitBindingBlock")
 TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitVarDef")
     .set_body_typed([](PyExprVisitor visitor, const Var& var) { visitor->VisitVarDef(var); });
 
-TVM_REGISTER_GLOBAL("relax.MakeExprMutator").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::unordered_map<std::string, PackedFunc> map;
-
-  PackedFunc packed_func;
-  for (int i = 0; i < args.size(); i += 2) {
-    std::string func_name = args[i];
-    PackedFunc packed_func = args[i + 1];
-    map.emplace(func_name, packed_func);
-  }
-  *rv = PyExprMutator(map);
-});
+TVM_REGISTER_GLOBAL("relax.MakePyExprMutator").set_body_typed(PyExprMutator::MakePyExprMutator);
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExpr")
     .set_body_typed([](PyExprMutator visitor, const Expr& expr) {

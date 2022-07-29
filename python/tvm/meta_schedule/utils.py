@@ -112,9 +112,24 @@ def derived_object(cls: type) -> type:
             # using weakref to avoid cyclic dependency
             self._inst._outer = weakref.ref(self)
 
-        def __getattr__(self, name: str):
-            """Bridge the attribute function."""
-            return self._inst.__getattribute__(name)
+        # def __getattr__(self, name: str):
+        #     """Bridge the attribute function."""
+        #     return self._inst.__getattribute__(name)
+        def __getattr__(self, name):
+            # fall back to instance attribute if there is not any
+            # return self._inst.__getattribute__(name)
+            import inspect
+
+            result = self._inst.__getattribute__(name)
+            if inspect.ismethod(result):
+
+                def method(*args, **kwargs):
+                    return result(*args, **kwargs)
+
+                setattr(method, "__own__", self)
+                return method
+
+            return result
 
         def __setattr__(self, name, value):
             if name not in ["_inst", "key", "handle"]:

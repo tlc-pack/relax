@@ -129,5 +129,4 @@ class EwiseFuseFMA:
     """The wrapper for the EwiseFuseFMA pass."""
 
     def transform_module(self, mod, ctx):
-        m = EwiseFuseFMAMutator(mod)
-        return m.transform()
+        return EwiseFuseFMAMutator(mod).transform()

@@ -191,6 +191,7 @@ class ASTPostPrinterMutator(PyExprMutator):
     """TODO"""
 
     def __init__(self) -> None:
+        super().__init__()
         self.log = ASTLog()
 
     def rewrite_constant_post_order(self, op: Constant) -> Expr:
