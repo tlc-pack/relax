@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 from tvm import relay
-from tvm.relax.dataflow_pattern import *
+from tvm.relax.dpl import *
 from tvm.relax.analysis import get_var2val
 from tvm import relax as rx, tir
 from tvm.script import relax as R, tir as T
