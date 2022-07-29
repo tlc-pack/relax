@@ -432,9 +432,15 @@ class TuplePattern(DFPattern):
     def __init__(self, fields: Array):
         self.__init_handle_by_constructor__(ffi.TuplePattern, fields)
 
-    def __getitem__(self, index: int) -> "TupleGetItemPattern":
-        if index >= len(self):
-            raise IndexError("TuplePattern index out of range")
+    def __getitem__(self, index: Optional[int]) -> "TupleGetItemPattern":
+        if index is not None:
+            # support negative index for being pythonic
+            if index < 0:
+                index += len(self)
+            if index >= len(self):
+                raise IndexError("TuplePattern index out of range")
+        else:
+            index = -1  # -1 means matching any index
         return TupleGetItemPattern(self, index)
 
     def __len__(self):
