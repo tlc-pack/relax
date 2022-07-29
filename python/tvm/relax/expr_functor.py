@@ -17,10 +17,12 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression functor of Relax."""
 import tvm
-from typing import Optional
+from typing import Optional, Callable
 from tvm.ir import Op
 from tvm.ir.base import structural_equal
 from tvm.ir.module import IRModule
+from tvm.meta_schedule.utils import derived_object
+
 from .ty import DynTensorType
 from .expr import Type, Span, Expr
 from .expr import Function, ExternFunc
@@ -35,63 +37,73 @@ from ..relay import Id
 from .block_builder import BlockBuilder
 from . import _ffi_api
 
-expr_names = [
-    "constant",
-    "tuple",
-    "var",
-    "dataflow_var",
-    "shape_expr",
-    "runtime_dep_shape",
-    "extern_func",
-    "global_var",
-    "function",
-    "call",
-    "seq_expr",
-    "if",
-    "op",
-    "tuple_getitem",
-]
-other_names = [
-    "var_binding",
-    "match_shape",
-    "binding_block",
-    "dataflow_block",
-    "var_def",
-    "dataflow_var_def",
-]
-visit_func_names = [
-    "visit_expr",
-    "visit_binding",
-    "visit_binding_block",
-    "visit_var_def",
-    "visit_type",
-    "visit_span",
-] + [f"visit_{name}_" for name in (expr_names + other_names)]
-post_order_func_names = [f"rewrite_{name}_post_order" for name in expr_names]
-
-# @tvm._ffi.register_object("relax.ExprFunctor")
-class ExprFunctor(tvm.runtime.Object):
-    """TODO"""
-
-
-# @tvm._ffi.register_object("relax.ExprVisitor")
-class ExprVisitor(ExprFunctor):
-    """TODO"""
-
-
-# @tvm._ffi.register_object("relax.ExprMutatorBase")
-class ExprMutatorBase:
-    """TODO"""
-
-
-# @tvm._ffi.register_object("relax.ExprMutator")
-class ExprMutator:
-    """TODO"""
-
+visitor = derived_object
+mutator = derived_object
 
 @tvm._ffi.register_object("expr_functor.PyExprVisitor")
 class _PyExprVisitor(tvm.runtime.Object):
     """TODO"""
+
+    def __init__(
+        self,
+        f_visit_expr: Callable = None,
+        f_visit_constant_: Callable = None,
+        f_visit_tuple_: Callable = None,
+        f_visit_var_: Callable = None,
+        f_visit_dataflow_var_: Callable = None,
+        f_visit_shape_expr_: Callable = None,
+        f_visit_runtime_dep_shape_: Callable = None,
+        f_visit_extern_func_: Callable = None,
+        f_visit_global_var_: Callable = None,
+        f_visit_function_: Callable = None,
+        f_visit_call_: Callable = None,
+        f_visit_seq_expr_: Callable = None,
+        f_visit_if_: Callable = None,
+        f_visit_op_: Callable = None,
+        f_visit_tuple_getitem_: Callable = None,
+        f_visit_binding: Callable = None,
+        f_visit_var_binding_: Callable = None,
+        f_visit_match_shape_: Callable = None,
+        f_visit_binding_block: Callable = None,
+        f_visit_binding_block_: Callable = None,
+        f_visit_dataflow_block_: Callable = None,
+        f_visit_var_def: Callable = None,
+        f_visit_var_def_: Callable = None,
+        f_visit_dataflow_var_def_: Callable = None,
+        f_visit_type: Callable = None,
+        f_visit_span: Callable = None,
+    ) -> None:
+        """Constructor."""
+
+        self.__init_handle_by_constructor__(
+            _ffi_api.MakePyExprVisitor,
+            f_visit_expr,
+            f_visit_constant_,
+            f_visit_tuple_,
+            f_visit_var_,
+            f_visit_dataflow_var_,
+            f_visit_shape_expr_,
+            f_visit_runtime_dep_shape_,
+            f_visit_extern_func_,
+            f_visit_global_var_,
+            f_visit_function_,
+            f_visit_call_,
+            f_visit_seq_expr_,
+            f_visit_if_,
+            f_visit_op_,
+            f_visit_tuple_getitem_,
+            f_visit_binding,
+            f_visit_var_binding_,
+            f_visit_match_shape_,
+            f_visit_binding_block,
+            f_visit_binding_block_,
+            f_visit_dataflow_block_,
+            f_visit_var_def,
+            f_visit_var_def_,
+            f_visit_dataflow_var_def_,
+            f_visit_type,
+            f_visit_span,
+        )
 
     def visit_expr(self, expr: Expr) -> None:
         return _ffi_api.PyExprVisitorVisitExpr(self, expr)
@@ -106,7 +118,39 @@ class _PyExprVisitor(tvm.runtime.Object):
         return _ffi_api.PyExprVisitorVisitVarDef(self, var)
 
 
-class PyExprVisitor(_PyExprVisitor):
+class PyExprVisitor:
+    _tvm_metadata = {
+        "cls": _PyExprVisitor,
+        "methods": [
+            "visit_expr",
+            "visit_constant_",
+            "visit_tuple_",
+            "visit_var_",
+            "visit_dataflow_var_",
+            "visit_shape_expr_",
+            "visit_runtime_dep_shape_",
+            "visit_extern_func_",
+            "visit_global_var_",
+            "visit_function_",
+            "visit_call_",
+            "visit_seq_expr_",
+            "visit_if_",
+            "visit_op_",
+            "visit_tuple_getitem_",
+            "visit_binding",
+            "visit_var_binding_",
+            "visit_match_shape_",
+            "visit_binding_block",
+            "visit_binding_block_",
+            "visit_dataflow_block_",
+            "visit_var_def",
+            "visit_var_def_",
+            "visit_dataflow_var_def_",
+            "visit_type",
+            "visit_span",
+        ],
+    }
+
     def visit_expr(self, expr: Expr) -> None:
         return _ffi_api.PyExprVisitorVisitExpr(self._outer(), expr)
 
@@ -119,6 +163,72 @@ class PyExprVisitor(_PyExprVisitor):
     def visit_var_def(self, var: Var) -> None:
         return _ffi_api.PyExprVisitorVisitVarDef(self._outer(), var)
 
+    def visit_constant_(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def visit_tuple_(self, op: Tuple) -> None:
+        raise NotImplementedError
+
+    def visit_var_(self, op: Var) -> None:
+        raise NotImplementedError
+
+    def visit_dataflow_var_(self, op: DataflowVar) -> None:
+        raise NotImplementedError
+
+    def visit_shape_expr_(self, op: ShapeExpr) -> None:
+        raise NotImplementedError
+
+    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
+        raise NotImplementedError
+
+    def visit_extern_func_(self, op: ExternFunc) -> None:
+        raise NotImplementedError
+
+    def visit_global_var_(self, op: GlobalVar) -> None:
+        raise NotImplementedError
+
+    def visit_function_(self, op: Function) -> None:
+        raise NotImplementedError
+
+    def visit_call_(self, op: Call) -> None:
+        raise NotImplementedError
+
+    def visit_seq_expr_(self, op: SeqExpr) -> None:
+        raise NotImplementedError
+
+    def visit_if_(self, op: If) -> None:
+        raise NotImplementedError
+
+    def visit_op_(self, op: Op) -> None:
+        raise NotImplementedError
+
+    def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
+        raise NotImplementedError
+
+    def visit_var_binding_(self, binding: VarBinding) -> None:
+        raise NotImplementedError
+
+    def visit_match_shape_(self, binding: MatchShape) -> None:
+        raise NotImplementedError
+
+    def visit_binding_block_(self, block: BindingBlock) -> None:
+        raise NotImplementedError
+
+    def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+        raise NotImplementedError
+
+    def visit_var_def_(self, var: Var) -> None:
+        raise NotImplementedError
+
+    def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+        raise NotImplementedError
+
+    def visit_type(self, t: Type) -> None:
+        raise NotImplementedError
+
+    def visit_span(self, span: Span) -> None:
+        raise NotImplementedError
+
 
 @tvm._ffi.register_object("expr_functor.PyExprMutator")
 class _PyExprMutator(tvm.runtime.Object):
@@ -126,14 +236,94 @@ class _PyExprMutator(tvm.runtime.Object):
 
     builder_: BlockBuilder
 
-    def __init__(self, packed_value) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.MakeExprMutator, *packed_value)
-
-    def set_var_remap(self, id: Id, var: Var) -> None:
-        return _ffi_api.PyExprMutatorSetVarRemap(self, id, var)
-
-    def get_var_remap(self, id: Id) -> Var:
-        return _ffi_api.PyExprMutatorGetVarRemap(self, id)
+    def __init__(
+        self,
+        builder: BlockBuilder = None,
+        f_visit_expr: Callable = None,
+        f_visit_constant_: Callable = None,
+        f_visit_tuple_: Callable = None,
+        f_visit_var_: Callable = None,
+        f_visit_dataflow_var_: Callable = None,
+        f_visit_shape_expr_: Callable = None,
+        f_visit_runtime_dep_shape_: Callable = None,
+        f_visit_extern_func_: Callable = None,
+        f_visit_global_var_: Callable = None,
+        f_visit_function_: Callable = None,
+        f_visit_call_: Callable = None,
+        f_visit_seq_expr_: Callable = None,
+        f_visit_if_: Callable = None,
+        f_visit_op_: Callable = None,
+        f_visit_tuple_getitem_: Callable = None,
+        f_visit_binding: Callable = None,
+        f_visit_var_binding_: Callable = None,
+        f_visit_match_shape_: Callable = None,
+        f_visit_binding_block: Callable = None,
+        f_visit_binding_block_: Callable = None,
+        f_visit_dataflow_block_: Callable = None,
+        f_visit_var_def: Callable = None,
+        f_visit_var_def_: Callable = None,
+        f_visit_dataflow_var_def_: Callable = None,
+        f_visit_type: Callable = None,
+        f_visit_span: Callable = None,
+        f_rewrite_constant_post_order: Callable = None,
+        f_rewrite_tuple_post_order: Callable = None,
+        f_rewrite_var_post_order: Callable = None,
+        f_rewrite_dataflow_var_post_order: Callable = None,
+        f_rewrite_shape_expr_post_order: Callable = None,
+        f_rewrite_runtime_dep_shape_post_order: Callable = None,
+        f_rewrite_extern_func_post_order: Callable = None,
+        f_rewrite_global_var_post_order: Callable = None,
+        f_rewrite_function_post_order: Callable = None,
+        f_rewrite_call_post_order: Callable = None,
+        f_rewrite_seq_expr_post_order: Callable = None,
+        f_rewrite_if_post_order: Callable = None,
+        f_rewrite_op_post_order: Callable = None,
+        f_rewrite_tuple_getitem_post_order: Callable = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.MakePyExprMutator,
+            builder,
+            f_visit_expr,
+            f_visit_constant_,
+            f_visit_tuple_,
+            f_visit_var_,
+            f_visit_dataflow_var_,
+            f_visit_shape_expr_,
+            f_visit_runtime_dep_shape_,
+            f_visit_extern_func_,
+            f_visit_global_var_,
+            f_visit_function_,
+            f_visit_call_,
+            f_visit_seq_expr_,
+            f_visit_if_,
+            f_visit_op_,
+            f_visit_tuple_getitem_,
+            f_visit_binding,
+            f_visit_var_binding_,
+            f_visit_match_shape_,
+            f_visit_binding_block,
+            f_visit_binding_block_,
+            f_visit_dataflow_block_,
+            f_visit_var_def,
+            f_visit_var_def_,
+            f_visit_dataflow_var_def_,
+            f_visit_type,
+            f_visit_span,
+            f_rewrite_constant_post_order,
+            f_rewrite_tuple_post_order,
+            f_rewrite_var_post_order,
+            f_rewrite_dataflow_var_post_order,
+            f_rewrite_shape_expr_post_order,
+            f_rewrite_runtime_dep_shape_post_order,
+            f_rewrite_extern_func_post_order,
+            f_rewrite_global_var_post_order,
+            f_rewrite_function_post_order,
+            f_rewrite_call_post_order,
+            f_rewrite_seq_expr_post_order,
+            f_rewrite_if_post_order,
+            f_rewrite_op_post_order,
+            f_rewrite_tuple_getitem_post_order,
+        )
 
     def visit_expr(self, expr: Expr) -> Expr:
         return _ffi_api.PyExprMutatorVisitExpr(self, expr)
@@ -147,25 +337,57 @@ class _PyExprMutator(tvm.runtime.Object):
     def visit_var_def(self, var: Var) -> Var:
         return _ffi_api.PyExprMutatorVisitVarDef(self, var)
 
-    def visit_with_new_scope(self, expr: Expr) -> Expr:
-        return _ffi_api.PyExprMutatorVisitWithNewScope(self, expr)
-
-    def lookup_binding(self, var: Var) -> Optional[Expr]:
-        return _ffi_api.PyExprMutatorLookupBinding(self, var)
-
-    def with_shape_and_type(self, var: Var, shape: None, t: Type) -> Var:  # TODO: shape anno
-        return _ffi_api.PyExprMutatorWithShapeAndType(self, var, shape, t)
-
 
 class PyExprMutator:
-    def __init__(self) -> None:
-        """"""
+    _tvm_metadata = {
+        "cls": _PyExprMutator,
+        "fields": ["builder_"],
+        "methods": [
+            "visit_expr",
+            "visit_constant_",
+            "visit_tuple_",
+            "visit_var_",
+            "visit_dataflow_var_",
+            "visit_shape_expr_",
+            "visit_runtime_dep_shape_",
+            "visit_extern_func_",
+            "visit_global_var_",
+            "visit_function_",
+            "visit_call_",
+            "visit_seq_expr_",
+            "visit_if_",
+            "visit_op_",
+            "visit_tuple_getitem_",
+            "visit_binding",
+            "visit_var_binding_",
+            "visit_match_shape_",
+            "visit_binding_block",
+            "visit_binding_block_",
+            "visit_dataflow_block_",
+            "visit_var_def",
+            "visit_var_def_",
+            "visit_dataflow_var_def_",
+            "visit_type",
+            "visit_span",
+            "rewrite_constant_post_order",
+            "rewrite_tuple_post_order",
+            "rewrite_var_post_order",
+            "rewrite_dataflow_var_post_order",
+            "rewrite_shape_expr_post_order",
+            "rewrite_runtime_dep_shape_post_order",
+            "rewrite_extern_func_post_order",
+            "rewrite_global_var_post_order",
+            "rewrite_function_post_order",
+            "rewrite_call_post_order",
+            "rewrite_seq_expr_post_order",
+            "rewrite_if_post_order",
+            "rewrite_op_post_order",
+            "rewrite_tuple_getitem_post_order",
+        ],
+    }
 
-    def __getattr__(self, name):
-        if name in ["builder_"]:
-            return getattr(self._outer(), name)
-        else:
-            return self.__getattribute__(name)
+    def __init__(self) -> None:
+        self.builder_ = BlockBuilder()
 
     def set_var_remap(self, id: Id, var: Var) -> None:
         return _ffi_api.PyExprMutatorSetVarRemap(self._outer(), id, var)
@@ -185,6 +407,114 @@ class PyExprMutator:
     def visit_var_def(self, var: Var) -> Var:
         return _ffi_api.PyExprMutatorVisitVarDef(self._outer(), var)
 
+    def visit_constant_(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def visit_tuple_(self, op: Tuple) -> None:
+        raise NotImplementedError
+
+    def visit_var_(self, op: Var) -> None:
+        raise NotImplementedError
+
+    def visit_dataflow_var_(self, op: DataflowVar) -> None:
+        raise NotImplementedError
+
+    def visit_shape_expr_(self, op: ShapeExpr) -> None:
+        raise NotImplementedError
+
+    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
+        raise NotImplementedError
+
+    def visit_extern_func_(self, op: ExternFunc) -> None:
+        raise NotImplementedError
+
+    def visit_global_var_(self, op: GlobalVar) -> None:
+        raise NotImplementedError
+
+    def visit_function_(self, op: Function) -> None:
+        raise NotImplementedError
+
+    def visit_call_(self, op: Call) -> None:
+        raise NotImplementedError
+
+    def visit_seq_expr_(self, op: SeqExpr) -> None:
+        raise NotImplementedError
+
+    def visit_if_(self, op: If) -> None:
+        raise NotImplementedError
+
+    def visit_op_(self, op: Op) -> None:
+        raise NotImplementedError
+
+    def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
+        raise NotImplementedError
+
+    def visit_var_binding_(self, binding: VarBinding) -> None:
+        raise NotImplementedError
+
+    def visit_match_shape_(self, binding: MatchShape) -> None:
+        raise NotImplementedError
+
+    def visit_binding_block_(self, block: BindingBlock) -> None:
+        raise NotImplementedError
+
+    def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+        raise NotImplementedError
+
+    def visit_var_def_(self, var: Var) -> None:
+        raise NotImplementedError
+
+    def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+        raise NotImplementedError
+
+    def visit_type(self, t: Type) -> None:
+        raise NotImplementedError
+
+    def visit_span(self, span: Span) -> None:
+        raise NotImplementedError
+
+    def rewrite_constant_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_tuple_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_var_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_dataflow_var_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_shape_expr_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_runtime_dep_shape_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_extern_func_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_global_var_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_function_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_call_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_seq_expr_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_if_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_op_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
+    def rewrite_tuple_getitem_post_order(self, op: Constant) -> None:
+        raise NotImplementedError
+
     def visit_with_new_scope(self, expr: Expr) -> Expr:
         return _ffi_api.PyExprMutatorVisitWithNewScope(self._outer(), expr)
 
@@ -193,110 +523,3 @@ class PyExprMutator:
 
     def with_shape_and_type(self, var: Var, shape: None, t: Type) -> Var:  # TODO: shape anno
         return _ffi_api.PyExprMutatorWithShapeAndType(self._outer(), var, shape, t)
-
-
-def visitor(visitor_cls=None):
-    import functools
-    import weakref
-
-    def _extract(inst, name):
-        def method(*args, **kwargs):
-            return getattr(inst, name)(*args, **kwargs)
-
-        return method
-
-    class PyVisitor(_PyExprVisitor):
-        def __init__(self, *args, **kwargs) -> None:
-            "Constructor."
-            self.handle = None
-            self._inst = visitor_cls(*args, **kwargs)
-
-            packed_value = []
-
-            for func_name in visit_func_names:
-                if hasattr(self._inst, func_name):
-                    if hasattr(PyExprVisitor, func_name) and (
-                        getattr(visitor_cls, func_name) == getattr(PyExprVisitor, func_name)
-                    ):
-                        continue
-                    packed_value.append(func_name)
-                    packed_value.append(_extract(self._inst, func_name))
-
-            self.__init_handle_by_constructor__(_ffi_api.MakeExprVisitor, *packed_value)
-
-            self._inst._outer = weakref.ref(self)
-
-        def __getattr__(self, name):
-            # fall back to instance attribute if there is not any
-            return self._inst.__getattribute__(name)
-
-        def __setattr__(self, name, value):
-            """TODO"""
-            if name not in ["_inst", "key", "handle"]:
-                self._inst.__setattr__(name, value)
-            else:
-                super(PyVisitor, self).__setattr__(name, value)
-
-    functools.update_wrapper(PyVisitor.__init__, visitor_cls.__init__)
-    PyVisitor.__name__ = visitor_cls.__name__
-    PyVisitor.__doc__ = visitor_cls.__doc__
-    PyVisitor.__module__ = visitor_cls.__module__
-    return PyVisitor
-
-
-def mutator(mutator_cls=None):
-    import functools
-    import weakref
-
-    def _extract(inst, name):
-        def method(*args, **kwargs):
-            return getattr(inst, name)(*args, **kwargs)
-
-        return method
-
-    class PyMutator(_PyExprMutator):
-        def __init__(self, *args, **kwargs) -> None:
-            "Constructor."
-            self.handle = None
-            self._inst = mutator_cls(*args, **kwargs)
-
-            packed_value = []
-
-            for func_name in visit_func_names:
-                if hasattr(self._inst, func_name):
-                    if hasattr(PyExprMutator, func_name) and (
-                        getattr(mutator_cls, func_name) == getattr(PyExprMutator, func_name)
-                    ):
-                        continue
-                    packed_value.append(func_name)
-                    packed_value.append(_extract(self._inst, func_name))
-
-            for func_name in post_order_func_names:
-                # rewrite_{name}_post_order
-                if hasattr(self._inst, func_name):
-                    if f"visit_{'_'.join(func_name.split('_')[1:-2])}_" in packed_value:
-                        raise RuntimeError(func_name)  # TODO: RuntimeError?
-                    packed_value.append(func_name)
-                    packed_value.append(_extract(self._inst, func_name))
-
-            super().__init__(packed_value)
-
-            self._inst._outer = weakref.ref(self)
-            self.builder_ = super().__getattr__("builder_")
-
-        def __getattr__(self, name):
-            # fall back to instance attribute if there is not any
-            return self._inst.__getattribute__(name)
-
-        def __setattr__(self, name, value):
-            """TODO"""
-            if name not in ["_inst", "key", "handle"]:  # TODO: Why do we need key here
-                self._inst.__setattr__(name, value)
-            else:
-                super(PyMutator, self).__setattr__(name, value)
-
-    functools.update_wrapper(PyMutator.__init__, mutator_cls.__init__)
-    PyMutator.__name__ = mutator_cls.__name__
-    PyMutator.__doc__ = mutator_cls.__doc__
-    PyMutator.__module__ = mutator_cls.__module__
-    return PyMutator

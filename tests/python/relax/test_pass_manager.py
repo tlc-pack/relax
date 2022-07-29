@@ -113,8 +113,7 @@ def test_function_pass():
     # create FunctionPass with the function_pass decorator
     @relax.transform.function_pass(opt_level=opt_level, name=pass_name)
     def decorator_transform(func, mod, ctx):
-        m = SwapMAVar()
-        return m.visit_expr(func)
+        return SwapMAVar().visit_expr(func)
 
     # check the transform info
     assert isinstance(decorator_transform, relax.transform.FunctionPass)
@@ -214,8 +213,7 @@ def test_dataflowblock_pass():
     # create DataflowBlockPass with the dataflowblock_pass decorator
     @relax.transform.dataflowblock_pass(opt_level=opt_level, name=pass_name)
     def decorator_transform(block, mod, ctx):
-        m = SwapMAVar()
-        return m.visit_binding_block(block)
+        return SwapMAVar().visit_binding_block(block)
 
     # check the transform info
     assert isinstance(decorator_transform, relax.transform.DataflowBlockPass)
