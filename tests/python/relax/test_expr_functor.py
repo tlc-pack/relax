@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from re import L
 import pytest
 
 import tvm
@@ -47,11 +46,12 @@ class BasicVisitor(PyExprVisitor):
 
 
 class ASTLog:
-    def __init__(self, reverse=False) -> None:
+    """Helper class to log AST"""
+
+    def __init__(self) -> None:
         self.log = []
         self.indent = "\t"
         self.level = 0
-        self.reverse = reverse
 
     def push_scope(self):
         self.level += 1
@@ -63,12 +63,12 @@ class ASTLog:
         self.log.append(self.indent * self.level + s)
 
     def __str__(self) -> str:
-        return "\n".join(reversed(self.log) if self.reverse else self.log)
+        return "\n".join(self.log)
 
 
 @relax.expr_functor.visitor
 class ASTPrinter(PyExprVisitor):
-    """TODO"""
+    """Print relax AST in structured format. The shape of Node is ignored."""
 
     def __init__(self) -> None:
         self.log = ASTLog()
@@ -188,7 +188,7 @@ class BasicMutator(PyExprMutator):
 
 @relax.expr_functor.mutator
 class ASTPostPrinterMutator(PyExprMutator):
-    """TODO"""
+    """Print relax AST in the post order format."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -251,6 +251,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         return op
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
+        """Identical with ExprMutator::VisitBinding_(const VarBindingNode* binding) on the C++ side."""
         new_value = self.visit_expr(binding.value)
         new_var = self.visit_var_def(binding.var)
 
@@ -273,6 +274,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         emit(VarBinding(new_var, new_value))
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
+        """Identical with ExprMutator::VisitBinding_(const MatchShapeNode* binding) on the C++ side."""
         new_value = self.visit_expr(binding.value)
         new_pattern = self.visit_expr(ShapeExpr(binding.pattern))
 
@@ -295,6 +297,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.builder_.match_shape_binding(MatchShape(new_value, new_pattern.values, new_var))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
+        """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""
         self.builder_._begin_binding_block()
         for binding in block.bindings:
             self.visit_binding(binding)
@@ -302,6 +305,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         return self.builder_._end_block()
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+        """Identical with ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) on the C++ side."""
         self.builder_._begin_dataflow_block()
         for binding in block.bindings:
             self.visit_binding(binding)
@@ -309,6 +313,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         return self.builder_._end_block()
 
     def visit_var_def_(self, var: Var) -> None:
+        """Identical with ExprMutator::VisitVarDef_(const VarNode* var) on the C++ side."""
         shape_unchanged = True
         new_shape = None
         if var.shape_:
@@ -326,6 +331,7 @@ class ASTPostPrinterMutator(PyExprMutator):
             return new_var
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+        """Identical with ExprMutator::VisitVarDef_(const DataflowVarNode* var) on the C++ side."""
         shape_unchanged = True
         new_shape = None
         if var.shape_:
@@ -350,18 +356,22 @@ def basic_check(expr, visitor_str, mutator_str):
         elif isinstance(expr, relax.BindingBlock):
             return f.visit_binding_block(expr)
 
+    # check no overloading case
     basic_visitor = BasicVisitor()
     visit(basic_visitor, expr)
 
+    # check the output log
     log_visitor = ASTPrinter()
     visit(log_visitor, expr)
     assert str(log_visitor.log) == visitor_str
 
+    # check no overloading case
     basic_mutator = BasicMutator()
     if isinstance(expr, relax.Expr):
         expr = bb.normalize(expr)
     assert_structural_equal(visit(basic_mutator, expr), expr)
 
+    # check the output log and return value
     post_log_mutator = ASTPostPrinterMutator()
     if isinstance(expr, relax.Expr):
         expr = bb.normalize(expr)
@@ -575,6 +585,20 @@ def test_function():
 def test_extern_func():
     func = relax.ExternFunc("f")
     basic_check(func, "ExternFunc", "ExternFunc")
+
+
+def test_overload_visit_and_post_order_visit_conflict():
+    @relax.expr_functor.mutator
+    class FailMutator(PyExprMutator):
+        def visit_call_(self, op: Call) -> Expr:
+            return op
+
+        def rewrite_call_post_order(self, op: Expr) -> Expr:
+            return op
+
+    with pytest.raises(tvm.TVMError):
+        call_node = relax.op.add(x, y)
+        FailMutator().visit_expr(call_node)
 
 
 if __name__ == "__main__":

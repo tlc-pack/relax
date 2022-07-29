@@ -71,6 +71,7 @@ Example
 mutator = derived_object
 """
 A decorator to wrap user-customized PyExprMutator as TVM object _PyExprMutator.
+Note:  Cannot override visit function and post-order rewrite at the same time.
 
 Parameters
 ----------
@@ -107,6 +108,7 @@ Example
     mymutator.visit_binding(binding)
     mymutator.visit_binding_block(bindingblock)
     mymutator.visit_var_def(var)
+    # Note: In this case, we cannot override rewrite_tuple_post_order in MyExprMutator.
 """
 
 
@@ -1196,7 +1198,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_constant_post_order(self, op: Expr) -> Expr:
+    def rewrite_constant_post_order(self, op: Constant) -> Expr:
         """Rewrite Constant after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1208,8 +1210,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : Constant
+            The Constant to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1218,7 +1220,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_tuple_post_order(self, op: Expr) -> Expr:
+    def rewrite_tuple_post_order(self, op: Tuple) -> Expr:
         """Rewrite Tuple after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1230,8 +1232,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : Tuple
+            The Tuple to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1240,7 +1242,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_var_post_order(self, op: Expr) -> Expr:
+    def rewrite_var_post_order(self, op: Var) -> Expr:
         """Rewrite Var after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1252,8 +1254,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : Var
+            The Var to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1262,7 +1264,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_dataflow_var_post_order(self, op: Expr) -> Expr:
+    def rewrite_dataflow_var_post_order(self, op: DataflowVar) -> Expr:
         """Rewrite DataflowVar after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1274,8 +1276,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : DataflowVar
+            The DataflowVar to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1284,7 +1286,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_shape_expr_post_order(self, op: Expr) -> Expr:
+    def rewrite_shape_expr_post_order(self, op: ShapeExpr) -> Expr:
         """Rewrite ShapeExpr after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1296,8 +1298,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : ShapeExpr
+            The ShapeExpr to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1306,7 +1308,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_runtime_dep_shape_post_order(self, op: Expr) -> Expr:
+    def rewrite_runtime_dep_shape_post_order(self, op: RuntimeDepShape) -> Expr:
         """Rewrite RuntimeDepShape after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1318,8 +1320,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : RuntimeDepShape
+            The RuntimeDepShape to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1328,7 +1330,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_extern_func_post_order(self, op: Expr) -> Expr:
+    def rewrite_extern_func_post_order(self, op: ExternFunc) -> Expr:
         """Rewrite ExternFunc after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1340,8 +1342,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : ExternFunc
+            The ExternFunc to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1350,7 +1352,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_global_var_post_order(self, op: Expr) -> Expr:
+    def rewrite_global_var_post_order(self, op: GlobalVar) -> Expr:
         """Rewrite GlobalVar after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1362,8 +1364,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : GlobalVar
+            The GlobalVar to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1372,7 +1374,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_function_post_order(self, op: Expr) -> Expr:
+    def rewrite_function_post_order(self, op: Function) -> Expr:
         """Rewrite Function after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1384,8 +1386,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : Function
+            The Function to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1394,7 +1396,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_call_post_order(self, op: Expr) -> Expr:
+    def rewrite_call_post_order(self, op: Call) -> Expr:
         """Rewrite Call after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1406,8 +1408,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : Call
+            The Call to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1416,7 +1418,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_seq_expr_post_order(self, op: Expr) -> Expr:
+    def rewrite_seq_expr_post_order(self, op: SeqExpr) -> Expr:
         """Rewrite SeqExpr after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1428,8 +1430,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : SeqExpr
+            The SeqExpr to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1438,7 +1440,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_if_post_order(self, op: Expr) -> Expr:
+    def rewrite_if_post_order(self, op: If) -> Expr:
         """Rewrite If after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1450,8 +1452,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : If
+            The If to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1460,7 +1462,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_op_post_order(self, op: Expr) -> Expr:
+    def rewrite_op_post_order(self, op: Op) -> Expr:
         """Rewrite Op after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1472,8 +1474,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : Op
+            The Op to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
@@ -1482,7 +1484,7 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_tuple_getitem_post_order(self, op: Expr) -> Expr:
+    def rewrite_tuple_getitem_post_order(self, op: TupleGetItem) -> Expr:
         """Rewrite TupleGetItem after post-order visit the node.
         The customization will work as
         .. code-block:: c++
@@ -1494,8 +1496,8 @@ class PyExprMutator:
 
         Parameters
         ----------
-        op : Expr
-            The Expr to be rewritten, also the return value from the post-order visit.
+        op : TupleGetItem
+            The TupleGetItem to be rewritten, also the return value from the post-order visit.
 
         Returns
         -------
