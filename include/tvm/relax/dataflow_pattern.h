@@ -798,7 +798,7 @@ class RuntimeDepShapePatternNode : public DFPatternNode {
  */
 class RuntimeDepShapePattern : public DFPattern {
  public:
-  RuntimeDepShapePattern(DFPattern pattern);
+  TVM_DLL explicit RuntimeDepShapePattern(DFPattern pattern);
   TVM_DEFINE_OBJECT_REF_METHODS(RuntimeDepShapePattern, DFPattern, RuntimeDepShapePatternNode);
 };
 
