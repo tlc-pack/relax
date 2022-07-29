@@ -19,6 +19,7 @@ from __future__ import annotations
 import pytest
 import numpy as np
 import tempfile
+import shutil
 
 import tvm
 import tvm.script
@@ -52,15 +53,18 @@ def build_and_run(mod, target, dev, np_inputs):
             target=target,
             config=ms.TuneConfig(
                 strategy="evolutionary",
-                num_trials_per_iter=2,
-                max_trials_per_task=4,
-                max_trials_global=4,
+                num_trials_per_iter=4,
+                max_trials_per_task=8,
+                max_trials_global=8,
             ),
             work_dir=work_dir,
             database=db,
         )
     vm = relax.VirtualMachine(ex, dev)
     vm["main"](*inputs)
+
+    # cleanup
+    shutil.rmtree(dirpath)
 
 
 def _test_lowering(target, dev):
@@ -88,4 +92,6 @@ def test_lowering_gpu(target_str="nvidia/geforce-rtx-3070"):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_lowering_cpu()
+    test_lowering_gpu()
+    # pytest.main([__file__])
