@@ -77,6 +77,3 @@ BlockBuilder = block_builder.BlockBuilder
 # ExprFunctor
 PyExprVisitor = expr_functor.PyExprVisitor
 PyExprMutator = expr_functor.PyExprMutator
-
-visitor = expr_functor.visitor
-mutator = expr_functor.mutator

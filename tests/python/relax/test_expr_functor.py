@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 from tvm import relax, tir
-from tvm.relax import PyExprVisitor, PyExprMutator, visitor, mutator
+from tvm.relax import PyExprVisitor, PyExprMutator
 from tvm.ir.base import assert_structural_equal
 from tvm.ir import Op
 from tvm.relax.ty import DynTensorType
@@ -41,7 +41,7 @@ y = relax.Var("y", [m, n], type_anno2)
 bb = relax.BlockBuilder()
 
 
-@visitor
+@relax.expr_functor.visitor
 class BasicVisitor(PyExprVisitor):
     """Default ExprVisitor"""
 
@@ -66,7 +66,7 @@ class ASTLog:
         return "\n".join(reversed(self.log) if self.reverse else self.log)
 
 
-@visitor
+@relax.expr_functor.visitor
 class ASTPrinter(PyExprVisitor):
     """TODO"""
 
@@ -181,12 +181,12 @@ class ASTPrinter(PyExprVisitor):
         self.log.add("DataflowVarDef")
 
 
-@mutator
+@relax.expr_functor.mutator
 class BasicMutator(PyExprMutator):
     """Default ExprMutator"""
 
 
-@mutator
+@relax.expr_functor.mutator
 class ASTPostPrinterMutator(PyExprMutator):
     """TODO"""
 
