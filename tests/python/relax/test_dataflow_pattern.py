@@ -231,6 +231,11 @@ def test_shape_pattern():
 
 
 def test_prim_arr_pattern():
+    """
+    The difference between is_shape and has_shape is that:
+    1) is_shape directly matches a shape (e.g., as an argument);
+    2) has_shape matches a tensor and puts assumptions on the tensor's shape.
+    """
     pattern = is_shape([32, 32])
     assert pattern[0] == 32
     assert pattern[1] == 32

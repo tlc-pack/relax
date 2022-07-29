@@ -167,8 +167,8 @@ class DFPattern(Node):
         result: ShapePattern
             The resulting ShapePattern
 
-        Notes
-        -----
+        Note
+        ----
         has_shape assumes that the matched relax.Expr only has one
         output tensor. Use is_tuple for those with multiple outputs.
         """
@@ -192,8 +192,8 @@ class DFPattern(Node):
         result: bool
             Whether or not the expression matches the pattern
 
-        Notes
-        -----
+        Note
+        ----
         Unlike Relay whose function is an expression, functions in Relax consists
         of blocks of bindings that they are not syntactically connected. We use a
         mapping (i.e., var2val) to migrate the gap. For example, to when matching
@@ -380,8 +380,8 @@ class CallPattern(DFPattern):
     varg_default_wildcard: bool
         If True, args can be fewer than actual provided arguments.
 
-    Notes
-    -----
+    Note
+    ----
     By setting varg_default_wildcard to True, we can only focus on the argument
     patterns we specified. For example, CallPattern(Op, [A, B]) can match
     a call of Op(A, B) or Op(A, B, C, ...) that has more arguments. However,
@@ -779,7 +779,31 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
 
 
 def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
-    if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
+    """
+    Directly matches a shape which is an array of PrimExpr
+
+    Parameters
+    ----------
+    shape : List[tvm.ir.PrimExpr]
+        The expected shape
+
+    Returns
+    -------
+    PrimArrPattern
+        The resulting PrimArrPattern pattern
+
+    Raises
+    ------
+    ValueError
+        If the argument shape is not a list/tuple/tvm.ir.Array
+
+    Note
+    ----
+    The difference between p.has_shape(s) and is_shape(s) is that: has_shape
+    puts assumptions on the shape of the tensor matched by pattern p. While
+    is_shape directly matches the shape (an array of PrimExpr).
+    """
+    if not isinstance(shape, (list, tuple, tvm.ir.Array)):
         raise ValueError("is_shape takes a list or tuple as input.")
     return PrimArrPattern(shape)
 
@@ -916,8 +940,8 @@ class PatternSeq(Node):
         PatternSeq
             A chained pattern sequence
 
-        Notes
-        -----
+        Note
+        ----
         If other is PatternSeq, it means the right-most pattern must be used by the left-most
         pattern of the other sequence.
         """
@@ -940,8 +964,8 @@ class PatternSeq(Node):
         PatternSeq
             A chained pattern sequence
 
-        Notes
-        -----
+        Note
+        ----
         If other is PatternSeq, it means the right-most pattern must be **ONLY** used by the
         left-most pattern of the other sequence.
         """
