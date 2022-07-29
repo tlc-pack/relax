@@ -201,7 +201,7 @@ class DFPattern(Node):
         when the recursive pattern matching goes to check lv0. The var2val mapping
         can be computed through the tvm.relax.analysis.get_var2val function.
         """
-        return match_expr(self, expr, var2val)
+        return ffi.match_expr(self, expr, var2val)
 
     def has_rt_dep_shape(self) -> "AndPattern":
         """
@@ -883,22 +883,6 @@ def has_attr(attrs, pattern=None) -> AttrPattern:
     return pattern.has_attr(attrs)
 
 
-def match_expr(pattern: "DFPattern", expr: Expr, var2val: Dict[Var, Expr] = None) -> bool:
-    """
-    Match a pattern to an expression
-
-    Parameters
-    ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
-        The input pattern.
-    expr : tvm.relax.Expr
-        The expression to match.
-    var2val : Optional[Dict[tvm.relax.Var, tvm.relax.Expr]]
-        A mapping from variables to values for autojump.
-    """
-    return ffi.match_expr(pattern, expr, var2val)
-
-
 @register_df_node
 class PatternSeq(Node):
     """A sequence of patterns with consecutive constraints"""
@@ -999,36 +983,6 @@ class PatternSeq(Node):
         return ffi.dup_seq(self)
 
 
-def match_dfb(
-    ctx: "PatternContext",
-    dfb: DataflowBlock,
-    start_hint: Optional[Var] = None,
-    must_include_hint: bool = False,
-) -> Dict[DFPattern, Var]:
-    """
-    Match a DataflowBlock via a graph of DFPattern and corresponding constraints
-
-    Parameters
-    ----------
-    ctx : PatternContext
-        The object to store graph-matching context (e.g., edge constraints)
-    dfb : DataflowBlock
-        The DataflowBlock to match
-    start_hint : Optional[Var], optional
-        Indicating the starting expression to match, by default None
-    must_include_hint : bool, optional
-        Whether the start_hint expression must be matched, by default False
-
-    Returns
-    -------
-    Dict[DFPattern, Var]
-        The mapping from DFPattern to matched expression
-    """
-    if ctx is None:
-        ctx = PatternContext.current()
-    return ffi.match_dfb(ctx, dfb, start_hint, must_include_hint)
-
-
 class PatternContext(tvm.runtime.Object):
     """A context object for doing graph (topogical) pattern matching."""
 
@@ -1060,7 +1014,10 @@ class PatternContext(tvm.runtime.Object):
         return ffi.current_context()
 
     def match_dfb(
-        self, dfb: DataflowBlock, start_hint: Optional[Var] = None, must_include_hint: bool = False
+        self,
+        dfb: DataflowBlock,
+        start_hint: Optional[Var] = None,
+        must_include_hint: bool = False,
     ) -> Dict[DFPattern, Var]:
         """
         Match a DataflowBlock via a graph of DFPattern and corresponding constraints
@@ -1079,7 +1036,7 @@ class PatternContext(tvm.runtime.Object):
         Dict[DFPattern, Var]
             The mapping from DFPattern to matched expression
         """
-        return match_dfb(self, dfb, start_hint, must_include_hint)
+        return ffi.match_dfb(self, dfb, start_hint, must_include_hint)
 
 
 ### Private functions

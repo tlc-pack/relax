@@ -319,55 +319,55 @@ def test_simple_call_packed():
 
 ## Graph-wise Matching
 def test_simple_used_by():
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_var("x")  # x is a free var (fn arg)
         n1 = wildcard()
         n0 ^ n1
         dfb = main_fn.body.blocks[0]
-        matched = match_dfb(None, dfb)
+        matched = ctx.match_dfb(dfb)
         assert matched
         assert matched[n0] == main_fn.params[0]
         assert matched[n1] == dfb.bindings[0].var
 
 
 def test_simple_call_tir_edge():
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_relu")
         n0.used_by(n1)
         dfb = main_fn.body.blocks[0]
-        matched = match_dfb(None, dfb)
+        matched = ctx.match_dfb(dfb)
         assert matched
         assert matched[n0] == dfb.bindings[0].var
         assert matched[n1] == dfb.bindings[1].var
 
 
 def test_simple_oub():
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_relu")
         n0 >> n1
         dfb = main_fn.body.blocks[0]
-        matched = match_dfb(None, dfb)
+        matched = ctx.match_dfb(dfb)
         assert matched
         assert matched[n0] == dfb.bindings[0].var
         assert matched[n1] == dfb.bindings[1].var
 
 
 def test_counter_syntax_match():
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_impossible")
         n0 >> n1
         dfb = main_fn.body.blocks[0]
-        assert not match_dfb(None, dfb)
+        assert not ctx.match_dfb(dfb)
 
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_impossible")
         n0 ^ n1
         dfb = main_fn.body.blocks[0]
-        assert not match_dfb(None, dfb)
+        assert not ctx.match_dfb(dfb)
 
 
 @tvm.script.ir_module
@@ -384,7 +384,7 @@ class Diamond:
 
 
 def test_diamond():
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_relu")
         n2 = is_call_tir("tir_sigmoid")
@@ -396,11 +396,11 @@ def test_diamond():
         n2 >> n3
 
         dfb = Diamond["main"].body.blocks[0]
-        assert match_dfb(None, dfb)
+        assert ctx.match_dfb(dfb)
 
 
 def test_diamond_counter_oub():
-    with PatternContext():
+    with PatternContext() as ctx:
         n0 = is_call_tir("tir_matmul")
         n1 = is_call_tir("tir_relu")
         n2 = is_call_tir("tir_sigmoid")
@@ -412,7 +412,7 @@ def test_diamond_counter_oub():
         n2 >> n3
 
         dfb = Diamond["main"].body.blocks[0]
-        assert not match_dfb(None, dfb)
+        assert not ctx.match_dfb(dfb)
 
 
 @tvm.script.ir_module
@@ -563,7 +563,7 @@ def test_concat_mm_split():
         dfb = CMS["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
 
-    with PatternContext():
+    with PatternContext() as ctx:
         split = is_call_tir("my_split")
         lv3 = TupleGetItemPattern(split, 0).has_shape([16, 32])
         lv4 = TupleGetItemPattern(split, 1).has_shape([16, 32])
@@ -574,7 +574,7 @@ def test_concat_mm_split():
         lv4 >> add
 
         dfb = CMS["main"].body.blocks[0]
-        assert match_dfb(None, dfb)
+        assert ctx.match_dfb(dfb)
 
 
 def test_self_attention():
