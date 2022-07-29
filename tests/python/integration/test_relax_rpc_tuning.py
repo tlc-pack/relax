@@ -35,10 +35,10 @@ def test_relax_auto_tir_e2e_rpc():
     rpc_key = "Test1"
     rpc_port = 5555
 
-    tracker = Tracker(host=rpc_host, port=rpc_port)
+    Tracker(host=rpc_host, port=rpc_port)
     # nasty hack: avoid race conditions if the server starts before the tracker
     time.sleep(1)
-    server = rpc.Server(host=rpc_host, key=rpc_key, tracker_addr=(rpc_host, rpc_port))
+    rpc.Server(host=rpc_host, key=rpc_key, tracker_addr=(rpc_host, rpc_port))
     # also prevent the query process from firing before the server connects
     time.sleep(1)
 
