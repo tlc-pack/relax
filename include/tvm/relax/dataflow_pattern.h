@@ -151,7 +151,7 @@ class PatternSeqNode final : public Object {
   std::vector<PairCons> pair_constraints; /*!< Constraints between the previous and next patterns */
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("patterns", &patterns); }
-  static constexpr const char* _type_key = "relax.dataflow_pattern.PatternSeq";
+  static constexpr const char* _type_key = "relax.dpl.PatternSeq";
   TVM_DECLARE_BASE_OBJECT_INFO(PatternSeqNode, Object);
 };
 
@@ -191,7 +191,7 @@ class PatternContextNode : public Object {
   // src node -> <dst node, constraint type> constraints.
   std::map<DFPattern, std::map<DFPattern, PairCons>> constraints;
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.PatternContext";
+  static constexpr const char* _type_key = "relax.dpl.PatternContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextNode, Object);
 };
 
@@ -247,7 +247,7 @@ class ExprPatternNode : public DFPatternNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("expr", &expr); }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.ExprPattern";
+  static constexpr const char* _type_key = "relax.dpl.ExprPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExprPatternNode, DFPatternNode);
 };
 
@@ -272,7 +272,7 @@ class VarPatternNode : public DFPatternNode {
   const String& name_hint() const { return name; }
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name", &name); }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.VarPattern";
+  static constexpr const char* _type_key = "relax.dpl.VarPattern";
   TVM_DECLARE_BASE_OBJECT_INFO(VarPatternNode, DFPatternNode);
 };
 
@@ -297,7 +297,7 @@ class VarPattern : public DFPattern {
  */
 class DataflowVarPatternNode : public VarPatternNode {
  public:
-  static constexpr const char* _type_key = "relax.dataflow_pattern.DataflowVarPattern";
+  static constexpr const char* _type_key = "relax.dpl.DataflowVarPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarPatternNode, DFPatternNode);
 };
 
@@ -318,7 +318,7 @@ class DataflowVarPattern : public DFPattern {
  */
 class GlobalVarPatternNode : public VarPatternNode {
  public:
-  static constexpr const char* _type_key = "relax.dataflow_pattern.GlobalVarPattern";
+  static constexpr const char* _type_key = "relax.dpl.GlobalVarPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarPatternNode, DFPatternNode);
 };
 
@@ -340,7 +340,7 @@ class ConstantPatternNode : public DFPatternNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.ConstantPattern";
+  static constexpr const char* _type_key = "relax.dpl.ConstantPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantPatternNode, DFPatternNode);
 };
 
@@ -379,7 +379,7 @@ class CallPatternNode : public DFPatternNode {
     v->Visit("args", &args);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.CallPattern";
+  static constexpr const char* _type_key = "relax.dpl.CallPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallPatternNode, DFPatternNode);
 };
 
@@ -398,7 +398,7 @@ class PrimArrPatternNode : public DFPatternNode {
  public:
   Array<PrimExpr> fields; /*!< The array to match */
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
-  static constexpr const char* _type_key = "relax.dataflow_pattern.PrimArrPattern";
+  static constexpr const char* _type_key = "relax.dpl.PrimArrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimArrPatternNode, DFPatternNode);
 };
 
@@ -433,7 +433,7 @@ class FunctionPatternNode : public DFPatternNode {
     v->Visit("body", &body);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.FunctionPattern";
+  static constexpr const char* _type_key = "relax.dpl.FunctionPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPatternNode, DFPatternNode);
 };
 
@@ -463,7 +463,7 @@ class TuplePatternNode : public DFPatternNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.TuplePattern";
+  static constexpr const char* _type_key = "relax.dpl.TuplePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuplePatternNode, DFPatternNode);
 };
 
@@ -487,7 +487,7 @@ class UnorderedTuplePatternNode : public DFPatternNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.UnorderedTuplePattern";
+  static constexpr const char* _type_key = "relax.dpl.UnorderedTuplePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(UnorderedTuplePatternNode, DFPatternNode);
 };
 
@@ -516,7 +516,7 @@ class TupleGetItemPatternNode : public DFPatternNode {
     v->Visit("index", &index);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.TupleGetItemPattern";
+  static constexpr const char* _type_key = "relax.dpl.TupleGetItemPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemPatternNode, DFPatternNode);
 };
 
@@ -544,7 +544,7 @@ class AndPatternNode : public DFPatternNode {
     v->Visit("right", &right);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.AndPattern";
+  static constexpr const char* _type_key = "relax.dpl.AndPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(AndPatternNode, DFPatternNode);
 };
 
@@ -572,7 +572,7 @@ class OrPatternNode : public DFPatternNode {
     v->Visit("right", &right);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.OrPattern";
+  static constexpr const char* _type_key = "relax.dpl.OrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrPatternNode, DFPatternNode);
 };
 
@@ -596,7 +596,7 @@ class NotPatternNode : public DFPatternNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("reject", &reject); }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.NotPattern";
+  static constexpr const char* _type_key = "relax.dpl.NotPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(NotPatternNode, DFPatternNode);
 };
 
@@ -618,7 +618,7 @@ class WildcardPatternNode : public DFPatternNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.WildcardPattern";
+  static constexpr const char* _type_key = "relax.dpl.WildcardPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(WildcardPatternNode, DFPatternNode);
 };
 
@@ -645,7 +645,7 @@ class TypePatternNode : public DFPatternNode {
     v->Visit("type", &type);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.TypePattern";
+  static constexpr const char* _type_key = "relax.dpl.TypePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypePatternNode, DFPatternNode);
 };
 
@@ -673,7 +673,7 @@ class ShapePatternNode : public DFPatternNode {
     v->Visit("shape", &shape);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.ShapePattern";
+  static constexpr const char* _type_key = "relax.dpl.ShapePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapePatternNode, DFPatternNode);
 };
 
@@ -701,7 +701,7 @@ class DataTypePatternNode : public DFPatternNode {
     v->Visit("dtype", &dtype);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.DataTypePattern";
+  static constexpr const char* _type_key = "relax.dpl.DataTypePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataTypePatternNode, DFPatternNode);
 };
 
@@ -729,7 +729,7 @@ class AttrPatternNode : public DFPatternNode {
     v->Visit("attrs", &attrs);
   }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.AttrPattern";
+  static constexpr const char* _type_key = "relax.dpl.AttrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrPatternNode, DFPatternNode);
 };
 
@@ -756,7 +756,7 @@ class ExternFuncPatternNode : public DFPatternNode {
   const String& global_symbol() const { return global_symbol_; }
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("global_symbol", &global_symbol_); }
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.ExternFuncPattern";
+  static constexpr const char* _type_key = "relax.dpl.ExternFuncPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncPatternNode, DFPatternNode);
 };
 
@@ -780,7 +780,7 @@ class RuntimeDepShapePatternNode : public DFPatternNode {
   DFPattern pattern; /*!< The root pattern to match */
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "relax.dataflow_pattern.RuntimeDepShapePattern";
+  static constexpr const char* _type_key = "relax.dpl.RuntimeDepShapePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeDepShapePatternNode, DFPatternNode);
 };
 

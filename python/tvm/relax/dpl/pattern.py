@@ -44,7 +44,7 @@ def register_df_node(type_key=None):
         The type key of the node
     """
     if not isinstance(type_key, str):
-        return tvm_ffi.register_object("relax.dataflow_pattern." + type_key.__name__)(type_key)
+        return tvm_ffi.register_object("relax.dpl." + type_key.__name__)(type_key)
     return tvm_ffi.register_object(type_key)
 
 
@@ -371,10 +371,10 @@ class CallPattern(DFPattern):
 
     Parameters
     ----------
-    op: relax.dataflow_pattern.DFPattern
+    op: tvm.relax.dpl.DFPattern
         The operation to be called.
 
-    args: List[relax.dataflow_pattern.DFPattern]
+    args: List[tvm.relax.dpl.DFPattern]
         The arguments to the call or None to match any arguments.
 
     varg_default_wildcard: bool
@@ -403,10 +403,10 @@ class FunctionPattern(DFPattern):
 
     Parameters
     ----------
-    params: List[relax.dataflow_pattern.DFPattern]
+    params: List[tvm.relax.dpl.DFPattern]
         The parameters to the Function or None to match any parameters.
 
-    body: relax.dataflow_pattern.DFPattern
+    body: tvm.relax.dpl.DFPattern
         The body fo the Function
 
     """
@@ -425,7 +425,7 @@ class TuplePattern(DFPattern):
 
     Parameters
     ----------
-    fields : Array[tvm.relax.dataflow_pattern.DFPattern]
+    fields : Array[tvm.relax.dpl.DFPattern]
         The fields in the tuple.
     """
 
@@ -447,7 +447,7 @@ class UnorderedTuplePattern(DFPattern):
 
     Parameters
     ----------
-    fields : Array[tvm.relax.dataflow_pattern.DFPattern]
+    fields : Array[tvm.relax.dpl.DFPattern]
         The fields in the tuple.
     """
 
@@ -464,7 +464,7 @@ class TupleGetItemPattern(DFPattern):
 
     Parameters
     ----------
-    tuple_value: tvm.relax.dataflow_pattern.DFPattern
+    tuple_value: tvm.relax.dpl.DFPattern
         The input tuple expression.
 
     index: Optional[int]
@@ -482,9 +482,9 @@ class OrPattern(DFPattern):
 
     Parameters
     ----------
-    left: tvm.relax.dataflow_pattern.DFPattern
+    left: tvm.relax.dpl.DFPattern
         One possible matching pattern.
-    right: tvm.relax.dataflow_pattern.DFPattern
+    right: tvm.relax.dpl.DFPattern
         One possible matching pattern.
     """
 
@@ -498,9 +498,9 @@ class AndPattern(DFPattern):
 
     Parameters
     ----------
-    left: tvm.relax.dataflow_pattern.DFPattern
+    left: tvm.relax.dpl.DFPattern
         One must-matching pattern.
-    right: tvm.relax.dataflow_pattern.DFPattern
+    right: tvm.relax.dpl.DFPattern
         One must-matching pattern.
     """
 
@@ -514,7 +514,7 @@ class NotPattern(DFPattern):
 
      Parameters
     ----------
-    to_reject: tvm.relax.dataflow_pattern.DFPattern
+    to_reject: tvm.relax.dpl.DFPattern
         The pattern to deny.
     """
 
@@ -536,7 +536,7 @@ class TypePattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
+    pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
     ttype: tvm.ir.type.Type
@@ -553,7 +553,7 @@ class DataTypePattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
+    pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
     dtype: str
@@ -570,7 +570,7 @@ class ShapePattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
+    pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
     shape: List[tvm.ir.PrimExpr]
@@ -611,7 +611,7 @@ class AttrPattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relax.dataflow_pattern.DFPattern
+    pattern: tvm.relax.dpl.DFPattern
         The input pattern.
 
     attrs: tvm.ir.attrs.Attrs
@@ -633,7 +633,7 @@ def is_var(name: str = "") -> VarPattern:
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.VarPattern
+    result: tvm.relax.dpl.VarPattern
         The resulting pattern.
     """
     return VarPattern(name)
@@ -660,7 +660,7 @@ def is_const() -> ConstantPattern:
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.ConstantPattern
+    result: tvm.relax.dpl.ConstantPattern
         The resulting pattern.
     """
     return ConstantPattern()
@@ -677,7 +677,7 @@ def is_expr(expr: Expr) -> ExprPattern:
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.ExprPattern
+    result: tvm.relax.dpl.ExprPattern
         The resulting pattern.
     """
     return ExprPattern(expr)
@@ -694,7 +694,7 @@ def is_op(op_name: str) -> ExprPattern:
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.ExprPattern
+    result: tvm.relax.dpl.ExprPattern
         The resulting ExprPattern
     """
     op = get(op_name)
@@ -709,12 +709,12 @@ def is_tuple(
 
     Parameters
     ----------
-    fields : Array[tvm.relax.dataflow_pattern.DFPattern]
+    fields : Array[tvm.relax.dpl.DFPattern]
         The fields in the tuple.
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dpl.DFPattern
         The resulting pattern.
     """
     if not isinstance(fields, (list, tuple, Array)):
@@ -730,7 +730,7 @@ def is_tuple_get_item(tuple_value: DFPattern, index: Optional[int] = None) -> Tu
 
     Parameters
     ----------
-    tuple_value: tvm.relax.dataflow_pattern.DFPattern
+    tuple_value: tvm.relax.dpl.DFPattern
         The input tuple expression.
 
     index: Optional[int]
@@ -738,7 +738,7 @@ def is_tuple_get_item(tuple_value: DFPattern, index: Optional[int] = None) -> Tu
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.TupleGetItemPattern
+    result: tvm.relax.dpl.TupleGetItemPattern
         The resulting pattern.
     """
     return TupleGetItemPattern(tuple_value, index)
@@ -750,7 +750,7 @@ def wildcard() -> WildcardPattern:
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.WildcardPattern
+    result: tvm.relax.dpl.WildcardPattern
         The resulting pattern.
     """
     return WildcardPattern()
@@ -765,12 +765,12 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     dtype: str
         The dtype to match
 
-    pattern: tvm.relax.dataflow_pattern.DFPattern
+    pattern: tvm.relax.dpl.DFPattern
         The pattern that needs type annotation
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DataTypePattern
+    result: tvm.relax.dpl.DataTypePattern
         The resulting DataTypePattern
     """
     if pattern is None:
@@ -894,12 +894,12 @@ def has_attr(attrs, pattern=None) -> AttrPattern:
     attrs: Dict[str, Object]
         The attributes to match
 
-    pattern: Optional[tvm.relax.dataflow_pattern.DFPattern]
+    pattern: Optional[tvm.relax.dpl.DFPattern]
         The input pattern.
 
     Returns
     -------
-    result: tvm.relax.dataflow_pattern.DFPattern
+    result: tvm.relax.dpl.DFPattern
         The resulting AttrPattern
     """
     if pattern is None:

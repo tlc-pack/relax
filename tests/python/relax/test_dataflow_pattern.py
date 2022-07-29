@@ -24,8 +24,6 @@ from tvm.relax.analysis import get_var2val
 from tvm import relax as rx, tir
 from tvm.script import relax as R, tir as T
 
-import numpy as np
-
 
 @tvm.script.ir_module
 class Module:

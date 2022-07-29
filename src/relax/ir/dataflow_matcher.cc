@@ -505,7 +505,7 @@ bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> v
     return DFPatternMatcher().Match(pattern, expr);
 }
 
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_expr").set_body_typed(MatchExpr);
+TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
 
 class UDChain : public relax::ExprVisitor {
  public:
@@ -713,7 +713,7 @@ tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const Da
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relax.dataflow_pattern.match_dfb").set_body_typed(MatchGraph);
+TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
 
 }  // namespace relax
 }  // namespace tvm
