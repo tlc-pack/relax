@@ -65,7 +65,7 @@ def test_function_class_pass():
 
 
 # Swap Multiply and Add Ops
-@relax.mutator
+@relax.expr_functor.mutator
 class SwapMAVar(relax.PyExprMutator):
     def __init__(self) -> None:
         super().__init__()
