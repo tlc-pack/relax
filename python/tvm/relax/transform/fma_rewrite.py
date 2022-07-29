@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name
+# pylint: disable=unused-argument, invalid-name, abstract-method
 """Perform fused multiply-add rewriting in Python"""
 from tvm.ir import Op
 from tvm.ir.module import IRModule
@@ -37,7 +37,7 @@ class EwiseFMARewriter(PyExprMutator):
     z0 = ewise_fma(a, b, c)
     """
 
-    def rewrite_call_post_order(self, call: Call) -> Call:
+    def rewrite_call_post_order(self, call: Call) -> Call:  # pylint: disable=arguments-differ
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
         ewise_fma_op = Op.get("relax.ewise_fma")
@@ -95,7 +95,7 @@ class EwiseFuseFMAMutator(PyExprMutator):
 
         return self.builder_.get()
 
-    def rewrite_call_post_order(self, call: Call) -> Call:
+    def rewrite_call_post_order(self, call: Call) -> Call:  # pylint: disable=arguments-differ
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
         ewise_fma_op = Op.get("relax.ewise_fma")

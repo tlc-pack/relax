@@ -112,13 +112,11 @@ def derived_object(cls: type) -> type:
             # using weakref to avoid cyclic dependency
             self._inst._outer = weakref.ref(self)
 
-        # def __getattr__(self, name: str):
-        #     """Bridge the attribute function."""
-        #     return self._inst.__getattribute__(name)
+
         def __getattr__(self, name):
             # fall back to instance attribute if there is not any
             # return self._inst.__getattribute__(name)
-            import inspect
+            import inspect  # pylint: disable=import-outside-toplevel
 
             result = self._inst.__getattribute__(name)
             if inspect.ismethod(result):
@@ -126,6 +124,7 @@ def derived_object(cls: type) -> type:
                 def method(*args, **kwargs):
                     return result(*args, **kwargs)
 
+                # set __own__ to aviod implicit deconstruction
                 setattr(method, "__own__", self)
                 return method
 
