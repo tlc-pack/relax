@@ -35,10 +35,13 @@ def test_relax_auto_tir_e2e_rpc():
     rpc_key = "Test1"
     rpc_port = 5555
 
-    Tracker(host=rpc_host, port=rpc_port)
+    # if we don't bind tracker and server to variables, they are deleted and closed
+    tracker = Tracker(host=rpc_host, port=rpc_port)  # pylint: disable=unused-variable
     # nasty hack: avoid race conditions if the server starts before the tracker
     time.sleep(1)
-    rpc.Server(host=rpc_host, key=rpc_key, tracker_addr=(rpc_host, rpc_port))
+    server = rpc.Server(
+        host=rpc_host, key=rpc_key, tracker_addr=(rpc_host, rpc_port)
+    )  # pylint: disable=unused-variable
     # also prevent the query process from firing before the server connects
     time.sleep(1)
 
