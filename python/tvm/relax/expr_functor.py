@@ -19,11 +19,8 @@
 import tvm
 from typing import Optional, Callable
 from tvm.ir import Op
-from tvm.ir.base import structural_equal
-from tvm.ir.module import IRModule
 from tvm.meta_schedule.utils import derived_object
 
-from .ty import DynTensorType
 from .expr import Type, Span, Expr
 from .expr import Function, ExternFunc
 from .expr import Constant, Var, DataflowVar
@@ -32,13 +29,13 @@ from .expr import GlobalVar, SeqExpr, Tuple
 from .expr import Call, If, TupleGetItem
 from .expr import Binding, MatchShape, VarBinding
 from .expr import BindingBlock, DataflowBlock
-from .expr import _update_shape, _update_type
 from ..relay import Id
 from .block_builder import BlockBuilder
 from . import _ffi_api
 
 visitor = derived_object
 mutator = derived_object
+
 
 @tvm._ffi.register_object("expr_functor.PyExprVisitor")
 class _PyExprVisitor(tvm.runtime.Object):
@@ -407,46 +404,46 @@ class PyExprMutator:
     def visit_var_def(self, var: Var) -> Var:
         return _ffi_api.PyExprMutatorVisitVarDef(self._outer(), var)
 
-    def visit_constant_(self, op: Constant) -> None:
+    def visit_constant_(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def visit_tuple_(self, op: Tuple) -> None:
+    def visit_tuple_(self, op: Tuple) -> Expr:
         raise NotImplementedError
 
-    def visit_var_(self, op: Var) -> None:
+    def visit_var_(self, op: Var) -> Expr:
         raise NotImplementedError
 
-    def visit_dataflow_var_(self, op: DataflowVar) -> None:
+    def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         raise NotImplementedError
 
-    def visit_shape_expr_(self, op: ShapeExpr) -> None:
+    def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         raise NotImplementedError
 
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
+    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
         raise NotImplementedError
 
-    def visit_extern_func_(self, op: ExternFunc) -> None:
+    def visit_extern_func_(self, op: ExternFunc) -> Expr:
         raise NotImplementedError
 
-    def visit_global_var_(self, op: GlobalVar) -> None:
+    def visit_global_var_(self, op: GlobalVar) -> Expr:
         raise NotImplementedError
 
-    def visit_function_(self, op: Function) -> None:
+    def visit_function_(self, op: Function) -> Expr:
         raise NotImplementedError
 
-    def visit_call_(self, op: Call) -> None:
+    def visit_call_(self, op: Call) -> Expr:
         raise NotImplementedError
 
-    def visit_seq_expr_(self, op: SeqExpr) -> None:
+    def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         raise NotImplementedError
 
-    def visit_if_(self, op: If) -> None:
+    def visit_if_(self, op: If) -> Expr:
         raise NotImplementedError
 
-    def visit_op_(self, op: Op) -> None:
+    def visit_op_(self, op: Op) -> Expr:
         raise NotImplementedError
 
-    def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
+    def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         raise NotImplementedError
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
@@ -455,64 +452,64 @@ class PyExprMutator:
     def visit_match_shape_(self, binding: MatchShape) -> None:
         raise NotImplementedError
 
-    def visit_binding_block_(self, block: BindingBlock) -> None:
+    def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         raise NotImplementedError
 
-    def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+    def visit_dataflow_block_(self, block: DataflowBlock) -> BindingBlock:
         raise NotImplementedError
 
-    def visit_var_def_(self, var: Var) -> None:
+    def visit_var_def_(self, var: Var) -> Var:
         raise NotImplementedError
 
-    def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+    def visit_dataflow_var_def_(self, var: DataflowVar) -> Var:
         raise NotImplementedError
 
-    def visit_type(self, t: Type) -> None:
+    def visit_type(self, t: Type) -> Type:
         raise NotImplementedError
 
-    def visit_span(self, span: Span) -> None:
+    def visit_span(self, span: Span) -> Span:
         raise NotImplementedError
 
-    def rewrite_constant_post_order(self, op: Constant) -> None:
+    def rewrite_constant_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_tuple_post_order(self, op: Constant) -> None:
+    def rewrite_tuple_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_var_post_order(self, op: Constant) -> None:
+    def rewrite_var_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_dataflow_var_post_order(self, op: Constant) -> None:
+    def rewrite_dataflow_var_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_shape_expr_post_order(self, op: Constant) -> None:
+    def rewrite_shape_expr_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_runtime_dep_shape_post_order(self, op: Constant) -> None:
+    def rewrite_runtime_dep_shape_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_extern_func_post_order(self, op: Constant) -> None:
+    def rewrite_extern_func_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_global_var_post_order(self, op: Constant) -> None:
+    def rewrite_global_var_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_function_post_order(self, op: Constant) -> None:
+    def rewrite_function_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_call_post_order(self, op: Constant) -> None:
+    def rewrite_call_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_seq_expr_post_order(self, op: Constant) -> None:
+    def rewrite_seq_expr_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_if_post_order(self, op: Constant) -> None:
+    def rewrite_if_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_op_post_order(self, op: Constant) -> None:
+    def rewrite_op_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
-    def rewrite_tuple_getitem_post_order(self, op: Constant) -> None:
+    def rewrite_tuple_getitem_post_order(self, op: Constant) -> Expr:
         raise NotImplementedError
 
     def visit_with_new_scope(self, expr: Expr) -> Expr:
