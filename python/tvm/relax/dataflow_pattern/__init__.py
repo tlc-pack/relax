@@ -514,12 +514,12 @@ class NotPattern(DFPattern):
 
      Parameters
     ----------
-    reject: tvm.relax.dataflow_pattern.DFPattern
+    to_reject: tvm.relax.dataflow_pattern.DFPattern
         The pattern to deny.
     """
 
-    def __init__(self, reject: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.NotPattern, reject)
+    def __init__(self, to_reject: "DFPattern"):
+        self.__init_handle_by_constructor__(ffi.NotPattern, to_reject)
 
 
 @register_df_node
