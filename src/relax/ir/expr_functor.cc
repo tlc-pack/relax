@@ -664,7 +664,6 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
   return var;
 }
 
-// TODO relax.ExprFunctor.xx?
 TVM_REGISTER_GLOBAL("relax.MakePyExprVisitor").set_body_typed(PyExprVisitor::MakePyExprVisitor);
 
 TVM_REGISTER_GLOBAL("relax.PyExprVisitorVisitExpr")

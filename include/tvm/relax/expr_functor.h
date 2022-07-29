@@ -90,20 +90,21 @@ class ExprFunctor;
       self->VisitExpr_(static_cast<const OP*>(n.get()));                 \
   });
 
-#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC, PY_POST_ORDER_FUNC)                      \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) {               \
-    ICHECK(self->PY_FUNC == nullptr || self->PY_POST_ORDER_FUNC == nullptr) << "TODO"; \
-    if (self->PY_POST_ORDER_FUNC != nullptr) {                                         \
-      Expr expr = self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));          \
-      expr = self->PY_POST_ORDER_FUNC(expr);                                           \
-      return expr;                                                                     \
-    } else {                                                                           \
-      if (self->PY_FUNC != nullptr) {                                                  \
-        Expr expr = self->PY_FUNC(n);                                                  \
-        return expr;                                                                   \
-      } else                                                                           \
-        return self->VisitExpr_(static_cast<const OP*>(n.get()));                      \
-    }                                                                                  \
+#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC, PY_POST_ORDER_FUNC)                            \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) {                     \
+    ICHECK(self->PY_FUNC == nullptr || self->PY_POST_ORDER_FUNC == nullptr)                  \
+        << "Cannot overload visit function and post order visit function at the same time."; \
+    if (self->PY_POST_ORDER_FUNC != nullptr) {                                               \
+      Expr expr = self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));                \
+      expr = self->PY_POST_ORDER_FUNC(expr);                                                 \
+      return expr;                                                                           \
+    } else {                                                                                 \
+      if (self->PY_FUNC != nullptr) {                                                        \
+        Expr expr = self->PY_FUNC(n);                                                        \
+        return expr;                                                                         \
+      } else                                                                                 \
+        return self->VisitExpr_(static_cast<const OP*>(n.get()));                            \
+    }                                                                                        \
   });
 
 template <typename R, typename... Args>
@@ -379,49 +380,78 @@ class ExprMutator : public ExprMutatorBase {
   std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
+/*!
+ * \brief The abstract interface of ExprVisitor.
+ */
 class PyExprVisitorNode : public Object, public ExprVisitor {
  private:
   using TSelf = PyExprVisitorNode;
   using FType = tvm::NodeFunctor<void(const ObjectRef& n, TSelf* self)>;
 
  public:
+  /*! \brief The packed function to the `VisitExpr(const Expr& expr)` function. */
   PackedFunc f_visit_expr{nullptr};
-
+  /*! \brief The packed function to the `VisitExpr_(const ConstantNode* op)` function. */
   PackedFunc f_visit_constant_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const TupleNode* op)` function. */
   PackedFunc f_visit_tuple_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const VarNode* op)` function. */
   PackedFunc f_visit_var_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const DataflowVarNode* op)` function. */
   PackedFunc f_visit_dataflow_var_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const ShapeExprNode* op)` function. */
   PackedFunc f_visit_shape_expr_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const RuntimeDepShapeNode* op)` function. */
   PackedFunc f_visit_runtime_dep_shape_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const ExternFuncNode* op)` function. */
   PackedFunc f_visit_extern_func_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const GlobalVarNode* op)` function. */
   PackedFunc f_visit_global_var_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const FunctionNode* op)` function. */
   PackedFunc f_visit_function_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const CallNode* op)` function. */
   PackedFunc f_visit_call_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const SeqExprNode* op)` function. */
   PackedFunc f_visit_seq_expr_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const IfNode* op)` function. */
   PackedFunc f_visit_if_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const OpNode* op)` function. */
   PackedFunc f_visit_op_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const TupleGetItemNode* op)` function. */
   PackedFunc f_visit_tuple_getitem_{nullptr};
-
+  /*! \brief The packed function to the `VisitBinding(const Binding& binding)` function. */
   PackedFunc f_visit_binding{nullptr};
+  /*! \brief The packed function to the `VisitBinding_(const VarBindingNode* binding)`
+   * function. */
   PackedFunc f_visit_var_binding_{nullptr};
+  /*! \brief The packed function to the `VisitBinding_(const MatchShapeNode* binding)`
+   * function. */
   PackedFunc f_visit_match_shape_{nullptr};
-
+  /*! \brief The packed function to the `VisitBindingBlock(const BindingBlock& block)`
+   * function. */
   PackedFunc f_visit_binding_block{nullptr};
+  /*! \brief The packed function to the `VisitBindingBlock_(const BindingBlockNode* block)`
+   * function. */
   PackedFunc f_visit_binding_block_{nullptr};
+  /*! \brief The packed function to the `VisitBindingBlock_(const DataflowBlockNode* block)`
+   * function. */
   PackedFunc f_visit_dataflow_block_{nullptr};
-
+  /*! \brief The packed function to the `VisitVarDef(const Var& var)` function. */
   PackedFunc f_visit_var_def{nullptr};
+  /*! \brief The packed function to the `VisitVarDef_(const VarNode* var)` function. */
   PackedFunc f_visit_var_def_{nullptr};
+  /*! \brief The packed function to the `VisitVarDef_(const DataflowVarNode* var)` function. */
   PackedFunc f_visit_dataflow_var_def_{nullptr};
-
+  /*! \brief The packed function to the `VisitType(const Type& t)` function. */
   PackedFunc f_visit_type{nullptr};
+  /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
   PackedFunc f_visit_span{nullptr};
 
   void VisitExpr(const Expr& expr) {
     if (f_visit_expr != nullptr)
       f_visit_expr(expr);
     else {
-      // TODO: call local InitVTable
+      // Need to init the overloaded VTable
       static FType vtable = InitVTable();
       vtable(expr, this);
     }
@@ -459,16 +489,12 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   void VisitSpan(const Span& span)
       PY_EXPR_VISITOR_DEFAULT(span, f_visit_span, ExprVisitor::VisitSpan(span));
 
-  template <typename T>
-  void VisitExprPostOrder_(const T* op) {
-    ExprVisitor::VisitExpr_(op);
-  }
-
   void VisitAttrs(AttrVisitor* v) {}
   static constexpr const char* _type_key = "expr_functor.PyExprVisitor";
   TVM_DECLARE_BASE_OBJECT_INFO(PyExprVisitorNode, Object);
 
  private:
+  // initialize the vtable.
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
@@ -492,8 +518,42 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
 
 TVM_REGISTER_NODE_TYPE(PyExprVisitorNode);
 
+/*!
+ * \brief Managed reference to PyExprVisitorNode.
+ * \sa PyExprVisitorNode
+ */
 class PyExprVisitor : public ObjectRef {
  public:
+  /*!
+   * \brief Create a PyExprVisitor with customized methods on the python-side.
+   * \param f_visit_expr The packed function of `VisitExpr(const Expr& expr)`.
+   * \param f_visit_constant_ The packed function of `VisitExpr_(const ConstantNode* op)`.
+   * \param f_visit_tuple_ The packed function of `VisitExpr_(const TupleNode* op)`.
+   * \param f_visit_var_ The packed function of `VisitExpr_(const VarNode* op)`.
+   * \param f_visit_dataflow_var_ The packed function of `VisitExpr_(const DataflowVarNode* op)`.
+   * \param f_visit_shape_expr_ The packed function of `VisitExpr_(const ShapeExprNode* op)`.
+   * \param f_visit_runtime_dep_shape_ The packed function of `VisitExpr_(const RuntimeDepShapeNode* op)`.
+   * \param f_visit_extern_func_ The packed function of `VisitExpr_(const ExternFuncNode* op)`.
+   * \param f_visit_global_var_ The packed function of `VisitExpr_(const GlobalVarNode* op)`.
+   * \param f_visit_function_ The packed function of `VisitExpr_(const FunctionNode* op)`.
+   * \param f_visit_call_ The packed function of `VisitExpr_(const CallNode* op)`.
+   * \param f_visit_seq_expr_ The packed function of `VisitExpr_(const SeqExprNode* op)`.
+   * \param f_visit_if_ The packed function of `VisitExpr_(const IfNode* op)`.
+   * \param f_visit_op_ The packed function of `VisitExpr_(const OpNode* op)`.
+   * \param f_visit_tuple_getitem_ The packed function of `VisitExpr_(const TupleGetItemNode* op)`.
+   * \param f_visit_binding The packed function of `VisitBinding(const Binding& binding)`.
+   * \param f_visit_var_binding_ The packed function of `VisitBinding_(const VarBindingNode* binding)`.
+   * \param f_visit_match_shape_ The packed function of `VisitBinding_(const MatchShapeNode* binding)`.
+   * \param f_visit_binding_block The packed function of `VisitBindingBlock(const BindingBlock& block)`.
+   * \param f_visit_binding_block_ The packed function of `VisitBindingBlock_(const BindingBlockNode* block)`.
+   * \param f_visit_dataflow_block_ The packed function of `VisitBindingBlock_(const DataflowBlockNode* block)`.
+   * \param f_visit_var_def The packed function of `VisitVarDef(const Var& var)`.
+   * \param f_visit_var_def_ The packed function of `VisitVarDef_(const VarNode* var)`.
+   * \param f_visit_dataflow_var_def_ The packed function of `VisitVarDef_(const DataflowVarNode* var)`.
+   * \param f_visit_type The packed function of `VisitType(const Type& t)`.
+   * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
+   * \return The PyVisitor created.
+   */
   TVM_DLL static PyExprVisitor MakePyExprVisitor(
       PackedFunc f_visit_expr, PackedFunc f_visit_constant_, PackedFunc f_visit_tuple_,
       PackedFunc f_visit_var_, PackedFunc f_visit_dataflow_var_, PackedFunc f_visit_shape_expr_,
@@ -538,51 +598,99 @@ class PyExprVisitor : public ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyExprVisitor, ObjectRef, PyExprVisitorNode);
 };
 
+/*!
+ * \brief The abstract interface of ExprMutator.
+ */
 class PyExprMutatorNode : public Object, public ExprMutator {
  private:
   using TSelf = PyExprMutatorNode;
   using FType = tvm::NodeFunctor<Expr(const ObjectRef& n, TSelf* self)>;
 
  public:
+  /*! \brief The packed function to the `VisitExpr(const Expr& expr)` function. */
   PackedFunc f_visit_expr{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const ConstantNode* op)` function. */
   PackedFunc f_visit_constant_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const TupleNode* op)` function. */
   PackedFunc f_visit_tuple_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const VarNode* op)` function. */
   PackedFunc f_visit_var_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const DataflowVarNode* op)` function. */
   PackedFunc f_visit_dataflow_var_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const ShapeExprNode* op)` function. */
   PackedFunc f_visit_shape_expr_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const RuntimeDepShapeNode* op)` function. */
   PackedFunc f_visit_runtime_dep_shape_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const ExternFuncNode* op)` function. */
   PackedFunc f_visit_extern_func_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const GlobalVarNode* op)` function. */
   PackedFunc f_visit_global_var_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const FunctionNode* op)` function. */
   PackedFunc f_visit_function_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const CallNode* op)` function. */
   PackedFunc f_visit_call_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const SeqExprNode* op)` function. */
   PackedFunc f_visit_seq_expr_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const IfNode* op)` function. */
   PackedFunc f_visit_if_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const OpNode* op)` function. */
   PackedFunc f_visit_op_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const TupleGetItemNode* op)` function. */
   PackedFunc f_visit_tuple_getitem_{nullptr};
+  /*! \brief The packed function to the `VisitBinding(const Binding& binding)` function. */
   PackedFunc f_visit_binding{nullptr};
+  /*! \brief The packed function to the `VisitBinding_(const VarBindingNode* binding)`
+   * function. */
   PackedFunc f_visit_var_binding_{nullptr};
+  /*! \brief The packed function to the `VisitBinding_(const MatchShapeNode* binding)`
+   * function. */
   PackedFunc f_visit_match_shape_{nullptr};
+  /*! \brief The packed function to the `VisitBindingBlock(const BindingBlock& block)`
+   * function. */
   PackedFunc f_visit_binding_block{nullptr};
+  /*! \brief The packed function to the `VisitBindingBlock_(const BindingBlockNode* block)`
+   * function. */
   PackedFunc f_visit_binding_block_{nullptr};
+  /*! \brief The packed function to the `VisitBindingBlock_(const DataflowBlockNode* block)`
+   * function. */
   PackedFunc f_visit_dataflow_block_{nullptr};
+  /*! \brief The packed function to the `VisitVarDef(const Var& var)` function. */
   PackedFunc f_visit_var_def{nullptr};
+  /*! \brief The packed function to the `VisitVarDef_(const VarNode* var)` function. */
   PackedFunc f_visit_var_def_{nullptr};
+  /*! \brief The packed function to the `VisitVarDef_(const DataflowVarNode* var)` function. */
   PackedFunc f_visit_dataflow_var_def_{nullptr};
+  /*! \brief The packed function to the `VisitType(const Type& t)` function. */
   PackedFunc f_visit_type{nullptr};
+  /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
   PackedFunc f_visit_span{nullptr};
+  /*! \brief The packed function to post order visit Constant. */
   PackedFunc f_rewrite_constant_post_order{nullptr};
+  /*! \brief The packed function to post order visit Tuple. */
   PackedFunc f_rewrite_tuple_post_order{nullptr};
+  /*! \brief The packed function to post order visit Var. */
   PackedFunc f_rewrite_var_post_order{nullptr};
+  /*! \brief The packed function to post order visit DataflowVar. */
   PackedFunc f_rewrite_dataflow_var_post_order{nullptr};
+  /*! \brief The packed function to post order visit ShapeExpr. */
   PackedFunc f_rewrite_shape_expr_post_order{nullptr};
+  /*! \brief The packed function to post order visit RuntimeDepShape. */
   PackedFunc f_rewrite_runtime_dep_shape_post_order{nullptr};
+  /*! \brief The packed function to post order visit ExternFunc. */
   PackedFunc f_rewrite_extern_func_post_order{nullptr};
+  /*! \brief The packed function to post order visit GlobalVar. */
   PackedFunc f_rewrite_global_var_post_order{nullptr};
+  /*! \brief The packed function to post order visit Function. */
   PackedFunc f_rewrite_function_post_order{nullptr};
+  /*! \brief The packed function to post order visit Call. */
   PackedFunc f_rewrite_call_post_order{nullptr};
+  /*! \brief The packed function to post order visit SeqExpr. */
   PackedFunc f_rewrite_seq_expr_post_order{nullptr};
+  /*! \brief The packed function to post order visit If. */
   PackedFunc f_rewrite_if_post_order{nullptr};
+  /*! \brief The packed function to post order visit Op. */
   PackedFunc f_rewrite_op_post_order{nullptr};
+  /*! \brief The packed function to post order visit TupleGetItem. */
   PackedFunc f_rewrite_tuple_getitem_post_order{nullptr};
 
   Expr VisitExpr(const Expr& expr) {
@@ -648,6 +756,7 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   TVM_DECLARE_BASE_OBJECT_INFO(PyExprMutatorNode, Object);
 
  private:
+  // initialize the vtable.
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
@@ -675,8 +784,56 @@ class PyExprMutatorNode : public Object, public ExprMutator {
 
 TVM_REGISTER_NODE_TYPE(PyExprMutatorNode);
 
+/*!
+ * \brief Managed reference to PyExprMutatorNode.
+ * \sa PyExprMutatorNode
+ */
 class PyExprMutator : public ObjectRef {
  public:
+ /*!
+   * \brief Create a PyExprMutator with customized methods on the python-side.
+   * \param f_visit_expr The packed function of `VisitExpr(const Expr& expr)`.
+   * \param f_visit_constant_ The packed function of `VisitExpr_(const ConstantNode* op)`.
+   * \param f_visit_tuple_ The packed function of `VisitExpr_(const TupleNode* op)`.
+   * \param f_visit_var_ The packed function of `VisitExpr_(const VarNode* op)`.
+   * \param f_visit_dataflow_var_ The packed function of `VisitExpr_(const DataflowVarNode* op)`.
+   * \param f_visit_shape_expr_ The packed function of `VisitExpr_(const ShapeExprNode* op)`.
+   * \param f_visit_runtime_dep_shape_ The packed function of `VisitExpr_(const RuntimeDepShapeNode* op)`.
+   * \param f_visit_extern_func_ The packed function of `VisitExpr_(const ExternFuncNode* op)`.
+   * \param f_visit_global_var_ The packed function of `VisitExpr_(const GlobalVarNode* op)`.
+   * \param f_visit_function_ The packed function of `VisitExpr_(const FunctionNode* op)`.
+   * \param f_visit_call_ The packed function of `VisitExpr_(const CallNode* op)`.
+   * \param f_visit_seq_expr_ The packed function of `VisitExpr_(const SeqExprNode* op)`.
+   * \param f_visit_if_ The packed function of `VisitExpr_(const IfNode* op)`.
+   * \param f_visit_op_ The packed function of `VisitExpr_(const OpNode* op)`.
+   * \param f_visit_tuple_getitem_ The packed function of `VisitExpr_(const TupleGetItemNode* op)`.
+   * \param f_visit_binding The packed function of `VisitBinding(const Binding& binding)`.
+   * \param f_visit_var_binding_ The packed function of `VisitBinding_(const VarBindingNode* binding)`.
+   * \param f_visit_match_shape_ The packed function of `VisitBinding_(const MatchShapeNode* binding)`.
+   * \param f_visit_binding_block The packed function of `VisitBindingBlock(const BindingBlock& block)`.
+   * \param f_visit_binding_block_ The packed function of `VisitBindingBlock_(const BindingBlockNode* block)`.
+   * \param f_visit_dataflow_block_ The packed function of `VisitBindingBlock_(const DataflowBlockNode* block)`.
+   * \param f_visit_var_def The packed function of `VisitVarDef(const Var& var)`.
+   * \param f_visit_var_def_ The packed function of `VisitVarDef_(const VarNode* var)`.
+   * \param f_visit_dataflow_var_def_ The packed function of `VisitVarDef_(const DataflowVarNode* var)`.
+   * \param f_visit_type The packed function of `VisitType(const Type& t)`.
+   * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
+   * \param f_rewrite_constant_post_order The packed function to post order visit Constant.
+   * \param f_rewrite_tuple_post_order The packed function to post order visit Tuple.
+   * \param f_rewrite_var_post_order The packed function to post order visit Var.
+   * \param f_rewrite_dataflow_var_post_order The packed function to post order visit DataflowVar.
+   * \param f_rewrite_shape_expr_post_order The packed function to post order visit ShapeExpr.
+   * \param f_rewrite_runtime_dep_shape_post_order The packed function to post order visit RuntimeDepShape.
+   * \param f_rewrite_extern_func_post_order The packed function to post order visit ExternFunc.
+   * \param f_rewrite_global_var_post_order The packed function to post order visit GlobalVar.
+   * \param f_rewrite_function_post_order The packed function to post order visit Function.
+   * \param f_rewrite_call_post_order The packed function to post order visit Call.
+   * \param f_rewrite_seq_expr_post_order The packed function to post order visit SeqExpr.
+   * \param f_rewrite_if_post_order The packed function to post order visit If.
+   * \param f_rewrite_op_post_order The packed function to post order visit Op.
+   * \param f_rewrite_tuple_getitem_post_order The packed function to post order visit TupleGetItem.
+   * \return The PyExprMutator created.
+   */
   TVM_DLL static PyExprMutator MakePyExprMutator(
       BlockBuilder builder_, PackedFunc f_visit_expr, PackedFunc f_visit_constant_,
       PackedFunc f_visit_tuple_, PackedFunc f_visit_var_, PackedFunc f_visit_dataflow_var_,
