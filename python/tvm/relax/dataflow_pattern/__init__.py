@@ -167,7 +167,7 @@ class DFPattern(Node):
         result: NotPattern
             The resulting NotPattern
         """
-        return deny(self)
+        return reject(self)
 
     def has_attr(self, attrs: Dict[str, Object]) -> "AttrPattern":
         """
@@ -908,7 +908,7 @@ def is_call_packed(
     return ExternFuncPattern(func_name)(*args)
 
 
-def deny(pattern: DFPattern) -> NotPattern:
+def reject(pattern: DFPattern) -> NotPattern:
     """
     Syntax sugar for creating a DFPattern to reject
 
