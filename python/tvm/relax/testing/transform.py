@@ -52,40 +52,57 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
         self.target = target
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
+        """Implement lowering mechanism.
+
+        Parameters
+        ----------
+        mod : IRModule
+            Input IRModule with Relax ops
+
+        ctx: PassContext
+            Pass context
+
+        Returns
+        -------
+        out_mod : IRModule
+            Output IRModule with lowered TIR functions
+        """
         target = self.target
 
         class Lowerer(ExprMutator):
-            def visit_call_(self, call: Call):
+            """Mutator that performs lowering."""
+
+            def visit_call_(self, call_node: Call):
                 # Remove "relax." prefix to deduce relay op name
-                relay_op_name = call.op.name[6:]
+                relay_op_name = call_node.op.name[6:]
                 # Check if equivalent relay op exists. If not, return the original call.
                 if relay_op_name in ir.Op.list_op_names():
                     relay_op = ir.Op.get(relay_op_name)
 
-                    te_inputs = [relax.expr.te_tensor(arg) for arg in call.args]
-                    best_impl, outputs = select_implementation(
+                    te_inputs = [relax.expr.te_tensor(arg) for arg in call_node.args]
+                    best_impl_tuple = select_implementation(
                         relay_op,
-                        call.attrs,
+                        call_node.attrs,
                         te_inputs,
-                        call.checked_type,
+                        call_node.checked_type,
                         target,
                         use_autotvm=False,
                     )
-                    compute_func = best_impl.compute
+                    compute_func = best_impl_tuple[0].compute
                     name_hint = relay_op_name.split(".")[-1]
 
                     return self.builder_.emit_te(
                         compute_func,
-                        call.attrs,
-                        call.args,
-                        call.attrs,
+                        call_node.attrs,
+                        call_node.args,
+                        call_node.attrs,
                         primfunc_name_hint=name_hint,
                     )
                 else:
-                    return call
+                    return call_node
 
-            # TOOD(@team): Currently, this is necessary to include TIR functions and bit unintuitive.
-            # Can we improve this?
+            # TOOD(@team): Currently, this is necessary to include TIR functions.
+            # This is bit unintuitive. Can we improve this?
             def transform(self):
                 for gv, func in mod.functions.items():
                     if isinstance(func, relax.expr.BaseFunc):

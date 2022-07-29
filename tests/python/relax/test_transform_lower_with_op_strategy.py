@@ -63,11 +63,9 @@ def build_and_run(mod, target, dev, np_inputs):
     vm["main"](*inputs)
 
 
-def _test_lowering(target_str):
+def _test_lowering(target, dev):
     mod = InputModule
     assert mod
-    target = Target(target_str)
-    dev = tvm.device(target_str, dev_id=0)
 
     with tvm.transform.PassContext(opt_level=3):
         out_mod = transform.LowerWithRelayOpStrategyPass(target)(mod)
@@ -81,15 +79,12 @@ def _test_lowering(target_str):
 
 
 def test_lowering_cpu(target_str="llvm --num-cores=16"):
-    _test_lowering(target_str)
+    _test_lowering(Target(target_str), tvm.cpu())
 
 
-# TODO(@sunggg): revisit later.
-# Error: ValueError: Check failed: (max_threads_per_block.defined()) is false: missing attribute `max_threads_per_block` in the target
-@pytest.mark.skip(reason="Error in MS. Revisit later")
 @tvm.testing.requires_gpu
-def test_lowering_gpu(target_str="cuda"):
-    _test_lowering(target_str)
+def test_lowering_gpu(target_str="nvidia/geforce-rtx-3070"):
+    _test_lowering(Target(target_str), tvm.cuda())
 
 
 if __name__ == "__main__":
