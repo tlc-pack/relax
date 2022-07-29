@@ -21,10 +21,10 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict
+from typing import Dict, List
 
 import tvm
-from tvm.relax.expr import Var, Expr, Function
+from tvm.relax.expr import DataflowBlock, Var, Expr, Function
 from . import _ffi_api
 
 
@@ -75,3 +75,20 @@ def get_var2val(func: Function) -> Dict[Var, Expr]:
         A mapping from Var to Expr.
     """
     return _ffi_api.get_var2val(func)
+
+
+def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
+    """
+    Analyze the variable use-def chain in a dataflow block.
+
+    Parameters
+    ----------
+    dfb : DataflowBlock
+        The dataflow block to analyze
+
+    Returns
+    -------
+    Dict[Var, List[Var]]
+        A mapping from variable definition to its uses.
+    """
+    return _ffi_api.udchain(dfb)

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relax/ir/dataflow_matcher.cc
+ * \file src/relax/ir/dataflow_matcher.cc
  * \brief The dataflow pattern matcher for Relax.
  */
 
@@ -507,32 +507,6 @@ bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> v
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
 
-class UDChain : public relax::ExprVisitor {
- public:
-  using map_t = std::map<const VarNode*, std::set<const VarNode*>>;
-  map_t def2use;
-  const VarNode* cur_user_;
-
-  void VisitBinding_(const VarBindingNode* binding) override {
-    // init
-    cur_user_ = binding->var.get();
-    this->VisitVarDef(binding->var);
-    this->VisitExpr(binding->value);
-    cur_user_ = nullptr;
-  }
-
-  void VisitExpr_(const VarNode* op) override {
-    if (nullptr == cur_user_) return;
-
-    def2use[op].insert(cur_user_);
-  }
-  void VisitVarDef(const Var& var) override { def2use[var.get()] = {}; }
-
-  void VisitExpr_(const DataflowVarNode* op) override {
-    VisitExpr_(static_cast<const VarNode*>(op));
-  }
-};
-
 struct PNode {
   const DFPatternNode* ptr;
   const VarNode* matched = nullptr;
@@ -547,10 +521,14 @@ struct RNode {
   std::vector<RNode*> parents;
 };
 
+// implemented in udchain.cc
+std::map<const VarNode*, std::set<const VarNode*>> udchain_dfb(const DataflowBlock&);
+
 /**
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
-static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m, const UDChain::map_t& def2use) {
+static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
+                      const std::map<const VarNode*, std::set<const VarNode*>>& def2use) {
   if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};
@@ -641,10 +619,8 @@ tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const Da
   const auto var2val = AnalyzeVar2Value(dfb);
   DFPatternMatcher matcher(var2val);
 
-  UDChain ud;
-  ud.VisitBindingBlock_(dfb.get());
   // std::map<const VarNode*, std::set<const VarNode*>>
-  const auto& def2use = ud.def2use;
+  const auto def2use = udchain_dfb(dfb);
 
   // First construct a graph of PNode and RNode.
   std::unordered_map<const VarNode*, RNode> var2node;

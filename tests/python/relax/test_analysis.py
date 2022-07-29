@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.ir import structural_equal
+from tvm.relax.analysis import udchain
 
 
 def test_dispatch_var():
@@ -65,6 +66,29 @@ def test_post_order_visit():
 
     rx.analysis.post_order_visit(expr.body, fvisit)
     assert names == ["relax.add", "relax.multiply"]
+
+
+def test_use_def():
+    m = tir.Var("m", "int32")
+    n = tir.Var("n", "int32")
+    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
+    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
+    x = rx.Var("x", [m, n], type_anno0)
+    y = rx.Var("y", [n], type_anno1)
+    ib = rx.BlockBuilder()
+    with ib.function("func", [x, y]):
+        with ib.dataflow():
+            lv0 = ib.emit(rx.op.add(x, y))
+            lv1 = ib.emit(rx.op.multiply(lv0, y))
+            gv0 = ib.emit_output(lv1)
+        ib.emit_func_output(gv0)
+    dfb = ib.get()["func"].body.blocks[0]
+    udc = udchain(dfb)
+    assert set(udc[x]) == {lv0}
+    assert set(udc[y]) == {lv0, lv1}
+    assert set(udc[lv0]) == {lv1}
+    assert set(udc[lv1]) == {gv0}
+    assert set(udc[gv0]) == set()
 
 
 if __name__ == "__main__":
