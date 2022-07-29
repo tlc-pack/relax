@@ -112,7 +112,6 @@ def derived_object(cls: type) -> type:
             # using weakref to avoid cyclic dependency
             self._inst._outer = weakref.ref(self)
 
-
         def __getattr__(self, name):
             # fall back to instance attribute if there is not any
             # return self._inst.__getattribute__(name)
