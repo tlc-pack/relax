@@ -78,8 +78,9 @@ class ExprFunctor;
     if (PY_FUNC != nullptr) {                                       \
       RET_TYPE ret = PY_FUNC(N);                                    \
       return ret;                                                   \
-    } else                                                          \
+    } else {                                                        \
       return DEFAULT_FUNC;                                          \
+    }                                                               \
   }
 
 #define PY_EXPR_VISITOR_DISPATCH(OP, PY_FUNC)                            \
@@ -102,8 +103,9 @@ class ExprFunctor;
       if (self->PY_FUNC != nullptr) {                                                        \
         Expr expr = self->PY_FUNC(n);                                                        \
         return expr;                                                                         \
-      } else                                                                                 \
+      } else {                                                                               \
         return self->VisitExpr_(static_cast<const OP*>(n.get()));                            \
+      }                                                                                      \
     }                                                                                        \
   });
 
@@ -448,9 +450,9 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   PackedFunc f_visit_span{nullptr};
 
   void VisitExpr(const Expr& expr) {
-    if (f_visit_expr != nullptr)
+    if (f_visit_expr != nullptr) {
       f_visit_expr(expr);
-    else {
+    } else {
       // Need to init the overloaded VTable
       static FType vtable = InitVTable();
       vtable(expr, this);
@@ -694,9 +696,9 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   PackedFunc f_rewrite_tuple_getitem_post_order{nullptr};
 
   Expr VisitExpr(const Expr& expr) {
-    if (f_visit_expr != nullptr)
+    if (f_visit_expr != nullptr) {
       return builder_->Normalize(f_visit_expr(expr));
-    else {
+    } else {
       static FType vtable = InitVTable();
       return builder_->Normalize(vtable(expr, this));
     }
@@ -707,21 +709,21 @@ class PyExprMutatorNode : public Object, public ExprMutator {
       f_visit_binding(binding);
     else
       ExprMutator::VisitBinding(binding);
-  };
+  }
 
   void VisitBinding_(const VarBindingNode* binding) {
     if (f_visit_var_binding_ != nullptr)
       f_visit_var_binding_(GetRef<VarBinding>(binding));
     else
       ExprMutator::VisitBinding_(binding);
-  };
+  }
 
   void VisitBinding_(const MatchShapeNode* binding) {
     if (f_visit_match_shape_ != nullptr)
       f_visit_match_shape_(GetRef<MatchShape>(binding));
     else
       ExprMutator::VisitBinding_(binding);
-  };
+  }
 
   BindingBlock VisitBindingBlock(const BindingBlock& block)
       PY_EXPR_MUTATOR_DEFAULT(block, f_visit_binding_block, ExprMutator::VisitBindingBlock(block),
