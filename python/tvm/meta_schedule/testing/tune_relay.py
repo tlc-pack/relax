@@ -53,17 +53,17 @@ def _parse_args():
     args.add_argument(
         "--rpc-host",
         type=str,
-        required=True,
+        # required=True,
     )
     args.add_argument(
         "--rpc-port",
         type=int,
-        required=True,
+        # required=True,
     )
     args.add_argument(
         "--rpc-key",
         type=str,
-        required=True,
+        # required=True,
     )
     args.add_argument(
         "--work-dir",
@@ -138,16 +138,26 @@ def main():
         cache_dir=ARGS.cache_dir,
     )
     input_info = {input_name: input_shape}
-    input_data = {
-        item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
-    }
+    # input_data = {
+    #     item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
+    # }
+    input_data = {input_name: generate_input_data(input_shape, input_dtype)}
     for input_name, input_shape in input_info.items():
         print(f"  input_name : {input_name}")
         print(f"  input_shape: {input_shape}")
         print(f"  input_dtype: {input_dtype}")
 
-    runner = ms.runner.RPCRunner(
-        rpc_config=ARGS.rpc_config,
+    # runner = ms.runner.RPCRunner(
+    #     rpc_config=ARGS.rpc_config,
+    #     evaluator_config=ms.runner.EvaluatorConfig(
+    #         number=ARGS.number,
+    #         repeat=ARGS.repeat,
+    #         min_repeat_ms=ARGS.min_repeat_ms,
+    #         enable_cpu_cache_flush=ARGS.cpu_flush,
+    #     ),
+    #     alloc_repeat=1,
+    # )
+    runner = ms.runner.LocalRunner(
         evaluator_config=ms.runner.EvaluatorConfig(
             number=ARGS.number,
             repeat=ARGS.repeat,
@@ -177,14 +187,16 @@ def main():
     print("Tuning Time:")
     print(profiler.table())
 
-    run_module_via_rpc(
-        rpc_config=ARGS.rpc_config,
-        lib=lib,
-        dev_type=ARGS.target.kind.name,
-        args=input_data,
-        continuation=create_timer(ARGS.backend),
-        backend=ARGS.backend,
-    )
+    # run_module_via_rpc(
+    #     rpc_config=ARGS.rpc_config,
+    #     lib=lib,
+    #     dev_type=ARGS.target.kind.name,
+    #     args=input_data,
+    #     continuation=create_timer(ARGS.backend),
+    #     backend=ARGS.backend,
+    # )
+    dev = tvm.device(ARGS.target.kind.name)
+    create_timer(ARGS.backend)(lib, dev, input_data)
 
 
 if __name__ == "__main__":

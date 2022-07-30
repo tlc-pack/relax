@@ -24,7 +24,7 @@ from typing import Dict
 import numpy as np  # type: ignore
 
 import tvm
-from tvm import relay, relax, runtime, transform
+from tvm import tir, relay, relax, runtime, transform
 from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.relay_workload import get_network
@@ -137,6 +137,7 @@ def apply_opt_before_tuning(
         relax_mod = relax.transform.FuseOps()(relax_mod)
         relax_mod = relax.transform.FuseTIR()(relax_mod)
         relax_mod = relax.transform.AnnotateLayoutFreeBuffers()(relax_mod)
+        relax_mod = tir.transform.PromoteDataType()(relax_mod)
     return relax_mod
 
 

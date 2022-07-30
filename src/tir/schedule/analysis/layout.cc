@@ -176,7 +176,7 @@ Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const Array<PrimExpr>& 
   ](Array<Var> indices) -> Array<PrimExpr> {
     ICHECK_EQ(indices.size(), shape.size());
     for (int i = 0, n = indices.size(); i < n; ++i) {
-      analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
+      analyzer->Bind(indices[i], Range::FromMinExtent(make_zero(shape[i].dtype()), shape[i]));
     }
     PrimExpr index = f_flatten_index({indices.begin(), indices.end()});
     int ndim = split_exprs.size();
