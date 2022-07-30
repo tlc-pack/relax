@@ -49,9 +49,9 @@ def build_and_run(mod, target, dev, np_inputs):
             config=ms.TuneConfig(
                 strategy="evolutionary",
                 task_scheduler="round_robin",
-                num_trials_per_iter=4,
-                max_trials_per_task=8,
-                max_trials_global=8,
+                num_trials_per_iter=30,
+                max_trials_per_task=200,
+                max_trials_global=200,
             ),
             work_dir=work_dir,
         )
@@ -78,7 +78,7 @@ def test_lowering_cpu(target_str="llvm --num-cores=16"):
 
 
 @tvm.testing.requires_gpu
-def test_lowering_gpu(target_str="nvidia/geforce-rtx-3070"):
+def test_lowering_gpu(target_str="nvidia/nvidia-t4"):
     _test_lowering(Target(target_str), tvm.cuda())
 
 
