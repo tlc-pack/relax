@@ -85,8 +85,12 @@ void PrimFuncFrameNode::ExitWithScope() {
     builder->result = func;
   } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
     IRModuleFrame frame = opt_frame.value();
-    frame->global_vars.push_back(GlobalVar(name.value_or("")));
-    frame->functions.push_back(func);
+    String func_name = name.value_or("");
+    if (frame->global_var_map.count(func_name)) {
+      UpdateFunction(func_name, func);
+    } else {
+      AddFunction(func_name, func, /*allow_rename=*/false);
+    }
   } else {
     LOG(FATAL) << "ValueError: Cannot find where to insert PrimFunc";
   }

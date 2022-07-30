@@ -14,8 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
-from . import parser as _parser
-from .entry import ir_module, _is_defined_in_class
+"""TVM Script Relax Frame"""
+from tvm._ffi import register_object as _register_object
 
-__all__ = ["ir_module"]
+from ..base import IRBuilderFrame
+
+@_register_object("script.ir_builder.relax.RelaxFrame")
+class RelaxFrame(IRBuilderFrame):
+    ...
+
+@_register_object("script.ir_builder.relax.BlockFrame")
+class BlockFrame(RelaxFrame):
+    ...
+
+@_register_object("script.ir_builder.relax.FunctionFrame")
+class FunctionFrame(RelaxFrame):
+    ...

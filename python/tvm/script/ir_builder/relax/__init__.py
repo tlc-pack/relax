@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
-from . import parser as _parser
-from .entry import ir_module, _is_defined_in_class
+# pylint: disable=unused-import
+"""Namespace for the TVMScript Relax Builder API."""
 
-__all__ = ["ir_module"]
+from .ir import *

@@ -266,8 +266,26 @@ class Parser(doc.NodeVisitor):
     def visit_AugAssign(self, node: doc.AugAssign) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "AugAssign")(self, node)
 
-    def visit_Assert(self, node: doc.Assert) -> Any:  # pylint: disable=invalid-name
-        return _dispatch(self, "Assert")(self, node)
+    def visit_Assert(self, node: doc.Assert) -> Any:
+        return _dispatch(self, "Assert")(self, node)  # pylint: disable=invalid-name
+
+    def visit_Return(self, node: doc.Return) -> Any:
+        return _dispatch(self, "Return")(self, node)  # pylint: disable=invalid-name
+
+
+def _handle_function(self: Parser, node: doc.FunctionDef) -> None:
+    if not node.decorator_list:
+        self.report_error(node, "Function must be decorated")
+    # TODO: only the last decorator is parsed
+    decorator = self.eval_expr(node.decorator_list[-1])
+    if hasattr(decorator, "dispatch_token"):
+        token = decorator.dispatch_token
+        func = dispatch.get(token=token, type_name="FunctionDef", default=None)
+        if func is not None:
+            func(self, node)
+            return
+    self.report_error(node, "The parser does not understand the decorator")
+
 
     def visit_Return(self, node: doc.Return) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "Return")(self, node)

@@ -32,7 +32,14 @@ namespace ir_builder {
 
 TVM_DLL IRModuleFrame IRModule();
 
-}
+TVM_DLL GlobalVar AddFunction(const String& func_name,                   //
+                              const Optional<BaseFunc>& func = NullOpt,  //
+                              bool allow_rename = false);
+
+TVM_DLL void UpdateFunction(const String& func_name, const BaseFunc& func,
+                            bool require_first_define = true);
+
+}  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
 

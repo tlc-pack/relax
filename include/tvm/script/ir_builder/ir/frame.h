@@ -32,12 +32,11 @@ namespace ir_builder {
 
 class IRModuleFrameNode : public IRBuilderFrameNode {
  public:
-  Array<GlobalVar> global_vars;
-  Array<BaseFunc> functions;
+  Map<String, GlobalVar> global_var_map;
+  Map<GlobalVar, Optional<BaseFunc>> functions;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     IRBuilderFrameNode::VisitAttrs(v);
-    v->Visit("global_vars", &global_vars);
     v->Visit("functions", &functions);
   }
 

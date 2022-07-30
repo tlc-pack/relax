@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
-from . import parser as _parser
-from .entry import ir_module, _is_defined_in_class
+"""FFI APIs for tvm.script.builder.relax"""
+import tvm._ffi
 
-__all__ = ["ir_module"]
+tvm._ffi._init_api("script.ir_builder.relax", __name__)  # pylint: disable=protected-access

@@ -16,29 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#ifndef TVM_SCRIPT_BUILDER_RELAX_UTILS_H_
+#define TVM_SCRIPT_BUILDER_RELAX_UTILS_H_
+
+#include <tvm/script/ir_builder/relax/frame.h>
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace relax {
 
-void IRModuleFrameNode::ExitWithScope() {
-  Map<GlobalVar, BaseFunc> func_map;
-  for (const auto& kv : functions) {
-    const GlobalVar& gv = kv.first;
-    const Optional<BaseFunc>& func = kv.second;
-    CHECK(func.defined()) << "ValueError: function " << gv->name_hint << " is not defined";
-    func_map.Set(gv, func.value());
+inline FunctionFrame FindFunctionFrame(const String& method) {
+  if (Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
+    return frame.value();
   }
-  IRBuilder builder = IRBuilder::Current();
-  ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
-  builder->result = tvm::IRModule(func_map);
+  LOG(FATAL) << "ValueError: Function frame not find. Please ensure '" << method
+             << "' is called under R.function()";
+  throw;
 }
 
-TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
+inline tvm::relax::BlockBuilder GetBlockBuilder() {
+  Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
+  CHECK(frame.defined()) << "ValueError: Relax Function frame not find. Please ensure "
+                            "assignment is called under R.function()";
+  return frame.value()->block_builder;
+}
 
+}  // namespace relax
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
+
+#endif  // TVM_SCRIPT_BUILDER_TIR_UTILS_H_

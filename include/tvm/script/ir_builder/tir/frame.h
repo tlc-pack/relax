@@ -21,6 +21,7 @@
 
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tir/stmt.h>
 
 namespace tvm {
