@@ -74,6 +74,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         class JupyterLight(Style):
             """A Jupyter-Notebook-like Pygments style configuration (aka. "dark")"""
 
+            background_color = ""
             styles = {
                 Keyword: "bold #008000",
                 Keyword.Type: "nobold #008000",
@@ -90,6 +91,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         class VSCDark(Style):
             """A VSCode-Dark-like Pygments style configuration (aka. "dark")"""
 
+            background_color = ""
             styles = {
                 Keyword: "bold #c586c0",
                 Keyword.Type: "#82aaff",
@@ -107,6 +109,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         class AnsiTerminalDefault(Style):
             """The default style for terminal display with ANSI colors (aka. "ansi")"""
 
+            background_color = ""
             styles = {
                 Keyword: "bold ansigreen",
                 Keyword.Type: "nobold ansigreen",
