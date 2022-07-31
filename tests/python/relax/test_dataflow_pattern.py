@@ -482,6 +482,22 @@ def test_counter_single_crb():
         assert not ctx.match_dfb(dfb, start_hint=dfb.bindings[0].var, must_include_hint=True)
 
 
+def test_nested_context():
+    dfb = CBRx2["main"].body.blocks[0]
+    with PatternContext() as ctx0:
+        is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("my_relu")
+        with PatternContext() as ctx1:
+            is_call_tir("conv1x1") >> is_call_tir("my_relu")  # pattern to miss
+            with PatternContext() as ctx2:
+                is_call_tir("bias_add") >> is_call_tir("my_relu")
+                assert ctx2.match_dfb(dfb)
+                assert PatternContext.current() == ctx2
+            assert not ctx1.match_dfb(dfb)
+            assert PatternContext.current() == ctx1
+        assert ctx0.match_dfb(dfb)
+        assert PatternContext.current() == ctx0
+
+
 def test_two_cbr():
     with PatternContext() as ctx:
         cbr0 = is_call_tir("conv1x1") >> is_call_tir("bias_add") >> is_call_tir("my_relu")
