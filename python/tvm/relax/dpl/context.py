@@ -35,7 +35,7 @@ class PatternContext(tvm.runtime.Object):
         Parameters
         ----------
         incremental : bool, optional
-            perform incremental solving based on the recent context, by default False
+            perform incremental matching based on the recent context, by default False
         """
         self.__init_handle_by_constructor__(ffi.PatternContext, incremental)
 

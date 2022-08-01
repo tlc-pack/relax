@@ -575,7 +575,8 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
 
         if (-1 != cons.index) {
           const auto& callees = use2def.at(r->ptr);
-          if (cons.index >= callees.size() || rparent->ptr != callees[cons.index]) {
+          if (static_cast<size_t>(cons.index) >= callees.size() ||
+              rparent->ptr != callees[cons.index]) {
             cons_sat = false;
             break;
           }
@@ -615,7 +616,7 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
 
         if (-1 != cons.index) {
           const auto& callees = use2def.at(rchild->ptr);
-          if (cons.index >= callees.size() || r->ptr != callees[cons.index]) {
+          if (static_cast<size_t>(cons.index) >= callees.size() || r->ptr != callees[cons.index]) {
             all_cons_pass = false;
             break;
           }

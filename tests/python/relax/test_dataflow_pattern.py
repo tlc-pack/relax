@@ -799,6 +799,8 @@ def test_incremental_solving():
         with PatternContext(incremental=True) as ctx1:
             # because we are doing incremental solving
             # relu >> sigmoid is still a constraint in this context.
+            # that said the total constraint is:
+            # relu >> sigmoid >> neg
             sigmoid >> neg
             assert ctx1.match_dfb(simple_chain.body.blocks[0])
 
@@ -824,9 +826,11 @@ def test_incremental_solving_counter():
         relu >> sigmoid  # cannot match
 
         with PatternContext(incremental=False) as ctx1:
-            sigmoid >> neg  # yes as it is not incremental
+            # total constraint: sigmoid >> neg
+            sigmoid >> neg
             assert ctx1.match_dfb(simple_chain.body.blocks[0])
 
         with PatternContext(incremental=True) as ctx1:
-            sigmoid >> neg  # no as it is incremental
+            # total constraint: relu >> sigmoid >> neg
+            sigmoid >> neg
             assert not ctx1.match_dfb(simple_chain.body.blocks[0])
