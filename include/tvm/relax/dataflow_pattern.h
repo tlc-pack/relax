@@ -139,6 +139,10 @@ struct PairCons {
    * \param index The producer is called as the index'th argument of the consumer function.
    */
   TVM_DLL explicit PairCons(Type t, int index = -1) : type(t), index(index) {}
+
+  bool operator==(const PairCons& other) const {
+    return type == other.type && index == other.index;
+  }
 };
 
 /*!
@@ -189,7 +193,7 @@ class PatternContextNode : public Object {
     kMustNot, /*!< All nodes except outputs only have internal depedencies in the matched graph. */
   } allow_extern_use = kMay;
   // src node -> <dst node, constraint type> constraints.
-  std::map<DFPattern, std::map<DFPattern, PairCons>> constraints;
+  std::map<DFPattern, std::map<DFPattern, std::vector<PairCons>>> constraints;
 
   static constexpr const char* _type_key = "relax.dpl.PatternContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextNode, Object);
@@ -220,7 +224,9 @@ class PatternContext : public ObjectRef {
    * \param cons The constraint type. \sa PairCons
    */
   void add_constraint(DFPattern producer, DFPattern consumer, PairCons cons) {
-    (*this)->constraints[producer].emplace(consumer, cons);
+    auto& vec = (*this)->constraints[producer][consumer];
+    ICHECK(std::find(vec.cbegin(), vec.cend(), cons) == vec.cend()) << "Constraint already exists";
+    vec.push_back(cons);
   }
 
   /*! \brief Get the pass context object on the top of the stack */

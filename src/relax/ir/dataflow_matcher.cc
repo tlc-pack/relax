@@ -510,8 +510,8 @@ TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
 struct PNode {
   const DFPatternNode* ptr;
   const VarNode* matched = nullptr;
-  std::vector<std::pair<PNode*, PairCons>> children;
-  std::vector<std::pair<PNode*, PairCons>> parents;
+  std::vector<std::pair<PNode*, const std::vector<PairCons>&>> children;
+  std::vector<std::pair<PNode*, const std::vector<PairCons>&>> parents;
 };
 
 struct RNode {
@@ -521,14 +521,13 @@ struct RNode {
   std::vector<RNode*> parents;
 };
 
-// implemented in udchain.cc
-std::map<const VarNode*, std::set<const VarNode*>> udchain_dfb(const DataflowBlock&);
-
 /**
  * \brief This method try to match a real node and a pattern node along with its neighbors.
  */
 static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
-                      const std::map<const VarNode*, std::set<const VarNode*>>& def2use) {
+                      const std::map<const VarNode*, std::set<const VarNode*>>& def2use,
+                      const std::map<const VarNode*, std::vector<const VarNode*>>& use2def) {
+  if (nullptr != p->matched && p->matched == r->ptr) return true;  // matched before.
   if (!m->Match(GetRef<DFPattern>(p->ptr), GetRef<Var>(r->ptr))) return false;
 
   std::stack<std::pair<PNode*, RNode*>> undo_stack{};
@@ -540,13 +539,14 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
     undo_stack.emplace(p, r);
   };
 
-  const auto undo = [&undo_stack] {
+  const auto quit = [&undo_stack] {
     while (!undo_stack.empty()) {
       auto& top = undo_stack.top();
       top.first->matched = nullptr;
       top.second->matched = nullptr;
       undo_stack.pop();
     }
+    return false;
   };
 
   commit(p, r);
@@ -554,28 +554,42 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
   // match parent patterns.
   for (auto& pparent_pairs : p->parents) {
     PNode* pparent = pparent_pairs.first;
-    const PairCons& constraint = pparent_pairs.second;
-    ICHECK(constraint.index == -1)
-        << "Matching index is unsupported as Callee indexing is not standarized.";
+    const std::vector<PairCons>& constraints = pparent_pairs.second;
+
     if (!pparent->matched) {
       for (auto& rparent : r->parents) {
         if (rparent->matched) continue;
         const auto& uses = def2use.at(rparent->ptr);
         // skip if `rparent` is not used by `r`.
         if (uses.cend() == uses.find(r->ptr)) continue;
-        // skip if `rparent` is not used and only used by `r`.
-        if (PairCons::kOnlyUsedBy == constraint.type && uses.size() != 1) continue;
+
+        // check edge constraints.
+        bool all_cons_pass = true;
+        for (const auto& cons : constraints) {
+          if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+            all_cons_pass = false;
+            break;
+          }
+
+          if (-1 != cons.index) {
+            const auto& callees = use2def.at(r->ptr);
+            if (cons.index >= callees.size() || rparent->ptr != callees[cons.index]) {
+              all_cons_pass = false;
+              break;
+            }
+          }
+        }
+        if (!all_cons_pass) continue;
 
         // try all parent R nodes that are not matched yet.
         // as long as ppattern can match one node.
-        if (try_match(pparent, rparent, m, def2use)) {
+        if (try_match(pparent, rparent, m, def2use, use2def)) {
           commit(pparent, rparent);
           break;
         }
       }
       if (!pparent->matched) {
-        undo();
-        return false;
+        return quit();
       }
     }
   }
@@ -583,23 +597,38 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
   // forward matching;
   for (auto& pchild_pairs : p->children) {
     PNode* pchild = pchild_pairs.first;
-    const PairCons& constraint = pchild_pairs.second;
-    ICHECK(constraint.index == -1)
-        << "Matching index is unsupported as Callee indexing is not standarized.";
+    const std::vector<PairCons>& constraints = pchild_pairs.second;
     if (!pchild->matched) {
       for (auto& rchild : r->children) {
         if (rchild->matched) continue;
         const auto& uses = def2use.at(r->ptr);
         if (uses.cend() == uses.find(rchild->ptr)) continue;
-        if (PairCons::kOnlyUsedBy == constraint.type && uses.size() != 1) continue;
-        if (try_match(pchild, rchild, m, def2use)) {
+
+        // check edge constraints.
+        bool all_cons_pass = true;
+        for (const auto& cons : constraints) {
+          if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+            all_cons_pass = false;
+            break;
+          }
+
+          if (-1 != cons.index) {
+            const auto& callees = use2def.at(rchild->ptr);
+            if (cons.index >= callees.size() || r->ptr != callees[cons.index]) {
+              all_cons_pass = false;
+              break;
+            }
+          }
+        }
+        if (!all_cons_pass) continue;
+
+        if (try_match(pchild, rchild, m, def2use, use2def)) {
           commit(pchild, rchild);
           break;
         }
       }
       if (!pchild->matched) {
-        undo();
-        return false;
+        return quit();
       }
     }
   }
@@ -607,10 +636,37 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
   return true;
 }
 
+class MatcherUseDefAnalysis : public relax::ExprVisitor {
+ public:
+  std::map<const VarNode*, std::set<const VarNode*>> def2use;
+  // caller -> callee table.
+  std::map<const VarNode*, std::vector<const VarNode*>> caller2callees;
+
+  const VarNode* cur_user_;
+
+  void VisitBinding_(const VarBindingNode* binding) override {
+    // init
+    cur_user_ = binding->var.get();
+    this->VisitVarDef(binding->var);
+    this->VisitExpr(binding->value);
+    cur_user_ = nullptr;
+  }
+
+  void VisitExpr_(const VarNode* op) override {
+    if (nullptr == cur_user_) return;
+
+    def2use[op].insert(cur_user_);
+    caller2callees[cur_user_].push_back(op);
+  }
+
+  void VisitExpr_(const DataflowVarNode* op) override {
+    VisitExpr_(static_cast<const VarNode*>(op));
+  }
+};
+
 tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
                                              Optional<Var> start_hint, bool must_include_hint) {
   tvm::runtime::Map<DFPattern, Var> ret{};
-  // FIXME(@ganler): consider callee index.
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
   ICHECK(!must_include_hint || start_hint.defined())
@@ -620,7 +676,10 @@ tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const Da
   DFPatternMatcher matcher(var2val);
 
   // std::map<const VarNode*, std::set<const VarNode*>>
-  const auto def2use = udchain_dfb(dfb);
+  MatcherUseDefAnalysis ud_analysis;
+  ud_analysis.VisitBindingBlock_(dfb.get());
+  const auto& def2use = ud_analysis.def2use;
+  const auto& caller2callees = ud_analysis.caller2callees;
 
   // First construct a graph of PNode and RNode.
   std::unordered_map<const VarNode*, RNode> var2node;
@@ -644,17 +703,17 @@ tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const Da
 
   for (const auto& def2use_pattern : ctx->constraints) {
     const DFPatternNode* def_pattern = def2use_pattern.first.get();
-    const std::map<DFPattern, PairCons>& uses = def2use_pattern.second;
+    const std::map<DFPattern, std::vector<PairCons>>& uses = def2use_pattern.second;
     PNode& def_node = pattern2node[def_pattern];
     def_node.ptr = def_pattern;
     def_node.children.reserve(uses.size());
     for (const auto& use : uses) {
-      const PairCons& cons = use.second;
+      const auto& cons = use.second;
       const DFPatternNode* use_pattern = use.first.get();
       PNode& use_node = pattern2node[use_pattern];
       use_node.ptr = use_pattern;
-      use_node.parents.emplace_back(&def_node, cons);
-      def_node.children.emplace_back(&use_node, cons);
+      use_node.parents.emplace_back(&def_node, std::ref(cons));
+      def_node.children.emplace_back(&use_node, std::ref(cons));
     }
   }
 
@@ -662,7 +721,7 @@ tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const Da
     Var v = start_hint.value();
     auto rnode_ptr = var2node.find(v.get());
     for (auto& ppair : pattern2node) {
-      if (try_match(&ppair.second, &rnode_ptr->second, &matcher, def2use)) {
+      if (try_match(&ppair.second, &rnode_ptr->second, &matcher, def2use, caller2callees)) {
         for (auto ppair : pattern2node)
           ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
         return ret;
@@ -677,7 +736,7 @@ tvm::runtime::Map<DFPattern, Var> MatchGraph(const PatternContext& ctx, const Da
   if (!pnode_start->matched) {
     for (auto& rpair : var2node) {
       if (start_hint.defined() && start_hint.value().get() == rpair.first) continue;
-      if (try_match(pnode_start, &rpair.second, &matcher, def2use)) {
+      if (try_match(pnode_start, &rpair.second, &matcher, def2use, caller2callees)) {
         for (auto ppair : pattern2node)
           ret.Set(GetRef<DFPattern>(ppair.first), GetRef<Var>(ppair.second.matched));
 

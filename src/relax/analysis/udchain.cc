@@ -44,8 +44,8 @@ namespace relax {
 
 class UDChain : public relax::ExprVisitor {
  public:
-  using map_t = std::map<const VarNode*, std::set<const VarNode*>>;
-  map_t def2use;
+  std::map<const VarNode*, std::set<const VarNode*>> def2use;
+
   const VarNode* cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
@@ -79,12 +79,6 @@ runtime::Map<Var, Array<Var>> UseDefChain(const DataflowBlock& dfb) {
     ret.Set(GetRef<Var>(kv.first), std::move(uses));
   }
   return ret;
-}
-
-std::map<const VarNode*, std::set<const VarNode*>> udchain_dfb(const DataflowBlock& dfb) {
-  UDChain udchain;
-  udchain.VisitBindingBlock_(dfb.get());
-  return std::move(udchain.def2use);
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(UseDefChain);

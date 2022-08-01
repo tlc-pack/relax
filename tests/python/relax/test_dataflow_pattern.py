@@ -381,8 +381,13 @@ class Diamond:
     @R.function
     def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
         with R.dataflow():
+            #   matmul
+            #  /      \
+            # relu  sigmoid
+            #  \      /
+            #    add
             lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
-            lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_relu, (lv0,), (32, 32), dtype="float32")
             lv2 = R.call_tir(tir_sigmoid, (lv0), (32, 32), dtype="float32")
             lv3 = R.call_tir(tir_add, (lv1, lv2), (32, 32), dtype="float32")
             R.output(lv3)
@@ -404,6 +409,19 @@ def test_diamond():
         dfb = Diamond["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
 
+    # simplify it with fork_to
+    with PatternContext() as ctx:
+        n1 = is_call_tir("tir_relu")
+        n2 = is_call_tir("tir_sigmoid")
+        n3 = is_call_tir("tir_add")
+
+        is_call_tir("tir_matmul").fork_to(n1, n2)
+        n1 >> n3
+        n2 >> n3
+
+        dfb = Diamond["main"].body.blocks[0]
+        assert ctx.match_dfb(dfb)
+
 
 def test_diamond_counter_oub():
     with PatternContext() as ctx:
@@ -419,6 +437,64 @@ def test_diamond_counter_oub():
 
         dfb = Diamond["main"].body.blocks[0]
         assert not ctx.match_dfb(dfb)
+
+
+@tvm.script.ir_module
+class SmallDiamond:
+    @R.function
+    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            #    relu
+            #  /      \
+            #  \      /
+            #    add
+            lv0 = R.call_tir(my_relu, (x,), (32, 32), dtype="float32")
+            lv1 = R.call_tir(my_add, (lv0, lv0), (32, 32), dtype="float32")
+            R.output(lv1)
+        return lv1
+
+
+@tvm.script.ir_module
+class SmallParallel:
+    @R.function
+    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            # relu   relu
+            #   \    /
+            #    add
+            lv0 = R.call_tir(my_relu, (x,), (32, 32), dtype="float32")
+            lv1 = R.call_tir(my_relu, (x,), (32, 32), dtype="float32")
+            lv2 = R.call_tir(my_add, (lv0, lv1), (32, 32), dtype="float32")
+            R.output(lv2)
+        return lv2
+
+
+def test_distiguish_diamond_and_parallel():
+    # relay pattern lang cannot distinguish the two cases above.
+    diamond = SmallDiamond["main"].body.blocks[0]
+    parallel = SmallParallel["main"].body.blocks[0]
+
+    with PatternContext() as ctx:
+        # describe a diamond pattern
+        fork = is_call_tir("my_relu")
+        join = is_call_tir("my_add")
+        fork.only_used_by(join, index=0)
+        fork.only_used_by(join, index=1)
+
+        assert ctx.match_dfb(diamond)
+        assert not ctx.match_dfb(parallel)
+
+    with PatternContext() as ctx:
+        # describe a parallel pattern
+        join = is_call_tir("my_add")
+        # Due to one-one mathcing:
+        # is_call_tir("my_relu") creates the 1st relu
+        is_call_tir("my_relu") >> join
+        # is_call_tir("my_relu") creates the another different relu (obj address is different)
+        is_call_tir("my_relu") >> join
+
+        assert ctx.match_dfb(parallel)
+        assert not ctx.match_dfb(diamond)
 
 
 @tvm.script.ir_module
