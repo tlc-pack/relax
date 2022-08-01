@@ -105,7 +105,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
             # This is bit unintuitive. Can we improve this?
             def transform(self):
                 for gv, func in mod.functions.items():
-                    if isinstance(func, relax.expr.BaseFunc):
+                    if isinstance(func, relax.Function):
                         updated_func = self.visit_expr(func)
                         self.builder_.update_func(gv, updated_func)
                 return self.builder_.get()
