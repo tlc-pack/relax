@@ -556,81 +556,80 @@ static bool try_match(PNode* p, RNode* r, DFPatternMatcher* m,
     PNode* pparent = pparent_pairs.first;
     const std::vector<PairCons>& constraints = pparent_pairs.second;
 
-    if (!pparent->matched) {
-      for (auto& rparent : r->parents) {
-        if (rparent->matched) continue;
-        const auto& uses = def2use.at(rparent->ptr);
-        // skip if `rparent` is not used by `r`.
-        if (uses.cend() == uses.find(r->ptr)) continue;
+    bool any_cons_sat = false;
+    for (auto& rparent : r->parents) {
+      // skip if mismatch.
+      if (rparent->matched && rparent->matched != pparent->ptr) continue;
 
-        // check edge constraints.
-        bool all_cons_pass = true;
-        for (const auto& cons : constraints) {
-          if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
-            all_cons_pass = false;
-            break;
-          }
+      const auto& uses = def2use.at(rparent->ptr);
+      // skip if `rparent` is not used by `r`.
+      if (uses.cend() == uses.find(r->ptr)) continue;
 
-          if (-1 != cons.index) {
-            const auto& callees = use2def.at(r->ptr);
-            if (cons.index >= callees.size() || rparent->ptr != callees[cons.index]) {
-              all_cons_pass = false;
-              break;
-            }
-          }
-        }
-        if (!all_cons_pass) continue;
-
-        // try all parent R nodes that are not matched yet.
-        // as long as ppattern can match one node.
-        if (try_match(pparent, rparent, m, def2use, use2def)) {
-          commit(pparent, rparent);
+      // check edge constraints.
+      bool cons_sat = true;
+      for (const auto& cons : constraints) {
+        if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+          cons_sat = false;
           break;
         }
+
+        if (-1 != cons.index) {
+          const auto& callees = use2def.at(r->ptr);
+          if (cons.index >= callees.size() || rparent->ptr != callees[cons.index]) {
+            cons_sat = false;
+            break;
+          }
+        }
       }
-      if (!pparent->matched) {
-        return quit();
+      if (!cons_sat) continue;
+      any_cons_sat = true;
+
+      // try all parent R nodes that are not matched yet.
+      // as long as ppattern can match one node.
+      if (!pparent->matched && try_match(pparent, rparent, m, def2use, use2def)) {
+        commit(pparent, rparent);
+        break;
       }
     }
+    if (!pparent->matched || !any_cons_sat) return quit();
   }
 
   // forward matching;
   for (auto& pchild_pairs : p->children) {
     PNode* pchild = pchild_pairs.first;
     const std::vector<PairCons>& constraints = pchild_pairs.second;
-    if (!pchild->matched) {
-      for (auto& rchild : r->children) {
-        if (rchild->matched) continue;
-        const auto& uses = def2use.at(r->ptr);
-        if (uses.cend() == uses.find(rchild->ptr)) continue;
+    bool any_cons_sat = false;
+    for (auto& rchild : r->children) {
+      if (rchild->matched && rchild->matched != pchild->ptr) continue;
 
-        // check edge constraints.
-        bool all_cons_pass = true;
-        for (const auto& cons : constraints) {
-          if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+      const auto& uses = def2use.at(r->ptr);
+      if (uses.cend() == uses.find(rchild->ptr)) continue;
+
+      // check edge constraints.
+      bool all_cons_pass = true;
+      for (const auto& cons : constraints) {
+        if (PairCons::kOnlyUsedBy == cons.type && uses.size() != 1) {
+          all_cons_pass = false;
+          break;
+        }
+
+        if (-1 != cons.index) {
+          const auto& callees = use2def.at(rchild->ptr);
+          if (cons.index >= callees.size() || r->ptr != callees[cons.index]) {
             all_cons_pass = false;
             break;
           }
-
-          if (-1 != cons.index) {
-            const auto& callees = use2def.at(rchild->ptr);
-            if (cons.index >= callees.size() || r->ptr != callees[cons.index]) {
-              all_cons_pass = false;
-              break;
-            }
-          }
-        }
-        if (!all_cons_pass) continue;
-
-        if (try_match(pchild, rchild, m, def2use, use2def)) {
-          commit(pchild, rchild);
-          break;
         }
       }
-      if (!pchild->matched) {
-        return quit();
+      if (!all_cons_pass) continue;
+      any_cons_sat = true;
+
+      if (!pchild->matched && try_match(pchild, rchild, m, def2use, use2def)) {
+        commit(pchild, rchild);
+        break;
       }
     }
+    if (!pchild->matched || !any_cons_sat) return quit();
   }
 
   return true;

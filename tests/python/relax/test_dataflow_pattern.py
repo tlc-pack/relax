@@ -714,3 +714,66 @@ def test_self_attention():
         is_var("x").fork_to(fc_trans_q, fc_trans_k, fc_trans_v)
         dfb = SelfAttention["main"].body.blocks[0]
         assert ctx.match_dfb(dfb)
+
+
+def test_nested_diamond():
+    @tvm.script.ir_module
+    class DiamondInDiamond:
+        @R.function
+        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                #   matmul0      matmul1
+                #     /    \    /    \
+                # sigmoid2  add4  sigmoid3
+                #     \    /    \    /
+                #      add5      add6
+                #          \    /
+                #           add7
+                lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+                lv1 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+                lv2 = R.call_tir(tir_sigmoid, (lv0), (32, 32), dtype="float32")
+                lv3 = R.call_tir(tir_sigmoid, (lv1), (32, 32), dtype="float32")
+                lv4 = R.call_tir(tir_add, (lv0, lv1), (32, 32), dtype="float32")
+                lv5 = R.call_tir(tir_add, (lv2, lv4), (32, 32), dtype="float32")
+                lv6 = R.call_tir(tir_add, (lv3, lv4), (32, 32), dtype="float32")
+                lv7 = R.call_tir(tir_add, (lv5, lv6), (32, 32), dtype="float32")
+                R.output(lv7)
+            return lv7
+
+    # match matmul0 diamond
+    with PatternContext() as ctx:
+        sigmoid2 = is_call_tir("tir_sigmoid")
+        add4 = is_call_tir("tir_add")
+        is_call_tir("tir_matmul").fork_to(sigmoid2, add4)
+        add5 = is_call_tir("tir_add")
+        sigmoid2 >> add5
+        add4 ^ add5
+        assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
+
+    # counter case: mis-match matmul0 diamond
+    with PatternContext() as ctx:
+        sigmoid2 = is_call_tir("tir_sigmoid")
+        add4 = is_call_tir("tir_add")
+        is_call_tir("tir_matmul").fork_to(sigmoid2, add4)
+        add5 = is_call_tir("tir_add")
+        sigmoid2 >> add5
+        add4 >> add5  # not only-used-by relation
+        assert not ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
+
+    # match matmul1 diamond
+    with PatternContext() as ctx:
+        sigmoid3 = is_call_tir("tir_sigmoid")
+        add4 = is_call_tir("tir_add")
+        is_call_tir("tir_matmul").fork_to(sigmoid3, add4)
+        add6 = is_call_tir("tir_add")
+        sigmoid3 >> add6
+        add4 ^ add6
+        assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
+
+    # match add-4-5-6-7
+    with PatternContext() as ctx:
+        add5, add6, add7 = is_call_tir("tir_add"), is_call_tir("tir_add"), is_call_tir("tir_add")
+        is_call_tir("tir_add").fork_to(add5, add6)  # add4
+        add5 >> add7
+        add6 >> add7
+        assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
