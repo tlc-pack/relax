@@ -206,6 +206,8 @@ class PatternContextNode : public Object {
 class PatternContext : public ObjectRef {
  public:
   TVM_DLL explicit PatternContext(ObjectPtr<Object> n) : ObjectRef(n) {}
+  TVM_DLL explicit PatternContext(bool incremental = false);
+
   const PatternContextNode* operator->() const {
     ICHECK(get() != nullptr);
     return static_cast<const PatternContextNode*>(get());

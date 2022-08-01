@@ -419,6 +419,18 @@ PatternContext PatternContext::Current() {
   return pattern_ctx_stack().top();
 }
 
+PatternContext::PatternContext(bool incremental) {
+  auto n = make_object<PatternContextNode>();
+  if (incremental) {
+    ICHECK(!pattern_ctx_stack().empty())
+        << "Incremental context needs to be built inside a existing context.";
+    n->allow_extern_use = pattern_ctx_stack().top()->allow_extern_use;
+    n->constraints = pattern_ctx_stack().top()->constraints;
+  }
+
+  data_ = std::move(n);
+}
+
 void PatternContext::EnterWithScope() { pattern_ctx_stack().push(*this); }
 
 void PatternContext::ExitWithScope() {
@@ -606,8 +618,8 @@ TVM_REGISTER_GLOBAL("relax.dpl.dup_pattern").set_body_typed([](DFPattern pattern
 
 TVM_REGISTER_GLOBAL("relax.dpl.dup_seq").set_body_typed([](PatternSeq seq) { return seq.dup(); });
 
-TVM_REGISTER_GLOBAL("relax.dpl.PatternContext").set_body_typed([] {
-  return PatternContext(make_object<PatternContextNode>());
+TVM_REGISTER_GLOBAL("relax.dpl.PatternContext").set_body_typed([](bool incre) {
+  return PatternContext(incre);
 });
 
 TVM_REGISTER_GLOBAL("relax.dpl.current_context").set_body_typed([] {

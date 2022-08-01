@@ -777,3 +777,56 @@ def test_nested_diamond():
         add5 >> add7
         add6 >> add7
         assert ctx.match_dfb(DiamondInDiamond["main"].body.blocks[0])
+
+
+def test_incremental_solving():
+    @R.function
+    def simple_chain(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            # relu -> sigmoid -> neg
+            lv0 = R.call_tir(tir_relu, (x), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_sigmoid, (lv0), (32, 32), dtype="float32")
+            lv2 = R.call_tir(tir_neg, (lv1), (32, 32), dtype="float32")
+            R.output(lv2)
+        return lv2
+
+    relu = is_call_tir("tir_relu")
+    sigmoid = is_call_tir("tir_sigmoid")
+    neg = is_call_tir("tir_neg")
+
+    with PatternContext() as ctx0:
+        relu >> sigmoid
+        with PatternContext(incremental=True) as ctx1:
+            # because we are doing incremental solving
+            # relu >> sigmoid is still a constraint in this context.
+            sigmoid >> neg
+            assert ctx1.match_dfb(simple_chain.body.blocks[0])
+
+        # match relue -> sigmoid
+        assert ctx0.match_dfb(simple_chain.body.blocks[0])
+
+
+def test_incremental_solving_counter():
+    @R.function
+    def simple_chain(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            # sigmoid -> neg
+            lv0 = R.call_tir(tir_sigmoid, (x), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_neg, (lv0), (32, 32), dtype="float32")
+            R.output(lv1)
+        return lv1
+
+    relu = is_call_tir("tir_relu")
+    sigmoid = is_call_tir("tir_sigmoid")
+    neg = is_call_tir("tir_neg")
+
+    with PatternContext() as ctx0:
+        relu >> sigmoid  # cannot match
+
+        with PatternContext(incremental=False) as ctx1:
+            sigmoid >> neg  # yes as it is not incremental
+            assert ctx1.match_dfb(simple_chain.body.blocks[0])
+
+        with PatternContext(incremental=True) as ctx1:
+            sigmoid >> neg  # no as it is incremental
+            assert not ctx1.match_dfb(simple_chain.body.blocks[0])

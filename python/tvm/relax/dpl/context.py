@@ -28,11 +28,16 @@ from . import _ffi as ffi
 class PatternContext(tvm.runtime.Object):
     """A context object for doing graph (topogical) pattern matching."""
 
-    def __init__(self):
+    def __init__(self, incremental=False):
         """
         Initialize the PatternContext
+
+        Parameters
+        ----------
+        incremental : bool, optional
+            perform incremental solving based on the recent context, by default False
         """
-        self.__init_handle_by_constructor__(ffi.PatternContext)
+        self.__init_handle_by_constructor__(ffi.PatternContext, incremental)
 
     def __enter__(self):
         """Enter the context"""
