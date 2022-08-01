@@ -49,9 +49,9 @@ def build_and_run(mod, target, dev, np_inputs):
             config=ms.TuneConfig(
                 strategy="evolutionary",
                 task_scheduler="round_robin",
-                num_trials_per_iter=30,
-                max_trials_per_task=200,
-                max_trials_global=200,
+                num_trials_per_iter=20,
+                max_trials_per_task=20,
+                max_trials_global=20,
             ),
             work_dir=work_dir,
         )

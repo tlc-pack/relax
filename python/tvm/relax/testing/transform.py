@@ -91,7 +91,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                     compute_func = best_impl_tuple[0].compute
                     name_hint = relay_op_name.split(".")[-1]
 
-                    return self.builder_.emit_te(
+                    return self.builder_.call_te(
                         compute_func,
                         call_node.attrs,
                         call_node.args,
