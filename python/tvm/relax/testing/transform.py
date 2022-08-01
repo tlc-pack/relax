@@ -101,8 +101,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                 else:
                     return call_node
 
-            # TOOD(@team): Currently, this is necessary to include TIR functions.
-            # This is bit unintuitive. Can we improve this?
+            # TOOD(@team): transform() wapper is necessary to include TIR functions.
+            # IMO, this is bit unintuitive. Can we improve this?
             def transform(self):
                 for gv, func in mod.functions.items():
                     if isinstance(func, relax.Function):
