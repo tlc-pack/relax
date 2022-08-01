@@ -234,12 +234,12 @@ class PyExprVisitor:
     _tvm_metadata discribes the class to inherit("cls"), the methods
     that users can overload("methods").
 
-    Note: @derived_object is required for proper usage of any inherited class.
+    Note: @relax.expr_functor.visitor is required for proper usage of any inherited class.
 
     See also: visitor, _PyExprVisitor
 
     Example:
-        @derived_object
+        @relax.expr_functor.visitor
         def MyExprVisitor(PyExprVisitor):
             ...
     """
@@ -754,12 +754,12 @@ class PyExprMutator:
     _tvm_metadata discribes the class to inherit("cls"), the methods that users can
     overload("methods"), the constructor's parameters("fields")
 
-    Note: @derived_object is required for proper usage of any inherited class.
+    Note: @relax.expr_functor.mutator is required for proper usage of any inherited class.
 
     See also: visitor, _PyExprVisitor
 
     Example:
-        @derived_object
+        @relax.expr_functor.mutator
         def MyExprMutator(PyExprMutator):
             ...
     """
