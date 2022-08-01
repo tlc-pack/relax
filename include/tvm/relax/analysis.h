@@ -108,6 +108,38 @@ TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
  */
 TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
+/*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param m the IRModule to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
+
+/*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param expr the expression to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
+
+/*!
+ * \brief Analyze var -> value mapping from VarBindings.
+ *
+ * \param dfb the dataflow block to check.
+ * \return Var -> Value (Expr)
+ */
+TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
+
+/*!
+ * \brief Get the use-def chain of variables inside a dataflow block.
+ *
+ * \param dfb The dataflow block to be analyzed.
+ * \return A map mapping variable definitoins to a set of uses.
+ */
+TVM_DLL runtime::Map<Var, Array<Var>> UseDefChain(const DataflowBlock& dfb);
+
 }  // namespace relax
 }  // namespace tvm
 
