@@ -20,7 +20,11 @@
 This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
+
+from typing import Dict, List
+
 import tvm
+from tvm.relax.expr import DataflowBlock, Var, Expr, Function
 from . import _ffi_api
 
 
@@ -54,3 +58,37 @@ def well_formed(mod: tvm.IRModule) -> bool:
         True if the IRModule is well formed, False if not.
     """
     return _ffi_api.well_formed(mod)
+
+
+def get_var2val(func: Function) -> Dict[Var, Expr]:
+    """
+    Get a mapping from Var to Expr for each variable in the function.
+
+    Parameters
+    ----------
+    func : Function
+        The input function to be analyzed.
+
+    Returns
+    -------
+    Dict[Var, Expr]
+        A mapping from Var to Expr.
+    """
+    return _ffi_api.get_var2val(func)
+
+
+def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
+    """
+    Analyze the variable use-def chain in a dataflow block.
+
+    Parameters
+    ----------
+    dfb : DataflowBlock
+        The dataflow block to analyze
+
+    Returns
+    -------
+    Dict[Var, List[Var]]
+        A mapping from variable definition to its uses.
+    """
+    return _ffi_api.udchain(dfb)
