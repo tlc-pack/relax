@@ -663,5 +663,6 @@ Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type)
 
   return var;
 }
+
 }  // namespace relax
 }  // namespace tvm
