@@ -119,7 +119,7 @@ class _PyExprVisitor(Object):
     A TVM object to support customization of ExprVisitor on the python side.
     This is the decorated result returned from visitor decorator.
 
-    WARNING: This is NOT the user facing class for method overloading inheritance.
+    WARNING: This is NOT the user facing class for method overwriting inheritance.
 
     See also: visitor, PyExprVisitor
     """
@@ -230,9 +230,9 @@ class _PyExprVisitor(Object):
 class PyExprVisitor:
     """
     An abstract ExprVisitor with customized methods on the python-side.
-    This is the user facing class for method overloading inheritance.
+    This is the user facing class for method overwriting inheritance.
     _tvm_metadata discribes the class to inherit("cls"), the methods
-    that users can overload("methods").
+    that users can overwrite("methods").
 
     Note: @relax.expr_functor.visitor is required for proper usage of any inherited class.
 
@@ -278,7 +278,7 @@ class PyExprVisitor:
 
     def visit_expr(self, expr: Expr) -> None:
         """Generic dispatcher for Expr.
-        Users can customized this function to overload VisitExpr(const Expr& expr) on the C++ side.
+        Users can customized this function to overwrite VisitExpr(const Expr& expr) on the C++ side.
 
         Parameters
         ----------
@@ -290,7 +290,7 @@ class PyExprVisitor:
 
     def visit_binding(self, binding: Binding) -> None:
         """Generic dispatcher for Binding.
-        Users can customized this function to overload VisitBinding(const Binding& binding)
+        Users can customized this function to overwrite VisitBinding(const Binding& binding)
         on the C++ side.
 
         Parameters
@@ -303,7 +303,7 @@ class PyExprVisitor:
 
     def visit_binding_block(self, block: BindingBlock) -> None:
         """Generic dispatcher for BindingBlock.
-        Users can customized this function to overload VisitBindingBlock(const BindingBlock& block)
+        Users can customized this function to overwrite VisitBindingBlock(const BindingBlock& block)
         on the C++ side.
 
         Parameters
@@ -316,7 +316,7 @@ class PyExprVisitor:
 
     def visit_var_def(self, var: Var) -> None:
         """Generic dispatcher for visiting the var definition site.
-        Users can customized this function to overload VisitVarDef(const Var& var) on the C++ side.
+        Users can customized this function to overwrite VisitVarDef(const Var& var) on the C++ side.
         Note that visit_var_() will only visit the usage site of an Var.
 
         Parameters
@@ -329,7 +329,7 @@ class PyExprVisitor:
 
     def visit_constant_(self, op: Constant) -> None:
         """Visit Constant.
-        Users can customized this function to overload VisitExpr_(const ConstantNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ConstantNode* op)
         on the C++ side.
 
         Parameters
@@ -341,7 +341,7 @@ class PyExprVisitor:
 
     def visit_tuple_(self, op: Tuple) -> None:
         """Visit Tuple.
-        Users can customized this function to overload VisitExpr_(const TupleNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleNode* op)
         on the C++ side.
 
         Parameters
@@ -353,7 +353,7 @@ class PyExprVisitor:
 
     def visit_var_(self, op: Var) -> None:
         """Visit Var.
-        Users can customized this function to overload VisitExpr_(const VarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const VarNode* op)
         on the C++ side.
 
         Parameters
@@ -365,7 +365,7 @@ class PyExprVisitor:
 
     def visit_dataflow_var_(self, op: DataflowVar) -> None:
         """Visit DataflowVar.
-        Users can customized this function to overload VisitExpr_(const DataflowVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const DataflowVarNode* op)
         on the C++ side.
 
         Parameters
@@ -377,7 +377,7 @@ class PyExprVisitor:
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         """Visit ShapeExpr.
-        Users can customized this function to overload VisitExpr_(const ShapeExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ShapeExprNode* op)
         on the C++ side.
 
         Parameters
@@ -389,7 +389,7 @@ class PyExprVisitor:
 
     def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
         """Visit RuntimeDepShape.
-        Users can customized this function to overload VisitExpr_(const RuntimeDepShapeNode* op)
+        Users can customized this function to overwrite VisitExpr_(const RuntimeDepShapeNode* op)
         on the C++ side.
 
         Parameters
@@ -401,7 +401,7 @@ class PyExprVisitor:
 
     def visit_extern_func_(self, op: ExternFunc) -> None:
         """Visit ExternFunc.
-        Users can customized this function to overload VisitExpr_(const ExternFuncNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ExternFuncNode* op)
         on the C++ side.
 
         Parameters
@@ -413,7 +413,7 @@ class PyExprVisitor:
 
     def visit_global_var_(self, op: GlobalVar) -> None:
         """Visit GlobalVar.
-        Users can customized this function to overload VisitExpr_(const GlobalVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const GlobalVarNode* op)
         on the C++ side.
 
         Parameters
@@ -425,7 +425,7 @@ class PyExprVisitor:
 
     def visit_function_(self, op: Function) -> None:
         """Visit Function.
-        Users can customized this function to overload VisitExpr_(const FunctionNode* op)
+        Users can customized this function to overwrite VisitExpr_(const FunctionNode* op)
         on the C++ side.
 
         Parameters
@@ -437,7 +437,7 @@ class PyExprVisitor:
 
     def visit_call_(self, op: Call) -> None:
         """Visit Call.
-        Users can customized this function to overload VisitExpr_(const CallNode* op)
+        Users can customized this function to overwrite VisitExpr_(const CallNode* op)
         on the C++ side.
 
         Parameters
@@ -449,7 +449,7 @@ class PyExprVisitor:
 
     def visit_seq_expr_(self, op: SeqExpr) -> None:
         """Visit SeqExpr.
-        Users can customized this function to overload VisitExpr_(const SeqExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const SeqExprNode* op)
         on the C++ side.
 
         Parameters
@@ -461,7 +461,8 @@ class PyExprVisitor:
 
     def visit_if_(self, op: If) -> None:
         """Visit If.
-        Users can customized this function to overload VisitExpr_(const IfNode* op) on the C++ side.
+        Users can customized this function to overwrite VisitExpr_(const IfNode* op)
+        on the C++ side.
 
         Parameters
         ----------
@@ -472,7 +473,8 @@ class PyExprVisitor:
 
     def visit_op_(self, op: Op) -> None:
         """Visit Op.
-        Users can customized this function to overload VisitExpr_(const OpNode* op) on the C++ side.
+        Users can customized this function to overwrite VisitExpr_(const OpNode* op)
+        on the C++ side.
 
         Parameters
         ----------
@@ -483,7 +485,7 @@ class PyExprVisitor:
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
         """Visit TupleGetItem.
-        Users can customized this function to overload VisitExpr_(const TupleGetItemNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleGetItemNode* op)
         on the C++ side.
 
         Parameters
@@ -495,7 +497,7 @@ class PyExprVisitor:
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
-        Users can customized this function to overload VisitBinding_(const VarBindingNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const VarBindingNode* binding)
         on the C++ side.
 
         Parameters
@@ -507,7 +509,7 @@ class PyExprVisitor:
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Visit MatchShape.
-        Users can customized this function to overload VisitBinding_(const MatchShapeNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const MatchShapeNode* binding)
         on the C++ side.
 
         Parameters
@@ -519,7 +521,7 @@ class PyExprVisitor:
 
     def visit_binding_block_(self, block: BindingBlock) -> None:
         """Visit BindingBlock.
-        Users can customized this function to overload VisitBindingBlock_(const BindingBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const BindingBlockNode*
         block) on the C++ side.
 
         Parameters
@@ -531,7 +533,7 @@ class PyExprVisitor:
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> None:
         """Visit DataflowBlock.
-        Users can customized this function to overload VisitBindingBlock_(const DataflowBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const DataflowBlockNode*
         block) on the C++ side.
 
         Parameters
@@ -543,7 +545,7 @@ class PyExprVisitor:
 
     def visit_var_def_(self, var: Var) -> None:
         """Visit the Var definition site.
-        Users can customized this function to overload VisitVarDef_(const VarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const VarNode* var)
         on the C++ side.
 
         Parameters
@@ -555,7 +557,7 @@ class PyExprVisitor:
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
         """Visit the DataflowVar definition site.
-        Users can customized this function to overload VisitVarDef_(const DataflowVarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const DataflowVarNode* var)
         on the C++ side.
 
         Parameters
@@ -567,7 +569,7 @@ class PyExprVisitor:
 
     def visit_type(self, t: Type) -> None:
         """Visit Type.
-        Users can customized this function to overload VisitType(const Type& t) on the C++ side.
+        Users can customized this function to overwrite VisitType(const Type& t) on the C++ side.
 
         Parameters
         ----------
@@ -578,7 +580,7 @@ class PyExprVisitor:
 
     def visit_span(self, span: Span) -> None:
         """Visit Span.
-        Users can customized this function to overload VisitSpan(const Span& span) on the C++ side.
+        Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
 
         Parameters
         ----------
@@ -594,7 +596,7 @@ class _PyExprMutator(Object):
     A TVM object to support customization of ExprMutator on the python side.
     This is the decorated result returned from mutator decorator.
 
-    WARNING: This is NOT the user facing class for method overloading inheritance.
+    WARNING: This is NOT the user facing class for method overwriting inheritance.
 
     See also: mutator, PyExprmutator
     """
@@ -750,9 +752,9 @@ class _PyExprMutator(Object):
 class PyExprMutator:
     """
     An abstract ExprMutator with customized methods on the python-side.
-    This is the user facing class for method overloading inheritance.
+    This is the user facing class for method overwriting inheritance.
     _tvm_metadata discribes the class to inherit("cls"), the methods that users can
-    overload("methods"), the constructor's parameters("fields")
+    overwrite("methods"), the constructor's parameters("fields")
 
     Note: @relax.expr_functor.mutator is required for proper usage of any inherited class.
 
@@ -817,7 +819,7 @@ class PyExprMutator:
 
     def visit_expr(self, expr: Expr) -> Expr:
         """Generic dispatcher for Expr.
-        Users can customized this function to overload VisitExpr(const Expr& expr) on the C++ side.
+        Users can customized this function to overwrite VisitExpr(const Expr& expr) on the C++ side.
 
         Parameters
         ----------
@@ -834,7 +836,7 @@ class PyExprMutator:
 
     def visit_binding(self, binding: Binding) -> None:
         """Generic dispatcher for Binding.
-        Users can customized this function to overload VisitBinding(const Binding& binding)
+        Users can customized this function to overwrite VisitBinding(const Binding& binding)
         on the C++ side.
 
         Parameters
@@ -847,7 +849,7 @@ class PyExprMutator:
 
     def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
         """Generic dispatcher for BindingBlock.
-        Users can customized this function to overload VisitBindingBlock(const BindingBlock& block)
+        Users can customized this function to overwrite VisitBindingBlock(const BindingBlock& block)
         on the C++ side.
 
         Parameters
@@ -865,7 +867,7 @@ class PyExprMutator:
 
     def visit_var_def(self, var: Var) -> Var:
         """Generic dispatcher for visiting the var definition site.
-        Users can customized this function to overload VisitVarDef(const Var& var) on the C++ side.
+        Users can customized this function to overwrite VisitVarDef(const Var& var) on the C++ side.
         Note that visit_var_() will only visit the usage site of an Var.
 
         Parameters
@@ -883,7 +885,7 @@ class PyExprMutator:
 
     def visit_constant_(self, op: Constant) -> Expr:
         """Visit Constant.
-        Users can customized this function to overload VisitExpr_(const ConstantNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ConstantNode* op)
         on the C++ side.
 
         Parameters
@@ -900,7 +902,7 @@ class PyExprMutator:
 
     def visit_tuple_(self, op: Tuple) -> Expr:
         """Visit Tuple.
-        Users can customized this function to overload VisitExpr_(const TupleNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleNode* op)
         on the C++ side.
 
         Parameters
@@ -917,7 +919,7 @@ class PyExprMutator:
 
     def visit_var_(self, op: Var) -> Expr:
         """Visit Var.
-        Users can customized this function to overload VisitExpr_(const VarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const VarNode* op)
         on the C++ side.
 
         Parameters
@@ -934,7 +936,7 @@ class PyExprMutator:
 
     def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         """Visit DataflowVar.
-        Users can customized this function to overload VisitExpr_(const DataflowVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const DataflowVarNode* op)
         on the C++ side.
 
         Parameters
@@ -951,7 +953,7 @@ class PyExprMutator:
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         """Visit ShapeExpr.
-        Users can customized this function to overload VisitExpr_(const ShapeExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ShapeExprNode* op)
         on the C++ side.
 
         Parameters
@@ -968,7 +970,7 @@ class PyExprMutator:
 
     def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
         """Visit RuntimeDepShape.
-        Users can customized this function to overload VisitExpr_(const RuntimeDepShapeNode* op)
+        Users can customized this function to overwrite VisitExpr_(const RuntimeDepShapeNode* op)
         on the C++ side.
 
         Parameters
@@ -985,7 +987,7 @@ class PyExprMutator:
 
     def visit_extern_func_(self, op: ExternFunc) -> Expr:
         """Visit ExternFunc.
-        Users can customized this function to overload VisitExpr_(const ExternFuncNode* op)
+        Users can customized this function to overwrite VisitExpr_(const ExternFuncNode* op)
         on the C++ side.
 
         Parameters
@@ -1002,7 +1004,7 @@ class PyExprMutator:
 
     def visit_global_var_(self, op: GlobalVar) -> Expr:
         """Visit GlobalVar.
-        Users can customized this function to overload VisitExpr_(const GlobalVarNode* op)
+        Users can customized this function to overwrite VisitExpr_(const GlobalVarNode* op)
         on the C++ side.
 
         Parameters
@@ -1019,7 +1021,7 @@ class PyExprMutator:
 
     def visit_function_(self, op: Function) -> Expr:
         """Visit Function.
-        Users can customized this function to overload VisitExpr_(const FunctionNode* op)
+        Users can customized this function to overwrite VisitExpr_(const FunctionNode* op)
         on the C++ side.
 
         Parameters
@@ -1036,7 +1038,7 @@ class PyExprMutator:
 
     def visit_call_(self, op: Call) -> Expr:
         """Visit Call.
-        Users can customized this function to overload VisitExpr_(const CallNode* op)
+        Users can customized this function to overwrite VisitExpr_(const CallNode* op)
         on the C++ side.
 
         Parameters
@@ -1053,7 +1055,7 @@ class PyExprMutator:
 
     def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         """Visit SeqExpr.
-        Users can customized this function to overload VisitExpr_(const SeqExprNode* op)
+        Users can customized this function to overwrite VisitExpr_(const SeqExprNode* op)
         on the C++ side.
 
         Parameters
@@ -1070,7 +1072,8 @@ class PyExprMutator:
 
     def visit_if_(self, op: If) -> Expr:
         """Visit If.
-        Users can customized this function to overload VisitExpr_(const IfNode* op) on the C++ side.
+        Users can customized this function to overwrite VisitExpr_(const IfNode* op)
+        on the C++ side.
 
         Parameters
         ----------
@@ -1086,7 +1089,8 @@ class PyExprMutator:
 
     def visit_op_(self, op: Op) -> Expr:
         """Visit Op.
-        Users can customized this function to overload VisitExpr_(const OpNode* op) on the C++ side.
+        Users can customized this function to overwrite VisitExpr_(const OpNode* op)
+        on the C++ side.
 
         Parameters
         ----------
@@ -1102,7 +1106,7 @@ class PyExprMutator:
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         """Visit TupleGetItem.
-        Users can customized this function to overload VisitExpr_(const TupleGetItemNode* op)
+        Users can customized this function to overwrite VisitExpr_(const TupleGetItemNode* op)
         on the C++ side.
 
         Parameters
@@ -1119,7 +1123,7 @@ class PyExprMutator:
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
-        Users can customized this function to overload VisitBinding_(const VarBindingNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const VarBindingNode* binding)
         on the C++ side.
 
         Parameters
@@ -1131,7 +1135,7 @@ class PyExprMutator:
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Visit MatchShape.
-        Users can customized this function to overload VisitBinding_(const MatchShapeNode* binding)
+        Users can customized this function to overwrite VisitBinding_(const MatchShapeNode* binding)
         on the C++ side.
 
         Parameters
@@ -1143,7 +1147,7 @@ class PyExprMutator:
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Visit BindingBlock.
-        Users can customized this function to overload VisitBindingBlock_(const BindingBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const BindingBlockNode*
         block) on the C++ side.
 
         Parameters
@@ -1160,7 +1164,7 @@ class PyExprMutator:
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> BindingBlock:
         """Visit DataflowBlock.
-        Users can customized this function to overload VisitBindingBlock_(const DataflowBlockNode*
+        Users can customized this function to overwrite VisitBindingBlock_(const DataflowBlockNode*
         block) on the C++ side.
 
         Parameters
@@ -1177,7 +1181,7 @@ class PyExprMutator:
 
     def visit_var_def_(self, var: Var) -> Var:
         """Visit the Var definition site.
-        Users can customized this function to overload VisitVarDef_(const VarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const VarNode* var)
         on the C++ side.
 
         Parameters
@@ -1194,7 +1198,7 @@ class PyExprMutator:
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> Var:
         """Visit the DataflowVar definition site.
-        Users can customized this function to overload VisitVarDef_(const DataflowVarNode* var)
+        Users can customized this function to overwrite VisitVarDef_(const DataflowVarNode* var)
         on the C++ side.
 
         Parameters
@@ -1211,7 +1215,7 @@ class PyExprMutator:
 
     def visit_type(self, t: Type) -> Type:
         """Visit Type.
-        Users can customized this function to overload VisitType(const Type& t) on the C++ side.
+        Users can customized this function to overwrite VisitType(const Type& t) on the C++ side.
 
         Parameters
         ----------
@@ -1227,7 +1231,7 @@ class PyExprMutator:
 
     def visit_span(self, span: Span) -> Span:
         """Visit Span.
-        Users can customized this function to overload VisitSpan(const Span& span) on the C++ side.
+        Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
 
         Parameters
         ----------
