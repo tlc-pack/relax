@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import pytest
-
 import tvm
 import tvm.testing
 from tvm import relay
+from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.script.highlight import cprint
 
@@ -28,24 +29,30 @@ def test_highlight_script():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(  # type: ignore
-            a: T.handle,
-            b: T.handle,
-            c: T.handle,
-        ) -> None:  # pylint: disable=no-self-argument
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            A = T.match_buffer(a, [16, 128, 128])
-            B = T.match_buffer(b, [16, 128, 128])
-            C = T.match_buffer(c, [16, 128, 128])
-            for n, i, j, k in T.grid(16, 128, 128, 128):
-                with T.block("matmul"):
-                    vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            k = T.var("int32")
+            A = T.match_buffer(x, (32, 32))
+            B = T.match_buffer(y, (32, 32))
+            C = T.match_buffer(z, (32, 32))
+
+            for (i0, j0, k0) in T.grid(32, 32, 32):
+                with T.block():
+                    i, j, k = T.axis.remap("SSR", [i0, j0, k0])
                     with T.init():
-                        C[vn, vi, vj] = 0.0  # type: ignore
-                    C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
+                        C[i, j] = 0.0
+                    C[i, j] += A[i, k] * B[j, k]
+
+        @R.function
+        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+                R.output(lv0)
+            return lv0
 
     Module.show()
     Module["main"].show()
+    Module["tir_matmul"].show()
     Module["main"].show(style="light")
     Module["main"].show(style="dark")
     Module["main"].show(style="ansi")
