@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
-import sys  # must import to defer parsing of annotations
+from __future__ import annotations  # must import to defer parsing of annotations
+import sys
 import tempfile
 import pytest
 import tvm
