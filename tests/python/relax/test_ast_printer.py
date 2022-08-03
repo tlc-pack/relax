@@ -14,14 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 import pytest
+import re
+
 import tvm
 from tvm import tir
 from tvm import relax as rx
 from tvm.relax.testing import dump_ast
+from tvm.script import tir as T, relax as R
+
 import numpy as np
 
-# test cases adapted from text_expr, only testing very basic properties
+
+def strip_whitespace(text: str) -> str:
+    """
+    Remove all whitespace to avoid reasoning about newlines and indents
+    """
+    return re.sub(r"\s", "", text)
+
+
+# test cases are mostly adapted from text_expr, only testing very basic properties
 
 
 def test_var() -> None:
@@ -215,6 +228,112 @@ def test_shape_expr():
     assert "values" in shape_expr_str
     assert "PrimExpr(value=`10`)" in shape_expr_str
     assert "PrimExpr(value=`20`)" in shape_expr_str
+
+
+def test_call_packed():
+    # test case from test_parser
+    @R.function
+    def f(
+        x: Tensor((32, m), "float32"),
+        y: Tensor((m, k), "float32"),
+        r: Tensor(_, "int64"),
+    ) -> Object:
+        z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
+        w: Tensor(None, _) = multiply(z, z)
+        q: Tensor(None, _, ndim=2) = add(w, w)
+        t = subtract(w, z)
+        sh: Shape = t.shape
+        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y, type_args=(Object))
+        return o
+
+    # checking that the call_packed call is turned into a call to an extern func
+    f_str = strip_whitespace(
+        dump_ast(
+            f,
+            include_type_annotations=False,
+            include_shape_annotations=False,
+            include_call_attrs=False,
+        )
+    )
+    extern_call = strip_whitespace(
+        """
+        Call(
+            op=ExternFunc(global_symbol="contrib.tensor_array_stack"),
+            args=[
+                Var(name_hint="x"),
+                Var(name_hint="y")
+            ],
+            type_args=[ObjectType()]
+        )
+        """
+    )
+    assert extern_call in f_str
+    # check that the op call is there too
+    op_call = strip_whitespace(
+        """
+        Call(
+            op=Op(name="nn.matmul"),
+            args=[
+                Var(name_hint="x"),
+                Var(name_hint="y")
+            ]
+        )
+        """
+    )
+    assert op_call in f_str
+    # the function has an annotated return type
+    assert "ret_type=ObjectType()" in f_str
+
+    # the op call has attributes so let's check those too
+    f_str_complete = strip_whitespace(dump_ast(f))
+    assert f_str != f_str_complete
+    attrs_str = strip_whitespace(
+        """
+        attrs={
+            "units": None,
+            "out_dtype": "",
+            "transpose_a": 0,
+            "transpose_b": 0
+        }
+        """
+    )
+    assert attrs_str in f_str_complete
+
+
+def test_call_tir():
+    # also from test_parser
+    @R.function
+    def foo(x: Tensor((m, n), "float32")):
+        gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+        return gv0
+
+    foo_str = strip_whitespace(
+        dump_ast(
+            foo,
+            include_type_annotations=False,
+            include_shape_annotations=False,
+            include_call_attrs=False,
+        )
+    )
+    # call_tir is an op in Relax and it takes an extern func as an argument
+    call_tir_text = strip_whitespace(
+        """
+        Call(
+            op=Op(name="relax.call_tir"),
+            args=[
+                ExternFunc(global_symbol="test.op.identity"),
+                Tuple(fields=[Var(name_hint="x")]),
+                ShapeExpr(values=[
+                    PrimExpr(value=`m: int64`),
+                    PrimExpr(value=`n: int64`)
+                ])
+            ],
+            type_args=[DynTensorType(ndim=2, dtype=float32)]
+        )
+        """
+    )
+    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+    assert call_tir_text in foo_str
 
 
 if __name__ == "__main__":
