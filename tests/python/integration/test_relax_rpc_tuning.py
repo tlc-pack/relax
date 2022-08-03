@@ -69,12 +69,13 @@ def connect_server(host: str, port: int, key: str) -> rpc.Server:
 
     Subsequently checks if the connection succeeded.
     """
-    server = rpc.Server(  # pylint: disable=unused-variable
+    server = rpc.Server(
         host=host, key=key, tracker_addr=(host, port)
     )
     # retry in case we check before the connection comes in
     if not retry_with_backoff(lambda: check_connection(host, port, key)):
         raise Exception("Failed to connect")
+    return server
 
 
 @tvm.testing.slow
