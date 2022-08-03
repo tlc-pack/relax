@@ -132,7 +132,7 @@ def invoke_closure(
 
 
 @tvm.register_func("relax.run.print")
-def relax_print(val: tvm.Object, format_str: str = "") -> None:
+def relax_print(val: tvm.runtime.container, format_str: str = "") -> None:
     """
     Prints the value that is passed to it, possibly with a format string.
 
@@ -144,7 +144,22 @@ def relax_print(val: tvm.Object, format_str: str = "") -> None:
     format_str: str
         A Python-style format string for printing the value
     """
+    def render(val: tvm.Object) -> str:
+        if isinstance(val, tvm.runtime.ndarray.NDArray):
+            return str(val)
+        # no pretty-printer by default, so if we don't handle this,
+        # then we can't look inside tuples
+        if isinstance(val, tvm.runtime.container.ADT):
+            # the fields of an ADT are not directly accessible in Python,
+            # so I'm doing it this way
+            fields = ", ".join([render(val[i]) for i in range(len(val))])
+            # special case: tag = 0 is a tuple
+            if val.tag == 0:
+                return f"({fields})"
+            return f"ADT(tag={val.tag}, fields=[{fields}])"
+        return str(val)
+
     if format_str == "":
-        print(val)
+        print(render(val))
     else:
-        print(format_str.format(val))
+        print(format_str.format(render(val)))

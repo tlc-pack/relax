@@ -66,6 +66,8 @@ class PrintTest:
         #       it would be easy syntactic sugar to add.
         p1 = relax.print(x)
         p2 = relax.print(x, format="Number: {}")
+        t = (x, x)
+        p3 = relax.print(t, format="Tuple: {}")
         return x
 
 
@@ -74,10 +76,10 @@ def test_print():
         stdout = sys.stdout
         with tempfile.TemporaryFile(mode="w+") as test_out:
             sys.stdout = test_out
-            run_cpu(PrintTest, "foo", 1)
+            run_cpu(PrintTest, "foo", tvm.nd.array(1))
             test_out.seek(0)
             printed_text = str(test_out.read())
-            assert printed_text == "1\nNumber: 1\n"
+            assert printed_text == "1\nNumber: 1\nTuple: (1, 1)\n"
     finally:
         sys.stdout = stdout
 
