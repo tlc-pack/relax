@@ -132,12 +132,17 @@ def invoke_closure(
 
 
 @tvm.register_func("relax.run.print")
-def relax_print(
-    val: tvm.nd.array,
-    format_str : str = ""
-) -> None:
+def relax_print(val: tvm.Object, format_str: str = "") -> None:
     """
-    Just prints whatever value is passed to it. Used for Relax's print op.
+    Prints the value that is passed to it, possibly with a format string.
+
+    Parameters
+    ----------
+    val: tvm.Object
+        A value in TVM
+
+    format_str: str
+        A Python-style format string for printing the value
     """
     if format_str == "":
         print(val)
