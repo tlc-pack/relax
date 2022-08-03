@@ -161,13 +161,18 @@ class BlockBuilder(Object):
         self._begin_binding_block()
 
     def _exit_function_scope(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            if not self._is_emit_func_output_called:
-                raise RuntimeError("emit_func_output must be called in a relax function.")
-
+        # record
+        is_emit_func_output_called = self._is_emit_func_output_called
+        # recover to default state
         self._blocks = []
         self._is_emit_func_output_called = False
         BlockBuilder._current = None
+
+        # NOTE: we must raise after we recover the state so future
+        # block builder scoping functions correctly
+        if exc_type is None:
+            if not is_emit_func_output_called:
+                raise RuntimeError("emit_func_output must be called in a relax function.")
 
     def _convert_te_arg(self, te_args: Any) -> typing.Tuple[Any, List[tvm.te.Tensor]]:
         """Helper function to convert Relax expressions to te tensor.
