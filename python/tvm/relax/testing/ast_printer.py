@@ -43,11 +43,16 @@ class ASTPrinter(ExprFunctor):
     """
 
     def __init__(
-        self, indent_str="    ", include_type_annotations=True, include_shape_annotations=True
+        self,
+        indent_str="    ",
+        include_type_annotations=True,
+        include_shape_annotations=True,
+        include_call_attrs=True,
     ):
         self.indent_str = indent_str
         self.include_type_annotations = include_type_annotations
         self.include_shape_annotations = include_shape_annotations
+        self.include_call_attrs = include_call_attrs
 
     def visit_expr(self, expr: relax.Expr) -> str:
         # extend so we also dispatch to bindings and binding blocks,
@@ -142,8 +147,9 @@ class ASTPrinter(ExprFunctor):
         fields = {
             "params": self.build_list(map(self.visit_expr, op.params)),
             "body": self.visit_expr(op.body),
-            "ret_type": self.visit_type_(op.ret_type),
         }
+        if op.ret_type:
+            fields["ret_type"] = self.visit_type_(op.ret_type)
         if op.attrs:
             fields["attrs"] = self.build_list(
                 map(
@@ -162,6 +168,21 @@ class ASTPrinter(ExprFunctor):
         }
         if op.type_args:
             fields["type_args"] = self.build_list(map(self.visit_type_, op.type_args))
+        if op.attrs and self.include_call_attrs:
+
+            def display_attrs(attr_key):
+                attr_val = op.attrs[attr_key]
+                # attrs can be strings but also other types;
+                # we want to wrap strings in quotes
+                # (__repr__ would work but it uses single quotes)
+                attr_str = wrap_quotes(attr_val) if isinstance(attr_val, str) else str(attr_val)
+                return f"{wrap_quotes(attr_key)}: {attr_str}"
+
+            fields["attrs"] = self.build_list(
+                map(display_attrs, op.attrs.keys()),
+                open_tok="{",
+                close_tok="}",
+            )
         return self.build_ast_node("Call", **fields)
 
     def visit_seq_expr_(self, op: relax.SeqExpr) -> str:
@@ -279,14 +300,17 @@ def dump_ast(
     indent_str="    ",
     include_type_annotations=True,
     include_shape_annotations=True,
+    include_call_attrs=True,
 ) -> str:
     """
     Dump an AST in a text format.
-    Can vary the indentation string and choose whether to include type and shape annotations.
+    Can vary the indentation string and choose whether to include
+    type and shape annotations or call attributes.
     """
     printer = ASTPrinter(
         indent_str=indent_str,
         include_type_annotations=include_type_annotations,
         include_shape_annotations=include_shape_annotations,
+        include_call_attrs=include_call_attrs,
     )
     return printer.visit_expr(exp)
