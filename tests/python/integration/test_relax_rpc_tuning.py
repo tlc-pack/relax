@@ -91,7 +91,7 @@ def test_relax_auto_tir_e2e_rpc():
             "--work-dir",
             tuning_dir.path,
             # this can take several minutes and the default timeout is seldom enough
-            "--rpc-timeout",
+            "--rpc-timeout-sec",
             "600",
         ],
         check=False,

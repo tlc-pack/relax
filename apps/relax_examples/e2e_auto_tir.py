@@ -79,7 +79,7 @@ def _parse_args():
         default=None,
     )
     args.add_argument(
-        "--rpc-timeout",
+        "--rpc-timeout-sec",
         type=int,
         default=180,
     )
@@ -95,7 +95,7 @@ def _parse_args():
             tracker_host=parsed.rpc_host,
             tracker_port=parsed.rpc_port,
             tracker_key=parsed.rpc_key,
-            session_timeout_sec=parsed.rpc_timeout,
+            session_timeout_sec=parsed.rpc_timeout_sec,
         )
         parsed.workers = parsed.rpc_config.count_num_servers(allow_missing=False)
     else:
