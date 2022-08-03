@@ -601,5 +601,23 @@ def test_overload_visit_and_post_order_visit_conflict():
         FailMutator().visit_expr(call_node)
 
 
+def test_inherit_visitor():
+    @relax.expr_functor.visitor
+    class InheritVisitor(ASTPrinter):
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("InheritCall")
+            self.log.push_scope()
+            self.visit_expr(op.op)
+
+            for arg in op.args:
+                self.visit_expr(arg)
+            self.log.pop_scope()
+
+    call_node = relax.op.add(x, y)
+    iv = InheritVisitor()
+    iv.visit_expr(call_node)
+    assert str(iv.log) == "\n".join(["InheritCall", "\tOp", "\tVar", "\tVar"])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
