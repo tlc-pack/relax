@@ -15,15 +15,66 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test tuning a model in Relax over RPC, end-to-end."""
+from __future__ import annotations
 import os
 import subprocess
 import time
+from typing import Callable, Any
 
 import tvm
 from tvm import rpc
 from tvm.rpc.tracker import Tracker
 from tvm.contrib import utils
 import tvm.testing
+
+
+def retry_with_backoff(thunk: Callable[[], Any]) -> Any:
+    """
+    Calls the thunk and, if it fails (raises an exception), tries again after a 1s backoff.
+    """
+    try:
+        return thunk()
+    except:  # pylint: disable=bare-except
+        time.sleep(1.0)
+        return thunk()
+
+
+def check_connection(host: str, port: int, key: str) -> bool:
+    """
+    Returns true if the tracker at host:port has any servers under the given key
+    """
+    # Timeout is set to 5 because the script tries again every 5s if it fails;
+    # we will only permit it one try.
+    # (We could use `rpc.connect_tracker` directly but it retries indefinitely.)
+    check = subprocess.check_output(
+        [
+            "python3",
+            "-m",
+            "tvm.exec.query_rpc_tracker",
+            "--host",
+            host,
+            "--port",
+            str(port),
+        ],
+        timeout=5,
+    )
+    # if the key isn't in the printed message, then they didn't connect
+    return key in str(check)
+
+
+def connect_server(host: str, port: int, key: str) -> rpc.Server:
+    """
+    Starts a server and attempts to connect it to a tracker
+    at the given host and port with the given key.
+
+    Subsequently checks if the connection succeeded.
+    """
+    server = rpc.Server(  # pylint: disable=unused-variable
+        host=host, key=key, tracker_addr=(host, port)
+    )
+    # retry in case we check before the connection comes in
+    if not retry_with_backoff(lambda: check_connection(host, port, key)):
+        raise Exception("Failed to connect")
 
 
 @tvm.testing.slow
@@ -37,34 +88,10 @@ def test_relax_auto_tir_e2e_rpc():
 
     # if we don't bind tracker and server to variables, they are deleted and closed
     tracker = Tracker(host=rpc_host, port=rpc_port)  # pylint: disable=unused-variable
-    # nasty hack: avoid race conditions if the server starts before the tracker
-    time.sleep(1)
-    server = rpc.Server(  # pylint: disable=unused-variable
-        host=rpc_host, key=rpc_key, tracker_addr=(rpc_host, rpc_port)
+    # retry in case the server tries to connect before the tracker starts
+    server = retry_with_backoff(  # pylint: disable=unused-variable
+        lambda: connect_server(rpc_host, rpc_port, rpc_key)
     )
-    # also prevent the query process from firing before the server connects
-    time.sleep(1)
-
-    # Timeout is set to 5 because the script tries again every 5s if it fails;
-    # we will only permit it one try.
-    # (We could use `rpc.connect_tracker` directly but that doesn't have a timeout.)
-    check = subprocess.run(
-        [
-            "python3",
-            "-m",
-            "tvm.exec.query_rpc_tracker",
-            "--host",
-            rpc_host,
-            "--port",
-            str(rpc_port),
-        ],
-        check=True,
-        timeout=5,
-        capture_output=True,
-    )
-    # if the key isn't in the printed message, then they didn't connect
-    check_output = str(check.stdout)
-    assert "Test1" in check_output, check_output
 
     tuning_dir = utils.tempdir()
     run_script = subprocess.run(
