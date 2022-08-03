@@ -100,6 +100,8 @@ Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 // print
+TVM_REGISTER_NODE_TYPE(PrintAttrs);
+
 RELAY_REGISTER_OP("relax.print")
     .set_attrs_type<PrintAttrs>()
     .set_num_inputs(1)
