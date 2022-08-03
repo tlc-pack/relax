@@ -106,10 +106,7 @@ def test_single_annot_func():
     tmp = np0 + np1
     out1 = tmp + tmp
     expected = out1 + tmp
-
-    check_executable(ex0, dev, [data0, data1], expected)
-    # TODO: Check if serialization works and the correctness of both original and deserialized execs.
-    # check_roundtrip(ex0, dev, [data0, data1], expected)
+    check_roundtrip(ex0, dev, [data0, data1], expected)
 
     # If the annotation does not match with the target codegen, do not perform the codegen process.
     new_mod = relax.transform.RunCodegen(target_codegens=["INVALID_CODEGEN"])(mod)
