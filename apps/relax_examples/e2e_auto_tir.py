@@ -78,6 +78,11 @@ def _parse_args():
         type=str,
         default=None,
     )
+    args.add_argument(
+        "--rpc-timeout-sec",
+        type=int,
+        default=180,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -90,7 +95,7 @@ def _parse_args():
             tracker_host=parsed.rpc_host,
             tracker_port=parsed.rpc_port,
             tracker_key=parsed.rpc_key,
-            session_timeout_sec=180,
+            session_timeout_sec=parsed.rpc_timeout_sec,
         )
         parsed.workers = parsed.rpc_config.count_num_servers(allow_missing=False)
     else:
