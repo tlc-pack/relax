@@ -148,12 +148,14 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
     return _ffi_api.ResolveGlobals()
 
 
-def MetaScheduleTuneTIR(target: Target, config: TuneConfig, work_dir: str) -> tvm.ir.transform.Pass:
+def MetaScheduleTuneTIR(
+    target: Union[str, Target], config: TuneConfig, work_dir: str
+) -> tvm.ir.transform.Pass:
     """Tune TIR with MetaSchedule.
 
     Parameters
     ----------
-    target: Target
+    target: Union[str, Target]
        target info
     config: TuneConfig
        MetaSchedule tuning info
@@ -164,6 +166,8 @@ def MetaScheduleTuneTIR(target: Target, config: TuneConfig, work_dir: str) -> tv
     ret: tvm.ir.transform.Pass
 
     """
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
     return _ffi_api.MetaScheduleTuneTIR(target, config, work_dir)
 
 
@@ -174,7 +178,7 @@ def MetaScheduleTuneIRMod(
 
     Parameters
     ----------
-    target: Target
+    target: Union[str, Target]
        target info
     config: TuneConfig
        MetaSchedule tuning info
@@ -185,6 +189,8 @@ def MetaScheduleTuneIRMod(
     ret: tvm.ir.transform.Pass
 
     """
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
     return _ffi_api.MetaScheduleTuneIRMod(target, config, work_dir)
 
 
