@@ -144,6 +144,7 @@ def relax_print(val: tvm.runtime.container, format_str: str = "") -> None:
     format_str: str
         A Python-style format string for printing the value
     """
+
     def render(val: tvm.Object) -> str:
         if isinstance(val, tvm.runtime.ndarray.NDArray):
             return str(val)
