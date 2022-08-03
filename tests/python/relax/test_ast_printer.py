@@ -37,8 +37,8 @@ def test_var() -> None:
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
-    assert "shape_annotation" in v1_annos
-    assert "type_annotation" in v1_annos
+    assert "shape_" in v1_annos
+    assert "_checked_type_" in v1_annos
 
 
 def test_dataflow_var() -> None:
@@ -54,8 +54,8 @@ def test_dataflow_var() -> None:
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
-    assert "shape_annotation" in v1_annos
-    assert "type_annotation" in v1_annos
+    assert "shape_" in v1_annos
+    assert "_checked_type_" in v1_annos
 
 
 def test_match_shape() -> None:

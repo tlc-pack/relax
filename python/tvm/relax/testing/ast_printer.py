@@ -110,17 +110,17 @@ class ASTPrinter(ExprFunctor):
     def visit_dataflow_var_(self, op: relax.DataflowVar) -> str:
         fields = {"name_hint": wrap_quotes(op.name_hint)}
         if op.shape_ and self.include_shape_annotations:
-            fields["shape_annotation"] = self.visit_expr(op.shape_)
+            fields["shape_"] = self.visit_expr(op.shape_)
         if op._checked_type_ and self.include_type_annotations:
-            fields["type_annotation"] = self.visit_type_(op._checked_type_)
+            fields["_checked_type_"] = self.visit_type_(op._checked_type_)
         return self.build_ast_node("DataflowVar", **fields)
 
     def visit_var_(self, op: relax.Var) -> str:
         fields = {"name_hint": wrap_quotes(op.name_hint)}
         if op.shape_ and self.include_shape_annotations:
-            fields["shape_annotation"] = self.visit_expr(op.shape_)
+            fields["shape_"] = self.visit_expr(op.shape_)
         if op._checked_type_ and self.include_type_annotations:
-            fields["type_annotation"] = self.visit_type_(op._checked_type_)
+            fields["_checked_type_"] = self.visit_type_(op._checked_type_)
         return self.build_ast_node("Var", **fields)
 
     def visit_shape_expr_(self, op: relax.ShapeExpr) -> str:
