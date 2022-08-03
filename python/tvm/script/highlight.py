@@ -79,8 +79,8 @@ def cprint(printable: Union[IRModule, PrimFunc, str], style: Optional[str] = Non
             styles = {
                 Keyword: "bold #008000",
                 Keyword.Type: "nobold #008000",
-                Name.Function: "#0000FF",
-                Name.Class: "bold #0000FF",
+                Name.Function: "#1E90FF",
+                Name.Class: "bold #1E90FF",
                 Name.Decorator: "#AA22FF",
                 String: "#BA2121",
                 Number: "#008000",
