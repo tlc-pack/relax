@@ -24,6 +24,7 @@ import numpy as np
 
 import tvm.ir
 from tvm.target import Target
+from tvm.meta_schedule.tune import TuneConfig
 from tvm.meta_schedule.database import PyDatabase
 
 from . import _ffi_api
@@ -147,6 +148,46 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
     return _ffi_api.ResolveGlobals()
 
 
+def MetaScheduleTuneTIR(target: Target, config: TuneConfig, work_dir: str) -> tvm.ir.transform.Pass:
+    """Tune TIR with MetaSchedule.
+
+    Parameters
+    ----------
+    target: Target
+       target info
+    config: TuneConfig
+       MetaSchedule tuning info
+    work_dir: str
+       work directory
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.MetaScheduleTuneTIR(target, config, work_dir)
+
+
+def MetaScheduleTuneIRMod(
+    target: Union[str, Target], config: TuneConfig, work_dir: str
+) -> tvm.ir.transform.Pass:
+    """Tune Relax IRModule with MetaSchedule.
+
+    Parameters
+    ----------
+    target: Target
+       target info
+    config: TuneConfig
+       MetaSchedule tuning info
+    work_dir: str
+       work directory
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.MetaScheduleTuneIRMod(target, config, work_dir)
+
+
 def MetaScheduleApplyHistoryBest(
     database: PyDatabase,
     target: Target,
@@ -155,8 +196,10 @@ def MetaScheduleApplyHistoryBest(
 
     Parameters
     ----------
-    database : metaschedule tuning database
-    target: target info
+    database : PyDatabase
+       metaschedule tuning database
+    target: Target
+       target info
 
     Returns
     -------
