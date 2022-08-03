@@ -73,7 +73,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
             """Mutator that performs lowering."""
 
             def visit_call_(self, call_node: Call):
-                # Remove "relax." prefix to deduce relay op name
+                # Current relax op name simply adds "relax." prefix to relay op name.
+                # Thus, remove "relax." prefix to deduce relay op name.
                 relay_op_name = call_node.op.name[6:]
                 # Check if equivalent relay op exists. If not, return the original call.
                 if relay_op_name in ir.Op.list_op_names():
@@ -89,6 +90,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                         use_autotvm=False,
                     )
                     compute_func = best_impl_tuple[0].compute
+                    # Extract the name of the operator without the prefix
+                    # e.g., for relay op "nn.conv2d", name_hint would be conv2d
                     name_hint = relay_op_name.split(".")[-1]
 
                     return self.builder_.call_te(
