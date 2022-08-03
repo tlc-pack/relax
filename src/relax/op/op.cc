@@ -99,6 +99,23 @@ Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
+// print
+RELAY_REGISTER_OP("relax.print")
+    .set_attrs_type<PrintAttrs>()
+    .set_num_inputs(1)
+    .add_argument("val", "Expr", "The value to print.")
+    .set_attr<FInferType>("FInferType", ReturnVoidType)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
+
+Expr MakePrint(Expr val, std::string format) {
+  auto attrs = make_object<PrintAttrs>();
+  attrs->format = format;
+  static const Op& op = Op::Get("relax.print");
+  return Call(op, {val}, Attrs(attrs));
+}
+
+TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
+
 // make_closure
 
 RELAY_REGISTER_OP("relax.make_closure")

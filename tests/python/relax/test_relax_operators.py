@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
+from __future__ import annotations
+import sys  # must import to defer parsing of annotations
+import tempfile
 import pytest
 import tvm
 from tvm import relax
@@ -51,6 +53,33 @@ def test_unique():
 
     np.testing.assert_array_equal(expected_output_sorted, result_sorted.numpy())
     np.testing.assert_array_equal(expected_output, result.numpy())
+
+
+@tvm.script.ir_module
+class PrintTest:
+    @R.function
+    def foo(x: Tensor((), "int32")):
+        # results have to be bound, but we don't use them
+        _ = relax.print(x)
+        return x
+
+
+def test_print():
+    try:
+        stdout = sys.stdout
+        with tempfile.TemporaryFile(mode="w+") as test_out:
+            sys.stdout = test_out
+            mod = PrintTest
+            target = tvm.target.Target("llvm")
+            ex = relax.vm.build(mod, target)
+            vm = relax.VirtualMachine(ex, tvm.cpu())
+
+            vm["foo"](1)
+            test_out.seek(0)
+            printed_text = str(test_out.read())
+            assert printed_text == "1\n"
+    finally:
+        sys.stdout = stdout
 
 
 if __name__ == "__main__":

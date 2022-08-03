@@ -16,6 +16,7 @@
 """The base Relax operators."""
 from typing import Union, List, Optional
 
+import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
@@ -128,3 +129,17 @@ def invoke_closure(
         args = Tuple(args)
 
     return _ffi_api.invoke_closure(closure, args)
+
+
+@tvm.register_func("relax.run.print")
+def relax_print(
+    val: tvm.nd.array,
+    format_str : str = ""
+) -> None:
+    """
+    Just prints whatever value is passed to it. Used for Relax's print op.
+    """
+    if format == "":
+        print(val)
+    else:
+        print(format_str.format(val))
