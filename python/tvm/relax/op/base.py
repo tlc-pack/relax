@@ -139,7 +139,7 @@ def relax_print(
     """
     Just prints whatever value is passed to it. Used for Relax's print op.
     """
-    if format == "":
+    if format_str == "":
         print(val)
     else:
         print(format_str.format(val))
