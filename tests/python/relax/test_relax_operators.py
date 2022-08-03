@@ -36,17 +36,19 @@ class InputModule:
         return y, y_sorted
 
 
-def test_unique():
-
-    mod = InputModule
-    # TODO(prakalp): also add test for compiling and running on cuda device.
+def run_cpu(mod, func_name, *input):
     target = tvm.target.Target("llvm")
     ex = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
+    return vm[func_name](*input)
 
+
+def test_unique():
+
+    # TODO(prakalp): also add test for compiling and running on cuda device.
     data_numpy = np.random.randint(0, 16, (16, 16))
     data = tvm.nd.array(data_numpy)
-    result, result_sorted = vm["foo"](data)
+    result, result_sorted = run_cpu(InputModule, "foo", data)
 
     expected_output_sorted, indices = np.unique(data_numpy, return_index=True)
     expected_output = [data_numpy.flatten()[index] for index in sorted(indices, reverse=True)]
@@ -60,7 +62,10 @@ class PrintTest:
     @R.function
     def foo(x: Tensor((), "int32")):
         # results have to be bound, but we don't use them
-        _ = relax.print(x)
+        # TODO: We should allow calls whose results are not bound for side effects;
+        #       it would be easy syntactic sugar to add.
+        p1 = relax.print(x)
+        p2 = relax.print(x, format="Number: {}")
         return x
 
 
@@ -69,15 +74,10 @@ def test_print():
         stdout = sys.stdout
         with tempfile.TemporaryFile(mode="w+") as test_out:
             sys.stdout = test_out
-            mod = PrintTest
-            target = tvm.target.Target("llvm")
-            ex = relax.vm.build(mod, target)
-            vm = relax.VirtualMachine(ex, tvm.cpu())
-
-            vm["foo"](1)
+            run_cpu(PrintTest, "foo", 1)
             test_out.seek(0)
             printed_text = str(test_out.read())
-            assert printed_text == "1\n"
+            assert printed_text == "1\nNumber: 1\n"
     finally:
         sys.stdout = stdout
 
