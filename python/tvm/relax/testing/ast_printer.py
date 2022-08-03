@@ -166,7 +166,9 @@ class ASTPrinter(ExprFunctor):
 
     def visit_seq_expr_(self, op: relax.SeqExpr) -> str:
         return self.build_ast_node(
-            "SeqExpr", blocks=self.build_list(map(self.visit_binding_block_, op.blocks))
+            "SeqExpr",
+            blocks=self.build_list(map(self.visit_binding_block_, op.blocks)),
+            body=self.visit_expr(op.body),
         )
 
     def visit_if_(self, op: relax.If) -> str:

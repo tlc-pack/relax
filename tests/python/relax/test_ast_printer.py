@@ -152,6 +152,7 @@ def test_seq_expr() -> None:
     assert "Constant(" in seqe_str
     assert 'var=Var(name_hint="foo")' in seqe_str
     assert "value=Constant(data=1)" in seqe_str
+    assert "body=" in seqe_str
 
 
 def test_shape_expr() -> None:
@@ -183,6 +184,7 @@ def test_func():
     assert "attrs=" in func_str
     assert '"global_symbol": "func"' in func_str
     assert "SeqExpr(" in func_str
+    assert "blocks=" in func_str
     assert "VarBinding(" in func_str
     assert func_str != dump_ast(func, include_type_annotations=False)
 
