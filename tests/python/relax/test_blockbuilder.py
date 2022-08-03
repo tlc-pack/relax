@@ -588,5 +588,27 @@ def test_no_func_params_fail():
             bb.emit_func_output(gv0)
 
 
+def test_block_builder_scope_recovery():
+    bb = rx.BlockBuilder()
+
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    type_anno = rx.DynTensorType(2, "float32")
+    x = rx.Var("x", [n, m], type_anno)
+    y = rx.Var("y", [m, n], type_anno)
+
+    with pytest.raises(RuntimeError):
+        # this line fails
+        with bb.function("func", [x, y]):
+            gv0 = bb.emit(rx.op.add(x, y))
+
+    # current should be recovered
+    assert rx.BlockBuilder.current() is None
+
+    # second attempt to do it correctly.
+    with bb.function("func", [x, y]):
+        gv0 = bb.emit(rx.op.add(x, y))
+        bb.emit_func_output(gv0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
