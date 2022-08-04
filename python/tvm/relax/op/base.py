@@ -151,8 +151,8 @@ def relax_print(val: tvm.runtime.container, format_str: str = "") -> None:
         # no pretty-printer by default, so if we don't handle this,
         # then we can't look inside tuples
         if isinstance(val, tvm.runtime.container.ADT):
-            # the fields of an ADT are not directly accessible in Python,
-            # so I'm doing it this way
+            # the fields array of an ADT cannot be directly accessed in Python
+            # so we have to get the length and index into the fields separately
             fields = ", ".join([render(val[i]) for i in range(len(val))])
             # special case: tag = 0 is a tuple
             if val.tag == 0:
