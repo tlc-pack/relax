@@ -22,6 +22,7 @@ import os
 from os import path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
+import tvm
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
@@ -557,7 +558,7 @@ def tune_relay(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Union[Module, vm.Executable]:
-    """Tune a Relay IRModule with a given target.
+    """Tune a relay IRModule with a given target.
 
     Parameters
     ----------
@@ -644,7 +645,7 @@ def tune_relax(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Module:
-    """Tune a TIR IRModule with a given target.
+    """Tune a relax IRModule with a given target.
 
     Parameters
     ----------
@@ -702,3 +703,172 @@ def tune_relax(
         relax_mod = MetaScheduleApplyHistoryBest(database, target)(mod)
         relax_ex = relax_build(relax_mod, target=target)
     return relax_ex
+
+
+@tvm._ffi.register_func("meta_schedule.tune_tir_with_tuning_api")
+def tune_tir_with_tuning_api(
+    mod: Union[IRModule, PrimFunc],
+    target: Union[str, Target],
+    config: tvm.ir.container.Array,
+    work_dir: str,
+    *,
+    builder: Optional[Builder] = None,
+    runner: Optional[Runner] = None,
+    database: Optional[Database] = None,
+    cost_model: Optional[CostModel] = None,
+    measure_callbacks: Optional[List[MeasureCallback]] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
+    task_name: str = "main",
+    num_threads: Optional[int] = None,
+) -> IRModule:
+    """
+    Tune TIR primfunc with TuningAPI
+    Parameters
+    ----------
+    mod : Union[IRModule, PrimFunc]
+        The module to tune.
+    target : Union[str, Target]
+        The target to tune for.
+    config : tvm.ir.container.Array
+        The search strategy config.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    builder : Optional[Builder]
+        The builder to use.
+    runner : Optional[Runner]
+        The runner to use.
+    database : Optional[Database]
+        The database to use.
+    cost_model : Optional[CostModel]
+        The cost model to use.
+    measure_callbacks : Optional[List[MeasureCallback]]
+        The callbacks used during tuning.
+
+    Returns
+    -------
+    out_mod: IRModule
+        The tuned IRModule.
+    """
+    # TODO(@sunggg): Somehow choice arguments have problem with custom class objects.
+    # For example, it implicitly converts TuneConfig to tvm.ir.container.Array.
+    # Thus, we manually convert it for now.
+    config = list(config)
+    if isinstance(config[0], tvm.tir.expr.IntImm):
+        config[0] = int(config[0])
+    if isinstance(config[1], tvm.tir.expr.IntImm):
+        config[1] = int(config[1])
+    if config[2] is not None and isinstance(config[2], tvm.tir.expr.IntImm):
+        config[2] = int(config[2])
+    config = TuneConfig(*config)
+
+    sch = tune_tir(
+        mod,
+        target,
+        config,
+        work_dir,
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        space=space,
+        sch_rules=sch_rules,
+        postprocs=postprocs,
+        mutator_probs=mutator_probs,
+        task_name=task_name,
+        num_threads=num_threads,
+    )
+
+    out_mod = mod if sch is None else sch.mod
+    return out_mod
+
+
+@tvm._ffi.register_func("meta_schedule.tune_relax_irmod_with_tuning_api")
+def tune_relax_irmod_with_tuning_api(
+    mod: IRModule,
+    target: Union[str, Target],
+    config: tvm.ir.container.Array,
+    work_dir: str,
+    *,
+    builder: Optional[Builder] = None,
+    runner: Optional[Runner] = None,
+    database: Optional[Database] = None,
+    cost_model: Optional[CostModel] = None,
+    measure_callbacks: Optional[List[MeasureCallback]] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
+    num_threads: Optional[int] = None,
+) -> IRModule:
+    """Tune a relax IRModule with TuningAPI.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The module to tune.
+    target : Union[str, Target]
+        The target to tune for.
+    config : SearchStrategyConfig
+        The search strategy config.
+    task_name : str
+        The name of the task.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    builder : Optional[Builder]
+        The builder to use.
+    runner : Optional[Runner]
+        The runner to use.
+    database : Optional[Database]
+        The database to use.
+    measure_callbacks : Optional[List[MeasureCallback]]
+        The callbacks used during tuning.
+
+    Returns
+    -------
+    out_mod : IRModule
+        Tuned Relax IRModule.
+    """
+
+    from tvm.relax.transform import MetaScheduleApplyHistoryBest
+    from .relax_integration import extract_task_from_relax
+
+    # TODO(@sunggg): Somehow choice arguments have problem with custom class objects.
+    # For example, it implicitly converts TuneConfig to tvm.ir.container.Array.
+    # Thus, we manually convert it for now.
+    config = list(config)
+    if isinstance(config[0], tvm.tir.expr.IntImm):
+        config[0] = int(config[0])
+    if isinstance(config[1], tvm.tir.expr.IntImm):
+        config[1] = int(config[1])
+    if config[2] is not None and isinstance(config[2], tvm.tir.expr.IntImm):
+        config[2] = int(config[2])
+    config = TuneConfig(*config)
+
+    logger.info("Working directory: %s", work_dir)
+    # pylint: disable=protected-access
+    target = default_config.target(target)
+    # parse the tuning contexts
+    extracted_tasks = extract_task_from_relax(mod, target)
+    database = tune_extracted_tasks(
+        extracted_tasks,
+        config,
+        work_dir,
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        space=space,
+        sch_rules=sch_rules,
+        postprocs=postprocs,
+        mutator_probs=mutator_probs,
+        num_threads=num_threads,
+    )
+
+    with PassContext(opt_level=3):
+        relax_mod = MetaScheduleApplyHistoryBest(database, target)(mod)
+    return relax_mod
