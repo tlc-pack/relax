@@ -19,55 +19,13 @@ from __future__ import annotations
 import pytest
 import tempfile
 import tvm
-from tvm import ir, tir
 from tvm.ir import transform
 from tvm.ir.transform import PassContext
 from tvm.ir.module import IRModule
-from tvm.tir import PrimFunc
 from tvm.script import tir as T, relax as R
 from tvm import relax
 import tvm.meta_schedule as ms
-from tvm.relax.transform.tuning_api import (
-    Choice,
-    Knob,
-    Trace,
-    default_generate_candidate,
-)
-
-# TODO(@sunggg): Next PR will migrate this to C++ and integrate with ApplyHistoryBest.
-@tvm.register_func("testing.meta_schedule_tuning_module")
-def meta_schedule_tuning_module(mod, target_str):
-    target = ms.default_config.target(target_str)
-    config = ms.TuneConfig(
-        strategy="evolutionary",
-        num_trials_per_iter=2,
-        max_trials_per_task=4,
-        max_trials_global=4,
-    )
-    database = ms.database.MemoryDatabase()
-    with tempfile.TemporaryDirectory() as work_dir:
-        extracted_tasks = ms.relax_integration.extract_task_from_relax(mod, target)
-        database = ms.tune.tune_extracted_tasks(
-            extracted_tasks, config, work_dir, database=database
-        )
-
-        return relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
-
-
-@tvm.register_func("testing.meta_schedule_tuning_primfunc")
-def meta_schedule_tuning_primfunc(mod, target_str):
-    target = ms.default_config.target(target_str)
-    config = ms.TuneConfig(
-        strategy="evolutionary",
-        num_trials_per_iter=2,
-        max_trials_per_task=4,
-        max_trials_global=4,
-    )
-    database = ms.database.MemoryDatabase()
-
-    with tempfile.TemporaryDirectory() as work_dir:
-        ms.tune.tune_tir(mod, target, config, work_dir, database=database)
-        return relax.transform.MetaScheduleApplyHistoryBest(database, target)(mod)
+from tvm.relax.transform.tuning_api import Trace
 
 
 def test_metaschedule_tuning():
@@ -113,58 +71,30 @@ def test_metaschedule_tuning():
     mod = InputModule
     assert isinstance(mod, IRModule)
     target_str = "llvm --num-cores=16"
+    config = ms.TuneConfig(
+        strategy="evolutionary",
+        num_trials_per_iter=2,
+        max_trials_per_task=4,
+        max_trials_global=4,
+    )
 
-    # One naive implementation of MetaSchedule with module tuning pass.
-    # It takes the IRModule, extract tasks from the IRModule, tune each task and apply the best settings.
-    @ir.transform.module_pass(opt_level=0, traceable=True)
-    def MockMetaSchedTuningPass1(mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.pop_trace()
+    with tempfile.TemporaryDirectory() as work_dir:
+        seq = transform.Sequential(
+            [relax.transform.MetaScheduleTuneIRMod(tvm.target.Target(target_str), config, work_dir)]
+        )
+        with transform.PassContext(trace=Trace(mod), opt_level=0):
+            _ = seq(mod)
+            assert PassContext.current().get_trace_stack_size() == 1
+            assert PassContext.current().get_current_trace().size == 1
 
-        # We can create a choice with tuning-based transformation as well.
-        choices = [Choice("testing.meta_schedule_tuning_module", [target_str])]
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockMetaSched", choices)
-
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 1
-        best_trace = candidates[0]
-        ctx.push_trace(best_trace)
-        return best_trace.out_mod
-
-    seq = transform.Sequential([MockMetaSchedTuningPass1])
-    with transform.PassContext(trace=Trace(mod)):
-        _ = seq(mod)
-        assert PassContext.current().get_trace_stack_size() == 1
-        assert PassContext.current().get_current_trace().size == 1
-
-    # Another naive implementation of MetaSchedule with prim func tuning pass.
-    # It takes each PrimFuncs in IRModule, tune it and apply its best settings.
-    @tir.transform.prim_func_pass(opt_level=0, traceable=True)
-    def MockMetaSchedTuningPass2(func: PrimFunc, mod: IRModule, ctx: PassContext) -> IRModule:
-        trace = ctx.pop_trace()
-
-        # Setup Meta Schedule tuning
-        new_mod = ms.default_config.mod(func)
-        trace = Trace(new_mod)
-
-        # We can create a choice with tuning-based transformation as well.
-        choices = [Choice("testing.meta_schedule_tuning_primfunc", [target_str])]
-        # Tuning pass manages a set of transformation functions registered via knob.
-        knob = Knob("MockMetaSched", choices)
-
-        candidates = default_generate_candidate([knob], trace)
-        assert len(candidates) == 1
-        best_trace = candidates[0]
-        ctx.push_trace(best_trace)
-        gvars = best_trace.out_mod.get_global_vars()
-        assert len(gvars) == 1
-        return best_trace.out_mod[gvars[0]]
-
-    seq = transform.Sequential([MockMetaSchedTuningPass2])
-    with transform.PassContext(trace=Trace(mod)):
-        _ = seq(mod)
-        assert PassContext.current().get_trace_stack_size() == 1
-        assert PassContext.current().get_current_trace().size == 1
+        seq = transform.Sequential(
+            [relax.transform.MetaScheduleTuneTIR(tvm.target.Target(target_str), config, work_dir)]
+        )
+        with transform.PassContext(trace=Trace(mod), opt_level=0):
+            _ = seq(mod)
+            assert PassContext.current().get_trace_stack_size() == 1
+            # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
+            # Currently, we don't track this so the trace size. Revisit this later.
 
 
 if __name__ == "__main__":
