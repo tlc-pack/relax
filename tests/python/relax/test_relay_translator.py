@@ -26,10 +26,7 @@ from tvm import meta_schedule as ms
 from tvm.target import Target
 import numpy as np
 import pytest
-import os, shutil
-from tvm.meta_schedule.database import JSONDatabase
 import tempfile
-from tvm.meta_schedule.task_scheduler import RoundRobin
 from tvm.script import tir as T
 
 
@@ -45,18 +42,7 @@ def get_resnet(batch_size, dtype, layout, image_shape):
     return relay_mod, params
 
 
-def create_database(workload_file, tuning_record_file):
-    os.makedirs(os.path.dirname(workload_file), exist_ok=True)
-    database = JSONDatabase(
-        path_workload=workload_file,
-        path_tuning_record=tuning_record_file,
-    )
-    return database
-
-
 def relay_build_and_run(mod, target, dev, params, data):
-    dirpath = "relay_tmp"
-    db = create_database(f"{dirpath}/workload.json", f"{dirpath}/record.json")
     with tempfile.TemporaryDirectory() as work_dir:
         ex = ms.tune_relay(
             mod=mod,
@@ -67,46 +53,35 @@ def relay_build_and_run(mod, target, dev, params, data):
                 max_trials_per_task=3,
                 max_trials_global=300,
             ),
-            # TODO: commented out for now due to the error
-            # task_scheduler=RoundRobin,
+            task_scheduler="round_robin",
             work_dir=work_dir,
-            database=db,
         )
 
     rt_mod = tvm.contrib.graph_executor.GraphModule(ex["default"](dev))
     rt_mod.set_input("data", data)
     rt_mod.run()
     out = rt_mod.get_output(0).asnumpy()
-
-    # cleanup
-    shutil.rmtree(dirpath)
     return ex, rt_mod, out
 
 
 def relax_build_and_run(mod, target, dev, params, data):
-    dirpath = "relax_tmp"
-    db = create_database(f"{dirpath}/workload.json", f"{dirpath}/record.json")
     mod = relax.transform.BindParams("main", params)(mod)
-
     with tempfile.TemporaryDirectory() as work_dir:
         ex = ms.tune_relax(
             mod=mod,
             target=target,
-            config=ms.EvolutionarySearchConfig(
+            config=ms.TuneConfig(
+                strategy="evolutionary",
+                task_scheduler="round_robin",
                 num_trials_per_iter=32,
                 max_trials_per_task=3,
                 max_trials_global=300,
             ),
-            # TODO: commented out for now due to the error
-            # task_scheduler=RoundRobin,
             work_dir=work_dir,
-            database=db,
         )
     vm = relax.VirtualMachine(ex, dev)
     res = vm["main"](data)
     out = res.numpy()
-    # cleanup
-    shutil.rmtree(dirpath)
     return ex, vm, out
 
 
