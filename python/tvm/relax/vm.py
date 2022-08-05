@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
-from typing import List, Optional, Union, Dict, Tuple
+from typing import Callable, List, Optional, Union, Dict, Tuple
 import numpy as np
 
 from tvm._ffi import base as _base
@@ -314,6 +314,83 @@ class VirtualMachine(object):
             return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
 
         return get_output_rec(func_name)
+
+    def time_evaluator(
+        self,
+        func_name,
+        dev,
+        number=10,
+        repeat=1,
+        min_repeat_ms=0,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
+        f_preproc="",
+    ) -> Callable[..., tvm.runtime.module.BenchmarkResult]:
+        """
+        Returns an evaluator that times a function in the module.
+        This follows the same convention as time_evaluator in tvm.runtime.module.
+        This can be used in combination with package_function() so that the
+        timings avoid extra dictionary lookups.
+
+        Parameters
+        ----------
+        func_name: str
+            The name of the function in the module.
+
+        dev: Device
+            The device we should run this function on.
+
+        number: int
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
+
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
+
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
+        f_preproc: str, optional
+            The preprocess function name we want to execute before executing the time evaluator.
+
+        Note
+        ----
+        The function will be invoked  (1 + number x repeat) times,
+        with the first call discarded in case there is lazy initialization.
+
+        Returns
+        -------
+        ftimer : function
+            The function that takes same argument as func and returns a BenchmarkResult.
+            The ProfileResult reports `repeat` time costs in seconds.
+
+        """
+        return self.module.time_evaluator(
+            func_name,
+            dev,
+            number=10,
+            repeat=1,
+            min_repeat_ms=0,
+            cooldown_interval_ms=0,
+            repeats_to_cooldown=1,
+            f_preproc="",
+        )
 
 
 def build(
