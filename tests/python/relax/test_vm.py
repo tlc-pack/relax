@@ -952,7 +952,10 @@ def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
     tvm.testing.assert_allclose(res0.numpy(), res1.numpy(), rtol=1e-7, atol=1e-7)
 
-    vm.set_input("test_vm_tuple", tvm.nd.array(2, device))
+    # bug! If you don't bind the NDArray to a var, the memory will get corrupted.
+    # Possibly due to object lifecycles and other FFI issues
+    a = tvm.nd.array(2, device)
+    vm.set_input("test_vm_tuple", a)
     vm.invoke_stateful("test_vm_tuple")
     res2 = vm.get_outputs("test_vm_tuple")
     # the results are NDArrays wrapped around scalars, 
