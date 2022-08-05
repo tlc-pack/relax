@@ -90,6 +90,7 @@ class VirtualMachine(object):
             else exec["vm_load_executable"]()
         )
         self._invoke_closure = self.module["invoke_closure"]
+        self._package_function = self.module["package_function"]
         self._set_input = self.module["set_input"]
         self._invoke_stateful = self.module["invoke_stateful"]
         self._get_output = self.module["get_output"]
@@ -159,6 +160,37 @@ class VirtualMachine(object):
             The output.
         """
         return self._invoke_closure(closure, *args)
+
+    def package_function(self, func_name: str, save_name: str, *args: List[Any]) -> PackedFunc:
+        """
+        Convenience function. Takes a function from the module and saves
+        a `PackedFunc` that, when called, will invoke the function with the given arguments.
+        The `PackedFunc` can be accessed from the module using `save_name`.
+        This is included to facilitate timing trials:
+        Invoking the returned `PackedFunc` will have less overhead from dictionary lookups
+        than normally running through the VM.
+
+        If the saved name is taken, it can be overridden, though it cannot override
+        the name of a function defined in the Relax source.
+
+        This is really creating a closure, but the function has a different name
+        to avoid confusion with `invoke_closure` (they are not meant to be used together).
+
+        Parameters
+        ----------
+        func_name : str
+            The function that should be packaged up.
+
+        save_name : str
+            The name that the resulting closure should be saved under.
+
+        args : List[Any]
+            The arguments to package up with the function.
+        """
+        cargs = []
+        for arg in args:
+            self._convert(arg, cargs)
+        self._package_function(func_name, save_name, *cargs)
 
     def _convert(self, arg: Any, cargs: List) -> None:
         """helper function to convert arguments to vm function."""
