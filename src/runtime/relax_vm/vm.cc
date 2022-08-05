@@ -160,6 +160,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto adt = out.AsObjectRef<ADT>();
       if (index >= static_cast<int>(adt.size())) {
         LOG(FATAL) << "ValueError: Index out of range (" << index << " >= " << adt.size() << ").";
+        return;
       }
       *rv = adt[index];
     });
