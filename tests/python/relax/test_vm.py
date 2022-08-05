@@ -20,6 +20,7 @@ import os
 import numpy as np
 import pytest
 import tvm
+from tvm.runtime.object import Object
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tir, topi, TVMError
@@ -926,6 +927,11 @@ class TestVMSetInput:
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = A[vi, vj] * B[vi, vj]
 
+    # test returning a tuple
+    @R.function
+    def test_vm_tuple(x: Tensor((), "int32")) -> Tuple(Tensor((), "int32"), Tensor((), "int32")):
+        return (x, x)
+
     @R.function
     def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
         gv0 = R.call_tir("test_vm_mul", (x, w), (32, 32), dtype="float32")
@@ -936,13 +942,22 @@ def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device
     a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
-    res0 = vm["main"]()
+    vm.invoke_stateful("main")
+    res0 = vm.get_outputs("main")
 
     data_dict = {"x": a, "w": b}
     vm.set_input("main", **data_dict)
-    res1 = vm["main"]()
+    vm.invoke_stateful("main")
+    res1 = vm.get_outputs("main")
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
     tvm.testing.assert_allclose(res0.numpy(), res1.numpy(), rtol=1e-7, atol=1e-7)
+
+    vm.set_input("test_vm_tuple", tvm.nd.array(2, device))
+    vm.invoke_stateful("test_vm_tuple")
+    res2 = vm.get_outputs("test_vm_tuple")
+    # the results are NDArrays wrapped around scalars, 
+    # so we have to get the scalar out of the NDArray
+    assert tuple(map(lambda a: int(a.numpy()), res2)) == (2, 2)
 
 
 def test_set_input():

@@ -197,6 +197,14 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   VMFunction LookupVMFunction(const std::string& func_name);
 
+  /*!
+   * \brief Look up whether the VM has outputs for the given function.
+   * \param func_name the function's name
+   * \return The output, if it exists. Logs a fatal error if not.
+   */
+  RegType LookupVMOutput(const std::string& func_name);
+
+
  private:
   /*! \brief The loaded executable. */
   ObjectPtr<Executable> exec_;
@@ -221,6 +229,8 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<TVMRetValue> constants;
   /*! \brief The function name to input register mapping. */
   std::unordered_map<std::string, std::vector<RegType>> inputs_;
+  /*! \brief The function name to output register. */
+  std::unordered_map<std::string, RegType> outputs_;
 };
 
 }  // namespace relax_vm
