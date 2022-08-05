@@ -932,6 +932,13 @@ class TestVMSetInput:
     def test_vm_tuple(x: Tensor((), "int32")) -> Tuple(Tensor((), "int32"), Tensor((), "int32")):
         return (x, x)
 
+    # nested tuple too
+    @R.function
+    def test_vm_nested_tuple(
+        x: Tensor((), "int32")
+    ) -> Tuple(Tuple(Tensor((), "int32"), Tuple(Tensor((), "int32"),)), Tensor((), "int32")):
+        return ((x, (x,)), x)
+
     @R.function
     def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
         gv0 = R.call_tir("test_vm_mul", (x, w), (32, 32), dtype="float32")
@@ -958,9 +965,18 @@ def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device
     vm.set_input("test_vm_tuple", a)
     vm.invoke_stateful("test_vm_tuple")
     res2 = vm.get_outputs("test_vm_tuple")
-    # the results are NDArrays wrapped around scalars, 
+    # the results are NDArrays wrapped around scalars,
     # so we have to get the scalar out of the NDArray
     assert tuple(map(lambda a: int(a.numpy()), res2)) == (2, 2)
+
+    b = tvm.nd.array(1, device)
+    vm.set_input("test_vm_nested_tuple", b)
+    vm.invoke_stateful("test_vm_nested_tuple")
+    res3 = vm.get_outputs("test_vm_nested_tuple")
+    print(res3)
+    assert len(res3) == 2 and len(res3[0]) == 2 and len(res3[0][1]) == 1
+    result_cast = ((int(res3[0][0].numpy()), (int(res3[0][1][0].numpy()),)), int(res3[1].numpy()))
+    assert result_cast == ((1, (1,)), 1)
 
 
 def test_set_input():

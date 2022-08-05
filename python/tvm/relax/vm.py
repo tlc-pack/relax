@@ -250,7 +250,7 @@ class VirtualMachine(object):
         """
         self._invoke_stateful(func_name)
 
-    def get_outputs(self, func_name: str = "main") -> Union[tvm.Object, List[tvm.Object]]:
+    def get_outputs(self, func_name: str = "main") -> Union[tvm.Object, Tuple[Any]]:
         """
         Get the value output by the function by the given name
         after a call of `invoke_stateful`.
@@ -264,16 +264,21 @@ class VirtualMachine(object):
 
         Returns
         -------
-        ret: Union[tvm.Object, List[tvm.Object]]
+        ret: Union[tvm.Object, Tuple[Any]]
             The result of the earlier call to the function via `invoke_stateful`.
             If the result is a tuple, it returns a list of the fields.
+            The fields are potentially also tuples, so these can be arbitrily nested.
         """
-        arity = self._get_output_arity(func_name)
-        if arity == -1:
-            return self._get_output(func_name)
-        # otherwise use the index argument
-        ret = [self._get_output(func_name, i) for i in range(arity)]
-        return tuple(ret)
+        # to deal with potentially nested tuples, we need to query for arity recursively
+        def get_output_rec(func_name, *idx):
+            arity = self._get_output_arity(func_name, *idx)
+            if arity == -1:
+                return self._get_output(func_name, *idx)
+            # otherwise we need to specify more indices
+            idx_list = list(idx)
+            return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
+
+        return get_output_rec(func_name)
 
 
 def build(

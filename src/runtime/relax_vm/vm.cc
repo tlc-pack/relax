@@ -136,10 +136,28 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
       RegType out = LookupVMOutput(func_name);
-      if (out.IsObjectRef<ADT>()) {
-        *rv = static_cast<int>(out.AsObjectRef<ADT>().size());
+      ObjectRef obj = out.AsObjectRef<ObjectRef>();
+      // if there are index arguments, try indexing into the object.
+      for (int i = 1; i < args.size(); i++) {
+        // the object must be an ADT to be able to index into it
+        if (!obj.as<ADTObj>()) {
+          LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
+          return;
+        }
+        int index = args[i];
+        auto adt = Downcast<ADT>(obj);
+        // make sure the index is valid
+        if (index >= static_cast<int>(adt.size())) {
+          LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
+          return;
+        }
+        obj = adt[index];
+      }
+
+      // after chasing through the indces, examine the final object
+      if (const auto* adt = obj.as<ADTObj>()) {
+        *rv = static_cast<int>(adt->size);
       } else {
-        // treat non-ADTs as having -1 size
         *rv = -1;
       }
     });
@@ -147,22 +165,30 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
       RegType out = LookupVMOutput(func_name);
-      if (!out.IsObjectRef<ADT>()) {
-        *rv = out;
+      ObjectRef obj = out.AsObjectRef<ObjectRef>();
+      // if there are index arguments, try indexing into the object.
+      for (int i = 1; i < args.size(); i++) {
+        // the object must be an ADT to be able to index into it
+        if (!obj.as<ADTObj>()) {
+          LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
+          return;
+        }
+        int index = args[i];
+        auto adt = Downcast<ADT>(obj);
+        // make sure the index is valid
+        if (index >= static_cast<int>(adt.size())) {
+          LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
+          return;
+        }
+        obj = adt[index];
+      }
+
+      if (obj.as<ADTObj>()) {
+        LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
+                      "Please specify another index argument.";
         return;
       }
-      // if it's an ADT (-> tuple), then we use the index argument
-      if (args.size() < 2) {
-        LOG(FATAL) << "ValueError: Need an index argument for tuple outputs.";
-        return;
-      }
-      int index = static_cast<int>(args[1]);
-      auto adt = out.AsObjectRef<ADT>();
-      if (index >= static_cast<int>(adt.size())) {
-        LOG(FATAL) << "ValueError: Index out of range (" << index << " >= " << adt.size() << ").";
-        return;
-      }
-      *rv = adt[index];
+      *rv = obj;
     });
   } else if (name == "set_input") {
     return PackedFunc(
