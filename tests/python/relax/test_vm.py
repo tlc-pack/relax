@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
 import os
+from typing import Callable, Tuple
 
 import numpy as np
 import pytest
@@ -945,7 +946,7 @@ class TestVMSetInput:
         return gv0
 
 
-def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
@@ -979,22 +980,49 @@ def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device
     assert result_cast == ((1, (1,)), 1)
 
 
-def test_set_input():
+def set_input_attempt_stateless(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # this should fail: once you set inputs, you cannot run statelessly
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    vm.set_input("main", a, b)
+    # must use invoke stateful!
+    vm["main"]()
+
+
+def set_input_attempt_invoke(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # this should fail: if the function needs inputs, you can't invoke directly
+    # note: argument defaults to main
+    vm.invoke_stateful()
+
+
+def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # this should fail: you can't get outputs without invoking the function first
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    vm.set_input("main", a, b)
+    _ = vm.get_outputs()
+
+
+def make_vm(mod) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+    """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
     exec = relax.vm.build(TestVMSetInput, target)
     exec.mod.export_library("exec.so")
     exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
     os.remove("exec.so")
-    print(exec_loaded.as_python())
     device = tvm.cpu()
-    vm = relax.VirtualMachine(exec_loaded, device)
-
-    perform_set_input_trial(vm, device)
+    return relax.VirtualMachine(exec_loaded, device), device
 
 
-def test_set_input_rpc():
+def run_on_rpc(
+    mod: tvm.IRModule, trial_func: Callable[[relax.VirtualMachine, tvm.runtime.Device], None]
+):
+    """
+    Sets up a VM over localhost using the given mod and runs the given trial function.
+    The trial function should take a VM and a device
+    """
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(TestVMSetInput, target)
+    exec = relax.vm.build(mod, target)
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
     exec.mod.export_library(path)
@@ -1014,9 +1042,48 @@ def test_set_input_rpc():
         device = remote.cpu()
         # Build a VM out of the executable and context.
         vm = relax.vm.VirtualMachine(exec=rexec, device=device)
-        perform_set_input_trial(vm, device)
+        trial_func(vm, device)
 
     check_remote(rpc.Server("127.0.0.1"))
+
+
+def test_set_input():
+    set_input_trial(*make_vm(TestVMSetInput))
+
+
+def test_set_input_rpc():
+    run_on_rpc(TestVMSetInput, set_input_trial)
+
+
+# if you set an input, you should not be able to call statelessly
+@pytest.mark.xfail()
+def test_set_input_stateless_failure():
+    set_input_attempt_stateless(*make_vm(TestVMSetInput))
+
+
+@pytest.mark.xfail()
+def test_set_input_stateless_failure_rpc():
+    run_on_rpc(TestVMSetInput, set_input_attempt_stateless)
+
+
+@pytest.mark.xfail()
+def test_set_input_invoke_failure():
+    set_input_attempt_invoke(*make_vm(TestVMSetInput))
+
+
+@pytest.mark.xfail()
+def test_set_input_invoke_failure_rpc():
+    run_on_rpc(TestVMSetInput, set_input_attempt_invoke)
+
+
+@pytest.mark.xfail()
+def test_set_input_get_failure():
+    set_input_attempt_get(*make_vm(TestVMSetInput))
+
+
+@pytest.mark.xfail()
+def test_set_input_get_failure_rpc():
+    run_on_rpc(TestVMSetInput, set_input_attempt_get)
 
 
 if __name__ == "__main__":
