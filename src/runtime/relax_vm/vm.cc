@@ -191,8 +191,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     Index gf_idx = m.at(name);
     return PackedFunc([sptr_to_self, this, gf_idx, name](TVMArgs args, TVMRetValue* rv) {
       if (inputs_.count(name)) {
-        LOG(FATAL) << "Error: If inputs have been set, `invoke_stateful` must be used to invoke a "
-                      "function!";
+        LOG(FATAL) << "ValueError: If inputs have been set, `invoke_stateful`"
+                   << " must be used to invoke a function!";
         return;
       } else {
         std::vector<RegType> inputs(args.size());
