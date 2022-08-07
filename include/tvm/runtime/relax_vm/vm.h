@@ -204,7 +204,6 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   RegType LookupVMOutput(const std::string& func_name);
 
-
  private:
   /*! \brief The loaded executable. */
   ObjectPtr<Executable> exec_;
