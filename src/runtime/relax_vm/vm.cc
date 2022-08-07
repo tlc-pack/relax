@@ -114,6 +114,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
       std::string closure_name = args[1];
+      bool include_return = args[2];
       const auto& m = exec_->global_map;
       if (m.find(func_name) == m.end()) {
         LOG(FATAL) << "ValueError: Unknown function: " << func_name;
@@ -123,16 +124,23 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       }
       Index gf_idx = m.at(func_name);
       std::vector<RegType> inputs;
-      if (args.size() > 2) {
-        inputs = std::vector<RegType>(args.size() - 2);
-        for (int i = 2; i < args.size(); i++) {
-          inputs[i - 2] = args[i];
+      if (args.size() > 3) {
+        inputs = std::vector<RegType>(args.size() - 3);
+        for (int i = 3; i < args.size(); i++) {
+          inputs[i - 3] = args[i];
         }
       }
-      auto closure = PackedFunc([this, gf_idx, inputs](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->Invoke(gf_idx, inputs);
-      });
-      saved_closures_[closure_name] = closure;
+      if (include_return) {
+        saved_closures_[closure_name] =
+            PackedFunc([this, gf_idx, inputs](TVMArgs args, TVMRetValue* rv) {
+              *rv = this->Invoke(gf_idx, inputs);
+            });
+      } else {
+        saved_closures_[closure_name] =
+            PackedFunc([this, gf_idx, inputs](TVMArgs args, TVMRetValue* rv) {
+              this->Invoke(gf_idx, inputs);
+            });
+      }
     });
   } else if (name == "invoke_closure") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

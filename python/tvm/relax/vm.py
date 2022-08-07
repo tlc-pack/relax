@@ -161,7 +161,9 @@ class VirtualMachine(object):
         """
         return self._invoke_closure(closure, *args)
 
-    def package_function(self, func_name: str, save_name: str, *args: List[Any]) -> PackedFunc:
+    def package_function(
+        self, func_name: str, save_name: str, *args: List[Any], include_return: bool = True
+    ) -> None:
         """
         Convenience function. Takes a function from the module and saves
         a `PackedFunc` that, when called, will invoke the function with the given arguments.
@@ -184,13 +186,18 @@ class VirtualMachine(object):
         save_name : str
             The name that the resulting closure should be saved under.
 
+        include_return : bool
+            Whether the saved PackedFunc should return its output.
+            If timing over RFC, it may not be desirable to send output
+            between machines.
+
         args : List[Any]
             The arguments to package up with the function.
         """
         cargs = []
         for arg in args:
             self._convert(arg, cargs)
-        self._package_function(func_name, save_name, *cargs)
+        self._package_function(func_name, save_name, int(include_return), *cargs)
 
     def _convert(self, arg: Any, cargs: List) -> None:
         """helper function to convert arguments to vm function."""
