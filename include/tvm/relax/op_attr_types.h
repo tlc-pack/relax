@@ -89,9 +89,9 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
 };  // struct UniqueAttrs
 
 struct PrintAttrs : public tvm::AttrsNode<PrintAttrs> {
-  std::string format;
+  std::string format_str;
   TVM_DECLARE_ATTRS(PrintAttrs, "relax.attrs.PrintAttrs") {
-    TVM_ATTR_FIELD(format)
+    TVM_ATTR_FIELD(format_str)
         .describe("Python-style format string to use for displaying the input. Ignored if empty.")
         .set_default("");
   }
