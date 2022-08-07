@@ -104,16 +104,16 @@ TVM_REGISTER_NODE_TYPE(PrintAttrs);
 
 RELAY_REGISTER_OP("relax.print")
     .set_attrs_type<PrintAttrs>()
-    .set_num_inputs(1)
-    .add_argument("val", "Expr", "The value to print.")
+    .set_num_inputs(-1)
+    .add_argument("vals", "Array<Expr>", "Values to print.")
     .set_attr<FInferType>("FInferType", ReturnVoidType)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
 
-Expr MakePrint(Expr val, std::string format) {
+Expr MakePrint(Array<Expr> vals, std::string format_str) {
   auto attrs = make_object<PrintAttrs>();
-  attrs->format = format;
+  attrs->format = format_str;
   static const Op& op = Op::Get("relax.print");
-  return Call(op, {val}, Attrs(attrs));
+  return Call(op, vals, Attrs(attrs));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);

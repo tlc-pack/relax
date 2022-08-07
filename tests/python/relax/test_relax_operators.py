@@ -68,6 +68,9 @@ class PrintTest:
         p2 = relax.print(x, format="Number: {}")
         t = (x, x)
         p3 = relax.print(t, format="Tuple: {}")
+        p4 = relax.print(x, t)
+        p5 = relax.print(x, x, format="Custom print: {} {}")
+        p6 = relax.print(x, t, format="Another print: {} {}")
         return x
 
 
@@ -79,7 +82,8 @@ def test_print():
             run_cpu(PrintTest, "foo", tvm.nd.array(1))
             test_out.seek(0)
             printed_text = str(test_out.read())
-            assert printed_text == "1\nNumber: 1\nTuple: (1, 1)\n"
+            expected = "1\nNumber: 1\nTuple: (1, 1)\n1 (1, 1)\nCustom print: 1 1\nAnother print: 1 (1, 1)\n"
+            assert printed_text == expected
     finally:
         sys.stdout = stdout
 

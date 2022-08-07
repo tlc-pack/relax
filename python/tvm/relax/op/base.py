@@ -132,18 +132,35 @@ def invoke_closure(
 
 
 @tvm.register_func("relax.run.print")
-def relax_print(val: tvm.runtime.container, format_str: str = "") -> None:
+def relax_print(*args: List[any]) -> None:
     """
-    Prints the value that is passed to it, possibly with a format string.
+    Takes a list of values to print, formats with the given format string.
+    If the format string is empty, simply prints.
+
+    Since this function is called as a PackedFunc from the generated code,
+    we cannot have it be variadic _and_ have an optional format string attribute
+    except by taking in all the arguments as a single list. The last argument
+    should be a format string.
+
+    Call from TVM script like this:
+    `relax.print(value1, value2, ..., valueN, format=format_str)`
+    or
+    `relax.print(value1, value2, ..., valueN) # format_str defaults to ""`
 
     Parameters
     ----------
-    val: tvm.Object
-        A value in TVM
+    vals: List[Object]
+        The values to print.
 
     format_str: str
-        A Python-style format string for printing the value
+        The last argument is a Python-style format string for printing the value
     """
+
+    # there is no way to have a keyword arg to a packed function,
+    # so the format string is always the last argument
+    format_str = args[-1]
+    if not isinstance(format_str, str):
+        raise ValueError("No valid format string given.")
 
     def render(val: tvm.Object) -> str:
         if isinstance(val, tvm.runtime.ndarray.NDArray):
@@ -160,7 +177,8 @@ def relax_print(val: tvm.runtime.container, format_str: str = "") -> None:
             return f"ADT(tag={val.tag}, fields=[{fields}])"
         return str(val)
 
+    val_strs = map(render, args[:-1])
     if format_str == "":
-        print(render(val))
+        print(*val_strs)
     else:
-        print(format_str.format(render(val)))
+        print(format_str.format(*val_strs))
