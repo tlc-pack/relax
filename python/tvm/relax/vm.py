@@ -391,12 +391,12 @@ class VirtualMachine(object):
         return self.module.time_evaluator(
             func_name,
             dev,
-            number=10,
-            repeat=1,
-            min_repeat_ms=0,
-            cooldown_interval_ms=0,
-            repeats_to_cooldown=1,
-            f_preproc="",
+            number=number,
+            repeat=repeat,
+            min_repeat_ms=min_repeat_ms,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
+            f_preproc=f_preproc,
         )
 
 
