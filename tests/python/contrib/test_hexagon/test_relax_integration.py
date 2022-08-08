@@ -59,7 +59,8 @@ def test_conv2d(hexagon_session: Session):
     data = tvm.nd.array(data_np, dev)
     weight = tvm.nd.array(weight_np, dev)
     vm_rt.set_input("main", data, weight)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on Relay for comparison.
     dev = tvm.cpu()
@@ -106,7 +107,8 @@ def test_conv2d_dyn(hexagon_session: Session):
     data = tvm.nd.array(data_np, hexgaon_device)
     weight = tvm.nd.array(weight_np, hexgaon_device)
     vm_rt.set_input("main", data, weight)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on Relay for comparison.
     cpu_device = tvm.cpu()
@@ -138,7 +140,8 @@ def test_mlp(hexagon_session: Session):
     data_np = np.random.rand(*shape).astype("float32")
     data = tvm.nd.array(data_np, hexagon_device)
     vm_rt.set_input("main", data)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on Relay for comparison.
     cpu_dev = tvm.cpu()
@@ -171,7 +174,8 @@ def test_mlp_dyn(hexagon_session: Session):
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
     vm_rt.set_input("main", data)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on Relay for comparison.
     dev = tvm.cpu()
@@ -217,7 +221,8 @@ def test_mobilenet_onnx(hexagon_session: Session):
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
     vm_rt.set_input("main", data)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm")
@@ -249,7 +254,8 @@ def test_mobilenet(hexagon_session: Session):
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
     vm_rt.set_input("main", data)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm", params)
@@ -281,7 +287,8 @@ def test_mobilenet_dyn(hexagon_session: Session):
     vm_rt = relax.VirtualMachine(vm_mod, dev)
     data = tvm.nd.array(data_np, dev)
     vm_rt.set_input("main", data)
-    hexagon_res = vm_rt["main"]()
+    vm_rt.invoke_stateful()
+    hexagon_res = vm_rt.get_outputs()
 
     # Compile and run on Relay for comparison.
     dev = tvm.cpu()
