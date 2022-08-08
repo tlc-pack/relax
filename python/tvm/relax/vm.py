@@ -198,6 +198,9 @@ class VirtualMachine(object):
         the arguments to DLTensor, which is supported in RPC where remote could only
         have a minimal C runtime.
 
+        Note: If `set_input` is used, the function *must* be called using `invoke_stateful`
+        and the results must be obtained using `get_outputs`.
+
         Parameters
         ----------
         func_name : str
@@ -241,7 +244,7 @@ class VirtualMachine(object):
         (even if it's to set 0 inputs); conversely, if `set_input` has been called,
         it is an error to call the function without using `invoke_stateful`.
 
-        The results of the call can be obtained by calling `get_output`.
+        The results of the call can be obtained by calling `get_outputs`.
 
         Parameters
         ----------
