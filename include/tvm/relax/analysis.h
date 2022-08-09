@@ -111,7 +111,7 @@ TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
  *
- * \param m the IRModule to check.
+ * \param m The IRModule to check.
  * \return Var -> Value (Expr)
  */
 TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
@@ -119,7 +119,7 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
  *
- * \param expr the expression to check.
+ * \param expr The expression to check.
  * \return Var -> Value (Expr)
  */
 TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
@@ -127,10 +127,18 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
  *
- * \param dfb the dataflow block to check.
+ * \param dfb The dataflow block to check.
  * \return Var -> Value (Expr)
  */
 TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
+
+/*!
+ * \brief Return a mapping from variable name to its Bindings.
+ *
+ * \param fn The function to be analyzed.
+ * \return A mapping from variable name to its Bindings.
+ */
+TVM_DLL runtime::Map<String, Binding> NameToBinding(const Function& fn);
 
 /*!
  * \brief Get the use-def chain of variables inside a dataflow block.
@@ -138,7 +146,15 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
  * \param dfb The dataflow block to be analyzed.
  * \return A map mapping variable definitoins to a set of uses.
  */
-TVM_DLL runtime::Map<Var, Array<Var>> UseDefChain(const DataflowBlock& dfb);
+TVM_DLL runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
+
+/*!
+ * \brief Get the use-def chain of variables inside a function.
+ *
+ * \param fn The function to be analyzed.
+ * \return A map mapping variable definitoins to a set of uses.
+ */
+TVM_DLL runtime::Map<Var, Array<Var>> FunctionUseDef(const Function& fn);
 
 }  // namespace relax
 }  // namespace tvm

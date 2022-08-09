@@ -23,19 +23,12 @@
  */
 
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/dataflow_matcher.h>
-#include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tir/op.h>
 
-#include <array>
 #include <cstddef>
 #include <limits>
-#include <stack>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -44,7 +37,7 @@ namespace relax {
 
 class UDChain : public relax::ExprVisitor {
  public:
-  std::map<const VarNode*, std::set<const VarNode*>> def2use;
+  std::map<const VarNode*, std::set<const VarNode*>> to_users;
 
   const VarNode* cur_user_;
 
@@ -59,20 +52,21 @@ class UDChain : public relax::ExprVisitor {
   void VisitExpr_(const VarNode* op) override {
     if (nullptr == cur_user_) return;
 
-    def2use[op].insert(cur_user_);
+    to_users[op].insert(cur_user_);
   }
-  void VisitVarDef(const Var& var) override { def2use[var.get()] = {}; }
+  void VisitVarDef(const Var& var) override { to_users[var.get()] = {}; }
+  void VisitExpr_(const FunctionNode* op) override { ExprVisitor::VisitExpr_(op); }
 
   void VisitExpr_(const DataflowVarNode* op) override {
     VisitExpr_(static_cast<const VarNode*>(op));
   }
 };
 
-runtime::Map<Var, Array<Var>> UseDefChain(const DataflowBlock& dfb) {
+runtime::Map<Var, Array<Var>> FunctionUseDef(const Function& fn) {
   UDChain udchain;
-  udchain.VisitBindingBlock_(dfb.get());
+  udchain.VisitExpr_(fn.get());
   runtime::Map<Var, Array<Var>> ret;
-  for (const auto& kv : udchain.def2use) {
+  for (const auto& kv : udchain.to_users) {
     Array<Var> uses{};
     uses.reserve(kv.second.size());
     for (const auto& v : kv.second) uses.push_back(GetRef<Var>(v));
@@ -81,7 +75,20 @@ runtime::Map<Var, Array<Var>> UseDefChain(const DataflowBlock& dfb) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(UseDefChain);
+runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
+  UDChain udchain;
+  udchain.VisitBindingBlock_(dfb.get());
+  runtime::Map<Var, Array<Var>> ret;
+  for (const auto& kv : udchain.to_users) {
+    Array<Var> uses{};
+    uses.reserve(kv.second.size());
+    for (const auto& v : kv.second) uses.push_back(GetRef<Var>(v));
+    ret.Set(GetRef<Var>(kv.first), std::move(uses));
+  }
+  return ret;
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(DataflowBlockUseDef);
 
 }  // namespace relax
 }  // namespace tvm

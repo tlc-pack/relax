@@ -24,7 +24,7 @@ configuring the passes and scripting them in Python.
 from typing import Dict, List
 
 import tvm
-from tvm.relax.expr import DataflowBlock, Var, Expr, Function
+from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Binding
 from . import _ffi_api
 
 
@@ -92,3 +92,8 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
         A mapping from variable definition to its uses.
     """
     return _ffi_api.udchain(dfb)
+
+
+def name_to_binding(func: Function) -> Dict[str, Binding]:
+    """Return a map from variable name to its binding."""
+    return _ffi_api.name_to_binding(func)
