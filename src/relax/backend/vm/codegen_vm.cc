@@ -379,6 +379,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(EmitConstantFromValue(unique_attrs->dim));
       return;
     }
+    if (call_node->op == print_op_) {
+      auto print_attrs = call_node->attrs.as<PrintAttrs>();
+      args.push_back(EmitConstantFromValue(print_attrs->format));
+      return;
+    }
     LOG(FATAL) << "Support for attributes of Op " << call_node->op
                << " has not been implemented yet.";
     return;
@@ -510,6 +515,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& unique_op_ = Op::Get("relax.unique");
+  const Op& print_op_ = Op::Get("relax.print");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
