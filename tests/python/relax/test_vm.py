@@ -974,7 +974,6 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
     vm.set_input("test_vm_nested_tuple", b)
     vm.invoke_stateful("test_vm_nested_tuple")
     res3 = vm.get_outputs("test_vm_nested_tuple")
-    print(res3)
     assert len(res3) == 2 and len(res3[0]) == 2 and len(res3[0][1]) == 1
     result_cast = ((int(res3[0][0].numpy()), (int(res3[0][1][0].numpy()),)), int(res3[1].numpy()))
     assert result_cast == ((1, (1,)), 1)
