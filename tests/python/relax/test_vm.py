@@ -990,8 +990,7 @@ def set_input_attempt_stateless(vm: relax.VirtualMachine, device: tvm.runtime.De
 
 def set_input_attempt_invoke(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     # this should fail: if the function needs inputs, you can't invoke directly
-    # note: argument defaults to main
-    vm.invoke_stateful()
+    vm.invoke_stateful("main")
 
 
 def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
@@ -999,7 +998,7 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
-    _ = vm.get_outputs()
+    _ = vm.get_outputs("main")
 
 
 def make_vm(mod) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:

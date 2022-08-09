@@ -237,7 +237,7 @@ class VirtualMachine(object):
 
         self._set_input(func_name, *cargs)
 
-    def invoke_stateful(self, func_name: str = "main") -> None:
+    def invoke_stateful(self, func_name: str) -> None:
         """
         Call the named function from the VM module using the arguments set using `set_input`.
         It is an error to call `invoke_stateful` without using `set_input` first
@@ -249,11 +249,11 @@ class VirtualMachine(object):
         Parameters
         ----------
         func_name: str
-            The name of the function to call. "main" by default
+            The name of the function to call.
         """
         self._invoke_stateful(func_name)
 
-    def get_outputs(self, func_name: str = "main") -> Union[tvm.Object, Tuple[Any]]:
+    def get_outputs(self, func_name: str) -> Union[tvm.Object, Tuple[Any]]:
         """
         Get the value output by the function by the given name
         after a call of `invoke_stateful`.
@@ -263,7 +263,7 @@ class VirtualMachine(object):
         Parameters
         ----------
         func_name: str
-            The name of the function whose output should be fetched. "main" by default.
+            The name of the function whose output should be fetched.
 
         Returns
         -------
