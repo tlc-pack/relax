@@ -139,6 +139,58 @@ def test_simple_remove_unused():
     check_ground_truth(rwt.mutated_root_fn(), ground_truth)
 
 
+def test_simple_rm_all_unused():
+    @R.function
+    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            unused0 = lv0 + R.const(1.0)
+            unused1 = lv0 + R.const(1.0)
+            R.output(lv0)
+        return lv0
+
+    dfb = identity_unused.body.blocks[0]
+    root_fn = identity_unused
+
+    rwt = DataflowBlockRewrite(dfb, root_fn)
+    rwt.remove_all_unused()
+
+    @R.function
+    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        return lv0
+
+    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+
+
+def test_chained_rm_all_unused():
+    @R.function
+    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
+            unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+            R.output(lv0)
+        return lv0
+
+    dfb = identity_unused.body.blocks[0]
+    root_fn = identity_unused
+
+    rwt = DataflowBlockRewrite(dfb, root_fn)
+    rwt.remove_all_unused()
+
+    @R.function
+    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        return lv0
+
+    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+
+
 def test_simple_replace_all_uses():
     @R.function
     def lv0to1(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):

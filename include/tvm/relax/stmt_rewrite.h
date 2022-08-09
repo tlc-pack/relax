@@ -27,9 +27,11 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
+#include <map>
 #include <set>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relax {
@@ -51,6 +53,8 @@ class DataflowBlockRewriteNode : public Object {
   void Add(Expr expr, bool is_dfvar = false) { Add(make_new_varname(), expr, is_dfvar); }
   /*! \brief Remove the definition statement of an unused variable. */
   void RemoveUnused(Var unused);
+  /*! \brief Remove the definition all statements of unused variables. */
+  void RemoveAllUnused();
 
   /*! \brief The rewritten dataflow block. */
   DataflowBlock MutatedDataflowBlock() { return dfb_.object; }
@@ -85,17 +89,17 @@ class DataflowBlockRewriteNode : public Object {
     auto get() const { return object.get(); }
   };
 
-  RefCntPtr<DataflowBlock> dfb_;            //!< The rewritten dataflow block.
-  RefCntPtr<Function> root_fn_;             //!< The rewritten function.
-  const FunctionNode* original_fn_ptr_;     //!< Pointer to the original function.
-  runtime::Map<Var, Array<Var>> to_users_;  //!< Map from variable to its users.
+  RefCntPtr<DataflowBlock> dfb_;         //!< The rewritten dataflow block.
+  RefCntPtr<Function> root_fn_;          //!< The rewritten function.
+  const FunctionNode* original_fn_ptr_;  //!< Pointer to the original function.
+  Map<Var, Array<Var>> to_users_;        //!< Map from variable to its users.
+  Array<Var> fn_outputs_;                //!< Variables required by function outputs.
 
  private:
   /*! \brief Generate a new variable name. */
   String make_new_varname();
 
-  std::set<String> used_names_ = {};  //!< Set of used variable names.
-  size_t counter_ = 0;                //!< Counter for generating new variable names.
+  size_t counter_ = 0;  //!< Counter for generating new variable names.
 };
 
 /*!

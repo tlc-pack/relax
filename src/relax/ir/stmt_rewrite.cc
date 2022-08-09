@@ -27,13 +27,17 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/stmt_rewrite.h>
 
+#include <iterator>
+
 namespace tvm {
 namespace relax {
 
 String DataflowBlockRewriteNode::make_new_varname() {
   while (true) {
     String name = "tmp" + std::to_string(++counter_);
-    if (used_names_.cend() == used_names_.find(name)) return name;
+    if (to_users_.end() == std::find_if(to_users_.begin(), to_users_.end(),
+                                        [&name](auto p) { return p.first->name_hint() == name; }))
+      return name;  // is this name ok?
   }
 }
 
@@ -43,8 +47,9 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   n->dfb_ = dfb;
   n->root_fn_ = root_fn;
   n->original_fn_ptr_ = root_fn.get();
-  n->to_users_ = FunctionUseDef(root_fn);
-  for (const auto& kv : n->to_users_) n->used_names_.insert(kv.first->name_hint());
+  auto p = FunctionUseDef(root_fn);
+  n->to_users_ = std::move(p.first);
+  n->fn_outputs_ = std::move(p.second);
 
   data_ = std::move(n);
 }
@@ -94,13 +99,18 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   // old_var -> old_var users | changed to {}
   // new_var -> {?}           | changed to old_var users
   for (Var user : to_users_[old_var]) {
-    Array<Var> new_var_uses = to_users_.Get(new_var).value();
+    auto new_var_uses = to_users_[new_var];
     if (new_var_uses.end() == std::find(new_var_uses.begin(), new_var_uses.end(), user)) {
       new_var_uses.push_back(user);
     }
   }
 
   to_users_.Set(old_var, {});
+
+  auto it_old_output = std::find(fn_outputs_.begin(), fn_outputs_.end(), old_var);
+  if (it_old_output != fn_outputs_.end()) {
+    fn_outputs_.Set(std::distance(fn_outputs_.begin(), it_old_output), new_var);
+  }
 }
 
 TVM_REGISTER_GLOBAL("relax.dfb_rewrite_replace_all_uses")
@@ -169,8 +179,6 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
   root_fn_ = Downcast<Function>(updater.VisitExpr_(root_fn_.get()));
 
   for (const VarNode* v : used_vars) to_users_.Get(GetRef<Var>(v)).value().push_back(var);
-
-  used_names_.insert(var->name_hint());  // add to used_names_
 }
 
 TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add_binding")
@@ -185,33 +193,117 @@ TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add")
       }
     });
 
+class RemoveAllUnusedVar : public ExprMutator {
+ public:
+  std::set<Var> unused_vars;
+  const DataflowBlockNode* caught_rewrite = nullptr;
+
+  RemoveAllUnusedVar(Map<Var, Array<Var>> users, Array<Var> fn_outputs)
+      : unused_vars([&] {
+          std::vector<Var> unused;
+
+          // iterative dataflow algorithm.
+          size_t prev_size;
+          do {
+            prev_size = unused.size();
+
+            for (const auto& kv : users) {
+              // var -> [users...]
+              // var is unused iff
+              //   user -> empty
+              //   var is not output var
+              if (kv.second.empty() &&  // kv.first is not used by fn outputs.
+                  fn_outputs.end() == std::find(fn_outputs.begin(), fn_outputs.end(), kv.first)) {
+                unused.push_back(kv.first);
+              }
+            }
+
+            for (size_t i = prev_size; i < unused.size(); ++i) {
+              users.erase(unused[i]);
+              // remove def site.
+              for (auto kv : users) {  // remove use site.
+                auto it = std::find(kv.second.begin(), kv.second.end(), unused[i]);
+                if (it != kv.second.end()) {
+                  // users.Get(kv.first).value().erase(it);
+                  kv.second.erase(it);
+                  users.Set(kv.first, std::move(kv.second));
+                }
+              }
+            }
+          } while (prev_size != unused.size());  // changed? => continue.
+
+          return std::set<Var>(unused.begin(), unused.end());
+        }()) {}
+
+  RemoveAllUnusedVar(std::pair<Map<Var, Array<Var>>, Array<Var>> users_and_outputs)
+      : RemoveAllUnusedVar(std::move(users_and_outputs.first),
+                           std::move(users_and_outputs.second)) {}
+  RemoveAllUnusedVar(Function fn) : RemoveAllUnusedVar(FunctionUseDef(fn)) {}
+  RemoveAllUnusedVar(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
+
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) {
+    auto prev_dfb = GetRef<DataflowBlock>(block);
+    builder_->BeginDataflowBlock();
+    for (Binding binding : block->bindings) {
+      if (const auto* node = binding.as<VarBindingNode>()) {
+        if (!unused_vars.count(node->var)) VisitBinding_(node);
+      } else if (const auto* node = binding.as<MatchShapeNode>()) {
+        if (!unused_vars.count(node->var)) VisitBinding_(node);
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      }
+    }
+    auto new_dfb = builder_->EndBlock();
+    if (caught_rewrite == prev_dfb.get())
+      caught_rewrite = static_cast<const DataflowBlockNode*>(new_dfb.get());
+    return std::move(new_dfb);
+  }
+};
+
 void DataflowBlockRewriteNode::RemoveUnused(Var unused) {
   // first need to check if this var is used.
   ICHECK(to_users_.count(unused)) << "Cannot remove " << unused << " as it's not found in " << dfb_;
-  ICHECK(to_users_[unused].empty()) << unused << " is used by " << to_users_[unused];
+  ICHECK(to_users_[unused].empty())
+      << unused << " is used by " << to_users_[unused].size() << " vars";
 
   auto prev_dfb_ptr = dfb_.get();
 
-  for (auto it = dfb_->bindings.begin(); it != dfb_->bindings.end(); ++it) {
-    // Hope we can simplify this with C++17 one day.
-    const VarBindingNode* varbind = (*it).as<VarBindingNode>();
-    const MatchShapeNode* mshape = (*it).as<MatchShapeNode>();
-
-    if ((varbind && unused == varbind->var) || (mshape && unused == mshape->var)) {
-      dfb_.object.CopyOnWrite()->bindings.erase(it);
-      break;
-    }
-  }
+  RemoveAllUnusedVar remover({unused});
+  dfb_ = Downcast<DataflowBlock>(remover.VisitBindingBlock_(prev_dfb_ptr));
 
   auto updater = UpdateDFB(prev_dfb_ptr, dfb_);
   root_fn_ = Downcast<Function>(updater.VisitExpr_(root_fn_.get()));
 
-  to_users_.erase(unused);                 // update use-def chain.
-  used_names_.erase(unused->name_hint());  // remove from used_names_
+  to_users_.erase(unused);  // update use-def chain.
 }
 
 TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_unused")
     .set_body_typed([](DataflowBlockRewrite rwt, Var unused) { rwt->RemoveUnused(unused); });
+
+void DataflowBlockRewriteNode::RemoveAllUnused() {
+  auto prev_dfb = dfb_.object;
+  RemoveAllUnusedVar remover(to_users_, fn_outputs_);
+  remover.caught_rewrite = dfb_.get();
+
+  // this could also clean unused variables in other DataflowBlock.
+  root_fn_ = Downcast<Function>(remover.VisitExpr_(root_fn_.get()));
+  dfb_ = GetRef<DataflowBlock>(remover.caught_rewrite);
+
+  // clean up use-def chain.
+  for (const auto& unused : remover.unused_vars) to_users_.erase(unused);
+}
+
+TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_all_unused")
+    .set_body_typed([](DataflowBlockRewrite rwt) { rwt->RemoveAllUnused(); });
+
+Function RemoveAllUnused(Function fn) {
+  // FIXME(@ganler): What if the DataflowBlock is empty after cleaning up unused vars?
+  // But it is a more general problem that should be fixed in ExprMutator.
+  RemoveAllUnusedVar remover(fn);
+  return Downcast<Function>(remover.VisitExpr_(fn.get()));
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.remove_all_unused").set_body_typed(RemoveAllUnused);
 
 IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   BlockBuilder builder = BlockBuilder::Create(irmod);

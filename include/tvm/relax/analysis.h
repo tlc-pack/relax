@@ -30,6 +30,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/function.h>
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
@@ -114,7 +116,7 @@ TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
  * \param m The IRModule to check.
  * \return Var -> Value (Expr)
  */
-TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
+TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
@@ -122,7 +124,7 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m);
  * \param expr The expression to check.
  * \return Var -> Value (Expr)
  */
-TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
+TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.
@@ -130,7 +132,7 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const Expr& expr);
  * \param dfb The dataflow block to check.
  * \return Var -> Value (Expr)
  */
-TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
+TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
 
 /*!
  * \brief Return a mapping from variable name to its Bindings.
@@ -138,7 +140,7 @@ TVM_DLL runtime::Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
  * \param fn The function to be analyzed.
  * \return A mapping from variable name to its Bindings.
  */
-TVM_DLL runtime::Map<String, Binding> NameToBinding(const Function& fn);
+TVM_DLL Map<String, Binding> NameToBinding(const Function& fn);
 
 /*!
  * \brief Get the use-def chain of variables inside a dataflow block.
@@ -146,15 +148,23 @@ TVM_DLL runtime::Map<String, Binding> NameToBinding(const Function& fn);
  * \param dfb The dataflow block to be analyzed.
  * \return A map mapping variable definitoins to a set of uses.
  */
-TVM_DLL runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
+TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
 
 /*!
  * \brief Get the use-def chain of variables inside a function.
  *
  * \param fn The function to be analyzed.
- * \return A map mapping variable definitoins to a set of uses.
+ * \return A map from variable definitoins to a set of uses and variables needed by return value.
  */
-TVM_DLL runtime::Map<Var, Array<Var>> FunctionUseDef(const Function& fn);
+std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
+
+/*!
+ * \brief Remove unused statements inside DataflowBlocks.
+ *
+ * \param fn The function to remove unused statements.
+ * \return The function that contains no unused statements in DataflowBlock.
+ */
+TVM_DLL Function RemoveAllUnused(const Function fn);
 
 }  // namespace relax
 }  // namespace tvm

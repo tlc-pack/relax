@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from __future__ import annotations
 import pytest
 
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.relax.analysis import udchain
+from tvm.relax.analysis import udchain, remove_all_unused
+from tvm.script import relax as R
+
+from test_stmt_rewrite import check_ground_truth
 
 
 def test_dispatch_var():
@@ -89,6 +94,85 @@ def test_use_def():
     assert set(udc[lv0]) == {lv1}
     assert set(udc[lv1]) == {gv0}
     assert set(udc[gv0]) == set()
+
+
+def test_chained_remove_all_unused():
+    @R.function
+    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
+            unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+            R.output(lv0)
+        return lv0
+
+    optimized = remove_all_unused(identity_unused)
+
+    @R.function
+    def gt(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        return lv0
+
+    check_ground_truth(optimized, gt)
+
+
+def test_binding_block_remove_all_unused():
+    @R.function
+    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
+            unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+            R.output(lv0)
+        z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+        return z
+
+    optimized = remove_all_unused(identity_unused)
+
+    @R.function
+    def gt(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+        return z
+
+    check_ground_truth(optimized, gt)
+
+
+def test_binding_block_fake_unused_remove_all_unused():
+    @R.function
+    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+        return lv0
+
+    optimized = remove_all_unused(identity_unused)
+
+    @R.function
+    def gt(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        # This might bring side effect so cannot be removed.
+        z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+        return lv0
+
+    check_ground_truth(optimized, gt)
+
+
+def test_edge_binding_block_fake_unused_remove_all_unused():
+    @R.function
+    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+        z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor((32, 32), "float32")))
+        return x
+
+    optimized = remove_all_unused(identity_unused)
+    check_ground_truth(optimized, identity_unused)
 
 
 if __name__ == "__main__":

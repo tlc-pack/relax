@@ -37,6 +37,7 @@ namespace relax {
 
 class UDChain : public relax::ExprVisitor {
  public:
+  // nullptr users means it is the output of the function.
   std::map<const VarNode*, std::set<const VarNode*>> to_users;
 
   const VarNode* cur_user_;
@@ -49,11 +50,7 @@ class UDChain : public relax::ExprVisitor {
     cur_user_ = nullptr;
   }
 
-  void VisitExpr_(const VarNode* op) override {
-    if (nullptr == cur_user_) return;
-
-    to_users[op].insert(cur_user_);
-  }
+  void VisitExpr_(const VarNode* op) override { to_users[op].insert(cur_user_); }
   void VisitVarDef(const Var& var) override { to_users[var.get()] = {}; }
   void VisitExpr_(const FunctionNode* op) override { ExprVisitor::VisitExpr_(op); }
 
@@ -62,17 +59,28 @@ class UDChain : public relax::ExprVisitor {
   }
 };
 
-runtime::Map<Var, Array<Var>> FunctionUseDef(const Function& fn) {
+std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionUseDef(
+    const Function& fn) {
   UDChain udchain;
   udchain.VisitExpr_(fn.get());
-  runtime::Map<Var, Array<Var>> ret;
+
+  Map<Var, Array<Var>> user_map;
+  Array<Var> fn_outs;
+
   for (const auto& kv : udchain.to_users) {
     Array<Var> uses{};
     uses.reserve(kv.second.size());
-    for (const auto& v : kv.second) uses.push_back(GetRef<Var>(v));
-    ret.Set(GetRef<Var>(kv.first), std::move(uses));
+    for (const auto& v : kv.second) {
+      if (nullptr == v &&
+          fn_outs.end() == std::find(fn_outs.begin(), fn_outs.end(), GetRef<Var>(kv.first))) {
+        fn_outs.push_back(GetRef<Var>(kv.first));
+      } else {
+        uses.push_back(GetRef<Var>(v));
+      }
+    }
+    user_map.Set(GetRef<Var>(kv.first), std::move(uses));
   }
-  return ret;
+  return std::make_pair(std::move(user_map), std::move(fn_outs));
 }
 
 runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {

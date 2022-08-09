@@ -97,3 +97,19 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
 def name_to_binding(func: Function) -> Dict[str, Binding]:
     """Return a map from variable name to its binding."""
     return _ffi_api.name_to_binding(func)
+
+
+def remove_all_unused(func: Function) -> Function:
+    """Remove all unused variables from the function.
+
+    Parameters
+    ----------
+    func : Function
+        The input function to be analyzed.
+
+    Returns
+    -------
+    Function
+        The function with unused variables removed.
+    """
+    return _ffi_api.remove_all_unused(func)

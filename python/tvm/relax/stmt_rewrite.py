@@ -106,6 +106,16 @@ class DataflowBlockRewrite(Object):
         """
         _ffi_api.dfb_rewrite_remove_unused(self, var)
 
+    def remove_all_unused(self) -> None:
+        """
+        Remove all unused variables.
+
+        Notes
+        -----
+        This could remove unused variables in other DataflowBlocks as well.
+        """
+        _ffi_api.dfb_rewrite_remove_all_unused(self)
+
     def mutated_dfb(self) -> DataflowBlock:
         """
         Returns the mutated DataflowBlock.
