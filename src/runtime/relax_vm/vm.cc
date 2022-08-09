@@ -55,7 +55,6 @@ RegType VirtualMachine::LookupVMOutput(const std::string& func_name) {
   if (!outputs_.count(func_name)) {
     LOG(FATAL) << "ValueError: No output saved for call of \"" << func_name
                << "\"; use `invoke_stateful` to call it first.";
-    return {};
   }
   return outputs_[func_name];
 }
