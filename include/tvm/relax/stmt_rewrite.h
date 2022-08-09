@@ -22,12 +22,14 @@
  * \brief An IR rewriter to easily rewrites statements.
  */
 
-#ifndef TVM_RELAX_IR_STMT_REWRITE_H_
+#ifndef TVM_RELAX_STMT_REWRITE_H_
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
+#include <set>
 #include <type_traits>
+#include <utility>
 
 namespace tvm {
 namespace relax {
@@ -75,8 +77,9 @@ class DataflowBlockRewriteNode : public Object {
     T object;
 
     RefCntPtr() : object(nullptr) {}
-    RefCntPtr(T v) : object(v) {}
+    explicit RefCntPtr(T v) : object(v) {}
 
+    RefCntPtr& operator=(T v) { return *this = RefCntPtr(v); }
     T operator->() const { return object; }
     operator T() const { return object; }
     auto get() const { return object.get(); }
@@ -118,5 +121,5 @@ class DataflowBlockRewrite : public ObjectRef {
 }  // namespace relax
 }  // namespace tvm
 
-#define TVM_RELAX_IR_STMT_REWRITE_H_
-#endif  // TVM_RELAX_IR_STMT_REWRITE_H_
+#define TVM_RELAX_STMT_REWRITE_H_
+#endif  // TVM_RELAX_STMT_REWRITE_H_
