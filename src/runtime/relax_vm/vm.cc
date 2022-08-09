@@ -59,6 +59,25 @@ RegType VirtualMachine::LookupVMOutput(const std::string& func_name) {
   return outputs_[func_name];
 }
 
+// Use the args after `starting_arg_idx` as a series of indices into `obj`,
+// indexing into nested ADTs and returning the final indexed object.
+ObjectRef IndexIntoNestedObject(ObjectRef obj, TVMArgs args, int starting_arg_idx) {
+  for (int i = starting_arg_idx; i < args.size(); i++) {
+    // the object must be an ADT to be able to index into it
+    if (!obj.as<ADTObj>()) {
+      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
+    }
+    int index = args[i];
+    auto adt = Downcast<ADT>(obj);
+    // make sure the index is in bounds
+    if (index >= static_cast<int>(adt.size())) {
+      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
+    }
+    obj = adt[index];
+  }
+  return obj;
+}
+
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "vm_initialization") {
@@ -135,25 +154,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
       RegType out = LookupVMOutput(func_name);
-      ObjectRef obj = out.AsObjectRef<ObjectRef>();
-      // if there are index arguments, try indexing into the object.
-      for (int i = 1; i < args.size(); i++) {
-        // the object must be an ADT to be able to index into it
-        if (!obj.as<ADTObj>()) {
-          LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
-          return;
-        }
-        int index = args[i];
-        auto adt = Downcast<ADT>(obj);
-        // make sure the index is valid
-        if (index >= static_cast<int>(adt.size())) {
-          LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
-          return;
-        }
-        obj = adt[index];
-      }
-
-      // after chasing through the indces, examine the final object
+      // use remaining args as indices
+      ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
+      // after chasing through the indices, examine the final object
       if (const auto* adt = obj.as<ADTObj>()) {
         *rv = static_cast<int>(adt->size);
       } else {
@@ -164,24 +167,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
       RegType out = LookupVMOutput(func_name);
-      ObjectRef obj = out.AsObjectRef<ObjectRef>();
-      // if there are index arguments, try indexing into the object.
-      for (int i = 1; i < args.size(); i++) {
-        // the object must be an ADT to be able to index into it
-        if (!obj.as<ADTObj>()) {
-          LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
-          return;
-        }
-        int index = args[i];
-        auto adt = Downcast<ADT>(obj);
-        // make sure the index is valid
-        if (index >= static_cast<int>(adt.size())) {
-          LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
-          return;
-        }
-        obj = adt[index];
-      }
-
+      // use remaining args as indices
+      ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
       if (obj.as<ADTObj>()) {
         LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
                       "Please specify another index argument.";
