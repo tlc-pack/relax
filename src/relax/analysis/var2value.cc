@@ -62,24 +62,25 @@ TVM_REGISTER_GLOBAL(("relax.analysis.get_var2val")).set_body_typed([](const Func
 
 class Name2BindingAnalysis : public relax::ExprVisitor {
  public:
-  tvm::runtime::Map<String, Binding> name2bindings_;
+  // To avoid copying while performing in-place update in COW data structure.
+  // WE use standard map here.
+  std::map<String, Array<Binding>> name2bindings_;
   void VisitBinding_(const VarBindingNode* binding) override {
     const auto& vname = binding->var->name_hint();
-    ICHECK(0 == name2bindings_.count(vname)) << "Duplicate variable name: " << vname;
-    name2bindings_.Set(vname, GetRef<VarBinding>(binding));
+    name2bindings_[vname].push_back(GetRef<VarBinding>(binding));
   }
 
   void VisitBinding_(const MatchShapeNode* binding) override {
     const auto& vname = binding->var->name_hint();
-    ICHECK(0 == name2bindings_.count(vname)) << "Duplicate variable name: " << vname;
-    name2bindings_.Set(vname, GetRef<MatchShape>(binding));
+    name2bindings_[vname].push_back(GetRef<MatchShape>(binding));
   }
 };
 
-runtime::Map<String, Binding> NameToBinding(const Function& fn) {
+Map<String, Array<Binding>> NameToBinding(const Function& fn) {
   Name2BindingAnalysis analysis{};
   analysis.VisitExpr_(fn.get());
-  return std::move(analysis.name2bindings_);
+  return Map<String, Array<Binding>>(std::make_move_iterator(analysis.name2bindings_.begin()),
+                                     std::make_move_iterator(analysis.name2bindings_.end()));
 }
 
 TVM_REGISTER_GLOBAL(("relax.analysis.name_to_binding")).set_body_typed(NameToBinding);

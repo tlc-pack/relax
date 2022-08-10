@@ -21,7 +21,7 @@ import pytest
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.relax.analysis import udchain, remove_all_unused
+from tvm.relax.analysis import udchain, remove_all_unused, name_to_binding
 from tvm.script import relax as R
 
 from test_stmt_rewrite import check_ground_truth
@@ -173,6 +173,29 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
 
     optimized = remove_all_unused(identity_unused)
     check_ground_truth(optimized, identity_unused)
+
+
+def test_name_to_binding_var_shadowing():
+    @R.function
+    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            lv1 = lv0
+            R.output(lv1)
+
+        with R.dataflow():
+            lv0 = lv1  # shadowing
+            lv2 = lv0
+            R.output(lv2)
+        return lv2
+
+    n2binding = name_to_binding(main)
+
+    assert "lv0" in n2binding
+    assert "lv1" in n2binding
+    assert "lv2" in n2binding
+
+    assert len(n2binding["lv0"]) == 2
 
 
 if __name__ == "__main__":

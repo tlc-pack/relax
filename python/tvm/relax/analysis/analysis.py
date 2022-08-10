@@ -94,8 +94,8 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
     return _ffi_api.udchain(dfb)
 
 
-def name_to_binding(func: Function) -> Dict[str, Binding]:
-    """Return a map from variable name to its binding."""
+def name_to_binding(func: Function) -> Dict[str, List[Binding]]:
+    """Return a map from variable name to its bindings."""
     return _ffi_api.name_to_binding(func)
 
 

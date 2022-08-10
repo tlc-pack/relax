@@ -122,7 +122,7 @@ def test_simple_remove_unused():
     n2binding = name_to_binding(identity_unused)
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
-    rwt.remove_unused(n2binding["unused"].var)
+    rwt.remove_unused(n2binding["unused"][0].var)
 
     assert_immutability(rwt, dfb, root_fn)
 
@@ -222,8 +222,8 @@ def test_simple_replace_all_uses():
     n2binding = name_to_binding(root_fn)
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
-    rwt.replace_all_uses(n2binding["lv0"].var, n2binding["lv1"].var)
-    rwt.remove_unused(n2binding["lv0"].var)
+    rwt.replace_all_uses(n2binding["lv0"][0].var, n2binding["lv1"][0].var)
+    rwt.remove_unused(n2binding["lv0"][0].var)
 
     assert_immutability(rwt, dfb, root_fn)
 

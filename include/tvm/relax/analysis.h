@@ -140,7 +140,7 @@ TVM_DLL Map<Var, Expr> AnalyzeVar2Value(const DataflowBlock& dfb);
  * \param fn The function to be analyzed.
  * \return A mapping from variable name to its Bindings.
  */
-TVM_DLL Map<String, Binding> NameToBinding(const Function& fn);
+TVM_DLL Map<String, Array<Binding>> NameToBinding(const Function& fn);
 
 /*!
  * \brief Get the use-def chain of variables inside a dataflow block.
