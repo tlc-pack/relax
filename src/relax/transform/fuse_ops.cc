@@ -78,7 +78,6 @@ namespace relax {
 using relay::GraphPartitioner;
 using relay::IndexedForwardGraph;
 using relay::OpPatternKind;
-using support::LinkedList;
 using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
@@ -561,7 +560,7 @@ class OperatorFusor : public ExprMutator {
       const GlobalVar& gv = kv.first;
       const BaseFunc& func = kv.second;
       // Only visit Relax function without attr kPrimitive.
-      if (func->IsInstance<relax::FunctionNode>() & !func->HasNonzeroAttr(attr::kPrimitive)) {
+      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, updated_func);
       }
