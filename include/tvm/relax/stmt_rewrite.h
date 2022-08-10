@@ -52,7 +52,7 @@ class DataflowBlockRewriteNode : public Object {
   /*! \brief Insert an expression as VarBinding with automatic variable name. */
   void Add(Expr expr, bool is_dfvar = false) { Add(make_new_varname(), expr, is_dfvar); }
   /*! \brief Remove the definition statement of an unused variable. */
-  void RemoveUnused(Var unused);
+  void RemoveUnused(Var unused, bool allow_undef = false);
   /*! \brief Remove the definition all statements of unused variables. */
   void RemoveAllUnused();
 

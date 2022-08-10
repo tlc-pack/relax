@@ -91,7 +91,7 @@ class DataflowBlockRewrite(Object):
         """
         _ffi_api.dfb_rewrite_add(self, expr, name, is_dfvar)
 
-    def remove_unused(self, var: Var) -> None:
+    def remove_unused(self, var: Var, allow_undef=False) -> None:
         """
         Remove a statement by its variable definition if and only if it is unused.
 
@@ -99,12 +99,14 @@ class DataflowBlockRewrite(Object):
         ----------
         var : Var
             The unused variable definition.
+        allow_undef : bool, optional
+            Whether to allow var being undefined variable, by default False
 
         Raises
         ------
-        TVMError if the variable is used or undefined.
+        TVMError if the variable is used or undefined (allow_undef=False).
         """
-        _ffi_api.dfb_rewrite_remove_unused(self, var)
+        _ffi_api.dfb_rewrite_remove_unused(self, var, allow_undef)
 
     def remove_all_unused(self) -> None:
         """

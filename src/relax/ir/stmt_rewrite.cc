@@ -260,9 +260,13 @@ class RemoveAllUnusedVar : public ExprMutator {
   }
 };
 
-void DataflowBlockRewriteNode::RemoveUnused(Var unused) {
+void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   // first need to check if this var is used.
-  ICHECK(to_users_.count(unused)) << "Cannot remove " << unused << " as it's not found in " << dfb_;
+  if (0 == to_users_.count(unused)) {  // no def.
+    if (allow_undef) return;
+    LOG(FATAL) << unused << " undefined. Set allow_undef=True to allow 'removing' undefined var";
+  }
+
   ICHECK(to_users_[unused].empty())
       << unused << " is used by " << to_users_[unused].size() << " vars";
 
@@ -278,7 +282,9 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused) {
 }
 
 TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_unused")
-    .set_body_typed([](DataflowBlockRewrite rwt, Var unused) { rwt->RemoveUnused(unused); });
+    .set_body_typed([](DataflowBlockRewrite rwt, Var unused, bool allow_undef) {
+      rwt->RemoveUnused(unused, allow_undef);
+    });
 
 void DataflowBlockRewriteNode::RemoveAllUnused() {
   auto prev_dfb = dfb_.object;
