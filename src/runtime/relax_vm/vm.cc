@@ -51,6 +51,33 @@ VMFunction VirtualMachine::LookupVMFunction(const std::string& func_name) {
   return vm_func;
 }
 
+RegType VirtualMachine::LookupVMOutput(const std::string& func_name) {
+  if (!outputs_.count(func_name)) {
+    LOG(FATAL) << "ValueError: No output saved for call of \"" << func_name
+               << "\"; use `invoke_stateful` to call it first.";
+  }
+  return outputs_[func_name];
+}
+
+// Use the args after `starting_arg_idx` as a series of indices into `obj`,
+// indexing into nested ADTs and returning the final indexed object.
+ObjectRef IndexIntoNestedObject(ObjectRef obj, TVMArgs args, int starting_arg_idx) {
+  for (int i = starting_arg_idx; i < args.size(); i++) {
+    // the object must be an ADT to be able to index into it
+    if (!obj.as<ADTObj>()) {
+      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
+    }
+    int index = args[i];
+    auto adt = Downcast<ADT>(obj);
+    // make sure the index is in bounds
+    if (index >= static_cast<int>(adt.size())) {
+      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
+    }
+    obj = adt[index];
+  }
+  return obj;
+}
+
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "vm_initialization") {
@@ -108,6 +135,47 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       Index func_idx = it->second;
       *rv = Invoke(func_idx, new_args);
     });
+  } else if (name == "invoke_stateful") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      const auto& m = this->exec_->global_map;
+      if (m.find(func_name) == m.end()) {
+        LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+      }
+      Index gf_idx = m.at(func_name);
+      if (!inputs_.count(func_name)) {
+        LOG(FATAL) << "ValueError: No inputs set for stateful call of " << func_name
+                   << "; use `set_input` first.";
+        return;
+      }
+      outputs_[func_name] = this->Invoke(gf_idx, inputs_[func_name]);
+    });
+  } else if (name == "get_output_arity") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      RegType out = LookupVMOutput(func_name);
+      // use remaining args as indices
+      ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
+      // after chasing through the indices, examine the final object
+      if (const auto* adt = obj.as<ADTObj>()) {
+        *rv = static_cast<int>(adt->size);
+      } else {
+        *rv = -1;
+      }
+    });
+  } else if (name == "get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      RegType out = LookupVMOutput(func_name);
+      // use remaining args as indices
+      ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
+      if (obj.as<ADTObj>()) {
+        LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
+                      "Please specify another index argument.";
+        return;
+      }
+      *rv = obj;
+    });
   } else if (name == "set_input") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
@@ -135,7 +203,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     Index gf_idx = m.at(name);
     return PackedFunc([sptr_to_self, this, gf_idx, name](TVMArgs args, TVMRetValue* rv) {
       if (inputs_.count(name)) {
-        *rv = this->Invoke(gf_idx, inputs_[name]);
+        LOG(FATAL) << "ValueError: If inputs have been set, `invoke_stateful`"
+                   << " must be used to invoke a function!";
+        return;
       } else {
         std::vector<RegType> inputs(args.size());
         for (int i = 0; i < args.size(); ++i) {
@@ -342,7 +412,7 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
     const VMFunction& vm_func = exec_->global_funcs[gf_idx];
     size_t params_num = vm_func.num_args;
     ICHECK_EQ(args.size() - offset, params_num)
-        << "The number of provided parameters doesn't match the number of arguments";
+        << "The number of provided parameters doesn't match the number of arguments for";
     std::vector<RegType> func_args(params_num);
     for (int i = offset; i < args.size(); ++i) {
       int index = i - offset;
