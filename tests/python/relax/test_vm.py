@@ -16,10 +16,12 @@
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
 import os
+from typing import Callable, Tuple
 
 import numpy as np
 import pytest
 import tvm
+from tvm.runtime.object import Object
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tir, topi, TVMError
@@ -926,41 +928,99 @@ class TestVMSetInput:
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = A[vi, vj] * B[vi, vj]
 
+    # test returning a tuple
+    @R.function
+    def test_vm_tuple(x: Tensor((), "int32")) -> Tuple(Tensor((), "int32"), Tensor((), "int32")):
+        return (x, x)
+
+    # nested tuple too
+    @R.function
+    def test_vm_nested_tuple(
+        x: Tensor((), "int32")
+    ) -> Tuple(Tuple(Tensor((), "int32"), Tuple(Tensor((), "int32"),)), Tensor((), "int32")):
+        return ((x, (x,)), x)
+
     @R.function
     def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
         gv0 = R.call_tir("test_vm_mul", (x, w), (32, 32), dtype="float32")
         return gv0
 
 
-def perform_set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     vm.set_input("main", a, b)
-    res0 = vm["main"]()
+    vm.invoke_stateful("main")
+    res0 = vm.get_outputs("main")
 
     data_dict = {"x": a, "w": b}
     vm.set_input("main", **data_dict)
-    res1 = vm["main"]()
+    vm.invoke_stateful("main")
+    res1 = vm.get_outputs("main")
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
     tvm.testing.assert_allclose(res0.numpy(), res1.numpy(), rtol=1e-7, atol=1e-7)
 
+    # bug! If you don't bind the NDArray to a var, the memory will get corrupted.
+    # Possibly due to object lifecycles and other FFI issues
+    a = tvm.nd.array(2, device)
+    vm.set_input("test_vm_tuple", a)
+    vm.invoke_stateful("test_vm_tuple")
+    res2 = vm.get_outputs("test_vm_tuple")
+    # the results are NDArrays wrapped around scalars,
+    # so we have to get the scalar out of the NDArray
+    assert tuple(map(lambda a: int(a.numpy()), res2)) == (2, 2)
 
-def test_set_input():
+    b = tvm.nd.array(1, device)
+    vm.set_input("test_vm_nested_tuple", b)
+    vm.invoke_stateful("test_vm_nested_tuple")
+    res3 = vm.get_outputs("test_vm_nested_tuple")
+    assert len(res3) == 2 and len(res3[0]) == 2 and len(res3[0][1]) == 1
+    result_cast = ((int(res3[0][0].numpy()), (int(res3[0][1][0].numpy()),)), int(res3[1].numpy()))
+    assert result_cast == ((1, (1,)), 1)
+
+
+def set_input_attempt_stateless(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # this should fail: once you set inputs, you cannot run statelessly
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    vm.set_input("main", a, b)
+    # must use invoke stateful!
+    vm["main"]()
+
+
+def set_input_attempt_invoke(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # this should fail: if the function needs inputs, you can't invoke directly
+    vm.invoke_stateful("main")
+
+
+def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # this should fail: you can't get outputs without invoking the function first
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    vm.set_input("main", a, b)
+    _ = vm.get_outputs("main")
+
+
+def make_vm(mod) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+    """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
     exec = relax.vm.build(TestVMSetInput, target)
     exec.mod.export_library("exec.so")
     exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
     os.remove("exec.so")
-    print(exec_loaded.as_python())
     device = tvm.cpu()
-    vm = relax.VirtualMachine(exec_loaded, device)
-
-    perform_set_input_trial(vm, device)
+    return relax.VirtualMachine(exec_loaded, device), device
 
 
-def test_set_input_rpc():
+def run_on_rpc(
+    mod: tvm.IRModule, trial_func: Callable[[relax.VirtualMachine, tvm.runtime.Device], None]
+):
+    """
+    Sets up a VM over localhost using the given mod and runs the given trial function.
+    The trial function should take a VM and a device
+    """
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(TestVMSetInput, target)
+    exec = relax.vm.build(mod, target)
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
     exec.mod.export_library(path)
@@ -980,9 +1040,48 @@ def test_set_input_rpc():
         device = remote.cpu()
         # Build a VM out of the executable and context.
         vm = relax.vm.VirtualMachine(exec=rexec, device=device)
-        perform_set_input_trial(vm, device)
+        trial_func(vm, device)
 
     check_remote(rpc.Server("127.0.0.1"))
+
+
+def test_set_input():
+    set_input_trial(*make_vm(TestVMSetInput))
+
+
+def test_set_input_rpc():
+    run_on_rpc(TestVMSetInput, set_input_trial)
+
+
+# if you set an input, you should not be able to call statelessly
+@pytest.mark.xfail()
+def test_set_input_stateless_failure():
+    set_input_attempt_stateless(*make_vm(TestVMSetInput))
+
+
+@pytest.mark.xfail()
+def test_set_input_stateless_failure_rpc():
+    run_on_rpc(TestVMSetInput, set_input_attempt_stateless)
+
+
+@pytest.mark.xfail()
+def test_set_input_invoke_failure():
+    set_input_attempt_invoke(*make_vm(TestVMSetInput))
+
+
+@pytest.mark.xfail()
+def test_set_input_invoke_failure_rpc():
+    run_on_rpc(TestVMSetInput, set_input_attempt_invoke)
+
+
+@pytest.mark.xfail()
+def test_set_input_get_failure():
+    set_input_attempt_get(*make_vm(TestVMSetInput))
+
+
+@pytest.mark.xfail()
+def test_set_input_get_failure_rpc():
+    run_on_rpc(TestVMSetInput, set_input_attempt_get)
 
 
 if __name__ == "__main__":
