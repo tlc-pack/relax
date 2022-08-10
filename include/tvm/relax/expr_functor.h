@@ -276,7 +276,7 @@ class ExprMutator : public ExprMutatorBase {
    * \param block The binding block to be visited.
    * \return The binding block after transformation.
    */
-  virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
+  virtual BindingBlock VisitBindingBlock(const BindingBlock& block) override;
   // specific leaf level visitor functions
   virtual BindingBlock VisitBindingBlock_(const BindingBlockNode* block);
   virtual BindingBlock VisitBindingBlock_(const DataflowBlockNode* block);

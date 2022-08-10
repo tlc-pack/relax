@@ -109,7 +109,7 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
-  ~VirtualMachine() final {}
+  ~VirtualMachine() {}
 
   const char* type_key() const final { return "relax.VirtualMachine"; }
 

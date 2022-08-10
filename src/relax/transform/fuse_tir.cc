@@ -631,7 +631,9 @@ class TIRFuseMutator : public ExprMutator {
  private:
   explicit TIRFuseMutator(const IRModule& mod) : mod_(mod) {}
 
-  Expr VisitExpr_(const CallNode* op) final {
+  using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const CallNode* op) override final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
     if (call->op->IsInstance<GlobalVarNode>()) {

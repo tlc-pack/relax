@@ -66,6 +66,8 @@ class VMMemLowerMutator : public ExprMutator {
     return ret;
   }
 
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
     Expr expr = VisitExprPostOrder_(call);

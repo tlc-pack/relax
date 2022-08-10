@@ -44,6 +44,8 @@ class LambdaLifter : public ExprMutator {
  public:
   explicit LambdaLifter(const IRModule& module) : ExprMutator(module) { mod_ = module; }
 
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
     if (auto const* var = call_node->op.as<VarNode>()) {

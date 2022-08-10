@@ -42,6 +42,7 @@ namespace relax {
 
 class CallTIRMutator : public ExprMutator {
  public:
+  using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
     Expr expr = VisitExprPostOrder_(call);
