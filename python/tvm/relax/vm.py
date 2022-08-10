@@ -91,6 +91,9 @@ class VirtualMachine(object):
         )
         self._invoke_closure = self.module["invoke_closure"]
         self._set_input = self.module["set_input"]
+        self._invoke_stateful = self.module["invoke_stateful"]
+        self._get_output = self.module["get_output"]
+        self._get_output_arity = self.module["get_output_arity"]
         self._get_function_arity = self.module["get_function_arity"]
         self._get_function_param_name = self.module["get_function_param_name"]
         self._setup_device(device, memory_cfg)
@@ -195,6 +198,9 @@ class VirtualMachine(object):
         the arguments to DLTensor, which is supported in RPC where remote could only
         have a minimal C runtime.
 
+        Note: If `set_input` is used, the function *must* be called using `invoke_stateful`
+        and the results must be obtained using `get_outputs`.
+
         Parameters
         ----------
         func_name : str
@@ -230,6 +236,52 @@ class VirtualMachine(object):
             self._convert(arg, cargs)
 
         self._set_input(func_name, *cargs)
+
+    def invoke_stateful(self, func_name: str) -> None:
+        """
+        Call the named function from the VM module using the arguments set using `set_input`.
+        It is an error to call `invoke_stateful` without using `set_input` first
+        (even if it's to set 0 inputs); conversely, if `set_input` has been called,
+        it is an error to call the function without using `invoke_stateful`.
+
+        The results of the call can be obtained by calling `get_outputs`.
+
+        Parameters
+        ----------
+        func_name: str
+            The name of the function to call.
+        """
+        self._invoke_stateful(func_name)
+
+    def get_outputs(self, func_name: str) -> Union[tvm.Object, Tuple[Any]]:
+        """
+        Get the value output by the function by the given name
+        after a call of `invoke_stateful`.
+
+        It is an error to call this function without first calling `invoke_stateful`.
+
+        Parameters
+        ----------
+        func_name: str
+            The name of the function whose output should be fetched.
+
+        Returns
+        -------
+        ret: Union[tvm.Object, Tuple[Any]]
+            The result of the earlier call to the function via `invoke_stateful`.
+            If the result is a tuple, it returns a list of the fields.
+            The fields are potentially also tuples, so these can be arbitrily nested.
+        """
+        # to deal with potentially nested tuples, we need to query for arity recursively
+        def get_output_rec(func_name, *idx):
+            arity = self._get_output_arity(func_name, *idx)
+            if arity == -1:
+                return self._get_output(func_name, *idx)
+            # otherwise we need to specify more indices
+            idx_list = list(idx)
+            return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
+
+        return get_output_rec(func_name)
 
 
 def build(
