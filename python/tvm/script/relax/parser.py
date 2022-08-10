@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, no-else-return, too-many-nested-blocks
 # pylint: disable=inconsistent-return-statements, ungrouped-imports
+# pylint: disable=arguments-differ
 """TVM Script Parser For Relax"""
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ import inspect
 import json
 from enum import Enum
 from typing import Union, Dict, List, Tuple, Optional, Callable, Any
+import synr
+from synr import ast, Transformer
 
 import tvm
 from tvm import relay, relax, tir
@@ -33,8 +36,6 @@ from tvm.ir.module import IRModule
 from tvm.script.tir.node import BufferSlice
 import tvm.script.tir as tir_namespace
 import tvm.script.relax as relax_namespace
-import synr
-from synr import ast, Transformer
 
 from ..parser import TVMScriptParser as _TIRScriptParser
 from ..utils import tvm_span_from_synr, call_with_error_reporting

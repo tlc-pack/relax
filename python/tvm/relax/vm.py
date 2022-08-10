@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
 from typing import List, Optional, Union, Dict, Tuple
-from tvm._ffi import base as _base
 import numpy as np
 
+from tvm._ffi import base as _base
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
