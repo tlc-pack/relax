@@ -64,6 +64,8 @@ class VMShapeLowerMutator : public ExprMutator {
     StoreShape(shape, binding->pattern);
   }
 
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const ShapeExprNode* node) override {
     if (IsConstantShape(GetRef<ShapeExpr>(node))) {
       return ExprMutator::VisitExpr_(node);
