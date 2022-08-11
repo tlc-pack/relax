@@ -91,22 +91,19 @@ class ExprFunctor;
       self->VisitExpr_(static_cast<const OP*>(n.get()));                 \
   });
 
-#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC, PY_POST_ORDER_FUNC)                             \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) {                      \
-    ICHECK(self->PY_FUNC == nullptr || self->PY_POST_ORDER_FUNC == nullptr)                   \
-        << "Cannot overwrite visit function and post order visit function at the same time."; \
-    if (self->PY_POST_ORDER_FUNC != nullptr) {                                                \
-      Expr expr = self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));                 \
-      expr = self->PY_POST_ORDER_FUNC(expr);                                                  \
-      return expr;                                                                            \
-    } else {                                                                                  \
-      if (self->PY_FUNC != nullptr) {                                                         \
-        Expr expr = self->PY_FUNC(n);                                                         \
-        return expr;                                                                          \
-      } else {                                                                                \
-        return self->VisitExpr_(static_cast<const OP*>(n.get()));                             \
-      }                                                                                       \
-    }                                                                                         \
+#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                            \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
+    if (self->PY_FUNC != nullptr) {                                      \
+      Expr expr = self->PY_FUNC(n);                                      \
+      return expr;                                                       \
+    } else {                                                             \
+      return self->VisitExpr_(static_cast<const OP*>(n.get()));          \
+    }                                                                    \
+  });
+
+#define PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OP)                          \
+  post_order_vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
+    return self->VisitExprPostOrder_(static_cast<const OP*>(n.get()));              \
   });
 
 template <typename R, typename... Args>
@@ -673,34 +670,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   PackedFunc f_visit_type{nullptr};
   /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
   PackedFunc f_visit_span{nullptr};
-  /*! \brief The packed function to post order visit Constant. */
-  PackedFunc f_rewrite_constant_post_order{nullptr};
-  /*! \brief The packed function to post order visit Tuple. */
-  PackedFunc f_rewrite_tuple_post_order{nullptr};
-  /*! \brief The packed function to post order visit Var. */
-  PackedFunc f_rewrite_var_post_order{nullptr};
-  /*! \brief The packed function to post order visit DataflowVar. */
-  PackedFunc f_rewrite_dataflow_var_post_order{nullptr};
-  /*! \brief The packed function to post order visit ShapeExpr. */
-  PackedFunc f_rewrite_shape_expr_post_order{nullptr};
-  /*! \brief The packed function to post order visit RuntimeDepShape. */
-  PackedFunc f_rewrite_runtime_dep_shape_post_order{nullptr};
-  /*! \brief The packed function to post order visit ExternFunc. */
-  PackedFunc f_rewrite_extern_func_post_order{nullptr};
-  /*! \brief The packed function to post order visit GlobalVar. */
-  PackedFunc f_rewrite_global_var_post_order{nullptr};
-  /*! \brief The packed function to post order visit Function. */
-  PackedFunc f_rewrite_function_post_order{nullptr};
-  /*! \brief The packed function to post order visit Call. */
-  PackedFunc f_rewrite_call_post_order{nullptr};
-  /*! \brief The packed function to post order visit SeqExpr. */
-  PackedFunc f_rewrite_seq_expr_post_order{nullptr};
-  /*! \brief The packed function to post order visit If. */
-  PackedFunc f_rewrite_if_post_order{nullptr};
-  /*! \brief The packed function to post order visit Op. */
-  PackedFunc f_rewrite_op_post_order{nullptr};
-  /*! \brief The packed function to post order visit TupleGetItem. */
-  PackedFunc f_rewrite_tuple_getitem_post_order{nullptr};
 
   Expr VisitExpr(const Expr& expr) {
     if (f_visit_expr != nullptr) {
@@ -754,6 +723,16 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   Type VisitType(const Type& t)
       PY_EXPR_MUTATOR_DEFAULT(t, f_visit_type, ExprMutator::VisitType(t), Type);
 
+  /*!
+   * \brief Dispatcher for post-order rewrite.
+   * \param expr The Expr to be rewritten.
+   * \return The Expr after post-order rewritten.
+   */
+  Expr VisitExprPostOrder(const Expr& expr) {
+    static FType post_order_vtable = InitPostOrderVTable();
+    return post_order_vtable(expr, this);
+  }
+
   using ExprMutator::builder_;
   using ExprMutator::LookupBinding;
   using ExprMutator::var_remap_;
@@ -769,25 +748,42 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
-    PY_EXPR_MUTATOR_DISPATCH(ConstantNode, f_visit_constant_, f_rewrite_constant_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(TupleNode, f_visit_tuple_, f_rewrite_tuple_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var_, f_rewrite_var_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(DataflowVarNode, f_visit_dataflow_var_,
-                             f_rewrite_dataflow_var_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(ShapeExprNode, f_visit_shape_expr_, f_rewrite_shape_expr_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(RuntimeDepShapeNode, f_visit_runtime_dep_shape_,
-                             f_rewrite_runtime_dep_shape_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(ExternFuncNode, f_visit_extern_func_,
-                             f_rewrite_extern_func_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(GlobalVarNode, f_visit_global_var_, f_rewrite_global_var_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(FunctionNode, f_visit_function_, f_rewrite_function_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(CallNode, f_visit_call_, f_rewrite_call_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(SeqExprNode, f_visit_seq_expr_, f_rewrite_seq_expr_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(IfNode, f_visit_if_, f_rewrite_if_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(OpNode, f_visit_op_, f_rewrite_op_post_order);
-    PY_EXPR_MUTATOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_,
-                             f_rewrite_tuple_getitem_post_order);
+    PY_EXPR_MUTATOR_DISPATCH(ConstantNode, f_visit_constant_);
+    PY_EXPR_MUTATOR_DISPATCH(TupleNode, f_visit_tuple_);
+    PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var_);
+    PY_EXPR_MUTATOR_DISPATCH(DataflowVarNode, f_visit_dataflow_var_);
+    PY_EXPR_MUTATOR_DISPATCH(ShapeExprNode, f_visit_shape_expr_);
+    PY_EXPR_MUTATOR_DISPATCH(RuntimeDepShapeNode, f_visit_runtime_dep_shape_);
+    PY_EXPR_MUTATOR_DISPATCH(ExternFuncNode, f_visit_extern_func_);
+    PY_EXPR_MUTATOR_DISPATCH(GlobalVarNode, f_visit_global_var_);
+    PY_EXPR_MUTATOR_DISPATCH(FunctionNode, f_visit_function_);
+    PY_EXPR_MUTATOR_DISPATCH(CallNode, f_visit_call_);
+    PY_EXPR_MUTATOR_DISPATCH(SeqExprNode, f_visit_seq_expr_);
+    PY_EXPR_MUTATOR_DISPATCH(IfNode, f_visit_if_);
+    PY_EXPR_MUTATOR_DISPATCH(OpNode, f_visit_op_);
+    PY_EXPR_MUTATOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
     return vtable;
+  }
+
+  // initialize the vtable for post order visit.
+  static FType InitPostOrderVTable() {
+    FType post_order_vtable;
+    // Set dispatch
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(ConstantNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(TupleNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(VarNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(DataflowVarNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(ShapeExprNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(RuntimeDepShapeNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(ExternFuncNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(GlobalVarNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(FunctionNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(CallNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(SeqExprNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(IfNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OpNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(TupleGetItemNode);
+    return post_order_vtable;
   }
 };
 
@@ -834,21 +830,6 @@ class PyExprMutator : public ObjectRef {
    * var)`.
    * \param f_visit_type The packed function of `VisitType(const Type& t)`.
    * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
-   * \param f_rewrite_constant_post_order The packed function to post order visit Constant.
-   * \param f_rewrite_tuple_post_order The packed function to post order visit Tuple.
-   * \param f_rewrite_var_post_order The packed function to post order visit Var.
-   * \param f_rewrite_dataflow_var_post_order The packed function to post order visit DataflowVar.
-   * \param f_rewrite_shape_expr_post_order The packed function to post order visit ShapeExpr.
-   * \param f_rewrite_runtime_dep_shape_post_order The packed function to post order visit
-   * RuntimeDepShape.
-   * \param f_rewrite_extern_func_post_order The packed function to post order visit ExternFunc.
-   * \param f_rewrite_global_var_post_order The packed function to post order visit GlobalVar.
-   * \param f_rewrite_function_post_order The packed function to post order visit Function.
-   * \param f_rewrite_call_post_order The packed function to post order visit Call.
-   * \param f_rewrite_seq_expr_post_order The packed function to post order visit SeqExpr.
-   * \param f_rewrite_if_post_order The packed function to post order visit If.
-   * \param f_rewrite_op_post_order The packed function to post order visit Op.
-   * \param f_rewrite_tuple_getitem_post_order The packed function to post order visit TupleGetItem.
    * \return The PyExprMutator created.
    */
   TVM_DLL static PyExprMutator MakePyExprMutator(
@@ -861,14 +842,7 @@ class PyExprMutator : public ObjectRef {
       PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_shape_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
-      PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_type, PackedFunc f_visit_span,
-      PackedFunc f_rewrite_constant_post_order, PackedFunc f_rewrite_tuple_post_order,
-      PackedFunc f_rewrite_var_post_order, PackedFunc f_rewrite_dataflow_var_post_order,
-      PackedFunc f_rewrite_shape_expr_post_order, PackedFunc f_rewrite_runtime_dep_shape_post_order,
-      PackedFunc f_rewrite_extern_func_post_order, PackedFunc f_rewrite_global_var_post_order,
-      PackedFunc f_rewrite_function_post_order, PackedFunc f_rewrite_call_post_order,
-      PackedFunc f_rewrite_seq_expr_post_order, PackedFunc f_rewrite_if_post_order,
-      PackedFunc f_rewrite_op_post_order, PackedFunc f_rewrite_tuple_getitem_post_order) {
+      PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_type, PackedFunc f_visit_span) {
     ObjectPtr<PyExprMutatorNode> n = make_object<PyExprMutatorNode>();
     n->builder_ = builder_;
     n->f_visit_expr = f_visit_expr;
@@ -897,20 +871,6 @@ class PyExprMutator : public ObjectRef {
     n->f_visit_dataflow_var_def_ = f_visit_dataflow_var_def_;
     n->f_visit_type = f_visit_type;
     n->f_visit_span = f_visit_span;
-    n->f_rewrite_constant_post_order = f_rewrite_constant_post_order;
-    n->f_rewrite_tuple_post_order = f_rewrite_tuple_post_order;
-    n->f_rewrite_var_post_order = f_rewrite_var_post_order;
-    n->f_rewrite_dataflow_var_post_order = f_rewrite_dataflow_var_post_order;
-    n->f_rewrite_shape_expr_post_order = f_rewrite_shape_expr_post_order;
-    n->f_rewrite_runtime_dep_shape_post_order = f_rewrite_runtime_dep_shape_post_order;
-    n->f_rewrite_extern_func_post_order = f_rewrite_extern_func_post_order;
-    n->f_rewrite_global_var_post_order = f_rewrite_global_var_post_order;
-    n->f_rewrite_function_post_order = f_rewrite_function_post_order;
-    n->f_rewrite_call_post_order = f_rewrite_call_post_order;
-    n->f_rewrite_seq_expr_post_order = f_rewrite_seq_expr_post_order;
-    n->f_rewrite_if_post_order = f_rewrite_if_post_order;
-    n->f_rewrite_op_post_order = f_rewrite_op_post_order;
-    n->f_rewrite_tuple_getitem_post_order = f_rewrite_tuple_getitem_post_order;
     return PyExprMutator(n);
   }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PyExprMutator, ObjectRef, PyExprMutatorNode);

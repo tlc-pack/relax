@@ -70,7 +70,8 @@ class SwapMAVar(relax.PyExprMutator):
     def __init__(self) -> None:
         super().__init__()
 
-    def rewrite_call_post_order(self, call: Call) -> Call:
+    def visit_call_(self, call: Call) -> Call:
+        call = self.visit_expr_post_order(call)
         if call.op == ir.Op.get("relax.add"):
             new_op = ir.Op.get("relax.multiply")
         elif call.op == ir.Op.get("relax.multiply"):

@@ -76,14 +76,24 @@ def derived_object(cls: type) -> type:
         def method(*args, **kwargs):
             return getattr(inst, name)(*args, **kwargs)
 
-        if getattr(base, name) is getattr(cls, name) and name != "__str__":
-            # for task scheduler return None means calling default function
-            # otherwise it will trigger a TVMError of method not implemented
-            # on the c++ side when you call the method, __str__ not required
-            return None
-        return method
+        for inherit_cls, base_cls in zip(cls.__mro__, cls.__mro__[1:]):
+            # extract functions that differ from the base class
+            if not hasattr(base_cls, name):
+                continue
+            if getattr(base_cls, name) is getattr(inherit_cls, name) and name != "__str__":
+                continue
+            return method
+
+        # for task scheduler return None means calling default function
+        # otherwise it will trigger a TVMError of method not implemented
+        # on the c++ side when you call the method, __str__ not required
+        return None
 
     assert isinstance(cls.__base__, type)
+    if hasattr(cls, "_type") and cls._type == "TVMDerivedObject":
+        raise TypeError(
+            f"Inheritance from a decorated object `{cls.__name__}` is not allowed. Please inherit from `{cls.__name__}._cls`."
+        )
     assert hasattr(
         cls, "_tvm_metadata"
     ), "Please use the user-facing method overiding class, i.e., PyRunner."
@@ -95,6 +105,9 @@ def derived_object(cls: type) -> type:
 
     class TVMDerivedObject(metadata["cls"]):  # type: ignore
         """The derived object to avoid cyclic dependency."""
+
+        _cls = cls
+        _type = "TVMDerivedObject"
 
         def __init__(self, *args, **kwargs):
             """Constructor."""

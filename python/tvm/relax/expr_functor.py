@@ -337,7 +337,8 @@ class PyExprVisitor:
         op : Constant
             The Constant to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_tuple_(self, op: Tuple) -> None:
         """Visit Tuple.
@@ -349,7 +350,8 @@ class PyExprVisitor:
         op : Tuple
             The Tuple to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_var_(self, op: Var) -> None:
         """Visit Var.
@@ -361,7 +363,8 @@ class PyExprVisitor:
         op : Var
             The Var to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_dataflow_var_(self, op: DataflowVar) -> None:
         """Visit DataflowVar.
@@ -373,7 +376,8 @@ class PyExprVisitor:
         op : DataflowVar
             The DataflowVar to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         """Visit ShapeExpr.
@@ -385,7 +389,8 @@ class PyExprVisitor:
         op : ShapeExpr
             The ShapeExpr to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
         """Visit RuntimeDepShape.
@@ -397,7 +402,8 @@ class PyExprVisitor:
         op : RuntimeDepShape
             The RuntimeDepShape to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_extern_func_(self, op: ExternFunc) -> None:
         """Visit ExternFunc.
@@ -409,7 +415,8 @@ class PyExprVisitor:
         op : ExternFunc
             The ExternFunc to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_global_var_(self, op: GlobalVar) -> None:
         """Visit GlobalVar.
@@ -421,7 +428,8 @@ class PyExprVisitor:
         op : GlobalVar
             The GlobalVar to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_function_(self, op: Function) -> None:
         """Visit Function.
@@ -433,7 +441,8 @@ class PyExprVisitor:
         op : Function
             The Function to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_call_(self, op: Call) -> None:
         """Visit Call.
@@ -445,7 +454,8 @@ class PyExprVisitor:
         op : Call
             The Call to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_seq_expr_(self, op: SeqExpr) -> None:
         """Visit SeqExpr.
@@ -457,7 +467,8 @@ class PyExprVisitor:
         op : SeqExpr
             The SeqExpr to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_if_(self, op: If) -> None:
         """Visit If.
@@ -469,7 +480,8 @@ class PyExprVisitor:
         op : If
             The If to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_op_(self, op: Op) -> None:
         """Visit Op.
@@ -481,7 +493,8 @@ class PyExprVisitor:
         op : Op
             The Op to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
         """Visit TupleGetItem.
@@ -493,7 +506,8 @@ class PyExprVisitor:
         op : TupleGetItem
             The TupleGetItem to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
@@ -630,20 +644,6 @@ class _PyExprMutator(Object):
         f_visit_dataflow_var_def_: Callable = None,
         f_visit_type: Callable = None,
         f_visit_span: Callable = None,
-        f_rewrite_constant_post_order: Callable = None,
-        f_rewrite_tuple_post_order: Callable = None,
-        f_rewrite_var_post_order: Callable = None,
-        f_rewrite_dataflow_var_post_order: Callable = None,
-        f_rewrite_shape_expr_post_order: Callable = None,
-        f_rewrite_runtime_dep_shape_post_order: Callable = None,
-        f_rewrite_extern_func_post_order: Callable = None,
-        f_rewrite_global_var_post_order: Callable = None,
-        f_rewrite_function_post_order: Callable = None,
-        f_rewrite_call_post_order: Callable = None,
-        f_rewrite_seq_expr_post_order: Callable = None,
-        f_rewrite_if_post_order: Callable = None,
-        f_rewrite_op_post_order: Callable = None,
-        f_rewrite_tuple_getitem_post_order: Callable = None,
     ) -> None:
         """Constructor."""
 
@@ -676,20 +676,6 @@ class _PyExprMutator(Object):
             f_visit_dataflow_var_def_,
             f_visit_type,
             f_visit_span,
-            f_rewrite_constant_post_order,
-            f_rewrite_tuple_post_order,
-            f_rewrite_var_post_order,
-            f_rewrite_dataflow_var_post_order,
-            f_rewrite_shape_expr_post_order,
-            f_rewrite_runtime_dep_shape_post_order,
-            f_rewrite_extern_func_post_order,
-            f_rewrite_global_var_post_order,
-            f_rewrite_function_post_order,
-            f_rewrite_call_post_order,
-            f_rewrite_seq_expr_post_order,
-            f_rewrite_if_post_order,
-            f_rewrite_op_post_order,
-            f_rewrite_tuple_getitem_post_order,
         )
 
     def visit_expr(self, expr: Expr) -> Expr:
@@ -796,20 +782,6 @@ class PyExprMutator:
             "visit_dataflow_var_def_",
             "visit_type",
             "visit_span",
-            "rewrite_constant_post_order",
-            "rewrite_tuple_post_order",
-            "rewrite_var_post_order",
-            "rewrite_dataflow_var_post_order",
-            "rewrite_shape_expr_post_order",
-            "rewrite_runtime_dep_shape_post_order",
-            "rewrite_extern_func_post_order",
-            "rewrite_global_var_post_order",
-            "rewrite_function_post_order",
-            "rewrite_call_post_order",
-            "rewrite_seq_expr_post_order",
-            "rewrite_if_post_order",
-            "rewrite_op_post_order",
-            "rewrite_tuple_getitem_post_order",
         ],
     }
 
@@ -898,7 +870,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_tuple_(self, op: Tuple) -> Expr:
         """Visit Tuple.
@@ -915,7 +888,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_var_(self, op: Var) -> Expr:
         """Visit Var.
@@ -932,7 +906,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         """Visit DataflowVar.
@@ -949,7 +924,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         """Visit ShapeExpr.
@@ -966,7 +942,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
         """Visit RuntimeDepShape.
@@ -983,7 +960,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_extern_func_(self, op: ExternFunc) -> Expr:
         """Visit ExternFunc.
@@ -1000,7 +978,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_global_var_(self, op: GlobalVar) -> Expr:
         """Visit GlobalVar.
@@ -1017,7 +996,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_function_(self, op: Function) -> Expr:
         """Visit Function.
@@ -1034,7 +1014,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_call_(self, op: Call) -> Expr:
         """Visit Call.
@@ -1051,7 +1032,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         """Visit SeqExpr.
@@ -1068,7 +1050,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_if_(self, op: If) -> Expr:
         """Visit If.
@@ -1085,7 +1068,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_op_(self, op: Op) -> Expr:
         """Visit Op.
@@ -1102,7 +1086,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         """Visit TupleGetItem.
@@ -1119,7 +1104,8 @@ class PyExprMutator:
         result : Expr
             The Expr after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
@@ -1245,313 +1231,20 @@ class PyExprMutator:
         """
         raise NotImplementedError
 
-    def rewrite_constant_post_order(self, op: Constant) -> Expr:
-        """Rewrite Constant after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const ConstantNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
+    def visit_expr_post_order(self, expr: Expr) -> Expr:
+        """Post-order rewrite an Expr and normalize.
 
         Parameters
         ----------
-        op : Constant
-            The Constant to be rewritten, also the return value from the post-order visit.
+        expr : Expr
+            The Expr to be rewritten.
 
         Returns
         -------
         result : Expr
-            The Expr after rewritten.
+            The Expr after post-order rewritten.
         """
-        raise NotImplementedError
-
-    def rewrite_tuple_post_order(self, op: Tuple) -> Expr:
-        """Rewrite Tuple after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const TupleNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : Tuple
-            The Tuple to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_var_post_order(self, op: Var) -> Expr:
-        """Rewrite Var after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const VarNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : Var
-            The Var to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_dataflow_var_post_order(self, op: DataflowVar) -> Expr:
-        """Rewrite DataflowVar after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const DataflowVarNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : DataflowVar
-            The DataflowVar to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_shape_expr_post_order(self, op: ShapeExpr) -> Expr:
-        """Rewrite ShapeExpr after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const ShapeExprNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : ShapeExpr
-            The ShapeExpr to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_runtime_dep_shape_post_order(self, op: RuntimeDepShape) -> Expr:
-        """Rewrite RuntimeDepShape after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const RuntimeDepShapeNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : RuntimeDepShape
-            The RuntimeDepShape to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_extern_func_post_order(self, op: ExternFunc) -> Expr:
-        """Rewrite ExternFunc after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const ExternFuncNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : ExternFunc
-            The ExternFunc to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_global_var_post_order(self, op: GlobalVar) -> Expr:
-        """Rewrite GlobalVar after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const GlobalVarNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : GlobalVar
-            The GlobalVar to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_function_post_order(self, op: Function) -> Expr:
-        """Rewrite Function after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const FunctionNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : Function
-            The Function to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_call_post_order(self, op: Call) -> Expr:
-        """Rewrite Call after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const CallNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : Call
-            The Call to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_seq_expr_post_order(self, op: SeqExpr) -> Expr:
-        """Rewrite SeqExpr after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const SeqExprNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : SeqExpr
-            The SeqExpr to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_if_post_order(self, op: If) -> Expr:
-        """Rewrite If after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const IfNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : If
-            The If to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_op_post_order(self, op: Op) -> Expr:
-        """Rewrite Op after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const OpNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : Op
-            The Op to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
-
-    def rewrite_tuple_getitem_post_order(self, op: TupleGetItem) -> Expr:
-        """Rewrite TupleGetItem after post-order visit the node.
-        The customization will work as
-        .. code-block:: c++
-            Expr VisitExpr_(const TupleGetItemNode* op){
-                Expr expr = self->VisitExprPostOrder_(op);
-                expr = USER_CUSTOMIZED_REWRITE_FUNC(expr);
-                return expr;
-            }
-
-        Parameters
-        ----------
-        op : TupleGetItem
-            The TupleGetItem to be rewritten, also the return value from the post-order visit.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after rewritten.
-        """
-        raise NotImplementedError
+        return _ffi_api.PyExprMutatorVisitExprPostOrder(self._outer(), expr)
 
     def set_var_remap(self, vid: Id, var: Var) -> None:
         """Remap a var to a new var in use-site.

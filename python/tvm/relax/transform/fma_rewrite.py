@@ -37,7 +37,8 @@ class EwiseFMARewriter(PyExprMutator):
     z0 = ewise_fma(a, b, c)
     """
 
-    def rewrite_call_post_order(self, call: Call) -> Call:  # pylint: disable=arguments-differ
+    def visit_call_(self, call: Call) -> Call:  # pylint: disable=arguments-differ
+        call = self.visit_expr_post_order(call)
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
         ewise_fma_op = Op.get("relax.ewise_fma")
@@ -95,7 +96,8 @@ class EwiseFuseFMAMutator(PyExprMutator):
 
         return self.builder_.get()
 
-    def rewrite_call_post_order(self, call: Call) -> Call:  # pylint: disable=arguments-differ
+    def visit_call_(self, call: Call) -> Call:  # pylint: disable=arguments-differ
+        call = self.visit_expr_post_order(call)
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
         ewise_fma_op = Op.get("relax.ewise_fma")

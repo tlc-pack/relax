@@ -71,6 +71,7 @@ class ASTPrinter(PyExprVisitor):
     """Print relax AST in structured format. The shape of Node is ignored."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.log = ASTLog()
 
     def visit_constant_(self, op: Constant) -> None:
@@ -194,59 +195,73 @@ class ASTPostPrinterMutator(PyExprMutator):
         super().__init__()
         self.log = ASTLog()
 
-    def rewrite_constant_post_order(self, op: Constant) -> Expr:
+    def visit_constant_(self, op: Constant) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("Constant")
         return op
 
-    def rewrite_global_var_post_order(self, op: GlobalVar) -> Expr:
+    def visit_global_var_(self, op: GlobalVar) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("GlobalVar")
         return op
 
-    def rewrite_tuple_post_order(self, op: Tuple) -> Expr:
+    def visit_tuple_(self, op: Tuple) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("Tuple")
         return op
 
-    def rewrite_var_post_order(self, op: Var) -> Expr:
+    def visit_var_(self, op: Var) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("Var")
         return op
 
-    def rewrite_dataflow_var_post_order(self, op: DataflowVar) -> Expr:
+    def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("DataflowVar")
         return op
 
-    def rewrite_function_post_order(self, op: Function) -> Expr:
+    def visit_function_(self, op: Function) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("Function")
         return op
 
-    def rewrite_call_post_order(self, op: Call) -> Expr:
+    def visit_call_(self, op: Call) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("Call")
         return op
 
-    def rewrite_if_post_order(self, op: If) -> Expr:
+    def visit_if_(self, op: If) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("If")
         return op
 
-    def rewrite_op_post_order(self, op: Op) -> Expr:
+    def visit_op_(self, op: Op) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("Op")
         return op
 
-    def rewrite_tuple_getitem_post_order(self, op: TupleGetItem) -> Expr:
+    def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("TupleGetItem")
         return op
 
-    def rewrite_shape_expr_post_order(self, op: ShapeExpr) -> Expr:
+    def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("ShapeExpr")
         return op
 
-    def rewrite_runtime_dep_shape_post_order(self, op: RuntimeDepShape) -> Expr:
+    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("RuntimeDepShape")
         return op
 
-    def rewrite_extern_func_post_order(self, op: ExternFunc) -> Expr:
+    def visit_extern_func_(self, op: ExternFunc) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("ExternFunc")
         return op
 
-    def rewrite_seq_expr_post_order(self, op: SeqExpr) -> Expr:
+    def visit_seq_expr_(self, op: SeqExpr) -> Expr:
+        op = self.visit_expr_post_order(op)
         self.log.add("SeqExpr")
         return op
 
@@ -587,25 +602,32 @@ def test_extern_func():
     basic_check(func, "ExternFunc", "ExternFunc")
 
 
-def test_overload_visit_and_post_order_visit_conflict():
-    @relax.expr_functor.mutator
-    class FailMutator(PyExprMutator):
-        def visit_call_(self, op: Call) -> Expr:
-            return op
+def test_inherit():
+    # The internal class is not instantiated.
+    class InternalVisitor(PyExprVisitor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.log = ASTLog()
 
-        def rewrite_call_post_order(self, op: Expr) -> Expr:
-            return op
-
-    with pytest.raises(tvm.TVMError):
-        call_node = relax.op.add(x, y)
-        FailMutator().visit_expr(call_node)
-
-
-def test_inherit_visitor():
-    @relax.expr_functor.visitor
-    class InheritVisitor(ASTPrinter):
         def visit_call_(self, op: Call) -> None:
-            self.log.add("InheritCall")
+            self.log.add("InternalCall")
+            self.log.push_scope()
+            self.visit_expr(op.op)
+
+            for arg in op.args:
+                self.visit_expr(arg)
+            self.log.pop_scope()
+
+        def visit_var_(self, op: Var) -> None:
+            self.log.add("Var")
+
+        def visit_op_(self, op: Op) -> None:
+            self.log.add("Op")
+
+    @relax.expr_functor.visitor
+    class LeafVisitor(InternalVisitor):
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("LeafCall")
             self.log.push_scope()
             self.visit_expr(op.op)
 
@@ -614,9 +636,139 @@ def test_inherit_visitor():
             self.log.pop_scope()
 
     call_node = relax.op.add(x, y)
-    iv = InheritVisitor()
+    lv = LeafVisitor()
+    lv.visit_expr(call_node)
+    assert str(lv.log) == "\n".join(["LeafCall", "\tOp", "\tVar", "\tVar"])
+
+
+def test_inherit_with_cls():
+    # The decorator converts `InternalVisitor` to a wrapper class.
+    @relax.expr_functor.visitor
+    class InternalVisitor(PyExprVisitor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.log = ASTLog()
+
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("InternalCall")
+            self.log.push_scope()
+            self.visit_expr(op.op)
+
+            for arg in op.args:
+                self.visit_expr(arg)
+            self.log.pop_scope()
+
+        def visit_var_(self, op: Var) -> None:
+            self.log.add("Var")
+
+        def visit_op_(self, op: Op) -> None:
+            self.log.add("Op")
+
+    # `InternalVisitor._cls` refers to the original `InternalVisitor` users defined.
+    @relax.expr_functor.visitor
+    class LeafVisitor(InternalVisitor._cls):
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("LeafCall")
+            self.log.push_scope()
+            self.visit_expr(op.op)
+
+            for arg in op.args:
+                self.visit_expr(arg)
+            self.log.pop_scope()
+
+    call_node = relax.op.add(x, y)
+    iv = InternalVisitor()
     iv.visit_expr(call_node)
-    assert str(iv.log) == "\n".join(["InheritCall", "\tOp", "\tVar", "\tVar"])
+    assert str(iv.log) == "\n".join(["InternalCall", "\tOp", "\tVar", "\tVar"])
+
+    lv = LeafVisitor()
+    lv.visit_expr(call_node)
+    assert str(lv.log) == "\n".join(["LeafCall", "\tOp", "\tVar", "\tVar"])
+
+
+def test_wrong_inherit():
+    @relax.expr_functor.visitor
+    class InternalVisitor(PyExprVisitor):
+        def visit_call_(self, op: Call) -> None:
+            pass
+
+    with pytest.raises(
+        TypeError,
+        match="Inheritance from a decorated object `LeafVisitor` is not allowed. Please inherit from `LeafVisitor._cls`.",
+    ):
+
+        @relax.expr_functor.visitor
+        class LeafVisitor(InternalVisitor):
+            def visit_call_(self, op: Call) -> None:
+                pass
+
+
+def test_call_visitor_super():
+    @relax.expr_functor.visitor
+    class InternalVisitor(PyExprVisitor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.log = ASTLog()
+
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("InternalCall")
+            super().visit_call_(op)  # call PyExprVisitor.visit_call_
+
+        def visit_var_(self, op: Var) -> None:
+            self.log.add("Var")
+
+        def visit_op_(self, op: Op) -> None:
+            self.log.add("Op")
+
+    @relax.expr_functor.visitor
+    class LeafVisitor(InternalVisitor._cls):
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("LeafCall")
+            super().visit_call_(op)  # call InternalVisit.visit_call_
+
+    call_node = relax.op.add(x, y)
+    iv = InternalVisitor()
+    iv.visit_expr(call_node)
+    assert str(iv.log) == "\n".join(["InternalCall", "Op", "Var", "Var"])
+
+    lv = LeafVisitor()
+    lv.visit_expr(call_node)
+    assert str(lv.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
+
+
+def test_call_mutator_super():
+    @relax.expr_functor.mutator
+    class InternalMutator(PyExprMutator):
+        def __init__(self) -> None:
+            super().__init__()
+            self.log = ASTLog()
+
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("InternalCall")
+            return super().visit_call_(op)  # call PyExprMutator.visit_call_
+
+        def visit_var_(self, op: Var) -> None:
+            self.log.add("Var")
+            return super().visit_var_(op)  # call PyExprMutator.visit_var_
+
+        def visit_op_(self, op: Op) -> None:
+            self.log.add("Op")
+            return super().visit_op_(op)  # call PyExprMutator.visit_op_
+
+    @relax.expr_functor.mutator
+    class LeafMutator(InternalMutator._cls):
+        def visit_call_(self, op: Call) -> None:
+            self.log.add("LeafCall")
+            return super().visit_call_(op)  # call InternalMutator.visit_call_
+
+    call_node = relax.op.add(x, y)
+    im = InternalMutator()
+    im.visit_expr(call_node)
+    assert str(im.log) == "\n".join(["InternalCall", "Op", "Var", "Var"])
+
+    lm = LeafMutator()
+    lm.visit_expr(call_node)
+    assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
 
 
 if __name__ == "__main__":
