@@ -28,12 +28,14 @@ from tvm.relax.expr import DataflowVar, Var
 from tvm.script import relax as R
 
 
-@R.function
-def identity(x: Tensor((32, 32), "float32")) -> Tensor:
-    with R.dataflow():
-        lv0 = x
-        R.output(lv0)
-    return lv0
+@tvm.script.ir_module
+class Identity:
+    @R.function
+    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        return lv0
 
 
 def assert_immutability(rwt, original_dfb, original_root_fn):
@@ -43,52 +45,44 @@ def assert_immutability(rwt, original_dfb, original_root_fn):
     assert rwt.mutated_root_fn().body.blocks[0] == rwt.mutated_dfb()
 
 
-def check_ground_truth(lhs, rhs):
-    def_unifier = re.compile(r"def [a-zA-Z0-9_]+")
-    cls_unifier = re.compile(r"class [a-zA-Z0-9_]+")
-    unifier = lambda s: def_unifier.sub("def fn", cls_unifier.sub("class Mod", s))
-
-    lhs_script = unifier(lhs.script())
-    rhs_script = unifier(rhs.script())
-    assert lhs_script == rhs_script
-
-
 def test_null_construct():
-    dfb = identity.body.blocks[0]
-    root_fn = identity
+    root_fn = Identity["main"]
+    dfb = root_fn.body.blocks[0]
 
     DataflowBlockRewrite(dfb, root_fn)
 
 
 def test_simple_add():
-    dfb = identity.body.blocks[0]
-    root_fn = identity
+    root_fn = Identity["main"]
+    dfb = root_fn.body.blocks[0]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
-    rwt.add(name="tmp", expr=identity.params[0], is_dfvar=True)
+    rwt.add(name="tmp", expr=Identity["main"].params[0], is_dfvar=True)
 
     assert_immutability(rwt, dfb, root_fn)
 
     # check "tmp" added
     assert "tmp" in name_to_binding(rwt.mutated_root_fn())
 
-    @R.function
-    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor:
-        with R.dataflow():
-            lv0 = x
-            tmp: Tensor((32, 32), "float32") = x
-            R.output(lv0)
-        return lv0
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                tmp: Tensor((32, 32), "float32") = x
+                R.output(lv0)
+            return lv0
 
-    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+    tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
 
 
 def test_simple_auto_add_var():
-    dfb = identity.body.blocks[0]
-    root_fn = identity
+    root_fn = Identity["main"]
+    dfb = root_fn.body.blocks[0]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
-    rwt.add(identity.params[0], is_dfvar=False)
+    rwt.add(root_fn.params[0], is_dfvar=False)
 
     assert isinstance(rwt.mutated_dfb().bindings[-1].var, Var)
 
@@ -96,11 +90,11 @@ def test_simple_auto_add_var():
 
 
 def test_simple_auto_add_dfvar():
-    dfb = identity.body.blocks[0]
-    root_fn = identity
+    root_fn = Identity["main"]
+    dfb = root_fn.body.blocks[0]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
-    rwt.add(identity.params[0], is_dfvar=True)
+    rwt.add(root_fn.params[0], is_dfvar=True)
 
     assert isinstance(rwt.mutated_dfb().bindings[-1].var, DataflowVar)
 
@@ -109,18 +103,20 @@ def test_simple_auto_add_dfvar():
 
 
 def test_simple_remove_unused():
-    @R.function
-    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
-        with R.dataflow():
-            lv0 = x
-            unused = lv0 + R.const(1.0)
-            R.output(lv0)
-        return lv0
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                unused = lv0
+                R.output(lv0)
+            return lv0
 
-    dfb = identity_unused.body.blocks[0]
-    root_fn = identity_unused
+    root_fn = IdentityUnused["main"]
+    dfb = root_fn.body.blocks[0]
 
-    n2binding = name_to_binding(identity_unused)
+    n2binding = name_to_binding(IdentityUnused["main"])
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
     rwt.remove_unused(n2binding["unused"][0].var)
@@ -130,19 +126,21 @@ def test_simple_remove_unused():
     # check "unused" removed
     assert "unused" not in name_to_binding(rwt.mutated_root_fn())
 
-    @R.function
-    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor:
-        with R.dataflow():
-            lv0 = x
-            R.output(lv0)
-        return lv0
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            return lv0
 
-    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+    tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
 
 
 def test_remove_unused_undef():
-    dfb = identity.body.blocks[0]
-    root_fn = identity
+    root_fn = Identity["main"]
+    dfb = root_fn.body.blocks[0]
 
     with pytest.raises(TVMError):
         rwt = DataflowBlockRewrite(dfb, root_fn)
@@ -151,123 +149,141 @@ def test_remove_unused_undef():
     rwt = DataflowBlockRewrite(dfb, root_fn)
     rwt.remove_unused(Var("whatever"), allow_undef=True)
 
-    assert identity == rwt.mutated_root_fn()
+    assert root_fn == rwt.mutated_root_fn()
 
 
 def test_simple_rm_all_unused():
-    @R.function
-    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
-        with R.dataflow():
-            lv0 = x
-            unused0 = lv0 + R.const(1.0)
-            unused1 = lv0 + R.const(1.0)
-            R.output(lv0)
-        return lv0
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                unused0 = lv0
+                unused1 = lv0
+                R.output(lv0)
+            return lv0
 
-    dfb = identity_unused.body.blocks[0]
-    root_fn = identity_unused
+    root_fn = IdentityUnused["main"]
+    dfb = root_fn.body.blocks[0]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
     rwt.remove_all_unused()
 
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            return lv0
+
+    tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
+
+
+@tvm.script.ir_module
+class DeadDFBlock:
     @R.function
-    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor:
+    def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
         with R.dataflow():
             lv0 = x
             R.output(lv0)
-        return lv0
-
-    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
-
-
-@R.function
-def dead_dfb_fn(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
-    with R.dataflow():
-        lv0 = x
-        R.output(lv0)
-    return x
+        return x
 
 
 def test_empty_dfb_after_removal():
-    dfb = dead_dfb_fn.body.blocks[0]
-    root_fn = dead_dfb_fn
+    root_fn = DeadDFBlock["main"]
+    dfb = root_fn.body.blocks[0]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
-    rwt.remove_unused(dead_dfb_fn.body.blocks[0].bindings[0].var)
+    rwt.remove_unused(DeadDFBlock["main"].body.blocks[0].bindings[0].var)
 
-    @R.function
-    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
-        return x
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+            return x
 
-    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+    tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
 
 
 def test_empty_dfb_after_all_removal():
-    dfb = dead_dfb_fn.body.blocks[0]
-    root_fn = dead_dfb_fn
+    dfb = DeadDFBlock["main"].body.blocks[0]
+    root_fn = DeadDFBlock["main"]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
     rwt.remove_all_unused()
 
-    @R.function
-    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
-        return x
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+            return x
 
-    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+    tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
 
 
 def test_chained_rm_all_unused():
-    @R.function
-    def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
-        with R.dataflow():
-            lv0 = x
-            unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
-            unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
-            R.output(lv0)
-        return lv0
+    @tvm.script.ir_module
+    class IdentityChainedUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
+                unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+                R.output(lv0)
+            return lv0
 
-    dfb = identity_unused.body.blocks[0]
-    root_fn = identity_unused
+    root_fn = IdentityChainedUnused["main"]
+    dfb = root_fn.body.blocks[0]
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
     rwt.remove_all_unused()
 
-    @R.function
-    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor:
-        with R.dataflow():
-            lv0 = x
-            R.output(lv0)
-        return lv0
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            return lv0
 
-    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+    tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
 
 
 def test_simple_replace_all_uses():
-    @R.function
-    def lv0to1(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
-        #   lv0 => lv1
-        #  /   \
-        # lv2  lv3
-        #  \   /
-        #   lv4
-        with R.dataflow():
-            lv0: Tensor((32, 32), "float32") = R.call_tir(my_relu, (x,), (32, 32), dtype="float32")
-            lv1: Tensor((32, 32), "float32") = R.call_tir(
-                my_sigmoid, (x,), (32, 32), dtype="float32"
-            )
-            lv2: Tensor((32, 32), "float32") = R.call_tir(
-                my_add, (x, lv0), (32, 32), dtype="float32"
-            )
-            lv3: Tensor((32, 32), "float32") = R.call_tir(
-                my_mul, (x, lv0), (32, 32), dtype="float32"
-            )
-            lv4: Tensor((32, 32), "float32") = R.call_tir(
-                my_whatever, (lv2, lv3), (32, 32), dtype="float32"
-            )
-            R.output(lv4)
-        return lv4
+    @tvm.script.ir_module
+    class Lv0To1:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+            #   lv0 => lv1
+            #  /   \
+            # lv2  lv3
+            #  \   /
+            #   lv4
+            with R.dataflow():
+                lv0: Tensor((32, 32), "float32") = R.call_tir(
+                    my_relu, (x,), (32, 32), dtype="float32"
+                )
+                lv1: Tensor((32, 32), "float32") = R.call_tir(
+                    my_sigmoid, (x,), (32, 32), dtype="float32"
+                )
+                lv2: Tensor((32, 32), "float32") = R.call_tir(
+                    my_add, (x, lv0), (32, 32), dtype="float32"
+                )
+                lv3: Tensor((32, 32), "float32") = R.call_tir(
+                    my_mul, (x, lv0), (32, 32), dtype="float32"
+                )
+                lv4: Tensor((32, 32), "float32") = R.call_tir(
+                    my_whatever, (lv2, lv3), (32, 32), dtype="float32"
+                )
+                R.output(lv4)
+            return lv4
 
-    root_fn = lv0to1
+    root_fn = Lv0To1["main"]
     dfb = root_fn.body.blocks[0]
 
     n2binding = name_to_binding(root_fn)
@@ -314,4 +330,4 @@ def test_simple_module_update():
                 R.output(lv0)
             return lv0
 
-    check_ground_truth(new_ir, GroundTruth)
+    tvm.ir.assert_structural_equal(new_ir, GroundTruth)

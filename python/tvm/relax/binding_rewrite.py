@@ -33,10 +33,10 @@ class DataflowBlockRewrite(Object):
 
     Notes
     -----
-    Due the immutable and copy-on-write nature of TVM AST nodes, the rewriting is not done in place.
-    Instead, a new DataflowBlock is created and returned with mutated_dfb. Similarly, its new root
-    Function is created and returned by mutated_root_fn. To apply this change for an IRModule, use
-    mutate_irmodule which rewrites the old function that registered in the constructor.
+    Due to the immutable and copy-on-write nature of TVM AST nodes, the rewriting is not done in
+    place. Instead, a new DataflowBlock is created and returned with mutated_dfb. Similarly, its new
+    root Function is created and returned by mutated_root_fn. To apply this change for an IRModule,
+    use mutate_irmodule which rewrites the old function that registered in the constructor.
     """
 
     def __init__(self, dfb: DataflowBlock, root_fn: Function):
@@ -134,7 +134,6 @@ class DataflowBlockRewrite(Object):
         return ret
 
     def mutate_irmodule(self, irmodule: tvm.IRModule) -> tvm.IRModule:
-
         """
         Return an updated IRModule by replacing the old function with the mutated root function.
 
