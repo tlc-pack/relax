@@ -402,7 +402,8 @@ class VirtualMachine(object):
             vm.set_input("func_name", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
 
-        With saved closures via `package_function` (this results in fewer dictionary lookups in the timed portion):
+        With saved closures via `package_function` (this results in 
+        fewer dictionary lookups in the timed portion):
 
         .. code-block:: python
 
