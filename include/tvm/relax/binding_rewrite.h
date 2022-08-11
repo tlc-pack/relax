@@ -60,16 +60,16 @@ class DataflowBlockRewriteNode : public Object {
   void RemoveAllUnused();
 
   /*! \brief The rewritten dataflow block. */
-  DataflowBlock MutatedDataflowBlock() { return dfb_.object; }
+  DataflowBlock MutatedDataflowBlock() { return dfb_.value(); }
   /*! \brief The rewritten function. */
-  Function MutatedFunc() { return root_fn_.object; }
+  Function MutatedFunc() { return root_fn_.value(); }
   /*! \brief The rewritten IRModule. */
   IRModule MutateIRModule(IRModule irmod);
 
   /*! \brief Visit attributes. */
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dfb", &dfb_.object);
-    v->Visit("root_fn", &root_fn_.object);
+    v->Visit("dfb", &dfb_);
+    v->Visit("root_fn", &root_fn_);
   }
 
   static constexpr const char* _type_key = "relax.DataflowBlockRewrite";
@@ -78,22 +78,8 @@ class DataflowBlockRewriteNode : public Object {
  protected:
   friend class DataflowBlockRewrite;
 
-  /*! \brief Mutable reference with reference counting. */
-  template <typename T, std::enable_if_t<std::is_base_of<ObjectRef, T>::value, int> = 0>
-  struct RefCntPtr {
-    T object;
-
-    RefCntPtr() : object(nullptr) {}
-    explicit RefCntPtr(T v) : object(v) {}
-
-    RefCntPtr& operator=(T v) { return *this = RefCntPtr(v); }
-    T operator->() const { return object; }
-    operator T() const { return object; }
-    auto get() const { return object.get(); }
-  };
-
-  RefCntPtr<DataflowBlock> dfb_;         //!< The rewritten dataflow block.
-  RefCntPtr<Function> root_fn_;          //!< The rewritten function.
+  Optional<DataflowBlock> dfb_;          //!< The rewritten dataflow block.
+  Optional<Function> root_fn_;           //!< The rewritten function.
   const FunctionNode* original_fn_ptr_;  //!< Pointer to the original function.
   Map<Var, Array<Var>> to_users_;        //!< Map from variable to its users.
   Array<Var> fn_outputs_;                //!< Variables required by function outputs.

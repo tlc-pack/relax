@@ -180,6 +180,42 @@ def test_simple_rm_all_unused():
     check_ground_truth(rwt.mutated_root_fn(), ground_truth)
 
 
+@R.function
+def dead_dfb_fn(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+    with R.dataflow():
+        lv0 = x
+        R.output(lv0)
+    return x
+
+
+def test_empty_dfb_after_removal():
+    dfb = dead_dfb_fn.body.blocks[0]
+    root_fn = dead_dfb_fn
+
+    rwt = DataflowBlockRewrite(dfb, root_fn)
+    rwt.remove_unused(dead_dfb_fn.body.blocks[0].bindings[0].var)
+
+    @R.function
+    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+        return x
+
+    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+
+
+def test_empty_dfb_after_all_removal():
+    dfb = dead_dfb_fn.body.blocks[0]
+    root_fn = dead_dfb_fn
+
+    rwt = DataflowBlockRewrite(dfb, root_fn)
+    rwt.remove_all_unused()
+
+    @R.function
+    def ground_truth(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+        return x
+
+    check_ground_truth(rwt.mutated_root_fn(), ground_truth)
+
+
 def test_chained_rm_all_unused():
     @R.function
     def identity_unused(x: Tensor((32, 32), "float32")) -> Tensor:
