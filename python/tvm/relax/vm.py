@@ -162,12 +162,12 @@ class VirtualMachine(object):
         return self._invoke_closure(closure, *args)
 
     def package_function(
-        self, func_name: str, save_name: str, *args: List[Any], include_return: bool = True
+        self, func_name: str, saved_name: str, *args: List[Any], include_return: bool = True
     ) -> None:
         """
         Convenience function. Takes a function from the module and saves
         a `PackedFunc` that, when called, will invoke the function with the given arguments.
-        The `PackedFunc` can be accessed from the module using `save_name`.
+        The `PackedFunc` can be accessed from the module using `saved_name`.
         This is included to facilitate timing trials:
         Invoking the returned `PackedFunc` will have less overhead from dictionary lookups
         than normally running through the VM.
@@ -183,7 +183,7 @@ class VirtualMachine(object):
         func_name : str
             The function that should be packaged up.
 
-        save_name : str
+        saved_name : str
             The name that the resulting closure should be saved under.
 
         include_return : bool
@@ -197,7 +197,7 @@ class VirtualMachine(object):
         cargs = []
         for arg in args:
             self._convert(arg, cargs)
-        self._package_function(func_name, save_name, int(include_return), *cargs)
+        self._package_function(func_name, saved_name, int(include_return), *cargs)
 
     def _convert(self, arg: Any, cargs: List) -> None:
         """helper function to convert arguments to vm function."""
