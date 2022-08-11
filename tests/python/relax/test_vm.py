@@ -921,6 +921,31 @@ def test_vm_invoke_closure():
     )
 
 
+def test_time_evaluator():
+    @tvm.script.ir_module
+    class TestTimeEvaluator:
+        @R.function
+        def main(x: Tensor((1,), "float32"), y: Tensor((1,), "float32")):
+            return R.call_packed("test.vm.add", x, y, type_args=(Tensor(ndim=1, dtype="float32")))
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(TestTimeEvaluator, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x = tvm.nd.array(np.random.rand(1))
+    y = tvm.nd.array(np.random.rand(1))
+
+    # ensure we can use time_evaluator with the stateful API
+    vm.set_input("main", x, y)
+    timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("main")
+    # just checking that it has some results at all
+    assert timing_res.results
+
+    # ensure we can use it with a closure
+    vm.package_function("main", "saved_main", x, y)
+    timing_res = vm.time_evaluator("saved_main", tvm.cpu())()
+    assert timing_res.results
+
+
 @tvm.script.ir_module
 class TestVMSetInput:
     @T.prim_func
