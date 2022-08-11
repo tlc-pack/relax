@@ -78,7 +78,7 @@ class NameTable {
                                                // let D's nearest natural number -> idx;
                                                // note: stoul("000123") = 123;
         alloc_map_[prefix] =
-            std::max(alloc_map_[prefix], std::stoul(name.substr(idx_last_first_num)));
+            std::max(alloc_map_[prefix], std::stoi(name.substr(idx_last_first_num)));
       }
     }
   }
@@ -88,7 +88,7 @@ class NameTable {
       : NameTable(begin, end, [](const decltype(*begin)& v) { return v; }) {}
 
  private:
-  std::unordered_map<std::string, unsigned long> alloc_map_;
+  std::unordered_map<std::string, int> alloc_map_;
 };
 
 /*!
