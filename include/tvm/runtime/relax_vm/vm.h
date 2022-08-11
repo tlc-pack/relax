@@ -230,7 +230,7 @@ class VirtualMachine : public runtime::ModuleNode {
   std::unordered_map<std::string, std::vector<RegType>> inputs_;
   /*! \brief The function name to output register. */
   std::unordered_map<std::string, RegType> outputs_;
-  /*! \brief A store of closures created by `package_function`. */
+  /*! \brief A store of closures created by `save_function`. */
   std::unordered_map<std::string, PackedFunc> saved_closures_;
 };
 
