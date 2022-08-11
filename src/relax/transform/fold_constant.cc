@@ -163,6 +163,8 @@ class ConstantFolder : public ExprMutator {
     return std::move(call);
   }
 
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const CallNode* call) final {
     // post-order mutation
     Call post_call = Downcast<Call>(VisitExprPostOrder_(call));
