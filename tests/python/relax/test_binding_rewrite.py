@@ -22,7 +22,7 @@ import re
 
 import tvm
 from tvm._ffi.base import TVMError
-from tvm.relax.stmt_rewrite import DataflowBlockRewrite
+from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.analysis import name_to_binding
 from tvm.relax.expr import DataflowVar, Var
 from tvm.script import relax as R

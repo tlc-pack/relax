@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, invalid-name
-"""Developer API of rewriting statements in Relax."""
+"""Developer API of add/remove/replace bindings in Relax."""
 
 from typing import Optional
 
@@ -29,7 +29,7 @@ from . import _ffi_api
 @tvm._ffi.register_object("relax.DataflowBlockRewrite")
 class DataflowBlockRewrite(Object):
     """
-    A statement-level dataflow block rewriter.
+    A binding/statement-level dataflow block rewriter.
 
     Notes
     -----

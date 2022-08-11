@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file src/relax/ir/stmt_rewrite.cc
- * \brief Implementation of statement rewriters.
+ * \file src/relax/ir/binding_rewrite.cc
+ * \brief Implementation of binding rewriters.
  */
 
+#include <tvm/relax/binding_rewrite.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/stmt_rewrite.h>
 
 #include <iterator>
 
@@ -83,7 +83,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   ICHECK(to_users_.find(old_var) != to_users_.end()) << "Cannot find " << old_var;
   ICHECK(to_users_.find(new_var) != to_users_.end()) << "Cannot find " << new_var;
 
-  // replace uses in side the DataflowBlock.
+  // replace uses inside the DataflowBlock.
   ReplaceAllUsePass replacer(old_var, new_var, dfb_.get());
   root_fn_ = Downcast<Function>(replacer.VisitExpr_(root_fn_.get()));
   dfb_ = GetRef<DataflowBlock>(replacer.caught);

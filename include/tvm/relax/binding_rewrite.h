@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/stmt_rewrite.h
- * \brief An IR rewriter to easily rewrites statements.
+ * \file tvm/relax/binding_rewrite.h
+ * \brief An IR rewriter to easily add/remove/replace bindings (statements).
  */
 
-#ifndef TVM_RELAX_STMT_REWRITE_H_
+#ifndef TVM_RELAX_BINDING_REWRITE_H_
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -56,7 +56,7 @@ class DataflowBlockRewriteNode : public Object {
   }
   /*! \brief Remove the definition statement of an unused variable. */
   void RemoveUnused(Var unused, bool allow_undef = false);
-  /*! \brief Remove the definition all statements of unused variables. */
+  /*! \brief Remove the definition statements of all unused variables. */
   void RemoveAllUnused();
 
   /*! \brief The rewritten dataflow block. */
@@ -125,5 +125,5 @@ class DataflowBlockRewrite : public ObjectRef {
 }  // namespace relax
 }  // namespace tvm
 
-#define TVM_RELAX_STMT_REWRITE_H_
-#endif  // TVM_RELAX_STMT_REWRITE_H_
+#define TVM_RELAX_BINDING_REWRITE_H_
+#endif  // TVM_RELAX_BINDING_REWRITE_H_

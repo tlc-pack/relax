@@ -24,7 +24,7 @@ from tvm import relax as rx
 from tvm.relax.analysis import udchain, remove_all_unused, name_to_binding
 from tvm.script import relax as R
 
-from test_stmt_rewrite import check_ground_truth
+from tests.python.relax.test_binding_rewrite import check_ground_truth
 
 
 def test_dispatch_var():
