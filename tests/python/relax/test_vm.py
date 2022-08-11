@@ -70,11 +70,11 @@ def tile_packed(a, b):
 
 
 def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any]) -> Object:
-    # uses package_function to create a closure with the given inputs
+    # uses save_function to create a closure with the given inputs
     # and ensure the result is the same
     # (assumes the functions return tensors and that they're idempotent)
     saved_name = f"{func_name}_saved"
-    vm.package_function(func_name, saved_name, *inputs)
+    vm.save_function(func_name, saved_name, *inputs)
     res1 = vm[func_name](*inputs)
     res2 = vm[saved_name]()
     tvm.testing.assert_allclose(res1.numpy(), res2.numpy(), rtol=1e-7, atol=1e-7)
@@ -941,7 +941,7 @@ def test_time_evaluator():
     assert timing_res.results
 
     # ensure we can use it with a closure
-    vm.package_function("main", "saved_main", x, y)
+    vm.save_function("main", "saved_main", x, y)
     timing_res = vm.time_evaluator("saved_main", tvm.cpu())()
     assert timing_res.results
 

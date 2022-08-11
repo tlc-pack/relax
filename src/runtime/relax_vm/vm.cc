@@ -110,7 +110,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         }
       }
     });
-  } else if (name == "package_function") {
+  } else if (name == "save_function") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::string func_name = args[0];
       std::string closure_name = args[1];

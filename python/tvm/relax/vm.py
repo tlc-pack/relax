@@ -90,7 +90,7 @@ class VirtualMachine(object):
             else exec["vm_load_executable"]()
         )
         self._invoke_closure = self.module["invoke_closure"]
-        self._package_function = self.module["package_function"]
+        self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
         self._invoke_stateful = self.module["invoke_stateful"]
         self._get_output = self.module["get_output"]
@@ -161,7 +161,7 @@ class VirtualMachine(object):
         """
         return self._invoke_closure(closure, *args)
 
-    def package_function(
+    def save_function(
         self, func_name: str, saved_name: str, *args: List[Any], include_return: bool = True
     ) -> None:
         """
@@ -197,7 +197,7 @@ class VirtualMachine(object):
         cargs = []
         for arg in args:
             self._convert(arg, cargs)
-        self._package_function(func_name, saved_name, int(include_return), *cargs)
+        self._save_function(func_name, saved_name, int(include_return), *cargs)
 
     def _convert(self, arg: Any, cargs: List) -> None:
         """helper function to convert arguments to vm function."""
@@ -336,7 +336,7 @@ class VirtualMachine(object):
         """
         Returns an evaluator that times a function in the module.
         This follows the same convention as time_evaluator in tvm.runtime.module.
-        This can be used in combination with package_function() so that the
+        This can be used in combination with save_function() so that the
         timings avoid extra dictionary lookups.
 
         Parameters
@@ -402,7 +402,7 @@ class VirtualMachine(object):
             vm.set_input("func_name", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
 
-        With saved closures via `package_function` (this results in
+        With saved closures via `save_function` (this results in
         fewer dictionary lookups in the timed portion):
 
         .. code-block:: python
@@ -410,7 +410,7 @@ class VirtualMachine(object):
             target = tvm.target.Target("llvm", host="llvm")
             ex = relax.vm.build(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
-            vm.package_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
+            vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()
 
         Returns
