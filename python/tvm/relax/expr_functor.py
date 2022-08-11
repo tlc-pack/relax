@@ -519,7 +519,8 @@ class PyExprVisitor:
         binding : VarBinding
             The VarBinding to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Visit MatchShape.
@@ -531,7 +532,8 @@ class PyExprVisitor:
         binding : MatchShape
             The MatchShape to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)
 
     def visit_binding_block_(self, block: BindingBlock) -> None:
         """Visit BindingBlock.
@@ -543,7 +545,8 @@ class PyExprVisitor:
         block : BindingBlock
             The BindingBlock to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitBindingBlock(self._outer(), block)
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> None:
         """Visit DataflowBlock.
@@ -555,7 +558,8 @@ class PyExprVisitor:
         block : DataflowBlock
             The DataflowBlock to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitBindingBlock(self._outer(), block)
 
     def visit_var_def_(self, var: Var) -> None:
         """Visit the Var definition site.
@@ -567,7 +571,8 @@ class PyExprVisitor:
         var : Var
             The Var to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
         """Visit the DataflowVar definition site.
@@ -579,7 +584,8 @@ class PyExprVisitor:
         var : DataflowVar
             The DataflowVar to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)
 
     def visit_type(self, t: Type) -> None:
         """Visit Type.
@@ -590,7 +596,8 @@ class PyExprVisitor:
         t : Type
             The Type to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitType(self._outer(), t)
 
     def visit_span(self, span: Span) -> None:
         """Visit Span.
@@ -601,7 +608,8 @@ class PyExprVisitor:
         span : Span
             The Span to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)
 
 
 @tvm._ffi.register_object("expr_functor.PyExprMutator")
@@ -1117,7 +1125,8 @@ class PyExprMutator:
         binding : VarBinding
             The VarBinding to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Visit MatchShape.
@@ -1129,7 +1138,8 @@ class PyExprMutator:
         binding : MatchShape
             The MatchShape to be visited.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Visit BindingBlock.
@@ -1146,7 +1156,8 @@ class PyExprMutator:
         result : BindingBlock
             The binding block after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitBindingBlock(self._outer(), block)
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> BindingBlock:
         """Visit DataflowBlock.
@@ -1163,7 +1174,8 @@ class PyExprMutator:
         result : BindingBlock
             The binding block after transformation
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitBindingBlock(self._outer(), block)
 
     def visit_var_def_(self, var: Var) -> Var:
         """Visit the Var definition site.
@@ -1180,7 +1192,8 @@ class PyExprMutator:
         result : Var
             The var after post-order rewritten.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> Var:
         """Visit the DataflowVar definition site.
@@ -1197,7 +1210,8 @@ class PyExprMutator:
         result : Var
             The var after post-order rewritten.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)
 
     def visit_type(self, t: Type) -> Type:
         """Visit Type.
@@ -1213,7 +1227,8 @@ class PyExprMutator:
         result : Type
             The type after transformation.
         """
-        raise NotImplementedError
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitType(self._outer(), t)
 
     def visit_span(self, span: Span) -> Span:
         """Visit Span.

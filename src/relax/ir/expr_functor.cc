@@ -687,6 +687,31 @@ TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitExpr")
       visitor->ExprVisitor::VisitExpr(expr);
     });
 
+TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitBinding")
+    .set_body_typed([](PyExprVisitor visitor, const Binding& binding) {
+      visitor->ExprVisitor::VisitBinding(binding);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitBindingBlock")
+    .set_body_typed([](PyExprVisitor visitor, const BindingBlock& block) {
+      visitor->ExprVisitor::VisitBindingBlock(block);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitVarDef")
+    .set_body_typed([](PyExprVisitor visitor, const Var& var) {
+      visitor->ExprVisitor::VisitVarDef(var);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitType")
+    .set_body_typed([](PyExprVisitor visitor, const Type& type) {
+      visitor->ExprVisitor::VisitType(type);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitSpan")
+    .set_body_typed([](PyExprVisitor visitor, const Span& span) {
+      visitor->ExprVisitor::VisitSpan(span);
+    });
+
 TVM_REGISTER_GLOBAL("relax.MakePyExprMutator").set_body_typed(PyExprMutator::MakePyExprMutator);
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExpr")
@@ -712,6 +737,26 @@ TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitVarDef")
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitExpr")
     .set_body_typed([](PyExprMutator visitor, const Expr& expr) {
       return visitor->ExprMutator::VisitExpr(expr);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBinding")
+    .set_body_typed([](PyExprMutator visitor, const Binding& binding) {
+      return visitor->ExprMutator::VisitBinding(binding);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBindingBlock")
+    .set_body_typed([](PyExprMutator visitor, const BindingBlock& block) {
+      return visitor->ExprMutator::VisitBindingBlock(block);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitVarDef")
+    .set_body_typed([](PyExprMutator visitor, const Var& var) {
+      return visitor->ExprMutator::VisitVarDef(var);
+    });
+
+TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitType")
+    .set_body_typed([](PyExprMutator visitor, const Type& type) {
+      return visitor->ExprMutator::VisitType(type);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExprPostOrder")
