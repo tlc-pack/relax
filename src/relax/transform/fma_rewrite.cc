@@ -44,6 +44,7 @@ namespace relax {
  * z0 = ewise_fma(a, lv0, c)
  */
 class EwiseFMARewriter : public ExprMutator {
+  using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* call) override {
     Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
@@ -103,6 +104,8 @@ class EwiseFuseFMAMutator : public ExprMutator {
     }
     return builder_->GetContextIRModule();
   }
+
+  using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call) override {
     Expr expr = VisitExprPostOrder_(call);

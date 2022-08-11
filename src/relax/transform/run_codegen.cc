@@ -58,7 +58,9 @@ class CodeGenRunner : ExprMutator {
     return out_mod;
   }
 
-  Expr VisitExpr_(const CallNode* call_node) {
+  using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const CallNode* call_node) override {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
     if (auto const* gvarnode = call_node->op.as<GlobalVarNode>()) {
       const GlobalVar gvar = GetRef<GlobalVar>(gvarnode);
@@ -91,7 +93,7 @@ class CodeGenRunner : ExprMutator {
     return GetRef<Call>(call_node);
   }
 
-  Expr VisitExpr_(const FunctionNode* func_node) {
+  Expr VisitExpr_(const FunctionNode* func_node) override {
     Function func = GetRef<Function>(func_node);
     auto opt_codegen = func->GetAttr<String>(attr::kCodegen);
     if (opt_codegen.defined()) {
