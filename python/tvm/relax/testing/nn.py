@@ -19,9 +19,10 @@
 
 
 from typing import List, Any, Callable
+import numpy as np
+
 import tvm
 from tvm import relax, topi, tir
-import numpy as np
 
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
