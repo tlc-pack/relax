@@ -28,6 +28,8 @@ namespace relax {
 
 /*! \brief Rewrite/Remove global var or symbolic var in the dataflow block.*/
 class FailTestRewriter : public ExprMutator {
+  using ExprMutator::VisitExpr_;
+
   // Rewrite/Remove specific global var
   Var VisitVarDef_(const VarNode* var) override {
     if (var->name_hint() == "gv_rewrite") {
