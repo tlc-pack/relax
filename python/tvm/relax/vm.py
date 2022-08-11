@@ -188,7 +188,7 @@ class VirtualMachine(object):
 
         include_return : bool
             Whether the saved PackedFunc should return its output.
-            If timing over RFC, it may not be desirable to send output
+            If timing over RPC, it may not be desirable to send output
             between machines.
 
         args : List[Any]
@@ -383,7 +383,7 @@ class VirtualMachine(object):
 
         Example
         -------
-        Normal use with a VM function (may not work over RFC if the function returns a tuple):
+        Normal use with a VM function (may not work over RPC if the function returns a tuple):
 
         .. code-block:: python
 
