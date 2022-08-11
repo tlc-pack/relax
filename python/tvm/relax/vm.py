@@ -381,6 +381,37 @@ class VirtualMachine(object):
         The function will be invoked  (1 + number x repeat) times,
         with the first call discarded in case there is lazy initialization.
 
+        Example
+        -------
+        Normal use with a VM function (may not work over RFC if the function returns a tuple):
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
+
+        Use with the stateful API:
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm.set_input("func_name", arg0, arg1, ..., argn)
+            timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
+
+        With saved closures via `package_function` (this results in fewer dictionary lookups in the timed portion):
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm.package_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
+            timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()
+
         Returns
         -------
         ftimer : function
