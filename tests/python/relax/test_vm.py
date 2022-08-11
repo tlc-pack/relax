@@ -18,6 +18,8 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import os
 from typing import Callable, Tuple
 
+import sys
+import tempfile
 import numpy as np
 import pytest
 import tvm
@@ -770,6 +772,33 @@ def test_vm_tuplegetitem():
     y_inp = tvm.nd.array(np.random.rand(2, 3))
     res = vm["tuple_get_item"](x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
+
+
+def test_vm_print_const():
+    @tvm.script.ir_module
+    class PrintConst:
+        @R.function
+        def main():
+            x = relax.const([1, 2])
+            y = relax.print(x)
+            return x
+
+    try:
+        stdout = sys.stdout
+        with tempfile.TemporaryFile(mode="w+") as test_out:
+            sys.stdout = test_out
+            mod = PrintConst
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(mod, target)
+            vm = relax.VirtualMachine(ex, tvm.cpu())
+            res = vm["main"]()
+            test_out.seek(0)
+            printed_text = str(test_out.read())
+            expected = "[1 2]\n"
+            assert printed_text == expected
+            tvm.testing.assert_allclose(res.numpy(), np.array([1, 2]))
+    finally:
+        sys.stdout = stdout
 
 
 def test_sub_func_call():
