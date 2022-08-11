@@ -32,15 +32,6 @@
 namespace tvm {
 namespace relax {
 
-String DataflowBlockRewriteNode::make_new_varname() {
-  while (true) {
-    String name = "tmp" + std::to_string(++counter_);
-    if (to_users_.end() == std::find_if(to_users_.begin(), to_users_.end(),
-                                        [&name](auto p) { return p.first->name_hint() == name; }))
-      return name;  // is this name ok?
-  }
-}
-
 TVM_REGISTER_NODE_TYPE(DataflowBlockRewriteNode);
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
   auto n = make_object<DataflowBlockRewriteNode>();
@@ -50,6 +41,8 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   auto p = FunctionUseDef(root_fn);
   n->to_users_ = std::move(p.first);
   n->fn_outputs_ = std::move(p.second);
+  n->name_table_ = NameTable(n->to_users_.begin(), n->to_users_.end(),
+                             [](const auto& p) { return p.first->name_hint(); });
 
   data_ = std::move(n);
 }

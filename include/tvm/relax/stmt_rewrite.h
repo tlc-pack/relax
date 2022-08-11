@@ -26,6 +26,7 @@
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/utils.h>
 
 #include <map>
 #include <set>
@@ -50,7 +51,9 @@ class DataflowBlockRewriteNode : public Object {
     Add(VarBinding(std::move(var), std::move(expr)));
   }
   /*! \brief Insert an expression as VarBinding with automatic variable name. */
-  void Add(Expr expr, bool is_dfvar = false) { Add(make_new_varname(), expr, is_dfvar); }
+  void Add(Expr expr, bool is_dfvar = false) {
+    Add(name_table_.GetUniqueName("tmp"), expr, is_dfvar);
+  }
   /*! \brief Remove the definition statement of an unused variable. */
   void RemoveUnused(Var unused, bool allow_undef = false);
   /*! \brief Remove the definition all statements of unused variables. */
@@ -96,10 +99,7 @@ class DataflowBlockRewriteNode : public Object {
   Array<Var> fn_outputs_;                //!< Variables required by function outputs.
 
  private:
-  /*! \brief Generate a new variable name. */
-  String make_new_varname();
-
-  size_t counter_ = 0;  //!< Counter for generating new variable names.
+  NameTable name_table_;  //!< Name table for tracking and generating unique names.
 };
 
 /*!
