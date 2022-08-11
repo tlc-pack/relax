@@ -30,7 +30,9 @@ class GlobalVarResolver : public ExprMutator {
  public:
   GlobalVarResolver(IRModule mod, DiagnosticContext diag_ctx) : mod_(mod), diag_ctx_(diag_ctx) {}
 
-  Expr VisitExpr_(const GlobalVarNode* gvar) {
+  using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const GlobalVarNode* gvar) override {
     if (!mod_->ContainGlobalVar(gvar->name_hint)) {
       return GetRef<GlobalVar>(gvar);
     }

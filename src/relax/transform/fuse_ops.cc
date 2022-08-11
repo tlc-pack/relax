@@ -78,7 +78,6 @@ namespace relax {
 using relay::GraphPartitioner;
 using relay::IndexedForwardGraph;
 using relay::OpPatternKind;
-using support::LinkedList;
 using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
@@ -340,8 +339,6 @@ class GraphCreator : public ExprVisitor {
   IndexedForwardGraph graph_;
   /*! \brief The graph nodes whose patterns are set */
   std::unordered_set<IndexedForwardGraph::Node*> initialized_nodes_;
-  /*! \brief The structural equality checker */
-  StructuralEqual structural_equal_;
 };
 
 /*!
@@ -373,7 +370,6 @@ class FunctionCreator : public ExprMutator {
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (const auto* call = var_binding->value.as<CallNode>()) {
         ICHECK(call->op == Op::Get("relax.call_tir"));
-        const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
         // Update the name of the function.
         name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
@@ -564,7 +560,7 @@ class OperatorFusor : public ExprMutator {
       const GlobalVar& gv = kv.first;
       const BaseFunc& func = kv.second;
       // Only visit Relax function without attr kPrimitive.
-      if (func->IsInstance<relax::FunctionNode>() & !func->HasNonzeroAttr(attr::kPrimitive)) {
+      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, updated_func);
       }
