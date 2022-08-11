@@ -62,8 +62,8 @@ TVM_REGISTER_GLOBAL(("relax.analysis.get_var2val")).set_body_typed([](const Func
 
 class Name2BindingAnalysis : public relax::ExprVisitor {
  public:
-  // To avoid copying while performing in-place update in COW data structure.
-  // WE use standard map here.
+  // runtime::Map is not suitable for doing in-place update.
+  // so we use standard container for internal usage.
   std::map<String, Array<Binding>> name2bindings_;
   void VisitBinding_(const VarBindingNode* binding) override {
     const auto& vname = binding->var->name_hint();

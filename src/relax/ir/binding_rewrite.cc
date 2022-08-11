@@ -298,8 +298,6 @@ TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_all_unused")
     .set_body_typed([](DataflowBlockRewrite rwt) { rwt->RemoveAllUnused(); });
 
 Function RemoveAllUnused(Function fn) {
-  // FIXME(@ganler): What if the DataflowBlock is empty after cleaning up unused vars?
-  // But it is a more general problem that should be fixed in ExprMutator.
   RemoveUnusedVars remover(fn);
   return Downcast<Function>(remover.VisitExpr_(fn.get()));
 }
