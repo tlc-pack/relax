@@ -75,5 +75,6 @@ from .op.op_attrs import VMAllocStorageAttrs, VMAllocTensorAttrs
 BlockBuilder = block_builder.BlockBuilder
 
 # ExprFunctor
+ExprFunctor = expr_functor.ExprFunctor
 PyExprVisitor = expr_functor.PyExprVisitor
 PyExprMutator = expr_functor.PyExprMutator

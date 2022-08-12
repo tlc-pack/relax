@@ -113,6 +113,133 @@ Example
 """
 
 
+class ExprFunctor:
+    """
+    An abstract visitor defined over Expr.
+    Defines the default dispatch over expressions, and
+    implements memoization.
+    """
+
+    def visit_expr(self, expr):
+        """Apply the visitor to an expression."""
+        if isinstance(expr, Constant):
+            ret = self.visit_constant_(expr)
+        elif isinstance(expr, Tuple):
+            ret = self.visit_tuple_(expr)
+        elif isinstance(expr, DataflowVar):
+            ret = self.visit_dataflow_var_(expr)
+        elif isinstance(expr, Var):
+            ret = self.visit_var_(expr)
+        elif isinstance(expr, ShapeExpr):
+            ret = self.visit_shape_expr_(expr)
+        elif isinstance(expr, RuntimeDepShape):
+            ret = self.visit_runtime_dep_shape_(expr)
+        elif isinstance(expr, ExternFunc):
+            ret = self.visit_extern_func_(expr)
+        elif isinstance(expr, GlobalVar):
+            ret = self.visit_global_var_(expr)
+        elif isinstance(expr, Function):
+            ret = self.visit_function_(expr)
+        elif isinstance(expr, Call):
+            ret = self.visit_call_(expr)
+        elif isinstance(expr, SeqExpr):
+            ret = self.visit_seq_expr_(expr)
+        elif isinstance(expr, If):
+            ret = self.visit_if_(expr)
+        elif isinstance(expr, Op):
+            ret = self.visit_op_(expr)
+        elif isinstance(expr, TupleGetItem):
+            ret = self.visit_tuple_getitem_(expr)
+        else:
+            raise TypeError("Invalid type: {0}".format(type(expr)))
+
+        return ret
+
+    def visit_constant_(self, op: Constant):
+        raise NotImplementedError()
+
+    def visit_tuple_(self, op: Tuple):
+        raise NotImplementedError()
+
+    def visit_dataflow_var_(self, op: DataflowVar):
+        raise NotImplementedError()
+
+    def visit_var_(self, op: Var):
+        raise NotImplementedError()
+
+    def visit_shape_expr_(self, op: ShapeExpr):
+        raise NotImplementedError()
+
+    def visit_runtime_dep_shape_(self, op: RuntimeDepShape):
+        raise NotImplementedError()
+
+    def visit_extern_func_(self, op: ExternFunc):
+        raise NotImplementedError()
+
+    def visit_global_var_(self, op: GlobalVar):
+        raise NotImplementedError()
+
+    def visit_function_(self, op: Function):
+        raise NotImplementedError()
+
+    def visit_call_(self, op: Call):
+        raise NotImplementedError()
+
+    def visit_seq_expr_(self, op: SeqExpr):
+        raise NotImplementedError()
+
+    def visit_if_(self, op: If):
+        raise NotImplementedError()
+
+    def visit_op_(self, op: Op):
+        raise NotImplementedError()
+
+    def visit_tuple_getitem_(self, op: TupleGetItem):
+        raise NotImplementedError()
+
+    def visit_var_binding_(self, binding: VarBinding) -> None:
+        raise NotImplementedError()
+
+    def visit_match_shape_(self, binding: MatchShape) -> None:
+        raise NotImplementedError()
+
+    def visit_binding_block_(self, block: BindingBlock) -> None:
+        raise NotImplementedError()
+
+    def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+        raise NotImplementedError()
+
+    def visit_var_def_(self, var: Var) -> None:
+        raise NotImplementedError()
+
+    def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+        raise NotImplementedError()
+
+    def visit_binding(self, binding: Binding) -> None:
+        if isinstance(binding, MatchShape):
+            self.visit_match_shape_(binding)
+        elif isinstance(binding, VarBinding):
+            self.visit_var_binding_(binding)
+        else:
+            raise TypeError("Invalid type: {0}".format(type(binding)))
+
+    def visit_binding_block(self, block: BindingBlock) -> None:
+        if isinstance(block, DataflowBlock):
+            self.visit_dataflow_block_(block)
+        elif isinstance(block, BindingBlock):
+            self.visit_binding_block_(block)
+        else:
+            raise TypeError("Invalid type: {0}".format(type(block)))
+
+    def visit_var_def(self, var: Var):
+        if isinstance(var, DataflowVar):
+            self.visit_dataflow_var_def_(var)
+        elif isinstance(var, Var):
+            self.visit_var_def_(var)
+        else:
+            raise TypeError("Invalid type: {0}".format(type(var)))
+
+
 @tvm._ffi.register_object("expr_functor.PyExprVisitor")
 class _PyExprVisitor(Object):
     """
