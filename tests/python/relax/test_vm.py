@@ -16,7 +16,7 @@
 # under the License.
 from __future__ import annotations  # must import to defer parsing of annotations
 import os
-from typing import Callable, Tuple
+from typing import Any, Callable, List, Tuple
 
 import numpy as np
 import pytest
@@ -69,6 +69,18 @@ def tile_packed(a, b):
     b[:] = tvm.nd.array(np.tile(a.numpy(), (1, 2)))
 
 
+def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any]) -> Object:
+    # uses save_function to create a closure with the given inputs
+    # and ensure the result is the same
+    # (assumes the functions return tensors and that they're idempotent)
+    saved_name = f"{func_name}_saved"
+    vm.save_function(func_name, saved_name, *inputs)
+    res1 = vm[func_name](*inputs)
+    res2 = vm[saved_name]()
+    tvm.testing.assert_allclose(res1.numpy(), res2.numpy(), rtol=1e-7, atol=1e-7)
+    return res1
+
+
 def test_vm_execute():
     ib = relax.ExecBuilder()
     with ib.function("func0", num_inputs=2):
@@ -86,7 +98,7 @@ def test_vm_execute():
             4,
         )
     )
-    add_res = vm["func0"](a, b)
+    add_res = check_saved_func(vm, "func0", a, b)
     tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -110,8 +122,8 @@ def test_vm_multiple_func():
             4,
         )
     )
-    mul_res = vm["func1"](a, b)
-    add_res = vm["func0"](a, b)
+    mul_res = check_saved_func(vm, "func1", a, b)
+    add_res = check_saved_func(vm, "func0", a, b)
     tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
     tvm.testing.assert_allclose(mul_res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -239,7 +251,7 @@ def test_vm_copy():
     ex = relax.vm.build(mod, target)
     inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    res = vm["foo"](inp)
+    res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -262,7 +274,7 @@ def test_vm_goto():
             4,
         )
     )
-    res = vm["main"](a, b)
+    res = check_saved_func(vm, "main", a, b)
     tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -436,7 +448,7 @@ def test_vm_compile_e2e():
 
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    res = vm["foo"](inp)
+    res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
 
 
@@ -473,7 +485,7 @@ def test_vm_compile_e2e_func_param_with_shape():
 
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
-    res = vm["func"](data, weight)
+    res = check_saved_func(vm, "func", data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
@@ -500,7 +512,7 @@ def test_vm_emit_te_extern():
 
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
     weight = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
-    res = vm["rx_cblas_matmul"](data, weight)
+    res = check_saved_func(vm, "rx_cblas_matmul", data, weight)
     expected = np.dot(data.numpy(), weight.numpy())
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
@@ -537,7 +549,7 @@ def test_vm_emit_te_concat():
             2,
         ).astype(np.float32)
     )
-    res = vm["rx_func"](inp, inp2)
+    res = check_saved_func(vm, "rx_func", inp, inp2)
     tvm.testing.assert_allclose(
         res.numpy(), np.append(inp.numpy(), inp2.numpy()), rtol=1e-7, atol=1e-7
     )
@@ -572,7 +584,7 @@ def test_vm_emit_te_dtype_change():
             1,
         ).astype(np.float32)
     )
-    res = vm["rx_func"](inp)
+    res = check_saved_func(vm, "rx_func", inp)
     np.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
 
 
@@ -598,7 +610,7 @@ def test_vm_emit_te_floor_symbolic_shape():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (9,)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
-    res = vm["rx_func"](inp)
+    res = check_saved_func(vm, "rx_func", inp)
 
     def expected_output():
         output_shape = (shape[0] // 2,)
@@ -625,7 +637,7 @@ def test_vm_emit_te_constant_param_cpu():
     dev = tvm.cpu()
     vm = relax.VirtualMachine(exec, dev)
 
-    add_res = vm["main"](tvm.nd.array(x_np, dev))
+    add_res = check_saved_func(vm, "main", tvm.nd.array(x_np, dev))
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
@@ -652,7 +664,7 @@ def test_vm_emit_te_constant_param_gpu():
     dev = tvm.cuda()
     vm = relax.VirtualMachine(exec, dev)
 
-    add_res = vm["main"](tvm.nd.array(x_np, dev))
+    add_res = check_saved_func(vm, "main", tvm.nd.array(x_np, dev))
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
@@ -681,7 +693,7 @@ def test_vm_relax_symbolic_shape():
     shape2 = (3,)
     inp = tvm.nd.array(np.random.rand(*shape1).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(*shape2).astype(np.float32))
-    res = vm["rx_func"](inp, inp2)
+    res = check_saved_func(vm, "rx_func", inp, inp2)
 
     def expected_output():
         return inp.numpy() + np.repeat(inp2.numpy(), 2)[:5]
@@ -719,7 +731,7 @@ def test_vm_relax_dyn_tir_shape():
     inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
 
-    res = vm["rx_func"](inp, inp2)
+    res = check_saved_func(vm, "rx_func", inp, inp2)
 
     tvm.testing.assert_allclose(res.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -768,7 +780,7 @@ def test_vm_tuplegetitem():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3))
     y_inp = tvm.nd.array(np.random.rand(2, 3))
-    res = vm["tuple_get_item"](x_inp, y_inp)
+    res = check_saved_func(vm, "tuple_get_item", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -821,7 +833,7 @@ def test_sub_func_call():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
     y_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
-    res = vm["main"](x_inp, y_inp)
+    res = check_saved_func(vm, "main", x_inp, y_inp)
     product = np.dot(x_inp.numpy(), y_inp.numpy())
     expected = product * product
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
@@ -854,7 +866,7 @@ def test_recursion():
     recursion_runs = np.random.randint(1, 10)
     inp.fill(recursion_runs)
     inp = tvm.nd.array(inp)
-    res = vm["recursion"](inp)
+    res = check_saved_func(vm, "recursion", inp)
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
@@ -880,7 +892,7 @@ def test_vm_closure():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3))
     y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
-    res = vm["main"](x_inp, y_inp)
+    res = check_saved_func(vm, "main", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
 
 
@@ -907,6 +919,31 @@ def test_vm_invoke_closure():
     tvm.testing.assert_allclose(
         res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
     )
+
+
+def test_time_evaluator():
+    @tvm.script.ir_module
+    class TestTimeEvaluator:
+        @R.function
+        def main(x: Tensor((1,), "float32"), y: Tensor((1,), "float32")):
+            return R.call_packed("test.vm.add", x, y, type_args=(Tensor(ndim=1, dtype="float32")))
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(TestTimeEvaluator, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x = tvm.nd.array(np.random.rand(1))
+    y = tvm.nd.array(np.random.rand(1))
+
+    # ensure we can use time_evaluator with the stateful API
+    vm.set_input("main", x, y)
+    timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("main")
+    # just checking that it has some results at all
+    assert timing_res.results
+
+    # ensure we can use it with a closure
+    vm.save_function("main", "saved_main", x, y)
+    timing_res = vm.time_evaluator("saved_main", tvm.cpu())()
+    assert timing_res.results
 
 
 @tvm.script.ir_module
