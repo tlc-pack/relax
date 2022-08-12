@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from __future__ import annotations
 import pytest
 
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.relax.analysis import udchain
+from tvm.relax.analysis import udchain, remove_all_unused, name_to_binding
+from tvm.script import relax as R
 
 
 def test_dispatch_var():
@@ -89,6 +92,122 @@ def test_use_def():
     assert set(udc[lv0]) == {lv1}
     assert set(udc[lv1]) == {gv0}
     assert set(udc[gv0]) == set()
+
+
+def test_chained_remove_all_unused():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
+                unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+                R.output(lv0)
+            return lv0
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            return lv0
+
+    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+
+
+def test_binding_block_remove_all_unused():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
+                unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+                R.output(lv0)
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            return z
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            return z
+
+    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+
+
+def test_binding_block_fake_unused_remove_all_unused():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            return lv0
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+            with R.dataflow():
+                lv0 = x
+                R.output(lv0)
+            # This might bring side effect so cannot be removed.
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            return lv0
+
+    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+
+
+def test_edge_binding_block_fake_unused_remove_all_unused():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+            z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor((32, 32), "float32")))
+            return x
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+    tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
+
+
+def test_name_to_binding_var_shadowing():
+    @R.function
+    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = x
+            lv1 = lv0
+            R.output(lv1)
+
+        with R.dataflow():
+            lv0 = lv1  # shadowing
+            lv2 = lv0
+            R.output(lv2)
+        return lv2
+
+    n2binding = name_to_binding(main)
+
+    assert "lv0" in n2binding
+    assert "lv1" in n2binding
+    assert "lv2" in n2binding
+
+    assert len(n2binding["lv0"]) == 2
 
 
 if __name__ == "__main__":
