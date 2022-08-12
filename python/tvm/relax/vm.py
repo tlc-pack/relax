@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
-from typing import List, Optional, Union, Dict, Tuple
+from typing import Callable, List, Optional, Union, Dict, Tuple
 import numpy as np
 
 from tvm._ffi import base as _base
@@ -90,6 +90,7 @@ class VirtualMachine(object):
             else exec["vm_load_executable"]()
         )
         self._invoke_closure = self.module["invoke_closure"]
+        self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
         self._invoke_stateful = self.module["invoke_stateful"]
         self._get_output = self.module["get_output"]
@@ -159,6 +160,44 @@ class VirtualMachine(object):
             The output.
         """
         return self._invoke_closure(closure, *args)
+
+    def save_function(
+        self, func_name: str, saved_name: str, *args: List[Any], include_return: bool = True
+    ) -> None:
+        """
+        Convenience function. Takes a function from the module and saves
+        a `PackedFunc` that, when called, will invoke the function with the given arguments.
+        The `PackedFunc` can be accessed from the module using `saved_name`.
+        This is included to facilitate timing trials:
+        Invoking the returned `PackedFunc` will have less overhead from dictionary lookups
+        than normally running through the VM.
+
+        If the saved name is taken, it can be overridden, though it cannot override
+        the name of a function defined in the Relax source.
+
+        This is really creating a closure, but the function has a different name
+        to avoid confusion with `invoke_closure` (they are not meant to be used together).
+
+        Parameters
+        ----------
+        func_name : str
+            The function that should be packaged up.
+
+        saved_name : str
+            The name that the resulting closure should be saved under.
+
+        include_return : bool
+            Whether the saved PackedFunc should return its output.
+            If timing over RPC, it may not be desirable to send output
+            between machines.
+
+        args : List[Any]
+            The arguments to package up with the function.
+        """
+        cargs = []
+        for arg in args:
+            self._convert(arg, cargs)
+        self._save_function(func_name, saved_name, int(include_return), *cargs)
 
     def _convert(self, arg: Any, cargs: List) -> None:
         """helper function to convert arguments to vm function."""
@@ -282,6 +321,115 @@ class VirtualMachine(object):
             return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
 
         return get_output_rec(func_name)
+
+    def time_evaluator(
+        self,
+        func_name,
+        dev,
+        number=10,
+        repeat=1,
+        min_repeat_ms=0,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
+        f_preproc="",
+    ) -> Callable[..., tvm.runtime.module.BenchmarkResult]:
+        """
+        Returns an evaluator that times a function in the module.
+        This follows the same convention as time_evaluator in tvm.runtime.module.
+        This can be used in combination with save_function() so that the
+        timings avoid extra dictionary lookups.
+
+        Parameters
+        ----------
+        func_name: str
+            The name of the function in the module.
+
+        dev: Device
+            The device we should run this function on.
+
+        number: int
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
+
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
+
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
+        f_preproc: str, optional
+            The preprocess function name we want to execute before executing the time evaluator.
+
+        Note
+        ----
+        The function will be invoked  (1 + number x repeat) times,
+        with the first call discarded in case there is lazy initialization.
+
+        Example
+        -------
+        Normal use with a VM function (may not work over RPC if the function returns a tuple):
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
+
+        Use with the stateful API:
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm.set_input("func_name", arg0, arg1, ..., argn)
+            timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
+
+        With saved closures via `save_function` (this results in
+        fewer dictionary lookups in the timed portion):
+
+        .. code-block:: python
+
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(TestTimeEvaluator, target)
+            vm = relax.VirtualMachine(mod, tvm.cpu())
+            vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
+            timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()
+
+        Returns
+        -------
+        ftimer : function
+            The function that takes same argument as func and returns a BenchmarkResult.
+            The ProfileResult reports `repeat` time costs in seconds.
+
+        """
+        return self.module.time_evaluator(
+            func_name,
+            dev,
+            number=number,
+            repeat=repeat,
+            min_repeat_ms=min_repeat_ms,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
+            f_preproc=f_preproc,
+        )
 
 
 def build(
