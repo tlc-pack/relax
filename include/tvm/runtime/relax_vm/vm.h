@@ -157,7 +157,12 @@ class VirtualMachine : public runtime::ModuleNode {
    * \return The object representing the result.
    */
   RegType Invoke(Index fidx, const std::vector<RegType>& args);
-
+  /*!
+   * \brief Read a VM register and cast it to int64_t.
+   * \param reg The register to read from.
+   * \return The read scalar.
+   */
+  int64_t LoadScalarInt(RegName reg) const;
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
   /*!

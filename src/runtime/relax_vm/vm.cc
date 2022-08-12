@@ -341,6 +341,40 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   pc_++;
 }
 
+int64_t VirtualMachine::LoadScalarInt(RegName reg) const {
+  int64_t result = 0;
+  VMFrame* curr_frame = frames_.back().get();
+  const RegType& obj = ReadRegister(curr_frame, reg);
+  NDArray ndarray = obj.operator tvm::runtime::NDArray();
+  NDArray ndarray_host = ndarray.CopyTo(devices[0]);
+
+  switch (ndarray_host->dtype.bits) {
+    case 1: {
+      result = reinterpret_cast<bool*>(ndarray_host->data)[0];
+      break;
+    }
+    case 8: {
+      result = reinterpret_cast<int8_t*>(ndarray_host->data)[0];
+      break;
+    }
+    case 16: {
+      result = reinterpret_cast<int16_t*>(ndarray_host->data)[0];
+      break;
+    }
+    case 32: {
+      result = reinterpret_cast<int32_t*>(ndarray_host->data)[0];
+      break;
+    }
+    case 64: {
+      result = reinterpret_cast<int64_t*>(ndarray_host->data)[0];
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(ndarray_host->dtype);
+  }
+  return result;
+}
+
 void VirtualMachine::RunLoop() {
   VMFrame* curr_frame = frames_.back().get();
 
@@ -374,7 +408,7 @@ void VirtualMachine::RunLoop() {
         break;
       }
       case Opcode::If: {
-        int64_t cond_val = ReadRegister(curr_frame, instr.cond);
+        int64_t cond_val = LoadScalarInt(instr.cond);
         if (cond_val != 0) {
           pc_++;
         } else {
