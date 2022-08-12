@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 
 namespace tvm {
@@ -57,6 +59,31 @@ tvm::runtime::Map<Var, Expr> AnalyzeVar2Value(const IRModule& m) {
 TVM_REGISTER_GLOBAL(("relax.analysis.get_var2val")).set_body_typed([](const Function& f) {
   return AnalyzeVar2Value(f);
 });
+
+class Name2BindingAnalysis : public relax::ExprVisitor {
+ public:
+  // runtime::Map is not suitable for doing in-place update.
+  // so we use standard container for internal usage.
+  std::map<String, Array<Binding>> name2bindings_;
+  void VisitBinding_(const VarBindingNode* binding) override {
+    const auto& vname = binding->var->name_hint();
+    name2bindings_[vname].push_back(GetRef<VarBinding>(binding));
+  }
+
+  void VisitBinding_(const MatchShapeNode* binding) override {
+    const auto& vname = binding->var->name_hint();
+    name2bindings_[vname].push_back(GetRef<MatchShape>(binding));
+  }
+};
+
+Map<String, Array<Binding>> NameToBinding(const Function& fn) {
+  Name2BindingAnalysis analysis{};
+  analysis.VisitExpr_(fn.get());
+  return Map<String, Array<Binding>>(std::make_move_iterator(analysis.name2bindings_.begin()),
+                                     std::make_move_iterator(analysis.name2bindings_.end()));
+}
+
+TVM_REGISTER_GLOBAL(("relax.analysis.name_to_binding")).set_body_typed(NameToBinding);
 
 }  // namespace relax
 }  // namespace tvm
