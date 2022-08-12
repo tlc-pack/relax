@@ -28,8 +28,6 @@
 #include <memory>
 #include <string>
 
-#include "tvm/runtime/memory.h"
-
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
       .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
