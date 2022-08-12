@@ -110,6 +110,38 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
         }
       }
     });
+  } else if (name == "save_function") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      std::string closure_name = args[1];
+      bool include_return = args[2];
+      const auto& m = exec_->global_map;
+      if (m.find(func_name) == m.end()) {
+        LOG(FATAL) << "ValueError: Unknown function: " << func_name;
+      }
+      if (m.find(closure_name) != m.end()) {
+        LOG(FATAL) << "ValueError: Name " << closure_name << " is already taken.";
+      }
+      Index gf_idx = m.at(func_name);
+      std::vector<RegType> inputs;
+      if (args.size() > 3) {
+        inputs = std::vector<RegType>(args.size() - 3);
+        for (int i = 3; i < args.size(); i++) {
+          inputs[i - 3] = args[i];
+        }
+      }
+      if (include_return) {
+        saved_closures_[closure_name] =
+            PackedFunc([this, gf_idx, inputs](TVMArgs args, TVMRetValue* rv) {
+              *rv = this->Invoke(gf_idx, inputs);
+            });
+      } else {
+        saved_closures_[closure_name] =
+            PackedFunc([this, gf_idx, inputs](TVMArgs args, TVMRetValue* rv) {
+              this->Invoke(gf_idx, inputs);
+            });
+      }
+    });
   } else if (name == "invoke_closure") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK(exec_) << "The executable is not created yet.";
@@ -196,6 +228,11 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       }
       *rv = vm_func.param_names[index];
     });
+  }
+
+  // check if this is a function we saved
+  if (saved_closures_.count(name)) {
+    return saved_closures_[name];
   }
 
   const auto& m = exec_->global_map;
