@@ -95,21 +95,14 @@ Example
             # just for demo purposes
             ...
 
-        # customize post-order rewrite function
-        def rewrite_var_post_order(self, op: Expr) -> Expr:
-            # just for demo purposes
-            ...
-
     # mymutator is now a special mutator that rewrite every Tuple with
-    # user-customized visit_tuple_, and rewrite every Var with user-customized
-    # rewrite_var_post_order in the post order.
+    # user-customized visit_tuple_
     mymutator = MyExprMutator()
     # apply mymutator to Expr/Binding/BindingBlock/VarDef
     mymutator.visit_expr(expr)
     mymutator.visit_binding(binding)
     mymutator.visit_binding_block(bindingblock)
     mymutator.visit_var_def(var)
-    # Note: In this case, we cannot override rewrite_tuple_post_order in MyExprMutator.
 """
 
 
