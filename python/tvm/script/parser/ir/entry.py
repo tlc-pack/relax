@@ -14,5 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.tir"""
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+# pylint: disable=missing-docstring
+import inspect
+from typing import Type
+
+from tvm.ir import IRModule
+
+from .._core import parse, utils
+
+
+def ir_module(f: Type) -> IRModule:
+    if not inspect.isclass(f):
+        raise TypeError(f"Expect a class, but got: {f}")
+
+    return parse(f, utils.inspect_class_capture(f))
+
+
+setattr(ir_module, "dispatch_token", "ir")

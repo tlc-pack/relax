@@ -23,22 +23,22 @@ from __future__ import annotations
 import inspect
 import json
 from enum import Enum
-from typing import Union, Dict, List, Tuple, Optional, Callable, Any
-import synr
-from synr import ast, Transformer
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import synr
 import tvm
-from tvm import relay, relax, tir
-from tvm.relax.utils import metadata_partitioner
 import tvm.script
+from synr import Transformer, ast
+from tvm import relax, relay, tir
 from tvm.ir import diagnostics
 from tvm.ir.module import IRModule
-from tvm.script.tir.node import BufferSlice
-import tvm.script.tir as tir_namespace
-import tvm.script.relax as relax_namespace
+from tvm.relax.utils import metadata_partitioner
 
+from .. import relax as relax_namespace
+from .. import tir as tir_namespace
 from ..parser import TVMScriptParser as _TIRScriptParser
-from ..utils import tvm_span_from_synr, call_with_error_reporting
+from ..tir.node import BufferSlice
+from ..utils import call_with_error_reporting, tvm_span_from_synr
 
 
 def _is_registered(op_name: str, op_set=None) -> bool:

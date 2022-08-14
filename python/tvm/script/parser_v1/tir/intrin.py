@@ -17,11 +17,12 @@
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import builtins
-from typing import List, Any
+from typing import Any, List
 
 import tvm.tir
+
+from ....target import codegen
 from ..registry import register
-from ...target import codegen
 from ..utils import get_param_list, tvm_span_from_synr
 
 

@@ -20,36 +20,36 @@ We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
 different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
-# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except, import-outside-toplevel
-import types
+import functools
+import inspect
 import json
 import operator
-import inspect
-import functools
+
+# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except, import-outside-toplevel
+import types
 from typing import Any, Callable, Dict, List, Optional, Union
-from synr import ast, Transformer, to_ast
 
 import tvm
+from synr import Transformer, ast, to_ast
 from tvm import IRModule, relax
 from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
 from tvm.ir.function import BaseFunc
 from tvm.tir import buffer
 from tvm.tir.function import PrimFunc
-from . import _ffi_api
-from . import tir
 
+from .. import _ffi_api
+from . import tir
 from .context_maintainer import ContextMaintainer
+from .diagnostics import TVMDiagnosticCtx
 from .meta_unparser import MetaUnparser
 from .registry import Registry
-from .diagnostics import TVMDiagnosticCtx
-from .utils import tvm_span_from_synr, synr_span_from_tvm, call_with_error_reporting
-
-from .tir.intrin import Intrin
-from .tir.node import Slice, BufferSlice
-from .tir.scope_handler import ScopeHandler, WithScopeHandler, ForScopeHandler
-from .tir.special_stmt import SpecialStmt
 from .tir import ty
+from .tir.intrin import Intrin
+from .tir.node import BufferSlice, Slice
+from .tir.scope_handler import ForScopeHandler, ScopeHandler, WithScopeHandler
+from .tir.special_stmt import SpecialStmt
+from .utils import call_with_error_reporting, synr_span_from_tvm, tvm_span_from_synr
 
 
 class CallArgumentReader(object):
