@@ -14,7 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
+"""Package tvm.script.ir_builder.ir.ir"""
 
-from . import ir_builder, relax, tir
-from .parser import from_source, ir_module
+from . import _ffi_api
+from .frame import IRModuleFrame
+
+
+def ir_module() -> IRModuleFrame:
+    return _ffi_api.IRModule()  # pylint: disable=no-member # type: ignore
