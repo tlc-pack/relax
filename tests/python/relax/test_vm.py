@@ -18,6 +18,8 @@ from __future__ import annotations  # must import to defer parsing of annotation
 import os
 from typing import Any, Callable, List, Tuple
 
+import sys
+import tempfile
 import numpy as np
 import pytest
 import tvm
@@ -50,7 +52,7 @@ def mul(a, b):
 @tvm.register_func("test.vm.equal_zero")
 def equal_zero(a):
     ret = np.all((a.numpy() == 0))
-    return bool(ret)
+    return tvm.nd.array(ret)
 
 
 @tvm.register_func("test.vm.subtract_one")
@@ -298,9 +300,9 @@ def test_vm_if():
             4,
         )
     )
-    res = vm["main"](False, a, b)
+    res = vm["main"](tvm.nd.array(False), a, b)
     tvm.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["main"](1, a, b)
+    res = vm["main"](tvm.nd.array(1), a, b)
     tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -320,9 +322,13 @@ def test_vm_compile_if():
     ex = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(3, 4))
-    res = vm["ife"](True, inp)
+    res = vm["ife"](tvm.nd.array(1), inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](0, inp)
+    res = vm["ife"](tvm.nd.array(True), inp)
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
+    res = vm["ife"](tvm.nd.array(0), inp)
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
+    res = vm["ife"](tvm.nd.array(False), inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
@@ -782,6 +788,101 @@ def test_vm_tuplegetitem():
     y_inp = tvm.nd.array(np.random.rand(2, 3))
     res = check_saved_func(vm, "tuple_get_item", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
+
+
+def test_vm_print_const():
+    @tvm.script.ir_module
+    class PrintConst:
+        @R.function
+        def main():
+            x = relax.const([1, 2])
+            y = relax.print(x)
+            return x
+
+    try:
+        stdout = sys.stdout
+        with tempfile.TemporaryFile(mode="w+") as test_out:
+            sys.stdout = test_out
+            mod = PrintConst
+            target = tvm.target.Target("llvm", host="llvm")
+            ex = relax.vm.build(mod, target)
+            vm = relax.VirtualMachine(ex, tvm.cpu())
+            res = vm["main"]()
+            test_out.seek(0)
+            printed_text = str(test_out.read())
+            expected = "[1 2]\n"
+            assert printed_text == expected
+            tvm.testing.assert_allclose(res.numpy(), np.array([1, 2]))
+    finally:
+        sys.stdout = stdout
+
+
+def test_vm_return_const_tuple():
+    @tvm.script.ir_module
+    class ReturnConstTuple:
+        @R.function
+        def main(x: Tensor((_, _), "float32")):
+            y = relax.const([1, 2])
+            z = (y, relax.const([3, 4]), x)
+            return z
+
+    mod = ReturnConstTuple
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    inp = tvm.nd.array(np.random.rand(2, 3))
+    res0, res1, res2 = vm["main"](inp)
+    tvm.testing.assert_allclose(res0.numpy(), np.array([1, 2]))
+    tvm.testing.assert_allclose(res1.numpy(), np.array([3, 4]))
+    tvm.testing.assert_allclose(res2.numpy(), inp.numpy())
+
+
+def test_vm_const_as_call_arg():
+    @tvm.script.ir_module
+    class TestVMConstAsCallArg:
+        @R.function
+        def main(x: Tensor((_, _), "float32")):
+            a = relax.call_packed(
+                "test.vm.add",
+                relax.const([1, 2]),
+                relax.const([3, 4]),
+                type_args=(Tensor(ndim=2, dtype="float32")),
+            )
+            b = relax.call_packed(
+                "test.vm.add",
+                a,
+                x,
+                type_args=(Tensor(ndim=2, dtype="float32")),
+            )
+            return b
+
+    mod = TestVMConstAsCallArg
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    inp = tvm.nd.array(np.random.rand(1, 2))
+    res = vm["main"](inp)
+    tvm.testing.assert_allclose(res.numpy(), np.array([4, 6]) + inp.numpy())
+
+
+def test_vm_if_cond_const():
+    @tvm.script.ir_module
+    class TestVMIfCondConst:
+        @R.function
+        def main(x: Tensor((_, _), "float32")) -> Tensor((1,), "int32"):
+            if relax.const(True, dtype="bool"):
+                ret = x
+            else:
+                ret = x
+            return ret
+
+    mod = TestVMIfCondConst
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    inp = tvm.nd.array(np.random.rand(3, 4))
+    res = vm["main"](inp)
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy())
 
 
 def test_sub_func_call():
