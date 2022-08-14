@@ -34,17 +34,17 @@ namespace relax {
  * function. */
 TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFunc f,
                                                         const Array<ObjectRef>& args) {
-  const size_t kNumArgs = args.size();
-  TVMValue tvm_values[kNumArgs];
-  int tvm_type_codes[kNumArgs];
-  runtime::TVMArgsSetter setter(tvm_values, tvm_type_codes);
+  size_t num_args = args.size();
+  std::vector<TVMValue> values(num_args);
+  std::vector<int> codes(num_args);
+  runtime::TVMArgsSetter setter(values.data(), codes.data());
   const ObjectRef* ptr = args.template as<ArrayNode>()->begin();
-  for (size_t i = 0; i < kNumArgs; ++i) {
+  for (size_t i = 0; i < num_args; ++i) {
     setter(i, *(ptr + i));
   }
 
   TVMRetValue rv;
-  f.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
+  f.CallPacked(TVMArgs(values.data(), codes.data(), num_args), &rv);
   return rv;
 }
 
