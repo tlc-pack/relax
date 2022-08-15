@@ -324,13 +324,6 @@ def add_hexagon_permissions() {
   )
 }
 
-def add_hexagon_permissions() {
-  sh(
-    script: 'find build/hexagon_api_output -type f | xargs chmod +x',
-    label: 'Add execute permissions for hexagon files',
-  )
-}
-
 stage('Build and Test') {
   if (is_docs_only_build != 1) {
     parallel 'BUILD: GPU': {
