@@ -24,7 +24,7 @@ from tvm.runtime import Object as _Object
 from . import _ffi_api
 
 
-@_register_object("ir_builder.IRBuilderFrame")
+@_register_object("script.ir_builder.IRBuilderFrame")
 class IRBuilderFrame(_Object):
     def __enter__(self) -> "IRBuilderFrame":
         _ffi_api.IRBuilderFrameEnter(self)  # pylint: disable=no-member # type: ignore
@@ -39,7 +39,7 @@ class IRBuilderFrame(_Object):
         )
 
 
-@_register_object("ir_builder.IRBuilder")
+@_register_object("script.ir_builder.IRBuilder")
 class IRBuilder(_Object):
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
