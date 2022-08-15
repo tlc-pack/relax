@@ -220,7 +220,6 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
  */
 TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
-
 /*!
  * \brief Verify if the given TIR is well-formed. The verification includes:
  *        - Check if expressions not contain vars that is defined outside the block.
