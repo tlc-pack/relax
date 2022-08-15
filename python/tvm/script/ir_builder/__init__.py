@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-
-from . import ir_builder, relax, tir
-from .parser import from_source, ir_module
+"""tvm.script.ir_builder is a generic IR builder for TVM."""
+from . import tir
+from .ir import ir_module
