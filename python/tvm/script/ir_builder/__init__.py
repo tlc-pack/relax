@@ -16,4 +16,5 @@
 # under the License.
 """tvm.script.ir_builder is a generic IR builder for TVM."""
 from . import tir
+from .base import IRBuilder
 from .ir import ir_module

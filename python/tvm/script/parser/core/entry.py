@@ -14,5 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.tir"""
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+# pylint: disable=missing-docstring
+"""The entry point of TVM parser."""
+from typing import Any, Union
+
+from ...ir_builder import IRBuilder
+from . import doc
+from .diagnostics import Source
+from .parser import Parser
+
+
+def parse(program: Union[doc.AST, Any, str], extra_vars=None):
+    if extra_vars is None:
+        from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
+        from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+
+        extra_vars = {
+            "I": ir,
+            "ir": ir,
+            "T": tir,
+            "tir": tir,
+        }
+
+    source = Source(program)
+    parser = Parser(source)
+    with IRBuilder() as builder:
+        parser.parse(extra_vars=extra_vars)
+    return builder.get()

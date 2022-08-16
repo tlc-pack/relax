@@ -20,6 +20,7 @@ from tvm.ir import PrimExpr
 from tvm.runtime import const
 
 from . import analysis, schedule, stmt_functor, transform, usmp
+from .generic import cast
 from .buffer import Buffer, DataProducer, decl_buffer
 from .data_layout import BijectiveLayout, Layout, bijective_layout, layout
 from .expr import (

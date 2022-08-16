@@ -14,5 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.tir"""
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+# pylint: disable=missing-docstring
+import inspect
+from typing import Any, Callable, Dict
+
+
+def inspect_function_capture(func: Callable) -> Dict[str, Any]:
+    captured = {
+        **inspect.getclosurevars(func).nonlocals,
+        **func.__globals__,  # type: ignore
+    }
+    return captured
+
+
+def inspect_class_capture(cls: type) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    for _, v in cls.__dict__.items():
+        if inspect.isfunction(v):
+            func_vars = inspect_function_capture(v)
+            result.update(**func_vars)
+    return result

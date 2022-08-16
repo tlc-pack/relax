@@ -14,5 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package tvm.script.ir_builder.tir"""
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
+
+from . import tir
+from . import relax
+
+from .parser import ir_module, from_source

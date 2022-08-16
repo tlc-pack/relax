@@ -13,6 +13,10 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-"""Package tvm.script.ir_builder.tir"""
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+# under the Licens.
+"""The core parser infra"""
+# pylint: disable=unused-import
+from .core import dispatch, doc, utils
+from .core.dispatch import OpMethod, register_op
+from .core.entry import parse
+from .core.parser import Parser
