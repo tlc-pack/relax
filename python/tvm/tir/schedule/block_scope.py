@@ -20,8 +20,8 @@ from typing import List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
-from tvm.tir import Block, For
 
+from ..stmt import Block, For
 from . import _ffi_api
 
 
