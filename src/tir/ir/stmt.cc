@@ -810,6 +810,14 @@ BufferRegion::BufferRegion(Buffer buffer, Array<Range> region) {
   CHECK_EQ(buffer->shape.size(), region.size())
       << "The dimension between " << buffer << " and region " << region
       << " mismatched, the buffer is " << buffer;
+  for (const Range& r : region) {
+    ICHECK(r->min->dtype.is_int() || r->min->dtype.is_uint())
+        << "ValueError: ranges of BufferRegion should be int, but got type " << r->min->dtype
+        << " for range " << r << " in its min value " << r->min;
+    ICHECK(r->extent->dtype.is_int() || r->extent->dtype.is_uint())
+        << "ValueError: ranges of BufferRegion should be int, but got type " << r->extent->dtype
+        << " for range " << r << " in its extent value " << r->extent;
+  }
   ObjectPtr<BufferRegionNode> node = make_object<BufferRegionNode>();
   node->buffer = std::move(buffer);
   node->region = std::move(region);
@@ -1090,6 +1098,8 @@ PrimExpr TypeAnnotation(DataType dtype, Span span) {
 
 TVM_REGISTER_OP("tir.type_annotation")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
+TVM_REGISTER_GLOBAL("tir.TypeAnnotation").set_body_typed(TypeAnnotation);
 
 }  // namespace tir
 }  // namespace tvm

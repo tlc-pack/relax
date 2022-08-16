@@ -28,15 +28,16 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(y.a == x)
 """
 from typing import Optional, Union
-from tvm import ir
-import tvm._ffi
-from tvm.ir.base import Span
 
-from tvm.runtime import Object, ObjectGeneric, DataType, DataTypeCode, const
-from tvm.ir import PrimExpr, Op
+import tvm._ffi
 import tvm.ir._ffi_api
-from . import generic as _generic
+from tvm import ir
+from tvm.ir import Op, PrimExpr
+from tvm.ir.base import Span
+from tvm.runtime import DataType, DataTypeCode, Object, ObjectGeneric, const
+
 from . import _ffi_api
+from . import generic as _generic
 
 
 def div_ambiguity_error():
@@ -65,8 +66,6 @@ def _dtype_is_float(value):
 
 class ExprOp(object):
     """Operator overloading for Expr like expressions."""
-
-    # TODO(tkonolige): use inspect to add source information to these objects
 
     def __add__(self, other):
         return _generic.add(self, other)
@@ -1005,6 +1004,8 @@ class Select(PrimExprWithOp):
     """
 
     def __init__(self, condition, true_value, false_value, span=None):
+        if isinstance(condition, bool):
+            condition = IntImm("bool", condition)
         self.__init_handle_by_constructor__(
             _ffi_api.Select, condition, true_value, false_value, span  # type: ignore
         )
