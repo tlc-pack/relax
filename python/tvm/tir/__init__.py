@@ -19,9 +19,7 @@
 from tvm.ir import PrimExpr
 from tvm.runtime import const
 
-from . import analysis
-from . import ir_builder_v1 as ir_builder
-from . import schedule, stmt_functor, transform, usmp
+from . import analysis, schedule, stmt_functor, transform, usmp
 from .buffer import Buffer, DataProducer, decl_buffer
 from .data_layout import BijectiveLayout, Layout, bijective_layout, layout
 from .expr import (
