@@ -20,11 +20,11 @@ from typing import Dict, List, Union
 
 from tvm import Object
 from tvm.ir import IRModule
-from tvm.tir.expr import Var
-from tvm.tir.stmt import Block, BufferRegion, PrimExpr
 
-from .. import Buffer, Stmt
+from ..buffer import Buffer
+from ..expr import Var
 from ..function import PrimFunc
+from ..stmt import Block, BufferRegion, PrimExpr, Stmt
 from . import _ffi_api
 
 

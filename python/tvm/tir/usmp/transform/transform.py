@@ -20,8 +20,9 @@
 from typing import Dict
 
 import tvm
-from tvm.tir import Stmt
-from tvm.tir.usmp.utils import PoolAllocation
+
+from ...stmt import Stmt
+from ..utils import PoolAllocation
 from . import _ffi_api
 
 

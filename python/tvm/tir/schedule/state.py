@@ -22,8 +22,9 @@ from typing import Dict, Optional, Union
 from tvm._ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.tir import Block, BlockRealize, For, PrimFunc
 
+from ..function import PrimFunc
+from ..stmt import Block, BlockRealize, For
 from . import _ffi_api
 from .block_scope import BlockScope, StmtSRef
 

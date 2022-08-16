@@ -754,3 +754,7 @@ def stmt_list(stmt):
             res += stmt_list(x)
         return res
     return [stmt]
+
+
+def type_annotation(dtype, span=None):
+    return _ffi_api.TypeAnnotation(dtype, span)
