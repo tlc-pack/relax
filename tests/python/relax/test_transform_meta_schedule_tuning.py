@@ -101,6 +101,7 @@ def test_ms_tuning():
             tvm.ir.assert_structural_equal(mod, out_mod)
 
             out_mod = application_pass(mod)
+            assert not tvm.ir.structural_equal(mod, out_mod)
 
         with transform.PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
@@ -117,6 +118,7 @@ def test_ms_tuning():
             assert PassContext.current().get_trace_stack_size() == 1
             tvm.ir.assert_structural_equal(mod, out_mod)
             out_mod = application_pass(mod)
+            assert not tvm.ir.structural_equal(mod, out_mod)
 
 
 if __name__ == "__main__":
