@@ -700,7 +700,7 @@ def tune_relax(
     )
 
     with PassContext(opt_level=3):
-        relax_mod = MetaScheduleApplyHistoryBest(database, target)(mod)
+        relax_mod = MetaScheduleApplyHistoryBest(target, work_dir, database)(mod)
         relax_ex = relax_build(relax_mod, target=target)
     return relax_ex
 
@@ -711,10 +711,10 @@ def tune_tir_with_tuning_api(
     target: Union[str, Target],
     config: tvm.ir.container.Array,
     work_dir: str,
+    database: Optional[Database] = None,
     *,
     builder: Optional[Builder] = None,
     runner: Optional[Runner] = None,
-    database: Optional[Database] = None,
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     space: Optional[FnSpaceGenerator] = None,
@@ -725,7 +725,9 @@ def tune_tir_with_tuning_api(
     num_threads: Optional[int] = None,
 ) -> IRModule:
     """
-    Tune TIR primfunc with TuningAPI
+    Tune TIR primfunc with TuningAPI and save optimized decisions in the database.
+    Perform `MetaScheduleApplyHistoryBest` pass to apply the tuned decisions.
+
     Parameters
     ----------
     mod : Union[IRModule, PrimFunc]
@@ -764,7 +766,7 @@ def tune_tir_with_tuning_api(
         config[2] = int(config[2])
     config = TuneConfig(*config)
 
-    sch = tune_tir(
+    tune_tir(
         mod,
         target,
         config,
@@ -782,8 +784,9 @@ def tune_tir_with_tuning_api(
         num_threads=num_threads,
     )
 
-    out_mod = mod if sch is None else sch.mod
-    return out_mod
+    # Return original IRModule
+    # This pass only makes optimization decision
+    return mod
 
 
 @tvm._ffi.register_func("meta_schedule.tune_relax_irmod_with_tuning_api")
@@ -792,10 +795,10 @@ def tune_relax_irmod_with_tuning_api(
     target: Union[str, Target],
     config: tvm.ir.container.Array,
     work_dir: str,
+    database: Optional[Database] = None,
     *,
     builder: Optional[Builder] = None,
     runner: Optional[Runner] = None,
-    database: Optional[Database] = None,
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     space: Optional[FnSpaceGenerator] = None,
@@ -804,7 +807,8 @@ def tune_relax_irmod_with_tuning_api(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> IRModule:
-    """Tune a relax IRModule with TuningAPI.
+    """Tune a relax IRModule with TuningAPI and save optimized decisions in the database.
+    Perform `MetaScheduleApplyHistoryBest` pass to apply the tuned decisions.
 
     Parameters
     ----------
@@ -832,8 +836,6 @@ def tune_relax_irmod_with_tuning_api(
     out_mod : IRModule
         Tuned Relax IRModule.
     """
-
-    from tvm.relax.transform import MetaScheduleApplyHistoryBest
     from .relax_integration import extract_task_from_relax
 
     # TODO(@sunggg): Somehow choice arguments have problem with custom class objects.
@@ -853,7 +855,7 @@ def tune_relax_irmod_with_tuning_api(
     target = default_config.target(target)
     # parse the tuning contexts
     extracted_tasks = extract_task_from_relax(mod, target)
-    database = tune_extracted_tasks(
+    tune_extracted_tasks(
         extracted_tasks,
         config,
         work_dir,
@@ -869,6 +871,6 @@ def tune_relax_irmod_with_tuning_api(
         num_threads=num_threads,
     )
 
-    with PassContext(opt_level=3):
-        relax_mod = MetaScheduleApplyHistoryBest(database, target)(mod)
-    return relax_mod
+    # Return original IRModule
+    # This pass only makes optimization decision
+    return mod

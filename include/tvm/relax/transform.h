@@ -115,8 +115,7 @@ TVM_DLL Pass Normalize();
  *
  * \return The Pass.
  */
-TVM_DLL Pass MetaScheduleApplyHistoryBest(const tvm::meta_schedule::Database& database,
-                                          Target target);
+TVM_DLL Pass MetaScheduleApplyHistoryBest(Target target, Optional<String> work_dir,Optional<tvm::meta_schedule::Database> database);
 
 /*!
  * \brief Bind params of function of the module to constant tensors.
