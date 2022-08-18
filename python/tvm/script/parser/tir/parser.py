@@ -23,8 +23,8 @@ from tvm.ir import PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
 from ...ir_builder import tir as T
+from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
-from ...ir_builder.base import name
 from .._core import Parser, dispatch, doc
 
 
@@ -34,7 +34,7 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
     elif isinstance(value, (Buffer, Var)):
-        name(var_name, value)
+        IRBuilder.name(var_name, value)
         return value
     else:
         self.report_error(node, f"Do not know how to bind type: {type(value)} in with statement")
@@ -47,7 +47,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
     elif isinstance(value, Var):
-        name(var_name, value)
+        IRBuilder.name(var_name, value)
         return value
     else:
         self.report_error(node, f"Do not know how to bind type: {type(value)} in for statement")
@@ -64,16 +64,16 @@ def bind_assign_value(self: Parser, _node: doc.expr, var_name: str, value: Any) 
     elif isinstance(value, Frame):
         value.add_callback(partial(value.__exit__, None, None, None))
         res = value.__enter__()
-        name(var_name, res)
+        IRBuilder.name(var_name, res)
         return res
     elif isinstance(value, (Buffer, IterVar)) or (
         isinstance(value, Var) and not self.var_table.exist(value)
     ):
-        name(var_name, value)
+        IRBuilder.name(var_name, value)
         return value
     elif isinstance(value, PrimExpr):
         var = T.var(value.dtype)
-        name(var_name, var)
+        IRBuilder.name(var_name, var)
         frame = T.let(var, value)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
