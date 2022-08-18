@@ -19,7 +19,6 @@
 from typing import Optional, Callable
 
 import tvm
-from ..ir.module import IRModule
 from tvm.runtime import Object
 from tvm.ir import Op
 from tvm.meta_schedule.utils import derived_object
@@ -33,6 +32,7 @@ from .expr import Call, If, TupleGetItem
 from .expr import Binding, MatchShape, VarBinding
 from .expr import BindingBlock, DataflowBlock
 from ..relay import Id
+from ..ir.module import IRModule
 from .block_builder import BlockBuilder
 from . import _ffi_api
 
