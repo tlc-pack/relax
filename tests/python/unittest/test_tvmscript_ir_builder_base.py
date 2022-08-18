@@ -14,7 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.script.ir_builder is a generic IR builder for TVM."""
-from . import ir, tir
-from .base import IRBuilder
-from .ir import ir_module
+"""Unittests for tvm.script.ir_builder.base"""
+import pytest
+from tvm.script.ir_builder import IRBuilder
+
+
+def test_ir_builder_scope():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        assert IRBuilder.current() == ib
+
+
+def test_ir_builder_multi_scope():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with IRBuilder() as ib2:  # pylint: disable=invalid-name
+            assert IRBuilder.current() == ib2
+        assert IRBuilder.current() == ib
+
+
+def test_ir_builder_no_scope():
+    with pytest.raises(ValueError):
+        IRBuilder.current()
+
+
+if __name__ == "__main__":
+    test_ir_builder_scope()
+    test_ir_builder_multi_scope()
+    test_ir_builder_no_scope()
