@@ -51,6 +51,7 @@ If = expr.If
 
 # helper functions
 const = expr.const
+Constant = expr.Constant
 extern = expr.extern
 te_tensor = expr.te_tensor
 
