@@ -19,6 +19,7 @@
 from typing import Optional, Callable
 
 import tvm
+from ..ir.module import IRModule
 from tvm.runtime import Object
 from tvm.ir import Op
 from tvm.meta_schedule.utils import derived_object
@@ -913,9 +914,9 @@ class PyExprMutator:
         ],
     }
 
-    def __init__(self) -> None:
+    def __init__(self, mod: Optional[IRModule] = None) -> None:
         """Constructor"""
-        self.builder_ = BlockBuilder()
+        self.builder_ = BlockBuilder(mod)
 
     def visit_expr(self, expr: Expr) -> Expr:
         """Generic dispatcher for Expr.
