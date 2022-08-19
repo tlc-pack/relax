@@ -87,7 +87,19 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
                         String storage_scope = "global", int align = -1, int offset_factor = 0,
                         String buffer_type = "default", Array<IntImm> axis_separators = {});
 
+/*!
+ * \brief The assertion statement.
+ * \param condition The assertion condition.
+ * \param message The error message when the assertion fails.
+ * \return The AssertFrame.
+ */
 AssertFrame Assert(PrimExpr condition, String message);
+/*!
+ * \brief The let binding.
+ * \param var The variable or name of variable.
+ * \param value The value to be bound.
+ * \return The created LetFrame.
+ */
 LetFrame Let(Var var, PrimExpr value);
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
                        Optional<PrimExpr> condition = NullOpt,
@@ -95,16 +107,38 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
 AllocateConstFrame AllocateConst(
     NDArray data, DataType dtype, Array<PrimExpr> extents,
     Map<String, ObjectRef> annotations = NullValue<Map<String, ObjectRef>>());
+/*!
+ * \brief The realization.
+ * \param buffer_slice The region of buffer access.
+ * \param storage_scope The storage scope associated with this realization.
+ * \param condition The condition expression.
+ * \return The result RealizeFrame.
+ */
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
 WhileFrame While(PrimExpr condition);
 IfFrame If(PrimExpr condition);
 ThenFrame Then();
 ElseFrame Else();
+/*!
+ * \brief Launch a thread.
+ * \param var The iteration variable.
+ * \param extent The extent of environment thread.
+ * \return The result LaunchThreadFrame.
+ */
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
+/*!
+ * \brief Bind a var to thread env.
+ * \param thread_tag The thread type tag.
+ * \return The result variable which gets bound to the thread env.
+ */
 Var EnvThread(String thread_tag);
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
 void Prefetch(Buffer buffer, Array<Range> bounds);
+/*!
+ * \brief Evaluate the input expression.
+ * \param value The input expression to be evaluated.
+ */
 void Evaluate(PrimExpr value);
 
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \

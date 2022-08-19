@@ -171,9 +171,17 @@ class PrimFuncFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
 };
 
+/*!
+ * \brief A frame that represents the assert statement. Proceeds if the condition is true,
+ * otherwise aborts with the message.
+ *
+ * \sa AssertFrame
+ */
 class AssertFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The PrimExpr to test. */
   PrimExpr condition;
+  /*! \brief The output error message when the assertion failed. */
   PrimExpr message;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -186,17 +194,33 @@ class AssertFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Reference type of AssertFrameNode.
+ *
+ * \sa AssertFrameNode
+ */
 class AssertFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AssertFrame, TIRFrame, AssertFrameNode);
 };
 
+/*!
+ * \brief A frame that represents the let binding expression, which binds a var.
+ *
+ * \sa LetFrameNode
+ */
 class LetFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The variable we bind to */
   tvm::tir::Var var;
+  /*! \brief The value we bind var to */
   PrimExpr value;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -209,9 +233,18 @@ class LetFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(LetFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Reference type of LetFrameNode.
+ *
+ * \sa LetFrameNode
+ */
 class LetFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LetFrame, TIRFrame, LetFrameNode);
@@ -278,10 +311,17 @@ class AllocateConstFrame : public TIRFrame {
                                                     AllocateConstFrameNode);
 };
 
+/*!
+ * \brief The LaunchThreadFrameNode.
+ * \note It can only be used inside a PrimFunc.
+ */
 class LaunchThreadFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The extent of environment thread. */
   PrimExpr extent;
+  /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
   String attr_key;
+  /*! \brief The iteration variable. */
   tvm::tir::IterVar iter_var;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -295,19 +335,36 @@ class LaunchThreadFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Reference type of LaunchThreadFrameNode.
+ *
+ * \sa LaunchThreadFrameNode
+ */
 class LaunchThreadFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LaunchThreadFrame, TIRFrame,
                                                     LaunchThreadFrameNode);
 };
 
+/*!
+ * \brief A frame that represents realization.
+ *
+ * \sa RealizeFrame
+ */
 class RealizeFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The region of buffer access. */
   tvm::tir::BufferRegion buffer_slice;
+  /*! \brief The storage scope associated with this realization. */
   String storage_scope;
+  /*! \brief The condition expression. */
   PrimExpr condition;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -324,6 +381,11 @@ class RealizeFrameNode : public TIRFrameNode {
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Reference type of RealizeFrameNode.
+ *
+ * \sa RealizeFrameNode
+ */
 class RealizeFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RealizeFrame, TIRFrame, RealizeFrameNode);
