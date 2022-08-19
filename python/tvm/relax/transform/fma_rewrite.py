@@ -14,17 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name
+# pylint: disable=unused-argument, invalid-name, abstract-method
 """Perform fused multiply-add rewriting in Python"""
 from tvm.ir import Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import module_pass
-from ..expr_functor import ExprMutator
+from ..expr_functor import mutator, PyExprMutator
 from ..expr import Call, Function, Var
 from ..transform import dataflowblock_pass
 
 
-class EwiseFMARewriter(ExprMutator):
+@mutator
+class EwiseFMARewriter(PyExprMutator):
     """Rewrites the relax.add call to a relax.ewise_fma call
     when detecting the multiply-add pattern.
 
@@ -36,9 +37,8 @@ class EwiseFMARewriter(ExprMutator):
     z0 = ewise_fma(a, b, c)
     """
 
-    def visit_call_(self, call_node: Call) -> Call:
-        call = self.builder_.normalize(ExprMutator.visit_call_(self, call_node))
-
+    def visit_call_(self, call: Call) -> Call:  # pylint: disable=arguments-differ
+        call = self.visit_expr_post_order(call)
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
         ewise_fma_op = Op.get("relax.ewise_fma")
@@ -62,7 +62,8 @@ class EwiseRewriteFMA:
         return EwiseFMARewriter().visit_binding_block(block)
 
 
-class EwiseFuseFMAMutator(ExprMutator):
+@mutator
+class EwiseFuseFMAMutator(PyExprMutator):
     """Performs multiply add fusion. The difference of EwiseFMARewriter and this
     EwiseFuseFMAMutator class is that this mutator generates a sub function(subgraph)
     whose body is a CallNode that calls to the relax.ewise_fma op, and rewrites the
@@ -95,9 +96,8 @@ class EwiseFuseFMAMutator(ExprMutator):
 
         return self.builder_.get()
 
-    def visit_call_(self, call_node: Call) -> Call:
-        call = self.builder_.normalize(ExprMutator.visit_call_(self, call_node))
-
+    def visit_call_(self, call: Call) -> Call:  # pylint: disable=arguments-differ
+        call = self.visit_expr_post_order(call)
         add_op = Op.get("relax.add")
         multiply_op = Op.get("relax.multiply")
         ewise_fma_op = Op.get("relax.ewise_fma")

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name, no-else-return
+# pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.target import Target
 from tvm.ir import transform
-from tvm.relax import ExprMutator
+from tvm.relax import PyExprMutator
 from tvm.relax.expr import Call
 from tvm.relay.backend.te_compiler import select_implementation
 
@@ -69,7 +69,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
         """
         target = self.target
 
-        class Lowerer(ExprMutator):
+        @relax.expr_functor.mutator
+        class Lowerer(PyExprMutator):
             """Mutator that performs lowering."""
 
             def visit_call_(self, call_node: Call):
