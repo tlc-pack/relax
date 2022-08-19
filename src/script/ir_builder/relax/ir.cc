@@ -37,8 +37,16 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     });
 
 ////////////////////////////// Tensor Type //////////////////////////////
+TensorType::TensorType(Type type, Optional<tvm::relax::Expr> shape) {
+  auto n = make_object<TensorTypeNode>();
+  n->type = std::move(type);
+  n->shape = std::move(shape);
+  data_ = std::move(n);
+}
 
-tvm::relax::Var Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, Optional<Integer> ndim) {
+TVM_REGISTER_NODE_TYPE(TensorTypeNode);
+
+TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, Optional<Integer> ndim) {
   using namespace tvm::relax;
   int n_dim = -1;
   if (shape.defined() && ndim.defined()) {
@@ -57,7 +65,7 @@ tvm::relax::Var Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, Optional
   if (shape.defined()) {
     shape_expr = ShapeExpr(shape.value());
   }
-  return Var("", shape_expr, dyn_tensor_type);
+  return TensorType(dyn_tensor_type, shape_expr);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
@@ -71,9 +79,9 @@ FunctionFrame Function() {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const tvm::relax::Var& var) {
+tvm::relax::Var Arg(const String& name, const TensorType& type) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  Namer::Name(var, name);
+  tvm::relax::Var var(name, type->shape, type->type);
   frame->params.push_back(var);
   return var;
 }

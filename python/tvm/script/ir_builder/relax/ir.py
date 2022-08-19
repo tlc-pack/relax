@@ -19,11 +19,11 @@
 
 from typing import Dict, List, Optional, Union
 
+from tvm._ffi import register_object as _register_object
 from tvm.ir import Attrs, Type
 from tvm.relax import Expr, Var
 from tvm.relax import Call, ExternFunc
 from tvm.relax import op as _op
-
 from tvm.runtime import Object
 from tvm.tir import PrimExpr
 
@@ -33,6 +33,9 @@ from ..tir import var as tir_var
 
 
 ############################## Tensor Type ##############################
+@_register_object("script.ir_builder.relax.TensorType")
+class TensorType(Object):
+    ...
 
 
 def tensor_decl(
@@ -68,7 +71,7 @@ def func_attr(attrs: Dict[str, Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # pylint: disable=no-member # type: ignore
 
 
-def ret_type(type: Type) -> Type:
+def ret_type(type: TensorType) -> None:
     return _ffi_api.RetType(type)  # pylint: disable=no-member # type: ignore
 
 
@@ -83,7 +86,7 @@ def dataflow() -> frame.BlockFrame:
     return _ffi_api.Dataflow()  # pylint: disable=no-member # type: ignore
 
 
-def BindingBlock() -> frame.BlockFrame:
+def binding_block() -> frame.BlockFrame:
     return _ffi_api.BindingBlock()  # pylint: disable=no-member # type: ignore
 
 
@@ -101,17 +104,24 @@ def call_packed(
     func: str,
     *args,
     attrs: Optional[Attrs] = None,
-    type_args: Optional[Union[Type, List[Type]]] = None,
+    type_args: Optional[Union[TensorType, List[TensorType]]] = None,
 ):
 
     op = ExternFunc(func)
     if type_args is None:
         raise ValueError(f"R.call_packed is required to have type_args")
-    if not isinstance(type_args, list):
+    if isinstance(type_args, TensorType):
         type_args = [type_args]
+    elif isinstance(type_args, tuple):
+        type_args = list(type_args)
     for i, arg in enumerate(type_args):
-        if isinstance(arg, Var):
-            type_args[i] = arg._checked_type_
+        if isinstance(arg, TensorType):
+            type_args[i] = arg.type
+        else:
+            raise TypeError(
+                "call_packed `type_args` is expected to be list of TensorType, "
+                f"but got {type(arg)}"
+            )
 
     return Call(op, args, attrs=attrs, type_args=type_args)
 
@@ -122,9 +132,10 @@ multiply = _op.multiply
 
 
 __all__ = [
-    "BindingBlock",
+    "TensorType",
     "add",
     "arg",
+    "binding_block",
     "call_packed",
     "call_tir",
     "dataflow",

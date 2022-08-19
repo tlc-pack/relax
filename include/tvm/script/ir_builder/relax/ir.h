@@ -30,13 +30,34 @@ namespace relax {
 
 ////////////////////////////// Tensor Type //////////////////////////////
 
-tvm::relax::Var Tensor(Optional<Array<PrimExpr>> shape, DataType dtype,
-                       Optional<Integer> ndim = NullOpt);
+class TensorTypeNode : public runtime::Object {
+ public:
+  Type type;
+  Optional<tvm::relax::Expr> shape;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("type", &type);
+    v->Visit("shape", &shape);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.relax.TensorType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorTypeNode, runtime::Object);
+};
+
+class TensorType : public runtime::ObjectRef {
+ public:
+  TVM_DLL explicit TensorType(Type type, Optional<tvm::relax::Expr> shape);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorType, ObjectRef, TensorTypeNode);
+};
+
+TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype,
+                  Optional<Integer> ndim = NullOpt);
 
 /////////////////////////////// Function ////////////////////////////////
 
 FunctionFrame Function();
-tvm::relax::Var Arg(const String& name, const tvm::relax::Var& var);
+tvm::relax::Var Arg(const String& name, const TensorType& type);
 void FuncName(const String& name);
 void FuncAttrs(Map<String, ObjectRef> attrs);
 tvm::Type RetType(tvm::Type ret_type);

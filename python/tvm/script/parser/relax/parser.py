@@ -35,8 +35,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     with self.var_table.with_frame():
         with R.function():
             R.func_name(node.name)
-            ret_type = self.eval_expr(node.returns)
-            R.ret_type(ret_type._checked_type_)
+            if node.returns is not None:
+                R.ret_type(self.eval_expr(node.returns).type)
             with self.with_dispatch_token("relax"):
                 self.visit(node.args)
                 self.visit_body(node.body)
@@ -48,10 +48,10 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        var = self.visit_tvm_annotation(arg.annotation)
-        param = R.arg(arg.arg, var)
+        type = self.visit_tvm_annotation(arg.annotation)
+        param = R.arg(arg.arg, type)
         # Define the symbolic shape var
-        for shape_expr in var.shape_:
+        for shape_expr in type.shape:
             if isinstance(shape_expr, tir.Var):
                 self.var_table.add(shape_expr.name, shape_expr)
 

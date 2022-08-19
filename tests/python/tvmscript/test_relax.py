@@ -24,53 +24,61 @@ def test_simple_module():
 
 def test_simple_func():
     @R.function
-    def test_func(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+    def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
         gv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
         return gv0
 
-    _check(test_func)
+    _check(foo)
 
 
 def test_symbolic_shape():
     @R.function
-    def test_func(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
+    def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
         m = T.var("int32", "m")
         n = T.var("int32", "n")
         gv0 = R.call_tir("extern_func", x, (m, n), dtype="float32")
         return gv0
 
-    _check(test_func)
+    _check(foo)
 
 
 def test_directly_return():
     @R.function
-    def test_func(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
+    def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
         return x
 
-    _check(test_func)
+    _check(foo)
 
 
 def test_call_packed():
     @R.function
-    def test_func(x: R.Tensor((3, 4), "float32")) -> R.Tensor(None, "float32", ndim=2):
+    def foo(x: R.Tensor((3, 4), "float32")) -> R.Tensor(None, "float32", ndim=2):
         z = R.call_packed("vm.builtin.copy", x, type_args=R.Tensor(None, "float32", ndim=2))
         return z
 
-    _check(test_func)
+    _check(foo)
 
 
 def test_relax_op():
     @R.function
-    def test_func(
+    def foo(
         x: R.Tensor((4, 4), "float32"), w: R.Tensor((4, 4), "float32")
     ) -> R.Tensor(None, "float32", ndim=2):
         y = R.add(x, w)
         z = R.multiply(x, y)
         return z
 
-    _check(test_func)
+    _check(foo)
+
+
+def test_deduce_func_type():
+    @R.function
+    def foo(x: R.Tensor((3, 4), "float32")):
+        z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(None, dtype="float32", ndim=2)))
+        return z
+
+    _check(foo)
 
 
 if __name__ == "__main__":
-    test_call_packed()
     tvm.testing.main()

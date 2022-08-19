@@ -42,10 +42,9 @@ void FunctionFrameNode::ExitWithScope() {
   Expr output = outputs.size() == 1 ? outputs[0] : tvm::relax::Tuple(outputs);
   output = this->block_builder->Normalize(output);
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output));
-  CHECK(ret_type.defined()) << "ValueError: Function return type must be defined";
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
-                            /*ret_type=*/ret_type.value_or(TupleType::Empty()),
+                            /*ret_type=*/ret_type.value_or(Type()),
                             /*attrs=*/DictAttrs(attrs));
   // TODO: remove this line
   func = WithAttr(func, "global_symbol", name.value());

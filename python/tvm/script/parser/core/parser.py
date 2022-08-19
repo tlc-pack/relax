@@ -19,6 +19,7 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional, Set, Union
+from tvm._ffi.base import TVMError
 
 from tvm.error import DiagnosticError
 
@@ -100,7 +101,7 @@ def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
         except DiagnosticError:
             raise
         except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, str(e))
+            self.report_error(node, e)
             raise
 
     return _wrapper
@@ -185,7 +186,13 @@ class Parser(doc.NodeVisitor):
             self.var_table.add(k, var)
         return var_values
 
-    def report_error(self, node: doc.AST, msg: str) -> None:  # pylint: disable=no-self-use
+    def report_error(
+        self, node: doc.AST, err: Union[Exception, str]
+    ) -> None:  # pylint: disable=no-self-use
+        if isinstance(err, TVMError):
+            msg = list(filter(None, str(err).split("\n")))[-1]
+        else:
+            msg = str(err)
         self.diag.error(node, msg)
 
     def visit(self, node: doc.AST) -> None:
@@ -204,8 +211,11 @@ class Parser(doc.NodeVisitor):
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
         try:
             func(node)
+        except DiagnosticError:
+            raise
         except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, str(e))
+            self.report_error(node, e)
+            raise
 
     def visit_body(self, node: List[doc.stmt]) -> Any:
         for stmt in node:
@@ -225,19 +235,13 @@ class Parser(doc.NodeVisitor):
         func = dispatch.get(token=token, type_name="FunctionDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
-        try:
-            func(self, node)
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, str(e))
+        _dispatch_wrapper(func)(self, node)
 
     def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
         func = dispatch.get(token="ir", type_name="ClassDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
-        try:
-            func(self, node)
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, str(e))
+        _dispatch_wrapper(func)(self, node)
 
     def visit_arguments(self, node: doc.arguments) -> Any:
         return _dispatch(self, "arguments")(self, node)
@@ -285,7 +289,6 @@ def _handle_function(self: Parser, node: doc.FunctionDef) -> None:
             func(self, node)
             return
     self.report_error(node, "The parser does not understand the decorator")
-
 
     def visit_Return(self, node: doc.Return) -> Any:  # pylint: disable=invalid-name
         return _dispatch(self, "Return")(self, node)

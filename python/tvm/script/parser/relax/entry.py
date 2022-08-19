@@ -21,7 +21,7 @@ from typing import Callable, List, Optional, Union, TypeVar
 from tvm.relax import Function, Var
 from tvm.tir import PrimExpr
 
-from ...ir_builder.relax import tensor_decl
+from ...ir_builder.relax import tensor_decl, TensorType
 from .._core import parse, utils
 from ..ir import _is_defined_in_class
 
@@ -46,7 +46,7 @@ class TensorProxy:
         shape: Optional[List[Union[PrimExpr, str]]],
         dtype: str,
         ndim: Optional[int] = None,
-    ) -> Var:
+    ) -> TensorType:
         return tensor_decl(shape, dtype, ndim)
 
     def __getitem__(self, keys) -> Var:
