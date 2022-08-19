@@ -21,7 +21,6 @@ import pytest
 import tvm
 from tvm import relax, ir
 from tvm.ir.base import assert_structural_equal
-from tvm.relax import ExprMutator
 from tvm.relax.expr import Call
 
 import tvm.script
@@ -66,13 +65,13 @@ def test_function_class_pass():
 
 
 # Swap Multiply and Add Ops
-class SwapMAVar(ExprMutator):
+@relax.expr_functor.mutator
+class SwapMAVar(relax.PyExprMutator):
     def __init__(self) -> None:
         super().__init__()
 
     def visit_call_(self, call: Call) -> Call:
-        call = ExprMutator.visit_call_(self, call)
-
+        call = self.visit_expr_post_order(call)
         if call.op == ir.Op.get("relax.add"):
             new_op = ir.Op.get("relax.multiply")
         elif call.op == ir.Op.get("relax.multiply"):
