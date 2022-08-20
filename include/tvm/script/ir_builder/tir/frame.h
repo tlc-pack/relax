@@ -212,7 +212,7 @@ class AssertFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame that represents the let binding expression, which binds a var.
+ * \brief A frame represents the let binding expression, which binds a var.
  *
  * \sa LetFrameNode
  */
@@ -241,7 +241,7 @@ class LetFrameNode : public TIRFrameNode {
 };
 
 /*!
- * \brief Reference type of LetFrameNode.
+ * \brief Managed reference to LetFrameNode.
  *
  * \sa LetFrameNode
  */
@@ -313,7 +313,7 @@ class AllocateConstFrame : public TIRFrame {
 
 /*!
  * \brief The LaunchThreadFrameNode.
- * \note It can only be used inside a PrimFunc.
+ * \note It is used only inside a PrimFunc.
  */
 class LaunchThreadFrameNode : public TIRFrameNode {
  public:
@@ -343,7 +343,7 @@ class LaunchThreadFrameNode : public TIRFrameNode {
 };
 
 /*!
- * \brief Reference type of LaunchThreadFrameNode.
+ * \brief Managed reference to LaunchThreadFrameNode.
  *
  * \sa LaunchThreadFrameNode
  */
@@ -382,7 +382,7 @@ class RealizeFrameNode : public TIRFrameNode {
 };
 
 /*!
- * \brief Reference type of RealizeFrameNode.
+ * \brief Managed reference to RealizeFrameNode.
  *
  * \sa RealizeFrameNode
  */

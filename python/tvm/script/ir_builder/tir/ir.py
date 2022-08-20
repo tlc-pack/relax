@@ -362,7 +362,7 @@ def let(
     Parameters
     ----------
     v : Var
-        The variable or name of variable.
+        The variable to bind.
 
     value : PrimExpr
         The value to be bound.
@@ -532,7 +532,7 @@ def env_thread(thread_tag: str) -> IterVar:
     Returns
     -------
     res : IterVar
-        The result iteration variable which gets bound to the thread env.
+        The result iteration variable gets bound to the thread env.
 
     """
     return _ffi_api.EnvThread(thread_tag)  # pylint: disable=no-member # type: ignore
@@ -569,7 +569,7 @@ def evaluate(value: PrimExpr) -> None:
     Parameters
     ----------
     value: PrimExpr
-        The input expression to be evaluated.
+        The input expression to evaluate.
     """
     if isinstance(value, str):
         value = StringImm(value)

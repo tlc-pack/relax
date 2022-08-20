@@ -96,7 +96,7 @@ void PreflattenedBuffer(Buffer postflattened_buffer, Array<PrimExpr> shape,
 AssertFrame Assert(PrimExpr condition, String message);
 /*!
  * \brief The let binding.
- * \param var The variable or name of variable.
+ * \param var The variable to bind.
  * \param value The value to be bound.
  * \return The created LetFrame.
  */
@@ -137,7 +137,7 @@ void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
 void Prefetch(Buffer buffer, Array<Range> bounds);
 /*!
  * \brief Evaluate the input expression.
- * \param value The input expression to be evaluated.
+ * \param value The input expression to evaluate.
  */
 void Evaluate(PrimExpr value);
 
