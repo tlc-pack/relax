@@ -101,9 +101,26 @@ AssertFrame Assert(PrimExpr condition, String message);
  * \return The created LetFrame.
  */
 LetFrame Let(Var var, PrimExpr value);
+/*!
+ * \brief The allocate node.
+ * \param extents The extents of the allocate.
+ * \param dtype The data type of the buffer.
+ * \param storage_scope The storage scope.
+ * \param condition The condition.
+ * \param annotations Additional annotation hints.
+ * \return The created AllocateFrame.
+ */
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
                        Optional<PrimExpr> condition = NullOpt,
                        Optional<Map<String, ObjectRef>> annotations = NullOpt);
+/*!
+ * \brief The allocate constant node.
+ * \param data The data associated with the constant.
+ * \param dtype The data type of the buffer.
+ * \param extents The extents of the allocate.
+ * \param annotations Additional annotation hints.
+ * \return The created AllocateConstFrame.
+ */
 AllocateConstFrame AllocateConst(
     NDArray data, DataType dtype, Array<PrimExpr> extents,
     Map<String, ObjectRef> annotations = NullValue<Map<String, ObjectRef>>());
@@ -115,10 +132,35 @@ AllocateConstFrame AllocateConst(
  * \return The result RealizeFrame.
  */
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, PrimExpr condition);
+/*!
+ * \brief Create an attribute.
+ * \param node The node to annotate the attribute.
+ * \param attr_key Attribute type key.
+ * \param value The value of the attribute.
+ * \return The result AttrFrame.
+ */
 AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
+/*!
+ * \brief Create a while loop.
+ * \param condition The termination condition of the loop.
+ * \return The result WhileFrame.
+ */
 WhileFrame While(PrimExpr condition);
+/*!
+ * \brief Create an if statement.
+ * \param condition The condition of if statement.
+ * \return The result IfFrame.
+ */
 IfFrame If(PrimExpr condition);
+/*!
+ * \brief Create a then.
+ * \return The result ThenFrame.
+ */
 ThenFrame Then();
+/*!
+ * \brief Create an else.
+ * \return The result ElseFrame.
+ */
 ElseFrame Else();
 /*!
  * \brief Launch a thread.
@@ -133,7 +175,18 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
  * \return The result variable which gets bound to the thread env.
  */
 Var EnvThread(String thread_tag);
+/*!
+ * \brief Store data in a buffer.
+ * \param buffer The buffer.
+ * \param value The value to be stored.
+ * \param indices The indices location to be stored.
+ */
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+/*!
+ * \brief The prefetch hint for a buffer
+ * \param buffer The buffer to be prefetched.
+ * \param bounds The bounds to be prefetched.
+ */
 void Prefetch(Buffer buffer, Array<Range> bounds);
 /*!
  * \brief Evaluate the input expression.

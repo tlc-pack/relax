@@ -16,8 +16,10 @@
 # under the License.
 """Unittests for tvm.script.ir_builder.tir"""
 import pytest
+import numpy as np
 import tvm
 from tvm import tir
+from tvm.runtime import ndarray
 from tvm.script.ir_builder import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.ir.base import assert_structural_equal
@@ -90,6 +92,74 @@ def test_ir_builder_tir_thread():
     attr_stmt = tir.AttrStmt(iter_var, "thread_extent", 1, tir.Evaluate(0))
     func = tir.PrimFunc([], attr_stmt)
     assert_structural_equal(ir_actual, func, map_free_vars=True)
+
+
+def test_ir_builder_tir_allocate():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with T.allocate([10], "float32", scope="local"):
+            T.evaluate(1)
+    ir_actual = ib.get()
+    buffer_var = tir.Var("v", tvm.ir.PointerType(tvm.ir.PrimType("float32"), "local"))
+    ir_expected = tir.Allocate(
+        buffer_var, "float32", [10], tvm.tir.const(1, "uint1"), tir.Evaluate(1)
+    )
+    assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
+
+
+def test_ir_builder_tir_allocate_const():
+    data = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with T.allocate_const(data, "int32", [10]):
+            T.evaluate(1)
+    ir_actual = ib.get()
+    buffer_var = tir.Var("v", tvm.ir.PointerType(tvm.ir.PrimType("int32")))
+    ir_expected = tir.AllocateConst(
+        buffer_var, "int32", [10], ndarray.array(np.asarray(data, "int32")), tir.Evaluate(1)
+    )
+    assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
+
+
+def test_ir_builder_tir_prefetch():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        buffer_a = T.buffer_decl((128, 128), "float32")
+        T.prefetch(buffer_a, [])
+    ir_actual = ib.get()
+    ir_expected = tir.Prefetch(buffer_a, [])
+    assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
+
+
+def test_ir_builder_tir_buffer_store():
+    buffer_a = T.buffer_decl((10, 10), "float32")
+    i = T.var("int32", "x")
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        T.buffer_store(buffer_a, 0.1, [0, i])
+    ir_actual = ib.get()
+    ir_expected = tir.BufferStore(buffer_a, 0.1, [0, i])
+    assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
+
+
+def test_ir_builder_tir_while():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with T.While(T.var("int32", "x") > 0):
+            T.evaluate(0)
+    ir_actual = ib.get()
+    ir_expected = tir.While(tir.Var("x", "int32") > 0, tir.Evaluate(0))
+    assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
+
+
+def test_ir_builder_tir_if():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with T.If(T.var("int32", "c") < 12):
+            with T.Then():
+                T.int32(0)
+            with T.Else():
+                T.int32(1)
+    ir_actual = ib.get()
+    ir_expected = tir.if_then_else(
+        tir.Var("c", "int32") < 12, tir.IntImm("int32", 0), tir.IntImm("int32", 1)
+    )
+    # comment this assertion because tir does not have if/then/else
+    # assert_structural_equal(ir_actual, ir_expected, map_free_vars=True)
 
 
 if __name__ == "__main__":

@@ -250,13 +250,24 @@ class LetFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(LetFrame, TIRFrame, LetFrameNode);
 };
 
+/*!
+ * \brief A frame represents the allocate.
+ *
+ * \sa AllocateFrame
+ */
 class AllocateFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The extents of the allocate. */
   Array<PrimExpr> extents;
+  /*! \brief The data type of the buffer. */
   DataType dtype;
+  /*! \brief The storage scope. */
   String storage_scope;
+  /*! \brief The condition. */
   PrimExpr condition;
+  /*! \brief Additional annotation hints. */
   Map<String, ObjectRef> annotations;
+  /*! \brief The buffer. */
   tvm::tir::Buffer buffer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -273,20 +284,39 @@ class AllocateFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to AllocateFrameNode.
+ *
+ * \sa AllocateFrameNode
+ */
 class AllocateFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateFrame, TIRFrame, AllocateFrameNode);
 };
 
+/*!
+ * \brief A frame represents the allocate constant.
+ *
+ * \sa AllocateConstFrame
+ */
 class AllocateConstFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The data type of the buffer. */
   DataType dtype;
+  /*! \brief The extents of the allocate. */
   Array<PrimExpr> extents;
+  /*! \brief The data associated with the constant. */
   tvm::runtime::NDArray data;
+  /*! \brief The buffer */
   tvm::tir::Buffer buffer;
+  /*! \brief Additional annotations about the allocation. */
   Map<String, ObjectRef> annotations;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -302,9 +332,18 @@ class AllocateConstFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to AllocateConstFrameNode.
+ *
+ * \sa AllocateConstFrameNode
+ */
 class AllocateConstFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AllocateConstFrame, TIRFrame,
@@ -378,6 +417,10 @@ class RealizeFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RealizeFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
@@ -391,10 +434,18 @@ class RealizeFrame : public TIRFrame {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RealizeFrame, TIRFrame, RealizeFrameNode);
 };
 
+/*!
+ * \brief A frame that represents attribute node.
+ *
+ * \sa AttrFrame
+ */
 class AttrFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The node to annotate the attribute. */
   ObjectRef node;
+  /*! \brief Attribute type key. */
   String attr_key;
+  /*! \brief The value of the attribute. */
   PrimExpr value;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -408,16 +459,31 @@ class AttrFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to AttrFrameNode.
+ *
+ * \sa AttrFrameNode
+ */
 class AttrFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AttrFrame, TIRFrame, AttrFrameNode);
 };
 
+/*!
+ * \brief A frame that represents while loop.
+ *
+ * \sa WhileFrame
+ */
 class WhileFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The termination condition of while. */
   PrimExpr condition;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -429,18 +495,35 @@ class WhileFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(WhileFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to WhileFrameNode.
+ *
+ * \sa WhileFrameNode
+ */
 class WhileFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(WhileFrame, TIRFrame, WhileFrameNode);
 };
 
+/*!
+ * \brief A frame that represents if statement.
+ *
+ * \sa IfFrame
+ */
 class IfFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The condition of the if statement. */
   PrimExpr condition;
+  /*! \brief The statements in the true branch. */
   Optional<Array<tvm::tir::Stmt>> then_stmts;
+  /*! \brief The stetements in the false branch. */
   Optional<Array<tvm::tir::Stmt>> else_stmts;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -454,39 +537,84 @@ class IfFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to IfFrameNode.
+ *
+ * \sa IfFrameNode
+ */
 class IfFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, TIRFrame, IfFrameNode);
 };
 
+/*!
+ * \brief A frame that represents then.
+ *
+ * \sa ThenFrame
+ */
 class ThenFrameNode : public TIRFrameNode {
  public:
   static constexpr const char* _type_key = "script.ir_builder.tir.ThenFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
   void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to ThenFrameNode.
+ *
+ * \sa ThenFrameNode
+ */
 class ThenFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, TIRFrame, ThenFrameNode);
 };
 
+/*!
+ * \brief A frame that represents else.
+ *
+ * \sa ElseFrame
+ */
 class ElseFrameNode : public TIRFrameNode {
  public:
   static constexpr const char* _type_key = "script.ir_builder.tir.ElseFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
   void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to ElseFrameNode.
+ *
+ * \sa ElseFrameNode
+ */
 class ElseFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, TIRFrame, ElseFrameNode);
