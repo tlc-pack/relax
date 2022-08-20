@@ -202,7 +202,7 @@ class AssertFrameNode : public TIRFrameNode {
 };
 
 /*!
- * \brief Reference type of AssertFrameNode.
+ * \brief Managed reference to AssertFrameNode.
  *
  * \sa AssertFrameNode
  */
