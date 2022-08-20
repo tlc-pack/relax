@@ -31,9 +31,9 @@ def test_ir_builder_tir_assert():
     assert_actual = ib.get()
 
     # the expected assert statement
-    assert_expected = tir.AssertStmt(T.var("int32", name="a") == 0,
-                                     tir.StringImm("a is 0"),
-                                     tir.Evaluate(0))
+    assert_expected = tir.AssertStmt(
+        T.var("int32", name="a") == 0, tir.StringImm("a is 0"), tir.Evaluate(0)
+    )
     # Check if the generated ir is expected
     assert_structural_equal(assert_actual, assert_expected, map_free_vars=True)
 
@@ -70,12 +70,12 @@ def test_ir_builder_tir_realize():
     realize_actual = ib.get()
 
     # the expected buffer realization
-    buffer_realize = tir.BufferRealize(buffer_a,
-                                       [tvm.ir.Range(0, 128),tvm.ir.Range(0, 128)],
-                                       True, tir.Evaluate(0))
-    expected_realize = tir.AttrStmt(buffer_a, "realize_scope",
-                                    tir.StringImm("test_storage_scope"),
-                                    buffer_realize)
+    buffer_realize = tir.BufferRealize(
+        buffer_a, [tvm.ir.Range(0, 128), tvm.ir.Range(0, 128)], True, tir.Evaluate(0)
+    )
+    expected_realize = tir.AttrStmt(
+        buffer_a, "realize_scope", tir.StringImm("test_storage_scope"), buffer_realize
+    )
     assert_structural_equal(realize_actual, expected_realize, map_free_vars=True)
 
 
@@ -86,7 +86,7 @@ def test_ir_builder_tir_thread():
             with T.launch_thread(brow, 1):
                 T.evaluate(0)
     ir_actual = ib.get()
-    iter_var =  tir.IterVar((0, 1), "v", iter_type=1, thread_tag="blockIdx.y")
+    iter_var = tir.IterVar((0, 1), "v", iter_type=1, thread_tag="blockIdx.y")
     attr_stmt = tir.AttrStmt(iter_var, "thread_extent", 1, tir.Evaluate(0))
     func = tir.PrimFunc([], attr_stmt)
     assert_structural_equal(ir_actual, func, map_free_vars=True)
