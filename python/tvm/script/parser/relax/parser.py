@@ -17,7 +17,7 @@
 
 from typing import Any
 
-from tvm import tir
+from tvm import tir, relax
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import name
@@ -25,9 +25,23 @@ from .._core import Parser, dispatch, doc
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
-    var = R.emit(value)
-    name(var_name, var)
-    return var
+    if isinstance(value, tir.Var):
+        value_table = self.var_table.get()
+        if var_name in value_table:
+            var = value_table[var_name]
+            if value_table[var_name] != value.name:
+                self.report_error(node, "Cannot redefine Vars with different name")
+            # return the existing var node
+            return var
+        else:
+            name(var_name, value)
+            return value
+    elif isinstance(value, relax.Expr):
+        var = R.emit(value)
+        name(var_name, var)
+        return var
+    else:
+        raise TypeError(f"Unsupported type {type(value)} in assignment")
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
@@ -51,9 +65,10 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
         type = self.visit_tvm_annotation(arg.annotation)
         param = R.arg(arg.arg, type)
         # Define the symbolic shape var
-        for shape_expr in type.shape:
-            if isinstance(shape_expr, tir.Var):
-                self.var_table.add(shape_expr.name, shape_expr)
+        if type.shape is not None:
+            for shape_expr in type.shape:
+                if isinstance(shape_expr, tir.Var):
+                    self.var_table.add(shape_expr.name, shape_expr)
 
         self.var_table.add(arg.arg, param)
 
@@ -72,17 +87,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
     rhs = self.eval_expr(node.value)
-    value_table = self.var_table.get()
-    if (
-        isinstance(value_table.get(lhs.id, None), tir.Var)
-        and isinstance(rhs, tir.Var)
-        and rhs.name == lhs.id
-    ):
-        # Support redefine symbolic shape
-        # e.g. m = T.var("int64", "m")
-        pass
-    else:
-        self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
+    self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
 @dispatch.register(token="relax", type_name="Return")

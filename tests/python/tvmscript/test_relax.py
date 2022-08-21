@@ -80,5 +80,16 @@ def test_deduce_func_type():
     _check(foo)
 
 
+def test_match_shape():
+    @R.function
+    def foo(x: R.Tensor(None, "float32")):
+        m = T.var("int64")
+        n = T.var("int64")
+        R.match_shape(x, (n, m))
+        return (n * 2, m * 3)
+
+    _check(foo)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

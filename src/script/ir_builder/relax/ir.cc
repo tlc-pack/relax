@@ -57,8 +57,6 @@ TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, Optional<Inte
     n_dim = shape.value().size();
   } else if (ndim.defined()) {
     n_dim = ndim.value()->value;
-  } else {
-    LOG(FATAL) << "The `ndim` must be specified when the shape is None";
   }
   Type dyn_tensor_type = DynTensorType(n_dim, dtype);
   Optional<Expr> shape_expr = NullOpt;
