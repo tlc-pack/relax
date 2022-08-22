@@ -403,7 +403,6 @@ def test_vm_compile_stage2():
             return (n * 2, m * 3)
 
     mod = TestVMCompileStage2
-    print(mod.script())
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())

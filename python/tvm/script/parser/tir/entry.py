@@ -22,13 +22,13 @@ from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer_decl, ptr
 from .._core import parse, utils
-from ..ir import _is_defined_in_class
+from ..ir import is_defined_in_class
 
 
 def prim_func(f: Callable) -> Union[PrimFunc, Callable]:
     if not inspect.isfunction(f):
         raise TypeError(f"Expect a function, but got: {f}")
-    if _is_defined_in_class(inspect.stack()):
+    if is_defined_in_class(inspect.stack()):
         return f
     return parse(f, utils.inspect_function_capture(f))
 

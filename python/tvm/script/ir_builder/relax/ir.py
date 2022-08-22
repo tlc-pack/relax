@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Attrs, Type
-from tvm.relax import Expr, Var
+from tvm.relax import Expr, ShapeExpr, Var
 from tvm.relax import Call, ExternFunc
 from tvm.relax import op as _op
 from tvm.runtime import Object
@@ -41,7 +41,7 @@ class TensorType(Object):
 def tensor_decl(
     shape: Optional[List[Union[PrimExpr, str]]],
     dtype: str,
-    ndim: Optional[int] = None,
+    ndim: int = -1,
 ):
     if isinstance(shape, (tuple, list)):
         shape = list(shape)
@@ -114,7 +114,6 @@ def call_packed(
     attrs: Optional[Attrs] = None,
     type_args: Optional[Union[TensorType, List[TensorType]]] = None,
 ):
-
     op = ExternFunc(func)
     if type_args is None:
         raise ValueError(f"R.call_packed is required to have type_args")
@@ -152,12 +151,26 @@ add = _op.add
 multiply = _op.multiply
 
 
+class builtin:
+    @staticmethod
+    def alloc_tensor(
+        shape: Union[PrimExpr, List[PrimExpr]],
+        dtype: str,
+        runtime_device_index: int,
+    ) -> Call:
+        if not isinstance(shape, (tuple, list)):
+            shape = (shape,)
+        shape = ShapeExpr(shape)
+        return _op.builtin_alloc_tensor(shape, dtype, runtime_device_index)
+
+
 __all__ = [
     "MatchShapePair",
     "TensorType",
     "add",
     "arg",
     "binding_block",
+    "builtin",
     "call_packed",
     "call_tir",
     "dataflow",

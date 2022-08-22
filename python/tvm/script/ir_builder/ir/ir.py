@@ -16,9 +16,28 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
+from typing import Optional
+
+from tvm.ir import BaseFunc, GlobalVar
 from . import _ffi_api
 from .frame import IRModuleFrame
 
 
 def ir_module() -> IRModuleFrame:
     return _ffi_api.IRModule()  # pylint: disable=no-member # type: ignore
+
+
+def add_function(
+    func_name: str, func: Optional[BaseFunc] = None, allow_rename: bool = False
+) -> GlobalVar:
+    return _ffi_api.AddFunction(
+        func_name, func, allow_rename
+    )  # pylint: disable=no-member # type: ignore
+
+
+def update_function(
+    func_name: str, func: Optional[BaseFunc] = None, require_first_define: bool = True
+) -> GlobalVar:
+    return _ffi_api.UpdateFunction(
+        func_name, func, require_first_define
+    )  # pylint: disable=no-member # type: ignore

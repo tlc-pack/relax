@@ -46,19 +46,15 @@ TensorType::TensorType(Type type, Optional<tvm::relax::Expr> shape) {
 
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
-TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, Optional<Integer> ndim) {
+TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   using namespace tvm::relax;
-  int n_dim = -1;
-  if (shape.defined() && ndim.defined()) {
-    CHECK_EQ(shape.value().size(), ndim.value()->value)
+  if (shape.defined() && ndim >= 0) {
+    CHECK_EQ(shape.value().size(), ndim)
         << "The dimension of the given shape is mismatched with the given `ndim`";
-    n_dim = shape.value().size();
   } else if (shape.defined()) {
-    n_dim = shape.value().size();
-  } else if (ndim.defined()) {
-    n_dim = ndim.value()->value;
+    ndim = shape.value().size();
   }
-  Type dyn_tensor_type = DynTensorType(n_dim, dtype);
+  Type dyn_tensor_type = DynTensorType(ndim, dtype);
   Optional<Expr> shape_expr = NullOpt;
   if (shape.defined()) {
     shape_expr = ShapeExpr(shape.value());

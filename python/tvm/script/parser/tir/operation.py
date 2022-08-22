@@ -45,12 +45,12 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
 
     for i in [0, 1]:
         # Case 1. binop
-        r(doc.Add, i, tir.Add)
-        r(doc.Sub, i, tir.Sub)
-        r(doc.Mult, i, tir.Mul)
-        r(doc.Div, i, tir.Div)
-        r(doc.FloorDiv, i, tir.FloorDiv)
-        r(doc.Mod, i, tir.FloorMod)
+        r(doc.Add, i, lambda a, b: a + b)
+        r(doc.Sub, i, lambda a, b: a - b)
+        r(doc.Mult, i, lambda a, b: a * b)
+        r(doc.Div, i, tir.div)
+        r(doc.FloorDiv, i, tir.floordiv)
+        r(doc.Mod, i, tir.floormod)
         r(doc.LShift, i, lambda a, b: a << b)
         r(doc.RShift, i, lambda a, b: a >> b)
         r(doc.BitOr, i, lambda a, b: a | b)
@@ -75,7 +75,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
     for i in [0]:
         #  Case 4. unaryop
         r(doc.Invert, i, lambda a: ~a)
-        r(doc.Not, i, tir.Not)
+        r(doc.Not, i, lambda a: not a)
         r(doc.UAdd, i, lambda a: +a)
         r(doc.USub, i, lambda a: -a)
 

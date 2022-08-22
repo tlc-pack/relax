@@ -51,8 +51,7 @@ class TensorType : public runtime::ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(TensorType, ObjectRef, TensorTypeNode);
 };
 
-TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype,
-                  Optional<Integer> ndim = NullOpt);
+TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim = -1);
 
 /////////////////////////////// Function ////////////////////////////////
 

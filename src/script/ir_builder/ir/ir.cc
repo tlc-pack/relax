@@ -79,7 +79,7 @@ void UpdateFunction(const String& func_name, const BaseFunc& func, bool require_
   frame->functions.Set(gv, func);
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.IRModule").set_body_typed(IRModule);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.AddFunction").set_body_typed(AddFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.UpdateFunction").set_body_typed(UpdateFunction);
 

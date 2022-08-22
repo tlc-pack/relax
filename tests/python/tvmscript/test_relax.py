@@ -1,4 +1,4 @@
-from tvm.script.parser import tir as T, relax as R
+from tvm.script.parser import ir as I, tir as T, relax as R
 import tvm.testing
 from tvm import IRModule
 
@@ -8,7 +8,7 @@ def _check(mod: IRModule):
 
 
 def test_simple_module():
-    @tvm.script.ir_module
+    @I.ir_module
     class TestModule:
         @T.prim_func
         def tir_func(x: T.Buffer((128, 128), "float32"), y: T.Buffer((128, 128), "float32")):
@@ -97,10 +97,24 @@ def test_match_shape_with_binding():
         m = T.var("int64")
         n = T.var("int64")
         y = R.match_shape(x, (n, m))
-        return (n * T.int64(2), m * T.int64(3))
+        return (n * 2, m * 3)
+
+    _check(foo)
+
+
+def test_builtin():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32")):
+        m = T.var("int64", "m")
+        n = T.var("int64", "n")
+        alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
+        _ = R.call_packed("test.op.identity", x, alloc, type_args=(R.Tensor(ndim=2, dtype="float32")))
+        gv0 = alloc
+        return gv0
 
     _check(foo)
 
 
 if __name__ == "__main__":
+    test_builtin()
     tvm.testing.main()

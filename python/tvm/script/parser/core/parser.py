@@ -81,6 +81,8 @@ class VarTable:
         return _deferred(pop_frame)
 
     def add(self, var: str, value: Any):
+        if self.name2value[var] and self.name2value[var][-1] == value:
+            return
         self.frames[-1].add(var)
         self.name2value[var].append(value)
 

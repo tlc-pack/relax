@@ -30,7 +30,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         value_table = self.var_table.get()
         if var_name in value_table:
             var = value_table[var_name]
-            if value_table[var_name] != value.name:
+            if var_name != value.name:
                 self.report_error(node, "Cannot redefine Vars with different name")
             # return the existing var node
             return var

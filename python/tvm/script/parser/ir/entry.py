@@ -23,7 +23,7 @@ from tvm.ir import IRModule
 from .._core import parse, utils
 
 
-def _is_defined_in_class(frames):
+def is_defined_in_class(frames):
     if len(frames) > 2:
         maybe_class_frame = frames[2]
         statement_list = maybe_class_frame[4]

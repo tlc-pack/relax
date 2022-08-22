@@ -23,7 +23,7 @@ from tvm.tir import PrimExpr
 
 from ...ir_builder.relax import tensor_decl, TensorType
 from .._core import parse, utils
-from ..ir import _is_defined_in_class
+from ..ir import is_defined_in_class
 
 
 FType = TypeVar("FType", bound=Callable)
@@ -32,7 +32,7 @@ FType = TypeVar("FType", bound=Callable)
 def function(f: FType) -> Union[Function, FType]:
     if not inspect.isfunction(f):
         raise TypeError(f"Expect a function, but got: {f}")
-    if _is_defined_in_class(inspect.stack()):
+    if is_defined_in_class(inspect.stack()):
         return f
     return parse(f, utils.inspect_function_capture(f))
 
@@ -43,9 +43,9 @@ setattr(function, "dispatch_token", "relax")
 class TensorProxy:
     def __call__(
         self,
-        shape: Optional[List[Union[PrimExpr, str]]],
-        dtype: str,
-        ndim: Optional[int] = None,
+        shape: Optional[List[Union[PrimExpr, str]]] = None,
+        dtype: str = None,
+        ndim: int = -1,
     ) -> TensorType:
         return tensor_decl(shape, dtype, ndim)
 
