@@ -18,6 +18,7 @@
 from typing import Any
 
 from tvm import tir, relax
+from tvm.ir.expr import PrimExpr
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import name
@@ -40,6 +41,9 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         var = R.emit(value)
         name(var_name, var)
         return var
+    elif isinstance(value, R.MatchShapePair):
+        var = R.emit_match_shape(value.value, value.pattern)
+        name(var_name, var)
     else:
         raise TypeError(f"Unsupported type {type(value)} in assignment")
 
@@ -90,7 +94,29 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
 
 
+@dispatch.register(token="relax", type_name="Expr")
+def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
+    res = self.eval_expr(node.value)
+
+    if isinstance(res, R.MatchShapePair):
+        R.emit_match_shape_without_var(res.value, res.pattern)
+    else:
+        self.report_error(node, f"Unsupported Expr stmt type {res}.")
+
+
 @dispatch.register(token="relax", type_name="Return")
 def visit_return(self: Parser, node: doc.Assign) -> None:
     value = self.eval_expr(node.value)
-    R.func_return(value)
+
+    if isinstance(value, relax.Expr):
+        R.func_return(value)
+    elif isinstance(value, tuple):
+        # Handle the case of returning a ShapeExpr
+        for v in value:
+            if not isinstance(v, PrimExpr):
+                self.report_error(
+                    node, f"Tuple value {v} has unsupported value type - expect PrimExpr."
+                )
+        R.func_return(relax.ShapeExpr(value))
+    else:
+        self.report_error(node, f"Unsupported return value type {type(value)}.")

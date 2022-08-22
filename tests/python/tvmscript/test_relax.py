@@ -86,7 +86,18 @@ def test_match_shape():
         m = T.var("int64")
         n = T.var("int64")
         R.match_shape(x, (n, m))
-        return (n * 2, m * 3)
+        return (n * T.int64(2), m * T.int64(3))
+
+    _check(foo)
+
+
+def test_match_shape_with_binding():
+    @R.function
+    def foo(x: R.Tensor(None, "float32")):
+        m = T.var("int64")
+        n = T.var("int64")
+        y = R.match_shape(x, (n, m))
+        return (n * T.int64(2), m * T.int64(3))
 
     _check(foo)
 

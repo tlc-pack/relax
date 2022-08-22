@@ -147,7 +147,21 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr) {
   return block_builder->Emit(expr);
 }
 
+tvm::relax::Var EmitMatchShape(const tvm::relax::Expr& value, const Array<PrimExpr>& pattern) {
+  tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
+  return block_builder->EmitMatchShape(value, pattern);
+}
+
+void EmitMatchShapeWithoutVar(const tvm::relax::Expr& value, const Array<PrimExpr>& pattern) {
+  tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
+  tvm::relax::MatchShape match_shape(value, pattern, tvm::relax::Var{nullptr});
+  block_builder->EmitMatchShape(match_shape);
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(EmitMatchShape);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShapeWithoutVar")
+    .set_body_typed(EmitMatchShapeWithoutVar);
 
 }  // namespace relax
 }  // namespace ir_builder

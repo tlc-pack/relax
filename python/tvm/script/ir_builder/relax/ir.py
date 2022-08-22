@@ -75,7 +75,7 @@ def ret_type(type: TensorType) -> None:
     return _ffi_api.RetType(type)  # pylint: disable=no-member # type: ignore
 
 
-def func_return(type: Type) -> Type:
+def func_return(type: Expr) -> Expr:
     return _ffi_api.FuncReturn(type)  # pylint: disable=no-member # type: ignore
 
 
@@ -95,6 +95,14 @@ def binding_block() -> frame.BlockFrame:
 
 def emit(expr: Expr) -> Var:
     return _ffi_api.Emit(expr)  # type: ignore
+
+
+def emit_match_shape(value: Expr, pattern: List[PrimExpr]) -> Var:
+    return _ffi_api.EmitMatchShape(value, pattern)  # type: ignore
+
+
+def emit_match_shape_without_var(value: Expr, pattern: List[PrimExpr]):
+    return _ffi_api.EmitMatchShapeWithoutVar(value, pattern)  # type: ignore
 
 
 ################################# Ops #################################
@@ -126,12 +134,26 @@ def call_packed(
     return Call(op, args, attrs=attrs, type_args=type_args)
 
 
+class MatchShapePair:
+    value: Expr
+    pattern: List[PrimExpr]
+
+    def __init__(self, value: Expr, pattern: List[PrimExpr]) -> None:
+        self.value = value
+        self.pattern = pattern
+
+
+def match_shape(value: Expr, pattern: List[PrimExpr]):
+    return MatchShapePair(value, pattern)
+
+
 call_tir = _op.call_tir
 add = _op.add
 multiply = _op.multiply
 
 
 __all__ = [
+    "MatchShapePair",
     "TensorType",
     "add",
     "arg",
@@ -140,10 +162,13 @@ __all__ = [
     "call_tir",
     "dataflow",
     "emit",
+    "emit_match_shape",
+    "emit_match_shape_without_var",
     "func_attr",
     "func_name",
     "func_return",
     "function",
+    "match_shape",
     "multiply",
     "ret_type",
     "tensor_decl",
