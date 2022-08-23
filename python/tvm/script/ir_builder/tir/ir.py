@@ -334,6 +334,21 @@ def preflattened_buffer(
 
 
 def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: disable=invalid-name
+    """Create an assertion statement.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The PrimExpr to test.
+
+    message : str
+        The output error message when the assertion fails.
+
+    Returns
+    -------
+    res : frame.AssertFrame
+        The result AssertFrame.
+    """
     return _ffi_api.Assert(condition, message)  # pylint: disable=no-member # type: ignore
 
 
@@ -342,6 +357,24 @@ def let(
     value: PrimExpr,
     body: PrimExpr = None,
 ) -> frame.LetFrame:
+    """Create a new let binding.
+
+    Parameters
+    ----------
+    v : Var
+        The variable to bind.
+
+    value : PrimExpr
+        The value to be bound.
+
+    body : PrimExpr
+        The body expression, None will be used if it was not specified.
+
+    Returns
+    -------
+    res : frame.LetFrame
+        The result LetFrame.
+    """
     if body is None:
         return _ffi_api.Let(v, value)  # pylint: disable=no-member # type: ignore
     return Let(v, value, body)
@@ -354,6 +387,25 @@ def allocate(
     condition: PrimExpr = None,
     annotations=None,
 ) -> frame.AllocateFrame:
+    """Allocate node.
+
+    Parameters
+    ----------
+    extents : List[PrimExpr]
+        The extents of the allocate.
+
+    dtype : str
+        The data type of the buffer.
+
+    scope : str
+        The storage scope.
+
+    condition : PrimExpr
+        The condition.
+
+    annotations: Optional[Mapping[str, Object]]
+        Additional annotation hints.
+    """
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
     return _ffi_api.Allocate(  # pylint: disable=no-member # type: ignore
@@ -367,6 +419,22 @@ def allocate_const(
     extents: List[PrimExpr],
     annotations=None,
 ) -> frame.AllocateConstFrame:
+    """Allocate constant node.
+
+    Parameters
+    ----------
+    data : List[PrimExpr]
+        The data associated with the constant.
+
+    dtype : str
+        The data type of the buffer.
+
+    extents : List[PrimExpr]
+        The extents of the allocate.
+
+    annotations : Optional[Map]
+        Additional annotations about the allocation.
+    """
 
     return _ffi_api.AllocateConst(  # pylint: disable=no-member # type: ignore
         ndarray.array(np.asarray(data, dtype)), dtype, extents, annotations
@@ -378,34 +446,109 @@ def realize(
     storage_scope: str,
     condition: PrimExpr = True,
 ) -> frame.RealizeFrame:
+    """Create a realization.
+
+    Parameters
+    ----------
+    buffer_slice : BufferRegion
+        The region of buffer access.
+
+    storage_scope : str
+        The storage scope associated with this realization.
+
+    condition: PrimExpr
+        The condition expression, the default is True.
+
+    Returns
+    -------
+    res : frame.RealizeFrame
+        The result RealizeFrame.
+    """
     return _ffi_api.Realize(  # pylint: disable=no-member # type: ignore
         buffer_slice, storage_scope, condition
     )
 
 
 def attr(node: Any, attr_key: str, value: Union[PrimExpr, str]) -> frame.AttrFrame:
+    """Create an attribute node.
+
+    Parameters
+    ----------
+    node : Any
+        The node to annotate the attribute.
+
+    attr_key : str
+        Attribute type key.
+
+    value : Union[PrimExpr, str]
+        The value of the attribute.
+
+    Returns
+    -------
+    res : frame.AttrFrame
+        The result AttrFrame.
+    """
     node = convert(node)
     value = convert(value)
     return _ffi_api.Attr(node, attr_key, value)  # pylint: disable=no-member # type: ignore
 
 
 def While(condition: PrimExpr) -> frame.WhileFrame:  # pylint: disable=invalid-name
+    """Create a while node.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The termination condition of the loop.
+
+    Returns
+    -------
+    res : frame.WhileFrame
+        The result WhileFrame.
+    """
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
     return _ffi_api.While(condition)  # pylint: disable=no-member # type: ignore
 
 
 def If(condition: PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-name
+    """Create an if node.
+
+    Parameters
+    ----------
+    condition : PrimExpr
+        The condition of if statement, executes the true branch if the condition is true,
+        otherwise jump into the false branch.
+
+    Returns
+    -------
+    res : frame.IfFrame
+        The result IfFrame.
+    """
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
     return _ffi_api.If(condition)  # pylint: disable=no-member # type: ignore
 
 
 def Then() -> frame.ThenFrame:  # pylint: disable=invalid-name
+    """Create a then.
+
+    Returns
+    -------
+    res : frame.ThenFrame
+        The result ThenFrame.
+    """
     return _ffi_api.Then()  # pylint: disable=no-member # type: ignore
 
 
 def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
+    """Create an else.
+
+    Returns
+    -------
+    res : frame.ElseFrame
+        The result ElseFrame.
+    """
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
 
 
@@ -442,14 +585,65 @@ def launch_thread(
     iter_var: IterVar,  # pylint: disable=redefined-outer-name
     extent: PrimExpr,
 ) -> frame.LaunchThreadFrame:
+    """Launch a thread.
+
+    Parameters
+    ----------
+    iter_var : IterVar
+        The iteration variable.
+
+    extent : PrimExpr
+        The extent of environment thread.
+
+    Returns
+    -------
+    res : frame.LaunchThreadFrame
+        The result LaunchThreadFrame.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+    from tvm.script.ir_builder import tir as T
+    brow = T.env_thread("blockIdx.y")
+    T.launch_thread(brow, 1)
+
+    """
     return _ffi_api.LaunchThread(iter_var, extent)  # pylint: disable=no-member # type: ignore
 
 
 def env_thread(thread_tag: str) -> IterVar:
+    """Bind a var to thread env"
+
+    Parameters
+    ----------
+    thread_tag : str
+        The thread type tag.
+
+    Returns
+    -------
+    res : IterVar
+        The result iteration variable gets bound to the thread env.
+
+    """
     return _ffi_api.EnvThread(thread_tag)  # pylint: disable=no-member # type: ignore
 
 
 def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, slice]]) -> None:
+    """Buffer store node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer.
+
+    value : PrimExpr
+        The value to be stored.
+
+    indices : List[Union[PrimExpr, slice]]
+        The indices location to be stored.
+    """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
     expr_indices = []
@@ -471,10 +665,26 @@ def buffer_store(buffer: Buffer, value: PrimExpr, indices: List[Union[PrimExpr, 
 
 
 def prefetch(buffer: Buffer, indices: List[PrimExpr]) -> None:
+    """The prefetch hint for a buffer.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer to be prefetched.
+    indices : List[PrimExpr]
+        The indices of the buffer to extract.
+    """
     return _ffi_api.Prefetch(buffer, indices)  # pylint: disable=no-member # type: ignore
 
 
 def evaluate(value: PrimExpr) -> None:
+    """Evaluate the input expression.
+
+    Parameters
+    ----------
+    value: PrimExpr
+        The input expression to evaluate.
+    """
     if isinstance(value, str):
         value = StringImm(value)
     return _ffi_api.Evaluate(value)  # pylint: disable=no-member # type: ignore
