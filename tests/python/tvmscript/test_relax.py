@@ -108,13 +108,26 @@ def test_builtin():
         m = T.var("int64", "m")
         n = T.var("int64", "n")
         alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
-        _ = R.call_packed("test.op.identity", x, alloc, type_args=(R.Tensor(ndim=2, dtype="float32")))
+        _ = R.call_packed(
+            "test.op.identity", x, alloc, type_args=(R.Tensor(ndim=2, dtype="float32"))
+        )
         gv0 = alloc
         return gv0
 
     _check(foo)
 
 
+def test_error_report():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, dtype="float32", ndim=2):
+        m = T.var("int64", "m")
+        m = T.var("int64", "mm")
+        n = T.var("int64", "n")
+        z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(None, dtype="float32", ndim=2)))
+        return z
+
+    _check(foo)
+
+
 if __name__ == "__main__":
-    test_builtin()
     tvm.testing.main()

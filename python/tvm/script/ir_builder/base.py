@@ -30,8 +30,9 @@ class IRBuilderFrame(_Object):
         _ffi_api.IRBuilderFrameEnter(self)  # pylint: disable=no-member # type: ignore
         return self
 
-    def __exit__(self, ptype, value, trace) -> None:  # pylint: disable=unused-argument
-        _ffi_api.IRBuilderFrameExit(self)  # pylint: disable=no-member # type: ignore
+    def __exit__(self, exc_type, exc_value, traceback) -> None:  # pylint: disable=unused-argument
+        if exc_type is None and exc_value is None:
+            _ffi_api.IRBuilderFrameExit(self)  # pylint: disable=no-member # type: ignore
 
     def add_callback(self, callback) -> None:  # pylint: disable=unused-argument
         _ffi_api.IRBuilderFrameAddCallback(  # pylint: disable=no-member # type: ignore
