@@ -45,7 +45,7 @@ namespace relax {
 //   z = z
 class VarUnifier {
  public:
-  explicit VarUnifier() : parent_map_(), anchors_() {}
+  VarUnifier() : parent_map_(), anchors_() {}
 
   void InsertAnchor(const Var& v) {
     CHECK(!Contains(v));
@@ -93,7 +93,7 @@ class VarUnifier {
 
 class Canonicalizer : public ExprMutator {
  public:
-  explicit Canonicalizer() : uf_() {}
+  Canonicalizer() : uf_() {}
 
   Expr VisitExpr_(const VarNode* op) override {
     Var v = GetRef<Var>(op);
