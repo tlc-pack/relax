@@ -103,10 +103,10 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
- * \brief Simplify a Relax module by coalescing intermediate bindings. 
+ * \brief Simplify a Relax module by coalescing intermediate bindings.
  * May include other forms of expression simplification in the future.
  * Best used alongside constant folding and eliminating unused bindings.
- * 
+ *
  * \return The Pass.
  */
 TVM_DLL Pass Canonicalize();
