@@ -92,4 +92,4 @@ inline tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_l
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_TIR_IR_BUILDER_UTILS_H_
+#endif  // TVM_SCRIPT_IR_BUILDER_TIR_UTILS_H_
