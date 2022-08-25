@@ -29,8 +29,9 @@ namespace tvm {
 namespace relax {
 class MetaScheduleTuner {
  public:
-  explicit MetaScheduleTuner(Target target, Array<ObjectRef> config, String work_dir)
-      : target_(target), config_(config), work_dir_(work_dir) {
+  explicit MetaScheduleTuner(Target target, Array<ObjectRef> config, String work_dir,
+                             const tvm::meta_schedule::Database& database)
+      : target_(target), config_(config), work_dir_(work_dir), database_(database) {
     candgen_func_ = runtime::Registry::Get("relax.tuning_api.default_generate_candidate");
     ICHECK(candgen_func_) << "Default candidate generation function is not found.";
   }
@@ -39,7 +40,8 @@ class MetaScheduleTuner {
   IRModule TuneIRMod(IRModule mod, transform::PassContext ctx) {
     Trace trace = Downcast<Trace>(ctx->GetCurrentTrace());
     ctx->PopTrace();
-    Choice choice("meta_schedule.tune_relax_irmod_with_tuning_api", {target_, config_, work_dir_},
+    Choice choice("meta_schedule.tune_relax_irmod_with_tuning_api",
+                  {target_, config_, work_dir_, database_},
                   "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
     Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
@@ -57,7 +59,8 @@ class MetaScheduleTuner {
     // stack. Revisit later when we collect more usecases.
     Trace trace = Trace((*parse_mod_func)(f), {}, {});
 
-    Choice choice("meta_schedule.tune_tir_with_tuning_api", {target_, config_, work_dir_},
+    Choice choice("meta_schedule.tune_tir_with_tuning_api",
+                  {target_, config_, work_dir_, database_},
                   "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
     Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
@@ -65,9 +68,12 @@ class MetaScheduleTuner {
     Trace best_trace = candidates[0];
     auto gvars = best_trace->out_mod->GetGlobalVars();
     ICHECK(gvars.size() == 1);
-    auto new_func = best_trace->out_mod->functions[gvars[0]];
+    tvm::BaseFunc new_func = best_trace->out_mod->functions[gvars[0]];
     ICHECK(new_func->IsInstance<tir::PrimFuncNode>());
-    return Downcast<tir::PrimFunc>(new_func);
+    tir::PrimFunc new_pf = Downcast<tir::PrimFunc>(new_func);
+    // Inherit the attr from the original primfunc
+    return tir::PrimFunc(new_pf->params, new_pf->body, new_pf->ret_type, new_pf->buffer_map,
+                         new_pf->preflattened_buffer_map, f->attrs, new_pf->span);
   }
 
  private:
@@ -75,6 +81,7 @@ class MetaScheduleTuner {
   Array<ObjectRef> config_;
   String work_dir_;
   const runtime::PackedFunc* candgen_func_;
+  const tvm::meta_schedule::Database& database_;
 };
 
 class MetaScheduleAHB {
@@ -112,10 +119,11 @@ class MetaScheduleAHB {
 
 namespace transform {
 
-Pass MetaScheduleTuneIRMod(Target target, Array<ObjectRef> config, String work_dir) {
+Pass MetaScheduleTuneIRMod(Target target, Array<ObjectRef> config, String work_dir,
+                           const tvm::meta_schedule::Database& database) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext ctx) {
-    return MetaScheduleTuner(target, config, work_dir).TuneIRMod(m, ctx);
+    return MetaScheduleTuner(target, config, work_dir, database).TuneIRMod(m, ctx);
   };
   return CreateModulePass(/*pass function*/ pass_func, /*opt level*/ 0,
                           /*pass name*/ "MetaScheduleTuneIRModule",
@@ -123,10 +131,11 @@ Pass MetaScheduleTuneIRMod(Target target, Array<ObjectRef> config, String work_d
                           /*traceable*/ true);
 }
 
-Pass MetaScheduleTuneTIR(Target target, Array<ObjectRef> config, String work_dir) {
+Pass MetaScheduleTuneTIR(Target target, Array<ObjectRef> config, String work_dir,
+                         const tvm::meta_schedule::Database& database) {
   runtime::TypedPackedFunc<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
-        return MetaScheduleTuner(target, config, work_dir).TuneTIR(f, ctx);
+        return MetaScheduleTuner(target, config, work_dir, database).TuneTIR(f, ctx);
       };
   return tir::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
                                             /*pass name*/ "MetaScheduleTuneTIR",
@@ -134,9 +143,24 @@ Pass MetaScheduleTuneTIR(Target target, Array<ObjectRef> config, String work_dir
                                             /*traceable*/ true);
 }
 
-Pass MetaScheduleApplyHistoryBest(const tvm::meta_schedule::Database& database, Target target) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext ctx) { return MetaScheduleAHB(database, target).Apply(m); };
+Pass MetaScheduleApplyHistoryBest(Target target, Optional<String> work_dir,
+                                  Optional<tvm::meta_schedule::Database> database) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
+                                                                            PassContext ctx) {
+    if (!database.defined()) {
+      ICHECK(work_dir.defined());
+      String path_workload = work_dir.value() + "/database_workload.json";
+      String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
+      LOG(INFO) << "Creating JSONDatabase. Workload at: " << path_workload
+                << ", Tuning records at: " << path_tuning_record;
+      return MetaScheduleAHB(
+                 meta_schedule::Database::JSONDatabase(path_workload, path_tuning_record, true),
+                 target)
+          .Apply(m);
+    } else {
+      return MetaScheduleAHB(database.value(), target).Apply(m);
+    }
+  };
   return CreateModulePass(/*pass function*/ pass_func, /*opt level*/ 0,
                           /*pass name*/ "MetaScheduleApplyHistoryBest",
                           /*required*/ {});

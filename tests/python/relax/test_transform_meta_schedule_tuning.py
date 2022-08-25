@@ -18,6 +18,7 @@
 from __future__ import annotations
 import pytest
 import tempfile
+import os.path as osp
 import tvm
 from tvm.ir import transform
 from tvm.ir.transform import PassContext
@@ -28,46 +29,51 @@ import tvm.meta_schedule as ms
 from tvm.relax.transform.tuning_api import Trace
 
 
-def test_metaschedule_tuning():
-    @tvm.script.ir_module
-    class InputModule:
-        @T.prim_func
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
-            A = T.match_buffer(x, (32, 32))
-            B = T.match_buffer(y, (32, 32))
-            C = T.match_buffer(z, (32, 32))
+@tvm.script.ir_module
+class InputModule:
+    @T.prim_func
+    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        T.func_attr({"global_symbol": "tir_matmul"})
+        m = T.var("int32")
+        n = T.var("int32")
+        k = T.var("int32")
+        A = T.match_buffer(x, (32, 32))
+        B = T.match_buffer(y, (32, 32))
+        C = T.match_buffer(z, (32, 32))
 
-            for (i0, j0, k0) in T.grid(32, 32, 32):
-                with T.block():
-                    i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-                    with T.init():
-                        C[i, j] = 0.0
-                    C[i, j] += A[i, k] * B[j, k]
+        for (i0, j0, k0) in T.grid(32, 32, 32):
+            with T.block():
+                i, j, k = T.axis.remap("SSR", [i0, j0, k0])
+                with T.init():
+                    C[i, j] = 0.0
+                C[i, j] += A[i, k] * B[j, k]
 
-        @T.prim_func
-        def tir_relu(x: T.handle, y: T.handle):
-            T.func_attr({"global_symbol": "tir_relu"})
-            m = T.var("int32")
-            n = T.var("int32")
-            A = T.match_buffer(x, (32, 32))
-            B = T.match_buffer(y, (32, 32))
-            for (i, j) in T.grid(32, 32):
-                with T.block():
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    B[vi, vj] = T.max(A[vi, vj], 0.0)
+    @T.prim_func
+    def tir_relu(x: T.handle, y: T.handle):
+        T.func_attr({"global_symbol": "tir_relu"})
+        m = T.var("int32")
+        n = T.var("int32")
+        A = T.match_buffer(x, (32, 32))
+        B = T.match_buffer(y, (32, 32))
+        for (i, j) in T.grid(32, 32):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = T.max(A[vi, vj], 0.0)
 
-        @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
-            with R.dataflow():
-                lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
-                lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
-                relax.output(lv1)
-            return lv1
+    @R.function
+    def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        with R.dataflow():
+            lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+            lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+            relax.output(lv1)
+        return lv1
 
+
+# TODO(@sunggg): determine how to pass MS database object across different passes.
+# PassContext might be an option, but we already have TuningAPI database.
+# (MS database and TuningAPI database will be unified in the future)
+# For now, we only support default JSON database config.
+def test_ms_tuning():
     mod = InputModule
     assert isinstance(mod, IRModule)
     target_str = "llvm --num-cores=16"
@@ -77,24 +83,42 @@ def test_metaschedule_tuning():
         max_trials_per_task=4,
         max_trials_global=4,
     )
+    target = tvm.target.Target(target_str)
 
     with tempfile.TemporaryDirectory() as work_dir:
-        seq = transform.Sequential(
-            [relax.transform.MetaScheduleTuneIRMod(tvm.target.Target(target_str), config, work_dir)]
-        )
         with transform.PassContext(trace=Trace(mod), opt_level=0):
-            _ = seq(mod)
+            tuning_pass = relax.transform.MetaScheduleTuneIRMod(
+                target, config, work_dir, database=None
+            )
+            application_pass = relax.transform.MetaScheduleApplyHistoryBest(
+                target,
+                work_dir=work_dir,
+                database=None,
+            )
+            out_mod = tuning_pass(mod)
             assert PassContext.current().get_trace_stack_size() == 1
             assert PassContext.current().get_current_trace().size == 1
+            tvm.ir.assert_structural_equal(mod, out_mod)
 
-        seq = transform.Sequential(
-            [relax.transform.MetaScheduleTuneTIR(tvm.target.Target(target_str), config, work_dir)]
-        )
+            out_mod = application_pass(mod)
+            assert not tvm.ir.structural_equal(mod, out_mod)
+
         with transform.PassContext(trace=Trace(mod), opt_level=0):
-            _ = seq(mod)
-            assert PassContext.current().get_trace_stack_size() == 1
+            tuning_pass = relax.transform.MetaScheduleTuneTIR(
+                target, config, work_dir, database=None
+            )
+            application_pass = relax.transform.MetaScheduleApplyHistoryBest(
+                target,
+                work_dir=work_dir,
+                database=None,
+            )
+            out_mod = tuning_pass(mod)
             # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
             # Currently, we don't track this so the trace size. Revisit this later.
+            assert PassContext.current().get_trace_stack_size() == 1
+            tvm.ir.assert_structural_equal(mod, out_mod)
+            out_mod = application_pass(mod)
+            assert not tvm.ir.structural_equal(mod, out_mod)
 
 
 if __name__ == "__main__":

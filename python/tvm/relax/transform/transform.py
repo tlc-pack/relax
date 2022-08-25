@@ -26,6 +26,7 @@ import tvm.ir
 from tvm.target import Target
 from tvm.meta_schedule.tune import TuneConfig
 from tvm.meta_schedule.database import PyDatabase
+from tvm.meta_schedule import default_config
 
 from . import _ffi_api
 
@@ -149,7 +150,10 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
 
 
 def MetaScheduleTuneTIR(
-    target: Union[str, Target], config: TuneConfig, work_dir: str
+    target: Union[str, Target],
+    config: TuneConfig,
+    work_dir: str,
+    database: Optional[PyDatabase] = None,
 ) -> tvm.ir.transform.Pass:
     """Tune TIR with MetaSchedule.
 
@@ -161,6 +165,8 @@ def MetaScheduleTuneTIR(
        MetaSchedule tuning info
     work_dir: str
        work directory
+    database: Optional[PyDatabase]
+       metaschedule database
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -168,11 +174,15 @@ def MetaScheduleTuneTIR(
     """
     if isinstance(target, str):
         target = tvm.target.Target(target)
-    return _ffi_api.MetaScheduleTuneTIR(target, config, work_dir)
+    database = default_config.database(database, work_dir)
+    return _ffi_api.MetaScheduleTuneTIR(target, config, work_dir, database)
 
 
 def MetaScheduleTuneIRMod(
-    target: Union[str, Target], config: TuneConfig, work_dir: str
+    target: Union[str, Target],
+    config: TuneConfig,
+    work_dir: str,
+    database: Optional[PyDatabase] = None,
 ) -> tvm.ir.transform.Pass:
     """Tune Relax IRModule with MetaSchedule.
 
@@ -184,6 +194,8 @@ def MetaScheduleTuneIRMod(
        MetaSchedule tuning info
     work_dir: str
        work directory
+    database: Optional[PyDatabase]
+       metaschedule database
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -191,28 +203,33 @@ def MetaScheduleTuneIRMod(
     """
     if isinstance(target, str):
         target = tvm.target.Target(target)
-    return _ffi_api.MetaScheduleTuneIRMod(target, config, work_dir)
+    database = default_config.database(database, work_dir)
+    return _ffi_api.MetaScheduleTuneIRMod(target, config, work_dir, database)
 
 
 def MetaScheduleApplyHistoryBest(
-    database: PyDatabase,
     target: Target,
+    work_dir: Optional[str] = None,
+    database: Optional[PyDatabase] = None,
 ) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
 
     Parameters
     ----------
-    database : PyDatabase
-       metaschedule tuning database
     target: Target
        target info
-
+    work_dir : Optional[str]
+       work directory to deduce default database if database is not provided
+       (it will be ignored when an user passes database)
+    database : Optional[PyDatabase]
+       metaschedule tuning database
     Returns
     -------
     ret: tvm.ir.transform.Pass
-
     """
-    return _ffi_api.MetaScheduleApplyHistoryBest(database, target)
+    # Either one should be provided
+    assert (database is not None) or (work_dir is not None)
+    return _ffi_api.MetaScheduleApplyHistoryBest(target, work_dir, database)
 
 
 def BindParams(
