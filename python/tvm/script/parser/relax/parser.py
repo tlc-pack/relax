@@ -26,18 +26,35 @@ from .._core import Parser, dispatch, doc
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+    var_table = self.var_table.get()
+
     if isinstance(value, tir.Var):
-        value_table = self.var_table.get()
-        if var_name in value_table:
-            var = value_table[var_name]
-            if var_name != value.name:
-                self.report_error(node, "Cannot redefine Vars with different name")
-            # return the existing var node
-            return var
-        else:
-            name(var_name, value)
-            return value
-    elif isinstance(value, relax.Expr):
+        if value.name != "" and var_name != value.name:
+            self.report_error(
+                node,
+                "Cannot define TIR variables with different names. The LHS of binding should has "
+                "the same name provided in RHS.",
+            )
+        if var_name in var_table:
+            prev_value = var_table[var_name]
+            if not isinstance(prev_value, tir.Var):
+                self.report_error(
+                    node,
+                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please define "
+                    "the TIR variable with another name",
+                )
+            return prev_value
+
+        name(var_name, value)
+        return value
+
+    if var_name in self.var_table.frames[-1].vars:
+        # Shadowing
+        # Pop the old variable and name from the variable table.
+        self.var_table.frames[-1].vars.remove(var_name)
+        self.var_table.name2value[var_name].pop()
+
+    if isinstance(value, relax.Expr):
         var = R.emit(value)
         name(var_name, var)
         return var

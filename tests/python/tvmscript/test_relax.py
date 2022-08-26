@@ -1,3 +1,4 @@
+import pytest
 from tvm.script.parser import ir as I, tir as T, relax as R
 import tvm.testing
 from tvm import IRModule
@@ -39,6 +40,20 @@ def test_symbolic_shape():
         gv0 = R.call_tir("extern_func", x, (m, n), dtype="float32")
         return gv0
 
+    _check(foo)
+
+
+def test_symbolic_shape_without_giving_names():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        m = T.var("int32")
+        n = T.var("int32")
+        gv0 = R.call_tir("extern_func", x, (m, n), dtype="float32")
+        return gv0
+
+    m0 = foo.params[0].shape[0]
+    m1 = foo.body.blocks[0].bindings[0].value.args[2].values[0]
+    assert m0 == m1
     _check(foo)
 
 
@@ -117,6 +132,7 @@ def test_builtin():
     _check(foo)
 
 
+@pytest.mark.xfail()
 def test_error_report():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, dtype="float32", ndim=2):
@@ -125,6 +141,22 @@ def test_error_report():
         n = T.var("int64", "n")
         z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(None, dtype="float32", ndim=2)))
         return z
+
+    _check(foo)
+
+
+def test_shadowing():
+    @R.function
+    def foo(
+        x: R.Tensor((4, 4), "float32"), w: R.Tensor((4, 4), "float32")
+    ) -> R.Tensor(None, "float32", ndim=2):
+        y = R.add(x, w)
+        z = R.multiply(x, y)
+        y = R.add(x, y)
+        y = z
+        y = R.multiply(w, x)
+        z = y
+        return y
 
     _check(foo)
 
