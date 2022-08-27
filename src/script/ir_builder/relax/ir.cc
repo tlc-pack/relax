@@ -106,7 +106,7 @@ void FuncRetType(tvm::Type ret_type) {
   frame->ret_type = ret_type;
 }
 
-void FuncReturn(const tvm::relax::Expr& value) {
+void FuncRetValue(const tvm::relax::Expr& value) {
   FunctionFrame frame = FindFunctionFrame("return");
   frame->outputs.push_back(value);
 }
@@ -116,7 +116,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetType").set_body_typed(FuncRetType);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncReturn").set_body_typed(FuncReturn);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
 
 ///////////////////////////// BindingBlock //////////////////////////////
 

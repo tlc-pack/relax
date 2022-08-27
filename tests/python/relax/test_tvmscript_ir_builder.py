@@ -28,6 +28,7 @@ def test_function_simple():
         out = R.call_tir("extern_func", x, (128, 128), dtype="float32")
         return out
     """
+    # create with Script IRBuilder
     with IRBuilder() as ir_builder:
         with R.function():
             R.func_name("foo")
@@ -36,23 +37,20 @@ def test_function_simple():
             R.func_ret_type(R.tensor(dtype="float32", ndim=2))
             out = R.emit(R.call_tir("extern_func", x, (128, 128), dtype="float32"))
             IRBuilder.name("out", out)
-            R.func_return(out)
-
+            R.func_ret_value(out)
     func = ir_builder.get()
-    assert isinstance(func, relax.Function)
-    assert func.attrs["Primitive"] == 1
+    # create with BlockBuilder
+    x = relax.Var("x", [128, 128], relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,), attrs={"Primitive": 1}):
+        out = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
+        bb.emit_func_output(out)
+    mod = bb.get()
+
+    tvm.ir.assert_structural_equal(func, mod["foo"])
+    # check names
     assert func.attrs["global_symbol"] == "foo"
-    # check args
-    assert len(func.params) == 1
     assert func.params[0].name_hint == "x"
-    assert isinstance(func.params[0]._checked_type_, relax.DynTensorType)
-    assert func.params[0].shape_[0] == func.params[0].shape_[1] == 128
-    # check ret_type
-    assert isinstance(func.ret_type, relax.DynTensorType)
-    # check body
-    block = func.body.blocks[0]
-    assert len(block.bindings) == 1
-    assert isinstance(block.bindings[0].value, relax.Call)
     assert func.body.body.name_hint == "out"
 
 

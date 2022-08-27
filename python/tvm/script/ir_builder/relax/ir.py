@@ -132,7 +132,7 @@ def func_ret_type(ret_type: Union[TensorType, Type]) -> None:
     return _ffi_api.FuncRetType(ret_type)  # pylint: disable=no-member # type: ignore
 
 
-def func_return(value: Expr) -> None:
+def func_ret_value(value: Expr) -> None:
     """Specify the return value of the last function frame.
 
     Parameters
@@ -140,14 +140,14 @@ def func_return(value: Expr) -> None:
     value: Expr
         The function return value.
     """
-    return _ffi_api.FuncReturn(value)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.FuncRetValue(value)  # pylint: disable=no-member # type: ignore
 
 
 ############################# BindingBlock ##############################
 
 
 def binding_block() -> frame.BlockFrame:
-    """Start a non-dataflow binding block frame.
+    """Start a binding block frame.
 
     Returns
     -------
@@ -198,7 +198,7 @@ __all__ = [
     "func_attr",
     "func_name",
     "func_ret_type",
-    "func_return",
+    "func_ret_value",
     "function",
     "tensor",
 ]

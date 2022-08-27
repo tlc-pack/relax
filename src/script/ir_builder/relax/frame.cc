@@ -55,6 +55,7 @@ void FunctionFrameNode::ExitWithScope() {
     builder->result = func;
   } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
     IRModuleFrame frame = opt_frame.value();
+    // TODO(Siyuan): fix empty global var name
     frame->global_vars.push_back(GlobalVar(name.value_or("")));
     frame->functions.push_back(func);
   } else {
@@ -67,7 +68,7 @@ void BlockFrameNode::EnterWithScope() {
   Optional<FunctionFrame> func_frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
   CHECK(func_frame.defined()) << "ValueError: Cannot find FunctionFrame when creating "
                                  "BindingBlocks, Please ensure calling "
-                              << (is_dataflow ? "R.dataflow()" : "R.block_binding")
+                              << (is_dataflow ? "R.dataflow()" : "R.block_binding()")
                               << " after R.function.";
   const tvm::relax::BlockBuilder& block_builder = func_frame.value()->block_builder;
   if (is_dataflow) {

@@ -101,12 +101,12 @@ TVM_DLL void FuncRetType(tvm::Type ret_type);
  * \brief Specify the return value of the last function frame.
  * \param value The return value.
  */
-TVM_DLL void FuncReturn(const tvm::relax::Expr& value);
+TVM_DLL void FuncRetValue(const tvm::relax::Expr& value);
 
 ///////////////////////////// BindingBlock //////////////////////////////
 
 /*!
- * \brief Start a non-dataflow binding block frame.
+ * \brief Start a binding block frame.
  * \return The created ir_builder Block frame.
  */
 TVM_DLL BlockFrame BindingBlock();
