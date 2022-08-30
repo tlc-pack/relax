@@ -109,7 +109,7 @@ TVM_DLL Pass CallTIRRewrite();
  *
  * \return The Pass.
  */
-TVM_DLL Pass Canonicalize();
+TVM_DLL Pass CanonicalizeBindings();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the

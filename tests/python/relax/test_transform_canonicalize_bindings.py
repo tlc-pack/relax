@@ -52,7 +52,7 @@ def test_simple_assignments():
             o = x
             return x
 
-    new_mod = relax.transform.Canonicalize()(TestChainAssignments)
+    new_mod = relax.transform.CanonicalizeBindings()(TestChainAssignments)
     assert_structural_equal(new_mod, Expected)
 
 
@@ -88,7 +88,7 @@ def test_dataflow_block():
                 R.output(n)
             return n
 
-    new_mod = relax.transform.Canonicalize()(TestDataflowAssignments)
+    new_mod = relax.transform.CanonicalizeBindings()(TestDataflowAssignments)
     assert_structural_equal(new_mod, Expected)
 
 
@@ -111,7 +111,7 @@ def test_ops():
             z = relax.add(y, x)
             return relax.add(x, z)
 
-    new_mod = relax.transform.Canonicalize()(TestOps)
+    new_mod = relax.transform.CanonicalizeBindings()(TestOps)
     assert_structural_equal(new_mod, Expected)
 
 
@@ -134,7 +134,7 @@ def test_casting():
             z: Object = x
             return z
 
-    new_mod = relax.transform.Canonicalize()(TestCasting)
+    new_mod = relax.transform.CanonicalizeBindings()(TestCasting)
     assert_structural_equal(new_mod, Expected)
 
 
@@ -158,7 +158,7 @@ def test_match_shape():
             w = z
             return z
 
-    new_mod = relax.transform.Canonicalize()(TestMatchShape)
+    new_mod = relax.transform.CanonicalizeBindings()(TestMatchShape)
     assert_structural_equal(new_mod, Expected)
 
 
@@ -184,7 +184,7 @@ def test_same_shape():
             q = relax.add(x, x)
             return relax.add(q, x)
 
-    new_mod = relax.transform.Canonicalize()(TestSameShape)
+    new_mod = relax.transform.CanonicalizeBindings()(TestSameShape)
     assert_structural_equal(new_mod, Expected)
 
 
@@ -211,7 +211,7 @@ def test_change_shape():
             q = relax.add(z, x)
             return relax.add(q, z)
 
-    new_mod = relax.transform.Canonicalize()(TestSameShape)
+    new_mod = relax.transform.CanonicalizeBindings()(TestSameShape)
     assert_structural_equal(new_mod, Expected)
 
 

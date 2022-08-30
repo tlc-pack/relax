@@ -91,9 +91,9 @@ class VarUnifier {
   std::set<Var> anchors_;
 };
 
-class Canonicalizer : public ExprMutator {
+class BindingCanonicalizer : public ExprMutator {
  public:
-  Canonicalizer() : uf_() {}
+  BindingCanonicalizer() : uf_() {}
 
   Expr VisitExpr_(const VarNode* op) override {
     Var v = GetRef<Var>(op);
@@ -260,17 +260,19 @@ class Canonicalizer : public ExprMutator {
   VarUnifier uf_;
 };
 
-Expr Canonicalize(const Expr& e) { return Canonicalizer().VisitExpr(e); }
+Expr CanonicalizeBindings(const Expr& e) { return BindingCanonicalizer().VisitExpr(e); }
 
 namespace transform {
 
-Pass Canonicalize() {
+Pass CanonicalizeBindings() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(Canonicalize(f)); };
-  return CreateFunctionPass(pass_func, 1, "Canonicalize", {});
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(CanonicalizeBindings(f));
+      };
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeBindings", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Canonicalize").set_body_typed(Canonicalize);
+TVM_REGISTER_GLOBAL("relax.transform.CanonicalizeBindings").set_body_typed(CanonicalizeBindings);
 
 }  // namespace transform
 

@@ -136,7 +136,7 @@ def Normalize() -> tvm.ir.transform.Pass:
     return _ffi_api.Normalize()
 
 
-def Canonicalize() -> tvm.ir.transform.Pass:
+def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     """
     Canonicalizes variable definitions
     (e.g., if there is y = x and z = y, it replaces uses of y and z with x).
@@ -147,7 +147,7 @@ def Canonicalize() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.Canonicalize()
+    return _ffi_api.CanonicalizeBindings()
 
 
 def ResolveGlobals() -> tvm.ir.transform.Pass:
