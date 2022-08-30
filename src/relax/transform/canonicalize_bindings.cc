@@ -161,9 +161,7 @@ class BindingCanonicalizer : public ExprMutator {
   }
 };
 
-Expr CanonicalizeBindings(const Expr& e) {
-  return BindingCanonicalizer().VisitExpr(e);
-}
+Expr CanonicalizeBindings(const Expr& e) { return BindingCanonicalizer().VisitExpr(e); }
 
 namespace transform {
 
