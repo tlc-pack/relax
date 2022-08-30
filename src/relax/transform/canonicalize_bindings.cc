@@ -31,104 +31,26 @@
 namespace tvm {
 namespace relax {
 
-// Simple union-find implementation with path compression.
-// Anchors are variables not assigned to other variables;
-// we track them separately to ensure an ordering to the matches.
-// E.g., if we have
-//   x = constant
-//   y = x
-//   z = y
-// We might get unlucky in some situations and have z end up being the parent,
-// then if we naively do the replacement, we get
-//   x = constant
-//   y = z << bug
-//   z = z
-class VarUnifier {
- public:
-  VarUnifier() : parent_map_(), anchors_() {}
-
-  void InsertAnchor(const Var& v) {
-    CHECK(!Contains(v));
-    anchors_.emplace(v);
-    parent_map_.Set(v, v);
-  }
-
-  void InsertBinding(const Var& v, const Var& anchor) {
-    CHECK(Contains(anchor));
-    CHECK(!Contains(v));
-    Var parent = Lookup(anchor);
-    CHECK(anchors_.count(parent));
-    parent_map_.Set(v, parent);
-  }
-
-  bool Contains(const Var& v) { return parent_map_.count(v) != 0; }
-
-  Var Lookup(const Var& v) {
-    CHECK(Contains(v));
-    Var parent = parent_map_.at(v);
-    if (v.same_as(parent)) {
-      return v;
-    }
-    Var ret = Lookup(parent);
-    // path compression
-    parent_map_.Set(v, ret);
-    return ret;
-  }
-
-  void Unify(const Var& v1, const Var& v2) {
-    Var p1 = Lookup(v1);
-    Var p2 = Lookup(v2);
-    if (p1.same_as(p2)) {
-      return;
-    }
-    // we could be clever and check the depth of the trees if performance is an issue
-    parent_map_.Set(p1, p2);
-  }
-
- private:
-  Map<Var, Var> parent_map_;
-  // anchors: vars that are bound to a non-var. A parent var must be an anchor
-  std::set<Var> anchors_;
-};
-
 class BindingCanonicalizer : public ExprMutator {
  public:
-  BindingCanonicalizer() : uf_() {}
+  BindingCanonicalizer() {}
 
   Expr VisitExpr_(const VarNode* op) override {
-    Var v = GetRef<Var>(op);
-    if (uf_.Contains(v)) {
-      // visit the result in case the variable is remapped
-      return ExprMutator::VisitExpr_(uf_.Lookup(v).as<VarNode>());
+    // remap first
+    Var v = Downcast<Var>(ExprMutator::VisitExpr_(op));
+    if (!CanCanonicalizeVar(v)) {
+      return Downcast<Expr>(v);
     }
-    return ExprMutator::VisitExpr_(op);
+    // visit again in case we need to do a substitution in the value
+    return ExprMutator::VisitExpr_(LookupBinding(v).as<VarNode>());
   }
 
   Expr VisitExpr_(const DataflowVarNode* op) override {
-    Var v = GetRef<Var>(op);
-    if (uf_.Contains(v)) {
-      // visit in case of variable remapping
-      return ExprMutator::VisitExpr_(uf_.Lookup(v).as<DataflowVarNode>());
+    Var v = Downcast<Var>(ExprMutator::VisitExpr_(op));
+    if (!CanCanonicalizeVar(v)) {
+      return Downcast<Expr>(v);
     }
-    return ExprMutator::VisitExpr_(op);
-  }
-
-  Expr VisitExpr_(const FunctionNode* op) override {
-    // add function parameters into the current scope before proceeding
-    for (auto v : op->params) {
-      uf_.InsertAnchor(v);
-    }
-    return ExprMutator::VisitExpr_(op);
-  }
-
-  // populate the union-find before processing the bindings
-  Expr VisitExpr_(const SeqExprNode* op) override {
-    for (auto bb : op->blocks) {
-      for (auto binding : bb->bindings) {
-        ProcessBinding(binding);
-      }
-    }
-    return ExprMutator::VisitExpr_(op);
+    return ExprMutator::VisitExpr_(LookupBinding(v).as<DataflowVarNode>());
   }
 
   void VisitBinding_(const VarBindingNode* binding) override {
@@ -203,64 +125,45 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
  private:
-  // adds vars to the union find if eligible
-  void ProcessBinding(const Binding& binding) {
-    if (const VarBindingNode* vb = binding.as<VarBindingNode>()) {
-      UpdateDef(vb->var, vb->value);
-      return;
-    }
-    const MatchShapeNode* m = binding.as<MatchShapeNode>();
-    CHECK(m);
-    if (m->var.defined()) {
-      UpdateDef(m->var, m->value);
-    }
-  }
-
-  // if the RHS (value) is a var and eligible to unify,
-  // insert the binding into the union-find;
-  // otherwise, add the newly defined var as an anchor
-  void UpdateDef(const Var& def, const Expr& value) {
-    const VarNode* v = value.as<VarNode>();
-    if (v && CanUnifyVars(def, GetRef<Var>(v))) {
-      uf_.InsertBinding(def, GetRef<Var>(v));
-      return;
-    }
-    uf_.InsertAnchor(def);
-  }
-
   bool AnnotationsDiffer(const ObjectRef& obj1, const ObjectRef& obj2,
                          std::function<bool(const ObjectRef&, const ObjectRef&)> check_eq) {
     // annotations differ if one is present but not the other
-    // or they're both present and they differ structurally
+    // or they're both present and they differ
     bool both_present = obj1.defined() && obj2.defined();
     bool neither_present = !obj1.defined() && !obj2.defined();
     return !(both_present || neither_present) || (both_present && !check_eq(obj1, obj2));
   }
 
-  bool CanUnifyVars(Var lhs, Var rhs) {
+  bool CanCanonicalizeVar(Var v) {
+    Optional<Expr> parent = LookupBinding(v);
+    // can replace only if the parent is also a var
+    if (!parent || !parent.as<VarNode>()) {
+      return false;
+    }
+    Var parent_var = Downcast<Var>(parent);
+
     // Cases when we conservatively do not unify:
-    // 1. checked_type_ or shape_ of the LHS differ from that of the RHS.
+    // 1. checked_type_ or shape_ of the child differs from that of the parent
     //    In this case, we could be overriding user annotations.
-    // 2. If the LHS is a Var and the parent of the RHS is a DataflowVar.
+    // 2. If the child is a Var and the parent is a DataflowVar.
     //    That could result in a DataflowVar leaving the current DataflowBlock.
-    Var parent = uf_.Lookup(rhs);
     bool annotations_differ =
-        AnnotationsDiffer(lhs->shape_, parent->shape_,
+        AnnotationsDiffer(v->shape_, parent_var->shape_,
                           [&](auto shape1, auto shape2) {
                             return builder_->CanProveShapeEqual(Downcast<Expr>(shape1),
                                                                 Downcast<Expr>(shape2));
                           }) ||
-        AnnotationsDiffer(lhs->checked_type_, parent->checked_type_, [&](auto type1, auto type2) {
+        AnnotationsDiffer(v->checked_type_, parent_var->checked_type_, [&](auto type1, auto type2) {
           return tvm::StructuralEqual()(type1, type2);
         });
-    bool var_to_dataflow = (!lhs.as<DataflowVarNode>() && parent.as<DataflowVarNode>());
+    bool var_to_dataflow = (!v.as<DataflowVarNode>() && parent_var.as<DataflowVarNode>());
     return !annotations_differ && !var_to_dataflow;
   }
-
-  VarUnifier uf_;
 };
 
-Expr CanonicalizeBindings(const Expr& e) { return BindingCanonicalizer().VisitExpr(e); }
+Expr CanonicalizeBindings(const Expr& e) {
+  return BindingCanonicalizer().VisitExpr(e);
+}
 
 namespace transform {
 

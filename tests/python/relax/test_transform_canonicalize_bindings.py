@@ -185,6 +185,7 @@ def test_same_shape():
             return relax.add(q, x)
 
     new_mod = relax.transform.CanonicalizeBindings()(TestSameShape)
+    print(new_mod)
     assert_structural_equal(new_mod, Expected)
 
 
