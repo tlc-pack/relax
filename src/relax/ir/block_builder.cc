@@ -619,6 +619,7 @@ Var BlockBuilderNode::EmitMatchShape(const Expr& value, const Array<PrimExpr>& p
 
   MatchShape match_shape = MatchShape(value, pattern, var);
   cur_frame->bindings.push_back(match_shape);
+  binding_table_[var->vid] = value;
   return var;
 }
 
@@ -629,6 +630,7 @@ Var BlockBuilderNode::EmitMatchShape(const MatchShape& binding) {
         << "EmitMatchShape can only be used for local bindings in a dataflow block.";
     ICHECK(cur_frame->is_dataflow || !binding->var.as<DataflowVarNode>())
         << "cannot emit dataflow vars outside a dataflow block: " << binding->var->name_hint();
+    binding_table_[binding->var->vid] = binding->value;
   }
   cur_frame->bindings.push_back(binding);
   // TODO(@altanh, @yuchen): what value should we bind? Consider
