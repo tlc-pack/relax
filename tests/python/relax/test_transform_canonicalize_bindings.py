@@ -190,7 +190,7 @@ def test_same_shape():
 
 def test_change_shape():
     @tvm.script.ir_module
-    class TestSameShape:
+    class TestChangeShape:
         @R.function
         def main(x: Tensor((m, n), _)):
             y = x
@@ -211,7 +211,7 @@ def test_change_shape():
             q = relax.add(z, x)
             return relax.add(q, z)
 
-    new_mod = relax.transform.CanonicalizeBindings()(TestSameShape)
+    new_mod = relax.transform.CanonicalizeBindings()(TestChangeShape)
     assert_structural_equal(new_mod, Expected)
 
 
