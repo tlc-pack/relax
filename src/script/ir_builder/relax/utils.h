@@ -16,24 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_IR_IR_H_
-#define TVM_SCRIPT_IR_BUILDER_IR_IR_H_
+#ifndef TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
+#define TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
 
-#include <tvm/ir/expr.h>
-#include <tvm/ir/function.h>
-#include <tvm/node/node.h>
-#include <tvm/script/ir_builder/ir/frame.h>
-
-#include <vector>
+#include <tvm/script/ir_builder/relax/frame.h>
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace relax {
 
-TVM_DLL IRModuleFrame IRModule();
-
+inline FunctionFrame FindFunctionFrame(const String& method) {
+  if (Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
+    return frame.value();
+  }
+  LOG(FATAL) << "ValueError: Function frame not find. Please ensure '" << method
+             << "' is called under R.function()";
+  throw;
 }
+
+inline tvm::relax::BlockBuilder GetBlockBuilder() {
+  Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
+  CHECK(frame.defined()) << "ValueError: Relax Function frame not find. Please ensure "
+                            "assignment is called under R.function()";
+  return frame.value()->block_builder;
+}
+
+}  // namespace relax
+}  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_IR_IR_H_
+#endif  // TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_

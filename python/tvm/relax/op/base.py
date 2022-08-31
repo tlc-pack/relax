@@ -20,14 +20,14 @@ import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr, Tuple, Call
+from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
 from ...ir import Array
 
 
 def call_tir(
-    func: Expr,
-    args: Union[Tuple, List[Expr]],
+    func: Union[str, Expr],
+    args: Union[Expr, Tuple, List[Expr]],
     shape: Union[Tuple, ShapeExpr, List[int]],
     dtype: Union[str, List[str]],
     tir_vars: Optional[ShapeExpr] = None,
@@ -37,10 +37,10 @@ def call_tir(
 
     Parameters
     ----------
-    func : Expr
+    func : Union[str, Expr]
         The destination-passing-style function, can be ExternFunc or PrimFunc.
 
-    args : Union[Tuple, List[Expr]]
+    args : Union[Expr, Tuple, List[Expr]]
         The input arguments.
 
     shape: Union[Tuple, ShapeExpr, List[int]]
@@ -57,8 +57,14 @@ def call_tir(
     ret: Call
         A call node for the call_tir operator.
     """
+    if isinstance(func, str):
+        func = ExternFunc(func)
+
     if isinstance(shape, (list, tuple, Array)):
         shape = ShapeExpr(shape)
+
+    if isinstance(args, Expr):
+        args = Tuple((args,))
 
     if isinstance(args, (list, tuple)):
         args = Tuple(args)

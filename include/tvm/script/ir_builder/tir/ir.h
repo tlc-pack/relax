@@ -226,4 +226,4 @@ TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_TIR_IR_BUILDER_H_
+#endif  // TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
