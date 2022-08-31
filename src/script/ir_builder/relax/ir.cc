@@ -37,7 +37,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     });
 
 ////////////////////////////// Tensor Type //////////////////////////////
-TensorType::TensorType(Type type, Optional<tvm::relax::Expr> shape) {
+TensorType::TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr> shape) {
   auto n = make_object<TensorTypeNode>();
   n->type = std::move(type);
   n->shape = std::move(shape);
@@ -54,12 +54,11 @@ TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   } else if (shape.defined()) {
     ndim = shape.value().size();
   }
-  Type dyn_tensor_type = DynTensorType(ndim, dtype);
   Optional<Expr> shape_expr = NullOpt;
   if (shape.defined()) {
     shape_expr = ShapeExpr(shape.value());
   }
-  return TensorType(dyn_tensor_type, shape_expr);
+  return TensorType(DynTensorType(ndim, dtype), shape_expr);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);

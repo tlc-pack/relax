@@ -34,7 +34,7 @@ namespace relax {
 class TensorTypeNode : public runtime::Object {
  public:
   /*! \brief The type, usually is DynTensorType */
-  Type type;
+  tvm::relax::DynTensorType type;
   /*! \brief The shape, which is optional. */
   Optional<tvm::relax::Expr> shape;
 
@@ -49,7 +49,7 @@ class TensorTypeNode : public runtime::Object {
 
 class TensorType : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit TensorType(Type type, Optional<tvm::relax::Expr> shape);
+  TVM_DLL explicit TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr> shape);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorType, ObjectRef, TensorTypeNode);
 };
