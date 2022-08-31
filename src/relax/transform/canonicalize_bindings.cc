@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/relax/transform/canonicalize.cc
- * \brief Pass for simplifying modules by coalescing intermediate bindings.
+ * \brief Pass for simplifying modules by folding var bindings and match shape nodes.
  *        May include other forms of simplification in the future.
  *        Ideally should be used before constant folding and eliminating unused bindings.
  */
@@ -135,12 +135,12 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   bool CanCanonicalizeVar(Var v) {
-    Optional<Expr> parent = LookupBinding(v);
-    // can replace only if the parent is also a var
-    if (!parent || !parent.as<VarNode>()) {
+    Optional<Expr> value = LookupBinding(v);
+    // can replace only if the value is also a var
+    if (!value || !value.as<VarNode>()) {
       return false;
     }
-    Var parent_var = Downcast<Var>(parent);
+    Var parent_var = Downcast<Var>(value);
 
     // Cases when we conservatively do not unify:
     // 1. checked_type_ or shape_ of the child differs from that of the parent
@@ -149,13 +149,14 @@ class BindingCanonicalizer : public ExprMutator {
     //    That could result in a DataflowVar leaving the current DataflowBlock.
     bool annotations_differ =
         AnnotationsDiffer(v->shape_, parent_var->shape_,
-                          [&](auto shape1, auto shape2) {
+                          [&](const ObjectRef& shape1, const ObjectRef& shape2) {
                             return builder_->CanProveShapeEqual(Downcast<Expr>(shape1),
                                                                 Downcast<Expr>(shape2));
                           }) ||
-        AnnotationsDiffer(v->checked_type_, parent_var->checked_type_, [&](auto type1, auto type2) {
-          return tvm::StructuralEqual()(type1, type2);
-        });
+        AnnotationsDiffer(v->checked_type_, parent_var->checked_type_,
+                          [&](const ObjectRef& type1, const ObjectRef& type2) {
+                            return tvm::StructuralEqual()(type1, type2);
+                          });
     bool var_to_dataflow = (!v.as<DataflowVarNode>() && parent_var.as<DataflowVarNode>());
     return !annotations_differ && !var_to_dataflow;
   }
