@@ -50,7 +50,14 @@ fi
 export ANDROID_SERIAL_NUMBER=${device_serial}
 
 # Only test integration with Relax
-run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon/test_relax_integration.py
+# TODO(prakalp): Run the same tests on simulator and device once the bug with device is fixed.
+if [[ "${device_serial}" == "simulator" ]];
+    then
+        run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon/test_relax_integration.py
+    else
+        run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon/test_relax_integration.py::test_conv2d
+fi
+
 
 if [[ "${device_serial}" == "simulator" ]]; then
     kill ${TRACKER_PID}
