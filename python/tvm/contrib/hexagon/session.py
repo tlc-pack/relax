@@ -382,8 +382,8 @@ class Session:
             hexagon_arch="v68",
         )
 
-        self.upload(path_exec, "exec.so")
-        return self._rpc.get_function("tvm.hexagon.load_module")("exec.so")
+        path = self.upload(path_exec, "exec.so")
+        return self._rpc.get_function("tvm.hexagon.load_module")(str(path))
 
     def _aot_executor_from_factory(
         self,
