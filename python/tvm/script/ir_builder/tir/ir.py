@@ -19,7 +19,7 @@
 import functools
 import inspect
 from numbers import Integral
-from typing import Any, Dict, List, Optional, Union, Literal, Tuple
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import numpy as np
 from tvm.ir import Range, Type
@@ -160,7 +160,7 @@ def init() -> frame.BlockInitFrame:
     return _ffi_api.Init()  # pylint: disable=no-member # type: ignore
 
 
-def where(predicate: Union[PrimExpr, Literal[0, 1]]) -> None:
+def where(predicate: Union[PrimExpr, int]) -> None:
     """The block predicate statement.
 
     Parameters
