@@ -28,8 +28,14 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
+/*!
+ * \brief A base frame that represents the TIR fame with body of statements.
+ *
+ * \sa TIRFrame
+ */
 class TIRFrameNode : public IRBuilderFrameNode {
  public:
+  /*! \brief The Stmt within in this frame. */
   Array<tvm::tir::Stmt> stmts;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -41,6 +47,11 @@ class TIRFrameNode : public IRBuilderFrameNode {
   TVM_DECLARE_BASE_OBJECT_INFO(TIRFrameNode, IRBuilderFrameNode);
 };
 
+/*!
+ * \brief Managed reference to TIRFrameNode.
+ *
+ * \sa TIRFrameNode
+ */
 class TIRFrame : public IRBuilderFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TIRFrame, IRBuilderFrame, TIRFrameNode);
@@ -49,19 +60,37 @@ class TIRFrame : public IRBuilderFrame {
   TIRFrame() = default;
 };
 
+/*!
+ * \brief A frame that represents the block.
+ *
+ * \sa BlockFrame
+ */
 class BlockFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The name of the block. */
   String name;
+  /*! \brief The variables of the block. */
   Array<tvm::tir::IterVar> iter_vars;
+  /*! \brief The read buffer regions of the block. */
   Optional<Array<tvm::tir::BufferRegion>> reads;
+  /*! \brief The write buffer regions of the block. */
   Optional<Array<tvm::tir::BufferRegion>> writes;
+  /*! \brief The init statement of the bolck. */
   Optional<tvm::tir::Stmt> init;
+  /*! \brief The buffer allocated in the block. */
   Array<tvm::tir::Buffer> alloc_buffers;
+  /*! \brief The match buffer regions. */
   Array<tvm::tir::MatchBufferRegion> match_buffers;
+  /*! \brief The annotation of the block. */
   Optional<Map<String, ObjectRef>> annotations;
-
+  /*! \brief The corresponding values of the iter vars. */
   Array<PrimExpr> iter_values;
+  /*!
+   * \brief The predicate of the block realization, the block will only be executed when the
+   * predicate is true.
+   */
   Optional<PrimExpr> predicate;
+  /*! \brief The flag whether to construct BlockRealize or Block. */
   bool no_realize;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -83,14 +112,28 @@ class BlockFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to BlockFrameNode.
+ *
+ * \sa BlockFrameNode
+ */
 class BlockFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
 };
 
+/*!
+ * \brief A frame that represents the block initialization statment.
+ *
+ * \sa BlockInitFrame
+ */
 class BlockInitFrameNode : public TIRFrameNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) { TIRFrameNode::VisitAttrs(v); }
@@ -99,22 +142,43 @@ class BlockInitFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockInitFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
   void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to BlockInitFrameNode.
+ *
+ * \sa BlockInitFrameNode
+ */
 class BlockInitFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockInitFrame, TIRFrame, BlockInitFrameNode);
 };
 
+/*!
+ * \brief A frame that represents the for loop.
+ *
+ * \sa BlockInitFrame
+ */
 class ForFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The for loop generating function type. */
   using FMakeForLoop =
       runtime::TypedPackedFunc<tvm::tir::Stmt(Array<tvm::tir::Var>, Array<Range>, tvm::tir::Stmt)>;
-
+  /*! \brief The loop variable. */
   Array<tvm::tir::Var> vars;
+  /*! \brief The domains of iteration. */
   Array<Range> doms;
+  /*! \brief The for loop generating function. */
   FMakeForLoop f_make_for_loop;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -128,23 +192,45 @@ class ForFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to ForFrameNode.
+ *
+ * \sa ForFrameNode
+ */
 class ForFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
 };
 
+/*!
+ * \brief A frame that represents the PrimFunc containing TIR statements.
+ *
+ * \sa PrimFuncFrame
+ */
 class PrimFuncFrameNode : public TIRFrameNode {
  public:
+  /*! \brief The name of the block. */
   Optional<String> name;
+  /*! \brief Function parameters. */
   Array<tvm::tir::Var> args;
+  /*! \brief The return type of the function. */
   Optional<Type> ret_type;
+  /*! \brief Maps some parameters to specific Buffer data structures. */
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
+  /*! \brief The buffer map prior to flattening. */
   Map<tvm::tir::Var, tvm::tir::Buffer> preflattened_buffer_map;
+  /*! \brief Additional attributes storing the meta-data */
   Optional<Map<String, ObjectRef>> attrs;
+  /*! \brief The variable map bound to thread env. */
   Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
+  /*! \brief The buffer allocated in root block. */
   Array<tvm::tir::Buffer> root_alloc_buffers;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -163,9 +249,18 @@ class PrimFuncFrameNode : public TIRFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
 
  public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
   void ExitWithScope() final;
 };
 
+/*!
+ * \brief Managed reference to PrimFuncFrameNode.
+ *
+ * \sa PrimFuncFrameNode
+ */
 class PrimFuncFrame : public TIRFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
