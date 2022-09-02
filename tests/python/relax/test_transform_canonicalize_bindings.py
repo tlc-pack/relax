@@ -179,7 +179,8 @@ def test_same_shape():
         @R.function
         def main(x: Tensor((m, n), _)):
             y = x
-            z = R.match_shape(x, (m, n))
+            # canonicalized into a var binding
+            z = x
             w = x
             q = relax.add(x, x)
             return relax.add(q, x)

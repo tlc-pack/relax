@@ -86,8 +86,10 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   void VisitBinding_(const MatchShapeNode* binding) override {
-    // for match shape, we need to be cleverer and allow the shape_ to change
-    // due to possible substitutions
+    // For match shape, we need to be cleverer and allow the shape_ to change
+    // due to possible substitutions.
+    // Additionally, if we have a trivial shape check (the shape_ of LHS and RHS is the same),
+    // we can canonicalize to a var binding
     Expr new_value = this->VisitExpr(binding->value);
     Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
 
@@ -110,6 +112,14 @@ class BindingCanonicalizer : public ExprMutator {
         new_var = temp;
         this->var_remap_[binding->var->vid] = new_var;
       }
+    }
+
+    // if the LHS and RHS have the same shape_, we canonicalize to a var binding instead
+    if (new_var.defined() && new_value->shape_.defined() &&
+        builder_->CanProveShapeEqual(Downcast<Expr>(new_var->shape_),
+                                     Downcast<Expr>(new_value->shape_))) {
+      builder_->Emit(VarBinding(new_var, new_value));
+      return;
     }
 
     // reemit old binding if nothing changes
