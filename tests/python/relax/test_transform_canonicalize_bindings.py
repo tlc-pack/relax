@@ -216,5 +216,31 @@ def test_change_shape():
     assert_structural_equal(new_mod, Expected)
 
 
+def test_unbound_match_shape():
+    # ensure that match shapes that do not bind a var are handled correctly
+    @tvm.script.ir_module
+    class TestUnboundMatchShape:
+        @R.function
+        def main(x: Tensor):
+            y = x
+            z = y
+            R.match_shape(z, (m, n))
+            w = z
+            return w
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: Tensor):
+            y = x
+            z = x
+            R.match_shape(x, (m, n))
+            w = x
+            return x
+
+    new_mod = relax.transform.CanonicalizeBindings()(TestUnboundMatchShape)
+    assert_structural_equal(new_mod, Expected)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
