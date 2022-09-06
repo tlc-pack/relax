@@ -96,7 +96,7 @@ class BindingCanonicalizer : public ExprMutator {
     Var new_var;
     if (binding->var.defined()) {
       Optional<Expr> new_shape;
-      if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
+      if (new_value->checked_type_.as<DynTensorTypeNode>()) {
         new_shape = new_pattern;
       }
       // visit var def visits the var's shape_ field and may perform variable substitutions,
