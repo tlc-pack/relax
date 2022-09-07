@@ -13,10 +13,12 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the Licens.
-"""The parser"""
-from . import _core, ir, tir, relax
-from ._core import parse
-from .ir import ir_module
-from .tir import prim_func
-from .relax import function
+# under the License.
+# pylint: disable=missing-docstring
+from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
+from ...ir_builder.relax import ir as _relax
+from . import parser as _parser
+from .entry import function, Tensor
+
+
+__all__ = _relax.__all__ + ["function", "Tensor"]

@@ -22,27 +22,13 @@ from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer_decl, ptr
 from .._core import parse, utils
-
-
-def _is_defined_in_class(frames):
-    if len(frames) > 2:
-        maybe_class_frame = frames[2]
-        statement_list = maybe_class_frame[4]
-        if statement_list is None:
-            return False
-        first_statement = statement_list[0]
-        line = first_statement.strip()
-        if line.startswith("class "):
-            return True
-        if line.startswith("@") and "ir_module" in line:
-            return True
-    return False
+from ..ir import is_defined_in_class
 
 
 def prim_func(f: Callable) -> Union[PrimFunc, Callable]:
     if not inspect.isfunction(f):
         raise TypeError(f"Expect a function, but got: {f}")
-    if _is_defined_in_class(inspect.stack()):
+    if is_defined_in_class(inspect.stack()):
         return f
     return parse(f, utils.inspect_function_capture(f))
 

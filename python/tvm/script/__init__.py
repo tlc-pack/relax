@@ -22,6 +22,7 @@ from .parser import ir as ir_v2
 from .parser import ir_module as ir_module_v2
 from .parser import parse as from_source_v2
 from .parser import tir as tir_v2
+from .parser import relax as relax_v2
 
 #############
 from .parser_v1 import from_source as from_source_v1
