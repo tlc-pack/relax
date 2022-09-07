@@ -54,9 +54,8 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding) override {
-    // Unlike default visitor, preserve the checked_type_
-    // We may need to change the shape field in case there are substitutions
-    // that need to be performed within the shape computation.
+    // Unlike default visitor, we do not permit the checked type to change
+    // if the new value's checked type is different (this preserves user annotations)
     Expr new_value = this->VisitExpr(binding->value);
     Var new_var = this->VisitVarDef(binding->var);
 
@@ -73,45 +72,20 @@ class BindingCanonicalizer : public ExprMutator {
       return;
     }
 
-    // we don't look at the new value's shape or checked type; we only consider
-    // if there were any substitutions performed within the original var's shape_
-    Var temp = WithShapeAndType(new_var, new_var->shape_, new_var->checked_type_);
-    if (!temp.same_as(new_var)) {
-      new_var = temp;
-      this->var_remap_[binding->var->vid] = new_var;
-    }
-
-    // unlike default visitor, we do not permit the var's checked_type to change
     emit(VarBinding(new_var, new_value));
   }
 
   void VisitBinding_(const MatchShapeNode* binding) override {
-    // For match shape, we need to be cleverer and allow the shape_ to change
-    // due to possible substitutions.
-    // Additionally, if we have a trivial shape check (the shape_ of LHS and RHS is the same),
+    // If we have a trivial shape check (the shape_ of LHS and RHS is the same),
     // we can canonicalize to a var binding
     Expr new_value = this->VisitExpr(binding->value);
-    Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
 
     Var new_var;
+    // since we do not permit the checked_type to change and don't make any changes
+    // to the shape pattern, there is no reason to do any more checking like in the
+    // original mutator
     if (binding->var.defined()) {
-      Optional<Expr> new_shape;
-      if (new_value->checked_type_.as<DynTensorTypeNode>()) {
-        new_shape = new_pattern;
-      }
-      // visit var def visits the var's shape_ field and may perform variable substitutions,
-      // so we should use that shape_ if it's defined
       new_var = this->VisitVarDef(binding->var);
-      if (new_var->shape_.defined()) {
-        new_shape = Downcast<Expr>(new_var->shape_);
-      }
-
-      // do not permit the type to change
-      Var temp = WithShapeAndType(new_var, new_shape, binding->var->checked_type_);
-      if (!temp.same_as(new_var)) {
-        new_var = temp;
-        this->var_remap_[binding->var->vid] = new_var;
-      }
     }
 
     // if the LHS and RHS have the same shape_, we canonicalize to a var binding instead
@@ -123,15 +97,14 @@ class BindingCanonicalizer : public ExprMutator {
     }
 
     // reemit old binding if nothing changes
-    if (new_value.same_as(binding->value) && new_pattern.same_as(binding->pattern)) {
+    if (new_value.same_as(binding->value)) {
       if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
         builder_->EmitMatchShape(GetRef<MatchShape>(binding));
         return;
       }
     }
 
-    builder_->EmitMatchShape(
-        MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
+    builder_->EmitMatchShape(MatchShape(new_value, binding->pattern, new_var));
   }
 
  private:
