@@ -20,19 +20,45 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 
+#include "./utils.h"
+
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace ir {
 
 IRModuleFrame IRModule() {
   ObjectPtr<IRModuleFrameNode> n = make_object<IRModuleFrameNode>();
-  n->global_vars.clear();
+  n->global_var_map.clear();
   n->functions.clear();
   return IRModuleFrame(n);
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.IRModule").set_body_typed(IRModule);
+GlobalVar DeclFunction(const String& func_name) {
+  IRModuleFrame frame = FindModuleFrame("I.DeclFunction");
+  CHECK(!frame->global_var_map.count(func_name))
+      << "ValueError: function " << func_name << " already exists";
+  GlobalVar gv = GlobalVar(func_name);
+  frame->global_var_map.Set(func_name, gv);
+  return gv;
+}
 
+void DefFunction(const String& func_name, const BaseFunc& func) {
+  IRModuleFrame frame = FindModuleFrame("I.DefFunction");
+  auto it = frame->global_var_map.find(func_name);
+  CHECK(it != frame->global_var_map.end())
+      << "ValueError: function " << func_name << " does not exist, please declare it first.";
+  const GlobalVar& gv = (*it).second;
+  CHECK(frame->functions.find(gv) == frame->functions.end())
+      << "ValueError: function " << func_name << " has already been defined.";
+  frame->functions.Set(gv, func);
+}
+
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
+
+}  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
