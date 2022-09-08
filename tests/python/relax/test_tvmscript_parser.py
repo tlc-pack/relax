@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
 from typing import Union
 import tvm
 import tvm.testing
@@ -45,6 +47,15 @@ def test_simple_func():
         bb.emit_func_output(out)
 
     _check(foo, bb.get()["foo"])
+
+
+def test_error_report():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            gv0 = gv1 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+            return gv0
 
 
 if __name__ == "__main__":
