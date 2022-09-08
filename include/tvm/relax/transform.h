@@ -103,6 +103,15 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
+ * \brief Simplify a Relax module by folding var bindings and match shape nodes.
+ * May include other forms of expression simplification in the future.
+ * Best used alongside constant folding and eliminating unused bindings.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass CanonicalizeBindings();
+
+/*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
  * checked_type_ and shape_ of expressions.
  *
