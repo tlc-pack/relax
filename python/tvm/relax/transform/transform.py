@@ -137,6 +137,20 @@ def Normalize() -> tvm.ir.transform.Pass:
     return _ffi_api.Normalize()
 
 
+def CanonicalizeBindings() -> tvm.ir.transform.Pass:
+    """
+    Canonicalizes variable definitions
+    (e.g., if there is y = x and z = y, it replaces uses of y and z with x).
+
+    Best combined with constant folding and the elimination of unused definitions.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.CanonicalizeBindings()
+
+
 def ResolveGlobals() -> tvm.ir.transform.Pass:
     """Resolve global variables using string equality. This ensures all GlobalVars in the IR refer
     to the correct GlobalVar of the input IRModule. An error is reported if any GlobalVar cannot be
