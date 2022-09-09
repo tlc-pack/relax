@@ -144,9 +144,9 @@ def f_measurement(
     rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
 ):
     vm = relax.vm.VirtualMachine(exec=rt_mod, device=device)
-    vm.set_input("main", **input_data)
-    evaluator = vm.module.time_evaluator(
-        func_name="main",
+    vm.save_function("main", "measure_func", **input_data, include_return=False)
+    evaluator = vm.time_evaluator(
+        func_name="measure_func",
         dev=device,
         repeat=ARGS.num_measurement_repeats,
         number=ARGS.num_measurements,
