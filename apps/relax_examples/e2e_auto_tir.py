@@ -83,6 +83,16 @@ def _parse_args():
         type=int,
         default=180,
     )
+    args.add_argument(
+        "--num-measurement-repeats",
+        type=int,
+        default=5
+    )
+    args.add_argument(
+        "--num-measurements",
+        type=int,
+        default=10
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -142,7 +152,8 @@ def f_measurement(
     evaluator = vm.module.time_evaluator(
         func_name="main",
         dev=device,
-        repeat=5,
+        repeat=ARGS.num_measurement_repeats,
+        number=ARGS.num_measurements,
         min_repeat_ms=500,
     )
     print(evaluator())
