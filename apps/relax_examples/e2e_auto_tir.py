@@ -99,7 +99,8 @@ def _parse_args():
     args.add_argument(
         "--results-file",
         type=string,
-        required=False
+        required=False,
+        default=None
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
