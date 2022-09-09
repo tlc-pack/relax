@@ -86,22 +86,9 @@ def _parse_args():
         type=int,
         default=180,
     )
-    args.add_argument(
-        "--num-measurement-repeats",
-        type=int,
-        default=5
-    )
-    args.add_argument(
-        "--num-measurements",
-        type=int,
-        default=10
-    )
-    args.add_argument(
-        "--results-file",
-        type=string,
-        required=False,
-        default=None
-    )
+    args.add_argument("--num-measurement-repeats", type=int, default=5)
+    args.add_argument("--num-measurements", type=int, default=10)
+    args.add_argument("--results-file", type=stu, required=False, default=None)
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -245,7 +232,7 @@ def main():
     if not ARGS.results_file:
         print(result)
         return
-    
+
     out_path = os.path.abspath(os.path.expanduser(ARGS.results_file))
     with open(out_path, "w") as out_file:
         writer = csv.writer(out_file)
@@ -257,6 +244,7 @@ def main():
         writer.writerow(["num_measurement_repeats", ARGS.num_measurement_repeats])
         for res in result.results:
             writer.writerow([str(res)])
+
 
 if __name__ == "__main__":
     main()
