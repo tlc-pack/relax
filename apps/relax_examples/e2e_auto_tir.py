@@ -88,7 +88,7 @@ def _parse_args():
     )
     args.add_argument("--num-measurement-repeats", type=int, default=5)
     args.add_argument("--num-measurements", type=int, default=10)
-    args.add_argument("--results-file", type=stu, required=False, default=None)
+    args.add_argument("--results-file", type=str, required=False, default=None)
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -215,7 +215,7 @@ def main():
             )
 
     # for documentation purposes
-    start_time = datetime.datetite.now()
+    start_time = datetime.datetime.now()
 
     if ARGS.rpc_config:
         result = run_module_via_rpc(
