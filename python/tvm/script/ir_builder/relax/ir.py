@@ -28,6 +28,7 @@ from tvm.tir import PrimExpr
 
 from . import _ffi_api
 from . import frame
+from ..tir import var as _tir_var
 
 ############################### Operators ###############################
 from tvm.relax.op import shape_of, make_closure, invoke_closure
@@ -44,7 +45,7 @@ class TensorType(Object):
 
 
 def tensor(
-    shape: Optional[List[PrimExpr]] = None,
+    shape: Optional[List[Union[PrimExpr, str]]] = None,
     dtype: Optional[str] = None,
     ndim: int = -1,
 ):
@@ -52,7 +53,7 @@ def tensor(
 
     Parameters
     ----------
-    shape: Optional[List[PrimExpr]]
+    shape: Optional[List[Union[PrimExpr, str]]]
         The shape of the tensor. It's runtime dependent if `shape` is None.
 
     dtype: Optional[str]
@@ -66,6 +67,12 @@ def tensor(
     tensor_type: TensorType
         The TensorType that is only used in ir_builder.
     """
+    if isinstance(shape, (tuple, list)):
+        shape = list(shape)
+        for i, s in enumerate(shape):
+            if isinstance(s, str):
+                shape[i] = _tir_var("int64", s)
+
     return _ffi_api.Tensor(shape, dtype, ndim)  # pylint: disable=no-member # type: ignore
 
 

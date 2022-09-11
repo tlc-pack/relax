@@ -18,7 +18,7 @@
 
 from typing import Any
 
-from tvm import relax
+from tvm import tir, relax
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
@@ -26,8 +26,32 @@ from .._core import Parser, dispatch, doc
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
-    # pylint: disable=unused-argument
-    if isinstance(value, relax.Expr):
+    var_table = self.var_table.get()
+
+    if isinstance(value, tir.Var):
+        if value.name and var_name != value.name:
+            self.report_error(
+                node,
+                "Cannot define TIR variables with different names. The LHS of binding should has "
+                "the same name provided in RHS.",
+            )
+        if var_name in var_table:
+            prev_value = var_table[var_name]
+            if not isinstance(prev_value, tir.Var):
+                self.report_error(
+                    node,
+                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please define "
+                    "the TIR variable with another name.",
+                )
+            if prev_value.dtype != value.dtype:
+                self.report_error(
+                    node,
+                    f"Expected the same dtype for TIR vars, but got {value.dtype} vs {prev_value.dtype}",
+                )
+            return prev_value
+        IRBuilder.name(var_name, value)
+        return value
+    elif isinstance(value, relax.Expr):
         var = R.emit(value)
         IRBuilder.name(var_name, var)
         return var
@@ -60,6 +84,11 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_type = self.visit_tvm_annotation(arg.annotation)
         param = R.arg(arg.arg, param_type)
+        # Define the symbolic shape var
+        if param_type.shape is not None:
+            for shape_expr in param_type.shape:
+                if isinstance(shape_expr, tir.Var):
+                    self.var_table.add(shape_expr.name, shape_expr)
 
         self.var_table.add(arg.arg, param)
 
@@ -78,7 +107,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
     rhs = self.eval_expr(node.value)
-    self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
+    self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value, allow_shadowing=True)
 
 
 @dispatch.register(token="relax", type_name="Return")

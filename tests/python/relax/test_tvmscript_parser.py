@@ -20,7 +20,7 @@ from typing import Union
 import tvm
 import tvm.testing
 
-from tvm import relax
+from tvm import relax, tir
 from tvm import IRModule
 from tvm.script.parser import ir as I, tir as T, relax as R
 
@@ -114,6 +114,68 @@ def test_relax_base_op():
         alloc = bb.emit(relax.op.builtin.alloc_tensor(relax.ShapeExpr((4, 4)), "float32", 0))
         shape = bb.emit(relax.op.shape_of(alloc))
         bb.emit_func_output(shape)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_symbolic_shape():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        m = T.var("int64", "m")
+        n = T.var("int64", "n")
+        gv0 = R.call_tir("extern_func", x, (m, n), dtype="float32")
+        return gv0
+
+    @R.function
+    def bar(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        m = T.var("int64")
+        n = T.var("int64")
+        gv0 = R.call_tir("extern_func", x, (m, n), dtype="float32")
+        return gv0
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def mismatch_dtype(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            m = T.var("int64")
+            n = T.var("int32")  # The shape dtype should be int64
+            gv0 = R.call_tir("extern_func", x, (m, n), dtype="float32")
+            return gv0
+
+    def _expected(name: str):
+        n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+        x = relax.Var("x", [m, n], relax.DynTensorType(2, "float32"))
+        bb = relax.BlockBuilder()
+        with bb.function(name, (x,)):
+            out = bb.emit(relax.call_tir("extern_func", x, (m, n), dtype="float32"))
+            bb.emit_func_output(out)
+        return bb.get()[name]
+
+    _check(foo, _expected("foo"))
+    _check(bar, _expected("bar"))
+
+
+def test_shadowing():
+    @R.function
+    def foo(x: R.Tensor((4, 4), "float32")):
+        y = R.add(x, x)
+        z = R.multiply(x, y)
+        y = R.add(x, y)
+        y = z
+        y = R.multiply(y, x)
+        z = y
+        return z
+
+    x = relax.Var("x", [4, 4], relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        y = bb.emit(relax.op.add(x, x))
+        z = bb.emit(relax.op.multiply(x, y))
+        y = bb.emit(relax.op.add(x, y))
+        y = bb.emit(z)
+        y = bb.emit(relax.op.multiply(y, x))
+        z = bb.emit(y)
+        bb.emit_func_output(z)
 
     _check(foo, bb.get()["foo"])
 

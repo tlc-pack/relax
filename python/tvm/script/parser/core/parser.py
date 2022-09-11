@@ -80,9 +80,16 @@ class VarTable:
         self.frames.append(VarTableFrame())
         return _deferred(pop_frame)
 
-    def add(self, var: str, value: Any):
-        self.frames[-1].add(var)
-        self.name2value[var].append(value)
+    def add(self, var: str, value: Any, allow_shadowing: bool = False):
+        # Skip if the key and value are equal to those in the var_table
+        if self.name2value[var] and self.name2value[var][-1] == value:
+            return
+        if allow_shadowing and var in self.frames[-1].vars:
+            # Shadowing
+            self.name2value[var][-1] = value
+        else:
+            self.frames[-1].add(var)
+            self.name2value[var].append(value)
 
     def get(self) -> Dict[str, Any]:
         return {key: values[-1] for key, values in self.name2value.items() if values}
@@ -177,13 +184,14 @@ class Parser(doc.NodeVisitor):
         target: doc.expr,
         source: Any,
         bind_value: Callable[["Parser", doc.expr, str, Any], Any],
+        allow_shadowing: bool = False,
     ) -> Dict[str, Any]:
         if self._duplicate_lhs_check(target) is True:
             self.report_error(target, "Duplicate vars assigned.")
         var_values = eval_assign(self, target, source)
         for k, v in var_values.items():
             var = bind_value(self, target, k, v)
-            self.var_table.add(k, var)
+            self.var_table.add(k, var, allow_shadowing)
         return var_values
 
     def report_error(
