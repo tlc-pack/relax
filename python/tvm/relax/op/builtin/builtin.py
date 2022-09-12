@@ -22,7 +22,9 @@ from ...expr import ShapeExpr, Call
 
 
 # TODO(relax-team): add documents
-def alloc_tensor(shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]] , dtype: str, runtime_device_index: int) -> Call:
+def alloc_tensor(
+    shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]], dtype: str, runtime_device_index: int
+) -> Call:
     if not isinstance(shape, ShapeExpr):
         if not isinstance(shape, (tuple, list)):
             shape = (shape,)
