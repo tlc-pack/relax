@@ -13,12 +13,18 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+"""The builtin Relax operators."""
 
-# Operators
-from .base import *
-from .tensor import *
-from .op_attrs import *
-from . import builtin
+from typing import List, Union
+from tvm.ir.expr import PrimExpr
+from . import _ffi_api
+from ...expr import ShapeExpr, Call
+
+
+# TODO(relax-team): add documents
+def alloc_tensor(shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]] , dtype: str, runtime_device_index: int) -> Call:
+    if not isinstance(shape, ShapeExpr):
+        if not isinstance(shape, (tuple, list)):
+            shape = (shape,)
+        shape = ShapeExpr(shape)
+    return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)

@@ -84,5 +84,39 @@ def test_simple_module():
     _check(TestModule, bb.get())
 
 
+def test_relax_tensor_op():
+    @R.function
+    def foo(x: R.Tensor((4, 4), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        y = R.add(x, x)
+        z = R.multiply(x, y)
+        return z
+
+    x = relax.Var("x", [4, 4], relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        y = bb.emit(relax.op.add(x, x))
+        z = bb.emit(relax.op.multiply(x, y))
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_relax_base_op():
+    @R.function
+    def foo(x: R.Tensor((4, 4), "float32")):
+        alloc = R.builtin.alloc_tensor((4, 4), runtime_device_index=0, dtype="float32")
+        shape = R.shape_of(alloc)
+        return shape
+
+    x = relax.Var("x", [4, 4], relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        alloc = bb.emit(relax.op.builtin.alloc_tensor(relax.ShapeExpr((4, 4)), "float32", 0))
+        shape = bb.emit(relax.op.shape_of(alloc))
+        bb.emit_func_output(shape)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

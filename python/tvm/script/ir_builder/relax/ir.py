@@ -21,13 +21,19 @@ from typing import Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Type
-from tvm.relax import Expr, Var
+from tvm.relax import Call, Expr, ShapeExpr, Var
 from tvm.relax.op import call_tir
+import tvm.relax.op as _op
 from tvm.runtime import Object
 from tvm.tir import PrimExpr
 
 from . import _ffi_api
 from . import frame
+
+############################### Operators ###############################
+from tvm.relax.op import shape_of, make_closure, invoke_closure
+from tvm.relax.op import add, multiply, unique
+from tvm.relax.op import builtin
 
 
 ############################## Tensor Type ##############################
@@ -190,8 +196,10 @@ def emit(value: Expr) -> Var:
 
 __all__ = [
     "TensorType",
+    "add",
     "arg",
     "binding_block",
+    "builtin",
     "call_tir",
     "dataflow",
     "emit",
@@ -200,5 +208,10 @@ __all__ = [
     "func_ret_type",
     "func_ret_value",
     "function",
+    "invoke_closure",
+    "make_closure",
+    "multiply",
+    "unique",
+    "shape_of",
     "tensor",
 ]

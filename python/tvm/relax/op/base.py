@@ -188,3 +188,19 @@ def relax_print(*args: List[any]) -> None:
         print(*val_strs)
     else:
         print(format_str.format(*val_strs))
+
+
+def shape_of(expr: Expr) -> Expr:
+    """Get shape of a tensor.
+
+    Parameters
+    ----------
+    expr : Expr
+        The input Expr.
+
+    Returns
+    -------
+    result : Expr
+        The shape of the input
+    """
+    return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
