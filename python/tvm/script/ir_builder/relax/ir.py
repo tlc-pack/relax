@@ -14,16 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# # pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
 from typing import Dict, List, Optional, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Type
-from tvm.relax import Call, Expr, ShapeExpr, Var
+from tvm.relax import Expr, Var
 from tvm.relax.op import call_tir
-import tvm.relax.op as _op
 from tvm.runtime import Object
 from tvm.tir import PrimExpr
 
