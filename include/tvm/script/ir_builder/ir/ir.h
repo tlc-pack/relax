@@ -32,8 +32,8 @@ namespace ir_builder {
 namespace ir {
 
 /*!
- * \brief Start a ir_module frame.
- * \return The created ir_builder Function frame.
+ * \brief Start an ir_module frame.
+ * \return The created IRModuleFrame.
  */
 TVM_DLL IRModuleFrame IRModule();
 
