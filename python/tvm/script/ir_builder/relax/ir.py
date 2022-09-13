@@ -73,7 +73,7 @@ def function() -> frame.FunctionFrame:
     Returns
     -------
     frame: FunctionFrame
-        The constructed range.
+        The constructed function frame.
     """
     return _ffi_api.Function()  # pylint: disable=no-member # type: ignore
 

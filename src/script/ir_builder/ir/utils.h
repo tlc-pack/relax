@@ -16,45 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_IR_BUILDER_IR_IR_H_
-#define TVM_SCRIPT_IR_BUILDER_IR_IR_H_
+#ifndef TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
+#define TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_
 
-#include <tvm/ir/expr.h>
-#include <tvm/ir/function.h>
-#include <tvm/node/node.h>
 #include <tvm/script/ir_builder/ir/frame.h>
-
-#include <vector>
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
 namespace ir {
 
-/*!
- * \brief Start an ir_module frame.
- * \return The created IRModuleFrame.
- */
-TVM_DLL IRModuleFrame IRModule();
-
-/*!
- * \brief Declare a Function without given the specific function implementation.
- * \note It is usually used in cross-function call. And we can specify the function by `DefFunction`
- * \param func_name The function unique name.
- * \return The corresponding GlobalVar.
- */
-TVM_DLL GlobalVar DeclFunction(const String& func_name);
-
-/*!
- * \brief Define the function which is declared before.
- * \param func_name The function unique name.
- * \param func The given function implementation
- */
-TVM_DLL void DefFunction(const String& func_name, const BaseFunc& func);
+inline IRModuleFrame FindModuleFrame(const String& method) {
+  IRBuilder builder = IRBuilder::Current();
+  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+    if (builder->GetLastFrame<IRModuleFrame>().value() == frame) {
+      return frame.value();
+    }
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure '" << method
+               << "' is called under I.ir_module()";
+  }
+  LOG(FATAL) << "ValueError: '" << method << "' must be called immediately under I.ir_module()";
+  throw;
+}
 
 }  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_IR_BUILDER_IR_IR_H_
+#endif  // TVM_SCRIPT_IR_BUILDER_IR_UTILS_H_

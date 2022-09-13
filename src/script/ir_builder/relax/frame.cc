@@ -54,10 +54,17 @@ void FunctionFrameNode::ExitWithScope() {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
   } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
-    IRModuleFrame frame = opt_frame.value();
-    // TODO(Siyuan): fix empty global var name
-    frame->global_vars.push_back(GlobalVar(name.value_or("")));
-    frame->functions.push_back(func);
+    CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
+                             "function scope, if it's defined in a Module";
+    const IRModuleFrame& frame = opt_frame.value();
+    const String& func_name = name.value_or("");
+    if (!frame->global_var_map.count(func_name)) {
+      // First time visiting the function.
+      ir::DeclFunction(func_name);
+    }
+    // Define the function.
+    // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
+    ir::DefFunction(func_name, func);
   } else {
     LOG(FATAL) << "ValueError: Cannot find where to insert Relax.Function";
   }

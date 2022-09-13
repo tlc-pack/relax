@@ -58,5 +58,31 @@ def test_error_report():
             return gv0
 
 
+def test_simple_module():
+    @I.ir_module
+    class TestModule:
+        @T.prim_func
+        def tir_func(x: T.Buffer((128, 128), "float32"), y: T.Buffer((128, 128), "float32")):
+            T.func_attr({"global_symbol": "tir_func", "tir.noalias": True})
+            for i, j in T.grid(128, 128):
+                with T.block():
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    y[vi, vj] = x[vi, vj] + 1.0
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            # TODO(Siyuan): Need to change to `TestModule.tir_func`
+            gv0 = R.call_tir(tir_func, x, (128, 128), dtype="float32")
+            return gv0
+
+    x = relax.Var("x", [128, 128], relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        bb.emit_func_output(out)
+
+    _check(TestModule, bb.get())
+
+
 if __name__ == "__main__":
     tvm.testing.main()
