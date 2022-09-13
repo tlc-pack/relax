@@ -229,7 +229,7 @@ def main():
         result = f_measurement(executable.mod, dev, input_data)
 
     print(result)
-    
+
     if not ARGS.results_file:
         return
 
