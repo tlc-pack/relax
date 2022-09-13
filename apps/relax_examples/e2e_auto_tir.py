@@ -20,7 +20,6 @@ import csv
 import json
 import argparse
 import logging
-import string
 from typing import Dict
 import numpy as np  # type: ignore
 
