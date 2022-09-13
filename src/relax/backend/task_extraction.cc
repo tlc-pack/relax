@@ -61,9 +61,17 @@ class TaskExtractor : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
+
+    // TODO(@tvm-team): When we differentiate the call for tir function and packed function,
+    // this logic should be changed accordingly.
     if (!call->op.same_as(call_tir_op)) {
       // Since the Relax function is of A-normal form, the arguments of this call cannot be another
       // Calls. And hence we do not need to recurse into this Call.
+      return;
+    }
+
+    // Do not extract external function
+    if (call->args[0].as<ExternFuncNode>()) {
       return;
     }
 

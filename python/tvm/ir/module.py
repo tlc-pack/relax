@@ -348,3 +348,19 @@ class IRModule(Node):
         """
 
         return _ffi_api.Module_WithAttr(self, attr_key, attr_value)
+
+    def without_attr(self, attr_key):
+        """Copy the IRModule and remove an attribute key and its associated value.
+
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key.
+
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule without the attribute
+        """
+
+        return _ffi_api.Module_WithoutAttr(self, attr_key)

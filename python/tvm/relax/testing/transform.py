@@ -74,6 +74,10 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
             """Mutator that performs lowering."""
 
             def visit_call_(self, call_node: Call):
+                # Ignore function calls
+                # We only target calls for operators
+                if isinstance(call_node.op, relax.GlobalVar):
+                    return call_node
                 # Current relax op name simply adds "relax." prefix to relay op name.
                 # Thus, remove "relax." prefix to deduce relay op name.
                 relay_op_name = call_node.op.name[6:]

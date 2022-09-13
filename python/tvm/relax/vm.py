@@ -487,10 +487,11 @@ def build(
     seq = tvm.transform.Sequential(passes)
     new_mod = seq(mod)
 
-    # split primfunc and relax function
+    # Split primfunc and relax function.
     rx_mod, tir_mod = _split_tir_relax(new_mod)
     lib = tvm.build(tir_mod, target=target)
 
+    # Extract external runtime modules if exist.
     ext_libs = []
     if mod.attrs and "external_mods" in mod.attrs:
         ext_libs = mod.attrs["external_mods"]
