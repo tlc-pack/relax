@@ -229,8 +229,9 @@ def main():
         dev = tvm.device(ARGS.target.kind.name)
         result = f_measurement(executable.mod, dev, input_data)
 
+    print(result)
+    
     if not ARGS.results_file:
-        print(result)
         return
 
     out_path = os.path.abspath(os.path.expanduser(ARGS.results_file))
