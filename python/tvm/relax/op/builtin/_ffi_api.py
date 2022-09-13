@@ -13,12 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+"""FFI APIs for tvm.relax.op.builtin"""
+import tvm._ffi
 
-# Operators
-from .base import *
-from .tensor import *
-from .op_attrs import *
-from . import builtin
+tvm._ffi._init_api("relax.op.builtin", __name__)

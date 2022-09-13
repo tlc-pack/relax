@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# # pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
 from typing import Dict, List, Optional, Union
@@ -28,6 +28,11 @@ from tvm.tir import PrimExpr
 
 from . import _ffi_api
 from . import frame
+
+############################### Operators ###############################
+from tvm.relax.op import shape_of, make_closure, invoke_closure
+from tvm.relax.op import add, multiply, unique
+from tvm.relax.op import builtin
 
 
 ############################## Tensor Type ##############################
@@ -190,8 +195,10 @@ def emit(value: Expr) -> Var:
 
 __all__ = [
     "TensorType",
+    "add",
     "arg",
     "binding_block",
+    "builtin",
     "call_tir",
     "dataflow",
     "emit",
@@ -200,5 +207,10 @@ __all__ = [
     "func_ret_type",
     "func_ret_value",
     "function",
+    "invoke_closure",
+    "make_closure",
+    "multiply",
+    "unique",
+    "shape_of",
     "tensor",
 ]

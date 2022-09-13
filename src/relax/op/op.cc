@@ -183,9 +183,12 @@ RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_attr<FInferShape>("FInferShape", InferShapeAllocTensor)
     .set_attr<FInferType>("FInferType", InferTypeAllocTensor);
 
-Expr MakeAllocTensor(Expr shape) {
+Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
+  auto attrs = make_object<AllocTensorAttrs>();
+  attrs->dtype = std::move(dtype);
+  attrs->runtime_device_index = std::move(runtime_device_index);
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape}, {}, {});
+  return Call(op, {shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
@@ -198,9 +201,12 @@ RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
     .add_argument("size", "Expr", "The size of the storage to allocate.")
     .set_attr<FInferType>("FInferType", ReturnObjectType);
 
-Expr MakeVMAllocStorage(Expr size) {
+Expr MakeVMAllocStorage(Expr size, DataType dtype, int64_t runtime_device_index) {
+  auto attrs = make_object<VMAllocStorageAttrs>();
+  attrs->dtype = std::move(dtype);
+  attrs->runtime_device_index = std::move(runtime_device_index);
   static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
-  return Call(op, {size}, {}, {});
+  return Call(op, {size}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAllocStorage);
@@ -228,9 +234,12 @@ RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
     .set_attr<FInferShape>("FInferShape", InferShapeVMAllocTensor)
     .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor);
 
-Expr MakeVMAllocTensor(Expr storage, Expr shape) {
+Expr MakeVMAllocTensor(Expr storage, Expr shape, DataType dtype, int64_t runtime_device_index) {
+  auto attrs = make_object<VMAllocStorageAttrs>();
+  attrs->dtype = std::move(dtype);
+  attrs->runtime_device_index = std::move(runtime_device_index);
   static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
-  return Call(op, {storage, shape}, {}, {});
+  return Call(op, {storage, shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor").set_body_typed(MakeVMAllocTensor);
@@ -244,9 +253,11 @@ RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
     .add_argument("heap", "Expr", "The heap to store the shape.")
     .set_attr<FInferType>("FInferType", ReturnVoidType);
 
-Expr MakeStoreShape(Expr shape, Expr heap) {
+Expr MakeStoreShape(Expr shape, Expr heap, Array<Integer> indices) {
+  auto attrs = make_object<ShapeHeapAttrs>();
+  attrs->indices = std::move(indices);
   static const Op& op = Op::Get("relax.vm.builtin.store_shape");
-  return Call(op, {shape, heap}, {}, {});
+  return Call(op, {shape, heap}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.store_shape").set_body_typed(MakeStoreShape);
@@ -259,9 +270,11 @@ RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
     .add_argument("heap", "Expr", "The heap to load the shape from.")
     .set_attr<FInferType>("FInferType", ReturnShapeType);
 
-Expr MakeLoadShape(Expr heap) {
+Expr MakeLoadShape(Expr heap, Array<Integer> indices) {
+  auto attrs = make_object<ShapeHeapAttrs>();
+  attrs->indices = std::move(indices);
   static const Op& op = Op::Get("relax.vm.builtin.load_shape");
-  return Call(op, {heap}, {}, {});
+  return Call(op, {heap}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape").set_body_typed(MakeLoadShape);
