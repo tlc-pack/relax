@@ -35,7 +35,7 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
   /*! \brief A map from string names to global variables that ensures global uniqueness. */
   Map<String, GlobalVar> global_var_map;
   /*!
-   * \brief A map from ids to all global functions.
+   * \brief A map from GlobalVar to all global functions.
    * \note Only defined functions are in the map, while declared functions are not included.
    */
   Map<GlobalVar, BaseFunc> functions;

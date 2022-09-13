@@ -59,7 +59,7 @@ void FunctionFrameNode::ExitWithScope() {
     const IRModuleFrame& frame = opt_frame.value();
     const String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
-      // Case. First time visiting the function.
+      // First time visiting the function.
       ir::DeclFunction(func_name);
     }
     // Define the function.
