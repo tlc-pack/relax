@@ -375,6 +375,7 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   if (instr.dst != Instruction::kVoidArg) {
     WriteRegister(curr_frame, instr.dst, ret);
   }
+  // curr_frame->caller_return_register = instr.dst;
   pc_++;
 }
 

@@ -67,6 +67,24 @@ class BaseFunc(RelayExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
+    def with_attrs(self, attr_map):
+        """Copy the IRModule and add the given attribute map to it.
+
+        Parameters
+        ----------
+        attr_map: Union[DictAttrs, Dict[str, Object]]
+            The attribute map
+
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule with the attribute
+        """
+        if isinstance(attr_map, tvm.ir.DictAttrs):
+            attr_map = attr_map._dict()
+
+        return _ffi_api.BaseFuncWithAttrs(self, attr_map)
+
     def without_attr(self, attr_key: str):
         """Create a new copy of the function with an attribute without provided key.
 

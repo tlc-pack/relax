@@ -18,7 +18,6 @@
 from __future__ import annotations
 import pytest
 import tempfile
-import os.path as osp
 import tvm
 from tvm.ir import transform
 from tvm.ir.transform import PassContext
@@ -34,9 +33,6 @@ class InputModule:
     @T.prim_func
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
-        m = T.var("int32")
-        n = T.var("int32")
-        k = T.var("int32")
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         C = T.match_buffer(z, (32, 32))
@@ -51,8 +47,6 @@ class InputModule:
     @T.prim_func
     def tir_relu(x: T.handle, y: T.handle):
         T.func_attr({"global_symbol": "tir_relu"})
-        m = T.var("int32")
-        n = T.var("int32")
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
         for (i, j) in T.grid(32, 32):
@@ -69,54 +63,62 @@ class InputModule:
         return lv1
 
 
+target_str = "llvm --num-cores=16"
+config = ms.TuneConfig(
+    strategy="evolutionary",
+    num_trials_per_iter=2,
+    max_trials_per_task=4,
+    max_trials_global=4,
+)
+target = tvm.target.Target(target_str)
+
 # TODO(@sunggg): determine how to pass MS database object across different passes.
 # PassContext might be an option, but we already have TuningAPI database.
 # (MS database and TuningAPI database will be unified in the future)
 # For now, we only support default JSON database config.
-def test_ms_tuning():
+def test_ms_tuning_irmodule():
     mod = InputModule
     assert isinstance(mod, IRModule)
-    target_str = "llvm --num-cores=16"
-    config = ms.TuneConfig(
-        strategy="evolutionary",
-        num_trials_per_iter=2,
-        max_trials_per_task=4,
-        max_trials_global=4,
-    )
-    target = tvm.target.Target(target_str)
 
     with tempfile.TemporaryDirectory() as work_dir:
         with transform.PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
                 target, config, work_dir, database=None
             )
-            application_pass = relax.transform.MetaScheduleApplyHistoryBest(
-                target,
-                work_dir=work_dir,
-                database=None,
-            )
             out_mod = tuning_pass(mod)
             assert PassContext.current().get_trace_stack_size() == 1
             assert PassContext.current().get_current_trace().size == 1
             tvm.ir.assert_structural_equal(mod, out_mod)
 
-            out_mod = application_pass(mod)
-            assert not tvm.ir.structural_equal(mod, out_mod)
-
-        with transform.PassContext(trace=Trace(mod), opt_level=0):
-            tuning_pass = relax.transform.MetaScheduleTuneTIR(
-                target, config, work_dir, database=None
-            )
             application_pass = relax.transform.MetaScheduleApplyHistoryBest(
                 target,
                 work_dir=work_dir,
                 database=None,
+            )
+
+            out_mod = application_pass(mod)
+            assert not tvm.ir.structural_equal(mod, out_mod)
+
+
+def test_ms_tuning_tir():
+    mod = InputModule
+    assert isinstance(mod, IRModule)
+    with tempfile.TemporaryDirectory() as work_dir:
+        with transform.PassContext(trace=Trace(mod), opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneTIR(
+                target, config, work_dir, database=None
             )
             out_mod = tuning_pass(mod)
             # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
             # Currently, we don't track this so the trace size. Revisit this later.
             assert PassContext.current().get_trace_stack_size() == 1
             tvm.ir.assert_structural_equal(mod, out_mod)
+
+            application_pass = relax.transform.MetaScheduleApplyHistoryBest(
+                target,
+                work_dir=work_dir,
+                database=None,
+            )
             out_mod = application_pass(mod)
             assert not tvm.ir.structural_equal(mod, out_mod)
 

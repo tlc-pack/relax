@@ -364,3 +364,21 @@ class IRModule(Node):
         """
 
         return _ffi_api.Module_WithoutAttr(self, attr_key)
+
+    def with_attrs(self, attr_map):
+        """Copy the IRModule and add the given attribute map to it.
+
+        Parameters
+        ----------
+        attr_map: Union[DictAttrs, Dict[str, Object]]
+            The attribute map
+
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule with the attribute
+        """
+        if isinstance(attr_map, tvm.ir.DictAttrs):
+            attr_map = attr_map._dict()
+
+        return _ffi_api.Module_WithAttrs(self, attr_map)

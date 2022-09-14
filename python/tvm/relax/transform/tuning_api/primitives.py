@@ -18,6 +18,7 @@
 
 from typing import Callable, Union, Dict, List, Optional
 import logging
+import copy
 import tvm
 from tvm.runtime import Object
 from tvm.ir.module import IRModule
@@ -168,6 +169,9 @@ class Choice(Object):
         """
         return _ffi_api.ChoiceFromJSON(json_obj)
 
+    def deepcopy(self):
+        return Choice.from_json(self.as_json())
+
 
 @register_object("relax.tuning_api.Knob")
 class Knob(Object):
@@ -240,6 +244,9 @@ class Knob(Object):
             Deserialized knob
         """
         return _ffi_api.KnobFromJSON(json_obj)
+
+    def deepcopy(self):
+        return Knob.from_json(self.as_json())
 
     def __str__(self) -> str:
         msg = f"{self.name} (# of choices: {len(self.choices)})\n"
@@ -346,6 +353,15 @@ class Trace(Object):
             msg += f"[{idx+1}] {self.knobs[idx].name}: {self.decisions[idx]}\n"
         return msg
 
+    def deepcopy(self) -> "Trace":
+        new_in_mod = deepcopy_irmodule(self.in_mod)
+        new_knobs = [knob.deepcopy() for knob in self.knobs]
+        new_decisions = copy.deepcopy(self.decisions)
+        new_trace = Trace(new_in_mod, new_knobs, new_decisions)
+        new_out_mod = deepcopy_irmodule(self.out_mod)
+        new_trace.set_out_mod(new_out_mod)
+        return new_trace
+
 
 def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
     """
@@ -368,3 +384,26 @@ def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
         return Trace(tvm.IRModule.from_expr(in_))
 
     raise Exception(f"Invalid input type for trace: {type(in_)}")
+
+
+@tvm.register_func("relax.tuning_api.deepcopy_irmodule")
+def deepcopy_irmodule(mod: IRModule):
+    func_save_json = tvm.get_global_func("node.SaveJSON")
+    func_load_json = tvm.get_global_func("node.LoadJSON")
+    new_mod = None
+    # Handle external modules separately if exist
+    # TODO(tvm-team):
+    #   Serialization of IRModule with external mods is tricky.
+    #   (1) External mod is runtime module.
+    #   (2) Currently, `export_library` does not support serialization of
+    #       runtime module without the host module
+    #   Therefore, we simply pass around the compiled external modules without copy for now.
+    #   Revisit later when we have a better solution.
+    if mod.attrs and "external_mods" in mod.attrs:
+        tmp_mod = mod.without_attr("external_mods")
+        new_mod = func_load_json(func_save_json(tmp_mod))
+        new_mod = new_mod.with_attr("external_mods", mod.attrs["external_mods"])
+    else:
+        new_mod = func_load_json(func_save_json(mod))
+
+    return new_mod

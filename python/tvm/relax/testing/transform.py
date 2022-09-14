@@ -76,7 +76,9 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
             def visit_call_(self, call_node: Call):
                 # Ignore function calls
                 # We only target calls for operators
-                if isinstance(call_node.op, relax.GlobalVar):
+                if isinstance(call_node.op, relax.GlobalVar) or isinstance(
+                    call_node.op, relax.expr.ExternFunc
+                ):
                     return call_node
                 # Current relax op name simply adds "relax." prefix to relay op name.
                 # Thus, remove "relax." prefix to deduce relay op name.
@@ -116,6 +118,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                     if isinstance(func, relax.Function):
                         updated_func = self.visit_expr(func)
                         self.builder_.update_func(gv, updated_func)
-                return self.builder_.get()
+                new_mod = self.builder_.get()
+                new_mod = new_mod.with_attrs(mod.attrs) if mod.attrs else new_mod
+                return new_mod
 
         return Lowerer().transform()

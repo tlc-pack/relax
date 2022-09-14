@@ -23,7 +23,10 @@ import tvm.testing
 from tvm import relax
 import numpy as np
 from tvm.script import relax as R
-from tvm import transform
+from tvm.relax.testing import transform
+import tempfile
+from tvm.relax.transform.tuning_api import Trace
+from tvm import meta_schedule as ms
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -40,15 +43,40 @@ has_tensorrt_runtime = pytest.mark.skipif(
 # Global variable in pytest that applies markers to all tests.
 pytestmark = [has_tensorrt_codegen, has_tensorrt_runtime]
 
+# MS tuning config
+tune_config = ms.TuneConfig(
+    strategy="evolutionary",
+    num_trials_per_iter=4,
+    max_trials_per_task=4,
+    max_trials_global=8,
+)
+
+# Target gpu
+target_str = "nvidia/geforce-rtx-3070"  # "nvidia/nvidia-t4"
+target = tvm.target.Target(target_str)
+dev = tvm.cuda()
+
+
+@tvm.ir.instrument.pass_instrument
+class PrintPassName:
+    def run_before_pass(self, mod, info):
+        if "tir." not in info.name and info.name != "sequential":
+            print(f"Enter: {info.name}")
+
+    def run_after_pass(self, mod, info):
+        if "tir." not in info.name and info.name != "sequential":
+            print(f"Exit : {info.name}")
+
+
+print_pass_name = PrintPassName()
+
 
 def check_executable(exec, dev, inputs, expected):
     vm = relax.VirtualMachine(exec, dev)
-    # Measure the performance w/o tuning log
     out = vm["main"](*inputs)
-    tvm.testing.assert_allclose(out.numpy(), expected)
+    tvm.testing.assert_allclose(out.numpy(), expected.numpy(), atol=1e-5, rtol=1e-5)
 
 
-# TODO(sunggg): Serialize TRT runtime module. This might be helpful: `module.export_library(file_name)``
 def check_roundtrip(exec0, dev, inputs, expected):
     exec0.mod.export_library("exec.so")
     exec1 = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
@@ -60,23 +88,68 @@ def check_roundtrip(exec0, dev, inputs, expected):
     check_executable(exec1, dev, inputs, expected)
 
 
+def gen_ground_truth(mod, target, dev, inputs):
+    # Lower and run tuning
+    # Since there is no default schedule for MS, this is necessary
+    with tempfile.TemporaryDirectory() as work_dir:
+        with tvm.transform.PassContext(
+            trace=Trace(mod), opt_level=0, instruments=[print_pass_name]
+        ):
+            seq = tvm.transform.Sequential(
+                [
+                    relax.testing.transform.LowerWithRelayOpStrategyPass(target),
+                    relax.transform.MetaScheduleTuneIRMod(
+                        target,
+                        config=tune_config,
+                        work_dir=work_dir,
+                        database=None,
+                    ),
+                    relax.transform.MetaScheduleApplyHistoryBest(target, work_dir=work_dir),
+                ]
+            )
+            new_mod = seq(mod)
+    assert relax.analysis.well_formed(new_mod)
+    print("======build======")
+    exec = relax.vm.build(new_mod, target, params={})
+    print("======create vm======")
+    vm = relax.VirtualMachine(exec, dev)
+    return vm["main"](*inputs)
+
+
 def test_single_annot_func():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def relax_func(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")) -> Tensor:
-            z1 = relax.add(x, y)
+        def relax_func(
+            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
+            z1 = relax.multiply(x, y)
             z2 = relax.add(z1, z1)
             z3 = relax.add(z1, z2)
             return z3
 
         @R.function
-        def main(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")) -> Tensor:
-            lv0 = relax_func(x, y)
+        def main(
+            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
+            lv0: Tensor((16, 16), "float32") = relax_func(x, y)
             return lv0
 
+    # Prepare IRModule and its input
     mod = InputModule
     assert isinstance(mod, tvm.IRModule)
+
+    np0 = np.random.rand(16, 16).astype(np.float32)
+    np1 = np.random.rand(16, 16).astype(np.float32)
+    data0 = tvm.nd.array(np0, dev)
+    data1 = tvm.nd.array(np1, dev)
+    inputs = [data0, data1]
+
+    # Ground truth should be generated before annotation
+    # due to the conflict with MS task extraction
+    # TODO(@sunggg): Sort this out
+    expected = gen_ground_truth(mod, target, dev, inputs)
+
     # TODO(@sunggg): Revisit when TVMScript supports annotation.
     # Annotate target function.
     new_relax_func = mod["relax_func"].with_attr("Codegen", "tensorrt")
@@ -84,36 +157,103 @@ def test_single_annot_func():
     mod["relax_func"] = new_relax_func
 
     # Run Codegen pass
-    seq = transform.Sequential(
+    seq = tvm.transform.Sequential(
         [relax.transform.RunCodegen(), relax.transform.RemoveUnusedFunctions()]
     )
+
     new_mod = seq(mod)
+    ex0 = relax.vm.build(new_mod, target, params={})
 
-    target_str = "cuda"
-    target = tvm.target.Target(target_str)
-    dev = tvm.device(target_str, 0)
-
-    with transform.PassContext(opt_level=0):
-        ex0 = relax.vm.build(new_mod, target, params={})
-
-    # Correct output: Current relax cannot lower relax.add.
-    # Use numpy baseline instead.
-    np0 = np.random.rand(2, 3).astype(np.float32)
-    np1 = np.random.rand(2, 3).astype(np.float32)
-    data0 = tvm.nd.array(np0, tvm.cpu())
-    data1 = tvm.nd.array(np1, tvm.cpu())
-
-    tmp = np0 + np1
-    out1 = tmp + tmp
-    expected = out1 + tmp
-    check_roundtrip(ex0, dev, [data0, data1], expected)
+    # Sanity check for the correctness and rountrip
+    check_roundtrip(ex0, dev, inputs, expected)
 
     # If the annotation does not match with the target codegen, do not perform the codegen process.
     new_mod = relax.transform.RunCodegen(target_codegens=["INVALID_CODEGEN"])(mod)
-    tvm.ir.assert_structural_equal(mod, new_mod)
+    # TODO(tvm-team): Currently disabled due to the lack of type annotation support during parser.
+    #                 Revisit when new version of parser is available.
+    # tvm.ir.assert_structural_equal(mod, new_mod)
+
+
+def test_mix_use_tensorrt_and_tvm():
+    @tvm.script.ir_module
+    class InputModule:
+        @R.function
+        def byoc_func(
+            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
+            z1 = relax.multiply(x, y)
+            z2 = relax.add(z1, z1)
+            z3 = relax.add(z1, z2)
+            return z3
+
+        @R.function
+        def tvm_func(
+            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
+            gv0 = R.multiply(x, w)
+            gv1 = R.add(x, gv0)
+            return gv1
+
+        @R.function
+        def main(
+            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
+        ) -> Tensor((16, 16), "float32"):
+            lv0 = byoc_func(x, y)
+            lv1 = tvm_func(x, lv0)
+            return lv1
+
+    # Prepare IRModule and its inputs
+    mod = InputModule
+    assert isinstance(mod, tvm.IRModule)
+
+    np0 = np.random.rand(16, 16).astype(np.float32)
+    np1 = np.random.rand(16, 16).astype(np.float32)
+    data0 = tvm.nd.array(np0, dev)
+    data1 = tvm.nd.array(np1, dev)
+    inputs = [data0, data1]
+    expected = gen_ground_truth(mod, target, dev, [data0, data1])
+    print("\n\n\n======================\n")
+
+    # TODO(@sunggg): Revisit when TVMScript supports annotation.
+    # Annotate target function.
+    new_byoc_func = mod["byoc_func"].with_attr("Codegen", "tensorrt")
+    new_byoc_func = new_byoc_func.with_attr("global_symbol", "trt_byoc_func")
+    mod["byoc_func"] = new_byoc_func
+
+    # Run Codegen pass
+    with tempfile.TemporaryDirectory() as work_dir:
+        with tvm.transform.PassContext(
+            trace=Trace(mod), opt_level=3, instruments=[print_pass_name]
+        ):
+            seq = tvm.transform.Sequential(
+                [
+                    relax.transform.RunCodegen(),
+                    relax.transform.RemoveUnusedFunctions(),
+                    relax.testing.transform.LowerWithRelayOpStrategyPass(target),
+                    relax.transform.MetaScheduleTuneIRMod(
+                        target,
+                        config=tune_config,
+                        work_dir=work_dir,
+                        database=None,
+                    ),
+                    relax.transform.MetaScheduleApplyHistoryBest(target, work_dir=work_dir),
+                ]
+            )
+            new_mod = seq(mod)
+            assert relax.analysis.well_formed(new_mod)
+
+            # with transform.PassContext(opt_level=0):
+            ex0 = relax.vm.build(new_mod, target, params={})
+
+    # print("Test round trip")
+    # Sanity check for the correctness and rountrip
+    # check_roundtrip(ex0, dev, inputs, expected)
+
+    print("Done")
 
 
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_mix_use_tensorrt_and_tvm()
+    # pytest.main([__file__])
