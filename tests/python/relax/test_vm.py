@@ -1191,6 +1191,23 @@ def test_set_input_rpc():
     run_on_rpc(TestVMSetInput, set_input_trial)
 
 
+def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
+    # just checking that we can use kwargs for the args when saving a function
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    vm.save_function("main", "saved_main", x=a, w=b)
+    res0 = vm["saved_main"]()
+    tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
+
+
+def test_save_function_kwargs():
+    save_function_kwargs_trial(*make_vm(TestVMSetInput))
+
+
+def test_save_function_kwargs_rpc():
+    run_on_rpc(TestVMSetInput, save_function_kwargs_trial)
+
+
 # if you set an input, you should not be able to call statelessly
 @pytest.mark.xfail()
 def test_set_input_stateless_failure():

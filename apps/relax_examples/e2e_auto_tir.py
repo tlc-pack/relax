@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import datetime
 import os
+import csv
 import json
 import argparse
 import logging
@@ -83,6 +85,9 @@ def _parse_args():
         type=int,
         default=180,
     )
+    args.add_argument("--num-measurement-repeats", type=int, default=5)
+    args.add_argument("--num-measurements", type=int, default=10)
+    args.add_argument("--results-file", type=str, required=False, default=None)
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -138,14 +143,15 @@ def f_measurement(
     rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
 ):
     vm = relax.vm.VirtualMachine(exec=rt_mod, device=device)
-    vm.set_input("main", **input_data)
-    evaluator = vm.module.time_evaluator(
-        func_name="main",
+    vm.save_function("main", "measure_func", **input_data, include_return=False)
+    evaluator = vm.time_evaluator(
+        func_name="measure_func",
         dev=device,
-        repeat=5,
+        repeat=ARGS.num_measurement_repeats,
+        number=ARGS.num_measurements,
         min_repeat_ms=500,
     )
-    print(evaluator())
+    return evaluator()
 
 
 def get_runner():
@@ -207,8 +213,11 @@ def main():
                 low=0, high=10000, size=input_shape, dtype=input_dtype
             )
 
+    # for documentation purposes
+    start_time = datetime.datetime.now()
+
     if ARGS.rpc_config:
-        run_module_via_rpc(
+        result = run_module_via_rpc(
             rpc_config=ARGS.rpc_config,
             lib=executable.mod,
             dev_type=ARGS.target.kind.name,
@@ -217,7 +226,24 @@ def main():
         )
     else:
         dev = tvm.device(ARGS.target.kind.name)
-        f_measurement(executable.mod, dev, input_data)
+        result = f_measurement(executable.mod, dev, input_data)
+
+    print(result)
+
+    if not ARGS.results_file:
+        return
+
+    out_path = os.path.abspath(os.path.expanduser(ARGS.results_file))
+    with open(out_path, "w") as out_file:
+        writer = csv.writer(out_file)
+        # write experiment parameters at the top as a record
+        writer.writerow(["start", str(start_time)])
+        writer.writerow(["workload", ARGS.workload])
+        writer.writerow(["input_shape", ARGS.input_shape])
+        writer.writerow(["target", ARGS.target])
+        writer.writerow(["num_measurement_repeats", ARGS.num_measurement_repeats])
+        for res in result.results:
+            writer.writerow([str(res)])
 
 
 if __name__ == "__main__":
