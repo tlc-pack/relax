@@ -265,7 +265,16 @@ void VirtualMachine::LoadExecutable(ObjectPtr<Executable> exec) {
 
 RegType VirtualMachine::Invoke(Index gf_idx, const std::vector<RegType>& args) {
   const VMFunction& gfunc = exec_->global_funcs[gf_idx];
+  // Get the curr instr which might be a potential caller.
+  Instruction curr_instr = exec_->GetInstruction(pc_);
+
   PushFrame(this->pc_, gfunc);
+  // Get new frame and set the caller info.
+  VMFrame* curr_frame = frames_.back().get();
+  if (curr_instr.op == Opcode::Call) {
+    curr_frame->caller_return_register = curr_instr.dst;
+  }
+
   // load arguments to the register file
   ICHECK_EQ(static_cast<size_t>(gfunc.num_args), args.size())
       << "ValueError: Invoking function " << gfunc.name << " requires " << gfunc.num_args
@@ -371,11 +380,11 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   // prepare and invoke
   this->PrepareFuncTable(instr.func_idx);
   func_table_[instr.func_idx].CallPacked(args, &ret);
-
+  // save the return value to the register
   if (instr.dst != Instruction::kVoidArg) {
     WriteRegister(curr_frame, instr.dst, ret);
   }
-  // curr_frame->caller_return_register = instr.dst;
+  // increment pc
   pc_++;
 }
 

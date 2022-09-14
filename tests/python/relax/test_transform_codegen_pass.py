@@ -52,23 +52,9 @@ tune_config = ms.TuneConfig(
 )
 
 # Target gpu
-target_str = "nvidia/geforce-rtx-3070"  # "nvidia/nvidia-t4"
+target_str = "nvidia/nvidia-t4"
 target = tvm.target.Target(target_str)
 dev = tvm.cuda()
-
-
-@tvm.ir.instrument.pass_instrument
-class PrintPassName:
-    def run_before_pass(self, mod, info):
-        if "tir." not in info.name and info.name != "sequential":
-            print(f"Enter: {info.name}")
-
-    def run_after_pass(self, mod, info):
-        if "tir." not in info.name and info.name != "sequential":
-            print(f"Exit : {info.name}")
-
-
-print_pass_name = PrintPassName()
 
 
 def check_executable(exec, dev, inputs, expected):
@@ -92,9 +78,7 @@ def gen_ground_truth(mod, target, dev, inputs):
     # Lower and run tuning
     # Since there is no default schedule for MS, this is necessary
     with tempfile.TemporaryDirectory() as work_dir:
-        with tvm.transform.PassContext(
-            trace=Trace(mod), opt_level=0, instruments=[print_pass_name]
-        ):
+        with tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
             seq = tvm.transform.Sequential(
                 [
                     relax.testing.transform.LowerWithRelayOpStrategyPass(target),
@@ -109,9 +93,7 @@ def gen_ground_truth(mod, target, dev, inputs):
             )
             new_mod = seq(mod)
     assert relax.analysis.well_formed(new_mod)
-    print("======build======")
     exec = relax.vm.build(new_mod, target, params={})
-    print("======create vm======")
     vm = relax.VirtualMachine(exec, dev)
     return vm["main"](*inputs)
 
@@ -212,7 +194,6 @@ def test_mix_use_tensorrt_and_tvm():
     data1 = tvm.nd.array(np1, dev)
     inputs = [data0, data1]
     expected = gen_ground_truth(mod, target, dev, [data0, data1])
-    print("\n\n\n======================\n")
 
     # TODO(@sunggg): Revisit when TVMScript supports annotation.
     # Annotate target function.
@@ -222,9 +203,7 @@ def test_mix_use_tensorrt_and_tvm():
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with tvm.transform.PassContext(
-            trace=Trace(mod), opt_level=3, instruments=[print_pass_name]
-        ):
+        with tvm.transform.PassContext(trace=Trace(mod), opt_level=3):
             seq = tvm.transform.Sequential(
                 [
                     relax.transform.RunCodegen(),
@@ -240,20 +219,15 @@ def test_mix_use_tensorrt_and_tvm():
                 ]
             )
             new_mod = seq(mod)
-            assert relax.analysis.well_formed(new_mod)
+    assert relax.analysis.well_formed(new_mod)
+    with transform.PassContext(opt_level=0):
+        ex0 = relax.vm.build(new_mod, target, params={})
 
-            # with transform.PassContext(opt_level=0):
-            ex0 = relax.vm.build(new_mod, target, params={})
-
-    # print("Test round trip")
     # Sanity check for the correctness and rountrip
-    # check_roundtrip(ex0, dev, inputs, expected)
-
-    print("Done")
+    check_roundtrip(ex0, dev, inputs, expected)
 
 
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
 
 if __name__ == "__main__":
-    test_mix_use_tensorrt_and_tvm()
-    # pytest.main([__file__])
+    pytest.main([__file__])
