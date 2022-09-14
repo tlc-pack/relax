@@ -300,6 +300,30 @@ def test_emit_match_shape():
     assert b1.var == lv1
 
 
+def test_emit_match_shape_binding_in_dataflow_block():
+    bb = rx.BlockBuilder()
+
+    x = rx.Var("x", type_annotation=rx.DynTensorType(-1, "float32"))
+    m = tir.Var("m", dtype="int32")
+    gv = rx.Var("gv")
+    match_shape = rx.MatchShape(x, (m,), gv)
+
+    with bb.function("main", [x]):
+        with bb.dataflow():
+            bb.match_shape_binding(match_shape)
+            bb.emit_output(gv)
+        bb.emit_func_output(x)
+
+    func = bb.get()["main"]
+    block = func.body.blocks[0]
+    b0 = block.bindings[0]
+    assert isinstance(b0, rx.MatchShape)
+
+    assert b0.value == x
+    assert b0.pattern[0] == m
+    assert b0.var == gv
+
+
 def test_normalize():
     m = tir.Var("m", "int32")
     n = tir.Var("n", "int32")
