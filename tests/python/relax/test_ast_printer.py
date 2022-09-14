@@ -336,5 +336,40 @@ def test_call_tir():
     assert call_tir_text in foo_str
 
 
+def test_operators():
+    # the operator attributes need to be registered to work in the printer
+
+    @R.function
+    def foo(x: Tensor):
+        return relax.unique(x, sorted=True)
+
+    foo_str = strip_whitespace(
+        dump_ast(
+            foo,
+            include_type_annotations=False,
+            include_shape_annotations=False,
+        )
+    )
+    # checking that the attributes are present
+    assert '"sorted":1' in foo_str
+    assert '"return_inverse"' in foo_str
+    assert '"return_counts"' in foo_str
+    assert '"dim"' in foo_str
+
+    @R.function
+    def bar(x: Tensor):
+        return relax.print(x, format="{}")
+
+    bar_str = strip_whitespace(
+        dump_ast(
+            bar,
+            include_type_annotations=False,
+            include_shape_annotations=False,
+        )
+    )
+    print_attrs_str = strip_whitespace('{"format": "{}"}')
+    assert print_attrs_str in bar_str
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
