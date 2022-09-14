@@ -41,4 +41,4 @@ class UniqueAttrs(Attrs):
 
 @tvm._ffi.register_object("relax.attrs.PrintAttrs")
 class PrintAttrs(Attrs):
-    """Attributes used for the unique operator"""
+    """Attributes used for the print operator"""
