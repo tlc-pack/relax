@@ -162,7 +162,12 @@ class VirtualMachine(object):
         return self._invoke_closure(closure, *args)
 
     def save_function(
-        self, func_name: str, saved_name: str, *args: List[Any], include_return: bool = True
+        self,
+        func_name: str,
+        saved_name: str,
+        *args: List[Any],
+        include_return: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> None:
         """
         Convenience function. Takes a function from the module and saves
@@ -193,8 +198,13 @@ class VirtualMachine(object):
 
         args : List[Any]
             The arguments to package up with the function.
+
+        kwargs : Dict[str, Any]
+            Any named arguments to package up with the function
         """
         cargs = []
+        if kwargs:
+            args = self._convert_func_named_args(func_name, args, **kwargs)
         for arg in args:
             self._convert(arg, cargs)
         self._save_function(func_name, saved_name, int(include_return), *cargs)
@@ -231,6 +241,32 @@ class VirtualMachine(object):
         else:
             raise TypeError("Unsupported type: %s" % (type(arg)))
 
+    def _convert_func_named_args(self, func_name: str, args: Any, **kwargs: Any) -> Any:
+        """
+        Takes named function parameters and returns a list of those needed,
+        in the order they should appear
+        """
+        # kwargs can be a super set of the required function parameters.
+        # We only find the ones that are needed.
+        func_arity = self._get_function_arity(func_name)
+        func_params = [self._get_function_param_name(func_name, i) for i in range(func_arity)]
+        new_args = [None] * len(func_params)
+        cnt = 0
+        for k in kwargs:
+            if k in func_params:
+                idx = func_params.index(k)
+                new_args[idx] = kwargs[k]
+                cnt += 1
+            else:
+                print(f'Warning: Keyword argument "{k}" is unused in {func_name}')
+        assert len(args) + cnt == len(func_params)
+        idx = 0
+        for i, arg in enumerate(new_args):
+            if arg is None:
+                new_args[i] = args[idx]
+                idx += 1
+        return new_args
+
     def set_input(self, func_name: str, *args: Any, **kwargs: Any) -> None:
         """Set the inputs to a function.
         This interface works when using VM over RPC by internally converting NDArray in
@@ -252,24 +288,7 @@ class VirtualMachine(object):
         cargs = []
 
         if kwargs:
-            # kwargs can be a super set of the required function parameters.
-            # We only find the ones that are needed.
-            func_arity = self._get_function_arity(func_name)
-            func_params = [self._get_function_param_name(func_name, i) for i in range(func_arity)]
-            new_args = [None] * len(func_params)
-            cnt = 0
-            for k in kwargs:
-                if k in func_params:
-                    idx = func_params.index(k)
-                    new_args[idx] = kwargs[k]
-                    cnt += 1
-            assert len(args) + cnt == len(func_params)
-            idx = 0
-            for i, arg in enumerate(new_args):
-                if arg is None:
-                    new_args[i] = args[idx]
-                    idx += 1
-            args = new_args
+            args = self._convert_func_named_args(func_name, args, **kwargs)
 
         for arg in args:
             self._convert(arg, cargs)
