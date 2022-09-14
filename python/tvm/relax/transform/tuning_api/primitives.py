@@ -18,7 +18,6 @@
 
 from typing import Callable, Union, Dict, List, Optional
 import logging
-import copy
 import tvm
 from tvm.runtime import Object
 from tvm.ir.module import IRModule
@@ -356,7 +355,7 @@ class Trace(Object):
     def deepcopy(self) -> "Trace":
         new_in_mod = deepcopy_irmodule(self.in_mod)
         new_knobs = [knob.deepcopy() for knob in self.knobs]
-        new_decisions = copy.deepcopy(self.decisions)
+        new_decisions = [str(decision) for decision in self.decisions]
         new_trace = Trace(new_in_mod, new_knobs, new_decisions)
         new_out_mod = deepcopy_irmodule(self.out_mod)
         new_trace.set_out_mod(new_out_mod)
@@ -387,7 +386,19 @@ def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
 
 
 @tvm.register_func("relax.tuning_api.deepcopy_irmodule")
-def deepcopy_irmodule(mod: IRModule):
+def deepcopy_irmodule(mod: IRModule) -> IRModule:
+    """
+    Deepcopy for an IRModule.
+
+    Parameters
+    ----------
+    mod: IRModule
+        input IRModule
+    Return
+    ----------
+    copied_mod: IRModule
+        deep-copied IRModule
+    """
     func_save_json = tvm.get_global_func("node.SaveJSON")
     func_load_json = tvm.get_global_func("node.LoadJSON")
     new_mod = None

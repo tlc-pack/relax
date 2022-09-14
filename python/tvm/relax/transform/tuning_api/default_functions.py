@@ -16,7 +16,6 @@
 # under the License.
 """Relax Tuning Pass API default functions"""
 from typing import Dict, List, Optional
-import copy
 import sys
 import itertools
 import logging
