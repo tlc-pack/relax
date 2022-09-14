@@ -87,12 +87,12 @@ class MetaScheduleAHB {
     ICHECK(parse_mod_func_) << "Parse function is not found.";
   }
   IRModule Apply(IRModule mod) {
-    IRModule ret_mod_ = IRModule({},         // functions
-                                 {},         // type_definitions
-                                 {},         // import_set
-                                 {},         // map
-                                 mod->attrs  // attrs
-    );
+    IRModule ret_mod_ = IRModule({},           // functions
+                                 {},           // type_definitions
+                                 {},           // import_set
+                                 {},           // map
+                                 mod->attrs);  // attrs
+
     tvm::meta_schedule::ApplyHistoryBest ahb(db_, nullptr, nullptr);
     for (auto& p : mod->functions) {
       GlobalVar gv = p.first;
