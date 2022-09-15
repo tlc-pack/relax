@@ -509,8 +509,7 @@ String Executable::AsText() const {
           break;
         }
         case Opcode::Goto: {
-          os << std::setw(6) << std::left << "goto"
-             << "goto " << instr.pc_offset << "\n";
+          os << std::setw(6) << std::left << "goto" << instr.pc_offset << "\n";
           break;
         }
         case Opcode::If: {

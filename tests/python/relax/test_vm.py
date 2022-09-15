@@ -954,8 +954,9 @@ def test_recursion():
                 gv0 = relax.call_packed(
                     "test.vm.subtract_one", n, type_args=(Tensor(ndim=1, dtype="float32"))
                 )
+                tmp = recursion(gv0)
                 res = relax.call_packed(
-                    "test.vm.add", recursion(gv0), n, type_args=(Tensor(ndim=1, dtype="float32"))
+                    "test.vm.add", tmp, tmp, type_args=(Tensor(ndim=1, dtype="float32"))
                 )
             return res
 
