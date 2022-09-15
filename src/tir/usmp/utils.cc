@@ -77,7 +77,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  conflicts=" << node->conflicts.size() << ")";
     });
 
-BufferInfoAnalysis::BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_stmts,
+BufferInfoAnalysis::BufferInfoAnalysis(Map<BufferInfo, runtime::ObjectRef> buffer_info_stmts,
                                        Integer memory_pressure) {
   auto bufinfo_analysis_node = make_object<BufferInfoAnalysisNode>();
   bufinfo_analysis_node->buffer_info_stmts = buffer_info_stmts;
@@ -87,7 +87,8 @@ BufferInfoAnalysis::BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_st
 
 TVM_REGISTER_NODE_TYPE(BufferInfoAnalysisNode);
 TVM_REGISTER_GLOBAL("tir.usmp.BufferInfoAnalysis")
-    .set_body_typed([](Map<BufferInfo, tir::Stmt> buffer_info_stmts, Integer memory_pressure) {
+    .set_body_typed([](Map<BufferInfo, runtime::ObjectRef> buffer_info_stmts,
+                       Integer memory_pressure) {
       return BufferInfoAnalysis(buffer_info_stmts, memory_pressure);
     });
 
@@ -145,7 +146,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
+Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, ObjectRef>& buffer_info_map) {
   Array<BufferInfo> ret;
   for (const auto& kv : buffer_info_map) {
     auto buffer_info = kv.first;
@@ -155,12 +156,12 @@ Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer
 }
 
 Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
-    const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
+    const Map<BufferInfo, ObjectRef>& buffer_info_to_stmt,
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation) {
   Map<Stmt, PoolAllocation> ret;
   for (const auto& kv : buffer_info_to_pool_allocation) {
     BufferInfo bi = kv.first;
-    Stmt stmt_ = buffer_info_to_stmt[bi];
+    Stmt stmt_ = runtime::Downcast<Stmt>(buffer_info_to_stmt[bi]);
     PoolAllocation pa = kv.second;
     ret.Set(stmt_, pa);
   }
@@ -265,7 +266,7 @@ Integer CalculateModuleWorkspaceSize(const IRModule& mod) {
 }
 
 TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
-    .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
+    .set_body_typed([](Map<BufferInfo, ObjectRef> buffer_info_map) {
       return (ConvertToArrayOfBufferInfo(buffer_info_map));
     });
 
