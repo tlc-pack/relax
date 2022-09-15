@@ -46,7 +46,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
             if prev_value.dtype != value.dtype:
                 self.report_error(
                     node,
-                    "Expected the same dtype for TIR vars"
+                    "Expected the same dtype for TIR vars "
                     f"but got {value.dtype} vs {prev_value.dtype}",
                 )
             return prev_value
