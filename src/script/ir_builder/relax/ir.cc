@@ -37,6 +37,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     });
 
 ////////////////////////////// Tensor Type //////////////////////////////
+
 TensorType::TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr> shape) {
   auto n = make_object<TensorTypeNode>();
   n->type = std::move(type);
@@ -141,7 +142,21 @@ tvm::relax::Var Emit(const tvm::relax::Expr& value) {
   return block_builder->Emit(value);
 }
 
+TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
+                                                 const Array<PrimExpr>& pattern,  //
+                                                 bool emit_var) {
+  tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
+  if (emit_var) {
+    return block_builder->EmitMatchShape(value, pattern);
+  } else {
+    tvm::relax::MatchShape match_shape(value, pattern, tvm::relax::Var{nullptr});
+    block_builder->EmitMatchShape(match_shape);
+    return NullOpt;
+  }
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(EmitMatchShape);
 
 }  // namespace relax
 }  // namespace ir_builder

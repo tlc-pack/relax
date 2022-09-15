@@ -126,6 +126,17 @@ TVM_DLL BlockFrame Dataflow();
  */
 TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value);
 
+/*!
+ * \brief Emit a match_shape binding to the last binding block frame.
+ * \param value The value of the MatchShape to be emitted.
+ * \param pattern The pattern of the MatchShape to be emitted.
+ * \param emit_var The flag that indicate if the match_shape contains the emitted var.
+ * \return The emitted var if `emit_var` is true, otherwise, `NullOpt`.
+ */
+TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,
+                                                 const Array<PrimExpr>& pattern,
+                                                 bool emit_var = true);
+
 }  // namespace relax
 }  // namespace ir_builder
 }  // namespace script

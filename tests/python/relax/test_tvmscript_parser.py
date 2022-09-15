@@ -180,5 +180,26 @@ def test_shadowing():
     _check(foo, bb.get()["foo"])
 
 
+def test_match_shape():
+    @R.function
+    def foo(x: R.Tensor(None, "float32"), y: R.Tensor(None, "float32")):
+        m = T.var("int64")
+        n = T.var("int64")
+        R.match_shape(x, (m,))
+        y1 = R.match_shape(y, (n,))
+        return (m, n * 2)
+
+    x = relax.Var("x", type_annotation=relax.DynTensorType(-1, "float32"))
+    y = relax.Var("y", type_annotation=relax.DynTensorType(-1, "float32"))
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x, y)):
+        bb.match_shape_binding(relax.MatchShape(x, (m,), var=None))
+        y1 = bb.match_shape(y, (n,))
+        bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

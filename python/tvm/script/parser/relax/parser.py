@@ -16,13 +16,14 @@
 # under the License.
 # pylint: disable=missing-docstring,
 
-from typing import Any
+from typing import Any, Tuple
 
 from tvm import tir, relax
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
+from .entry import MatchShapePair
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -56,6 +57,12 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         var = R.emit(value)
         IRBuilder.name(var_name, var)
         return var
+    elif isinstance(value, MatchShapePair):
+        var = R.emit_match_shape(value.value, value.pattern, emit_var=True)
+        # It's an internal check, so directly use assert here.
+        assert var is not None
+        IRBuilder.name(var_name, var)
+        return var
     else:
         raise TypeError(f"Unsupported type {type(value)} in assignment")
 
@@ -74,7 +81,12 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
 @dispatch.register(token="relax", type_name="Expr")
 def visit_expr_stmt(self: Parser, node: doc.FunctionDef) -> None:
-    self.eval_expr(node.value)
+    value = self.eval_expr(node.value)
+
+    if isinstance(value, MatchShapePair):
+        R.emit_match_shape(value.value, value.pattern, emit_var=False)
+    elif value is not None:
+        self.report_error(node, f"Unsupported Expr stmt type {value}.")
 
 
 @dispatch.register(token="relax", type_name="arguments")
@@ -117,5 +129,10 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
 
     if isinstance(value, relax.Expr):
         R.func_ret_value(value)
+    elif isinstance(value, Tuple):
+        if all([isinstance(f, tir.PrimExpr) for f in value]):
+            R.func_ret_value(relax.ShapeExpr(value))
+        else:
+            R.func_ret_value(relax.Tuple(*value))
     else:
         self.report_error(node, f"Unsupported return value type {type(value)}.")
