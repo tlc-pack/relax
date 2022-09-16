@@ -18,8 +18,10 @@
 from typing import Union, Dict
 from enum import IntEnum
 import tvm.runtime
+from tvm.runtime.object import Object
 
 from .expr import RelayExpr
+from .attrs import DictAttrs
 from . import _ffi_api
 
 
@@ -68,7 +70,7 @@ class BaseFunc(RelayExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
-    def with_attrs(self, attr_map: Union[tvm.ir.DictAttrs, Dict[str, tvm.Object]]):
+    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]):
         """Copy the IRModule and add the given attribute map to it.
 
         Parameters
