@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Function defintiions."""
+from typing import Union, Dict
 from enum import IntEnum
 import tvm.runtime
 
@@ -67,7 +68,7 @@ class BaseFunc(RelayExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
-    def with_attrs(self, attr_map):
+    def with_attrs(self, attr_map: Union[tvm.ir.DictAttrs, Dict[str, tvm.Object]]):
         """Copy the IRModule and add the given attribute map to it.
 
         Parameters
@@ -77,8 +78,8 @@ class BaseFunc(RelayExpr):
 
         Returns
         -------
-        mod : IRModule
-            A new copy of the IRModule with the attribute
+        func : Function
+            A new copy of the function
         """
         if isinstance(attr_map, tvm.ir.DictAttrs):
             attr_map = attr_map._dict()

@@ -76,12 +76,12 @@ def check_roundtrip(exec0, dev, inputs, expected):
 
 def gen_ground_truth(mod, target, dev, inputs):
     # Lower and run tuning
-    # Since there is no default schedule for MS, this is necessary
+    # Since there is no default schedule for GPU in MS yet, this is necessary
     with tempfile.TemporaryDirectory() as work_dir:
         with tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
             seq = tvm.transform.Sequential(
                 [
-                    relax.testing.transform.LowerWithRelayOpStrategyPass(target),
+                    transform.LowerWithRelayOpStrategyPass(target),
                     relax.transform.MetaScheduleTuneIRMod(
                         target,
                         config=tune_config,
@@ -98,6 +98,7 @@ def gen_ground_truth(mod, target, dev, inputs):
     return vm["main"](*inputs)
 
 
+@tvm.testing.requires_gpu
 def test_single_annot_func():
     @tvm.script.ir_module
     class InputModule:
@@ -156,6 +157,7 @@ def test_single_annot_func():
     # tvm.ir.assert_structural_equal(mod, new_mod)
 
 
+@tvm.testing.requires_gpu
 def test_mix_use_tensorrt_and_tvm():
     @tvm.script.ir_module
     class InputModule:
@@ -208,7 +210,7 @@ def test_mix_use_tensorrt_and_tvm():
                 [
                     relax.transform.RunCodegen(),
                     relax.transform.RemoveUnusedFunctions(),
-                    relax.testing.transform.LowerWithRelayOpStrategyPass(target),
+                    transform.LowerWithRelayOpStrategyPass(target),
                     relax.transform.MetaScheduleTuneIRMod(
                         target,
                         config=tune_config,
