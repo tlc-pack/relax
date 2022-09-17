@@ -218,5 +218,117 @@ def test_tuple_return():
     _check(foo, bb.get()["foo"])
 
 
+def test_dataflow_block():
+    @R.function
+    def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        with R.dataflow():
+            lv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+            lv1 = R.call_tir("extern_func", lv0, (128, 128), dtype="float32")
+            gv = lv1
+            R.output(gv)
+        return gv
+
+    x = relax.Var("x", (128, 128), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        with bb.dataflow():
+            lv0 = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
+            lv1 = bb.emit(relax.call_tir("extern_func", lv0, (128, 128), dtype="float32"))
+            gv = bb.emit_output(lv1)
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_dataflow_block_advanced():
+    @R.function
+    def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+        gv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+        gv1 = R.call_tir("extern_func", gv0, (128, 128), dtype="float32")
+        with R.dataflow():
+            m = T.var("int64")
+            n = T.var("int64")
+            lv0 = R.call_tir("extern_func", gv1, (128, 128), dtype="float32")
+            lv1 = R.match_shape(lv0, (m, n))
+            gv2 = R.call_tir("extern_func", lv0, (128, 128), dtype="float32")
+            gv2 = R.call_tir("extern_func", gv2, (128, 128), dtype="float32")
+            gv3 = R.match_shape(gv2, (m, n))
+            gv3 = R.match_shape(lv0, (m, n))
+            gv4 = gv3
+            gv5 = gv2
+            R.output(gv5, gv4)
+        gv6 = R.call_tir("extern_func", gv5, (128, 128), dtype="float32")
+        gv7 = R.call_tir("extern_func", gv6, (128, 128), dtype="float32")
+        return gv7
+
+    x = relax.Var("x", (128, 128), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
+    with bb.function("foo", (x,)):
+        gv0 = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
+        gv1 = bb.emit(relax.call_tir("extern_func", gv0, (128, 128), dtype="float32"))
+        with bb.dataflow():
+            lv0 = bb.emit(relax.call_tir("extern_func", gv1, (128, 128), dtype="float32"))
+            lv1 = bb.match_shape(lv0, (m, n))
+            gv2 = bb.emit(relax.call_tir("extern_func", lv0, (128, 128), dtype="float32"))
+            gv21 = bb.emit(relax.call_tir("extern_func", gv2, (128, 128), dtype="float32"))
+            gv3 = bb.match_shape(gv21, (m, n))
+            gv31 = bb.match_shape(lv0, (m, n))
+            gv32 = bb.emit_output(gv31)
+            gv22 = bb.emit_output(gv21)
+        gv4 = bb.emit(relax.call_tir("extern_func", gv22, (128, 128), dtype="float32"))
+        gv5 = bb.emit(relax.call_tir("extern_func", gv4, (128, 128), dtype="float32"))
+        bb.emit_func_output(gv5)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_dataflow_binding_after_output():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            with R.dataflow():
+                gv = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+                R.output(gv)
+                lv = R.call_tir("extern_func", gv, (128, 128), dtype="float32")
+            return gv
+
+
+def test_dataflow_output_global_var():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            gv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+            with R.dataflow():
+                gv1 = R.call_tir("extern_func", gv0, (128, 128), dtype="float32")
+                R.output(gv0, gv1)
+            return gv1
+
+
+def test_dataflow_multiple_output():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            with R.dataflow():
+                gv = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+                R.output(gv)
+                R.output(gv)
+            return gv
+
+
+def test_dataflow_output_outside_dataflow_block():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
+            gv = R.call_tir("extern_func", x, (128, 128), dtype="float32")
+            R.output(gv)
+            return gv
+
+
 if __name__ == "__main__":
     tvm.testing.main()
