@@ -15,13 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRModule that holds the functions and type definitions."""
-from typing import Optional
+from __future__ import annotations
+from typing import Optional, Union, Dict
 import ast
 from tvm._ffi.base import string_types
 import tvm._ffi
+from tvm.runtime.object import Object
 
 from .base import Node
 from . import expr as _expr
+from .attrs import DictAttrs
 from ..ir.function import BaseFunc
 from . import type as _ty
 from . import _ffi_api
@@ -330,7 +333,7 @@ class IRModule(Node):
 
         return _ffi_api.Module_GetAttrs(self)
 
-    def with_attr(self, attr_key, attr_value):
+    def with_attr(self, attr_key, attr_value) -> IRModule:
         """Copy the IRModule and add an attribute to it.
 
         Parameters
@@ -349,7 +352,7 @@ class IRModule(Node):
 
         return _ffi_api.Module_WithAttr(self, attr_key, attr_value)
 
-    def without_attr(self, attr_key):
+    def without_attr(self, attr_key: str) -> IRModule:
         """Copy the IRModule and remove an attribute key and its associated value.
 
         Parameters
@@ -365,7 +368,7 @@ class IRModule(Node):
 
         return _ffi_api.Module_WithoutAttr(self, attr_key)
 
-    def with_attrs(self, attr_map):
+    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> IRModule:
         """Copy the IRModule and add the given attribute map to it.
 
         Parameters
