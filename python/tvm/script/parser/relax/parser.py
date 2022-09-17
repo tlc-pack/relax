@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=missing-docstring,
 
+import contextlib
 from typing import Any, Tuple
 
 from tvm import tir, relax
+from tvm.script.ir_builder.relax.frame import BlockFrame
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
@@ -53,15 +55,16 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
             return prev_value
         IRBuilder.name(var_name, value)
         return value
-    elif isinstance(value, relax.Expr):
-        var = R.emit(value)
-        IRBuilder.name(var_name, var)
-        return var
-    elif isinstance(value, MatchShapePair):
-        var = R.emit_match_shape(value.value, value.pattern, emit_var=True)
+
+    if isinstance(value, relax.Expr):
+        var = R.emit(value, var_name)
         # It's an internal check, so directly use assert here.
         assert var is not None
-        IRBuilder.name(var_name, var)
+        return var
+    elif isinstance(value, MatchShapePair):
+        var = R.emit_match_shape(value.value, value.pattern, var_name)
+        # It's an internal check, so directly use assert here.
+        assert var is not None
         return var
     else:
         raise TypeError(f"Unsupported type {type(value)} in assignment")
@@ -84,7 +87,20 @@ def visit_expr_stmt(self: Parser, node: doc.FunctionDef) -> None:
     value = self.eval_expr(node.value)
 
     if isinstance(value, MatchShapePair):
-        R.emit_match_shape(value.value, value.pattern, emit_var=False)
+        R.emit_match_shape(value.value, value.pattern, var_name=None)
+    elif isinstance(value, tuple):
+        # Currently `res` must be the return value of `R.output`. In order to make these variables
+        # accessible to the bindings of following binding blocks, we should pop these variables into
+        # the variable table of one level higher.
+        for var_name in self.var_table.frames[-1].vars:
+            if self.var_table.name2value[var_name][-1] in value:
+                var = self.var_table.name2value[var_name][-1]
+                # Pop up the variable to the variable table one level higher.
+                if var_name in self.var_table.frames[-2].vars:
+                    self.var_table.name2value[var_name][-2] = var
+                else:
+                    self.var_table.frames[-2].add(var_name)
+                    self.var_table.name2value[var_name].append(var)
     elif value is not None:
         self.report_error(node, f"Unsupported Expr stmt type {value}.")
 
@@ -112,6 +128,46 @@ def visit_tvm_annotation(self: Parser, node: doc.expr):
     if callable(annotation):
         annotation = annotation()
     return annotation
+
+
+@dispatch.register(token="relax", type_name="With")
+def visit_with(self: Parser, node: doc.With) -> None:
+    # Currently only `with R.dataflow()` is supported
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(self.var_table.with_frame())
+        if len(node.items) != 1:
+            self.report_error(node, "Only one dataflow block is allowed")
+        for item in node.items:
+            frame = self.eval_expr(item.context_expr)
+            if not isinstance(frame, BlockFrame):
+                self.report_error(
+                    item.context_expr, "Invalid context expression in the with-statement."
+                )
+            stack.enter_context(frame)
+            if item.optional_vars is not None:
+                self.report_error(
+                    item.context_expr,
+                    "Relax syntax doesn't allow binding expressions in `with` to variables",
+                )
+
+        # Since we don't know which variables are global variables during variable creation within
+        # single round of visit, we adopt a two-round visit to deal with the construction of
+        # dataflow block.
+        # - In the first round, all binding variables are created as dataflow variables.
+        # - At the end of the first round, by looking into the arguments of `R.output`, we know and
+        # stores the names of the global variables.
+        # - Then we clear the variable table, as a preparation step for the second round of visit.
+        # - In the second round, we create variables according to their names, by checking whether
+        # the name exists in the stored global variable names.
+
+        # First round of visit
+        self.visit(node.body)
+        # Clear `var_table` in order to do a second round of visit
+        for var in self.var_table.frames[-1].vars:
+            self.var_table.name2value[var].pop()
+        self.var_table.frames[-1].vars.clear()
+        # Second round of visit
+        self.visit(node.body)
 
 
 @dispatch.register(token="relax", type_name="Assign")
