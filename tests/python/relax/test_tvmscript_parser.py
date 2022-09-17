@@ -200,6 +200,22 @@ def test_match_shape():
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     _check(foo, bb.get()["foo"])
 
+def test_tuple_return():
+    @R.function
+    def foo(x: R.Tensor((4, 4), "float32")):
+        gv0 = R.call_tir("extern_func_0", x, (4, 4), dtype="float32")
+        gv1 = R.call_tir("extern_func_1", x, (4, 4), dtype="float32")
+        return (gv0, gv1)
+
+    x = relax.Var("x", [4, 4], relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        gv0 = bb.emit(relax.call_tir("extern_func_0", x, (4, 4), dtype="float32"))
+        gv1 = bb.emit(relax.call_tir("extern_func_1", x, (4, 4), dtype="float32"))
+        bb.emit_func_output(relax.Tuple((gv0, gv1)))
+
+    _check(foo, bb.get()["foo"])
+
 
 if __name__ == "__main__":
     tvm.testing.main()

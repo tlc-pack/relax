@@ -133,6 +133,6 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
         if all([isinstance(f, tir.PrimExpr) for f in value]):
             R.func_ret_value(relax.ShapeExpr(value))
         else:
-            R.func_ret_value(relax.Tuple(*value))
+            R.func_ret_value(relax.Tuple(value))
     else:
         self.report_error(node, f"Unsupported return value type {type(value)}.")
