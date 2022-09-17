@@ -330,5 +330,18 @@ def test_dataflow_output_outside_dataflow_block():
             return gv
 
 
+def test_return_without_binding():
+    @R.function
+    def foo(x: R.Tensor((128, 128), "float32")):
+        return x
+
+    x = relax.Var("x", (128, 128), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        bb.emit_func_output(x)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
