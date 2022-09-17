@@ -132,6 +132,10 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
     elif isinstance(value, Tuple):
         if all([isinstance(f, tir.PrimExpr) for f in value]):
             R.func_ret_value(relax.ShapeExpr(value))
+        elif any([isinstance(f, tir.PrimExpr) for f in value]):
+            self.report_error(
+                node, "Return types, with mixed PrimExpr and Relax Expr, is not supported."
+            )
         else:
             R.func_ret_value(relax.Tuple(value))
     else:
