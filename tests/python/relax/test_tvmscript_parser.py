@@ -200,6 +200,7 @@ def test_match_shape():
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     _check(foo, bb.get()["foo"])
 
+
 def test_tuple_return():
     @R.function
     def foo(x: R.Tensor((4, 4), "float32")):
