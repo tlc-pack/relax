@@ -42,9 +42,10 @@ void FunctionFrameNode::ExitWithScope() {
   RelaxFrameNode::ExitWithScope();
   IRBuilder builder = IRBuilder::Current();
   // Step 1: Create the function.
-  Expr output = outputs.size() == 1 ? outputs[0] : tvm::relax::Tuple(outputs);
-  output = this->block_builder->Normalize(output);
-  Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output));
+  CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
+                             "`return` to return an Expr";
+  output = this->block_builder->Normalize(output.value());
+  Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_type=*/ret_type.value_or(Type()),
@@ -118,7 +119,7 @@ void BlockFrameNode::ExitWithScope() {
 
   // Step 5. Push the block frame into the corresponding field of the last frame.
   if (const auto* function_frame = last_frame.as<FunctionFrameNode>()) {
-    ICHECK(function_frame->outputs.empty())
+    ICHECK(!function_frame->output.defined())
         << "The function is not expected to have output values when emitting blocks.";
     FunctionFrame frame = GetRef<FunctionFrame>(function_frame);
     frame->binding_blocks.push_back(block);

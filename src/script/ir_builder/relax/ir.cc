@@ -124,7 +124,10 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");
-  frame->outputs.push_back(value);
+  CHECK(!frame->output.defined())
+      << "ValueError: Relax functions don't support multiple return statement. Please make sure "
+         "the return statement appears at the end of function.";
+  frame->output = value;
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function);

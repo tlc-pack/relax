@@ -70,8 +70,8 @@ class FunctionFrameNode : public RelaxFrameNode {
   Map<String, ObjectRef> attrs;
   /*! \brief The binding blocks inside the function. */
   Array<tvm::relax::BindingBlock> binding_blocks;
-  /*! \brief The function output expr. */
-  Array<tvm::relax::Expr> outputs;
+  /*! \brief The function output expr. `NullOpt` when undefined. */
+  Optional<tvm::relax::Expr> output;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 
@@ -82,7 +82,7 @@ class FunctionFrameNode : public RelaxFrameNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("attrs", &attrs);
     v->Visit("binding_blocks", &binding_blocks);
-    v->Visit("outputs", &outputs);
+    v->Visit("output", &output);
     // `block_builder` is not visited.
   }
 
