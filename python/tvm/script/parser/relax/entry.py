@@ -18,7 +18,7 @@
 import inspect
 from typing import Callable, List, Optional, Union, TypeVar
 
-from tvm.relax import Function, Var
+from tvm.relax import Function, Var, Expr
 from tvm.tir import PrimExpr
 
 from ...ir_builder.relax import tensor, TensorType
@@ -54,3 +54,16 @@ class TensorProxy:
 
 
 Tensor = TensorProxy()  # pylint: disable=invalid-name
+
+
+class MatchShapePair:
+    value: Expr
+    pattern: List[PrimExpr]
+
+    def __init__(self, value: Expr, pattern: List[PrimExpr]) -> None:
+        self.value = value
+        self.pattern = pattern
+
+
+def match_shape(value: Expr, pattern: List[PrimExpr]):
+    return MatchShapePair(value, pattern)

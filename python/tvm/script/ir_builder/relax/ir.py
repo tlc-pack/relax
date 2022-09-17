@@ -200,6 +200,12 @@ def emit(value: Expr) -> Var:
     return _ffi_api.Emit(value)  # type: ignore
 
 
+def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool = True) -> Var:
+    return _ffi_api.EmitMatchShape(value, pattern, emit_var)  # type: ignore
+
+
+############################### Importer ###############################
+
 __all__ = [
     "TensorType",
     "add",
@@ -209,6 +215,7 @@ __all__ = [
     "call_tir",
     "dataflow",
     "emit",
+    "emit_match_shape",
     "func_attr",
     "func_name",
     "func_ret_type",
