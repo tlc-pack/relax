@@ -25,11 +25,11 @@ class RelaxFrame(IRBuilderFrame):
     """The base ir_builder frame for the relax dialect."""
 
 
-@_register_object("script.ir_builder.relax.BlockFrame")
-class BlockFrame(RelaxFrame):
-    """The ir_builder frame for relax binding blocks."""
-
-
 @_register_object("script.ir_builder.relax.FunctionFrame")
 class FunctionFrame(RelaxFrame):
     """The ir_builder frame for the relax function."""
+
+
+@_register_object("script.ir_builder.relax.BlockFrame")
+class BlockFrame(RelaxFrame):
+    """The ir_builder frame for relax binding blocks."""
