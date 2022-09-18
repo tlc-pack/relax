@@ -90,7 +90,6 @@ class FunctionFrameNode : public RelaxFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, RelaxFrameNode);
 
  public:
-  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 

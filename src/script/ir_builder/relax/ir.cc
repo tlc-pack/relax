@@ -195,26 +195,6 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.DataflowBlockOutput")
 
 /////////////////////////////// Bindings ///////////////////////////////
 
-BlockFrame CheckBlockFrameExistAndUnended() {
-  // - If we're emitting a non-dataflow binding in the function (that is to say, the binding is not
-  // wrapped by `with R.dataflow()`), it is possible that there is no existing BlockFrame. In this
-  // case, we will create a BlockFrame and "enter its 'with' scope" first.
-  // - Otherwise, there is already an existing BlockFrame. We check if the block is "ended" - if a
-  // block is ended, it is not allowed to emit new bindings into this block, and we should throw
-  // exceptions.
-
-  Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
-  if (block_frame.defined()) {
-    CHECK(!block_frame.value()->block_ended)
-        << "ValueError: New binding is not allowed after dataflow block output.";
-    return block_frame.value();
-  }
-
-  BlockFrame new_block_frame = BindingBlock();
-  new_block_frame->EnterWithScope();
-  return new_block_frame;
-}
-
 tvm::relax::Var Emit(const tvm::relax::Expr& expr, bool is_dataflow_var) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
   tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
@@ -242,6 +222,8 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
     return NullOpt;
   }
 
+  // TODO(tvm-team): Enhance the API of EmitMatchShape in BlockBuilder and then update the following
+  // code snippet
   tvm::relax::Var var{nullptr};
   tvm::relax::Id vid(is_dataflow_var ? "lv" : "gv");
 

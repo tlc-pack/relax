@@ -27,8 +27,6 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-void FunctionFrameNode::EnterWithScope() { RelaxFrameNode::EnterWithScope(); }
-
 void FunctionFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
