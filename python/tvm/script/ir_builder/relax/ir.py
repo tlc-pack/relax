@@ -190,15 +190,15 @@ def output(*vars: Tuple[Var]) -> Tuple[Var]:
 ############################### Bindings ###############################
 
 
-def emit(value: Expr, var_name: str) -> Var:
+def emit(value: Expr, is_dataflow_var: bool) -> Var:
     """Emit a binding to the last binding block frame.
 
     Parameters
     ----------
     value: Expr
         The right side value of the bindings to be emitted.
-    var_name: str
-        The variable name of the emitted binding.
+    is_dataflow_var: bool
+        A boolean indicating if the emitted binding variable is a dataflow variable.
 
     Returns
     -------
@@ -206,11 +206,11 @@ def emit(value: Expr, var_name: str) -> Var:
         The left side var of the emitted binding.
 
     """
-    return _ffi_api.Emit(value, var_name)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Emit(value, is_dataflow_var)  # pylint: disable=no-member # type: ignore
 
 
 def emit_match_shape(
-    value: Expr, pattern: List[PrimExpr], var_name: Optional[str]
+    value: Expr, pattern: List[PrimExpr], emit_var: bool, is_dataflow_var: bool
 ) -> Optional[Var]:
     """Emit a match_shape binding to the last binding block frame.
 
@@ -220,16 +220,18 @@ def emit_match_shape(
         The value of the MatchShape to be emitted.
     pattern: List[PrimExpr]
         The pattern of the MatchShape to be emitted.
-    var_name: Optional[str]
-        The variable name of the emitted binding. `None` if we don't intend to emit the binding
-        variable
+    emit_var: bool
+        A boolean indicating if the MatchShape contains the emitted variable.
+    is_dataflow_var: bool
+        A boolean indicating if the emitted variable is a dataflow variable when `emit_var` is True.
+        When `emit_var` is False, the value of this flag will be ignored.
 
     Returns
     -------
     var: Optional[Var]
-        The emitted var if `var_name` is not `None`. Otherwise, return `None`.
+        The emitted var if `emit_var` is True. Otherwise, return `None`.
     """
-    return _ffi_api.EmitMatchShape(value, pattern, var_name)  # type: ignore
+    return _ffi_api.EmitMatchShape(value, pattern, emit_var, is_dataflow_var)  # type: ignore
 
 
 ############################### Importer ###############################

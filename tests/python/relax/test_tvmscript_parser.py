@@ -345,6 +345,7 @@ def test_return_without_binding():
 
 def test_multiple_return():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")):
             return x
@@ -353,6 +354,7 @@ def test_multiple_return():
 
 def test_function_without_return():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")):
             gv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")

@@ -104,32 +104,20 @@ class BlockFrameNode : public RelaxFrameNode {
  public:
   /*! \brief The flag that indicates whether the block is a dataflow block. */
   bool is_dataflow;
-
-  // The following fields are only be used when this frame is a dataflow block frame.
-  /*! \brief The names of the global variables in a dataflow block. */
-  Optional<Array<String>> output_var_names;
+  /*! \brief The variables emitted in this block. */
+  Array<tvm::relax::Var> emitted_vars;
   /*!
-   * \brief A boolean indicating if the dataflow block is ended of construction. If it is true, any
-   * new binding trying to be emitted into this block will cause an error.
+   * \brief (Only used for a dataflow block.) A boolean indicating if the dataflow block is ended of
+   * construction. If it is true, any new binding trying to be emitted into this block will cause an
+   * error.
    */
   bool block_ended;
-  /*!
-   * \brief A name table used to get unique variable names when constructing a dataflow block.
-   * \details Since dataflow block will be visited twice during construction, in order to keep the
-   * new variable names consistent in both visits, we keep a copy of the block builder's name table
-   * when the block frame is being initialized. In the first visit of a dataflow block, we use the
-   * block builder's internal name table to get unique variable names. In the second visit, we use
-   * this name table for the same purpose. Since in both visits the bindings being emitted are
-   * always the same, the new variable names will be consistent with this copy of name table.
-   */
-  tvm::relax::NameTable name_table;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     RelaxFrameNode::VisitAttrs(v);
     v->Visit("is_dataflow", &is_dataflow);
-    v->Visit("output_var_names", &output_var_names);
-    // `block_ended` is not visited
-    // `name_table` is not visited
+    v->Visit("emitted_vars", &emitted_vars);
+    v->Visit("block_ended", &block_ended);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";

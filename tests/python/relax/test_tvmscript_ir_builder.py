@@ -35,7 +35,10 @@ def test_function_simple():
             R.func_attr({"Primitive": 1})
             x = R.arg("x", R.tensor((128, 128), "float32"))
             R.func_ret_type(R.tensor(dtype="float32", ndim=2))
-            out = R.emit(R.call_tir("extern_func", x, (128, 128), dtype="float32"), var_name="out")
+            out = R.emit(
+                R.call_tir("extern_func", x, (128, 128), dtype="float32"), is_dataflow_var=False
+            )
+            IRBuilder.name("out", out)
             R.func_ret_value(out)
     func = ir_builder.get()
     # create with BlockBuilder
@@ -71,8 +74,9 @@ def test_match_shape():
             y = R.arg("y", R.tensor(ndim=-1, dtype="float32"))
             m = tir.Var("m", dtype="int64")
             n = tir.Var("n", dtype="int64")
-            R.emit_match_shape(x, (m,), var_name=None)
-            y1 = R.emit_match_shape(y, (n,), var_name="y1")
+            R.emit_match_shape(x, (m,), emit_var=False, is_dataflow_var=False)
+            y1 = R.emit_match_shape(y, (n,), emit_var=True, is_dataflow_var=False)
+            IRBuilder.name("y1", y1)
             R.func_ret_value(relax.ShapeExpr([m, n * 2]))
     func = ir_builder.get()
 
