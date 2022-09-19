@@ -22,7 +22,6 @@
  * \file tvm/relax/transform/run_codegen.cc
  * \brief Run codegen for annotated relax functions.
  */
-
 #include <tvm/relax/expr_functor.h>
 
 #include <iostream>
@@ -73,6 +72,7 @@ class CodeGenRunner : ExprMutator {
         for (const auto& arg : call_node->args) {
           tmp_args.push_back(VisitExpr(arg));
         }
+
         new_args.push_back(Tuple(tmp_args));
         new_args.push_back(func->body->shape());
 
@@ -86,11 +86,15 @@ class CodeGenRunner : ExprMutator {
         func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
         func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
         builder_->UpdateFunction(gvar, func);
-
         return Call(call_op, new_args, tvm::Attrs(), {func->ret_type});
       }
     }
-    return GetRef<Call>(call_node);
+    Array<Expr> new_args;
+    for (const auto& arg : call_node->args) {
+      new_args.push_back(VisitExpr(arg));
+    }
+
+    return Call(call_node->op, new_args, call_node->attrs, call_node->type_args, call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
