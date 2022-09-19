@@ -79,9 +79,9 @@ FunctionFrame Function() {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const TensorType& type) {
+tvm::relax::Var Arg(const String& name, const tvm::relax::ShapeExpr& shape, const Type& type) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  tvm::relax::Var var(name, type->shape, type->type);
+  tvm::relax::Var var(name, shape, type);
   frame->params.push_back(var);
   return var;
 }
@@ -251,6 +251,35 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(EmitMatchShape);
+
+///////////////////////////// Type Deduce //////////////////////////////
+
+void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
+                       const Optional<tvm::relax::ShapeExpr>& shape) {
+  using tvm::relax::IsBaseOf;
+  if (!var->checked_type_.defined()) {
+    var->checked_type_ = type;
+  } else {
+    const Type& var_type = var->checked_type();
+    if (IsBaseOf(var_type, type)) {
+      var->checked_type_ = type;
+    } else if (IsBaseOf(type, var_type)) {
+      // The var type is more detailed, do nothing.
+    } else {
+      LOG(FATAL) << "TypeError: The var type and the annotated type are not competitive.";
+    }
+  }
+
+  if (!var->shape_.defined()) {
+    var->shape_ = shape;
+  } else if (shape.defined()) {
+    const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+    tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
+    block_builder->CanProveShapeEqual(var_shape, shape.value());
+  }
+}
+
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
 
 }  // namespace relax
 }  // namespace ir_builder

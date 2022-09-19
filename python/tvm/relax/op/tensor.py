@@ -29,8 +29,40 @@ def multiply(lhs: Expr, rhs: Expr) -> Expr:
     return _ffi_api.multiply(lhs, rhs)
 
 
-@tvm.register_func("relax.run.unique")
 def unique(
+    data: Expr,
+    sorted: bool = True,
+    return_inverse: bool = False,
+    return_counts: bool = False,
+    dim: int = -1,
+) -> Expr:
+    """Find the unique elements and the new index of each item in a given tensor.
+
+    Parameters
+    ----------
+    data : Expr
+        The input tensor.
+
+    sorted: bool
+        Whether to sort the unique elements in ascending order before
+        returning as output.
+
+    return_inverse: bool
+        Whether to return an additional tensor with indices for where elements in
+        the original input ended up in the returned unique list.
+
+    return_counts: bool
+        Whether to return an additional tensor with counts of each unique elements.
+
+    dim: int
+        The dimension to apply unique. If negative, the unique of the flattened input is returned.
+    """
+
+    return _ffi_api.unique(data, sorted, return_inverse, return_counts, dim)
+
+
+@tvm.register_func("relax.run.unique")
+def numpy_unique(
     a: tvm.nd.array,
     sort: int,
     return_inverse: int,

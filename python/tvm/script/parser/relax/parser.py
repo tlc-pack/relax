@@ -17,16 +17,17 @@
 # pylint: disable=missing-docstring,
 
 import contextlib
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from collections import defaultdict
 from tvm import tir, relax
+from tvm.ir import Type
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
-from ...ir_builder import relax as R
+from ...ir_builder import relax as R, tir as T
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair
+from .entry import MatchShapePair, TensorType, Tensor
 
 
 class VarDefLoc:
@@ -130,13 +131,39 @@ def bind_value_with_dataflow_var_names(
     return bind_assign_value
 
 
+def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) -> Any:
+    type_annotation = self.eval_expr(node)
+    if callable(type_annotation):
+        type_annotation = Tensor()
+    if isinstance(type_annotation, TensorType):
+        shape = type_annotation.shape
+        if shape is None:
+            return type_annotation.type, None
+        shape = list(shape.values)
+        var_table = self.var_table.get()
+        for i, expr in enumerate(shape):
+            # Define the symbolic shape var
+            if isinstance(expr, tir.Var):
+                name = expr.name
+                if name in var_table:
+                    shape[i] = var_table[name]
+                else:
+                    self.var_table.add(name, shape[i])
+        return type_annotation.type, relax.ShapeExpr(shape)
+    else:
+        if not isinstance(type_annotation, Type):
+            self.report_error(node, f"Unsupported type annotation {type(type_annotation)}")
+        return type_annotation, None
+
+
 @dispatch.register(token="relax", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     with self.var_table.with_frame():
         with R.function():
             R.func_name(node.name)
             if node.returns is not None:
-                R.func_ret_type(self.eval_expr(node.returns).type)
+                type, _ = eval_type_annotation(self, node.returns)
+                R.func_ret_type(type)
             with self.with_dispatch_token("relax"):
                 self.visit(node.args)
                 self.visit_body(node.body)
@@ -145,7 +172,6 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 @dispatch.register(token="relax", type_name="Expr")
 def visit_expr_stmt(self: Parser, node: doc.FunctionDef) -> None:
     value = self.eval_expr(node.value)
-
     if isinstance(value, MatchShapePair):
         R.emit_match_shape(value.value, value.pattern, emit_var=False, is_dataflow_var=False)
     elif isinstance(value, tuple):
@@ -171,23 +197,15 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_type = self.visit_tvm_annotation(arg.annotation)
-        param = R.arg(arg.arg, param_type)
-        # Define the symbolic shape var
-        if param_type.shape is not None:
-            for shape_expr in param_type.shape:
-                if isinstance(shape_expr, tir.Var):
-                    self.var_table.add(shape_expr.name, shape_expr)
+        param_type, param_shape = self.visit_tvm_annotation(arg.annotation)
+        param = R.arg(arg.arg, param_shape, param_type)
 
         self.var_table.add(arg.arg, param)
 
 
 @dispatch.register(token="relax", type_name="tvm_annotation")
 def visit_tvm_annotation(self: Parser, node: doc.expr):
-    annotation = self.eval_expr(node)
-    if callable(annotation):
-        annotation = annotation()
-    return annotation
+    return eval_type_annotation(self, node)
 
 
 @dispatch.register(token="relax", type_name="With")
@@ -272,6 +290,22 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         bind_value=bind_value_with_dataflow_var_names(dataflow_var_names=[], var_def_table=None),
         allow_shadowing=True,
     )
+
+
+@dispatch.register(token="relax", type_name="AnnAssign")
+def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
+    lhs = node.target
+    rhs = self.eval_expr(node.value)
+    ann_type, ann_shape = self.visit_tvm_annotation(node.annotation)
+    self.eval_assign(
+        target=lhs,
+        source=rhs,
+        bind_value=bind_value_with_dataflow_var_names(dataflow_var_names=[], var_def_table=None),
+        allow_shadowing=True,
+    )
+    var = self.var_table.get().get(lhs.id)
+    assert isinstance(var, relax.Var)
+    R.ir.annotate_type_shape(var, ann_type, ann_shape)
 
 
 @dispatch.register(token="relax", type_name="Return")

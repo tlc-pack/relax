@@ -190,6 +190,27 @@ def relax_print(*args: List[any]) -> None:
         print(format_str.format(*val_strs))
 
 
+def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
+    """Print op to print the values
+
+    Parameters
+    ----------
+    values : List[Expr]
+        The values to print.
+
+    format_str: str
+        The format string.
+
+    Returns
+    -------
+    result : Expr
+        A relax Call, which will print the value during runtime.
+    """
+    if isinstance(values, Expr):
+        values = [values]
+    return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
+
+
 def shape_of(expr: Expr) -> Expr:
     """Get shape of a tensor.
 
@@ -201,6 +222,6 @@ def shape_of(expr: Expr) -> Expr:
     Returns
     -------
     result : Expr
-        The shape of the input
+        A relax Call, which gets the shape of the input
     """
     return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
