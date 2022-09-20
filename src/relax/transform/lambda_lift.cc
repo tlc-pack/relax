@@ -133,9 +133,11 @@ class LambdaLifter : public ExprMutator {
     } else if (body->checked_type_.as<ObjectTypeNode>()) {
       // make_closure was introduced
       // TODO: Determine if we can fill in the return shape
-      visited_func = Function(params, body, body->checked_type_, RuntimeDepShape(), func_node->attrs);
+      visited_func =
+          Function(params, body, body->checked_type_, RuntimeDepShape(), func_node->attrs);
     } else {
-      visited_func = Function(params, body, func_node->ret_type, RuntimeDepShape(), func_node->attrs);
+      visited_func =
+          Function(params, body, func_node->ret_type, RuntimeDepShape(), func_node->attrs);
     }
     auto new_func = Downcast<Function>(visited_func);
 

@@ -60,7 +60,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
       return expr;
     }
     // The checked_type_ of the new function is deduced from the function body
-    // TODO: Should infer the shape from the body as well
+    // TODO(@relax-team): Should infer the shape from the body as well
     return Function(new_params, new_body, Type(), RuntimeDepShape(), func->attrs);
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
