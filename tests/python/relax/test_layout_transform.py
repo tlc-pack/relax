@@ -69,7 +69,7 @@ def print_flow(func):
     func.show()
 
 
-def apply_conv_layout_conversion(relay_before, new_layouts=["NHWC", "HWIO"]):
+def apply_conv_layout_conversion(relay_before, new_layouts=["NHWC", "default"]):
     relay_after = run_opt_pass(relay_before, transform.ConvertLayout({"nn.conv2d": new_layouts}))
     print_relay(relay_before, relay_after)
     relax_before = relay_translator.from_relay(
@@ -162,7 +162,7 @@ def test_reduce():
         x = relay.var("x", shape=(32, 64, 56, 56))
         weight = relay.var("weight", shape=(64, 64, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
-        y = reduce_op(y, axis=[2, 3])
+        y = reduce_op(y, axis=[2])
         y = relay.Function([x, weight], y)
         return y
 
@@ -173,7 +173,7 @@ def test_reduce():
         relax_before["sum"],
         "rxplaceholder_red",
         read_index_map=lambda N, C, H, W: (N, H, W, C),
-        write_index_map=lambda N, C: (N, C),
+        write_index_map=lambda N, C, W: (N, W, C),
     )
     print_flow(sum_after)
 
