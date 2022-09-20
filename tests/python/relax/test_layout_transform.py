@@ -122,7 +122,7 @@ def test_elemwise():
         relax_before["relu"],
         "T_relu",
         read_index_map=lambda N, C, H, W: (N, H, W, C),
-        write_index_map=lambda i0, i1, i2, i3: (i0, i1, i2, i3),
+        write_indices=[],
     )
     print_flow(relu_after)
 
@@ -262,7 +262,8 @@ def test_transpose():
         relax_before["transpose"],
         "T_transpose",
         read_index_map=lambda N, C, H, W: (N, H, W, C),
-        write_index_map=lambda i0, i1, i2, i3: (i0, i1, i2, i3),
+        # write_index_map=lambda i0, i1, i2, i3: (i0, i1, i2, i3),
+        # write_indices=[],
     )
     print_flow(transpose_after)
 
@@ -297,6 +298,42 @@ def test_split():
     split_after = flow_constraint(relax_before["split"], "T_split_sections")
     # apply constraints to second output
     split_after = flow_constraint(split_after, "T_split_sections_1", read_indices=[])
+    print_flow(split_after)
+
+
+def test_split_tiling():
+    def before():
+        x = relay.var("x", shape=(32, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.split(y, indices_or_sections=[10], axis=1).astuple()
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    relay_before = before()
+    print_relay(relay_before)
+    relax_before = relay_translator.from_relay(
+        relay_before, "llvm", disabled_pass=["AlterOpLayout"]
+    )
+    # Applying the layout transform on relay results in a type error as relay does not handle splitting arbitrary dimensions
+    # relay_before, relay_after, relax_before, relax_after = apply_conv_layout_conversion(
+    #     before(), new_layouts=["NCHW4c", "OIHW4i4o"]
+    # )
+    print_relax(relax_before["split"])
+    # apply constraints to input and first output
+    index_map = lambda N, C, H, W: (N, C // 4, H, W, C % 4)
+    split_after = flow_constraint(
+        relax_before["split"],
+        "T_split",
+        read_index_map=index_map,
+    )
+    # apply constraints to second output
+    split_after = flow_constraint(
+        split_after,
+        "T_split_1",
+        write_index_map=index_map,
+        read_indices=[],
+    )
     print_flow(split_after)
 
 
