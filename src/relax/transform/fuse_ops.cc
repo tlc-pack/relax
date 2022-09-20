@@ -447,6 +447,7 @@ class FunctionCreator : public ExprMutator {
     function_ = Function(/*params=*/params_,  //
                          /*body=*/body,       //
                          /*ret_type=*/body->checked_type_,
+                         /*ret_shape=*/Expr(),
                          /*attrs=*/DictAttrs(attrs));
   }
 

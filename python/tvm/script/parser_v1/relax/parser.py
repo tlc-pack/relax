@@ -680,6 +680,8 @@ class RelaxTransformer(Transformer):
             params,
             new_body,
             ret_type,
+            # TODO: Parse ret shape
+            relax.RuntimeDepShape(),
             attrs=None,
             span=self.to_tvm_span(func.span),
         )

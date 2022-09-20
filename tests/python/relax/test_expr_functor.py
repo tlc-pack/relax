@@ -565,7 +565,8 @@ def test_function():
     blocks = [relax.BindingBlock(bindings)]
     seq_expr = relax.SeqExpr(blocks, x)
     ret_type = relax.DynTensorType(-1, "float32")
-    func = relax.Function([x], seq_expr, ret_type)
+    ret_shape = relax.RuntimeDepShape()
+    func = relax.Function([x], seq_expr, ret_type, ret_shape)
     basic_check(
         func,
         "\n".join(
@@ -584,6 +585,7 @@ def test_function():
             [
                 "ShapeExpr",
                 "VarDef",
+                "RuntimeDepShape",
                 "Constant",
                 "ShapeExpr",
                 "VarDef",

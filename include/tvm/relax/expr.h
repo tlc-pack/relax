@@ -415,11 +415,14 @@ class FunctionNode : public BaseFuncNode {
   Expr body;
   /*! \brief The return type of the function. */
   Type ret_type;
+  /*! \brief The return shape of the function. */
+  Expr ret_shape;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
+    v->Visit("ret_shape", &ret_shape);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
     v->Visit("span", &span);
@@ -429,8 +432,9 @@ class FunctionNode : public BaseFuncNode {
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_type, other->ret_type) && equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_) && equal(attrs, other->attrs);
+           equal(ret_type, other->ret_type) && equal(ret_shape, other->ret_shape) &&
+           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_) &&
+           equal(attrs, other->attrs);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -438,6 +442,7 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce.DefHash(params);
     hash_reduce(body);
     hash_reduce(ret_type);
+    hash_reduce(ret_shape);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
     hash_reduce(attrs);
@@ -451,14 +456,14 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public BaseFunc {
  public:
-  TVM_DLL explicit Function(Array<Var> params, Expr body, Type ret_type,
+  TVM_DLL explicit Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape,
                             DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without type checking.
    */
   TVM_DLL static Function CreateUnchecked(Array<Var> params, Expr body, Type ret_type,
-                                          DictAttrs attrs = NullValue<DictAttrs>(),
+                                          Expr ret_shape, DictAttrs attrs = NullValue<DictAttrs>(),
                                           Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
