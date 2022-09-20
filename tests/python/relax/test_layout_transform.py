@@ -83,22 +83,26 @@ def apply_conv_layout_conversion(relay_before, new_layouts=["NHWC", "HWIO"]):
 def flow_constraint(
     func: relax.Function,
     block_name: str,
+    read_indices=[0],
+    write_indices=[0],
     read_index_map=lambda N, C, H, W: (N, H, W, C),
     write_index_map=None,
 ):
     if not write_index_map:
         write_index_map = read_index_map
     sch = tvm.tir.Schedule(func)
-    sch.transform_layout(
-        block_name,
-        ("read", 0),
-        index_map=read_index_map,
-    )
-    sch.transform_layout(
-        block_name,
-        ("write", 0),
-        index_map=write_index_map,
-    )
+    for read_idx in read_indices:
+        sch.transform_layout(
+            block_name,
+            ("read", read_idx),
+            index_map=read_index_map,
+        )
+    for write_idx in write_indices:
+        sch.transform_layout(
+            block_name,
+            ("write", write_idx),
+            index_map=write_index_map,
+        )
     return sch.mod["main"]
 
 
@@ -114,7 +118,12 @@ def test_elemwise():
     relay_before, relay_after, relax_before, relax_after = apply_conv_layout_conversion(before())
     print_relax(relax_before["relu"], relax_after["relu"])
 
-    relu_after = flow_constraint(relax_before["relu"], "T_relu")
+    relu_after = flow_constraint(
+        relax_before["relu"],
+        "T_relu",
+        read_index_map=lambda N, C, H, W: (N, H, W, C),
+        write_index_map=lambda i0, i1, i2, i3: (i0, i1, i2, i3),
+    )
     print_flow(relu_after)
 
 
@@ -145,9 +154,6 @@ def test_conv():
     relay_before, relay_after, relax_before, relax_after = apply_conv_layout_conversion(before())
     print_relax(relax_before["conv2d"], relax_after["conv2d"])
 
-    # conv2d_after = flow_constraint(conv2d, "conv2d_nhwc")
-    # print_flow(conv2d_after)
-
 
 def test_reduce():
     reduce_op = relay.sum
@@ -166,7 +172,7 @@ def test_reduce():
     sum_after = flow_constraint(
         relax_before["sum"],
         "rxplaceholder_red",
-        lambda N, C, H, W: (N, H, W, C),
+        read_index_map=lambda N, C, H, W: (N, H, W, C),
         write_index_map=lambda N, C: (N, C),
     )
     print_flow(sum_after)
@@ -228,10 +234,7 @@ def test_binary_broadcast():
     ) -> None:
         for i0, i1, i2, i3 in T.grid(32, 64, 56, 56):
             with T.block("T_add"):
-                ax0 = T.axis.spatial(32, i0)
-                ax1 = T.axis.spatial(64, i1)
-                ax2 = T.axis.spatial(56, i2)
-                ax3 = T.axis.spatial(56, i3)
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(rxplaceholder[ax0, ax1, ax2, ax3], rxplaceholder_1[ax0, 0, ax2, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = (
@@ -258,7 +261,7 @@ def test_transpose():
     transpose_after = flow_constraint(
         relax_before["transpose"],
         "T_transpose",
-        lambda N, C, H, W: (N, H, W, C),
+        read_index_map=lambda N, C, H, W: (N, H, W, C),
         write_index_map=lambda i0, i1, i2, i3: (i0, i1, i2, i3),
     )
     print_flow(transpose_after)
@@ -277,6 +280,24 @@ def test_pad():
     print_relax(relax_before["pad"], relax_after["pad"])
     pad_after = flow_constraint(relax_before["pad"], "T_pad")
     print_flow(pad_after)
+
+
+def test_split():
+    def before():
+        x = relay.var("x", shape=(32, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.split(y, indices_or_sections=2, axis=2).astuple()
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    relay_before, relay_after, relax_before, relax_after = apply_conv_layout_conversion(before())
+    print_relax(relax_before["split"], relax_after["split"])
+    # apply constraints to input and first output
+    split_after = flow_constraint(relax_before["split"], "T_split_sections")
+    # apply constraints to second output
+    split_after = flow_constraint(split_after, "T_split_sections_1", read_indices=[])
+    print_flow(split_after)
 
 
 if __name__ == "__main__":
