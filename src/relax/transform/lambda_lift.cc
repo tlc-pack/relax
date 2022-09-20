@@ -132,7 +132,7 @@ class LambdaLifter : public ExprMutator {
       visited_func = GetRef<Expr>(func_node);
     } else if (body->checked_type_.as<ObjectTypeNode>()) {
       // make_closure was introduced
-      // TODO: Determine if we can fill in the return shape
+      // TODO(@sslyu): Determine if we can fill in the return shape
       visited_func =
           Function(params, body, body->checked_type_, RuntimeDepShape(), func_node->attrs);
     } else {
