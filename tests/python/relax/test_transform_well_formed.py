@@ -32,7 +32,9 @@ def build_function(blocks, params=[]):
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
     ret_type = rx.DynTensorType(ndim=-1, dtype="float32")
     ret_shape = rx.RuntimeDepShape()
-    func = rx.Function([x, cond] + params, seq_expr, ret_type, ret_shape).with_attr("global_symbol", "foo")
+    func = rx.Function([x, cond] + params, seq_expr, ret_type, ret_shape).with_attr(
+        "global_symbol", "foo"
+    )
     return func
 
 
