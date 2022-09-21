@@ -721,6 +721,35 @@ def test_call_tir_extern():
     )
 
 
+def test_empty_shape():
+    @R.function
+    def f(x: Tensor((), "float32"), y: Tensor((), "float32")):
+        @T.prim_func
+        def scalar_add(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(a, ())
+            B = T.match_buffer(b, ())
+            C = T.match_buffer(c, ())
+
+            with T.block("add"):
+                C[()] = A[()] + B[()]
+
+
+        z = relax.call_tir(scalar_add, (x, y), (), dtype="float32")
+        return z    
+
+    x, y = f.params
+    add_bind, z_bind = f.body.blocks[0].bindings
+
+    assert add_bind.var.name_hint == "scalar_add"
+    assert isinstance(add_bind.value, tir.PrimFunc)
+
+    check_call(
+        z_bind.value,
+        "relax.call_tir",
+        [add_bind.var, relax.Tuple([x, y]), relax.ShapeExpr([])],
+    )
+
+
 def test_class_irmodule():
     @tvm.script.ir_module
     class MyModule:
