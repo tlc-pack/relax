@@ -83,14 +83,16 @@ def bind_value_with_dataflow_var_names(
             if value.name and var_name != value.name:
                 self.report_error(
                     node,
-                    "Cannot define TIR variables with different names. The LHS of binding should has the same name provided in RHS.",
+                    "Cannot define TIR variables with different names. The LHS of binding should "
+                    "has the same name provided in RHS.",
                 )
             if var_name in var_table:
                 prev_value = var_table[var_name]
                 if not isinstance(prev_value, tir.Var):
                     self.report_error(
                         node,
-                        "Cannot redefine a non-TIR-variable object to a TIR variable. Please define the TIR variable with another name.",
+                        "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
+                        "define the TIR variable with another name.",
                     )
                 if prev_value.dtype != value.dtype:
                     self.report_error(
