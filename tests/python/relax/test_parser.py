@@ -733,9 +733,8 @@ def test_empty_shape():
             with T.block("add"):
                 C[()] = A[()] + B[()]
 
-
         z = relax.call_tir(scalar_add, (x, y), (), dtype="float32")
-        return z    
+        return z
 
     x, y = f.params
     add_bind, z_bind = f.body.blocks[0].bindings
