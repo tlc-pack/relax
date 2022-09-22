@@ -114,7 +114,7 @@ class NaivePlanMemMutator : public ExprMutator {
   }
 
   void CollectLiveTensor(const Expr& expr) {
-    if (const auto* node = expr.as<VarNode>()) {
+    if (expr.as<VarNode>()) {
       Var var = Downcast<Var>(expr);
       if (tensors_.count(var) > 0) return_tensors_.insert(Downcast<Var>(var));
       Optional<Expr> val = LookupBinding(var);
