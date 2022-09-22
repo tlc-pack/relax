@@ -336,8 +336,26 @@ def test_vm_memory_lower():
 
     mod = TestVMMemoryLower
 
+    # after naive memory planning
+    mod_after_memory_plan = relax.transform.NaivePlanMemory()(mod)
+    func = mod_after_memory_plan["foo"]
+
+    assert isinstance(mod_after_memory_plan, tvm.IRModule)
+    assert isinstance(func, tvm.relax.expr.Function)
+    block = func.body.blocks[0]
+    s1 = block.bindings[0].value
+    assert isinstance(s1, tvm.relay.Call)
+    assert s1.op.name == "relax.memory.alloc_storage"
+    s2 = block.bindings[1].value
+    assert isinstance(s2, tvm.relay.Call)
+    assert s2.op.name == "relax.memory.alloc_tensor"
+    s4 = block.bindings[3].value
+    assert isinstance(s4, tvm.relay.Call)
+    assert isinstance(s4.op, relax.ExternFunc)
+    assert s4.op.global_symbol == "test.op.identity"
+
     # after vm memory lowering
-    new_mod = relax.transform.VMMemoryLower()(mod)
+    new_mod = relax.transform.VMMemoryLower()(mod_after_memory_plan)
     func = new_mod["foo"]
 
     assert isinstance(new_mod, tvm.IRModule)

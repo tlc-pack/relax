@@ -28,6 +28,8 @@ namespace tvm {
 namespace relax {
 
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
+TVM_REGISTER_NODE_TYPE(MemAllocStorageAttrs);
+TVM_REGISTER_NODE_TYPE(MemAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(VMAllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(VMAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeHeapAttrs);
@@ -239,6 +241,75 @@ Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
 
+// memory planning alloc_storage
+
+RELAY_REGISTER_OP("relax.memory.alloc_storage")
+    .set_attrs_type<MemAllocStorageAttrs>()
+    .set_num_inputs(1)
+    .add_argument("total_space", "Expr", "The total space of the storage to allocate.")
+    .set_attr<FInferType>("FInferType", ReturnObjectType);
+
+Expr MakeAllocStorage(Expr size, int64_t virtual_device_index, std::string storage_scope,
+                      DataType dtype) {
+  auto attrs = make_object<MemAllocStorageAttrs>();
+  attrs->virtual_device_index = std::move(virtual_device_index);
+  attrs->storage_scope = std::move(storage_scope);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("relax.memory.alloc_storage");
+  return Call(op, {size}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocStorage);
+
+// memory planning alloc_tensor
+
+Optional<Expr> InferShapeMemAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
+  return call->args[1];
+}
+
+Type InferTypeMemAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
+  auto attrs = call->attrs.as<MemAllocTensorAttrs>();
+  ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs , but got " << call->attrs->GetTypeKey();
+  if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
+    return DynTensorType(output_shape->values.size(), attrs->dtype);
+  }
+  return DynTensorType::CreateUnknownNDim(attrs->dtype, Span());
+}
+
+RELAY_REGISTER_OP("relax.memory.alloc_tensor")
+    .set_attrs_type<MemAllocTensorAttrs>()
+    .set_num_inputs(2)
+    .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
+    .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
+    .set_attr<FInferShape>("FInferShape", InferShapeMemAllocTensor)
+    .set_attr<FInferType>("FInferType", InferTypeMemAllocTensor);
+
+Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
+  auto attrs = make_object<MemAllocTensorAttrs>();
+  attrs->offset = std::move(offset);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("relax.memory.alloc_tensor");
+  return Call(op, {storage, shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocTensor);
+
+// memory planning kill_storage
+
+RELAY_REGISTER_OP("relax.memory.kill_storage")
+    .set_attrs_type<MemAllocStorageAttrs>()
+    .set_num_inputs(1)
+    .add_argument("storage", "Expr", "The storage to kill.")
+    .set_attr<FInferType>("FInferType", ReturnVoidType);
+
+// memory planning kill_tensor
+
+RELAY_REGISTER_OP("relax.memory.kill_tensor")
+    .set_attrs_type<MemAllocTensorAttrs>()
+    .set_num_inputs(1)
+    .add_argument("tensor", "Expr", "The tensor to kill.")
+    .set_attr<FInferType>("FInferType", ReturnVoidType);
+
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
@@ -280,10 +351,10 @@ RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
     .set_attr<FInferShape>("FInferShape", InferShapeVMAllocTensor)
     .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor);
 
-Expr MakeVMAllocTensor(Expr storage, Expr shape, DataType dtype, int64_t runtime_device_index) {
-  auto attrs = make_object<VMAllocStorageAttrs>();
+Expr MakeVMAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
+  auto attrs = make_object<VMAllocTensorAttrs>();
+  attrs->offset = std::move(offset);
   attrs->dtype = std::move(dtype);
-  attrs->runtime_device_index = std::move(runtime_device_index);
   static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
   return Call(op, {storage, shape}, Attrs(attrs), {});
 }

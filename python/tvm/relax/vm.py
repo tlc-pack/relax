@@ -501,6 +501,7 @@ def build(
 
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
+    passes.append(relax.transform.NaivePlanMemory())
     passes.append(relax.transform.VMMemoryLower())
     passes.append(relax.transform.VMShapeLower())
     seq = tvm.transform.Sequential(passes)

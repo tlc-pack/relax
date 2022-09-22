@@ -341,7 +341,7 @@ class ExprMutator : public ExprMutatorBase {
    * \param expr The expr to be visited.
    * \return The expr after visiting.
    */
-  Expr VisitWithNewScope(const Expr& expr);
+  virtual Expr VisitWithNewScope(const Expr& expr);
 
   /*!
    * \brief Look up the value bound to a variable.
