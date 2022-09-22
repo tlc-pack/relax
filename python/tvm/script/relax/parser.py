@@ -1399,7 +1399,8 @@ class RelaxTransformer(Transformer):
         elif isinstance(expr, ast.Tuple):
             fields = [self.transform_expr(field) for field in expr.values]
 
-            if all([isinstance(f, str) for f in fields]):
+            # Empty shape tuples should be treated as shape expressions.
+            if all([isinstance(f, str) for f in fields]) and len(fields) != 0:
                 return tuple(fields)
 
             # TODO(@altanh): this check might be too weak; we really only accept integral PrimExprs
