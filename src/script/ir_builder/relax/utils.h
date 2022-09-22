@@ -20,6 +20,7 @@
 #define TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
 
 #include <tvm/script/ir_builder/relax/frame.h>
+#include <tvm/script/ir_builder/relax/ir.h>
 
 namespace tvm {
 namespace script {
@@ -40,6 +41,26 @@ inline tvm::relax::BlockBuilder GetBlockBuilder() {
   CHECK(frame.defined()) << "ValueError: Relax Function frame not find. Please ensure "
                             "assignment is called under R.function()";
   return frame.value()->block_builder;
+}
+
+inline BlockFrame CheckBlockFrameExistAndUnended() {
+  // - If we're emitting a non-dataflow binding in the function (that is to say, the binding is not
+  // wrapped by `with R.dataflow()`), it is possible that there is no existing BlockFrame. In this
+  // case, we will create a BlockFrame and "enter its 'with' scope" first.
+  // - Otherwise, there is already an existing BlockFrame. We check if the block is "ended" - if a
+  // block is ended, it is not allowed to emit new bindings into this block, and we should throw
+  // exceptions.
+
+  Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  if (block_frame.defined()) {
+    CHECK(!block_frame.value()->block_ended)
+        << "ValueError: New binding is not allowed after dataflow block output.";
+    return block_frame.value();
+  }
+
+  BlockFrame new_block_frame = BindingBlock();
+  new_block_frame->EnterWithScope();
+  return new_block_frame;
 }
 
 }  // namespace relax

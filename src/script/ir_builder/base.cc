@@ -33,6 +33,9 @@ void IRBuilderFrameNode::ExitWithScope() {
     (*it)();
   }
   this->callbacks.clear();
+  ICHECK(IRBuilder::Current()->frames.back().get() == this)
+      << "The current frame is not the deepest frame in stack. Please pop out deeper frames before "
+         "popping out this frame.";
   IRBuilder::Current()->frames.pop_back();
 }
 

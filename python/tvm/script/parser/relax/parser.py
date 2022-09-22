@@ -16,9 +16,12 @@
 # under the License.
 # pylint: disable=missing-docstring,
 
-from typing import Any, Tuple
+import contextlib
+from typing import Any, Dict, List, Optional, Tuple
 
+from collections import defaultdict
 from tvm import tir, relax
+from tvm.script.ir_builder.relax.frame import BlockFrame
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
@@ -26,45 +29,105 @@ from .._core import Parser, dispatch, doc
 from .entry import MatchShapePair
 
 
-def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
-    var_table = self.var_table.get()
+class VarDefLoc:
+    def __init__(self, name: str, line: int, col: int):
+        self.name = name
+        self.line = line
+        self.col = col
 
-    if isinstance(value, tir.Var):
-        if value.name and var_name != value.name:
-            self.report_error(
-                node,
-                "Cannot define TIR variables with different names. The LHS of binding should has "
-                "the same name provided in RHS.",
+    def __str__(self):
+        return f"{self.name}@{self.line}:{self.col}"
+
+    def __repr__(self):
+        return f"{self.name}@{self.line}:{self.col}"
+
+
+def collect_var_definitions(stmts: List[doc.stmt]) -> Dict[str, List[VarDefLoc]]:
+    class Collector(doc.NodeVisitor):
+        results: Dict[str, List[VarDefLoc]]
+
+        def __init__(self):
+            self.results = defaultdict(list)
+
+        def visit_Name(self, node: doc.Name):  # pylint: disable=invalid-name
+            assert isinstance(node.ctx, doc.Store)
+            assert node.id
+            assert node.lineno is not None
+            assert node.col_offset is not None
+            self.results[node.id].append(
+                VarDefLoc(
+                    node.id,
+                    node.lineno,
+                    node.col_offset,
+                )
             )
-        if var_name in var_table:
-            prev_value = var_table[var_name]
-            if not isinstance(prev_value, tir.Var):
+
+    collector = Collector()
+    for stmt in stmts:
+        if isinstance(stmt, doc.Assign):
+            assert len(stmt.targets) == 1
+            collector.visit(stmt.targets[0])
+        elif isinstance(stmt, doc.AugAssign):
+            collector.visit(stmt.target)
+
+    return collector.results
+
+
+def bind_value_with_dataflow_var_names(
+    dataflow_var_names: List[str], var_def_table: Optional[Dict[str, List[VarDefLoc]]]
+):
+    def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+        var_table = self.var_table.get()
+
+        if isinstance(value, tir.Var):
+            if value.name and var_name != value.name:
                 self.report_error(
                     node,
-                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please define "
-                    "the TIR variable with another name.",
+                    "Cannot define TIR variables with different names. The LHS of binding should "
+                    "has the same name provided in RHS.",
                 )
-            if prev_value.dtype != value.dtype:
-                self.report_error(
-                    node,
-                    "Expected the same dtype for TIR vars "
-                    f"but got {value.dtype} vs {prev_value.dtype}",
-                )
-            return prev_value
-        IRBuilder.name(var_name, value)
-        return value
-    elif isinstance(value, relax.Expr):
-        var = R.emit(value)
-        IRBuilder.name(var_name, var)
-        return var
-    elif isinstance(value, MatchShapePair):
-        var = R.emit_match_shape(value.value, value.pattern, emit_var=True)
-        # It's an internal check, so directly use assert here.
-        assert var is not None
-        IRBuilder.name(var_name, var)
-        return var
-    else:
-        raise TypeError(f"Unsupported type {type(value)} in assignment")
+            if var_name in var_table:
+                prev_value = var_table[var_name]
+                if not isinstance(prev_value, tir.Var):
+                    self.report_error(
+                        node,
+                        "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
+                        "define the TIR variable with another name.",
+                    )
+                if prev_value.dtype != value.dtype:
+                    self.report_error(
+                        node,
+                        "Expected the same dtype for TIR vars "
+                        f"but got {value.dtype} vs {prev_value.dtype}",
+                    )
+                return prev_value
+            IRBuilder.name(var_name, value)
+            return value
+
+        is_dataflow_var = False
+        if var_def_table is not None and (
+            var_name not in dataflow_var_names or node.lineno != var_def_table[var_name][-1].line
+        ):
+            is_dataflow_var = True
+
+        if isinstance(value, relax.Expr):
+            var = R.emit(value, is_dataflow_var)
+            # It's an internal check, so directly use assert here.
+            assert var is not None
+            IRBuilder.name(var_name, var)
+            return var
+        elif isinstance(value, MatchShapePair):
+            var = R.emit_match_shape(
+                value.value, value.pattern, emit_var=True, is_dataflow_var=is_dataflow_var
+            )
+            # It's an internal check, so directly use assert here.
+            assert var is not None
+            IRBuilder.name(var_name, var)
+            return var
+        else:
+            raise TypeError(f"Unsupported type {type(value)} in assignment")
+
+    return bind_assign_value
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
@@ -84,7 +147,20 @@ def visit_expr_stmt(self: Parser, node: doc.FunctionDef) -> None:
     value = self.eval_expr(node.value)
 
     if isinstance(value, MatchShapePair):
-        R.emit_match_shape(value.value, value.pattern, emit_var=False)
+        R.emit_match_shape(value.value, value.pattern, emit_var=False, is_dataflow_var=False)
+    elif isinstance(value, tuple):
+        # Currently `res` must be the return value of `R.output`. In order to make these variables
+        # accessible to the bindings of following binding blocks, we should pop these variables into
+        # the variable table of one level higher.
+        for var_name in self.var_table.frames[-1].vars:
+            if self.var_table.name2value[var_name][-1] in value:
+                var = self.var_table.name2value[var_name][-1]
+                # Pop up the variable to the variable table one level higher.
+                if var_name in self.var_table.frames[-2].vars:
+                    self.var_table.name2value[var_name][-2] = var
+                else:
+                    self.var_table.frames[-2].add(var_name)
+                    self.var_table.name2value[var_name].append(var)
     elif value is not None:
         self.report_error(node, f"Unsupported Expr stmt type {value}.")
 
@@ -114,13 +190,88 @@ def visit_tvm_annotation(self: Parser, node: doc.expr):
     return annotation
 
 
+@dispatch.register(token="relax", type_name="With")
+def visit_with(self: Parser, node: doc.With) -> None:
+    # Currently only `with R.dataflow()` is supported
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(self.var_table.with_frame())
+        if len(node.items) != 1:
+            self.report_error(node, "Only one dataflow block is allowed")
+        for item in node.items:
+            frame = self.eval_expr(item.context_expr)
+            if not isinstance(frame, BlockFrame):
+                self.report_error(
+                    item.context_expr, "Invalid context expression in the with-statement."
+                )
+            stack.enter_context(frame)
+            if item.optional_vars is not None:
+                self.report_error(
+                    item.context_expr,
+                    "Relax syntax doesn't allow binding expressions in `with` to variables",
+                )
+
+        assert isinstance(node.body, list)
+        var_def_table = collect_var_definitions(node.body)
+
+        if (
+            not isinstance(node.body[-1], doc.Expr)
+            or not isinstance(node.body[-1].value, doc.Call)
+            or node.body[-1].value.func.attr != "output"
+        ):
+            self.report_error(
+                node.body[-1],
+                "Relax dataflow blocks must have output. However, the last statement inside a "
+                "dataflow block is not `R.output`. Please use `R.output` to specify the output of "
+                "the dataflow block.",
+            )
+
+        dataflow_var_names = []
+        for arg in node.body[-1].value.args:
+            if not isinstance(arg, doc.Name):
+                self.report_error(
+                    arg,
+                    "The output of Relax dataflow blocks must be all variables. However, one of "
+                    "the dataflow block output is not a variable. Please make sure all output are "
+                    "variables.",
+                )
+            dataflow_var_names.append(arg.id)
+
+        for i in range(len(node.body) - 1):
+            if not isinstance(node.body[i], doc.Assign):
+                self.report_error(
+                    node.body[i],
+                    "One non-assign statement appears unexpectedly inside a dataflow block. Only "
+                    "the last statement inside a dataflow block is an Expr. Please make sure this "
+                    "statement appears at a correct position.",
+                )
+            if len(node.body[i].targets) != 1:
+                self.report_error(
+                    node.body[i], "Consequential assignments like 'a = b = c' are not supported."
+                )
+            lhs = node.body[i].targets[0]
+            rhs = self.eval_expr(node.body[i].value)
+            self.eval_assign(
+                target=lhs,
+                source=rhs,
+                bind_value=bind_value_with_dataflow_var_names(dataflow_var_names, var_def_table),
+                allow_shadowing=True,
+            )
+
+        self.visit(node.body[-1])
+
+
 @dispatch.register(token="relax", type_name="Assign")
 def visit_assign(self: Parser, node: doc.Assign) -> None:
     if len(node.targets) != 1:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
     rhs = self.eval_expr(node.value)
-    self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value, allow_shadowing=True)
+    self.eval_assign(
+        target=lhs,
+        source=rhs,
+        bind_value=bind_value_with_dataflow_var_names(dataflow_var_names=[], var_def_table=None),
+        allow_shadowing=True,
+    )
 
 
 @dispatch.register(token="relax", type_name="Return")

@@ -117,25 +117,36 @@ TVM_DLL BlockFrame BindingBlock();
  */
 TVM_DLL BlockFrame Dataflow();
 
+/*!
+ * \brief Expose the dataflow block output variables as global ones
+ * \param vars The output variables of a dataflow block
+ */
+TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
+
 ////////////////////////////// Bindings ////////////////////////////////
 
 /*!
  * \brief Emit a binding to the last binding block frame.
  * \param value The right side value of the bindings to be emitted.
+ * \param is_dataflow_var A boolean indicating if the emitted binding variable is a dataflow
+ * variable.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value);
+TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value, bool is_dataflow_var);
 
 /*!
  * \brief Emit a match_shape binding to the last binding block frame.
  * \param value The value of the MatchShape to be emitted.
  * \param pattern The pattern of the MatchShape to be emitted.
- * \param emit_var The flag that indicate if the match_shape contains the emitted var.
- * \return The emitted var if `emit_var` is true, otherwise, `NullOpt`.
+ * \param emit_var A boolean indicating if the MatchShape contains the emitted variable.
+ * \param is_dataflow_var A boolean indicating if the emitted variable is a dataflow variable when
+ * `emit_var` is true. When `emit_var` is false, the value of this flag will be ignored.
+ * \return The emitted var if `emit_var` is true. Otherwise, return `NullOpt`.
  */
-TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,
-                                                 const Array<PrimExpr>& pattern,
-                                                 bool emit_var = true);
+TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
+                                                 const Array<PrimExpr>& pattern,  //
+                                                 bool emit_var,                   //
+                                                 bool is_dataflow_var);
 
 }  // namespace relax
 }  // namespace ir_builder

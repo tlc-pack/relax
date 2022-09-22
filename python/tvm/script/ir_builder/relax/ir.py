@@ -17,7 +17,7 @@
 # pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Type
@@ -158,17 +158,6 @@ def func_ret_value(value: Expr) -> None:
 ############################# BindingBlock ##############################
 
 
-def binding_block() -> frame.BlockFrame:
-    """Start a binding block frame.
-
-    Returns
-    -------
-    frame: frame.BlockFrame
-        The created ir_builder Block frame.
-    """
-    return _ffi_api.BindingBlock()  # pylint: disable=no-member # type: ignore
-
-
 def dataflow() -> frame.BlockFrame:
     """Start a dataflow binding block frame.
 
@@ -180,16 +169,36 @@ def dataflow() -> frame.BlockFrame:
     return _ffi_api.Dataflow()  # pylint: disable=no-member # type: ignore
 
 
+def output(*vars: Tuple[Var]) -> Tuple[Var]:
+    """Expose the dataflow block output variables as global ones.
+
+    Parameters
+    ----------
+    vars: Tuple[Var]
+        The output variables of a dataflow block.
+
+    Returns
+    -------
+    vars: Tuple[Var]
+        The output variables of a dataflow block. Return the input variables to parser side for
+        followup process
+    """
+    _ffi_api.DataflowBlockOutput(vars)  # pylint: disable=no-member # type: ignore
+    return vars
+
+
 ############################### Bindings ###############################
 
 
-def emit(value: Expr) -> Var:
+def emit(value: Expr, is_dataflow_var: bool) -> Var:
     """Emit a binding to the last binding block frame.
 
     Parameters
     ----------
     value: Expr
         The right side value of the bindings to be emitted.
+    is_dataflow_var: bool
+        A boolean indicating if the emitted binding variable is a dataflow variable.
 
     Returns
     -------
@@ -197,11 +206,32 @@ def emit(value: Expr) -> Var:
         The left side var of the emitted binding.
 
     """
-    return _ffi_api.Emit(value)  # type: ignore
+    return _ffi_api.Emit(value, is_dataflow_var)  # pylint: disable=no-member # type: ignore
 
 
-def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool = True) -> Var:
-    return _ffi_api.EmitMatchShape(value, pattern, emit_var)  # type: ignore
+def emit_match_shape(
+    value: Expr, pattern: List[PrimExpr], emit_var: bool, is_dataflow_var: bool
+) -> Optional[Var]:
+    """Emit a match_shape binding to the last binding block frame.
+
+    Parameters
+    ----------
+    value: Expr
+        The value of the MatchShape to be emitted.
+    pattern: List[PrimExpr]
+        The pattern of the MatchShape to be emitted.
+    emit_var: bool
+        A boolean indicating if the MatchShape contains the emitted variable.
+    is_dataflow_var: bool
+        A boolean indicating if the emitted variable is a dataflow variable when `emit_var` is True.
+        When `emit_var` is False, the value of this flag will be ignored.
+
+    Returns
+    -------
+    var: Optional[Var]
+        The emitted var if `emit_var` is True. Otherwise, return `None`.
+    """
+    return _ffi_api.EmitMatchShape(value, pattern, emit_var, is_dataflow_var)  # type: ignore
 
 
 ############################### Importer ###############################
@@ -210,7 +240,6 @@ __all__ = [
     "TensorType",
     "add",
     "arg",
-    "binding_block",
     "builtin",
     "call_tir",
     "dataflow",
@@ -224,6 +253,7 @@ __all__ = [
     "invoke_closure",
     "make_closure",
     "multiply",
+    "output",
     "unique",
     "shape_of",
     "tensor",

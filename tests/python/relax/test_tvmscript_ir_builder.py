@@ -35,7 +35,9 @@ def test_function_simple():
             R.func_attr({"Primitive": 1})
             x = R.arg("x", R.tensor((128, 128), "float32"))
             R.func_ret_type(R.tensor(dtype="float32", ndim=2))
-            out = R.emit(R.call_tir("extern_func", x, (128, 128), dtype="float32"))
+            out = R.emit(
+                R.call_tir("extern_func", x, (128, 128), dtype="float32"), is_dataflow_var=False
+            )
             IRBuilder.name("out", out)
             R.func_ret_value(out)
     func = ir_builder.get()
@@ -72,8 +74,8 @@ def test_match_shape():
             y = R.arg("y", R.tensor(ndim=-1, dtype="float32"))
             m = tir.Var("m", dtype="int64")
             n = tir.Var("n", dtype="int64")
-            R.emit_match_shape(x, (m,), emit_var=False)
-            y1 = R.emit_match_shape(y, (n,), emit_var=True)
+            R.emit_match_shape(x, (m,), emit_var=False, is_dataflow_var=False)
+            y1 = R.emit_match_shape(y, (n,), emit_var=True, is_dataflow_var=False)
             IRBuilder.name("y1", y1)
             R.func_ret_value(relax.ShapeExpr([m, n * 2]))
     func = ir_builder.get()
@@ -91,6 +93,45 @@ def test_match_shape():
     mod = bb.get()
 
     tvm.ir.assert_structural_equal(func, mod["foo"])
+
+
+def test_dataflow_block():
+    """
+    @R.function
+    def foo(x: Tensor((128, 128), "float32")) -> Tensor(None, "float32", ndim = 2):
+        # block 0
+        with R.dataflow():
+            lv0 = R.call_tir("extern_func", (x,), (128, 128), dtype="float32")
+            gv: Tensor((128, 128), "float32") = lv0
+            R.output(gv)
+        return gv
+    """
+    # create with Script IRBuilder
+    with IRBuilder() as ir_builder:
+        with R.function():
+            R.func_name("foo")
+            x = R.arg("x", R.tensor((128, 128), "float32"))
+            with R.dataflow():
+                lv0 = R.emit(
+                    R.call_tir("extern_func", x, (128, 128), dtype="float32"), is_dataflow_var=True
+                )
+                IRBuilder.name("lv0", lv0)
+                gv = R.emit(lv0, is_dataflow_var=False)
+                IRBuilder.name("gv", gv)
+                R.output(gv)
+            R.func_ret_value(gv)
+    func = ir_builder.get()
+
+    # create with BlockBuilder
+    x = relax.Var("x", (128, 128), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        with bb.dataflow():
+            lv0 = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
+            gv = bb.emit_output(lv0)
+        bb.emit_func_output(gv)
+
+    tvm.ir.assert_structural_equal(func, bb.get()["foo"])
 
 
 if __name__ == "__main__":

@@ -47,30 +47,6 @@ class RelaxFrame : public IRBuilderFrame {
   RelaxFrame() = default;
 };
 
-/*! \brief The ir_builder frame for relax binding blocks. */
-class BlockFrameNode : public RelaxFrameNode {
- public:
-  /*! \brief The flag that indicates whether the block is a dataflow block. */
-  bool is_dataflow;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    RelaxFrameNode::VisitAttrs(v);
-    v->Visit("is_dataflow", &is_dataflow);
-  }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, RelaxFrameNode);
-
- public:
-  void EnterWithScope() final;
-  void ExitWithScope() final;
-};
-
-class BlockFrame : public RelaxFrame {
- public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, RelaxFrame, BlockFrameNode);
-};
-
 /*! \brief The ir_builder frame for the relax function. */
 class FunctionFrameNode : public RelaxFrameNode {
  public:
@@ -94,12 +70,10 @@ class FunctionFrameNode : public RelaxFrameNode {
   Map<String, ObjectRef> attrs;
   /*! \brief The binding blocks inside the function. */
   Array<tvm::relax::BindingBlock> binding_blocks;
-  /*! \brief The function output expr. */
-  Array<tvm::relax::Expr> outputs;
+  /*! \brief The function output expr. `NullOpt` when undefined. */
+  Optional<tvm::relax::Expr> output;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
-  /*! \brief The default binding block frame of the function. */
-  BlockFrame default_binding_block_frame{nullptr};
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     RelaxFrameNode::VisitAttrs(v);
@@ -108,22 +82,54 @@ class FunctionFrameNode : public RelaxFrameNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("attrs", &attrs);
     v->Visit("binding_blocks", &binding_blocks);
-    v->Visit("outputs", &outputs);
+    v->Visit("output", &output);
     // `block_builder` is not visited.
-    // `default_binding_block_frame` is not visited.
   }
 
   static constexpr const char* _type_key = "script.ir_builder.relax.FunctionFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, RelaxFrameNode);
 
  public:
-  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 
 class FunctionFrame : public RelaxFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionFrame, RelaxFrame, FunctionFrameNode);
+};
+
+/*! \brief The ir_builder frame for relax binding blocks. */
+class BlockFrameNode : public RelaxFrameNode {
+ public:
+  /*! \brief The flag that indicates whether the block is a dataflow block. */
+  bool is_dataflow;
+  /*! \brief The variables emitted in this block. */
+  Array<tvm::relax::Var> emitted_vars;
+  /*!
+   * \brief (Only used for a dataflow block.) A boolean indicating if the dataflow block is ended of
+   * construction. If it is true, any new binding trying to be emitted into this block will cause an
+   * error.
+   */
+  bool block_ended;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    RelaxFrameNode::VisitAttrs(v);
+    v->Visit("is_dataflow", &is_dataflow);
+    v->Visit("emitted_vars", &emitted_vars);
+    v->Visit("block_ended", &block_ended);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, RelaxFrameNode);
+
+ public:
+  void EnterWithScope() final;
+  void ExitWithScope() final;
+};
+
+class BlockFrame : public RelaxFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, RelaxFrame, BlockFrameNode);
 };
 
 }  // namespace relax
