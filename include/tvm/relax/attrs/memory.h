@@ -26,6 +26,8 @@
 
 #include <tvm/ir/attrs.h>
 
+#include <string>
+
 namespace tvm {
 namespace relax {
 
