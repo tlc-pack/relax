@@ -25,7 +25,7 @@ from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
 from ...ir import Array
 
-py_print = print
+py_print = print  # pylint: disable=invalid-name
 
 
 def call_tir(

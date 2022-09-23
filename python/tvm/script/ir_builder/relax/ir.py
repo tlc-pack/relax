@@ -203,10 +203,31 @@ def output(*vars: Tuple[Var]) -> Tuple[Var]:
 
 def call_packed(
     func: str,
-    *args,
+    *args: List[Expr],
     attrs: Optional[Attrs] = None,
     type_args: Optional[Union[TensorType, List[TensorType]]] = None,
-):
+) -> Call:
+    """Create a relax Call, which calls a packed function.
+
+    Parameters
+    ----------
+    func: str
+        The name of extern function.
+
+    args : List[Expr]
+        The arguments.
+
+    attrs: Optional[Attrs]
+        The call attributes
+
+    type_args: Optional[Union[TensorType, List[TensorType]]]
+        List of Types
+
+    Returns
+    -------
+    call: Call
+        The created Relax Call
+    """
     op = ExternFunc(func)
     if type_args is None:
         raise ValueError(f"R.call_packed is required to have type_args")
