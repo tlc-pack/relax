@@ -127,6 +127,10 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       if (args.size() > 3) {
         inputs = std::vector<RegType>(args.size() - 3);
         for (int i = 3; i < args.size(); i++) {
+          if (args[i].type_code() == kTVMDLTensorHandle) {
+            SetInputTensorWithIndex(inputs, args[i], i - 3, devices[0]);
+            continue;
+          }
           inputs[i - 3] = args[i];
         }
       }
