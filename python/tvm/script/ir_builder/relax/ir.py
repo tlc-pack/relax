@@ -20,16 +20,15 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
-from tvm.ir import Type, Attrs
-from tvm.relax import Expr, Var, ExternFunc, Call, ShapeExpr
+from tvm.ir import Attrs, Type
+from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, Var
 from tvm.relax.op import call_tir
 from tvm.relax.ty import ObjectType, ShapeType
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
 
-from . import _ffi_api
-from . import frame
 from ..tir import var as _tir_var
+from . import _ffi_api, frame
 
 ############################### Operators ###############################
 from tvm.relax.op import print, shape_of, make_closure, invoke_closure

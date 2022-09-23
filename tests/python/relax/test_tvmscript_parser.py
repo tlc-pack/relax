@@ -463,8 +463,6 @@ def test_empty_shape():
     assert len(shape_expr.values) == 0
 
 
-
-
 def test_other_cases():
     # They are corner case tests, which is only to check if it can be parsed.
     # No need to add structural equal checks here
@@ -475,6 +473,7 @@ def test_other_cases():
     @R.function
     def bar(x: R.Tensor):
         return R.print(x, format="{}")
+
 
 if __name__ == "__main__":
     tvm.testing.main()

@@ -208,10 +208,10 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr, bool is_dataflow_var) {
   return var;
 }
 
-TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
-                                                 const Array<PrimExpr>& pattern,  //
-                                                 bool emit_var,                   //
-                                                 bool is_dataflow_var) {
+Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
+                                         const Array<PrimExpr>& pattern,  //
+                                         bool emit_var,                   //
+                                         bool is_dataflow_var) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
   tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
 
