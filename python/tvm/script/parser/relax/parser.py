@@ -17,17 +17,17 @@
 # pylint: disable=missing-docstring,
 
 import contextlib
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from collections import defaultdict
-from tvm import tir, relax
+from tvm import relax, tir
 from tvm.ir import Type
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
-from ...ir_builder import relax as R, tir as T
+from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair, TensorType, Tensor
+from .entry import MatchShapePair, Tensor, TensorType
 
 
 class VarDefLoc:
@@ -162,8 +162,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         with R.function():
             R.func_name(node.name)
             if node.returns is not None:
-                type, _ = eval_type_annotation(self, node.returns)
-                R.func_ret_type(type)
+                ann_type, _ = eval_type_annotation(self, node.returns)
+                R.func_ret_type(ann_type)
             with self.with_dispatch_token("relax"):
                 self.visit(node.args)
                 self.visit_body(node.body)

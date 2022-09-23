@@ -81,8 +81,8 @@ def tensor(
 
 ############################## Other Types ##############################
 
-Object = ObjectType()
-Shape = ShapeType()
+Object = ObjectType()  # pylint: disable=invalid-name
+Shape = ShapeType()  # pylint: disable=invalid-name
 
 ############################### Function ################################
 
@@ -214,11 +214,11 @@ def call_packed(
         type_args = [type_args]
     elif isinstance(type_args, tuple):
         type_args = list(type_args)
-    for i, arg in enumerate(type_args):
-        if isinstance(arg, TensorType):
-            type_args[i] = arg.type
-        elif isinstance(arg, Type):
-            type_args[i] = arg
+    for i, argument in enumerate(type_args):
+        if isinstance(argument, TensorType):
+            type_args[i] = argument.type
+        elif isinstance(argument, Type):
+            type_args[i] = argument
         else:
             raise TypeError(
                 "call_packed `type_args` is expected to be list of TensorType, "

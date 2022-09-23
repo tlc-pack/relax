@@ -13,6 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
+# pylint: disable=redefined-builtin
 """Basic tensor operations."""
 import numpy as np
 import tvm

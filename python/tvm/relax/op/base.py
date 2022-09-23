@@ -13,6 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
+# pylint: disable=redefined-builtin
 """The base Relax operators."""
 from typing import Union, List, Optional
 
@@ -24,6 +25,7 @@ from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
 from ...ir import Array
 
+py_print = print
 
 def call_tir(
     func: Union[str, Expr],
@@ -185,9 +187,9 @@ def relax_print(*args: List[any]) -> None:
 
     val_strs = map(render, args[:-1])
     if format_str == "":
-        print(*val_strs)
+        py_print(*val_strs)
     else:
-        print(format_str.format(*val_strs))
+        py_print(format_str.format(*val_strs))
 
 
 def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
