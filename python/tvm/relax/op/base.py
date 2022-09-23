@@ -27,6 +27,7 @@ from ...ir import Array
 
 py_print = print
 
+
 def call_tir(
     func: Union[str, Expr],
     args: Union[Expr, Tuple, List[Expr]],
