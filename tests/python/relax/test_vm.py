@@ -1209,6 +1209,24 @@ def test_save_function_kwargs_rpc():
     run_on_rpc(TestVMSetInput, save_function_kwargs_trial)
 
 
+def save_function_time_evaluator_trial(
+    vm: relax.VirtualMachine, device: tvm.runtime.Device
+) -> None:
+    # just checking that the saved function can be called in the time evaluator
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
+    vm.save_function("main", "saved_main", a, b)
+    vm.time_evaluator("saved_main", device)()
+
+
+def test_save_function_time_evaluator():
+    save_function_time_evaluator_trial(*make_vm(TestVMSetInput))
+
+
+def test_save_function_time_evaluator():
+    run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial)
+
+
 # if you set an input, you should not be able to call statelessly
 @pytest.mark.xfail()
 def test_set_input_stateless_failure():
