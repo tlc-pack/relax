@@ -266,7 +266,8 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
     } else if (IsBaseOf(type, var_type)) {
       // The var type is more detailed, do nothing.
     } else {
-      LOG(FATAL) << "TypeError: The var type and the annotated type are not competitive.";
+      LOG(FATAL) << "TypeError: The annotated type and value type are not compatible. "
+                 << "The Type is expected to be " << var_type << " but got annotation: " << type;
     }
   }
 
