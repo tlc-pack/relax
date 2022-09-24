@@ -98,7 +98,7 @@ def function() -> frame.FunctionFrame:
     return _ffi_api.Function()  # pylint: disable=no-member # type: ignore
 
 
-def arg(name: str, shape: ShapeExpr, type: Type) -> Var:
+def arg(name: str, type: Union[Type, TensorType], shape: Optional[ShapeExpr] = None) -> Var:
     """Add a parameter to the last function frame.
 
     Parameters
@@ -106,18 +106,26 @@ def arg(name: str, shape: ShapeExpr, type: Type) -> Var:
     name: str
         The name of the parameter.
 
-    shape: Shape
-        The shape of the parameter.
+    type: Union[Type, TensorType]
+        The type of the parameter. It can be a typical TVM Type or a TensorType,
+        which contains both type and shape
 
-    type: Type
-        The type of the parameter.
+    shape: Optional[ShapeExpr]
+        The shape of the parameter.
 
     Returns
     -------
     var: Var
         The created function parameter var.
     """
-    return _ffi_api.Arg(name, shape, type)  # pylint: disable=no-member # type: ignore
+
+    if isinstance(type, TensorType):
+        if shape is not None:
+            raise ValueError("Cannot specify the shape if we use TensorType")
+        shape = type.shape
+        type = type.type
+
+    return _ffi_api.Arg(name, type, shape)  # pylint: disable=no-member # type: ignore
 
 
 def func_name(name: str) -> None:

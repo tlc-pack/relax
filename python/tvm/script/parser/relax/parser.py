@@ -198,7 +198,7 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_type, param_shape = self.visit_tvm_annotation(arg.annotation)
-        param = R.arg(arg.arg, param_shape, param_type)
+        param = R.arg(arg.arg, param_type, param_shape)
 
         self.var_table.add(arg.arg, param)
 

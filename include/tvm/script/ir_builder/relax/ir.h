@@ -74,12 +74,12 @@ TVM_DLL FunctionFrame Function();
 /*!
  * \brief Add a parameter to the last function frame.
  * \param name The name of the parameter.
- * \param shape The shape of the parameter.
  * \param type The type of the parameter.
+ * \param shape The shape of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const tvm::relax::ShapeExpr& shape,
-                            const Type& type);
+TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type,
+                            const tvm::relax::ShapeExpr& shape);
 
 /*!
  * \brief Specify the name of the last function frame.
