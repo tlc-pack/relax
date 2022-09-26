@@ -337,5 +337,49 @@ def test_split_tiling():
     print_flow(split_after)
 
 
+def test_split_untiling():
+    def before():
+        x = relay.var("x", shape=(32, 16, 56, 56, 4))
+        weight = relay.var("weight", shape=(16, 16, 3, 3, 4, 4))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW4c",
+            kernel_layout="OIHW4i4o",
+        )
+        y = relay.split(y, indices_or_sections=[10], axis=1).astuple()
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    relay_before = before()
+    print_relay(relay_before)
+    relax_before = relay_translator.from_relay(
+        relay_before, "llvm", disabled_pass=["AlterOpLayout"]
+    )
+    # Applying the layout transform on relay results in a type error as relay does not handle splitting arbitrary dimensions
+    # relay_before, relay_after, relax_before, relax_after = apply_conv_layout_conversion(
+    #     before(), new_layouts=["NCHW4c", "OIHW4i4o"]
+    # )
+    print_relax(relax_before)
+    # apply constraints to input and first output
+    index_map = lambda N, C, H, W, c: (N, C * 4 + c, H, W)
+    split_after = flow_constraint(
+        relax_before["split"],
+        "T_split",
+        read_index_map=index_map,
+    )
+    # apply constraints to second output
+    split_after = flow_constraint(
+        split_after,
+        "T_split_1",
+        write_index_map=index_map,
+        read_indices=[],
+    )
+    print_flow(split_after)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
