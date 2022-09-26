@@ -52,10 +52,11 @@ void FunctionFrameNode::ExitWithScope() {
   func = WithAttr(func, "global_symbol", name.value());
   // Step 2: Update IRModule.
   if (builder->frames.empty()) {
-    // Case 0. If there is no output module frame.
+    // Case 0. No outer frame, return function directly
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
   } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
+    // Case 1. A global function of an IRModule
     CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
                              "function scope, if it's defined in a Module";
     const IRModuleFrame& frame = opt_frame.value();

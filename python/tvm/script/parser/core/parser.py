@@ -19,8 +19,8 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional, Set, Union
-from tvm._ffi.base import TVMError
 
+from tvm._ffi.base import TVMError
 from tvm.error import DiagnosticError
 
 from . import dispatch, doc
@@ -198,7 +198,7 @@ class Parser(doc.NodeVisitor):
         self, node: doc.AST, err: Union[Exception, str]
     ) -> None:  # pylint: disable=no-self-use
         # Only take the last line of the error message
-        if isinstance(err, TVMError):
+        if isinstance(err, (TVMError, ValueError, TypeError)):
             msg = list(filter(None, str(err).split("\n")))[-1]
         else:
             msg = str(err)

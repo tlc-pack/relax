@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 from typing import Union
+
+import pytest
 import tvm
 import tvm.testing
-
-from tvm import relax, tir
-from tvm import IRModule
-from tvm.script.parser import ir as I, tir as T, relax as R
+from tvm import IRModule, relax, tir
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def _check(
@@ -461,6 +462,37 @@ def test_empty_shape():
 
     assert isinstance(shape_expr, relax.ShapeExpr)
     assert len(shape_expr.values) == 0
+
+
+def test_local_function():
+    @R.function
+    def main(
+        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
+    ) -> R.Tensor((2, 3), "float32"):
+        @R.function
+        def outer_func(
+            c1: R.Tensor((2, 3), "float32")
+        ) -> R.Callable((R.Tensor(None, "float32", ndim=2),), R.Tensor(None, "float32", ndim=2)):
+            @R.function
+            def inner_func(x1: R.Tensor((2, 3), "float32")):
+                s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
+                return s
+
+            return inner_func
+
+        in_call = outer_func(x)
+        res = in_call(y)
+        return res
+
+    main_bindings = main.body.blocks[0].bindings
+    assert len(main_bindings) == 3
+    outer_func = main_bindings[0].value
+    assert isinstance(outer_func, relax.Function)
+
+    outer_func_bindings = outer_func.body.blocks[0].bindings
+    assert len(outer_func_bindings) == 1
+    inner_func = outer_func_bindings[0].value
+    assert isinstance(inner_func, relax.Function)
 
 
 def test_other_cases():
