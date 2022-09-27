@@ -146,8 +146,12 @@ class NaivePlanMemMutator : public ExprMutator {
       for (Expr field : node->fields) {
         CollectLiveObject(field);
       }
+    } else if (const auto* node = expr.as<CallNode>()) {
+      for (Expr arg : node->args) {
+        CollectLiveObject(arg);
+      }
     } else if (const auto* node = expr.as<VarNode>()) {
-      if (!expr->checked_type_.defined()) return;
+      if (!expr->checked_type_.defined()) return;  // TODO
       if (expr->checked_type().as<DynTensorTypeNode>()) {
         // It's a tensor(TODO: function parameter)
         const ExprNode* expr_node = alias_map_[node];
@@ -222,14 +226,17 @@ class NaivePlanMemMutator : public ExprMutator {
     }
     BindingBlock memory_kill_block = builder_->EndBlock();
 
-    if (!prologue->bindings.empty()) {
-      ret = SeqExpr({prologue}, ret);
-    }
-    if (const auto* node = ret.as<SeqExprNode>()) {
-      Array<BindingBlock> blocks(node->blocks);
+    if (auto* node = ret.as<SeqExprNode>()) {
+      Array<BindingBlock> blocks = node->blocks;
       blocks.push_back(memory_kill_block);
       ret = SeqExpr(blocks, node->body);
+    } else if (!prologue->bindings.empty()) {
+      ret = (memory_kill_block->bindings.empty()) ? SeqExpr({prologue}, ret)
+                                                  : SeqExpr({prologue, memory_kill_block}, ret);
+    } else {
+      ret = SeqExpr({memory_kill_block}, ret);
     }
+
     tensors_.clear();
     storages_.clear();
     live_objects_.clear();
