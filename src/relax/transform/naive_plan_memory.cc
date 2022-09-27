@@ -151,7 +151,7 @@ class NaivePlanMemMutator : public ExprMutator {
         CollectLiveObject(arg);
       }
     } else if (const auto* node = expr.as<VarNode>()) {
-      if (!expr->checked_type_.defined()) return;  // TODO
+      if (!expr->checked_type_.defined()) return;  //  TODO(@Lesheng Jin): Remove it?
       if (expr->checked_type().as<DynTensorTypeNode>()) {
         // It's a tensor(TODO: function parameter)
         const ExprNode* expr_node = alias_map_[node];
