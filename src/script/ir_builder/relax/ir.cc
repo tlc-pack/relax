@@ -262,6 +262,8 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
   } else {
     const Type& var_type = var->checked_type();
     if (IsBaseOf(var_type, type)) {
+      LOG(WARNING) << "The type inferred by the block builder is more refined than the annotated "
+                      "one. The system will refine it automatically.";
       var->checked_type_ = type;
     } else if (IsBaseOf(type, var_type)) {
       // The var type is more detailed, do nothing.
