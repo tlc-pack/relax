@@ -26,7 +26,7 @@ from tvm.script.ir_builder.relax.frame import BlockFrame
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
-from .._core import Parser, dispatch, doc
+from .._core import Parser, dispatch, doc, parse
 from .entry import MatchShapePair, Tensor, TensorType
 
 
@@ -179,7 +179,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
 
 @dispatch.register(token="relax", type_name="Expr")
-def visit_expr_stmt(self: Parser, node: doc.FunctionDef) -> None:
+def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     value = self.eval_expr(node.value)
     if isinstance(value, MatchShapePair):
         R.emit_match_shape(value.value, value.pattern, emit_var=False, is_dataflow_var=False)

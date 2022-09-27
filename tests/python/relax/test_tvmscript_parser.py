@@ -494,6 +494,27 @@ def test_local_function():
     inner_func = outer_func_bindings[0].value
     assert isinstance(inner_func, relax.Function)
 
+    @I.ir_module
+    class TestModule:
+        @R.function
+        def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
+            @T.prim_func
+            def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                C = T.match_buffer(c, (128, 128))
+
+                for i, j, k in T.grid(128, 128, 128):
+                    with T.block():
+                        vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                        with T.init():
+                            C[vi, vj] = 0.0
+                        C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+            z = relax.call_tir(my_matmul, (x, y), (128, 128), dtype="float32")
+            return z
+
+    print(TestModule.script())
 
 def test_other_cases():
     # They are corner case tests, which is only to check if it can be parsed.
@@ -508,4 +529,5 @@ def test_other_cases():
 
 
 if __name__ == "__main__":
+    test_local_function()
     tvm.testing.main()
