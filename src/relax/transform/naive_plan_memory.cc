@@ -99,33 +99,84 @@ class NaivePlanMemMutator : public ExprMutator {
 
       Var storage = builder_->Emit(
           Call(memory_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
+      storages_.push_back(storage);
+      alias_map_[storage.get()] = storage.get();
+
       auto tensor_attr = make_object<MemAllocTensorAttrs>();
       tensor_attr->offset = 0;
       tensor_attr->dtype = dtype;
       Expr shape = call->args[0];
-      Var tensor = builder_->Emit(
-          Call(memory_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
-      tensors_.insert(tensor);
-      tensor2storage_[tensor] = storage;
-      return std::move(tensor);
+      return Call(memory_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr));
     }
 
     return GetRef<Expr>(call);
   }
 
-  void CollectLiveTensor(const Expr& expr) {
-    if (expr.as<VarNode>()) {
-      Var var = Downcast<Var>(expr);
-      if (tensors_.count(var) > 0) return_tensors_.insert(Downcast<Var>(var));
-      Optional<Expr> val = LookupBinding(var);
-      if (val.as<ExprNode>()) {
-        CollectLiveTensor(Downcast<Expr>(val));
+  void VisitBinding_(const VarBindingNode* binding) {
+    Expr new_value = this->VisitExpr(binding->value);
+    Var new_var = this->VisitVarDef(binding->var);
+
+    static const Op& memory_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
+    static const Op& make_closure_op = Op::Get("relax.make_closure");
+
+    if (const auto* node = new_value.as<CallNode>()) {
+      if (node->op == memory_alloc_tensor_op) {
+        tensors_.push_back(new_var);
+        alias_map_[new_var.get()] = new_var.get();
+        this->builder_->Emit(VarBinding(new_var, new_value));
+        return;
+      } else if (node->op == make_closure_op) {
+        alias_map_[new_var.get()] = node;
       }
+    } else if (const auto* node = new_value.as<VarNode>()) {
+      // handle aliasing
+      auto iter = alias_map_.find(node);
+      if (iter != alias_map_.end()) {
+        alias_map_[new_var.get()] = iter->second;
+      }
+    } else if (const auto* node = new_value.as<TupleNode>()) {
+      alias_map_[new_var.get()] = node;
     }
 
+    this->builder_->Emit(GetRef<VarBinding>(binding));
+  }
+
+  void CollectLiveObject(const Expr& expr) {
     if (const auto* node = expr.as<TupleNode>()) {
       for (Expr field : node->fields) {
-        CollectLiveTensor(field);
+        CollectLiveObject(field);
+      }
+    } else if (const auto* node = expr.as<VarNode>()) {
+      if (!expr->checked_type_.defined()) return;
+      if (expr->checked_type().as<DynTensorTypeNode>()) {
+        // It's a tensor(TODO: function parameter)
+        const ExprNode* expr_node = alias_map_[node];
+        if (const VarNode* var_node = GetRef<Expr>(expr_node).as<VarNode>())
+          if (std::find(tensors_.begin(), tensors_.end(), GetRef<Var>(var_node)) != tensors_.end())
+            live_objects_.insert(GetRef<Var>(var_node));
+      } else if (expr->checked_type().as<ObjectTypeNode>()) {
+        // It can be a storage or Closure
+        if (alias_map_.count(node) > 0) {
+          const ExprNode* expr_node = alias_map_[node];
+          if (const VarNode* var_node = GetRef<Expr>(expr_node).as<VarNode>()) {
+            if (std::find(storages_.begin(), storages_.end(), GetRef<Var>(var_node)) !=
+                storages_.end())
+              // it is a storage object
+              live_objects_.insert(GetRef<Var>(var_node));
+          } else {
+            // it is a closure, visit args of make_closure
+            const CallNode* closure_node = static_cast<const CallNode*>(expr_node);
+            for (Expr arg : closure_node->args) {
+              CollectLiveObject(arg);
+            }
+          }
+        }
+      } else if (expr->checked_type().as<TupleTypeNode>()) {
+        // It's a Tuple, redirect to the original TupleNode
+        auto* tuple_node = alias_map_[node];
+        CollectLiveObject(GetRef<Expr>(tuple_node));
+      } else {
+        // Do nothing to ShapeType and FuncType
       }
     }
   }
@@ -136,28 +187,38 @@ class NaivePlanMemMutator : public ExprMutator {
 
     builder_->BeginBindingBlock();
     Expr ret = this->VisitExpr(expr);
+    BindingBlock prologue = builder_->EndBlock();
 
-    if (const auto* node = ret.as<SeqExprNode>()) {
-      CollectLiveTensor(node->body);
+    if (ret.as<TupleNode>()) {
+      CollectLiveObject(ret);
+    } else if (ret.as<VarNode>()) {
+      CollectLiveObject(ret);
     } else if (const auto* node = ret.as<CallNode>()) {
       for (Expr arg : node->args) {
-        if (arg.as<VarNode>()) {
-          CollectLiveTensor(arg);
-        }
+        CollectLiveObject(arg);
       }
+    } else if (const auto* node = ret.as<SeqExprNode>()) {
+      CollectLiveObject(node->body);
     } else {
-      CollectLiveTensor(ret);
+      // Constant: Do nothing
+      // DataflowVar: Should not appear in the module
+      // ShapeExprNode: Do nothing
+      // RuntimeDepShapeNode: Should not be the return
+      // ExternFunc: Do nothing
+      // GlobalVar: Do nothing
+      // FunctionNode: Do nothing
+      // IfNode: Should not be the return
+      // OpNode: Should not be the return
     }
 
-    BindingBlock prologue = builder_->EndBlock();
     builder_->BeginBindingBlock();
-    for (Var tensor : tensors_) {
-      // if the tensor is not used in return, kill that tensor and storage.
-      if (return_tensors_.count(tensor) == 0) {
-        Var storage = tensor2storage_[tensor];
+    for (int i = 0; i < tensors_.size(); i++) {
+      Var tensor = tensors_[i];
+      Var storage = storages_[i];
+      if (live_objects_.count(tensor) == 0)
         builder_->Emit(Call(memory_kill_tensor_op, {tensor}, {}), "kill_tensor");
+      if (live_objects_.count(tensor) == 0 && live_objects_.count(storage) == 0)
         builder_->Emit(Call(memory_kill_storage_op, {storage}, {}), "kill_storage");
-      }
     }
     BindingBlock memory_kill_block = builder_->EndBlock();
 
@@ -170,15 +231,17 @@ class NaivePlanMemMutator : public ExprMutator {
       ret = SeqExpr(blocks, node->body);
     }
     tensors_.clear();
-    tensor2storage_.clear();
-    return_tensors_.clear();
+    storages_.clear();
+    live_objects_.clear();
+    alias_map_.clear();
     return ret;
   }
 
  private:
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> tensors_;
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> tensor2storage_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> return_tensors_;
+  std::vector<Var> tensors_;
+  std::vector<Var> storages_;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> live_objects_;
+  std::unordered_map<const VarNode*, const ExprNode*> alias_map_;
 };
 
 Expr NaivePlanMem(const Expr& e) { return NaivePlanMemMutator().VisitExpr(e); }

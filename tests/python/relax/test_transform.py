@@ -349,10 +349,10 @@ def test_vm_memory_lower():
     s2 = block.bindings[1].value
     assert isinstance(s2, tvm.relay.Call)
     assert s2.op.name == "relax.memory.alloc_tensor"
-    s4 = block.bindings[3].value
-    assert isinstance(s4, tvm.relay.Call)
-    assert isinstance(s4.op, relax.ExternFunc)
-    assert s4.op.global_symbol == "test.op.identity"
+    s3 = block.bindings[2].value
+    assert isinstance(s3, tvm.relay.Call)
+    assert isinstance(s3.op, relax.ExternFunc)
+    assert s3.op.global_symbol == "test.op.identity"
 
     # after vm memory lowering
     new_mod = relax.transform.VMMemoryLower()(mod_after_memory_plan)
@@ -367,10 +367,10 @@ def test_vm_memory_lower():
     assert s1.op.name == "relax.vm.builtin.alloc_storage"
     s2 = block.bindings[1].value
     assert isinstance(s2, tvm.relay.Call)
-    s4 = block.bindings[3].value
-    assert isinstance(s4, tvm.relay.Call)
-    assert isinstance(s4.op, relax.ExternFunc)
-    assert s4.op.global_symbol == "test.op.identity"
+    s3 = block.bindings[2].value
+    assert isinstance(s3, tvm.relay.Call)
+    assert isinstance(s3.op, relax.ExternFunc)
+    assert s3.op.global_symbol == "test.op.identity"
 
 
 def test_vm_shape_lowering():
