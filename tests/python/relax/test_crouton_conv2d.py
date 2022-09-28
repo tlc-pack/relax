@@ -107,15 +107,17 @@ def flow_constraint(
     return sch.mod["main"]
 
 
-data_transform = lambda N, C, H, W: (N, H // 8, W // 8, C // 32, H % 8, W % 8, C % 32)
-filter_transform = lambda K, C, H, W: (K // 32, C // 32, H, W, (C % 32) // 4, K % 32, C % 4)
+data_transform = lambda N, H, W, C: (N, H // 8, W // 8, C // 32, H % 8, W % 8, C % 32)
+filter_transform = lambda FH, FW, C, K: (K // 32, C // 32, FH, FW, (C % 32) // 4, K % 32, C % 4)
 
 
 def before():
-    x = relay.var("x", shape=(1, 64, 43, 37))
-    weight = relay.var("weight", shape=(64, 64, 3, 3))
+    N, C, H, W = 4, 62, 52, 52
+    K, FH, FW = 25, 3, 3
+    x = relay.var("x", shape=(N, H, W, C))
+    weight = relay.var("weight", shape=(FH, FW, C, K))
     y = relay.nn.conv2d(
-        x, weight, channels=64, kernel_size=(3, 3), data_layout="NCHW", kernel_layout="OIHW"
+        x, weight, channels=K, kernel_size=(FH, FW), data_layout="NHWC", kernel_layout="HWIO"
     )
     y = relay.Function(analysis.free_vars(y), y)
     return y
@@ -133,74 +135,30 @@ def test_conv_relay():
 class ConvModule:
     @T.prim_func
     def conv2d(
-        rxplaceholder: T.Buffer[(1, 64, 43, 37), "float32"],
-        rxplaceholder_1: T.Buffer[(64, 64, 3, 3), "float32"],
-        output_unpack: T.Buffer[(1, 64, 41, 35), "float32"],
+        rxplaceholder: T.Buffer[(4, 52, 52, 62), "float32"],
+        rxplaceholder_1: T.Buffer[(3, 3, 62, 25), "float32"],
+        conv2d_nhwc: T.Buffer[(4, 50, 50, 25), "float32"],
     ) -> None:
-        data_vec = T.alloc_buffer([1, 16, 43, 37, 4], dtype="float32")
-        kernel_vec = T.alloc_buffer([16, 16, 3, 3, 4, 4], dtype="float32")
-        conv2d_NCHWc = T.alloc_buffer([1, 16, 41, 35, 4], dtype="float32")
-        for i0, i1, i2, i3, i4 in T.grid(1, 16, 43, 37, 4):
-            with T.block("data_vec"):
-                bs, c, h, w, vc = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(rxplaceholder[bs, c * 4 + vc, h, w])
-                T.writes(data_vec[bs, c, h, w, vc])
-                data_vec[bs, c, h, w, vc] = rxplaceholder[bs, c * 4 + vc, h, w]
-        for i0, i1, i2, i3, i4, i5 in T.grid(16, 16, 3, 3, 4, 4):
-            with T.block("kernel_vec"):
-                occ, icc, k_h, k_w, icb, ocb = T.axis.remap("SSSSSS", [i0, i1, i2, i3, i4, i5])
-                T.reads(rxplaceholder_1[occ * 4 + ocb, icc * 4 + icb, k_h, k_w])
-                T.writes(kernel_vec[occ, icc, k_h, k_w, icb, ocb])
-                kernel_vec[occ, icc, k_h, k_w, icb, ocb] = rxplaceholder_1[
-                    occ * 4 + ocb, icc * 4 + icb, k_h, k_w
-                ]
-        for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(1, 16, 41, 35, 4, 64, 3, 3):
-            with T.block("conv2d_NCHWc"):
-                n, oc_chunk, oh, ow, oc_block, ic, kh, kw = T.axis.remap(
-                    "SSSSSRRR", [i0, i1, i2, i3, i4, i5, i6, i7]
-                )
-                T.reads(
-                    data_vec[n, ic // 4, oh + kh, ow + kw, ic % 4],
-                    kernel_vec[oc_chunk, ic // 4, kh, kw, ic % 4, oc_block],
-                )
-                T.writes(conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block])
-                T.block_attr(
-                    {
-                        "workload": [
-                            "conv2d_NCHWc.x86",
-                            ["TENSOR", [1, 64, 43, 37], "float32"],
-                            ["TENSOR", [64, 64, 3, 3], "float32"],
-                            [1, 1],
-                            [0, 0, 0, 0],
-                            [1, 1],
-                            "NCHW",
-                            "NCHW",
-                            "float32",
-                        ]
-                    }
-                )
+        for i0, i1, i2, i3, i4, i5, i6 in T.grid(4, 50, 50, 25, 3, 3, 62):
+            with T.block("conv2d_nhwc"):
+                nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
+                T.reads(rxplaceholder[nn, yy + ry, xx + rx, rc], rxplaceholder_1[ry, rx, rc, ff])
+                T.writes(conv2d_nhwc[nn, yy, xx, ff])
                 with T.init():
-                    conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = T.float32(0)
-                conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block] = (
-                    conv2d_NCHWc[n, oc_chunk, oh, ow, oc_block]
-                    + data_vec[n, ic // 4, oh + kh, ow + kw, ic % 4]
-                    * kernel_vec[oc_chunk, ic // 4, kh, kw, ic % 4, oc_block]
+                    conv2d_nhwc[nn, yy, xx, ff] = T.float32(0)
+                conv2d_nhwc[nn, yy, xx, ff] = (
+                    conv2d_nhwc[nn, yy, xx, ff]
+                    + rxplaceholder[nn, yy + ry, xx + rx, rc] * rxplaceholder_1[ry, rx, rc, ff]
                 )
-        for i0, i1, i2, i3 in T.grid(1, 64, 41, 35):
-            with T.block("output_unpack"):
-                n, c, h, w = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                T.reads(conv2d_NCHWc[n, c // 4, h, w, c % 4])
-                T.writes(output_unpack[n, c, h, w])
-                output_unpack[n, c, h, w] = conv2d_NCHWc[n, c // 4, h, w, c % 4]
 
     @R.function
     def main(
-        x: Tensor((1, 64, 43, 37), "float32"), weight: Tensor((64, 64, 3, 3), "float32")
+        x: Tensor((4, 52, 52, 62), "float32"), weight: Tensor((3, 3, 62, 25), "float32")
     ) -> Tensor(None, "float32", ndim=4):
         # block 0
         with R.dataflow():
-            lv = R.call_tir(conv2d, (x, weight), (1, 64, 41, 35), dtype="float32")
-            gv: Tensor((1, 64, 41, 35), "float32") = lv
+            lv = R.call_tir(conv2d, (x, weight), (4, 50, 50, 25), dtype="float32")
+            gv: Tensor((4, 50, 50, 25), "float32") = lv
             R.output(gv)
         return gv
 
@@ -213,9 +171,15 @@ def test_conv_relax():
     relax_before = relay_translator.from_relay(
         relay_before, "llvm", disabled_pass=["AlterOpLayout"]
     )
-    print_relax(relax_before)
+    # print_relax(relax_before)
     relax_before = ConvModule
     relax_before.show()
+
+    sch = tvm.tir.Schedule(relax_before["conv2d"])
+    sch.transform_layout("conv2d_nhwc", ("read", 0), data_transform)
+    sch.transform_layout("conv2d_nhwc", ("write", 0), data_transform)
+    sch.transform_layout("conv2d_nhwc", ("read", 1), filter_transform)
+    sch.mod.show()
 
 
 def test_conv_crouton_relax():
