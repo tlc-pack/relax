@@ -74,10 +74,12 @@ TVM_DLL FunctionFrame Function();
 /*!
  * \brief Add a parameter to the last function frame.
  * \param name The name of the parameter.
- * \param type The type and the shape of the parameter.
+ * \param type The type of the parameter.
+ * \param shape The shape of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const TensorType& type);
+TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type,
+                            const tvm::relax::ShapeExpr& shape);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -147,6 +149,19 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
                                                  const Array<PrimExpr>& pattern,  //
                                                  bool emit_var,                   //
                                                  bool is_dataflow_var);
+
+///////////////////////////// Type Deduce //////////////////////////////
+
+/*!
+ * \brief Annotate and check the type and shape of relax var.
+ * \param var The input var to be annotated.
+ * \param type The given type.
+ * \param shape The given shape, which can be undefined.
+ * \note This function will check if the type of var is compatible with the given type.
+ * And we annotate to the var with more detailed type.
+ */
+TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
+                               const Optional<tvm::relax::ShapeExpr>& shape);
 
 }  // namespace relax
 }  // namespace ir_builder

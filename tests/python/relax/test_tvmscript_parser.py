@@ -360,5 +360,120 @@ def test_function_without_return():
             gv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
 
 
+def test_tensor_type_without_args():
+    @R.function
+    def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        v = R.call_tir("tir_relu", x, (32, 32), dtype="float32")
+        return v
+
+    x = relax.Var("x", (32, 32), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        v = bb.emit(relax.call_tir("tir_relu", x, (32, 32), dtype="float32"))
+        bb.emit_func_output(v)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_direct_return():
+    @R.function
+    def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
+        return x
+
+    x = relax.Var("x", (32, 32), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        bb.emit_func_output(x)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_call_packed():
+    @R.function
+    def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        z = R.call_packed("vm.builtin.copy", x, type_args=R.Tensor((32, 32), "float32"))
+        return z
+
+    x = relax.Var("x", (32, 32), relax.DynTensorType(2, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        z = bb.emit(
+            relax.Call(
+                relax.ExternFunc("vm.builtin.copy"),
+                (x,),
+                None,
+                type_args=[relax.DynTensorType(2, "float32")],
+            )
+        )
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_annotation():
+    @R.function
+    def foo(
+        x: R.Tensor((32, "m"), "float32"),
+        y: R.Tensor(("m"), "float32"),
+        r: R.Tensor(dtype="int64"),
+    ) -> R.Object:
+        m = T.var("int64")
+        z: R.Tensor((32, m), "float32") = R.multiply(x, y)
+        w: R.Tensor = R.multiply(z, z)
+        q: R.Tensor(ndim=2) = R.add(w, w)
+        t = R.add(w, z)
+        sh: R.Shape = R.shape_of(t)
+        o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
+        return o
+
+    m = tir.Var("m", "int64")
+    x = relax.Var("x", (32, m), relax.DynTensorType(2, "float32"))
+    y = relax.Var("y", (m,), relax.DynTensorType(1, "float32"))
+    r = relax.Var("r", None, relax.DynTensorType(-1, "int64"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x, y, r)):
+        z = bb.emit(R.multiply(x, y))
+        w = bb.emit(R.multiply(z, z))
+        q = bb.emit(R.add(w, w))
+        t = bb.emit(R.add(w, z))
+        sh = bb.emit(R.shape_of(t))
+        o = bb.emit(
+            relax.Call(
+                relax.ExternFunc("contrib.tensor_array_stack"),
+                [x, y],
+                None,
+                type_args=[relax.ObjectType()],
+            )
+        )
+        bb.emit_func_output(o)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_empty_shape():
+    @R.function
+    def foo(x: R.Tensor((), "float32")):
+        z = R.call_tir("scalar_add", x, (), dtype="float32")
+        return z
+
+    (z_bind,) = foo.body.blocks[0].bindings
+    shape_expr = z_bind.value.args[2]
+
+    assert isinstance(shape_expr, relax.ShapeExpr)
+    assert len(shape_expr.values) == 0
+
+
+def test_other_cases():
+    # They are corner case tests, which is only to check if it can be parsed.
+    # No need to add structural equal checks here
+    @R.function
+    def foo(x: R.Tensor):
+        return R.unique(x, sorted=True)
+
+    @R.function
+    def bar(x: R.Tensor):
+        return R.print(x, format="{}")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

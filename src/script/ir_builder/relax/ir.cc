@@ -79,9 +79,9 @@ FunctionFrame Function() {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const TensorType& type) {
+tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::ShapeExpr& shape) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  tvm::relax::Var var(name, type->shape, type->type);
+  tvm::relax::Var var(name, shape, type);
   frame->params.push_back(var);
   return var;
 }
@@ -208,10 +208,10 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr, bool is_dataflow_var) {
   return var;
 }
 
-TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
-                                                 const Array<PrimExpr>& pattern,  //
-                                                 bool emit_var,                   //
-                                                 bool is_dataflow_var) {
+Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
+                                         const Array<PrimExpr>& pattern,  //
+                                         bool emit_var,                   //
+                                         bool is_dataflow_var) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
   tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
 
@@ -251,6 +251,41 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(EmitMatchShape);
+
+///////////////////////////// Type Deduce //////////////////////////////
+
+void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
+                       const Optional<tvm::relax::ShapeExpr>& shape) {
+  using tvm::relax::IsBaseOf;
+  if (!var->checked_type_.defined()) {
+    var->checked_type_ = type;
+  } else {
+    const Type& var_type = var->checked_type();
+    if (IsBaseOf(type, var_type)) {
+      // The var type is equal or more detailed than annotated one, do nothing.
+    } else if (IsBaseOf(var_type, type)) {
+      LOG(WARNING) << "The inferred type of var " << var->name_hint()
+                   << " by the block builder is more refined than the annotated one. The system "
+                      "will refine it automatically.";
+      var->checked_type_ = type;
+    } else {
+      LOG(FATAL) << "TypeError: The annotated type and value type are not compatible. "
+                 << "The Type is expected to be " << var_type << " but got annotation: " << type;
+    }
+  }
+
+  if (!var->shape_.defined()) {
+    var->shape_ = shape;
+  } else if (shape.defined()) {
+    const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+    tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
+    CHECK(block_builder->CanProveShapeEqual(var_shape, shape.value()))
+        << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
+        << " but got annotation: " << shape.value();
+  }
+}
+
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
 
 }  // namespace relax
 }  // namespace ir_builder

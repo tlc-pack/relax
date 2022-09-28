@@ -148,7 +148,7 @@ class Diagnostics:
         self.ctx = diagnostics.DiagnosticContext(mod, diagnostics.get_renderer())
 
     def _emit(self, node: doc.AST, message: str, level: diagnostics.DiagnosticLevel) -> None:
-        lineno = node.lineno or self.source.start_line
+        lineno = node.lineno or 1
         col_offset = node.col_offset or self.source.start_column
         end_lineno = node.end_lineno or lineno
         end_col_offset = node.end_col_offset or col_offset

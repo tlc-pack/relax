@@ -109,9 +109,9 @@ RELAY_REGISTER_OP("relax.print")
     .set_attr<FInferType>("FInferType", ReturnVoidType)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
 
-Expr MakePrint(Array<Expr> vals, std::string format_str) {
+Expr MakePrint(Array<Expr> vals, std::string format) {
   auto attrs = make_object<PrintAttrs>();
-  attrs->format = format_str;
+  attrs->format = format;
   static const Op& op = Op::Get("relax.print");
   return Call(op, vals, Attrs(attrs));
 }

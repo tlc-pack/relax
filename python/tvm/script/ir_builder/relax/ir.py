@@ -20,18 +20,18 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
-from tvm.ir import Type
-from tvm.relax import Expr, Var
+from tvm.ir import Attrs, Type
+from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, Var
 from tvm.relax.op import call_tir
-from tvm.runtime import Object
+from tvm.relax.ty import ObjectType, ShapeType
+from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
 
-from . import _ffi_api
-from . import frame
 from ..tir import var as _tir_var
+from . import _ffi_api, frame
 
 ############################### Operators ###############################
-from tvm.relax.op import shape_of, make_closure, invoke_closure
+from tvm.relax.op import print, shape_of, make_closure, invoke_closure
 from tvm.relax.op import add, multiply, unique
 from tvm.relax.op import builtin
 
@@ -40,7 +40,7 @@ from tvm.relax.op import builtin
 
 
 @_register_object("script.ir_builder.relax.TensorType")
-class TensorType(Object):
+class TensorType(tvm_Object):
     """A temporary Tensor type for `R.Tensor` in ir_builder."""
 
 
@@ -67,14 +67,22 @@ def tensor(
     tensor_type: TensorType
         The TensorType that is only used in ir_builder.
     """
-    if isinstance(shape, (tuple, list)):
-        shape = list(shape)
+
+    if shape is not None:
+        if not isinstance(shape, list):
+            shape = list(shape)
+
         for i, s in enumerate(shape):
             if isinstance(s, str):
                 shape[i] = _tir_var("int64", s)
 
     return _ffi_api.Tensor(shape, dtype, ndim)  # pylint: disable=no-member # type: ignore
 
+
+############################## Other Types ##############################
+
+Object = ObjectType()  # pylint: disable=invalid-name
+Shape = ShapeType()  # pylint: disable=invalid-name
 
 ############################### Function ################################
 
@@ -90,7 +98,7 @@ def function() -> frame.FunctionFrame:
     return _ffi_api.Function()  # pylint: disable=no-member # type: ignore
 
 
-def arg(name: str, type: TensorType) -> Var:
+def arg(name: str, type: Union[Type, TensorType], shape: Optional[ShapeExpr] = None) -> Var:
     """Add a parameter to the last function frame.
 
     Parameters
@@ -98,15 +106,26 @@ def arg(name: str, type: TensorType) -> Var:
     name: str
         The name of the parameter.
 
-    type: TensorType
-        The type and the shape of the parameter.
+    type: Union[Type, TensorType]
+        The type of the parameter. It can be a typical TVM Type or a TensorType,
+        which contains both type and shape
+
+    shape: Optional[ShapeExpr]
+        The shape of the parameter.
 
     Returns
     -------
     var: Var
         The created function parameter var.
     """
-    return _ffi_api.Arg(name, type)  # pylint: disable=no-member # type: ignore
+
+    if isinstance(type, TensorType):
+        if shape is not None:
+            raise ValueError("Cannot specify the shape if we use TensorType")
+        shape = type.shape
+        type = type.type
+
+    return _ffi_api.Arg(name, type, shape)  # pylint: disable=no-member # type: ignore
 
 
 def func_name(name: str) -> None:
@@ -120,7 +139,7 @@ def func_name(name: str) -> None:
     return _ffi_api.FuncName(name)  # pylint: disable=no-member # type: ignore
 
 
-def func_attr(attrs: Dict[str, Object]) -> None:
+def func_attr(attrs: Dict[str, tvm_Object]) -> None:
     """Specify the attrs of the last function frame.
 
     Parameters
@@ -187,6 +206,57 @@ def output(*vars: Tuple[Var]) -> Tuple[Var]:
     return vars
 
 
+################################## Ops #################################
+
+
+def call_packed(
+    func: str,
+    *args: List[Expr],
+    attrs: Optional[Attrs] = None,
+    type_args: Optional[Union[TensorType, List[TensorType]]] = None,
+) -> Call:
+    """Create a relax Call, which calls a packed function.
+
+    Parameters
+    ----------
+    func: str
+        The name of extern function.
+
+    args : List[Expr]
+        The arguments.
+
+    attrs: Optional[Attrs]
+        The call attributes
+
+    type_args: Optional[Union[TensorType, List[TensorType]]]
+        List of Types
+
+    Returns
+    -------
+    call: Call
+        The created Relax Call
+    """
+    op = ExternFunc(func)
+    if type_args is None:
+        raise ValueError(f"R.call_packed is required to have type_args")
+    if isinstance(type_args, (TensorType, Type)):
+        type_args = [type_args]
+    elif isinstance(type_args, tuple):
+        type_args = list(type_args)
+    for i, argument in enumerate(type_args):
+        if isinstance(argument, TensorType):
+            type_args[i] = argument.type
+        elif isinstance(argument, Type):
+            type_args[i] = argument
+        else:
+            raise TypeError(
+                "call_packed `type_args` is expected to be list of TensorType/Type, "
+                f"but got {type(arg)}"
+            )
+
+    return Call(op, args, attrs=attrs, type_args=type_args)
+
+
 ############################### Bindings ###############################
 
 
@@ -234,13 +304,37 @@ def emit_match_shape(
     return _ffi_api.EmitMatchShape(value, pattern, emit_var, is_dataflow_var)  # type: ignore
 
 
+############################# Type Deduce ##############################
+
+
+def annotate_type_shape(var: Var, type: Type, shape: ShapeExpr) -> None:
+    """Annotate and check the type of relax var.
+
+    Parameters
+    ----------
+    var: Var
+        The input var to be annotated.
+
+    type: Type
+        The given type
+
+    shape: ShapeExpr
+        The given shape
+
+    """
+    _ffi_api.AnnotateTypeShape(var, type, shape)
+
+
 ############################### Importer ###############################
 
 __all__ = [
+    "Object",
+    "Shape",
     "TensorType",
     "add",
     "arg",
     "builtin",
+    "call_packed",
     "call_tir",
     "dataflow",
     "emit",
@@ -254,6 +348,7 @@ __all__ = [
     "make_closure",
     "multiply",
     "output",
+    "print",
     "unique",
     "shape_of",
     "tensor",
