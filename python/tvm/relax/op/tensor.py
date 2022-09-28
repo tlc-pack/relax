@@ -57,6 +57,11 @@ def unique(
 
     dim: int
         The dimension to apply unique. If negative, the unique of the flattened input is returned.
+
+    Returns
+    -------
+    ret: Expr
+        The created relax call with
     """
 
     return _ffi_api.unique(data, sorted, return_inverse, return_counts, dim)

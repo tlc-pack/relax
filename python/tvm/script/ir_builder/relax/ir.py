@@ -250,7 +250,7 @@ def call_packed(
             type_args[i] = argument
         else:
             raise TypeError(
-                "call_packed `type_args` is expected to be list of TensorType, "
+                "call_packed `type_args` is expected to be list of TensorType/Type, "
                 f"but got {type(arg)}"
             )
 
@@ -308,7 +308,7 @@ def emit_match_shape(
 
 
 def annotate_type_shape(var: Var, type: Type, shape: ShapeExpr) -> None:
-    """Annotate and check the type of tvm var.
+    """Annotate and check the type of relax var.
 
     Parameters
     ----------
@@ -322,7 +322,7 @@ def annotate_type_shape(var: Var, type: Type, shape: ShapeExpr) -> None:
         The given shape
 
     """
-    return _ffi_api.AnnotateTypeShape(var, type, shape)
+    _ffi_api.AnnotateTypeShape(var, type, shape)
 
 
 ############################### Importer ###############################
