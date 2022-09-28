@@ -289,6 +289,30 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
 
+///////////////////////////// If Then Else /////////////////////////////
+
+IfFrame If(tvm::relax::Expr condition) {
+  ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
+  n->condition = condition;
+  n->then_expr = NullOpt;
+  n->else_expr = NullOpt;
+  return IfFrame(n);
+}
+
+ThenFrame Then() {
+  ObjectPtr<ThenFrameNode> n = make_object<ThenFrameNode>();
+  return ThenFrame(n);
+}
+
+ElseFrame Else() {
+  ObjectPtr<ElseFrameNode> n = make_object<ElseFrameNode>();
+  return ElseFrame(n);
+}
+
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.If").set_body_typed(If);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.Then").set_body_typed(Then);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.Else").set_body_typed(Else);
+
 }  // namespace relax
 }  // namespace ir_builder
 }  // namespace script

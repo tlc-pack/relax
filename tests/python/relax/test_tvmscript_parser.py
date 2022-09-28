@@ -520,6 +520,49 @@ def test_local_function():
     assert isinstance(tir_func, tir.PrimFunc)
 
 
+def test_if_branch():
+    @R.function
+    def foo(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor((1,), "float32"):
+        if cond:
+            w = R.add(x, x)
+            y = R.multiply(w, w)
+        else:
+            w = R.multiply(x, x)
+            y = R.add(w, w)
+        return y
+
+    cond, x = foo.params
+    y_bind = foo.body.blocks[0].bindings[0]
+    y, ite = y_bind.var, y_bind.value
+
+    assert isinstance(y, relax.Var)
+    assert y.name_hint == "y"
+
+    assert isinstance(ite, relax.If)
+    assert isinstance(ite.true_branch, relax.SeqExpr)
+    assert isinstance(ite.false_branch, relax.SeqExpr)
+
+    def check_call(call, op, args):
+        assert isinstance(call, relax.Call)
+        if isinstance(op, str):
+            assert str(call.op) == op
+        else:
+            assert call.op == op
+        tvm.ir.assert_structural_equal(call.args, args)
+
+    w_bind = ite.true_branch.blocks[0].bindings[0]
+    body = ite.true_branch.body
+    assert w_bind.var.name_hint == "w"
+    check_call(w_bind.value, "relax.add", [x, x])
+    check_call(body, "relax.multiply", [w_bind.var, w_bind.var])
+
+    w_bind = ite.false_branch.blocks[0].bindings[0]
+    body = ite.false_branch.body
+    assert w_bind.var.name_hint == "w"
+    check_call(w_bind.value, "relax.multiply", [x, x])
+    check_call(body, "relax.add", [w_bind.var, w_bind.var])
+
+
 def test_other_cases():
     # They are corner case tests, which is only to check if it can be parsed.
     # No need to add structural equal checks here

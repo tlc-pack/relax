@@ -341,3 +341,17 @@ def visit_return(self: Parser, node: doc.Assign) -> None:
             R.func_ret_value(relax.Tuple(value))
     else:
         self.report_error(node, f"Unsupported return value type {type(value)}.")
+
+
+@dispatch.register(token="relax", type_name="If")
+def visit_if(self: Parser, node: doc.If) -> None:
+    if node.orelse is None:
+        raise ValueError("Else statements are required for relax dialect.")
+    with R.If(self.eval_expr(node.test)) as if_frame:
+        with self.var_table.with_frame():
+            with R.Then():
+                self.visit_body(node.body)
+        with self.var_table.with_frame():
+            with R.Else():
+                self.visit_body(node.orelse)
+    self.var_table.add(if_frame.var_name, if_frame.var, allow_shadowing=True)
