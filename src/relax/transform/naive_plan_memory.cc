@@ -216,7 +216,7 @@ class NaivePlanMemMutator : public ExprMutator {
     }
 
     builder_->BeginBindingBlock();
-    for (int i = 0; i < tensors_.size(); i++) {
+    for (size_t i = 0; i < tensors_.size(); i++) {
       Var tensor = tensors_[i];
       Var storage = storages_[i];
       if (live_objects_.count(tensor) == 0)
