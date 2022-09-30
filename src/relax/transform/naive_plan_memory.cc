@@ -234,7 +234,9 @@ class NaivePlanMemMutator : public ExprMutator {
       ret = (memory_kill_block->bindings.empty()) ? SeqExpr({prologue}, ret)
                                                   : SeqExpr({prologue, memory_kill_block}, ret);
     } else {
-      ret = SeqExpr({memory_kill_block}, ret);
+      // If ret is not a SeqExpr node and there are no bindings in prologue,
+      // there is nothing to kill
+      ICHECK(memory_kill_block->bindings.empty());
     }
 
     tensors_.clear();
