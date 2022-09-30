@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Optional
+from typing import Any, Union, List, Optional
 
 import tvm
 from tvm.runtime.object import Object
@@ -140,8 +140,37 @@ def invoke_closure(
     return _ffi_api.invoke_closure(closure, args)
 
 
+def render_object(val: tvm.Object) -> str:
+    """
+    Given a TVM Object, renders it in string form. Used for Relax printing and assertions.
+
+    Parameters
+    ----------
+    val: tvm.Object
+        An object to render
+
+    Returns
+    -------
+    ret: str
+        A string representing the value, ideally human-readable
+    """
+    if isinstance(val, tvm.runtime.ndarray.NDArray):
+        return str(val)
+    # no pretty-printer by default, so if we don't handle this,
+    # then we can't look inside tuples
+    if isinstance(val, tvm.runtime.container.ADT):
+        # the fields array of an ADT cannot be directly accessed in Python
+        # so we have to get the length and index into the fields separately
+        fields = ", ".join([render_object(val[i]) for i in range(len(val))])
+        # special case: tag = 0 is a tuple
+        if val.tag == 0:
+            return f"({fields})"
+        return f"ADT(tag={val.tag}, fields=[{fields}])"
+    return str(val)
+
+
 @tvm.register_func("relax.run.print")
-def relax_print(*args: List[any]) -> None:
+def relax_print(*args: List[Any]) -> None:
     """
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
@@ -171,22 +200,7 @@ def relax_print(*args: List[any]) -> None:
     if not isinstance(format_str, str):
         raise ValueError("No valid format string given.")
 
-    def render(val: tvm.Object) -> str:
-        if isinstance(val, tvm.runtime.ndarray.NDArray):
-            return str(val)
-        # no pretty-printer by default, so if we don't handle this,
-        # then we can't look inside tuples
-        if isinstance(val, tvm.runtime.container.ADT):
-            # the fields array of an ADT cannot be directly accessed in Python
-            # so we have to get the length and index into the fields separately
-            fields = ", ".join([render(val[i]) for i in range(len(val))])
-            # special case: tag = 0 is a tuple
-            if val.tag == 0:
-                return f"({fields})"
-            return f"ADT(tag={val.tag}, fields=[{fields}])"
-        return str(val)
-
-    val_strs = map(render, args[:-1])
+    val_strs = map(render_object, args[:-1])
     if format_str == "":
         py_print(*val_strs)
     else:
@@ -212,6 +226,96 @@ def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
     if isinstance(values, Expr):
         values = [values]
     return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
+
+
+@tvm.register_func("relax.run.assert_op")
+def relax_assert_op(*args: List[Any]) -> None:
+    """
+    A variadic function. The first value serves as the assertion condition:
+    If the condition is true, then the operator does nothing.
+    If the condition is false, then the operator raises an assertion error.
+
+    Arguments after the first value serve as format arguments for the error message;
+    the last argument must be a format string for the error message (empty by default).
+    If the format string is the empty string, then the error message will simply include
+    a comma-separated list of the format arguments.
+    The condition argument is not included in the format string.
+
+    Similarly to the print operator, since this function is called as a PackedFunc
+    from the generated code, we cannot have it be variadic _and_ have an optional
+    format string attribute except by taking in all the arguments as a single list.
+    The last argument should be a format string.
+
+    Parameters
+    ----------
+    condition: tvm.Object
+        The assertion condition. Must be a boolean scalar.
+
+    vals: List[tvm.Object]
+        Values used for formatting the string.
+
+    format_str: str
+        The last argument is a Python-style format string for printing the value
+    """
+    if len(args) < 2:
+        raise ValueError(
+            "Assert calls must have at least two arguments: A condition and a format string"
+        )
+
+    condition = args[0]
+    format_args = args[1:-1]
+    format_str = args[-1]
+
+    if not isinstance(format_str, str):
+        raise ValueError(
+            f"The format string argument to assert must be a string, given {type(format_str)})"
+        )
+
+    # should be guaranteed by the type system
+    if not isinstance(condition, tvm.runtime.ndarray.NDArray):
+        raise ValueError(f"The condition must be an NDArray, but given a {type(condition)}.")
+
+    # may happen if the original program had unknown shape or dtype for the tensor's type
+    dtype = condition.dtype
+    if dtype != "bool":
+        raise ValueError(f"The condition must be a bool scalar, but given a {dtype} tensor")
+    shape = condition.shape
+    if len(shape) != 0:
+        raise ValueError(f"The condition must be a scalar, but it has a shape of {shape}")
+
+    val = condition.numpy()
+    if not val:
+        error_message = "Assertion Failed"
+        if format_args or format_str != "":
+            rendered = map(render_object, format_args)
+            if format_str != "":
+                error_message = format_str.format(*rendered)
+            else:
+                error_message = ", ".join(rendered)
+        raise AssertionError(error_message)
+
+
+def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format: str = "") -> Expr:
+    """
+    Create a call to Relax's assert_op operation (`assert` is reserved in Python,
+    so the name must be distinct).
+
+    Parameters
+    ----------
+    values : List[Expr]
+        The values to print.
+
+    format_str: str
+        The format string.
+
+    Returns
+    -------
+    result : Expr
+        A Call to the Relax assert operation.
+    """
+    if format_args is None:
+        format_args = []
+    return _ffi_api.assert_op(condition, format_args, format)
 
 
 def shape_of(expr: Expr) -> Expr:
