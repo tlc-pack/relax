@@ -130,7 +130,7 @@ def test_assert_op():
             run_cpu(AssertOpTest, func_name, func_arg)
             passed = True
         except TVMError as e:
-            # TVM will print out a TVMError that will contain the 
+            # TVM will print out a TVMError that will contain the
             # generated error at the bottom of a stack trace
             assert "AssertionError" in e.args[0]
             assert expected_message in e.args[0]
