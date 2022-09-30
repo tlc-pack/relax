@@ -122,6 +122,14 @@ def _dispatch(self: "Parser", type_name: str) -> dispatch.ParseMethod:
     return _dispatch_wrapper(lambda self, node: self.generic_visit(node))
 
 
+def _dispatch_optional(self: "Parser", type_name: str) -> Optional[dispatch.ParseMethod]:
+    for token in [self.dispatch_tokens[-1], "default"]:
+        func = dispatch.get(token=token, type_name=type_name, default=None)
+        if func is not None:
+            return _dispatch_wrapper(func)
+    return None
+
+
 class Parser(doc.NodeVisitor):
     """The TVMScript parser"""
 
@@ -244,7 +252,13 @@ class Parser(doc.NodeVisitor):
         func = dispatch.get(token=token, type_name="FunctionDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
+        pre_func = _dispatch_optional(self, "pre_token_switch")
+        post_func = _dispatch_optional(self, "post_token_switch")
+        if pre_func:
+            pre_func(self, node)
         _dispatch_wrapper(func)(self, node)
+        if post_func:
+            post_func(self, node)
 
     def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
         func = dispatch.get(token="ir", type_name="ClassDef", default=None)

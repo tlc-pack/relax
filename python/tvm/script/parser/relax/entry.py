@@ -99,6 +99,7 @@ class CallableProxy:
                 return ty
             else:
                 raise TypeError(f"Expect a Type or TensorType, but got: {ty}")
+
         arg_types = [_convert_type(ty) for ty in arg_types]
         ret_type = _convert_type(ret_type)
         return FuncType(arg_types, ret_type, type_params, type_constraints)

@@ -514,7 +514,11 @@ def test_local_function():
             z = relax.call_tir(my_matmul, (x, y), (128, 128), dtype="float32")
             return z
 
-    print(TestModule.script())
+    bindings = TestModule["f"].body.blocks[0].bindings
+    assert len(bindings) == 2
+    tir_func = bindings[0].value
+    assert isinstance(tir_func, tir.PrimFunc)
+
 
 def test_other_cases():
     # They are corner case tests, which is only to check if it can be parsed.
@@ -529,5 +533,4 @@ def test_other_cases():
 
 
 if __name__ == "__main__":
-    test_local_function()
     tvm.testing.main()

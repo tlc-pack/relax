@@ -29,7 +29,8 @@ namespace ir {
 inline IRModuleFrame FindModuleFrame(const String& method) {
   IRBuilder builder = IRBuilder::Current();
   if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
-    if (builder->GetLastFrame<IRModuleFrame>().value() == frame) {
+    const Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
+    if (last_module_frame.defined() && last_module_frame.value() == frame) {
       return frame.value();
     }
   } else {

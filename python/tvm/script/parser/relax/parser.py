@@ -158,15 +158,6 @@ def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) ->
 
 @dispatch.register(token="relax", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
-
-    if any([isinstance(f, R.frame.FunctionFrame) for f in IRBuilder.current().frames]):
-        with IRBuilder() as builder:
-            self.visit(node)
-        var = R.emit(builder.get(), is_dataflow_var=False)
-        IRBuilder.name(node.name, var)
-        self.var_table.add(node.name, var, allow_shadowing=False)
-        return
-
     with self.var_table.with_frame():
         with R.function():
             R.func_name(node.name)
@@ -176,6 +167,22 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
             with self.with_dispatch_token("relax"):
                 self.visit(node.args)
                 self.visit_body(node.body)
+
+
+@dispatch.register(token="relax", type_name="pre_token_switch")
+def pre_token_switch(self: Parser, node: doc.Expr) -> None:
+    ir_builder = IRBuilder()
+    ir_builder.__enter__()
+
+
+@dispatch.register(token="relax", type_name="post_token_switch")
+def pre_token_switch(self: Parser, node: doc.Expr) -> None:
+    ir_builder = IRBuilder.current()
+    result = ir_builder.get()
+    ir_builder.__exit__(None, None, None)
+    var = R.emit(result, is_dataflow_var=False)
+    IRBuilder.name(node.name, var)
+    self.var_table.add(node.name, var, allow_shadowing=False)
 
 
 @dispatch.register(token="relax", type_name="Expr")
