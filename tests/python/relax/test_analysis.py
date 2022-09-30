@@ -21,7 +21,13 @@ import pytest
 import tvm
 from tvm import tir
 from tvm import relax as rx
-from tvm.relax.analysis import udchain, remove_all_unused, name_to_binding
+from tvm.relax.analysis import (
+    udchain,
+    remove_all_unused,
+    name_to_binding,
+    shape_vars,
+    derive_func_ret_shape,
+)
 from tvm.script import relax as R
 
 
@@ -208,6 +214,81 @@ def test_name_to_binding_var_shadowing():
     assert "lv2" in n2binding
 
     assert len(n2binding["lv0"]) == 2
+
+
+def test_shape_var_shape_expr():
+    v1 = tir.Var("v1", "int64")
+    v2 = tir.Var("v2", "int64")
+    v3 = tir.Var("v3", "int64")
+    shape_expr = rx.ShapeExpr([v1, v2, tir.Add(v3, v1)])
+    vars = shape_vars(shape_expr)
+
+    assert len(vars) == 3
+    assert v1 in vars
+    assert v2 in vars
+    assert v3 in vars
+
+    shape_expr = rx.ShapeExpr([tir.const(1), tir.const(2)])
+    vars = shape_vars(shape_expr)
+    assert len(vars) == 0
+
+
+def test_shape_var_nested():
+    v1 = rx.Var("v1")
+    v2 = rx.Var("v2")
+    sv1 = tir.Var("sv1", "int64")
+    shape_expr = rx.ShapeExpr([sv1])
+    tup = rx.Tuple([v1, v2, shape_expr])
+    vars = shape_vars(tup)
+
+    assert len(vars) == 1
+    assert sv1 in vars
+
+    x = rx.Var("x", type_annotation=rx.DynTensorType(ndim=-1, dtype="int64"))
+    y = rx.Var("y", type_annotation=rx.DynTensorType(ndim=-1, dtype="int64"))
+
+    func = rx.Function([x, y], shape_expr, rx.ShapeType(), rx.RuntimeDepShape())
+    vars = shape_vars(func)
+
+    assert len(vars) == 1
+    assert sv1 in vars
+
+
+def test_derive_func_ret_shape_no_free():
+    sv1 = tir.Var("sv1", "int64")
+    sv2 = tir.Var("sv2", "int64")
+    sv3 = tir.Var("sv3", "int64")
+    a1 = rx.Var(
+        "a1", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv1, sv2])
+    )
+    a2 = rx.Var(
+        "a2", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv2, sv3])
+    )
+    body = a2
+    shape_expr = derive_func_ret_shape([a1, a2], body)
+
+    assert isinstance(shape_expr, rx.ShapeExpr)
+    assert shape_expr[0] == sv2
+    assert shape_expr[1] == sv3
+
+
+def test_derive_func_ret_shape_free():
+    sv1 = tir.Var("sv1", "int64")
+    sv2 = tir.Var("sv2", "int64")
+    sv3 = tir.Var("sv3", "int64")
+    a1 = rx.Var(
+        "a1", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv1, sv2])
+    )
+    a2 = rx.Var(
+        "a2", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv2, sv1])
+    )
+    # Artifically introducing a free shape variable.
+    # This would not be a valid program, but this is being done to test the logic
+    body = rx.Var(
+        "a3", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv1, sv3])
+    )
+    shape_expr = derive_func_ret_shape([a1, a2], body)
+    assert isinstance(shape_expr, rx.RuntimeDepShape)
 
 
 if __name__ == "__main__":

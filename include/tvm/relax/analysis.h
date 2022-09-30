@@ -57,6 +57,18 @@ TVM_DLL bool WellFormed(const IRModule& m,
 TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
 
 /*!
+ * \brief Gather all shape variables from expression expr.
+ *
+ * This analysis is intended to be called on shape expressions (those set as the shape_ of another
+ * expression).
+ *
+ * \param expr the expression. Meant to be a shape expression.
+ *
+ * \return List of shape variables (tir::Var)
+ */
+TVM_DLL tvm::Array<tir::Var> ShapeVars(const Expr& expr);
+
+/*!
  * \brief Get all bound variables from expression expr.
  *
  * Bound variables are all variables that are declared in the expr.
@@ -165,6 +177,17 @@ std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
  * \return The function that contains no unused statements in DataflowBlock.
  */
 TVM_DLL Function RemoveAllUnused(const Function fn);
+
+/*!
+ * \brief Given the argument vars and body, derives a return shape for a function with those args
+ * and that body. If the body's shape contains free shape vars (those not used in the args), the
+ * return shape is relaxed to RuntimeDepShape; otherwise, the body's shape is used.
+ *
+ * \param args The argument variables, ideally with the shape_ field filled in
+ * \param body The functino body, ideally with the shape_ field filled in
+ * \return An expression that can serve as the return shape for the function
+ */
+TVM_DLL Expr DeriveFuncRetShape(Array<Var> args, Expr body);
 
 }  // namespace relax
 }  // namespace tvm
