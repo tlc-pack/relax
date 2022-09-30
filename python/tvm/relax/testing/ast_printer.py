@@ -43,15 +43,21 @@ class ASTPrinter(ExprFunctor):
 
     def __init__(
         self,
-        indent_str="    ",
         include_type_annotations=True,
         include_shape_annotations=True,
         include_call_attrs=True,
     ):
-        self.indent_str = indent_str
         self.include_type_annotations = include_type_annotations
         self.include_shape_annotations = include_shape_annotations
         self.include_call_attrs = include_call_attrs
+
+        # for displaying shape_, we visit exprs just the same but don't include
+        # shapes within shapes to avoid infinite recursion
+        self.shape_visitor = ASTPrinter(
+            include_type_annotations=include_type_annotations,
+            include_shape_annotations=False,
+            include_call_attrs=include_call_attrs,
+        )
 
     def visit_expr(self, expr: relax.Expr) -> str:
         # extend so we also dispatch to bindings and binding blocks,
@@ -113,7 +119,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_dataflow_var_(self, op: relax.DataflowVar) -> str:
         fields = {"name_hint": wrap_quotes(op.name_hint)}
-        if op.shape_ and self.include_shape_annotations:
+        if op.shape_ and self.include_var_shape_annotations:
             fields["shape_"] = self.visit_expr(op.shape_)
         if op._checked_type_ and self.include_type_annotations:
             fields["_checked_type_"] = self.visit_type_(op._checked_type_)
@@ -121,7 +127,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_var_(self, op: relax.Var) -> str:
         fields = {"name_hint": wrap_quotes(op.name_hint)}
-        if op.shape_ and self.include_shape_annotations:
+        if op.shape_ and self.include_var_shape_annotations:
             fields["shape_"] = self.visit_expr(op.shape_)
         if op._checked_type_ and self.include_type_annotations:
             fields["_checked_type_"] = self.visit_type_(op._checked_type_)
