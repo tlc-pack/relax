@@ -101,7 +101,10 @@ struct AssertOpAttrs : public tvm::AttrsNode<AssertOpAttrs> {
   std::string format;
   TVM_DECLARE_ATTRS(AssertOpAttrs, "relax.attrs.AssertOpAttrs") {
     TVM_ATTR_FIELD(format)
-        .describe("Python-style format string to use for displaying an error message if the assert fails. Ignored if empty.")
+        .describe(
+            "Python-style format string to use for displaying "
+            "an error message if the assert fails. "
+            "Ignored if empty.")
         .set_default("");
   }
 };
