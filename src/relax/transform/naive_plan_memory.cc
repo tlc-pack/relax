@@ -99,6 +99,7 @@ class NaivePlanMemMutator : public ExprMutator {
 
       Var storage = builder_->Emit(
           Call(memory_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
+      // collect storages allocated by relax.memory.alloc_storage
       storages_.push_back(storage);
       alias_map_[storage.get()] = storage.get();
 
@@ -121,6 +122,7 @@ class NaivePlanMemMutator : public ExprMutator {
 
     if (const auto* node = new_value.as<CallNode>()) {
       if (node->op == memory_alloc_tensor_op) {
+        // collect tensors allocated by relax.memory.alloc_tensor
         tensors_.push_back(new_var);
         alias_map_[new_var.get()] = new_var.get();
         this->builder_->Emit(VarBinding(new_var, new_value));
@@ -151,15 +153,18 @@ class NaivePlanMemMutator : public ExprMutator {
         CollectLiveObject(arg);
       }
     } else if (const auto* node = expr.as<VarNode>()) {
-      if (!expr->checked_type_.defined()) return;  // TODO(@Lesheng Jin): Remove it?
+      if (!expr->checked_type_.defined())
+        // if the shape is not populated, expr won't be the allocated tensor/storage
+        return;
       if (expr->checked_type().as<DynTensorTypeNode>()) {
-        // It's a tensor(TODO(@Lesheng Jin): function parameter)
+        // it is a tensor
         const ExprNode* expr_node = alias_map_[node];
         if (const VarNode* var_node = GetRef<Expr>(expr_node).as<VarNode>())
           if (std::find(tensors_.begin(), tensors_.end(), GetRef<Var>(var_node)) != tensors_.end())
+            // check if var_node is in the allocated tensor set
             live_objects_.insert(GetRef<Var>(var_node));
       } else if (expr->checked_type().as<ObjectTypeNode>()) {
-        // It can be a storage or Closure
+        // it can be a storage or Closure
         if (alias_map_.count(node) > 0) {
           const ExprNode* expr_node = alias_map_[node];
           if (const VarNode* var_node = GetRef<Expr>(expr_node).as<VarNode>()) {
@@ -176,11 +181,11 @@ class NaivePlanMemMutator : public ExprMutator {
           }
         }
       } else if (expr->checked_type().as<TupleTypeNode>()) {
-        // It's a Tuple, redirect to the original TupleNode
+        // it's a Tuple, redirect to the original TupleNode
         auto* tuple_node = alias_map_[node];
         CollectLiveObject(GetRef<Expr>(tuple_node));
       } else {
-        // Do nothing to ShapeType and FuncType
+        // do nothing to ShapeType and FuncType
       }
     }
   }
@@ -193,6 +198,7 @@ class NaivePlanMemMutator : public ExprMutator {
     Expr ret = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
 
+    // collect the live ojects in the return stmt.
     if (ret.as<TupleNode>()) {
       CollectLiveObject(ret);
     } else if (ret.as<VarNode>()) {
@@ -215,6 +221,7 @@ class NaivePlanMemMutator : public ExprMutator {
       // OpNode: Should not be the return
     }
 
+    // emit kill_tensors/kill_storages
     builder_->BeginBindingBlock();
     for (size_t i = 0; i < tensors_.size(); i++) {
       Var tensor = tensors_[i];
@@ -226,16 +233,20 @@ class NaivePlanMemMutator : public ExprMutator {
     }
     BindingBlock memory_kill_block = builder_->EndBlock();
 
+    // insert memory_kill_block into ret
     if (auto* node = ret.as<SeqExprNode>()) {
-      Array<BindingBlock> blocks = node->blocks;
-      blocks.push_back(memory_kill_block);
-      ret = SeqExpr(blocks, node->body);
+      if (!memory_kill_block->bindings.empty()) {
+        Array<BindingBlock> blocks = node->blocks;
+        blocks.push_back(memory_kill_block);
+        ret = builder_->Normalize(SeqExpr(blocks, node->body));
+      }
     } else if (!prologue->bindings.empty()) {
-      ret = (memory_kill_block->bindings.empty()) ? SeqExpr({prologue}, ret)
-                                                  : SeqExpr({prologue, memory_kill_block}, ret);
+      ret = (memory_kill_block->bindings.empty())
+                ? builder_->Normalize(SeqExpr({prologue}, ret))
+                : builder_->Normalize(SeqExpr({prologue, memory_kill_block}, ret));
     } else {
-      // If ret is not a SeqExpr node and there are no bindings in prologue,
-      // there is nothing to kill
+      // if ret is not a SeqExpr node and there are no bindings in prologue,
+      // there should be nothing to kill
       ICHECK(memory_kill_block->bindings.empty());
     }
 
@@ -247,9 +258,13 @@ class NaivePlanMemMutator : public ExprMutator {
   }
 
  private:
+  /*! \brief Tensors allocted by relax.memory.alloc_tensor. */
   std::vector<Var> tensors_;
+  /*! \brief Storages alloced by relax.memory.alloc_storage. */
   std::vector<Var> storages_;
+  /*! \brief Live tensors/storages before the return stmt. */
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> live_objects_;
+  /*! \brief Map VarNode to its ancestor ExprNode. */
   std::unordered_map<const VarNode*, const ExprNode*> alias_map_;
 };
 
