@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, invalid-name
 import inspect
 from typing import Callable as _Callable
 from typing import List, Optional

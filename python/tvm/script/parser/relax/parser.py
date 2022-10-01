@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring,
+# pylint: disable=missing-docstring
 
 import contextlib
 from collections import defaultdict
@@ -26,7 +26,7 @@ from tvm.script.ir_builder.relax.frame import BlockFrame
 
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
-from .._core import Parser, dispatch, doc, parse
+from .._core import Parser, dispatch, doc
 from .entry import MatchShapePair, Tensor, TensorType
 
 
@@ -170,13 +170,13 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
 
 @dispatch.register(token="relax", type_name="pre_token_switch")
-def pre_token_switch(self: Parser, node: doc.Expr) -> None:
+def pre_token_switch(self: Parser, node: doc.Expr) -> None:  # pylint: disable=unused-argument
     ir_builder = IRBuilder()
     ir_builder.__enter__()
 
 
 @dispatch.register(token="relax", type_name="post_token_switch")
-def pre_token_switch(self: Parser, node: doc.Expr) -> None:
+def post_token_switch(self: Parser, node: doc.Expr) -> None:
     ir_builder = IRBuilder.current()
     result = ir_builder.get()
     ir_builder.__exit__(None, None, None)
