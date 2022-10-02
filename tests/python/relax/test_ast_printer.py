@@ -38,7 +38,7 @@ def strip_whitespace(text: str) -> str:
 
 def test_var() -> None:
     v0 = rx.Var("v0")
-    v0_str = dump_ast(v0)
+    v0_str = dump_ast(v0, include_type_annotations=False, include_shape_annotations=False)
     assert v0_str == 'Var(name_hint="v0")'
 
     shape_anno = [54, 96]
@@ -50,12 +50,12 @@ def test_var() -> None:
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
     assert "shape_" in v1_annos
-    assert "_checked_type_" in v1_annos
+    assert "checked_type_" in v1_annos
 
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
-    v0_str = dump_ast(v0)
+    v0_str = dump_ast(v0, include_type_annotations=False, include_shape_annotations=False)
     assert v0_str == 'DataflowVar(name_hint="v0")'
 
     shape_anno = [54, 96]
@@ -67,7 +67,7 @@ def test_dataflow_var() -> None:
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
     assert "shape_" in v1_annos
-    assert "_checked_type_" in v1_annos
+    assert "checked_type_" in v1_annos
 
 
 def test_match_shape() -> None:
@@ -106,7 +106,7 @@ def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    b0_str = dump_ast(b0)
+    b0_str = dump_ast(b0, include_type_annotations=False, include_shape_annotations=False)
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name_hint="v0")' in b0_str
     assert "value=" in b0_str
