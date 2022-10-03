@@ -102,6 +102,20 @@ def test_match_shape() -> None:
     assert b1_str != dump_ast(b1, include_type_annotations=False, include_shape_annotations=False)
 
 
+def test_match_shape_unbound() -> None:
+    @R.function
+    def func(x: Tensor) -> Tensor:
+        R.match_shape(x, (1, 1))
+        return x
+
+    # no var field on the match shape!
+    func_str = strip_whitespace(dump_ast(func))
+    assert "MatchShape" in func_str
+    assert 'value=Var(' in func_str
+    assert "pattern=[PrimExpr(" in func_str
+    assert "var=" not in func_str
+
+
 def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))

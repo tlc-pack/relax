@@ -304,12 +304,14 @@ class ASTPrinter(ExprFunctor):
         """
         Handle match shape
         """
-        return self.build_ast_node(
-            "MatchShape",
-            value=self.visit_expr(match_shape.value),
-            pattern=self.build_list(map(self.visit_prim_expr_, match_shape.pattern)),
-            var=self.visit_expr(match_shape.var),
-        )
+        fields = {
+            "value": self.visit_expr(match_shape.value),
+            "pattern": self.build_list(map(self.visit_prim_expr_, match_shape.pattern)),
+        }
+        # not always defined
+        if match_shape.var:
+            fields["var"] = self.visit_expr(match_shape.var)
+        return self.build_ast_node("MatchShape", **fields)
 
     def visit_var_binding_(self, var_binding: relax.VarBinding) -> str:
         """
