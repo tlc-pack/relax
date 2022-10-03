@@ -111,7 +111,7 @@ def test_match_shape_unbound() -> None:
     # no var field on the match shape!
     func_str = strip_whitespace(dump_ast(func))
     assert "MatchShape" in func_str
-    assert 'value=Var(' in func_str
+    assert "value=Var(" in func_str
     assert "pattern=[PrimExpr(" in func_str
     assert "var=" not in func_str
 
