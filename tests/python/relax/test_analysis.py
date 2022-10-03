@@ -16,7 +16,7 @@
 # under the License.
 
 from __future__ import annotations
-from typing import List, Set
+from typing import List, Set, Union
 import pytest
 
 import tvm
@@ -37,7 +37,7 @@ from tvm.relax.analysis import (
 from tvm.script import relax as R
 
 
-def var_name_set(vars: List[rx.Var]) -> Set[str]:
+def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
     return set(map(lambda v: v.name_hint, vars))
 
 
@@ -368,6 +368,35 @@ def test_free_vars():
     outer = rx.Function([x, y], rx.Call(inner, [y]), ret_type=rx.DynTensorType(ndim=-1))
     assert len(free_vars(outer)) == 0
     assert var_name_set(free_vars(inner)) == {"x", "y"}
+
+
+def test_all_global_vars():
+    # there is one call to "func"
+    global_vars = all_global_vars(VarExample["main"])
+    assert len(global_vars) == 1
+    assert global_vars[0].name_hint == "func"
+
+    gv1 = rx.GlobalVar("gv1")
+    gv2 = rx.GlobalVar("gv2")
+    gv3 = rx.GlobalVar("gv3")
+    call = rx.Call(gv1, [gv2, gv3])
+    call_var_names = var_name_set(all_global_vars(call))
+    assert call_var_names == {"gv1", "gv2", "gv3"}
+
+
+def test_rec_global_vars():
+    # there is one call to "func"
+    global_vars = rec_global_vars(VarExample["main"])
+    assert len(global_vars) == 1
+    assert global_vars[0].name_hint == "func"
+
+    gv1 = rx.GlobalVar("gv1")
+    gv2 = rx.GlobalVar("gv2")
+    gv3 = rx.GlobalVar("gv3")
+    call = rx.Call(gv1, [gv2, gv3])
+    call_vars = rec_global_vars(call)
+    assert len(call_vars) == 1
+    assert call_vars[0].name_hint == "gv1"
 
 
 if __name__ == "__main__":
