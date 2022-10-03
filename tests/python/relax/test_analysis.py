@@ -16,6 +16,7 @@
 # under the License.
 
 from __future__ import annotations
+from typing import List, Set
 import pytest
 
 import tvm
@@ -34,6 +35,10 @@ from tvm.relax.analysis import (
     rec_global_vars,
 )
 from tvm.script import relax as R
+
+
+def var_name_set(vars: List[rx.Var]) -> Set[str]:
+    return set(map(lambda v: v.name_hint, vars))
 
 
 def test_dispatch_var():
@@ -306,7 +311,7 @@ class VarExample:
     def main(x: Tensor, y: Tensor) -> Tensor:
         z = R.add(x, y)
         # no binding here
-        R.match_shape(z, (5, 5))
+        # R.match_shape(z, (5, 5))
         with R.dataflow():
             q = R.add(z, z)
             p = func(q)
@@ -321,10 +326,25 @@ def test_all_vars():
     assert len(vars) == 1
     assert vars[0].name_hint == "a"
 
-    var_names = list(map(lambda v: v.name_hint, all_vars(VarExample["main"])))
-    assert len(var_names) == 7
-    for name in ["x", "y", "z", "p", "q", "r", "s"]:
-        assert name in var_names
+    var_names = var_name_set(all_vars(VarExample["main"]))
+    assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
+
+
+def test_bound_vars():
+    vars = bound_vars(VarExample["func"])
+    assert len(vars) == 1
+    assert vars[0].name_hint == "a"
+
+    # all the vars are bound
+    var_names = var_name_set(bound_vars(VarExample["main"]))
+    assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
+
+    # if we consider only the body, then the function arguments are not bound
+    body_names = var_name_set(bound_vars(VarExample["main"].body))
+    assert body_names == {"z", "p", "q", "r", "s"}
+
+    # if the argument isn't bound, then nothing is
+    assert len(bound_vars(VarExample["func"].body)) == 0
 
 
 if __name__ == "__main__":
