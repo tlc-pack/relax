@@ -305,12 +305,15 @@ class VarExample:
     @R.function
     def main(x: Tensor, y: Tensor) -> Tensor:
         z = R.add(x, y)
+        # no binding here
+        R.match_shape(z, (5, 5))
         with R.dataflow():
             q = R.add(z, z)
             p = func(q)
-            r = p
-            R.output(r)
-        return r
+            r = R.match_shape(p, (5, 5))
+            s = r
+            R.output(s)
+        return s
 
 
 def test_all_vars():
@@ -319,8 +322,8 @@ def test_all_vars():
     assert vars[0].name_hint == "a"
 
     var_names = list(map(lambda v: v.name_hint, all_vars(VarExample["main"])))
-    assert len(var_names) == 6
-    for name in ["x", "y", "z", "p", "q", "r"]:
+    assert len(var_names) == 7
+    for name in ["x", "y", "z", "p", "q", "r", "s"]:
         assert name in var_names
 
 
