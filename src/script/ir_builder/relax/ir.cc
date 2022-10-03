@@ -32,15 +32,17 @@ using tvm::script::ir_builder::details::Namer;
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::VarNode>([](const ObjectRef& node, String name) -> void {
       using tvm::relax::VarNode;
-      VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
-      var->vid = tvm::relax::Id(name);
+      const VarNode* var = node.as<VarNode>();
+      relay::IdNode* vid = const_cast<relay::IdNode*>(var->vid.get());
+      vid->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::DataflowVarNode>([](const ObjectRef& node, String name) -> void {
       using tvm::relax::DataflowVarNode;
-      DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
-      var->vid = tvm::relax::Id(name);
+      const DataflowVarNode* var = node.as<DataflowVarNode>();
+      relay::IdNode* vid = const_cast<relay::IdNode*>(var->vid.get());
+      vid->name_hint = name;
     });
 
 ////////////////////////////// Tensor Type //////////////////////////////
@@ -197,7 +199,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.DataflowBlockOutput")
 
 tvm::relax::Var Emit(const tvm::relax::Expr& expr, bool is_dataflow_var) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
-  tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
+  const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::Var var{nullptr};
   if (block_frame->is_dataflow && !is_dataflow_var) {
     var = block_builder->EmitOutput(expr);

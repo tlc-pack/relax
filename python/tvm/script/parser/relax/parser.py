@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring,
+# pylint: disable=missing-docstring
 
 import contextlib
 from collections import defaultdict
@@ -169,8 +169,24 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 self.visit_body(node.body)
 
 
+@dispatch.register(token="relax", type_name="pre_token_switch")
+def pre_token_switch(self: Parser, node: doc.Expr) -> None:  # pylint: disable=unused-argument
+    ir_builder = IRBuilder()
+    ir_builder.__enter__()
+
+
+@dispatch.register(token="relax", type_name="post_token_switch")
+def post_token_switch(self: Parser, node: doc.Expr) -> None:
+    ir_builder = IRBuilder.current()
+    result = ir_builder.get()
+    ir_builder.__exit__(None, None, None)
+    var = R.emit(result, is_dataflow_var=False)
+    IRBuilder.name(node.name, var)
+    self.var_table.add(node.name, var, allow_shadowing=False)
+
+
 @dispatch.register(token="relax", type_name="Expr")
-def visit_expr_stmt(self: Parser, node: doc.FunctionDef) -> None:
+def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     value = self.eval_expr(node.value)
     if isinstance(value, MatchShapePair):
         R.emit_match_shape(value.value, value.pattern, emit_var=False, is_dataflow_var=False)

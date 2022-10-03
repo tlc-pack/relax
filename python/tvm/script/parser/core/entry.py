@@ -28,12 +28,15 @@ def parse(program: Union[doc.AST, Any, str], extra_vars=None):
     if extra_vars is None:
         from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
         from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+        from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
 
         extra_vars = {
             "I": ir,
             "ir": ir,
             "T": tir,
             "tir": tir,
+            "relax": relax,
+            "R": relax,
         }
 
     source = Source(program)
