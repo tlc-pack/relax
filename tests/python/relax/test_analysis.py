@@ -27,6 +27,11 @@ from tvm.relax.analysis import (
     name_to_binding,
     shape_vars,
     derive_func_ret_shape,
+    all_vars,
+    free_vars,
+    bound_vars,
+    all_global_vars,
+    rec_global_vars,
 )
 from tvm.script import relax as R
 
@@ -289,6 +294,34 @@ def test_derive_func_ret_shape_free():
     )
     shape_expr = derive_func_ret_shape([a1, a2], body)
     assert isinstance(shape_expr, rx.RuntimeDepShape)
+
+
+@tvm.script.ir_module
+class VarExample:
+    @R.function
+    def func(a: Tensor) -> Tensor:
+        return R.add(a, a)
+
+    @R.function
+    def main(x: Tensor, y: Tensor) -> Tensor:
+        z = R.add(x, y)
+        with R.dataflow():
+            q = R.add(z, z)
+            p = func(q)
+            r = p
+            R.output(r)
+        return r
+
+
+def test_all_vars():
+    vars = all_vars(VarExample["func"])
+    assert len(vars) == 1
+    assert vars[0].name_hint == "a"
+
+    var_names = list(map(lambda v: v.name_hint, all_vars(VarExample["main"])))
+    assert len(var_names) == 6
+    for name in ["x", "y", "z", "p", "q", "r"]:
+        assert name in var_names
 
 
 if __name__ == "__main__":
