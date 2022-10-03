@@ -390,7 +390,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     if (call_node->op == assert_op_) {
       auto assert_attrs = call_node->attrs.as<AssertOpAttrs>();
-      args.push_back(EmitConstantFromValue(assert_attrs->format));
+      // format string comes before the format args
+      args.insert(args.begin() + 1, EmitConstantFromValue(assert_attrs->format));
       return;
     }
     LOG(FATAL) << "Support for attributes of Op " << call_node->op

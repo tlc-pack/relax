@@ -229,7 +229,7 @@ def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
 
 
 @tvm.register_func("relax.run.assert_op")
-def relax_assert_op(*args: List[Any]) -> None:
+def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: List[tvm.Object]) -> None:
     """
     A variadic function. The first value serves as the assertion condition:
     If the condition is true, then the operator does nothing.
@@ -251,21 +251,12 @@ def relax_assert_op(*args: List[Any]) -> None:
     condition: tvm.Object
         The assertion condition. Must be a boolean scalar.
 
-    vals: List[tvm.Object]
-        Values used for formatting the string.
-
     format_str: str
         The last argument is a Python-style format string for printing the value
+
+    format_args: List[tvm.Object]
+        Values used for formatting the string.
     """
-    if len(args) < 2:
-        raise ValueError(
-            "Assert calls must have at least two arguments: A condition and a format string"
-        )
-
-    condition = args[0]
-    format_args = args[1:-1]
-    format_str = args[-1]
-
     if not isinstance(format_str, str):
         raise ValueError(
             f"The format string argument to assert must be a string, given {type(format_str)})"
