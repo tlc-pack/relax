@@ -311,7 +311,7 @@ class VarExample:
     def main(x: Tensor, y: Tensor) -> Tensor:
         z = R.add(x, y)
         # no binding here
-        # R.match_shape(z, (5, 5))
+        R.match_shape(x, (5, 5))
         with R.dataflow():
             q = R.add(z, z)
             p = func(q)
