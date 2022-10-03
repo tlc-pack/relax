@@ -347,5 +347,28 @@ def test_bound_vars():
     assert len(bound_vars(VarExample["func"].body)) == 0
 
 
+def test_free_vars():
+    # all the vars are bound
+    assert len(free_vars(VarExample["func"])) == 0
+    assert len(free_vars(VarExample["main"])) == 0
+
+    # the arguments are free if we look only at the bodies
+    func_free = var_name_set(free_vars(VarExample["func"].body))
+    main_free = var_name_set(free_vars(VarExample["main"].body))
+    assert len(func_free) == 1
+    assert len(main_free) == 2
+    assert "a" in func_free
+    assert main_free == {"x", "y"}
+
+    # function that captures vars
+    x = rx.Var("x", type_annotation=rx.DynTensorType(ndim=-1))
+    y = rx.Var("y", type_annotation=rx.DynTensorType(ndim=-1))
+    z = rx.Var("z", type_annotation=rx.DynTensorType(ndim=-1))
+    inner = rx.Function([z], rx.op.add(x, rx.op.add(y, z)), ret_type=rx.DynTensorType(ndim=-1))
+    outer = rx.Function([x, y], rx.Call(inner, [y]), ret_type=rx.DynTensorType(ndim=-1))
+    assert len(free_vars(outer)) == 0
+    assert var_name_set(free_vars(inner)) == {"x", "y"}
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
