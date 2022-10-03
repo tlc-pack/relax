@@ -385,7 +385,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     if (call_node->op == print_op_) {
       auto print_attrs = call_node->attrs.as<PrintAttrs>();
-      args.push_back(EmitConstantFromValue(print_attrs->format));
+      // format string is the first argument
+      args.insert(args.begin(), EmitConstantFromValue(print_attrs->format));
       return;
     }
     if (call_node->op == assert_op_) {

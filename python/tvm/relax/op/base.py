@@ -170,7 +170,7 @@ def render_object(val: tvm.Object) -> str:
 
 
 @tvm.register_func("relax.run.print")
-def relax_print(*args: List[Any]) -> None:
+def relax_print(format_str: str, *format_args: List[tvm.Object]) -> None:
     """
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
@@ -187,20 +187,13 @@ def relax_print(*args: List[Any]) -> None:
 
     Parameters
     ----------
-    vals: List[Object]
-        The values to print.
-
     format_str: str
         The last argument is a Python-style format string for printing the value
+
+    format_args: List[Object]
+        The values to print.
     """
-
-    # there is no way to have a keyword arg to a packed function,
-    # so the format string is always the last argument
-    format_str = args[-1]
-    if not isinstance(format_str, str):
-        raise ValueError("No valid format string given.")
-
-    val_strs = map(render_object, args[:-1])
+    val_strs = map(render_object, format_args)
     if format_str == "":
         py_print(*val_strs)
     else:
