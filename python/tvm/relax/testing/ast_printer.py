@@ -104,7 +104,7 @@ class ASTPrinter(ExprFunctor):
         Handles whether to include the checked_type_ and shape_ fields.
         """
         fields = kwargs.copy()
-        if node.shape and self.include_shape_annotations:
+        if node.shape_ and self.include_shape_annotations:
             fields["shape_"] = self.visit_shape_(node.shape)
         if node._checked_type_ and self.include_type_annotations:
             fields["checked_type_"] = self.visit_type_(node.checked_type)

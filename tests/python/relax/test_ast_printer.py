@@ -38,7 +38,7 @@ def strip_whitespace(text: str) -> str:
 
 def test_var() -> None:
     v0 = rx.Var("v0")
-    v0_str = dump_ast(v0, include_type_annotations=False, include_shape_annotations=False)
+    v0_str = dump_ast(v0)
     assert v0_str == 'Var(name_hint="v0")'
 
     shape_anno = [54, 96]
@@ -55,7 +55,7 @@ def test_var() -> None:
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
-    v0_str = dump_ast(v0, include_type_annotations=False, include_shape_annotations=False)
+    v0_str = dump_ast(v0)
     assert v0_str == 'DataflowVar(name_hint="v0")'
 
     shape_anno = [54, 96]
