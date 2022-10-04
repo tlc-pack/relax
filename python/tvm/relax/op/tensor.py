@@ -23,15 +23,67 @@ from ..expr import Expr
 
 
 def add(lhs: Expr, rhs: Expr) -> Expr:
-    return _ffi_api.add(lhs, rhs)  # type: ignore
+    """Addition with numpy-style broadcasting.
 
+    Parameters
+    ----------
+    lhs : Expr
+        The left hand side input data
+    rhs : Expr
+        The right hand side input data
 
-def multiply(lhs: Expr, rhs: Expr) -> Expr:
-    return _ffi_api.multiply(lhs, rhs)  # type: ignore
+    Returns
+    -------
+    result : Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code:: python
+
+      x = relax.Var("a") # shape is [2, 3]
+      y = relax.Var("b") # shape is [2, 1]
+      z = relax.add(x, y)  # result shape is [2, 3]
+    """
+    return _ffi_api.add(lhs, rhs)
 
 
 def ewise_fma(e1: Expr, e2: Expr, e3: Expr) -> Expr:
+    """Elemwise matmul and add
+
+    Parameters
+    ----------
+    e1 : Expr
+        1st input data
+    e2 : Expr
+        2nd input data
+    e3 : Expr
+        3rd input data
+
+    Returns
+    -------
+    result : Expr
+        The computed result.
+    """
     return _ffi_api.ewise_fma(e1, e2, e3)  # type: ignore
+
+
+def multiply(lhs: Expr, rhs: Expr) -> Expr:
+    """Multiplication with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : Expr
+        The left hand side input data
+    rhs : Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : Expr
+        The computed result.
+    """
+    return _ffi_api.multiply(lhs, rhs)
 
 
 def unique(

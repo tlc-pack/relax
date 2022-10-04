@@ -57,3 +57,18 @@ class PrintAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.AssertOpAttrs")
 class AssertOpAttrs(Attrs):
     """Attributes used for the assert operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.DenseAttrs")
+class DenseAttrs(Attrs):
+    """Attributes for nn.dense"""
+
+
+@tvm._ffi.register_object("relax.attrs.Conv2dAttrs")
+class Conv2dAttrs(Attrs):
+    """Attributes for nn.Conv2d"""
+
+
+@tvm._ffi.register_object("relax.attrs.MaxPool2dAttrs")
+class MaxPool2dAttrs(Attrs):
+    """Attributes for nn.MaxPool2d"""

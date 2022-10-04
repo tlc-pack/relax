@@ -49,7 +49,7 @@ using relay::Id;
  * deduced during compilation in a "best-effort" manner.
  *
  * When struct_info appears in function parameter and return
- * signatures. They will imply a runtime check that matches
+ * signatures, they will imply a runtime check that matches
  * the structure information with the value.
  *
  * When it appears in Expr, they follow "assume-semantics",

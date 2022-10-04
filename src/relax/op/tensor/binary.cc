@@ -45,7 +45,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Both lhs and rhs should be Tensor for broadcasting, but got "
                      << call->args[0]->struct_info_->GetTypeKey() << " and "
-                     << call->args[0]->struct_info_->GetTypeKey());
+                     << call->args[1]->struct_info_->GetTypeKey());
   }
 
   // DateType

@@ -17,6 +17,8 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
+from __future__ import annotations
+from typing import Any, Dict, List, Optional
 from tvm import ir
 from tvm import relax
 from tvm.ir.module import IRModule
@@ -26,6 +28,7 @@ from tvm.ir import transform
 from tvm.relax import PyExprMutator
 from tvm.relax.expr import Call
 from tvm.relay.backend.te_compiler import select_implementation
+from tvm.meta_schedule.relay_integration import _autotvm_silencer
 
 
 @ir.transform.module_pass(opt_level=0)
@@ -47,7 +50,10 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
         lowering pass
     """
 
-    def __init__(self, target: Target):
+    def __init__(
+        self,
+        target: Target,
+    ):
         self.target = target
 
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
@@ -94,6 +100,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                         target,
                         use_autotvm=False,
                     )
+
                     compute_func = best_impl_tuple[0].compute
                     # Extract the name of the operator without the prefix
                     # e.g., for relay op "nn.conv2d", name_hint would be conv2d
@@ -103,9 +110,10 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                         compute_func,
                         call_node.attrs,
                         call_node.args,
-                        call_node.attrs,
+                        call_node.checked_type,
                         primfunc_name_hint=name_hint,
                     )
+
                 else:
                     return call_node
 
@@ -120,4 +128,5 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                 new_mod = new_mod.with_attrs(mod.attrs) if mod.attrs else new_mod
                 return new_mod
 
-        return Lowerer().transform()
+        with _autotvm_silencer(), target, ctx:
+            return Lowerer().transform()

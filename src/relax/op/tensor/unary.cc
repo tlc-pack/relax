@@ -48,7 +48,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   auto unique_attrs = call->attrs.as<UniqueAttrs>();
 
   auto input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-
+  
   if (!input_sinfo) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Input should be Tensor, but got "
                                              << call->args[0]->struct_info_->GetTypeKey());
@@ -72,6 +72,5 @@ RELAY_REGISTER_OP("relax.unique")
     .set_attrs_type<UniqueAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique");
-
 }  // namespace relax
 }  // namespace tvm

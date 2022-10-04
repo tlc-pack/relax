@@ -36,8 +36,10 @@ namespace tvm {
 namespace relax {
 
 /* relax.unique */
-Type InferTypeUnique(const Call& call, DiagnosticContext diag_ctx);
-Expr InferShapeUnique(const Call& call, DiagnosticContext diag_ctx);
+StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx);
+
+// UnaryBroadcast
+//StructInfo InferStructInfoUnaryBroadcast(const Call& call, DiagnosticContext diag_ctx);
 
 }  // namespace relax
 }  // namespace tvm

@@ -49,6 +49,51 @@ using FInferStructInfo =
  */
 using FCallPacked = String;
 
+/*! \brief Attributes used in MaxPool2d operator */
+struct MaxPool2dAttrs : public tvm::AttrsNode<MaxPool2dAttrs> {
+  Array<PrimExpr> kernel_size;
+  Array<PrimExpr> stride;
+  Array<PrimExpr> padding;
+  Array<PrimExpr> dilation;
+  TVM_DECLARE_ATTRS(MaxPool2dAttrs, "relax.attrs.MaxPool2dAttrs") {
+    TVM_ATTR_FIELD(kernel_size).describe("The size of the window to take a max over.");
+    TVM_ATTR_FIELD(stride).describe("The stride of the window.");
+    TVM_ATTR_FIELD(padding).describe("The padding on the input.");
+    TVM_ATTR_FIELD(dilation).describe("The stride of elements in the window.");
+  }
+};  // struct MaxPool2dAttrs
+
+/*! \brief Attributes used in Conv2d operator */
+struct Conv2dAttrs : public tvm::AttrsNode<Conv2dAttrs> {
+  Array<PrimExpr> kernel_size;
+  Array<PrimExpr> stride;
+  Array<PrimExpr> padding;
+  Array<PrimExpr> dilation;
+  TVM_DECLARE_ATTRS(Conv2dAttrs, "relax.attrs.Conv2dAttrs") {
+    TVM_ATTR_FIELD(kernel_size).describe("The size of the convolving kernel.");
+    TVM_ATTR_FIELD(stride).describe("The stride of the convolution.");
+    TVM_ATTR_FIELD(padding).describe("The padding on the input.");
+    TVM_ATTR_FIELD(dilation).describe("The spacing between kernel elements.");
+  }
+};  // struct Conv2dAttrs
+
+/*! \brief Attributes for dense operator */
+struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
+  PrimExpr units;
+  // tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout
+  // rewrite Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(DenseAttrs, "relax.attrs.DenseAttrs") {
+    TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
+
 /*! \brief Attributes used in unique operator */
 struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
   bool sorted;
