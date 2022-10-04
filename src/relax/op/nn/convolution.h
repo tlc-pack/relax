@@ -35,7 +35,7 @@ Optional<Expr> InferShapeConv2d(const Call& call, DiagnosticContext diag_ctx) {
   Expr shape1 = call->args[1]->shape();
   auto* s0 = shape0.as<ShapeExprNode>();
   auto* s1 = shape1.as<ShapeExprNode>();
-  auto* attrs = call->attrs.as<Conv2dAttrs>();
+  auto* attrs = call->attrs.as<Conv2DAttrs>();
   if (s0 && s1) {
     std::vector<PrimExpr> output_shape;
     size_t ndim0 = s0->values.size();

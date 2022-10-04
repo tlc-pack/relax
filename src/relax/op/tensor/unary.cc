@@ -46,9 +46,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Unique op should have 1 argument");
   }
   auto unique_attrs = call->attrs.as<UniqueAttrs>();
-
   auto input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  
   if (!input_sinfo) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Input should be Tensor, but got "
                                              << call->args[0]->struct_info_->GetTypeKey());
@@ -63,7 +61,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(input_sinfo->dtype, /*ndim=*/1);
 }
 
-RELAY_REGISTER_OP("relax.unique")
+RELAX_REGISTER_OP("relax.unique")
     .describe(
         "This operation returns the unique elements and the new index of each item in a given "
         "tensor.")
@@ -72,5 +70,28 @@ RELAY_REGISTER_OP("relax.unique")
     .set_attrs_type<UniqueAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique");
+
+
+StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Unary op should have 1 argument");
+  }
+  auto sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  if (!sinfo) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Input should be Tensor, but got "
+                                             << call->args[0]->struct_info_->GetTypeKey());
+  }
+
+  // Shape analysis
+  auto* shape = sinfo->shape.as<ShapeExprNode>();
+  if (shape) {
+    Expr output_shape = GetRef<ShapeExpr>(shape);
+    return TensorStructInfo(output_shape, sinfo->dtype);
+  } else {
+    return TensorStructInfo(sinfo->dtype, /*ndim=*/1);
+  }
+}
+
+
 }  // namespace relax
 }  // namespace tvm

@@ -28,43 +28,35 @@
 namespace tvm {
 namespace relax {
 
-/*
-Optional<Expr> InferShapeFlatten(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferStructInfoFlatten(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Flatten op should have 1 argument");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Flatten op should have 1 argument");
   }
-  Expr shape = call->args[0]->shape();
-  auto* s = shape.as<ShapeExprNode>();
-  if (s) {
-    PrimExpr output_dim = 1;
-    for (int i = 1; i < static_cast<int>(s->values.size()); i++) {
-      output_dim *= s->values[i];
-    }
-    return ShapeExpr({s->values[0], output_dim});
-  } else {
-    return NullOpt;
-  }
-}
 
-Type InferTypeFlatten(const Call& call, DiagnosticContext diag_ctx) {
-  if (call->args.size() != 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Flatten op should have 1 argument");
+  auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  if (!sinfo) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Argument should be Tensor, but got "
+                     << call->args[0]->struct_info_->GetTypeKey());
   }
-  auto* input_ty = call->args[0]->checked_type().as<DynTensorTypeNode>();
-  if (!input_ty) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Input should be DynTensor, but got "
-                       << call->args[0]->checked_type()->GetTypeKey());
+  auto* shape = sinfo->shape.as<ShapeExprNode>();
+  int output_ndim = shape->values.size();
+  if (shape) {
+    PrimExpr output_dim = 1;
+    for (int i = 1; i < output_ndim; i++) {
+      output_dim *= shape->values[i];
+    }
+    Expr output_shape = ShapeExpr({shape->values[0], output_dim});
+    return TensorStructInfo(output_shape, sinfo->dtype);
+  } else {
+    return TensorStructInfo(sinfo->dtype, output_ndim);
   }
-  return DynTensorType(2, input_ty->dtype);
 }
-*/
 
 StructInfo InferStructInfoDense(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Dense op should have 1 argument");
   }
-  //auto dense_attrs = call->attrs.as<DenseAttrs>();
   
   auto* sinfo0 = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   auto* sinfo1 = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);

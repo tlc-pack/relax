@@ -179,7 +179,7 @@ def relu(data: Expr) -> Expr:
     return _ffi_api.relu(data)
 
 
-def softmax(data: Expr) -> Expr:
+def softmax(data: Expr, axis=-1) -> Expr:
     r"""Computes softmax.
 
     .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
@@ -200,7 +200,7 @@ def softmax(data: Expr) -> Expr:
     result : Expr
         The computed result.
     """
-    return _ffi_api.softmax(data)
+    return _ffi_api.softmax(data, axis)
 
 
 def flatten(data: Expr) -> Expr:
@@ -225,9 +225,9 @@ def flatten(data: Expr) -> Expr:
 def max_pool2d(
     data: Expr,
     pool_size,
-    stride=(1, 1),
-    dilation=(1, 1),
+    strides=(1, 1),
     padding=(0, 0),
+    dilation=(1, 1),
     layout="NCHW",
     out_layout="",
     ceil_mode=False,
@@ -291,6 +291,7 @@ def max_pool2d(
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
     padding = get_pad_tuple2d(padding)
+
     return _ffi_api.max_pool2d(
-        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+        data, pool_size, strides, padding, dilation, layout, out_layout, ceil_mode
     )

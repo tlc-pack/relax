@@ -39,7 +39,7 @@ namespace relax {
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx);
 
 // UnaryBroadcast
-//StructInfo InferStructInfoUnaryBroadcast(const Call& call, DiagnosticContext diag_ctx);
+StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx);
 
 }  // namespace relax
 }  // namespace tvm

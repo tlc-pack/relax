@@ -23,7 +23,7 @@ namespace tvm {
 namespace relax {
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
-RELAY_REGISTER_OP("relax.nn.dense")
+RELAX_REGISTER_OP("relax.nn.dense")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
@@ -47,22 +47,43 @@ Expr MakeDense(Expr data, Expr weight, PrimExpr units, DataType out_dtype) {
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.dense").set_body_typed(MakeDense);
-/*
-RELAX_REGISTER_UNARY_OP("nn.softmax");
+
+TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
+
+Expr MakeSoftmax(Expr data, int axis) {
+  auto attrs = make_object<SoftmaxAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("relax.nn.softmax");
+  return Call(op, {data}, Attrs(attrs), {});
+};
+
+RELAX_REGISTER_OP("relax.nn.softmax")
+    .describe(R"code(Softmax layer.
+
+.. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+.. note::
+    This operator can be optimized away for inference.
+
+- **data**: The input data
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SoftmaxAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnary);
+
+TVM_REGISTER_GLOBAL("relax.op.nn.softmax").set_body_typed(MakeSoftmax);
 
 RELAX_REGISTER_UNARY_OP("nn.relu");
 
-RELAY_REGISTER_OP("relax.nn.flatten")
+RELAX_REGISTER_OP("relax.nn.flatten")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferShape>("FInferShape", InferShapeFlatten)
-    .set_attr<FInferType>("FInferType", InferTypeFlatten);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten);
 
 Expr MakeFlatten(Expr data) {
   static const Op& op = Op::Get("relax.nn.flatten");
   return Call(op, {data}, {}, {});
 }
 TVM_REGISTER_GLOBAL("relax.op.nn.flatten").set_body_typed(MakeFlatten);
-*/
+
 }  // namespace relax
 }  // namespace tvm

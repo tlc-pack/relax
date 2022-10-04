@@ -26,38 +26,44 @@
 #include "../op_common.h"
 namespace tvm {
 namespace relax {
-/*
-Optional<Expr> InferShapeMaxPool2d(const Call& call, DiagnosticContext diag_ctx) {
+
+StructInfo InferStructInfoMaxPool2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "MaxPool2d op should have 1 argument");
+    ctx->ReportFatal(Diagnostic::Error(call) << "MaxPool2D op should have 1 argument");
   }
-  auto attrs = call->attrs.as<MaxPool2dAttrs>();
-  Expr shape = call->args[0]->shape();
-  auto* s = shape.as<ShapeExprNode>();
+
+  auto sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  if (!sinfo) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Input should be Tensor, but got "
+                                             << call->args[0]->struct_info_->GetTypeKey());
+  }
+
+  auto attrs = call->attrs.as<MaxPool2DAttrs>();
+  auto* s = sinfo->shape.as<ShapeExprNode>();
   if (s) {
     Array<PrimExpr> output_shape;
     for (int i = 0; i < static_cast<int>(s->values.size()); i++) {
       if (i == static_cast<int>(s->values.size()) - 2) {
         output_shape.push_back((s->values[i] + 2 * attrs->padding[0] -
-                                attrs->dilation[0] * (attrs->kernel_size[0] - 1) - 1) /
+                                attrs->dilation[0] * (attrs->pool_size[0] - 1) - 1) /
                                    attrs->stride[0] +
                                1);
       } else if (i == static_cast<int>(s->values.size()) - 1) {
         output_shape.push_back((s->values[i] + 2 * attrs->padding[1] -
-                                attrs->dilation[1] * (attrs->kernel_size[1] - 1) - 1) /
+                                attrs->dilation[1] * (attrs->pool_size[1] - 1) - 1) /
                                    attrs->stride[1] +
                                1);
       } else {
         output_shape.push_back(s->values[i]);
       }
     }
-    return ShapeExpr(Array<PrimExpr>{output_shape.begin(), output_shape.end()});
+    Expr output_shape_expr = ShapeExpr(Array<PrimExpr>{output_shape.begin(), output_shape.end()});
+    return TensorStructInfo(output_shape_expr, sinfo->dtype);
   } else {
-    return NullOpt;
+    return TensorStructInfo(sinfo->dtype, sinfo->ndim);
   }
-}
-*/
 
+}
 }  // namespace relax
 }  // namespace tvm
 #endif

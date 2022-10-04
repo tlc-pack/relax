@@ -32,13 +32,13 @@
 
 namespace tvm {
 namespace relax {
-TVM_REGISTER_NODE_TYPE(Conv2dAttrs);
+TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 /*
 Expr MakeConv2d(Expr expr1, Expr expr2, Array<PrimExpr> kernel_size, Array<PrimExpr> stride,
                 Array<PrimExpr> padding, Array<PrimExpr> dilation) {
   static const Op& op = Op::Get("relax.nn.conv2d");
-  auto attrs = make_object<Conv2dAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->kernel_size = kernel_size;
   attrs->stride = stride;
   attrs->padding = padding;
@@ -46,9 +46,9 @@ Expr MakeConv2d(Expr expr1, Expr expr2, Array<PrimExpr> kernel_size, Array<PrimE
   return Call(op, {expr1, expr2}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(MakeConv2d);
+TVM_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(MakeConv2D);
 
-RELAY_REGISTER_OP("relax.nn.conv2d")
+RELAX_REGISTER_OP("relax.nn.conv2d")
     .describe(R"code(2D convolution layer (e.g. spatial convolution over images).
 
 This layer creates a convolution kernel that is convolved
@@ -64,7 +64,7 @@ with the layer input to produce a tensor of outputs.
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv2dAttrs>()
+    .set_attrs_type<Conv2DAttrs>()
     .set_attr<FInferShape>("FInferShape", InferShapeConv2d)
     .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast);
 */

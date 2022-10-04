@@ -92,6 +92,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                     relay_op = ir.Op.get(relay_op_name)
 
                     te_inputs = [relax.expr.te_tensor(arg) for arg in call_node.args]
+
                     best_impl_tuple = select_implementation(
                         relay_op,
                         call_node.attrs,
@@ -128,5 +129,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                 new_mod = new_mod.with_attrs(mod.attrs) if mod.attrs else new_mod
                 return new_mod
 
+        new_config = dict(ctx.config)
+        new_config["relay.backend.use_meta_schedule"] = True
+        ctx.config = new_config
         with _autotvm_silencer(), target, ctx:
             return Lowerer().transform()

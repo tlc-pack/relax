@@ -64,11 +64,16 @@ class DenseAttrs(Attrs):
     """Attributes for nn.dense"""
 
 
-@tvm._ffi.register_object("relax.attrs.Conv2dAttrs")
-class Conv2dAttrs(Attrs):
-    """Attributes for nn.Conv2d"""
+@tvm._ffi.register_object("relax.attrs.Conv2DAttrs")
+class Conv2DAttrs(Attrs):
+    """Attributes for nn.Conv2D"""
 
 
-@tvm._ffi.register_object("relax.attrs.MaxPool2dAttrs")
-class MaxPool2dAttrs(Attrs):
-    """Attributes for nn.MaxPool2d"""
+@tvm._ffi.register_object("relax.attrs.MaxPool2DAttrs")
+class MaxPool2DAttrs(Attrs):
+    """Attributes for nn.MaxPool2D"""
+
+
+@tvm._ffi.register_object("relax.attrs.SoftmaxAttrs")
+class SoftmaxAttrs(Attrs):
+    """Attributes for nn.softmax"""
