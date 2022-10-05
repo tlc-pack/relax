@@ -24,26 +24,18 @@
 
 #include "convolution.h"
 
-//#include <tvm/relax/expr.h>
-//#include <tvm/relax/op_attr_types.h>
-//#include <tvm/relax/type.h>
-
 #include "../tensor/binary.h"
-
 namespace tvm {
 namespace relax {
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
-/*
-Expr MakeConv2d(Expr expr1, Expr expr2, Array<PrimExpr> kernel_size, Array<PrimExpr> stride,
-                Array<PrimExpr> padding, Array<PrimExpr> dilation) {
-  static const Op& op = Op::Get("relax.nn.conv2d");
-  auto attrs = make_object<Conv2DAttrs>();
-  attrs->kernel_size = kernel_size;
-  attrs->stride = stride;
-  attrs->padding = padding;
-  attrs->dilation = dilation;
-  return Call(op, {expr1, expr2}, Attrs(attrs), {});
+Expr MakeConv2D(Expr data, Expr weight, Array<PrimExpr> strides, Array<PrimExpr> padding,
+                Array<PrimExpr> dilation, int groups, PrimExpr channels,
+                Array<PrimExpr> kernel_size, String data_layout, String kernel_layout,
+                String out_layout, DataType out_dtype) {
+  return MakeConv<Conv2DAttrs>(data, weight, strides, padding, dilation, groups, channels,
+                               kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
+                               "relax.nn.conv2d");
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(MakeConv2D);
@@ -65,8 +57,7 @@ with the layer input to produce a tensor of outputs.
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DAttrs>()
-    .set_attr<FInferShape>("FInferShape", InferShapeConv2d)
-    .set_attr<FInferType>("FInferType", InferTypeBinaryBroadcast);
-*/
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2D);
+
 }  // namespace relax
 }  // namespace tvm

@@ -18,7 +18,6 @@
 """Relax transformation passes for testing"""
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
 from tvm import ir
 from tvm import relax
 from tvm.ir.module import IRModule
@@ -93,9 +92,19 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
 
                     te_inputs = [relax.expr.te_tensor(arg) for arg in call_node.args]
 
+                    # convert relax attr -> relay attr
+                    relax_op_attrs = call_node.attrs
+                    relay_op_attrs = None
+                    if relax_op_attrs:
+                        relax_attr_name = relax_op_attrs.get_name()
+                        # Note: convert `tvm.runtime.container.String` to string
+                        attrs_dict = {str(key): val for key, val in dict(relax_op_attrs).items()}
+                        relay_attr_name = "relay." + relax_attr_name[6:]
+                        relay_op_attrs = ir.attrs.make_node(relay_attr_name, **attrs_dict)
+
                     best_impl_tuple = select_implementation(
                         relay_op,
-                        call_node.attrs,
+                        relay_op_attrs,
                         te_inputs,
                         call_node.checked_type,
                         target,
@@ -109,7 +118,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
 
                     return self.builder_.call_te(
                         compute_func,
-                        call_node.attrs,
+                        relay_op_attrs,
                         call_node.args,
                         call_node.checked_type,
                         primfunc_name_hint=name_hint,
@@ -129,6 +138,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                 new_mod = new_mod.with_attrs(mod.attrs) if mod.attrs else new_mod
                 return new_mod
 
+        # Relax only supports MetaSchedule
         new_config = dict(ctx.config)
         new_config["relay.backend.use_meta_schedule"] = True
         ctx.config = new_config

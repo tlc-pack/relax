@@ -38,7 +38,7 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   const auto* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
   auto pool_size = param->pool_size;
-  auto stride = param->stride;
+  auto strides = param->strides;
   auto dilation = param->dilation;
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
@@ -66,12 +66,13 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
     padding.push_back(padding[1]);
   }
   if (mode == topi::nn::kAvgPool) {
+    // TODO(@sunggg): Disabled for now until implementing Avg Pool
     // bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
     // return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, stride, dilation, padding,
     //                                          mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, stride, dilation, padding, mode,
-                                              ceil_mode, layout.name())};
+    return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, strides, dilation, padding,
+                                              mode, ceil_mode, layout.name())};
   }
 }
 
@@ -82,12 +83,12 @@ RELAX_REGISTER_OP("relax.nn.max_pool2d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMaxPool2D)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
-Expr MakeMaxPool2D(Expr data, Array<PrimExpr> pool_size, Array<PrimExpr> stride,
+Expr MakeMaxPool2D(Expr data, Array<PrimExpr> pool_size, Array<PrimExpr> strides,
                    Array<PrimExpr> padding, Array<PrimExpr> dilation, String layout,
                    String out_layout, bool ceil_mode) {
   auto attrs = make_object<MaxPool2DAttrs>();
   attrs->pool_size = pool_size;
-  attrs->stride = stride;
+  attrs->strides = strides;
   attrs->padding = padding;
   attrs->dilation = dilation;
   attrs->layout = layout;

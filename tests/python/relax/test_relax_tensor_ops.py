@@ -39,6 +39,7 @@ def relay_build_and_run(f, inputs):
 def relax_build_and_run(f, inputs):
     f = f.with_attr("global_symbol", "default")
     mod = tvm.IRModule.from_expr(f)
+
     with tvm.transform.PassContext(opt_level=3):
         mod = relax.transform.Normalize()(mod)
         mod = transform.LowerWithRelayOpStrategyPass(target)(mod)
@@ -77,6 +78,34 @@ def test_unary_ops(op_name: str):
     tvm.testing.assert_allclose(out, expected)
 
 
+def test_conv2d():
+    dtype = "float32"
+    kernel_size = 4
+    data_shape = (1, 1, 256, 256)
+    weight_shape = (1, 1, kernel_size, kernel_size)
+
+    data = tvm.nd.array(np.random.rand(*data_shape).astype(np.float32), dev)
+    weight = tvm.nd.array(np.random.rand(*weight_shape).astype(np.float32), dev)
+    inputs = [data, weight]
+
+    # Build relay op, run and get the output
+    D = relay.var("data", shape=data_shape, dtype=dtype)
+    W = relay.var("weight", shape=weight_shape, dtype=dtype)
+    Z = relay.nn.conv2d(D, W)
+    f = relay.Function([D, W], Z)
+    expected = relay_build_and_run(f, inputs)
+
+    # Relax output
+    sinfo = R.Tensor(dtype, ndim=4)
+    D = relax.Var("data", R.Tensor(data_shape, dtype))
+    W = relax.Var("weight", R.Tensor(weight_shape, dtype))
+    Z = relax.nn.conv2d(D, W, kernel_size=kernel_size)
+    f = relax.Function([D, W], Z, sinfo)
+    out = relax_build_and_run(f, inputs)
+
+    tvm.testing.assert_allclose(out, expected)
+
+
 def test_dense():
     # Set up
     dtype = "float32"
@@ -100,15 +129,6 @@ def test_dense():
     Z = relax.nn.dense(X, Y)
     f = relax.Function([X, Y], Z, ret_sinfo)
     f = f.with_attr("global_symbol", "default")
-
-    mod = tvm.IRModule.from_expr(f)
-    with tvm.transform.PassContext(opt_level=3):
-        mod = relax.transform.Normalize()(mod)
-        mod = transform.LowerWithRelayOpStrategyPass(target)(mod)
-        ex = relax.vm.build(mod, target)
-        vm = relax.VirtualMachine(ex, dev)
-        out = vm["default"](data_x, data_y)
-
     out = relax_build_and_run(f, inputs)
 
     tvm.testing.assert_allclose(out, expected)
@@ -130,10 +150,11 @@ def test_max_pool2d():
     expected = relay_build_and_run(f, inputs)
 
     # Relax output
-    ret_sinfo = R.Tensor(dtype, ndim=2)
+    ret_sinfo = R.Tensor(dtype, ndim=4)
     X = relax.Var("x", R.Tensor(X_shape, dtype))
     Z = relax.nn.max_pool2d(X, pool_size=pool_size)
     f = relax.Function([X], Z, ret_sinfo)
+
     out = relax_build_and_run(f, inputs)
 
     tvm.testing.assert_allclose(out, expected)
@@ -142,5 +163,6 @@ def test_max_pool2d():
 if __name__ == "__main__":
     # test_dense()
     # test_unary_ops("softmax")
-    test_max_pool2d()
+    # test_max_pool2d()
+    test_conv2d()
     # pytest.main([__file__])

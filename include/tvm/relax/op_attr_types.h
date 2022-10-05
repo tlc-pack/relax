@@ -73,7 +73,7 @@ using FTVMCompute = runtime::TypedPackedFunc<Array<te::Tensor>(
 /*! \brief Attributes used in MaxPool2d operator */
 struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<PrimExpr> pool_size;
-  Array<PrimExpr> stride;
+  Array<PrimExpr> strides;
   Array<PrimExpr> padding;
   Array<PrimExpr> dilation;
   tvm::String layout;
@@ -82,7 +82,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
 
   TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relax.attrs.MaxPool2DAttrs") {
     TVM_ATTR_FIELD(pool_size).describe("Size of the pooling windows.");
-    TVM_ATTR_FIELD(stride)
+    TVM_ATTR_FIELD(strides)
         .set_default(Array<PrimExpr>({1, 1}))
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(dilation)
@@ -115,23 +115,76 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
 
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
-  Array<PrimExpr> kernel_size;
-  Array<PrimExpr> stride;
+  Array<PrimExpr> strides;
   Array<PrimExpr> padding;
   Array<PrimExpr> dilation;
+  int groups;
+  PrimExpr channels;
+  Array<PrimExpr> kernel_size;
+  String data_layout;
+  String kernel_layout;
+  String out_layout;
+  DataType out_dtype;
+
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relax.attrs.Conv2DAttrs") {
-    TVM_ATTR_FIELD(kernel_size).describe("The size of the convolving kernel.");
-    TVM_ATTR_FIELD(stride).describe("The stride of the convolution.");
-    TVM_ATTR_FIELD(padding).describe("The padding on the input.");
-    TVM_ATTR_FIELD(dilation).describe("The spacing between kernel elements.");
+    TVM_ATTR_FIELD(strides)
+        .set_default(Array<PrimExpr>({1, 1}))
+        .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding)
+        .set_default(Array<PrimExpr>({0, 0}))
+        .describe(
+            "If padding is non-zero, then the input is implicitly zero-padded"
+            "Padding support both symmetric and asymmetric as"
+            "one int : same padding used on all sides"
+            "two int : bottom, right will use same padding as top, left"
+            "four int : padding width in the order of (top, left, bottom, right)");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<PrimExpr>({1, 1}))
+        .describe("Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).set_default(1).describe(
+        "Controls the connections between inputs and outputs."
+        "At groups=1, all inputs are convolved to all outputs."
+        "At groups=2, the operation becomes equivalent to having two convolution"
+        "layers side by side, each seeing half the input channels, and producing"
+        "half the output channels, and both subsequently concatenated.");
+    TVM_ATTR_FIELD(channels)
+        .describe(
+            "The number of output channels in the convolution."
+            " If it is not set, inferred by shape of the weight.")
+        .set_default(NullValue<PrimExpr>());
+    TVM_ATTR_FIELD(kernel_size)
+        .describe("Specifies the dimensions of the convolution window.")
+        .set_default(NullValue<Array<PrimExpr>>());
+    TVM_ATTR_FIELD(data_layout)
+        .set_default("NCHW")
+        .describe(
+            "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Convolution is applied on the 'H' and"
+            "'W' dimensions.");
+    TVM_ATTR_FIELD(kernel_layout)
+        .set_default("OIHW")
+        .describe(
+            "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+            "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+            "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+            "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+            "dimensions respectively. Default to be same as input layout.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
   }
 };  // struct Conv2dAttrs
 
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   PrimExpr units;
-  // tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout
-  // rewrite Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relax.attrs.DenseAttrs") {

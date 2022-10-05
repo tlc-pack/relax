@@ -23,29 +23,77 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "../op_common.h"
 namespace tvm {
 namespace relax {
-/*
-Optional<Expr> InferShapeConv2d(const Call& call, DiagnosticContext diag_ctx) {
+
+template <typename T>
+inline Expr MakeConv(Expr data, Expr weight, Array<PrimExpr> strides, Array<PrimExpr> padding,
+                     Array<PrimExpr> dilation, int groups, PrimExpr channels,
+                     Array<PrimExpr> kernel_size, std::string data_layout,
+                     std::string kernel_layout, std::string out_layout, DataType out_dtype,
+                     std::string op_name) {
+  auto attrs = make_object<T>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  const Op& op = Op::Get(op_name);
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+StructInfo InferStructInfoConv2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Conv2d op should have 2 arguments");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Binary broadcast op should have 2 arguments");
   }
-  Expr shape0 = call->args[0]->shape();
-  Expr shape1 = call->args[1]->shape();
-  auto* s0 = shape0.as<ShapeExprNode>();
-  auto* s1 = shape1.as<ShapeExprNode>();
-  auto* attrs = call->attrs.as<Conv2DAttrs>();
-  if (s0 && s1) {
-    std::vector<PrimExpr> output_shape;
-    size_t ndim0 = s0->values.size();
-    size_t ndim1 = s1->values.size();
+  auto* sinfo0 = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  auto* sinfo1 = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+
+  // Type deduction
+  // data type
+  DataType output_dtype;
+  if (sinfo0->IsUnknownDtype() || sinfo1->IsUnknownDtype()) {
+    output_dtype = DataType::Void();
+  } else if (sinfo0->dtype != sinfo1->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Data types " << sinfo0->dtype << " and " << sinfo1->dtype
+                     << " must be equal for Conv2D operator");
+  } else {
+    output_dtype = sinfo0->dtype;
+  }
+
+  // ndims
+  int output_ndim;
+  if (sinfo0->IsUnknownNdim() || sinfo1->IsUnknownNdim()) {
+    output_ndim = kUnknownNDim;
+  } else {
+    size_t ndim0 = sinfo0->ndim;
+    size_t ndim1 = sinfo1->ndim;
     if (ndim0 != 4 || ndim1 != 4) {
       LOG(INFO) << ndim0;
       LOG(INFO) << ndim1;
-      diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+      ctx->ReportFatal(Diagnostic::Error(call)
                          << "The 2 arguments of Conv2d must be 4D Tensors");
     }
+    output_ndim = 4;
+  }
+
+  // shape
+  auto* s0 = sinfo0->shape.as<ShapeExprNode>();
+  auto* s1 = sinfo1->shape.as<ShapeExprNode>();
+  auto* attrs = call->attrs.as<Conv2DAttrs>();
+  if (s0 && s1) {
+    std::vector<PrimExpr> output_shape;
     // N
     output_shape.push_back(s0->values[0]);
     // C
@@ -53,19 +101,20 @@ Optional<Expr> InferShapeConv2d(const Call& call, DiagnosticContext diag_ctx) {
     // H
     output_shape.push_back((s0->values[2] + 2 * attrs->padding[0] -
                             attrs->dilation[0] * (attrs->kernel_size[0] - 1) - 1) /
-                               attrs->stride[0] +
+                               attrs->strides[0] +
                            1);
     // W
     output_shape.push_back((s0->values[3] + 2 * attrs->padding[1] -
                             attrs->dilation[1] * (attrs->kernel_size[1] - 1) - 1) /
-                               attrs->stride[1] +
+                               attrs->strides[1] +
                            1);
-    return ShapeExpr(Array<PrimExpr>{output_shape.begin(), output_shape.end()});
+    Expr output_shape_expr = ShapeExpr(Array<PrimExpr>{output_shape.begin(), output_shape.end()});
+    return TensorStructInfo(output_shape_expr, output_dtype);
   } else {
-    return NullOpt;
+    return TensorStructInfo(output_dtype, output_ndim);
   }
 }
-*/
+
 }  // namespace relax
 }  // namespace tvm
-#endif
+#endif  // TVM_RELAX_OP_NN_CONVOLUTION_H_

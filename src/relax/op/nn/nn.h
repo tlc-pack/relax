@@ -23,6 +23,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
+#include <vector>
+
 #include "../op_common.h"
 #include "../tensor/unary.h"
 namespace tvm {
@@ -111,4 +113,4 @@ StructInfo InferStructInfoDense(const Call& call, const BlockBuilder& ctx) {
 }
 }  // namespace relax
 }  // namespace tvm
-#endif
+#endif  // TVM_RELAX_OP_NN_NN_H_

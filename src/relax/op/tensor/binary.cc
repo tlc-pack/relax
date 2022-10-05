@@ -39,44 +39,45 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Binary broadcast op should have 2 arguments");
   }
-  auto* lhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  auto* rhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  if (!lhs_sinfo || !rhs_sinfo) {
+  auto* sinfo0 = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  auto* sinfo1 = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  if (sinfo0 || sinfo1) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Both lhs and rhs should be Tensor for broadcasting, but got "
                      << call->args[0]->struct_info_->GetTypeKey() << " and "
                      << call->args[1]->struct_info_->GetTypeKey());
   }
 
-  // DateType
+  // Type deduction
+  // data type 
   DataType output_dtype;
-  if (lhs_sinfo->IsUnknownDtype() || rhs_sinfo->IsUnknownDtype()) {
+  if (sinfo0->IsUnknownDtype() || sinfo1->IsUnknownDtype()) {
     output_dtype = DataType::Void();
-  } else if (lhs_sinfo->dtype != rhs_sinfo->dtype) {
+  } else if (sinfo0->dtype != sinfo1->dtype) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Data types " << lhs_sinfo->dtype << " and " << rhs_sinfo->dtype
+                     << "Data types " << sinfo0->dtype << " and " << sinfo1->dtype
                      << " must be equal for broadcasting operators");
   } else {
-    output_dtype = lhs_sinfo->dtype;
+    output_dtype = sinfo0->dtype;
   }
 
   // ndims
   int output_ndim;
-  if (lhs_sinfo->IsUnknownNdim() || rhs_sinfo->IsUnknownNdim()) {
+  if (sinfo0->IsUnknownNdim() || sinfo1->IsUnknownNdim()) {
     output_ndim = kUnknownNDim;
   } else {
-    output_ndim = std::max(lhs_sinfo->ndim, rhs_sinfo->ndim);
+    output_ndim = std::max(sinfo0->ndim, sinfo1->ndim);
   }
 
-  auto* lhs_shape = lhs_sinfo->shape.as<ShapeExprNode>();
-  auto* rhs_shape = rhs_sinfo->shape.as<ShapeExprNode>();
+  auto* lhs_shape = sinfo0->shape.as<ShapeExprNode>();
+  auto* rhs_shape = sinfo1->shape.as<ShapeExprNode>();
   // Shapes and ndims
   if (lhs_shape && rhs_shape) {
     // If all inputs have shapes, directly infer shapes
     std::vector<PrimExpr> output_shape;
 
-    size_t lhs_ndim = lhs_sinfo->ndim;
-    size_t rhs_ndim = rhs_sinfo->ndim;
+    size_t lhs_ndim = sinfo0->ndim;
+    size_t rhs_ndim = sinfo1->ndim;
     size_t max_ndim = std::max(lhs_ndim, rhs_ndim);
 
     size_t i = 1;

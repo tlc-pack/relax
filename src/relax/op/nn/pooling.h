@@ -46,12 +46,12 @@ StructInfo InferStructInfoMaxPool2D(const Call& call, const BlockBuilder& ctx) {
       if (i == static_cast<int>(s->values.size()) - 2) {
         output_shape.push_back((s->values[i] + 2 * attrs->padding[0] -
                                 attrs->dilation[0] * (attrs->pool_size[0] - 1) - 1) /
-                                   attrs->stride[0] +
+                                   attrs->strides[0] +
                                1);
       } else if (i == static_cast<int>(s->values.size()) - 1) {
         output_shape.push_back((s->values[i] + 2 * attrs->padding[1] -
                                 attrs->dilation[1] * (attrs->pool_size[1] - 1) - 1) /
-                                   attrs->stride[1] +
+                                   attrs->strides[1] +
                                1);
       } else {
         output_shape.push_back(s->values[i]);
@@ -66,4 +66,4 @@ StructInfo InferStructInfoMaxPool2D(const Call& call, const BlockBuilder& ctx) {
 }
 }  // namespace relax
 }  // namespace tvm
-#endif
+#endif  // TVM_RELAX_OP_NN_POOLING_H_

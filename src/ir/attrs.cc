@@ -46,6 +46,7 @@ void DictAttrsNode::InitByPackedArgs(const runtime::TVMArgs& args, bool allow_un
 }
 
 Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const { return {}; }
+String DictAttrsNode::GetName() const { return ""; }
 
 DictAttrs::DictAttrs(Map<String, ObjectRef> dict) {
   ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
@@ -70,5 +71,7 @@ TVM_REGISTER_GLOBAL("ir.DictAttrsGetDict").set_body_typed([](DictAttrs attrs) {
 TVM_REGISTER_GLOBAL("ir.AttrsListFieldInfo").set_body_typed([](Attrs attrs) {
   return attrs->ListFieldInfo();
 });
+
+TVM_REGISTER_GLOBAL("ir.AttrsGetName").set_body_typed([](Attrs attrs) { return attrs->GetName(); });
 
 }  // namespace tvm

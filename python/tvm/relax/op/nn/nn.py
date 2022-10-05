@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-from . import _ffi_api
-from ...expr import Expr
+"""Relax Neural Network (NN) operators"""
 from tvm.relay.op.nn.utils import get_pad_tuple2d
+from ...expr import Expr
+from . import _ffi_api
 
 
 def dense(data, weight, units=None, out_dtype=""):
@@ -56,12 +56,12 @@ def dense(data, weight, units=None, out_dtype=""):
 def conv2d(
     data,
     weight,
+    kernel_size,
     strides=(1, 1),
     padding=(0, 0),
     dilation=(1, 1),
     groups=1,
     channels=None,
-    kernel_size=None,
     data_layout="NCHW",
     kernel_layout="OIHW",
     out_layout="",
@@ -144,6 +144,7 @@ def conv2d(
     # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
     # convert 2-way padding to 4-way padding
     padding = get_pad_tuple2d(padding)
+
     return _ffi_api.conv2d(
         data,
         weight,

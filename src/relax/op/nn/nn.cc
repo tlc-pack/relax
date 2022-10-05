@@ -55,7 +55,7 @@ Expr MakeSoftmax(Expr data, int axis) {
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.softmax");
   return Call(op, {data}, Attrs(attrs), {});
-};
+}
 
 RELAX_REGISTER_OP("relax.nn.softmax")
     .describe(R"code(Softmax layer.
