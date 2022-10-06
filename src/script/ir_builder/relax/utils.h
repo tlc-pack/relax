@@ -105,7 +105,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
     body = var_binding->value;
     *var_name = match_shape->var->name_hint();
   } else {
-    LOG(FATAL) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
+    ICHECK(false) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
   }
 
   // Step 3. Re-collect binding blocks to remove the last binding.

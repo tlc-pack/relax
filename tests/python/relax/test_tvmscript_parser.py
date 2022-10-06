@@ -563,6 +563,56 @@ def test_if_branch():
     check_call(body, "relax.add", [w_bind.var, w_bind.var])
 
 
+def test_if_inside_dataflow():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(
+            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+        ) -> R.Tensor((1,), "float32"):
+            with R.dataflow():
+                if cond:
+                    w = R.add(x, x)
+                    y = R.multiply(w, w)
+                else:
+                    w = R.multiply(x, x)
+                    y = R.add(w, w)
+                R.output(y)
+            return y
+
+
+def test_if_branch_output_name():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(
+            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+        ) -> R.Tensor((1,), "float32"):
+            if cond:
+                w = R.add(x, x)
+                y = R.multiply(w, w)
+            else:
+                w = R.multiply(x, x)
+                z = R.add(w, w)
+            return y
+
+
+def test_if_branch_var_scope():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(
+            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+        ) -> R.Tensor((1,), "float32"):
+            if cond:
+                w = R.add(x, x)
+                y = R.multiply(w, w)
+            else:
+                w = R.multiply(x, x)
+                y = R.add(w, w)
+            return w
+
+
 def test_other_cases():
     # They are corner case tests, which is only to check if it can be parsed.
     # No need to add structural equal checks here

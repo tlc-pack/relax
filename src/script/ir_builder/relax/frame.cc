@@ -134,6 +134,17 @@ void BlockFrameNode::ExitWithScope() {
   }
 }
 
+void IfFrameNode::EnterWithScope() {
+  const Array<IRBuilderFrame>& frames = IRBuilder::Current()->frames;
+  for (const IRBuilderFrame& frame : frames) {
+    const auto* block_frame = frame.as<BlockFrameNode>();
+    if (block_frame && block_frame->is_dataflow) {
+      LOG(FATAL) << "ValueError: Cannot create an IfFrame inside a dataflow block.";
+    }
+  }
+  RelaxFrameNode::EnterWithScope();
+}
+
 void IfFrameNode::ExitWithScope() {
   RelaxFrameNode::ExitWithScope();
   CHECK(then_expr.defined())

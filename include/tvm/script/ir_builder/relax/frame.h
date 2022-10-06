@@ -188,6 +188,11 @@ class IfFrameNode : public RelaxFrameNode {
 
  public:
   /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
+  void EnterWithScope() final;
+  /*!
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
