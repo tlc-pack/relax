@@ -59,7 +59,7 @@ class ASTPrinter(ExprFunctor):
         # have to include this check or else the constructor does not terminate
         if self.include_shape_annotations:
             self.shape_visitor = ASTPrinter(
-                include_type_annotations=include_type_annotations,
+                include_type_annotations=False,
                 include_shape_annotations=False,
                 include_call_attrs=include_call_attrs,
             )
