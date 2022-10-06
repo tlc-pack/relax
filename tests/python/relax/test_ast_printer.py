@@ -33,6 +33,23 @@ def strip_whitespace(text: str) -> str:
     return re.sub(r"\s", "", text)
 
 
+def normalize(func: rx.Function) -> rx.Function:
+    """
+    Normalize the expr to fill in the checked_type_ and shape_ fields everywhere
+    """
+    # using a default mutator to use the BlockBuilder's normalizer,
+    # which oddly differs from the Normalize pass
+    @rx.expr_functor.mutator
+    class DefaultMutator(rx.PyExprMutator):
+        pass
+
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mut = DefaultMutator(mod)
+    mod["main"] = mut.visit_expr(func)
+    return mod["main"]
+
+
 # test cases are mostly adapted from text_expr, only testing very basic properties
 
 
@@ -376,6 +393,44 @@ def test_operators():
     )
     print_attrs_str = strip_whitespace('{"format": "{}"}')
     assert print_attrs_str in bar_str
+
+
+def test_print_shape_annotation_non_var():
+    @R.function
+    def f() -> Tensor:
+        return R.const([1, 2])
+
+    body = normalize(f).body
+    body_str = strip_whitespace(dump_ast(body))
+    # the constant has a shape of (2,)
+    shape_str = strip_whitespace(
+        """
+        shape_ = ShapeExpr(
+            values = [
+                PrimExpr(value=`2i64`)
+            ]
+        )
+        """
+    )
+    assert shape_str in body_str
+
+
+def test_print_type_annotation_non_var():
+    @R.function
+    def f() -> Shape:
+        return R.shape_of(R.const(1))
+
+    body = normalize(f).body
+    assert isinstance(body, rx.Call)
+    arg = body.args[0]
+    arg_str = strip_whitespace(dump_ast(arg))
+    # the constant should have a tensor type
+    assert "checked_type_=DynTensorType(ndim=0" in arg_str
+
+    body_str = strip_whitespace(dump_ast(body))
+    # we expect the shape_of call to have a checked_type_ of ShapeType
+    type_str = "checked_type_=ShapeType()"
+    assert type_str in body_str
 
 
 if __name__ == "__main__":
