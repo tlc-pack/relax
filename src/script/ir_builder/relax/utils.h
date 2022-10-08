@@ -79,7 +79,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
   if (frame->IsInstance<ThenFrameNode>()) {
     method = "R.Then";
   } else if (frame->IsInstance<ElseFrameNode>()) {
-    method = "R.Then";
+    method = "R.Else";
   } else {
     ICHECK(false) << "TypeError: Unsupported frame type: " << frame->GetTypeKey();
   }
