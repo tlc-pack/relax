@@ -36,6 +36,16 @@ inline FunctionFrame FindFunctionFrame(const String& method) {
   throw;
 }
 
+inline IfFrame FindIfFrame(const String& method) {
+  if (Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
+    return frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
+               << "' is called under R.if_()";
+  }
+  throw;
+}
+
 inline tvm::relax::BlockBuilder GetBlockBuilder() {
   Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
   CHECK(frame.defined()) << "ValueError: Relax Function frame not find. Please ensure "
@@ -61,6 +71,51 @@ inline BlockFrame CheckBlockFrameExistAndUnended() {
   BlockFrame new_block_frame = BindingBlock();
   new_block_frame->EnterWithScope();
   return new_block_frame;
+}
+
+inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String* var_name) {
+  // Step 0. Check frame type
+  std::string method;
+  if (frame->IsInstance<ThenFrameNode>()) {
+    method = "R.Then";
+  } else if (frame->IsInstance<ElseFrameNode>()) {
+    method = "R.Else";
+  } else {
+    ICHECK(false) << "TypeError: Unsupported frame type: " << frame->GetTypeKey();
+  }
+
+  // Step 1. Check non-empty block and last binding is non-dataflow
+  CHECK(!frame->binding_blocks.empty())
+      << "Empty body is not allowed for '" << method << "' statements.";
+  const tvm::relax::BindingBlock& last_block = frame->binding_blocks.back();
+  CHECK(!last_block->bindings.empty()) << "Blocks are expected to be non-empty.";
+
+  // Step 2. Collect body from the last binding.
+  tvm::relax::Expr body;
+  const tvm::relax::Binding& last_binding = last_block->bindings.back();
+  if (const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>()) {
+    CHECK(!var_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
+        << "A non-dataflow var is expected in the last binding of '" << method << "'.";
+    body = var_binding->value;
+    *var_name = var_binding->var->name_hint();
+  } else if (const auto* match_shape = last_binding.as<tvm::relax::MatchShapeNode>()) {
+    CHECK(match_shape->var.defined() &&
+          !match_shape->var->IsInstance<tvm::relax::DataflowVarNode>())
+        << "A non-dataflow var is expected in the last binding of '" << method << "'.";
+    body = var_binding->value;
+    *var_name = match_shape->var->name_hint();
+  } else {
+    ICHECK(false) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
+  }
+
+  // Step 3. Re-collect binding blocks to remove the last binding.
+  Array<tvm::relax::BindingBlock> new_blocks(frame->binding_blocks.begin(),
+                                             frame->binding_blocks.end() - 1);
+  Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
+                                                 last_block->bindings.end() - 1);
+  new_blocks.push_back(tvm::relax::BindingBlock(last_block_bindings));
+
+  return tvm::relax::SeqExpr(new_blocks, body);
 }
 
 }  // namespace relax

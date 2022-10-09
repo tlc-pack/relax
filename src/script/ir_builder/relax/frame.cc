@@ -19,6 +19,7 @@
 
 #include <tvm/relax/expr.h>
 #include <tvm/script/ir_builder/relax/frame.h>
+#include <tvm/script/ir_builder/relax/ir.h>
 
 #include "./utils.h"
 
@@ -27,7 +28,7 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-void FunctionFrameNode::ExitWithScope() {
+void SeqExprFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
   if (Optional<BlockFrame> block_frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
@@ -35,9 +36,12 @@ void FunctionFrameNode::ExitWithScope() {
     ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>().defined())
         << "ValueError: There is some remaining BlockFrame that is not properly popped out.";
   }
-
-  using tvm::relax::Expr;
   RelaxFrameNode::ExitWithScope();
+}
+
+void FunctionFrameNode::ExitWithScope() {
+  using tvm::relax::Expr;
+  SeqExprFrameNode::ExitWithScope();
   IRBuilder builder = IRBuilder::Current();
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
@@ -104,7 +108,7 @@ void BlockFrameNode::ExitWithScope() {
   // lease one binding - otherwise, the block is not supposed to be created.
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::BindingBlock block = block_builder->EndBlock();
-  ICHECK(!block->bindings.empty())
+  CHECK(!block->bindings.empty())
       << "ValueError: A binding block should have at lease one binding.";
 
   // Step 3. Get the last frame from the IRBuilder frame stack.
@@ -117,10 +121,10 @@ void BlockFrameNode::ExitWithScope() {
   ICHECK(!last_frame->IsInstance<BlockFrameNode>());
 
   // Step 5. Push the block frame into the corresponding field of the last frame.
-  if (const auto* function_frame = last_frame.as<FunctionFrameNode>()) {
-    ICHECK(!function_frame->output.defined())
+  if (const auto* seq_frame = last_frame.as<SeqExprFrameNode>()) {
+    ICHECK(!seq_frame->output.defined())
         << "The function is not expected to have output values when emitting blocks.";
-    FunctionFrame frame = GetRef<FunctionFrame>(function_frame);
+    auto frame = GetRef<SeqExprFrame>(seq_frame);
     frame->binding_blocks.push_back(block);
   } else {
     LOG(FATAL) << "ValueError: Currently the last frame is supposed to be either a function frame "
@@ -130,8 +134,70 @@ void BlockFrameNode::ExitWithScope() {
   }
 }
 
+void IfFrameNode::EnterWithScope() {
+  const Array<IRBuilderFrame>& frames = IRBuilder::Current()->frames;
+  for (const IRBuilderFrame& frame : frames) {
+    const auto* block_frame = frame.as<BlockFrameNode>();
+    if (block_frame && block_frame->is_dataflow) {
+      LOG(FATAL) << "ValueError: Cannot create an IfFrame inside a dataflow block.";
+    }
+  }
+  RelaxFrameNode::EnterWithScope();
+}
+
+void IfFrameNode::ExitWithScope() {
+  RelaxFrameNode::ExitWithScope();
+  CHECK(then_expr.defined())
+      << "ValueError: The body of then part is expected to be defined before exiting.";
+  CHECK(then_expr.defined())
+      << "ValueError: The body of else part is expected to be defined before exiting.";
+  auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value());
+  var = Emit(body, /*is_dataflow=*/false);
+  IRBuilder::Name(var_name, var);
+}
+
+void ThenFrameNode::EnterWithScope() {
+  IfFrame frame = FindIfFrame("R.Then");
+  CHECK(!frame->then_expr.defined())
+      << "ValueError: Duplicate then branch declaration, previous one is "
+      << frame->then_expr.value();
+  SeqExprFrameNode::EnterWithScope();
+}
+
+void ThenFrameNode::ExitWithScope() {
+  SeqExprFrameNode::ExitWithScope();
+  String var_name;
+  output = GetSeqExprForBranch(GetRef<ThenFrame>(this), &var_name);
+  IfFrame frame = FindIfFrame("R.Then");
+  frame->then_expr = output;
+  frame->var_name = var_name;
+}
+
+void ElseFrameNode::EnterWithScope() {
+  IfFrame frame = FindIfFrame("R.Else");
+  CHECK(frame->then_expr.defined()) << "The else branch should follow then branch";
+  CHECK(!frame->else_expr.defined())
+      << "ValueError: Duplicate else branch declaration, previous one is "
+      << frame->else_expr.value();
+  SeqExprFrameNode::EnterWithScope();
+}
+
+void ElseFrameNode::ExitWithScope() {
+  SeqExprFrameNode::ExitWithScope();
+  String var_name;
+  output = GetSeqExprForBranch(GetRef<ElseFrame>(this), &var_name);
+  IfFrame frame = FindIfFrame("R.Else");
+  frame->else_expr = output;
+  CHECK(frame->var_name == var_name)
+      << "This last binding of both branches must have the same variable.";
+}
+
 TVM_REGISTER_NODE_TYPE(FunctionFrameNode);
+TVM_REGISTER_NODE_TYPE(SeqExprFrameNode);
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
+TVM_REGISTER_NODE_TYPE(IfFrameNode);
+TVM_REGISTER_NODE_TYPE(ThenFrameNode);
+TVM_REGISTER_NODE_TYPE(ElseFrameNode);
 
 }  // namespace relax
 }  // namespace ir_builder

@@ -233,6 +233,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         new_false.same_as(op->false_branch)) {
       return GetRef<Expr>(op);
     }
+    // TODO(relax-team): fix type/shape deduction for if node.
     return If(new_cond, new_true, new_false);
   }
 

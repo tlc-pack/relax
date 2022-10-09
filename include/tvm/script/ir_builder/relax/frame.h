@@ -47,8 +47,36 @@ class RelaxFrame : public IRBuilderFrame {
   RelaxFrame() = default;
 };
 
+/*! \brief The base ir_builder frame for frames with SeqExpr
+           i.e. Functions, If branches
+  */
+class SeqExprFrameNode : public RelaxFrameNode {
+ public:
+  /*! \brief The binding blocks inside the frame. */
+  Array<tvm::relax::BindingBlock> binding_blocks;
+  /*! \brief The frame output expr. `NullOpt` when undefined. */
+  Optional<tvm::relax::Expr> output;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    RelaxFrameNode::VisitAttrs(v);
+    v->Visit("binding_blocks", &binding_blocks);
+    v->Visit("output", &output);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.relax.SeqExprFrame";
+  TVM_DECLARE_BASE_OBJECT_INFO(SeqExprFrameNode, RelaxFrameNode);
+
+ public:
+  void ExitWithScope() override;
+};
+
+class SeqExprFrame : public RelaxFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SeqExprFrame, RelaxFrame, SeqExprFrameNode);
+};
+
 /*! \brief The ir_builder frame for the relax function. */
-class FunctionFrameNode : public RelaxFrameNode {
+class FunctionFrameNode : public SeqExprFrameNode {
  public:
   /*!
    * \brief The function name.
@@ -68,15 +96,11 @@ class FunctionFrameNode : public RelaxFrameNode {
   Optional<Type> ret_type;
   /*! \brief The function attributes. */
   Map<String, ObjectRef> attrs;
-  /*! \brief The binding blocks inside the function. */
-  Array<tvm::relax::BindingBlock> binding_blocks;
-  /*! \brief The function output expr. `NullOpt` when undefined. */
-  Optional<tvm::relax::Expr> output;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    RelaxFrameNode::VisitAttrs(v);
+    SeqExprFrameNode::VisitAttrs(v);
     v->Visit("name", &name);
     v->Visit("params", &params);
     v->Visit("ret_type", &ret_type);
@@ -87,15 +111,15 @@ class FunctionFrameNode : public RelaxFrameNode {
   }
 
   static constexpr const char* _type_key = "script.ir_builder.relax.FunctionFrame";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, RelaxFrameNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, SeqExprFrameNode);
 
  public:
   void ExitWithScope() final;
 };
 
-class FunctionFrame : public RelaxFrame {
+class FunctionFrame : public SeqExprFrame {
  public:
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionFrame, RelaxFrame, FunctionFrameNode);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionFrame, SeqExprFrame, FunctionFrameNode);
 };
 
 /*! \brief The ir_builder frame for relax binding blocks. */
@@ -130,6 +154,125 @@ class BlockFrameNode : public RelaxFrameNode {
 class BlockFrame : public RelaxFrame {
  public:
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, RelaxFrame, BlockFrameNode);
+};
+
+/*!
+ * \brief A frame that represents if statement.
+ *
+ * \sa IfFrame
+ */
+class IfFrameNode : public RelaxFrameNode {
+ public:
+  /*! \brief The condition of the if statement. */
+  tvm::relax::Expr condition;
+  /*! \brief The Bindings in the true branch. */
+  Optional<tvm::relax::Expr> then_expr;
+  /*! \brief The Bindings in the false branch. */
+  Optional<tvm::relax::Expr> else_expr;
+  /*! \brief The Binding var. */
+  tvm::relax::Var var;
+  /*! \brief The binding var name. */
+  String var_name;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    RelaxFrameNode::VisitAttrs(v);
+    v->Visit("condition", &condition);
+    v->Visit("then_expr", &then_expr);
+    v->Visit("else_expr", &else_expr);
+    v->Visit("var", &var);
+    v->Visit("var_name", &var_name);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.relax.IfFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, RelaxFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
+  void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to IfFrameNode.
+ *
+ * \sa IfFrameNode
+ */
+class IfFrame : public RelaxFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IfFrame, RelaxFrame, IfFrameNode);
+};
+
+/*!
+ * \brief A frame that represents then.
+ *
+ * \sa ThenFrame
+ */
+class ThenFrameNode : public SeqExprFrameNode {
+ public:
+  static constexpr const char* _type_key = "script.ir_builder.relax.ThenFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, SeqExprFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
+  void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to ThenFrameNode.
+ *
+ * \sa ThenFrameNode
+ */
+class ThenFrame : public SeqExprFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ThenFrame, SeqExprFrame, ThenFrameNode);
+};
+
+/*!
+ * \brief A frame that represents else.
+ *
+ * \sa ElseFrame
+ */
+class ElseFrameNode : public SeqExprFrameNode {
+ public:
+  static constexpr const char* _type_key = "script.ir_builder.relax.ElseFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, SeqExprFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when entering RAII scope.
+   * \sa tvm::support::With
+   */
+  void EnterWithScope() final;
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to ElseFrameNode.
+ *
+ * \sa ElseFrameNode
+ */
+class ElseFrame : public SeqExprFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ElseFrame, SeqExprFrame, ElseFrameNode);
 };
 
 }  // namespace relax

@@ -163,6 +163,25 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
 TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
                                const Optional<tvm::relax::ShapeExpr>& shape);
 
+///////////////////////////// If Then Else /////////////////////////////
+
+/*!
+ * \brief Create an if statement.
+ * \param condition The condition of if statement.
+ * \return The result IfFrame.
+ */
+IfFrame If(tvm::relax::Expr condition);
+/*!
+ * \brief Create a then.
+ * \return The result ThenFrame.
+ */
+ThenFrame Then();
+/*!
+ * \brief Create an else.
+ * \return The result ElseFrame.
+ */
+ElseFrame Else();
+
 }  // namespace relax
 }  // namespace ir_builder
 }  // namespace script

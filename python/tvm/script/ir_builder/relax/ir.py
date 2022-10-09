@@ -325,12 +325,54 @@ def annotate_type_shape(var: Var, type: Type, shape: ShapeExpr) -> None:
     _ffi_api.AnnotateTypeShape(var, type, shape)
 
 
+def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
+    """Create an if frame.
+
+    Parameters
+    ----------
+    condition : Expr
+        The condition of if statement, executes the true branch if the condition is true,
+        otherwise jump into the false branch.
+
+    Returns
+    -------
+    res : frame.IfFrame
+        The result IfFrame.
+    """
+    return _ffi_api.If(condition)  # pylint: disable=no-member # type: ignore
+
+
+def Then() -> frame.ThenFrame:  # pylint: disable=invalid-name
+    """Create a then frame.
+
+    Returns
+    -------
+    res : frame.ThenFrame
+        The result ThenFrame.
+    """
+    return _ffi_api.Then()  # pylint: disable=no-member # type: ignore
+
+
+def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
+    """Create an else frame.
+
+    Returns
+    -------
+    res : frame.ElseFrame
+        The result ElseFrame.
+    """
+    return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
+
+
 ############################### Importer ###############################
 
 __all__ = [
+    "Else",
+    "If",
     "Object",
     "Shape",
     "TensorType",
+    "Then",
     "add",
     "arg",
     "builtin",
