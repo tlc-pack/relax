@@ -24,6 +24,7 @@ configuring the passes and scripting them in Python.
 from typing import Dict, List
 
 import tvm
+from tvm import tir
 from tvm.relax.expr import DataflowBlock, Var, Expr, Function, Binding
 from . import _ffi_api
 
@@ -113,3 +114,46 @@ def remove_all_unused(func: Function) -> Function:
         The function with unused variables removed.
     """
     return _ffi_api.remove_all_unused(func)
+
+
+def shape_vars(expr: Expr) -> List[tir.Var]:
+    """
+    Returns all shape variables (TIR variables) in the given expression.
+
+    Note that the expression is intended to be a shape expression, i.e.,
+    one used as the `shape_` for another expression.
+
+    Parameters
+    ----------
+    expr : Expr
+        The expression. Meant to be a shape expression.
+
+    Returns
+    -------
+    ret: List[tir.Var]
+        A list of all shape variables (TIR variables) in the expression.
+    """
+    return _ffi_api.shape_vars(expr)
+
+
+def derive_func_ret_shape(args: List[Var], body: Expr) -> Expr:
+    """
+    Given the argument vars and body, derives a return shape for
+    a function with those args and that body.
+    If the body's shape contains free shape vars (those not used in the args), the
+    return shape is relaxed to RuntimeDepShape; otherwise, the body's shape is used.
+
+    Parameters
+    ----------
+    args: List[Var]
+        The argument variables, ideally with the shape_ field filled in
+
+    body: Expr
+        The functino body, ideally with the shape_ field filled in
+
+    Returns
+    -------
+    ret: Expr
+        An expression that can serve as the return shape for the function
+    """
+    return _ffi_api.derive_func_ret_shape(args, body)

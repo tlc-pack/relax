@@ -26,6 +26,7 @@
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/tir/expr_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -144,6 +145,38 @@ class VarVisitor : protected ExprVisitor {
   InsertionSet<GlobalVar> rec_global_vars_;
 };
 
+class DimVisitor : public tir::ExprVisitor {
+ public:
+  void VisitExpr_(const tir::VarNode* v) override { vars_.Insert(GetRef<tir::Var>(v)); }
+
+  InsertionSet<tir::Var> vars_;
+};
+
+class ShapeVarVisitor : public ExprVisitor {
+ public:
+  void VisitExpr_(const ShapeExprNode* shape) override {
+    for (auto dim : shape->values) {
+      DimVisitor v;
+      v(dim);
+      for (auto v : v.vars_.data) {
+        shape_vars_.Insert(v);
+      }
+    }
+  }
+
+  InsertionSet<tir::Var> shape_vars_;
+};
+
+tvm::Array<tir::Var> ShapeVars(const Expr& expr) {
+  ShapeVarVisitor s;
+  s.VisitExpr(expr);
+  Array<tir::Var> ret;
+  for (auto v : s.shape_vars_.data) {
+    ret.push_back(v);
+  }
+  return ret;
+}
+
 tvm::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
 
 tvm::Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
@@ -153,6 +186,8 @@ tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
 
 tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr) { return VarVisitor().RecGlobalVars(expr); }
+
+TVM_REGISTER_GLOBAL("relax.analysis.shape_vars").set_body_typed(ShapeVars);
 
 TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
 
