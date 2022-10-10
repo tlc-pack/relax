@@ -121,6 +121,8 @@ class VMShapeLowerMutator : public ExprMutator {
     new_body = builder_->Normalize(SeqExpr(blocks, new_body));
 
     Type ret_type = this->VisitType(node->ret_type);
+    // should not be necessary to do anything with it
+    Expr ret_shape = node->ret_shape;
 
     // Because this pass is the last stage of build, ndim info is no longer needed for tensors.
     // The ret_type is weakened to unknown-dimensional DynTensorType.
@@ -129,7 +131,7 @@ class VMShapeLowerMutator : public ExprMutator {
       ret_type = DynTensorType::CreateUnknownNDim(temp->dtype, Span());
     }
 
-    return Function(node->params, new_body, ret_type, node->attrs);
+    return Function(node->params, new_body, ret_type, ret_shape, node->attrs);
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {
