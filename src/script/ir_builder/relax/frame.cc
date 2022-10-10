@@ -51,6 +51,7 @@ void FunctionFrameNode::ExitWithScope() {
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_type=*/ret_type.value_or(Type()),
+                            /*ret_shape=*/tvm::relax::RuntimeDepShape(),
                             /*attrs=*/DictAttrs(attrs));
   // TODO(relax-team): remove this line
   func = WithAttr(func, "global_symbol", name.value());

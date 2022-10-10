@@ -132,9 +132,12 @@ class LambdaLifter : public ExprMutator {
       visited_func = GetRef<Expr>(func_node);
     } else if (body->checked_type_.as<ObjectTypeNode>()) {
       // make_closure was introduced
-      visited_func = Function(params, body, body->checked_type_, func_node->attrs);
+      // TODO(@sslyu): Determine if we can fill in the return shape
+      visited_func =
+          Function(params, body, body->checked_type_, RuntimeDepShape(), func_node->attrs);
     } else {
-      visited_func = Function(params, body, func_node->ret_type, func_node->attrs);
+      visited_func =
+          Function(params, body, func_node->ret_type, RuntimeDepShape(), func_node->attrs);
     }
     auto new_func = Downcast<Function>(visited_func);
 
@@ -145,6 +148,7 @@ class LambdaLifter : public ExprMutator {
           /*params=*/new_func->params,
           /*body=*/new_func->body,
           /*ret_type=*/new_func->ret_type,
+          /*ret_shape=*/new_func->ret_shape,
           /*attrs=*/new_func->attrs,
           /*span=*/new_func->span);
     } else {
@@ -161,6 +165,7 @@ class LambdaLifter : public ExprMutator {
       lifted_func = Function(/*params=*/closure_params,
                              /*body=*/Bind(new_func->body, rebinding_map),
                              /*ret_type=*/new_func->ret_type,
+                             /*ret_shape=*/new_func->ret_shape,
                              /*attrs=*/new_func->attrs,
                              /*span=*/func->span);
 
@@ -231,7 +236,8 @@ class LambdaLifter : public ExprMutator {
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(n);
-        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->attrs);
+        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->ret_shape,
+                        func->attrs);
         builder_->UpdateFunction(pair.first, func);
       }
     }

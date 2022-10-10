@@ -186,7 +186,8 @@ def test_func():
     blocks = [rx.BindingBlock(bindings)]
     seqe = rx.SeqExpr(blocks, x)
     ret_type = rx.DynTensorType(-1, "float32")
-    func = rx.Function([x], seqe, ret_type)
+    ret_shape = rx.RuntimeDepShape()
+    func = rx.Function([x], seqe, ret_type, ret_shape)
     func = func.with_attr("global_symbol", "func")
 
     func_str = dump_ast(func)
@@ -194,6 +195,7 @@ def test_func():
     assert "params=" in func_str
     assert "body=" in func_str
     assert "ret_type=" in func_str
+    assert "ret_shape=" in func_str
     assert "attrs=" in func_str
     assert '"global_symbol": "func"' in func_str
     assert "SeqExpr(" in func_str

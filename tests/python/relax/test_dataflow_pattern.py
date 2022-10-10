@@ -132,8 +132,12 @@ def test_function_pattern():
     ttype = rx.DynTensorType(-1, "float32")
     x = rx.Var("x", type_annotation=ttype)
     y = rx.Var("y", type_annotation=ttype)
-    assert f.match(rx.Function([x, y], rx.op.add(x, y), ret_type=ttype))
-    assert not f.match(rx.Function([x, y], rx.op.multiply(x, y), ret_type=ttype))
+    assert f.match(
+        rx.Function([x, y], rx.op.add(x, y), ret_type=ttype, ret_shape=rx.RuntimeDepShape())
+    )
+    assert not f.match(
+        rx.Function([x, y], rx.op.multiply(x, y), ret_type=ttype, ret_shape=rx.RuntimeDepShape())
+    )
 
 
 def test_tuple_pattern():
@@ -278,7 +282,7 @@ def test_match_call_attr():
     ttype = rx.DynTensorType(-1, "float32")
     x = rx.Var("x", type_annotation=ttype)
     y = rx.Var("y", type_annotation=ttype)
-    fn = rx.Function([x, y], rx.op.add(x, y), ret_type=ttype)
+    fn = rx.Function([x, y], rx.op.add(x, y), ret_type=ttype, ret_shape=rx.RuntimeDepShape())
     annotated_fn = fn.with_attr({"Codegen": "test-codegen", "global_symbol": "test-symbol"})
     xp = is_var("x")
     yp = is_var("y")

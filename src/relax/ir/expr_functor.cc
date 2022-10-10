@@ -251,11 +251,12 @@ Expr ExprMutatorBase::VisitExpr_(const DataflowVarNode* op) { return GetRef<Expr
 
 Expr ExprMutatorBase::VisitExpr_(const FunctionNode* op) {
   Expr body = this->VisitExpr(op->body);
+  Expr ret_shape = this->VisitExpr(op->ret_shape);
 
   if (body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(op->params, body, op->ret_type, op->attrs);
+    return Function(op->params, body, op->ret_type, op->ret_shape, op->attrs);
   }
 }
 
@@ -418,12 +419,14 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   }
 
   Type ret_type = this->VisitType(op->ret_type);
+  Expr ret_shape = this->VisitExpr(op->ret_shape);
   Expr body = this->VisitWithNewScope(op->body);
 
-  if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body)) {
+  if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body) &&
+      ret_shape.same_as(op->ret_shape)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(params, body, ret_type, op->attrs);
+    return Function(params, body, ret_type, ret_shape, op->attrs);
   }
 }
 
