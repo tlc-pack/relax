@@ -366,6 +366,7 @@ __all__ = [
     "builtin",
     "call_packed",
     "call_tir",
+    "const",
     "dataflow",
     "emit",
     "emit_match_shape",

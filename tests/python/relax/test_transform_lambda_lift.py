@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
-import pytest
+
 import tvm
+import tvm.testing
 from tvm import relax
-from tvm.runtime.object import Object
 import tvm.script
 from tvm.script import relax as R, tir as T
 from tvm.relax import transform
@@ -45,14 +44,16 @@ def test_basic():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def lifted_func_0(x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")) -> Tensor:
-            s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+        def lifted_func_0(
+            x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor:
+            s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
         @R.function
         def main(
-            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
-        ) -> Tensor((10, 5), "float32"):
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
             inner = lifted_func_0
             gv1 = inner(x1, y1)
             return gv1
@@ -61,16 +62,16 @@ def test_basic():
     class Before:
         @R.function
         def main(
-            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
-        ) -> Tensor((10, 5), "float32"):
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
             @R.function
             def inner(
-                x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
-            ) -> Tensor((10, 5), "float32"):
-                s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+                x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+            ) -> R.Tensor((10, 5), "float32"):
+                s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
                 return s
 
-            gv1: Tensor((10, 5), "float32") = inner(x1, y1)
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
     before = Before
@@ -87,19 +88,19 @@ def test_closure():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")):
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
             outer_func = lifted_func_0
             in_call = outer_func(x)
-            res = relax.invoke_closure(in_call, (y,), type_args=(Tensor(ndim=2, dtype="float32")))
+            res = relax.invoke_closure(in_call, (y,), type_args=(R.Tensor(ndim=2, dtype="float32")))
             return res
 
         @R.function
-        def lifted_func_1(x1: Tensor((2, 3), "float32"), c1: Tensor((2, 3), "float32")):
-            r_1: Tensor((2, 3), "float32") = relax.add(x1, c1)
+        def lifted_func_1(x1: R.Tensor((2, 3), "float32"), c1: R.Tensor((2, 3), "float32")):
+            r_1: R.Tensor((2, 3), "float32") = R.add(x1, c1)
             return r_1
 
         @R.function
-        def lifted_func_0(y: Tensor((2, 3), "float32")):
+        def lifted_func_0(y: R.Tensor((2, 3), "float32")):
             return relax.make_closure(lifted_func_1, (y,))
 
     # IRModule to perform Lambda Lifting
@@ -107,13 +108,13 @@ def test_closure():
     class Before:
         @R.function
         def main(
-            x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")
-        ) -> Tensor((2, 3), "float32"):
+            x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
+        ) -> R.Tensor((2, 3), "float32"):
             @R.function
-            def outer_func(c1: Tensor((2, 3), "float32")):
+            def outer_func(c1: R.Tensor((2, 3), "float32")):
                 @R.function
-                def inner_func(x1: Tensor((2, 3), "float32")):
-                    s: Tensor((2, 3), "float32") = relax.add(x1, c1)
+                def inner_func(x1: R.Tensor((2, 3), "float32")):
+                    s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
                     return s
 
                 return inner_func
@@ -135,25 +136,25 @@ def test_recursive():
     class Expected:
         @R.function
         def lifted_func_0(
-            i: Tensor((), "int32"), s: Tensor((2, 3), "float32"), x: Tensor((2, 3), "float32")
-        ) -> Tensor((2, 3), "float32"):
-            cond: Tensor((), "bool") = relax.call_packed(
-                "test.vm.less", i, relax.const(10), type_args=(Tensor(ndim=0, dtype="bool"))
+            i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
+        ) -> R.Tensor((2, 3), "float32"):
+            cond: R.Tensor((), "bool") = relax.call_packed(
+                "test.vm.less", i, relax.const(10), type_args=(R.Tensor(ndim=0, dtype="bool"))
             )
-            c: Tensor((), "int32") = relax.const(1, dtype="int32")
+            c: R.Tensor((), "int32") = relax.const(1, dtype="int32")
             if cond:
-                new_i: Tensor((), "int32") = relax.add(i, c)
-                new_s: Tensor((2, 3), "float32") = relax.add(s, x)
+                new_i: R.Tensor((), "int32") = R.add(i, c)
+                new_s: R.Tensor((2, 3), "float32") = R.add(s, x)
                 r = lifted_func_0(new_i, new_s, x)
             else:
                 r = s
             return r
 
         @R.function
-        def main(x: Tensor((2, 3), "float32")) -> Tensor:
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             while_loop = relax.make_closure(lifted_func_0, (x,))
             gv = relax.invoke_closure(
-                while_loop, (relax.const(0), x), type_args=(Tensor(ndim=2, dtype="float32"))
+                while_loop, (relax.const(0), x), type_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             return gv
 
@@ -161,24 +162,24 @@ def test_recursive():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((2, 3), "float32")) -> Tensor:
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             @R.function
             def while_loop(
-                i: Tensor((), "int32"), s: Tensor((2, 3), "float32")
-            ) -> Tensor((2, 3), "float32"):
-                cond: Tensor((), "bool") = relax.call_packed(
-                    "test.vm.less", i, relax.const(10), type_args=(Tensor(ndim=0, dtype="bool"))
+                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
+            ) -> R.Tensor((2, 3), "float32"):
+                cond: R.Tensor((), "bool") = relax.call_packed(
+                    "test.vm.less", i, relax.const(10), type_args=(R.Tensor(ndim=0, dtype="bool"))
                 )
-                c: Tensor((), "int32") = relax.const(1, dtype="int32")
+                c: R.Tensor((), "int32") = relax.const(1, dtype="int32")
                 if cond:
-                    new_i: Tensor((), "int32") = relax.add(i, c)
-                    new_s: Tensor((2, 3), "float32") = relax.add(s, x)
-                    r: Tensor((2, 3), "float32") = while_loop(new_i, new_s)
+                    new_i: R.Tensor((), "int32") = R.add(i, c)
+                    new_s: R.Tensor((2, 3), "float32") = R.add(s, x)
+                    r: R.Tensor((2, 3), "float32") = while_loop(new_i, new_s)
                 else:
-                    r: Tensor((2, 3), "float32") = s
+                    r: R.Tensor((2, 3), "float32") = s
                 return r
 
-            gv: Tensor((2, 3), "float32") = while_loop(relax.const(0), x)
+            gv: R.Tensor((2, 3), "float32") = while_loop(relax.const(0), x)
             return gv
 
     before = Before
@@ -196,32 +197,32 @@ def test_multi_func():
     class Expected:
         @R.function
         def glob_func_1(
-            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
-        ) -> Tensor(None, "float32", ndim=2):
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor(None, "float32", ndim=2):
             inner = lifted_func_1
             gv1 = inner(x1, y1)
             return gv1
 
         @R.function
         def glob_func_2(
-            x11: Tensor((10, 5), "float32"), y11: Tensor((10, 5), "float32")
-        ) -> Tensor(None, "float32", ndim=2):
+            x11: R.Tensor((10, 5), "float32"), y11: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor(None, "float32", ndim=2):
             inner1 = lifted_func_0
             gv11 = inner1(x11, y11)
             return gv11
 
         @R.function
         def lifted_func_0(
-            x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
-        ) -> Tensor(None, "float32", ndim=2):
-            s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+            x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor(None, "float32", ndim=2):
+            s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
         @R.function
         def lifted_func_1(
-            x21: Tensor((10, 5), "float32"), y21: Tensor((10, 5), "float32")
-        ) -> Tensor(None, "float32", ndim=2):
-            s1: Tensor((10, 5), "float32") = relax.add(x21, y21)
+            x21: R.Tensor((10, 5), "float32"), y21: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor(None, "float32", ndim=2):
+            s1: R.Tensor((10, 5), "float32") = R.add(x21, y21)
             return s1
 
     # the IRModule to apply lambda lifting
@@ -229,30 +230,30 @@ def test_multi_func():
     class Before:
         @R.function
         def glob_func_1(
-            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
-        ) -> Tensor((10, 5), "float32"):
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
             @R.function
             def inner(
-                x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
-            ) -> Tensor((10, 5), "float32"):
-                s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+                x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+            ) -> R.Tensor((10, 5), "float32"):
+                s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
                 return s
 
-            gv1: Tensor((10, 5), "float32") = inner(x1, y1)
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
         @R.function
         def glob_func_2(
-            x1: Tensor((10, 5), "float32"), y1: Tensor((10, 5), "float32")
-        ) -> Tensor((10, 5), "float32"):
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
             @R.function
             def inner(
-                x2: Tensor((10, 5), "float32"), y2: Tensor((10, 5), "float32")
-            ) -> Tensor((10, 5), "float32"):
-                s: Tensor((10, 5), "float32") = relax.add(x2, y2)
+                x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+            ) -> R.Tensor((10, 5), "float32"):
+                s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
                 return s
 
-            gv1: Tensor((10, 5), "float32") = inner(x1, y1)
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
     before = Before
@@ -279,7 +280,7 @@ def test_no_local_func():
                     C[vi, vj] = A[vi, vj] - B[vi, vj]
 
         @R.function
-        def before(c0: Tensor((16, 16), "float32"), x: Tensor((_, _), "float32")):
+        def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor((_, _), "float32")):
             s = relax.call_tir(sub, (c0, x), (16, 16), dtype="float32")
             return s
 
@@ -292,4 +293,5 @@ def test_no_local_func():
 
 
 if __name__ == "__main__":
-    pytest.main((__file__))
+    test_basic()
+    tvm.testing.main()

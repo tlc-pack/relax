@@ -109,12 +109,12 @@ class Var(Expr):
         return name
 
     def __call__(self, *args: Any, attrs=None) -> Call:
-        if self.checked_type and isinstance(self.checked_type, ty.FuncType):
-            if self.checked_type.ret_type is None:
-                raise ValueError("Cannot call a function with no return type")
+        if self._checked_type_ and isinstance(self._checked_type_, ty.FuncType):
             return Call(self, args, attrs=attrs)
         else:
-            raise TypeError("Only vars with function type can be called")
+            raise TypeError(
+                f"Only vars with function type can be called, but got type: {self._checked_type_}"
+            )
 
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")

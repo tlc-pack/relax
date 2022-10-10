@@ -15,17 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
-import sys
-import pytest
-
+import numpy as np
 import tvm
+import tvm.script
 import tvm.testing
 from tvm import relax
-import numpy as np
-
-import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 use_np_array = tvm.testing.parameter(False, True)
 
@@ -50,8 +46,8 @@ def test_bind_params(use_np_array):
 
         @R.function
         def main(
-            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.call_tir(tir_matmul, (x, w), (16, 16), dtype="float32")
             return gv0
 
@@ -76,4 +72,4 @@ def test_bind_params(use_np_array):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

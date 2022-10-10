@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
 import pytest
 import tvm
 import tvm.testing
@@ -49,14 +48,14 @@ def test_unused_relax_func():
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
-        def unused_func(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
-            gv0 = relax.add(x, w)
+        def unused_func(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
+            gv0 = R.add(x, w)
             return gv0
 
         @R.function
         def main(
-            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.call_tir(tir_add, (x, w), (16, 16), dtype="float32")
             return gv0
 
@@ -93,14 +92,14 @@ def test_unused_relax_func_custom_entry_func():
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
-        def unused_func(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
-            gv0 = relax.add(x, w)
+        def unused_func(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
+            gv0 = R.add(x, w)
             return gv0
 
         @R.function
         def foo(
-            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.call_tir(tir_add, (x, w), (16, 16), dtype="float32")
             return gv0
 
@@ -140,12 +139,12 @@ def test_unused_relax_func_symbolic_shape():
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
-        def unused_func(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
-            gv0 = relax.add(x, w)
+        def unused_func(x: R.Tensor((m, n), "float32"), w: R.Tensor((n, k), "float32")):
+            gv0 = R.add(x, w)
             return gv0
 
         @R.function
-        def main(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
+        def main(x: R.Tensor((m, n), "float32"), w: R.Tensor((n, k), "float32")):
             gv0 = R.call_tir(tir_add, (x, w), (m, k), dtype="float32")
             return gv0
 
@@ -194,14 +193,14 @@ def test_unused_prim_func():
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
-        def relax_add(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
-            gv0 = relax.add(x, w)
+        def relax_add(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
+            gv0 = R.add(x, w)
             return gv0
 
         @R.function
         def main(
-            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = relax_add(x, w)
             return gv0
 
@@ -238,15 +237,15 @@ def test_multiple_unused_funcs():
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
-        def unused_func2(x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")):
-            gv0 = relax.add(x, w)
+        def unused_func2(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
+            gv0 = R.add(x, w)
             return gv0
 
         @R.function
         def main(
-            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
-            gv0 = relax.add(x, w)
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
+            gv0 = R.add(x, w)
             return gv0
 
     mod = InputModule
