@@ -190,6 +190,7 @@ class Function(BaseFunc):
     params: List[Var]
     body: Expr
     ret_type: Type
+    ret_shape: Expr
     attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
@@ -197,21 +198,25 @@ class Function(BaseFunc):
         params: List[Var],
         body: Expr,
         ret_type: Type,
+        ret_shape: Expr,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Function, params, body, ret_type, attrs, span)
+        self.__init_handle_by_constructor__(
+            _ffi_api.Function, params, body, ret_type, ret_shape, attrs, span
+        )
 
     @staticmethod
     def create_unchecked(
         params: List[Var],
         body: Expr,
         ret_type: Type,
+        ret_shape: Expr,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without type checking."""
-        return _ffi_api.Function_CreateUnchecked(params, body, ret_type, attrs, span)
+        return _ffi_api.Function_CreateUnchecked(params, body, ret_type, ret_shape, attrs, span)
 
     def __call__(self, *args):
         """Invoke the global function.
