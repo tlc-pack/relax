@@ -195,7 +195,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
+def print(*values: List[Expr], format: str = "") -> Expr:
     """Print op to print the values
 
     Parameters

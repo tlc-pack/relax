@@ -237,6 +237,27 @@ def test_tuple_return_2():
     _check(foo, bb.get()["foo"])
 
 
+def test_tuple_binding():
+    @R.function
+    def foo(x: R.Tensor("float32", ndim=2)):
+        n, m = T.var("int64"), T.var("int64")
+        x0 = R.match_shape(x, (n, m))
+        t0 = (x, x0)
+        t1 = (x, (n, m), t0)
+        return t1
+
+    x = relax.Var("x", type_annotation=relax.DynTensorType(2, "float32"))
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        x0 = bb.match_shape(x, (n, m))
+        t0 = bb.emit(relax.Tuple([x, x0]))
+        t1 = bb.emit(relax.Tuple([x, relax.ShapeExpr([n, m]), t0]))
+        bb.emit_func_output(t1)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_dataflow_block():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):

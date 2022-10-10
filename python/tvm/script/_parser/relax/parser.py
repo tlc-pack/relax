@@ -18,10 +18,11 @@
 
 import contextlib
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from tvm import relax, tir
 from tvm.ir import Type
+from tvm.runtime import convert_to_object
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
 from ...ir_builder import ir as I
@@ -112,6 +113,8 @@ def bind_value_with_dataflow_var_names(
         ):
             is_dataflow_var = True
 
+        if isinstance(value, tuple):
+            value = eval_tuple(value)
         if isinstance(value, relax.Expr):
             var = R.emit(value, is_dataflow_var)
             # It's an internal check, so directly use assert here.
@@ -130,6 +133,20 @@ def bind_value_with_dataflow_var_names(
             raise TypeError(f"Unsupported type {type(value)} in assignment")
 
     return bind_assign_value
+
+
+def eval_tuple(value: Union[relax.Expr, Tuple[relax.Expr]]) -> relax.Expr:
+    if not isinstance(value, tuple):
+        return convert_to_object(value)
+    value = list(value)
+    for i, v in enumerate(value):
+        value[i] = eval_tuple(v)
+    if all([isinstance(f, tir.PrimExpr) for f in value]):
+        return relax.ShapeExpr(value)
+    elif all([isinstance(f, relax.Expr) for f in value]):
+        return relax.Tuple(value)
+    else:
+        raise TypeError("Return types, with mixed PrimExpr and Relax Expr, is not supported.")
 
 
 def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) -> Any:
@@ -357,6 +374,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
 @dispatch.register(token="relax", type_name="Return")
 def visit_return(self: Parser, node: doc.Assign) -> None:
     value = self.eval_expr(node.value)
+    value = eval_tuple(value)
     R.func_ret_value(value)
 
 
