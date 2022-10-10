@@ -14,16 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 from __future__ import annotations
 import pytest
-
-import re
-
 import tvm
+import tvm.testing
 from tvm._ffi.base import TVMError
-from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.analysis import name_to_binding
+from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.expr import DataflowVar, Var
 from tvm.script import relax as R
 
@@ -31,7 +28,7 @@ from tvm.script import relax as R
 @tvm.script.ir_module
 class Identity:
     @R.function
-    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+    def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             lv0 = x
             R.output(lv0)
@@ -67,10 +64,10 @@ def test_simple_add():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                tmp: Tensor((32, 32), "float32") = x
+                tmp: R.Tensor((32, 32), "float32") = x
                 R.output(lv0)
             return lv0
 
@@ -106,7 +103,7 @@ def test_simple_remove_unused():
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 unused = lv0
@@ -129,7 +126,7 @@ def test_simple_remove_unused():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
@@ -156,7 +153,7 @@ def test_simple_rm_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 unused0 = lv0
@@ -173,7 +170,7 @@ def test_simple_rm_all_unused():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
@@ -185,7 +182,7 @@ def test_simple_rm_all_unused():
 @tvm.script.ir_module
 class DeadDFBlock:
     @R.function
-    def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+    def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
         with R.dataflow():
             lv0 = x
             R.output(lv0)
@@ -202,7 +199,7 @@ def test_empty_dfb_after_removal():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
             return x
 
     tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
@@ -218,7 +215,7 @@ def test_empty_dfb_after_all_removal():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
             return x
 
     tvm.ir.assert_structural_equal(rwt.mutated_root_fn(), GroundTruth["main"])
@@ -228,7 +225,7 @@ def test_chained_rm_all_unused():
     @tvm.script.ir_module
     class IdentityChainedUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
@@ -245,7 +242,7 @@ def test_chained_rm_all_unused():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
@@ -258,26 +255,26 @@ def test_simple_replace_all_uses():
     @tvm.script.ir_module
     class Lv0To1:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
             #   lv0 => lv1
             #  /   \
             # lv2  lv3
             #  \   /
             #   lv4
             with R.dataflow():
-                lv0: Tensor((32, 32), "float32") = R.call_tir(
+                lv0: R.Tensor((32, 32), "float32") = R.call_tir(
                     my_relu, (x,), (32, 32), dtype="float32"
                 )
-                lv1: Tensor((32, 32), "float32") = R.call_tir(
+                lv1: R.Tensor((32, 32), "float32") = R.call_tir(
                     my_sigmoid, (x,), (32, 32), dtype="float32"
                 )
-                lv2: Tensor((32, 32), "float32") = R.call_tir(
+                lv2: R.Tensor((32, 32), "float32") = R.call_tir(
                     my_add, (x, lv0), (32, 32), dtype="float32"
                 )
-                lv3: Tensor((32, 32), "float32") = R.call_tir(
+                lv3: R.Tensor((32, 32), "float32") = R.call_tir(
                     my_mul, (x, lv0), (32, 32), dtype="float32"
                 )
-                lv4: Tensor((32, 32), "float32") = R.call_tir(
+                lv4: R.Tensor((32, 32), "float32") = R.call_tir(
                     my_whatever, (lv2, lv3), (32, 32), dtype="float32"
                 )
                 R.output(lv4)
@@ -302,7 +299,7 @@ def test_simple_module_update():
     @tvm.script.ir_module
     class Identity:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
@@ -323,11 +320,15 @@ def test_simple_module_update():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                tmp: Tensor((32, 32), "float32") = x
+                tmp: R.Tensor((32, 32), "float32") = x
                 R.output(lv0)
             return lv0
 
     tvm.ir.assert_structural_equal(new_ir, GroundTruth)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

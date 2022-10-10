@@ -318,7 +318,7 @@ def visit_with(self: Parser, node: doc.With) -> None:
             dataflow_var_names.append(arg.id)
 
         for i in range(len(node.body) - 1):
-            if not isinstance(node.body[i], doc.Assign):
+            if not isinstance(node.body[i], (doc.Assign, doc.AnnAssign)):
                 self.report_error(
                     node.body[i],
                     "One non-assign statement appears unexpectedly inside a dataflow block. Only "

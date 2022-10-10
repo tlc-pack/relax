@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
 from tvm import tir, te
@@ -24,7 +23,7 @@ from tvm import relax as rx
 from tvm.tir.function import PrimFunc
 
 from tvm.ir.base import assert_structural_equal
-from tvm.relax import ExternFunc, ShapeExpr, Tuple
+from tvm.relax import ExternFunc
 from tvm import topi
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
@@ -189,13 +188,14 @@ def test_block_builder_input_mod():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def before_main(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")) -> Tensor:
-            gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
+        def before_main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")) -> R.Tensor:
+            m, n, k = T.var("int64"), T.var("int64"), T.var("int64")
+            gv0 = R.call_tir("tir_matmul", (x, w), (m, k), dtype="float32")
             return gv0
 
     @R.function
-    def after_main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
-        gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
+    def after_main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        gv0 = R.call_tir("tir_matmul", (x, w), (32, 32), dtype="float32")
         return gv0
 
     input_mod = InputModule
