@@ -513,8 +513,7 @@ def test_normalize():
         @R.function
         def mul_add(x: Tensor((m, n), "float16")) -> Tensor(None, "float16", ndim=2):
             gv = relax.add(x, x)
-            gv1 = relax.add(x, x)
-            return R.multiply(gv, gv1)
+            return R.multiply(gv, gv)
 
     assert_structural_equal(after_mod, Expected)
 

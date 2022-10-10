@@ -355,7 +355,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
    private:
     std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
-    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
+    std::unordered_map<Expr, Expr, StructuralHash, StructuralEqual> expr_memo_;
   };
 
   // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape

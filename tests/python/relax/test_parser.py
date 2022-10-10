@@ -884,8 +884,7 @@ def test_class_normalize():
         @R.function
         def mul_add(x: Tensor) -> Tensor:
             gv = relax.add(x, x)
-            gv1 = relax.add(x, x)
-            return R.multiply(gv, gv1)
+            return R.multiply(gv, gv)
 
     assert_structural_equal(InputModule, OutputModule)
 
