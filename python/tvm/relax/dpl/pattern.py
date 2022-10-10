@@ -823,6 +823,7 @@ def is_call_tir(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
     shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
+    is_extern: bool = False,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir
@@ -853,7 +854,12 @@ def is_call_tir(
     elif isinstance(shape, (tuple)):
         shape = is_tuple(shape)  # multiple shape patterns
 
-    return is_op("relax.call_tir")(GlobalVarPattern(func_name), args, shape)
+    if is_extern:
+        func_pattern = ExternFuncPattern(func_name)
+    else:
+        func_pattern = GlobalVarPattern(func_name)
+
+    return is_op("relax.call_tir")(func_pattern, args, shape)
 
 
 def is_call_packed(

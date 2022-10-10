@@ -18,7 +18,7 @@
 
 import contextlib
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 from tvm import relax, tir
 from tvm.ir import Type
@@ -357,20 +357,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
 @dispatch.register(token="relax", type_name="Return")
 def visit_return(self: Parser, node: doc.Assign) -> None:
     value = self.eval_expr(node.value)
-
-    if isinstance(value, relax.Expr):
-        R.func_ret_value(value)
-    elif isinstance(value, Tuple):
-        if all([isinstance(f, tir.PrimExpr) for f in value]):
-            R.func_ret_value(relax.ShapeExpr(value))
-        elif any([isinstance(f, tir.PrimExpr) for f in value]):
-            self.report_error(
-                node, "Return types, with mixed PrimExpr and Relax Expr, is not supported."
-            )
-        else:
-            R.func_ret_value(relax.Tuple(value))
-    else:
-        self.report_error(node, f"Unsupported return value type {type(value)}.")
+    R.func_ret_value(value)
 
 
 @dispatch.register(token="relax", type_name="If")

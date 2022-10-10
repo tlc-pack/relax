@@ -50,6 +50,9 @@ class TensorProxy:
         dtype: str = None,
         ndim: int = -1,
     ) -> TensorType:
+        if isinstance(shape, str) and dtype is None:
+            dtype = shape
+            shape = None
         return tensor(shape, dtype, ndim)
 
     def __getitem__(self, keys) -> Var:

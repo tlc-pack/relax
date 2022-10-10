@@ -364,6 +364,7 @@ class RelaxTransformer(Transformer):
                 self.parse_shape(shape_annotation, bind_free_vars),
                 span=self.to_tvm_span(shape_annotation.span),
             )
+            print(shape)
             ndim = len(shape)
 
         else:

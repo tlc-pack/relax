@@ -220,6 +220,23 @@ def test_tuple_return():
     _check(foo, bb.get()["foo"])
 
 
+def test_tuple_return_2():
+    @R.function
+    def foo(x: R.Tensor("float32", ndim=2)):
+        n, m = T.var("int64"), T.var("int64")
+        x0 = R.match_shape(x, (n, m))
+        return (x0, (n + 1, m, 1))
+
+    x = relax.Var("x", type_annotation=relax.DynTensorType(2, "float32"))
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        x0 = bb.match_shape(x, (n, m))
+        bb.emit_func_output(relax.Tuple([x0, relax.ShapeExpr([n + 1, m, 1])]))
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_dataflow_block():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):

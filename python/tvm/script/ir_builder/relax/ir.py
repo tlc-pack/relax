@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Attrs, Type
+from tvm import relax
 from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, Var
 
 ############################### Operators ###############################
@@ -37,6 +38,7 @@ from tvm.relax.op import (
 )
 from tvm.relax.ty import ObjectType, ShapeType
 from tvm.runtime import Object as tvm_Object
+from tvm.runtime import convert_to_object
 from tvm.tir import PrimExpr
 
 from ..tir import var as _tir_var
@@ -175,7 +177,21 @@ def func_ret_value(value: Expr) -> None:
     value: Expr
         The function return value.
     """
-    return _ffi_api.FuncRetValue(value)  # pylint: disable=no-member # type: ignore
+
+    def eval_tuple(value: Union[Expr, Tuple[Expr]]) -> Expr:
+        if not isinstance(value, tuple):
+            return convert_to_object(value)
+        value = list(value)
+        for i, v in enumerate(value):
+            value[i] = eval_tuple(v)
+        if all([isinstance(f, (PrimExpr)) for f in value]):
+            return ShapeExpr(value)
+        elif all([isinstance(f, Expr) for f in value]):
+            return relax.Tuple(value)
+        else:
+            raise TypeError("Return types, with mixed PrimExpr and Relax Expr, is not supported.")
+
+    return _ffi_api.FuncRetValue(eval_tuple(value))  # pylint: disable=no-member # type: ignore
 
 
 ############################# BindingBlock ##############################

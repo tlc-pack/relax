@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
 import pytest
 import tvm
 from tvm.script import relax as R
@@ -39,7 +38,7 @@ def _check_save_roundtrip(x):
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def relax_add(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")) -> Tensor:
+    def relax_add(x: R.Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")) -> Tensor:
         z1 = relax.add(x, y)
         z2 = relax.add(z1, z1)
         return z2
