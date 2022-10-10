@@ -90,7 +90,7 @@ class LambdaLifter : public ExprMutator {
     String lift_func_name = "lifted_func_" + std::to_string(lift_func_num_++);
     auto global = GlobalVar(lift_func_name);
     Array<Var> captured_vars = FreeVars(func);
-    recur_vars_ = RecGlobalVars(func);
+    recur_vars_ = CalledGlobalVars(func);
     auto all_global_vars = AllGlobalVars(func);
 
     Array<Var> typed_captured_vars;

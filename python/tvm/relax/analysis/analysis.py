@@ -233,7 +233,7 @@ def all_global_vars(expr: Expr) -> List[GlobalVar]:
     return _ffi_api.all_global_vars(expr)
 
 
-def rec_global_vars(expr: Expr) -> List[GlobalVar]:
+def called_global_vars(expr: Expr) -> List[GlobalVar]:
     """
     Return all global vars called (potentially recursively) from expr.
 
@@ -248,4 +248,4 @@ def rec_global_vars(expr: Expr) -> List[GlobalVar]:
         List of global vars that are used recursively in expr,
         in post-DFS order
     """
-    return _ffi_api.rec_global_vars(expr)
+    return _ffi_api.called_global_vars(expr)

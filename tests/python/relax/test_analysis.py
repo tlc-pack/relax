@@ -32,7 +32,7 @@ from tvm.relax.analysis import (
     free_vars,
     bound_vars,
     all_global_vars,
-    rec_global_vars,
+    called_global_vars,
 )
 from tvm.script import relax as R
 
@@ -384,9 +384,9 @@ def test_all_global_vars():
     assert call_var_names == {"gv1", "gv2", "gv3"}
 
 
-def test_rec_global_vars():
+def test_called_global_vars():
     # there is one call to "func"
-    global_vars = rec_global_vars(VarExample["main"])
+    global_vars = called_global_vars(VarExample["main"])
     assert len(global_vars) == 1
     assert global_vars[0].name_hint == "func"
 
@@ -394,7 +394,7 @@ def test_rec_global_vars():
     gv2 = rx.GlobalVar("gv2")
     gv3 = rx.GlobalVar("gv3")
     call = rx.Call(gv1, [gv2, gv3])
-    call_vars = rec_global_vars(call)
+    call_vars = called_global_vars(call)
     assert len(call_vars) == 1
     assert call_vars[0].name_hint == "gv1"
 
