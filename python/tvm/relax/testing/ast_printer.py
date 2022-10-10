@@ -147,6 +147,7 @@ class ASTPrinter(ExprFunctor):
         fields = {
             "params": self.build_list(map(self.visit_expr, op.params)),
             "body": self.visit_expr(op.body),
+            "ret_shape": self.visit_expr(op.ret_shape),
         }
         if op.ret_type:
             fields["ret_type"] = self.visit_type_(op.ret_type)
