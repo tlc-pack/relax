@@ -16,6 +16,7 @@
 # under the License.
 
 from __future__ import annotations
+from typing import List, Set, Union
 import pytest
 
 import tvm
@@ -27,8 +28,17 @@ from tvm.relax.analysis import (
     name_to_binding,
     shape_vars,
     derive_func_ret_shape,
+    all_vars,
+    free_vars,
+    bound_vars,
+    all_global_vars,
+    called_global_vars,
 )
 from tvm.script import relax as R
+
+
+def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
+    return set(map(lambda v: v.name_hint, vars))
 
 
 def test_dispatch_var():
@@ -289,6 +299,114 @@ def test_derive_func_ret_shape_free():
     )
     shape_expr = derive_func_ret_shape([a1, a2], body)
     assert isinstance(shape_expr, rx.RuntimeDepShape)
+
+
+@tvm.script.ir_module
+class VarExample:
+    @R.function
+    def func(a: Tensor) -> Tensor:
+        return R.add(a, a)
+
+    @R.function
+    def main(x: Tensor, y: Tensor) -> Tensor:
+        z = R.add(x, y)
+        # no binding here
+        R.match_shape(x, (5, 5))
+        with R.dataflow():
+            q = R.add(z, z)
+            p = func(q)
+            r = R.match_shape(p, (5, 5))
+            s = r
+            R.output(s)
+        return s
+
+
+def test_all_vars():
+    vars = all_vars(VarExample["func"])
+    assert len(vars) == 1
+    assert vars[0].name_hint == "a"
+
+    var_names = var_name_set(all_vars(VarExample["main"]))
+    assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
+
+
+def test_bound_vars():
+    vars = bound_vars(VarExample["func"])
+    assert len(vars) == 1
+    assert vars[0].name_hint == "a"
+
+    # all the vars are bound
+    var_names = var_name_set(bound_vars(VarExample["main"]))
+    assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
+
+    # if we consider only the body, then the function arguments are not bound
+    body_names = var_name_set(bound_vars(VarExample["main"].body))
+    assert body_names == {"z", "p", "q", "r", "s"}
+
+    # if the argument isn't bound, then nothing is
+    assert len(bound_vars(VarExample["func"].body)) == 0
+
+
+def test_free_vars():
+    # all the vars are bound
+    assert len(free_vars(VarExample["func"])) == 0
+    assert len(free_vars(VarExample["main"])) == 0
+
+    # the arguments are free if we look only at the bodies
+    func_free = var_name_set(free_vars(VarExample["func"].body))
+    main_free = var_name_set(free_vars(VarExample["main"].body))
+    assert len(func_free) == 1
+    assert len(main_free) == 2
+    assert "a" in func_free
+    assert main_free == {"x", "y"}
+
+    # function that captures vars
+    x = rx.Var("x", type_annotation=rx.DynTensorType(ndim=-1))
+    y = rx.Var("y", type_annotation=rx.DynTensorType(ndim=-1))
+    z = rx.Var("z", type_annotation=rx.DynTensorType(ndim=-1))
+    inner = rx.Function(
+        [z],
+        rx.op.add(x, rx.op.add(y, z)),
+        ret_type=rx.DynTensorType(ndim=-1),
+        ret_shape=rx.RuntimeDepShape(),
+    )
+    outer = rx.Function(
+        [x, y],
+        rx.Call(inner, [y]),
+        ret_type=rx.DynTensorType(ndim=-1),
+        ret_shape=rx.RuntimeDepShape(),
+    )
+    assert len(free_vars(outer)) == 0
+    assert var_name_set(free_vars(inner)) == {"x", "y"}
+
+
+def test_all_global_vars():
+    # there is one call to "func"
+    global_vars = all_global_vars(VarExample["main"])
+    assert len(global_vars) == 1
+    assert global_vars[0].name_hint == "func"
+
+    gv1 = rx.GlobalVar("gv1")
+    gv2 = rx.GlobalVar("gv2")
+    gv3 = rx.GlobalVar("gv3")
+    call = rx.Call(gv1, [gv2, gv3])
+    call_var_names = var_name_set(all_global_vars(call))
+    assert call_var_names == {"gv1", "gv2", "gv3"}
+
+
+def test_called_global_vars():
+    # there is one call to "func"
+    global_vars = called_global_vars(VarExample["main"])
+    assert len(global_vars) == 1
+    assert global_vars[0].name_hint == "func"
+
+    gv1 = rx.GlobalVar("gv1")
+    gv2 = rx.GlobalVar("gv2")
+    gv3 = rx.GlobalVar("gv3")
+    call = rx.Call(gv1, [gv2, gv3])
+    call_vars = called_global_vars(call)
+    assert len(call_vars) == 1
+    assert call_vars[0].name_hint == "gv1"
 
 
 if __name__ == "__main__":
