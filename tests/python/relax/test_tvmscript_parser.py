@@ -427,28 +427,37 @@ def test_annotation():
         o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
         return o
 
-    m = tir.Var("m", "int64")
-    x = relax.Var("x", (32, m), relax.DynTensorType(2, "float32"))
-    y = relax.Var("y", (m,), relax.DynTensorType(1, "float32"))
-    r = relax.Var("r", None, relax.DynTensorType(-1, "int64"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", (x, y, r)):
-        z = bb.emit(R.multiply(x, y))
-        w = bb.emit(R.multiply(z, z))
-        q = bb.emit(R.add(w, w))
-        t = bb.emit(R.add(w, z))
-        sh = bb.emit(R.shape_of(t))
-        o = bb.emit(
-            relax.Call(
-                relax.ExternFunc("contrib.tensor_array_stack"),
-                [x, y],
-                None,
-                type_args=[relax.ObjectType()],
-            )
-        )
-        bb.emit_func_output(o)
+    def _check_type_shape(binding, expected_type, expected_shape):
+        tvm.ir.assert_structural_equal(binding.var.checked_type, expected_type)
+        tvm.ir.assert_structural_equal(binding.var.shape_, expected_shape)
 
-    _check(foo, bb.get()["foo"])
+    # Cannot use block builder here because we need to check the annotated type,
+    # which may be inconsistent with deduced type.
+    assert isinstance(foo.ret_type, relax.ObjectType)
+    m = foo.params[0].shape[1]
+    bindings = foo.body.blocks[0].bindings
+    _check_type_shape(
+        bindings[0], relax.DynTensorType(ndim=2, dtype="float32"), relax.ShapeExpr([32, m])
+    )
+    _check_type_shape(bindings[1], relax.DynTensorType(dtype=""), None)
+    _check_type_shape(bindings[2], relax.DynTensorType(ndim=2, dtype=""), None)
+    _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), None)
+    _check_type_shape(bindings[4], relax.ShapeType(), None)
+    _check_type_shape(bindings[5], relax.ObjectType(), None)
+
+
+def test_annotate_override():
+    @R.function
+    def foo(x: R.Tensor):
+        y = x
+        # z will be treated as object type even though it's a tensor
+        z: R.Object = y
+        return z
+
+    assert isinstance(foo.ret_type, relax.ObjectType)
+    y_bind, z_bind = foo.body.blocks[0].bindings
+    assert isinstance(y_bind.var.checked_type, relax.DynTensorType)
+    assert isinstance(z_bind.var.checked_type, relax.ObjectType)
 
 
 def test_empty_shape():

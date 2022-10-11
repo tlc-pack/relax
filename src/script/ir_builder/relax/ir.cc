@@ -256,35 +256,26 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 
 ///////////////////////////// Type Deduce //////////////////////////////
 
-void AnnotateTypeShape(const tvm::relax::Var& var, const Type& type,
-                       const Optional<tvm::relax::ShapeExpr>& shape) {
+void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
+                       const Optional<tvm::relax::ShapeExpr>& anno_shape) {
   using tvm::relax::IsBaseOf;
-  if (!var->checked_type_.defined()) {
-    var->checked_type_ = type;
-  } else {
+  if (var->checked_type_.defined()) {
     const Type& var_type = var->checked_type();
-    if (IsBaseOf(type, var_type)) {
-      // The var type is equal or more detailed than annotated one, do nothing.
-    } else if (IsBaseOf(var_type, type)) {
-      LOG(WARNING) << "The inferred type of var " << var->name_hint()
-                   << " by the block builder is more refined than the annotated one. The system "
-                      "will refine it automatically.";
-      var->checked_type_ = type;
-    } else {
-      LOG(FATAL) << "TypeError: The annotated type and value type are not compatible. "
-                 << "The Type is expected to be " << var_type << " but got annotation: " << type;
-    }
+    CHECK(IsBaseOf(anno_type, var_type) || IsBaseOf(var_type, anno_type))
+        << "TypeError: The annotated type and value type are not compatible. "
+        << "The Type is expected to be " << var_type << " but got annotation: " << anno_type;
   }
 
-  if (!var->shape_.defined()) {
-    var->shape_ = shape;
-  } else if (shape.defined()) {
+  if (var->shape_.defined() && anno_shape.defined()) {
     const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
     tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
-    CHECK(block_builder->CanProveShapeEqual(var_shape, shape.value()))
+    CHECK(block_builder->CanProveShapeEqual(var_shape, anno_shape.value()))
         << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
-        << " but got annotation: " << shape.value();
+        << " but got annotation: " << anno_shape.value();
   }
+
+  var->checked_type_ = anno_type;
+  var->shape_ = anno_shape;
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
