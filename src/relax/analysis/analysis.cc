@@ -87,10 +87,10 @@ class VarVisitor : protected ExprVisitor {
     return ret;
   }
 
-  Array<GlobalVar> RecGlobalVars(const Expr& expr) {
+  Array<GlobalVar> CalledGlobalVars(const Expr& expr) {
     this->VisitExpr(expr);
     Array<GlobalVar> ret;
-    for (const auto& v : rec_global_vars_.data) {
+    for (const auto& v : called_global_vars_.data) {
       ret.push_back(v);
     }
     return ret;
@@ -128,7 +128,7 @@ class VarVisitor : protected ExprVisitor {
     }
 
     if (const GlobalVarNode* global_var_node = call_node->op.as<GlobalVarNode>()) {
-      rec_global_vars_.Insert(GetRef<GlobalVar>(global_var_node));
+      called_global_vars_.Insert(GetRef<GlobalVar>(global_var_node));
     }
   }
 
@@ -138,11 +138,18 @@ class VarVisitor : protected ExprVisitor {
     VisitVarDef(binding->var);
   }
 
+  void VisitBinding_(const MatchShapeNode* binding) final {
+    if (binding->var.defined()) {
+      MarkBounded(binding->var);
+    }
+    ExprVisitor::VisitBinding_(binding);
+  }
+
  private:
   InsertionSet<Var> vars_;
   InsertionSet<Var> bound_vars_;
   InsertionSet<GlobalVar> global_vars_;
-  InsertionSet<GlobalVar> rec_global_vars_;
+  InsertionSet<GlobalVar> called_global_vars_;
 };
 
 class DimVisitor : public tir::ExprVisitor {
@@ -185,7 +192,9 @@ tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
 tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
 
-tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr) { return VarVisitor().RecGlobalVars(expr); }
+tvm::Array<GlobalVar> CalledGlobalVars(const Expr& expr) {
+  return VarVisitor().CalledGlobalVars(expr);
+}
 
 TVM_REGISTER_GLOBAL("relax.analysis.shape_vars").set_body_typed(ShapeVars);
 
@@ -197,7 +206,7 @@ TVM_REGISTER_GLOBAL("relax.analysis.all_vars").set_body_typed(AllVars);
 
 TVM_REGISTER_GLOBAL("relax.analysis.all_global_vars").set_body_typed(AllGlobalVars);
 
-TVM_REGISTER_GLOBAL("relax.analysis.rec_global_vars").set_body_typed(RecGlobalVars);
+TVM_REGISTER_GLOBAL("relax.analysis.called_global_vars").set_body_typed(CalledGlobalVars);
 
 }  // namespace relax
 }  // namespace tvm
