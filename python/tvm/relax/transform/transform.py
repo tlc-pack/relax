@@ -19,9 +19,9 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, Union, Optional, List
+import numpy as np  # type: ignore
 
-import numpy as np
 import tvm.ir
 from tvm.runtime import NDArray
 from . import _ffi_api
@@ -46,7 +46,7 @@ def FailTestRewrite() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.FailTestRewrite()
+    return _ffi_api.FailTestRewrite()  # type: ignore
 
 
 def RewriteFMA() -> tvm.ir.transform.Pass:
@@ -56,7 +56,7 @@ def RewriteFMA() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.RewriteFMA()
+    return _ffi_api.RewriteFMA()  # type: ignore
 
 
 def FuseFMA() -> tvm.ir.transform.Pass:
@@ -67,7 +67,7 @@ def FuseFMA() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.FuseFMA()
+    return _ffi_api.FuseFMA()  # type: ignore
 
 
 def LambdaLift():
@@ -78,7 +78,7 @@ def LambdaLift():
     -------
     ret : tvm.ir.transform.Pass
     """
-    return _ffi_api.LambdaLift()
+    return _ffi_api.LambdaLift()  # type: ignore
 
 
 def ToNonDataflow() -> tvm.ir.transform.Pass:
@@ -88,7 +88,7 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.ToNonDataflow()
+    return _ffi_api.ToNonDataflow()  # type: ignore
 
 
 def CallTIRRewrite() -> tvm.ir.transform.Pass:
@@ -98,7 +98,7 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.CallTIRRewrite()
+    return _ffi_api.CallTIRRewrite()  # type: ignore
 
 
 def VMMemoryLower() -> tvm.ir.transform.Pass:
@@ -108,7 +108,7 @@ def VMMemoryLower() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.VMMemoryLower()
+    return _ffi_api.VMMemoryLower()  # type: ignore
 
 
 def VMShapeLower() -> tvm.ir.transform.Pass:
@@ -119,7 +119,7 @@ def VMShapeLower() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.VMShapeLower()
+    return _ffi_api.VMShapeLower()  # type: ignore
 
 
 def Normalize() -> tvm.ir.transform.Pass:
@@ -130,7 +130,7 @@ def Normalize() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.Normalize()
+    return _ffi_api.Normalize()  # type: ignore
 
 
 def CanonicalizeBindings() -> tvm.ir.transform.Pass:
@@ -144,7 +144,7 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.CanonicalizeBindings()
+    return _ffi_api.CanonicalizeBindings()  # type: ignore
 
 
 def ResolveGlobals() -> tvm.ir.transform.Pass:
@@ -156,7 +156,7 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.ResolveGlobals()
+    return _ffi_api.ResolveGlobals()  # type: ignore
 
 
 def BindParams(
@@ -187,7 +187,7 @@ def BindParams(
         ), f"param values are expected to be TVM.NDArray or numpy.ndarray, but got {type(v)}"
         tvm_params[k] = v
 
-    return _ffi_api.BindParams(func_name, tvm_params)
+    return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
 
 
 def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
@@ -205,7 +205,7 @@ def RemoveUnusedFunctions(entry_functions: Optional[List[str]] = None) -> tvm.ir
     """
     if entry_functions is None:
         entry_functions = ["main"]
-    return _ffi_api.RemoveUnusedFunctions(entry_functions)
+    return _ffi_api.RemoveUnusedFunctions(entry_functions)  # type: ignore
 
 
 def RunCodegen(
@@ -227,7 +227,7 @@ def RunCodegen(
     """
     if entry_functions is None:
         entry_functions = ["main"]
-    return _ffi_api.RunCodegen(target_codegens, entry_functions)
+    return _ffi_api.RunCodegen(target_codegens, entry_functions)  # type: ignore
 
 
 def FoldConstant() -> tvm.ir.transform.Pass:
@@ -237,7 +237,7 @@ def FoldConstant() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.FoldConstant()
+    return _ffi_api.FoldConstant()  # type: ignore
 
 
 def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
@@ -247,7 +247,7 @@ def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.AnnotateTIROpPattern()
+    return _ffi_api.AnnotateTIROpPattern()  # type: ignore
 
 
 def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
@@ -269,7 +269,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     ret : tvm.transform.Pass
         The registered pass for operator fusion.
     """
-    return _ffi_api.FuseOps(fuse_opt_level)
+    return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
 
 
 def FuseTIR() -> tvm.ir.transform.Pass:
@@ -280,7 +280,7 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     ret : tvm.transform.Pass
         The registered pass for tir fusion.
     """
-    return _ffi_api.FuseTIR()
+    return _ffi_api.FuseTIR()  # type: ignore
 
 
 def MetaScheduleApplyDatabase(
@@ -353,7 +353,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             def _pass_func(func, mod, ctx):
                 return inst.transform_function(func, mod, ctx)
 
-            self.__init_handle_by_constructor__(_ffi_api.MakeFunctionPass, _pass_func, pass_info)
+            self.__init_handle_by_constructor__(
+                _ffi_api.MakeFunctionPass, _pass_func, pass_info  # type: ignore
+            )
             self._inst = inst
 
         def __getattr__(self, name):
@@ -476,7 +478,7 @@ def function_pass(
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
             raise TypeError("pass_func must be a callable for Function pass")
-        return _ffi_api.MakeFunctionPass(pass_arg, info)
+        return _ffi_api.MakeFunctionPass(pass_arg, info)  # type: ignore
 
     if pass_func:
         return create_function_pass(pass_func)
@@ -500,7 +502,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
                 return inst.transform_dataflowblock(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.MakeDataflowBlockPass, _pass_func, pass_info
+                _ffi_api.MakeDataflowBlockPass, _pass_func, pass_info  # type: ignore
             )
             self._inst = inst
 
@@ -629,7 +631,7 @@ def dataflowblock_pass(
             return _wrap_class_dataflowblock_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
             raise TypeError("pass_func must be a callable for DataflowBlock pass")
-        return _ffi_api.MakeDataflowBlockPass(pass_arg, info)
+        return _ffi_api.MakeDataflowBlockPass(pass_arg, info)  # type: ignore
 
     if pass_func:
         return create_dataflowblock_pass(pass_func)

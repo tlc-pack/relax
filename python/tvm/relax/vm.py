@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
 from typing import Callable, List, Optional, Union, Dict, Tuple
-import numpy as np
+import numpy as np  # type: ignore
 
 from tvm._ffi import base as _base
 import tvm
@@ -202,7 +202,7 @@ class VirtualMachine(object):
         kwargs : Dict[str, Any]
             Any named arguments to package up with the function
         """
-        cargs = []
+        cargs: List[Any] = []
         if kwargs:
             args = self._convert_func_named_args(func_name, args, **kwargs)
         for arg in args:
@@ -228,7 +228,7 @@ class VirtualMachine(object):
         elif isinstance(arg, tvm.runtime.NDArray):
             cargs.append(arg)
         elif isinstance(arg, (tuple, list)):
-            field_args = []
+            field_args: List[Any] = []
             for field in arg:
                 self._convert(field, field_args)
             cargs.append(container.tuple_object(field_args))
@@ -285,7 +285,7 @@ class VirtualMachine(object):
         kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
             Named arguments to the function.
         """
-        cargs = []
+        cargs: List[Any] = []
 
         if kwargs:
             args = self._convert_func_named_args(func_name, args, **kwargs)
@@ -518,7 +518,7 @@ def build(
     if params is None:
         params = {}
 
-    return Executable(_ffi_api.VMCodeGen(rx_mod, lib, ext_libs, target, params))
+    return Executable(_ffi_api.VMCodeGen(rx_mod, lib, ext_libs, target, params))  # type: ignore
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:

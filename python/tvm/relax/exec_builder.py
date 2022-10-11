@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """A builder to build Relax VM executable."""
+from __future__ import annotations
+
 from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
@@ -36,7 +38,7 @@ class SpecialReg(IntEnum):
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
 
-    stack = []
+    stack: List[VMFuncScope] = []
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
@@ -51,19 +53,19 @@ class ExecBuilder(Object):
     """A builder to emit instructions and build executable for the virtual machine."""
 
     def __init__(self) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ExecBuilderCreate)
+        self.__init_handle_by_constructor__(_ffi_api.ExecBuilderCreate)  # type: ignore
 
     def r(self, idx: int) -> int:
         """set instruction's argument as a register."""
-        return _ffi_api.ExecBuilderR(self, idx)
+        return _ffi_api.ExecBuilderR(self, idx)  # type: ignore
 
     def imm(self, value: int) -> int:
         """set instruction's argument as an immediate."""
-        return _ffi_api.ExecBuilderImm(self, value)
+        return _ffi_api.ExecBuilderImm(self, value)  # type: ignore
 
     def c(self, idx: int) -> int:
         """set instruction's argument as a constant."""
-        return _ffi_api.ExecBuilderC(self, idx)
+        return _ffi_api.ExecBuilderC(self, idx)  # type: ignore
 
     def void_arg(self) -> int:
         return self.r(SpecialReg.VOID_ARG)
@@ -75,7 +77,7 @@ class ExecBuilder(Object):
         self, func_name: str, num_inputs: Optional[int] = 0, param_names: List[str] = None
     ) -> VMFuncScope:
         """annotate a VM function."""
-        _ffi_api.ExecBuilderFunction(self, func_name, num_inputs, param_names)
+        _ffi_api.ExecBuilderFunction(self, func_name, num_inputs, param_names)  # type: ignore
         return VMFuncScope()
 
     def _check_scope(self) -> None:
@@ -83,7 +85,7 @@ class ExecBuilder(Object):
             raise ValueError("emit should happen in a function scope")
 
     def emit_constant(self, const: TVMRetValueHandle) -> int:
-        return _ffi_api.ExecBuilderEmitConstant(self, const)
+        return _ffi_api.ExecBuilderEmitConstant(self, const)  # type: ignore
 
     def emit_call(
         self,
@@ -107,23 +109,23 @@ class ExecBuilder(Object):
                     args_.append(new_arg)
                 else:
                     args_.append(arg)
-        _ffi_api.ExecBuilderEmitCall(self, name, args_, dst)
+        _ffi_api.ExecBuilderEmitCall(self, name, args_, dst)  # type: ignore
 
     def emit_ret(self, result: int) -> None:
         """emit a return instruction"""
         self._check_scope()
-        _ffi_api.ExecBuilderEmitRet(self, result)
+        _ffi_api.ExecBuilderEmitRet(self, result)  # type: ignore
 
     def emit_goto(self, pc_offset):
         """emit a goto instruction"""
         self._check_scope()
-        _ffi_api.ExecBuilderEmitGoto(self, pc_offset)
+        _ffi_api.ExecBuilderEmitGoto(self, pc_offset)  # type: ignore
 
     def emit_if(self, cond, false_offset):
         """emit an if instruction"""
         self._check_scope()
-        _ffi_api.ExecBuilderEmitIf(self, cond, false_offset)
+        _ffi_api.ExecBuilderEmitIf(self, cond, false_offset)  # type: ignore
 
     def get(self) -> Executable:
         """return the executable"""
-        return Executable(_ffi_api.ExecBuilderGet(self))
+        return Executable(_ffi_api.ExecBuilderGet(self))  # type: ignore

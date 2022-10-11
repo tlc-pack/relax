@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Any
 
 import tvm
 from tvm.runtime.object import Object
@@ -66,7 +66,7 @@ def call_tir(
     if isinstance(shape, (list, tuple, Array)):
         shape = ShapeExpr(shape)
 
-    if isinstance(args, Expr):
+    if isinstance(args, Expr):  # type: ignore
         args = Tuple((args,))
 
     if isinstance(args, (list, tuple)):
@@ -81,7 +81,7 @@ def call_tir(
     else:
         raise TypeError("Not supported dtype for call_tir: " + str(type(dtype)))
 
-    return _ffi_api.call_tir(func, args, shape, output_type, tir_vars)
+    return _ffi_api.call_tir(func, args, shape, output_type, tir_vars)  # type: ignore
 
 
 def make_closure(
@@ -109,7 +109,7 @@ def make_closure(
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
 
-    return _ffi_api.make_closure(func, args)
+    return _ffi_api.make_closure(func, args)  # type: ignore
 
 
 def invoke_closure(
@@ -137,7 +137,7 @@ def invoke_closure(
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
 
-    return _ffi_api.invoke_closure(closure, args)
+    return _ffi_api.invoke_closure(closure, args)  # type: ignore
 
 
 def render_object(val: tvm.Object) -> str:
@@ -211,7 +211,7 @@ def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
     result : Expr
         A relax Call, which will print the value during runtime.
     """
-    if isinstance(values, Expr):
+    if isinstance(values, Expr):  # type: ignore
         values = [values]
     return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
 

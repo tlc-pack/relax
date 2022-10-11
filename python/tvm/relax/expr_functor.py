@@ -114,9 +114,9 @@ class ExprFunctor:
     implements memoization.
     """
 
-    def visit_expr(self, expr):
+    def visit_expr(self, expr: Expr) -> Expr:
         """Apply the visitor to an expression."""
-        if isinstance(expr, Constant):
+        if isinstance(expr, Constant):  # type: ignore
             ret = self.visit_constant_(expr)
         elif isinstance(expr, Tuple):
             ret = self.visit_tuple_(expr)
@@ -130,15 +130,15 @@ class ExprFunctor:
             ret = self.visit_runtime_dep_shape_(expr)
         elif isinstance(expr, ExternFunc):
             ret = self.visit_extern_func_(expr)
-        elif isinstance(expr, GlobalVar):
+        elif isinstance(expr, GlobalVar):  # type: ignore
             ret = self.visit_global_var_(expr)
         elif isinstance(expr, Function):
             ret = self.visit_function_(expr)
-        elif isinstance(expr, Call):
+        elif isinstance(expr, Call):  # type: ignore
             ret = self.visit_call_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
-        elif isinstance(expr, If):
+        elif isinstance(expr, If):  # type: ignore
             ret = self.visit_if_(expr)
         elif isinstance(expr, Op):
             ret = self.visit_op_(expr)
@@ -191,25 +191,25 @@ class ExprFunctor:
     def visit_tuple_getitem_(self, op: TupleGetItem):
         raise NotImplementedError()
 
-    def visit_var_binding_(self, binding: VarBinding) -> None:
+    def visit_var_binding_(self, binding: VarBinding):
         raise NotImplementedError()
 
-    def visit_match_shape_(self, binding: MatchShape) -> None:
+    def visit_match_shape_(self, binding: MatchShape):
         raise NotImplementedError()
 
-    def visit_binding_block_(self, block: BindingBlock) -> None:
+    def visit_binding_block_(self, block: BindingBlock):
         raise NotImplementedError()
 
-    def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+    def visit_dataflow_block_(self, block: DataflowBlock):
         raise NotImplementedError()
 
-    def visit_var_def_(self, var: Var) -> None:
+    def visit_var_def_(self, var: Var):
         raise NotImplementedError()
 
-    def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
+    def visit_dataflow_var_def_(self, var: DataflowVar):
         raise NotImplementedError()
 
-    def visit_binding(self, binding: Binding) -> None:
+    def visit_binding(self, binding: Binding):
         if isinstance(binding, MatchShape):
             self.visit_match_shape_(binding)
         elif isinstance(binding, VarBinding):
@@ -217,7 +217,7 @@ class ExprFunctor:
         else:
             raise TypeError("Invalid type: {0}".format(type(binding)))
 
-    def visit_binding_block(self, block: BindingBlock) -> None:
+    def visit_binding_block(self, block: BindingBlock):
         if isinstance(block, DataflowBlock):
             self.visit_dataflow_block_(block)
         elif isinstance(block, BindingBlock):
@@ -277,7 +277,7 @@ class _PyExprVisitor(Object):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.MakePyExprVisitor,
+            _ffi_api.MakePyExprVisitor,  # type: ignore
             f_visit_expr,
             f_visit_constant_,
             f_visit_tuple_,
@@ -314,7 +314,7 @@ class _PyExprVisitor(Object):
         expr : Expr
             The expr to be visited.
         """
-        return _ffi_api.PyExprVisitorVisitExpr(self, expr)
+        return _ffi_api.PyExprVisitorVisitExpr(self, expr)  # type: ignore
 
     def visit_binding(self, binding: Binding) -> None:
         """Generic dispatcher for Binding.
@@ -324,7 +324,7 @@ class _PyExprVisitor(Object):
         binding : Binding
             The binding to be visited.
         """
-        return _ffi_api.PyExprVisitorVisitBinding(self, binding)
+        return _ffi_api.PyExprVisitorVisitBinding(self, binding)  # type: ignore
 
     def visit_binding_block(self, block: BindingBlock) -> None:
         """Generic dispatcher for BindingBlock.
@@ -334,7 +334,7 @@ class _PyExprVisitor(Object):
         block : BindingBlock
             The block to be visited.
         """
-        return _ffi_api.PyExprVisitorVisitBindingBlock(self, block)
+        return _ffi_api.PyExprVisitorVisitBindingBlock(self, block)  # type: ignore
 
     def visit_var_def(self, var: Var) -> None:
         """Generic dispatcher for visiting the var definition site.
@@ -345,7 +345,7 @@ class _PyExprVisitor(Object):
         var : Var
             The var to be visited.
         """
-        return _ffi_api.PyExprVisitorVisitVarDef(self, var)
+        return _ffi_api.PyExprVisitorVisitVarDef(self, var)  # type: ignore
 
 
 class PyExprVisitor:
@@ -407,7 +407,7 @@ class PyExprVisitor:
             The expr to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.PyExprVisitorVisitExpr(self._outer(), expr)
+        return _ffi_api.PyExprVisitorVisitExpr(self._outer(), expr)  # type: ignore
 
     def visit_binding(self, binding: Binding) -> None:
         """Generic dispatcher for Binding.
@@ -420,7 +420,7 @@ class PyExprVisitor:
             The binding to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.PyExprVisitorVisitBinding(self._outer(), binding)
+        return _ffi_api.PyExprVisitorVisitBinding(self._outer(), binding)  # type: ignore
 
     def visit_binding_block(self, block: BindingBlock) -> None:
         """Generic dispatcher for BindingBlock.
@@ -433,7 +433,7 @@ class PyExprVisitor:
             The block to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.PyExprVisitorVisitBindingBlock(self._outer(), block)
+        return _ffi_api.PyExprVisitorVisitBindingBlock(self._outer(), block)  # type: ignore
 
     def visit_var_def(self, var: Var) -> None:
         """Generic dispatcher for visiting the var definition site.
@@ -446,7 +446,7 @@ class PyExprVisitor:
             The var to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.PyExprVisitorVisitVarDef(self._outer(), var)
+        return _ffi_api.PyExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
     def visit_constant_(self, op: Constant) -> None:
         """Visit Constant.
@@ -459,7 +459,7 @@ class PyExprVisitor:
             The Constant to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_tuple_(self, op: Tuple) -> None:
         """Visit Tuple.
@@ -472,7 +472,7 @@ class PyExprVisitor:
             The Tuple to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_var_(self, op: Var) -> None:
         """Visit Var.
@@ -485,7 +485,7 @@ class PyExprVisitor:
             The Var to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_dataflow_var_(self, op: DataflowVar) -> None:
         """Visit DataflowVar.
@@ -498,7 +498,7 @@ class PyExprVisitor:
             The DataflowVar to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         """Visit ShapeExpr.
@@ -511,7 +511,7 @@ class PyExprVisitor:
             The ShapeExpr to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
         """Visit RuntimeDepShape.
@@ -524,7 +524,7 @@ class PyExprVisitor:
             The RuntimeDepShape to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_extern_func_(self, op: ExternFunc) -> None:
         """Visit ExternFunc.
@@ -537,7 +537,7 @@ class PyExprVisitor:
             The ExternFunc to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_global_var_(self, op: GlobalVar) -> None:
         """Visit GlobalVar.
@@ -550,7 +550,7 @@ class PyExprVisitor:
             The GlobalVar to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_function_(self, op: Function) -> None:
         """Visit Function.
@@ -563,7 +563,7 @@ class PyExprVisitor:
             The Function to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_call_(self, op: Call) -> None:
         """Visit Call.
@@ -576,7 +576,7 @@ class PyExprVisitor:
             The Call to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_seq_expr_(self, op: SeqExpr) -> None:
         """Visit SeqExpr.
@@ -589,7 +589,7 @@ class PyExprVisitor:
             The SeqExpr to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_if_(self, op: If) -> None:
         """Visit If.
@@ -602,7 +602,7 @@ class PyExprVisitor:
             The If to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_op_(self, op: Op) -> None:
         """Visit Op.
@@ -615,7 +615,7 @@ class PyExprVisitor:
             The Op to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> None:
         """Visit TupleGetItem.
@@ -628,7 +628,7 @@ class PyExprVisitor:
             The TupleGetItem to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
@@ -641,7 +641,7 @@ class PyExprVisitor:
             The VarBinding to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)
+        return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)  # type: ignore
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Visit MatchShape.
@@ -654,7 +654,7 @@ class PyExprVisitor:
             The MatchShape to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)
+        return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)  # type: ignore
 
     def visit_binding_block_(self, block: BindingBlock) -> None:
         """Visit BindingBlock.
@@ -667,7 +667,7 @@ class PyExprVisitor:
             The BindingBlock to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitBindingBlock(self._outer(), block)
+        return _ffi_api.ExprVisitorVisitBindingBlock(self._outer(), block)  # type: ignore
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> None:
         """Visit DataflowBlock.
@@ -680,7 +680,7 @@ class PyExprVisitor:
             The DataflowBlock to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitBindingBlock(self._outer(), block)
+        return _ffi_api.ExprVisitorVisitBindingBlock(self._outer(), block)  # type: ignore
 
     def visit_var_def_(self, var: Var) -> None:
         """Visit the Var definition site.
@@ -693,7 +693,7 @@ class PyExprVisitor:
             The Var to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)
+        return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
         """Visit the DataflowVar definition site.
@@ -706,7 +706,7 @@ class PyExprVisitor:
             The DataflowVar to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)
+        return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
     def visit_type(self, t: Type) -> None:
         """Visit Type.
@@ -718,7 +718,7 @@ class PyExprVisitor:
             The Type to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitType(self._outer(), t)
+        return _ffi_api.ExprVisitorVisitType(self._outer(), t)  # type: ignore
 
     def visit_span(self, span: Span) -> None:
         """Visit Span.
@@ -730,7 +730,7 @@ class PyExprVisitor:
             The Span to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)
+        return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)  # type: ignore
 
 
 @tvm._ffi.register_object("expr_functor.PyExprMutator")
@@ -777,7 +777,7 @@ class _PyExprMutator(Object):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.MakePyExprMutator,
+            _ffi_api.MakePyExprMutator,  # type: ignore
             builder,
             f_visit_expr,
             f_visit_constant_,
@@ -820,7 +820,7 @@ class _PyExprMutator(Object):
         result : Expr
             The Expr after transformation.
         """
-        return _ffi_api.PyExprMutatorVisitExpr(self, expr)
+        return _ffi_api.PyExprMutatorVisitExpr(self, expr)  # type: ignore
 
     def visit_binding(self, binding: Binding) -> None:
         """Generic dispatcher for Binding.
@@ -830,7 +830,7 @@ class _PyExprMutator(Object):
         binding : Binding
             The binding to be visited.
         """
-        return _ffi_api.PyExprMutatorVisitBinding(self, binding)
+        return _ffi_api.PyExprMutatorVisitBinding(self, binding)  # type: ignore
 
     def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
         """Generic dispatcher for BindingBlock.
@@ -845,7 +845,7 @@ class _PyExprMutator(Object):
         result : BindingBlock
             The binding block after transformation.
         """
-        return _ffi_api.PyExprMutatorVisitBindingBlock(self, block)
+        return _ffi_api.PyExprMutatorVisitBindingBlock(self, block)  # type: ignore
 
     def visit_var_def(self, var: Var) -> Var:
         """Generic dispatcher for visiting the var definition site.
@@ -861,7 +861,7 @@ class _PyExprMutator(Object):
         result : Var
             The var after post-order rewritten.
         """
-        return _ffi_api.PyExprMutatorVisitVarDef(self, var)
+        return _ffi_api.PyExprMutatorVisitVarDef(self, var)  # type: ignore
 
 
 class PyExprMutator:
@@ -933,7 +933,7 @@ class PyExprMutator:
             The Expr after transformation.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorVisitExpr(self._outer(), expr)
+        return _ffi_api.PyExprMutatorVisitExpr(self._outer(), expr)  # type: ignore
 
     def visit_binding(self, binding: Binding) -> None:
         """Generic dispatcher for Binding.
@@ -946,7 +946,7 @@ class PyExprMutator:
             The binding to be visited.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorVisitBinding(self._outer(), binding)
+        return _ffi_api.PyExprMutatorVisitBinding(self._outer(), binding)  # type: ignore
 
     def visit_binding_block(self, block: BindingBlock) -> BindingBlock:
         """Generic dispatcher for BindingBlock.
@@ -964,7 +964,7 @@ class PyExprMutator:
             The binding block after transformation.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorVisitBindingBlock(self._outer(), block)
+        return _ffi_api.PyExprMutatorVisitBindingBlock(self._outer(), block)  # type: ignore
 
     def visit_var_def(self, var: Var) -> Var:
         """Generic dispatcher for visiting the var definition site.
@@ -982,7 +982,7 @@ class PyExprMutator:
             The var after post-order rewritten.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorVisitVarDef(self._outer(), var)
+        return _ffi_api.PyExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
 
     def visit_constant_(self, op: Constant) -> Expr:
         """Visit Constant.
@@ -1000,7 +1000,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_tuple_(self, op: Tuple) -> Expr:
         """Visit Tuple.
@@ -1018,7 +1018,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_var_(self, op: Var) -> Expr:
         """Visit Var.
@@ -1036,7 +1036,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_dataflow_var_(self, op: DataflowVar) -> Expr:
         """Visit DataflowVar.
@@ -1054,7 +1054,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         """Visit ShapeExpr.
@@ -1072,7 +1072,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
         """Visit RuntimeDepShape.
@@ -1090,7 +1090,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_extern_func_(self, op: ExternFunc) -> Expr:
         """Visit ExternFunc.
@@ -1108,7 +1108,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_global_var_(self, op: GlobalVar) -> Expr:
         """Visit GlobalVar.
@@ -1126,7 +1126,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_function_(self, op: Function) -> Expr:
         """Visit Function.
@@ -1144,7 +1144,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_call_(self, op: Call) -> Expr:
         """Visit Call.
@@ -1162,7 +1162,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_seq_expr_(self, op: SeqExpr) -> Expr:
         """Visit SeqExpr.
@@ -1180,7 +1180,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_if_(self, op: If) -> Expr:
         """Visit If.
@@ -1198,7 +1198,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_op_(self, op: Op) -> Expr:
         """Visit Op.
@@ -1216,7 +1216,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         """Visit TupleGetItem.
@@ -1234,7 +1234,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
@@ -1247,7 +1247,7 @@ class PyExprMutator:
             The VarBinding to be visited.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)
+        return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)  # type: ignore
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Visit MatchShape.
@@ -1260,7 +1260,7 @@ class PyExprMutator:
             The MatchShape to be visited.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)
+        return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)  # type: ignore
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Visit BindingBlock.
@@ -1278,7 +1278,7 @@ class PyExprMutator:
             The binding block after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitBindingBlock(self._outer(), block)
+        return _ffi_api.ExprMutatorVisitBindingBlock(self._outer(), block)  # type: ignore
 
     def visit_dataflow_block_(self, block: DataflowBlock) -> BindingBlock:
         """Visit DataflowBlock.
@@ -1296,7 +1296,7 @@ class PyExprMutator:
             The binding block after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitBindingBlock(self._outer(), block)
+        return _ffi_api.ExprMutatorVisitBindingBlock(self._outer(), block)  # type: ignore
 
     def visit_var_def_(self, var: Var) -> Var:
         """Visit the Var definition site.
@@ -1314,7 +1314,7 @@ class PyExprMutator:
             The var after post-order rewritten.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)
+        return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> Var:
         """Visit the DataflowVar definition site.
@@ -1332,7 +1332,7 @@ class PyExprMutator:
             The var after post-order rewritten.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)
+        return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
 
     def visit_type(self, t: Type) -> Type:
         """Visit Type.
@@ -1349,7 +1349,7 @@ class PyExprMutator:
             The type after transformation.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitType(self._outer(), t)
+        return _ffi_api.ExprMutatorVisitType(self._outer(), t)  # type: ignore
 
     def visit_span(self, span: Span) -> Span:
         """Visit Span.
@@ -1380,7 +1380,7 @@ class PyExprMutator:
         result : Expr
             The Expr after post-order rewritten.
         """
-        return _ffi_api.PyExprMutatorVisitExprPostOrder(self._outer(), expr)
+        return _ffi_api.PyExprMutatorVisitExprPostOrder(self._outer(), expr)  # type: ignore
 
     def set_var_remap(self, vid: Id, var: Var) -> None:
         """Remap a var to a new var in use-site.
@@ -1393,7 +1393,7 @@ class PyExprMutator:
             The new var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorSetVarRemap(self._outer(), vid, var)
+        return _ffi_api.PyExprMutatorSetVarRemap(self._outer(), vid, var)  # type: ignore
 
     def get_var_remap(self, vid: Id) -> Var:
         """Remap a var to a new var in use-site.
@@ -1409,7 +1409,7 @@ class PyExprMutator:
             The remapped var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), vid)
+        return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), vid)  # type: ignore
 
     def visit_with_new_scope(self, expr: Expr) -> Expr:
         """Rewrite the expr with a new scope, used in a Function's body and the branches of If.
@@ -1425,7 +1425,7 @@ class PyExprMutator:
             The expr after visiting.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorVisitWithNewScope(self._outer(), expr)
+        return _ffi_api.PyExprMutatorVisitWithNewScope(self._outer(), expr)  # type: ignore
 
     def lookup_binding(self, var: Var) -> Optional[Expr]:
         """Look up the value bound to a variable.
@@ -1442,7 +1442,7 @@ class PyExprMutator:
             The value bound to the input var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorLookupBinding(self._outer(), var)
+        return _ffi_api.PyExprMutatorLookupBinding(self._outer(), var)  # type: ignore
 
     def with_shape_and_type(self, var: Var, shape: Optional[Object], t: Type) -> Var:
         """Create a new var with specified shape and type if the original var's shape or type does
@@ -1463,4 +1463,4 @@ class PyExprMutator:
             The var filled with shape and type.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorWithShapeAndType(self._outer(), var, shape, t)
+        return _ffi_api.PyExprMutatorWithShapeAndType(self._outer(), var, shape, t)  # type: ignore

@@ -20,6 +20,7 @@
 # pylint: disable=pointless-statement
 
 from typing import List, Optional, Dict, Union, Tuple
+import typing
 
 import tvm
 import tvm._ffi as tvm_ffi
@@ -201,7 +202,7 @@ class DFPattern(Node):
         when the recursive pattern matching goes to check lv0. The var2val mapping
         can be computed through the tvm.relax.analysis.get_var2val function.
         """
-        return ffi.match_expr(self, expr, var2val)
+        return ffi.match_expr(self, expr, var2val)  # type: ignore
 
     def has_rt_dep_shape(self) -> "AndPattern":
         """
@@ -267,7 +268,7 @@ class DFPattern(Node):
         DFPattern
             A duplicated pattern
         """
-        return ffi.dup_pattern(self)
+        return ffi.dup_pattern(self)  # type: ignore
 
     def fork_to(self, *args) -> None:
         """Fork the current pattern to multiple pattern branches"""
@@ -280,7 +281,7 @@ class RuntimeDepShapePattern(DFPattern):
     """A pattern matching a Relax RuntimeDepShape."""
 
     def __init__(self, pattern: DFPattern):
-        self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern, pattern)
+        self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern, pattern)  # type: ignore
 
 
 @register_df_node
@@ -294,7 +295,7 @@ class ExprPattern(DFPattern):
     """
 
     def __init__(self, expr: Expr):
-        self.__init_handle_by_constructor__(ffi.ExprPattern, expr)
+        self.__init_handle_by_constructor__(ffi.ExprPattern, expr)  # type: ignore
 
 
 @register_df_node
@@ -309,7 +310,7 @@ class VarPattern(DFPattern):
     """
 
     def __init__(self, name_hint: str = ""):
-        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)
+        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)  # type: ignore
 
 
 @register_df_node
@@ -324,7 +325,7 @@ class DataflowVarPattern(DFPattern):
     """
 
     def __init__(self, name_hint: str = ""):
-        self.__init_handle_by_constructor__(ffi.DataflowVarPattern, name_hint)
+        self.__init_handle_by_constructor__(ffi.DataflowVarPattern, name_hint)  # type: ignore
 
 
 @register_df_node
@@ -339,7 +340,7 @@ class GlobalVarPattern(DFPattern):
     """
 
     def __init__(self, name_hint: str = ""):
-        self.__init_handle_by_constructor__(ffi.GlobalVarPattern, name_hint)
+        self.__init_handle_by_constructor__(ffi.GlobalVarPattern, name_hint)  # type: ignore
 
 
 @register_df_node
@@ -354,7 +355,7 @@ class ExternFuncPattern(DFPattern):
     """
 
     def __init__(self, global_symbol: str = ""):
-        self.__init_handle_by_constructor__(ffi.ExternFuncPattern, global_symbol)
+        self.__init_handle_by_constructor__(ffi.ExternFuncPattern, global_symbol)  # type: ignore
 
 
 @register_df_node
@@ -362,7 +363,7 @@ class ConstantPattern(DFPattern):
     """A pattern matching a Relax Constant."""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(ffi.ConstantPattern)
+        self.__init_handle_by_constructor__(ffi.ConstantPattern)  # type: ignore
 
 
 @register_df_node
@@ -391,10 +392,12 @@ class CallPattern(DFPattern):
     def __init__(
         self,
         op: "DFPattern",
-        args: List["DFPattern"],
+        args: Union[List["DFPattern"], typing.Tuple["DFPattern", ...]],
         varg_default_wildcard: bool = False,
     ):
-        self.__init_handle_by_constructor__(ffi.CallPattern, op, args, varg_default_wildcard)
+        self.__init_handle_by_constructor__(
+            ffi.CallPattern, op, args, varg_default_wildcard  # type: ignore
+        )
 
 
 @register_df_node
@@ -416,7 +419,7 @@ class FunctionPattern(DFPattern):
         params: List["DFPattern"],
         body: "DFPattern",
     ):
-        self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)
+        self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)  # type: ignore
 
 
 @register_df_node
@@ -430,7 +433,7 @@ class TuplePattern(DFPattern):
     """
 
     def __init__(self, fields: Array):
-        self.__init_handle_by_constructor__(ffi.TuplePattern, fields)
+        self.__init_handle_by_constructor__(ffi.TuplePattern, fields)  # type: ignore
 
     def __getitem__(self, index: Optional[int]) -> "TupleGetItemPattern":
         if index is not None:
@@ -458,7 +461,7 @@ class UnorderedTuplePattern(DFPattern):
     """
 
     def __init__(self, fields: Array):
-        self.__init_handle_by_constructor__(ffi.UnorderedTuplePattern, fields)
+        self.__init_handle_by_constructor__(ffi.UnorderedTuplePattern, fields)  # type: ignore
 
     def __len__(self):
         return len(self.fields)
@@ -479,7 +482,9 @@ class TupleGetItemPattern(DFPattern):
 
     def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
         match_index = index if index is not None else -1
-        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, match_index)
+        self.__init_handle_by_constructor__(
+            ffi.TupleGetItemPattern, tuple_value, match_index  # type: ignore
+        )
 
 
 @register_df_node
@@ -495,7 +500,7 @@ class OrPattern(DFPattern):
     """
 
     def __init__(self, left: "DFPattern", right: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.OrPattern, left, right)
+        self.__init_handle_by_constructor__(ffi.OrPattern, left, right)  # type: ignore
 
 
 @register_df_node
@@ -511,7 +516,7 @@ class AndPattern(DFPattern):
     """
 
     def __init__(self, left: "DFPattern", right: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.AndPattern, left, right)
+        self.__init_handle_by_constructor__(ffi.AndPattern, left, right)  # type: ignore
 
 
 @register_df_node
@@ -525,7 +530,7 @@ class NotPattern(DFPattern):
     """
 
     def __init__(self, to_reject: "DFPattern"):
-        self.__init_handle_by_constructor__(ffi.NotPattern, to_reject)
+        self.__init_handle_by_constructor__(ffi.NotPattern, to_reject)  # type: ignore
 
 
 @register_df_node
@@ -533,7 +538,7 @@ class WildcardPattern(DFPattern):
     """A pattern which matches anything."""
 
     def __init__(self):
-        self.__init_handle_by_constructor__(ffi.WildcardPattern)
+        self.__init_handle_by_constructor__(ffi.WildcardPattern)  # type: ignore
 
 
 @register_df_node
@@ -550,7 +555,7 @@ class TypePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", ttype: tvm.ir.type.Type):
-        self.__init_handle_by_constructor__(ffi.TypePattern, pattern, ttype)
+        self.__init_handle_by_constructor__(ffi.TypePattern, pattern, ttype)  # type: ignore
 
 
 @register_df_node
@@ -567,7 +572,7 @@ class DataTypePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", dtype: str):
-        self.__init_handle_by_constructor__(ffi.DataTypePattern, pattern, dtype)
+        self.__init_handle_by_constructor__(ffi.DataTypePattern, pattern, dtype)  # type: ignore
 
 
 @register_df_node
@@ -584,7 +589,7 @@ class ShapePattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
-        self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)
+        self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)  # type: ignore
 
 
 @register_df_node
@@ -599,7 +604,7 @@ class PrimArrPattern(DFPattern):
     """
 
     def __init__(self, shape: List[tvm.ir.PrimExpr]):
-        self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)
+        self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)  # type: ignore
 
     def __getitem__(self, index: int):
         if index >= len(self):
@@ -625,7 +630,7 @@ class AttrPattern(DFPattern):
     """
 
     def __init__(self, pattern: "DFPattern", attrs: tvm.ir.attrs.Attrs):
-        self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)
+        self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)  # type: ignore
 
 
 def is_var(name: str = "") -> VarPattern:
@@ -928,7 +933,7 @@ class PatternSeq(Node):
         only_use : bool, optional
             Whether the patterns follows only-used-by relations consecutively, by default False
         """
-        self.__init_handle_by_constructor__(ffi.PatternSeq, patterns, only_use)
+        self.__init_handle_by_constructor__(ffi.PatternSeq, patterns, only_use)  # type: ignore
 
     def used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
         """
@@ -1010,7 +1015,7 @@ class PatternSeq(Node):
         PatternSeq
             A duplicated chain
         """
-        return ffi.dup_seq(self)
+        return ffi.dup_seq(self)  # type: ignore
 
 
 ### Private functions
@@ -1025,7 +1030,7 @@ def _used_by(
         lhs = PatternSeq([lhs])
     if isinstance(rhs, DFPattern):
         rhs = PatternSeq([rhs])
-    return ffi.used_by(lhs, rhs, index)
+    return ffi.used_by(lhs, rhs, index)  # type: ignore
 
 
 def _only_used_by(
@@ -1035,4 +1040,4 @@ def _only_used_by(
         lhs = PatternSeq([lhs])
     if isinstance(rhs, DFPattern):
         rhs = PatternSeq([rhs])
-    return ffi.only_used_by(lhs, rhs, index)
+    return ffi.only_used_by(lhs, rhs, index)  # type: ignore

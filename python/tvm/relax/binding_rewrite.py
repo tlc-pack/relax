@@ -51,7 +51,9 @@ class DataflowBlockRewrite(Object):
             The root function of the DataflowBlock.
         """
         self.func_name = root_fn.__name__ if hasattr(root_fn, "__name__") else None
-        self.__init_handle_by_constructor__(_ffi_api.DataflowBlockRewrite, dfb, root_fn)
+        self.__init_handle_by_constructor__(
+            _ffi_api.DataflowBlockRewrite, dfb, root_fn  # type: ignore
+        )
 
     def replace_all_uses(self, old_var: Var, new_var: Var) -> None:
         """
@@ -64,10 +66,10 @@ class DataflowBlockRewrite(Object):
         new_var : Var
             The new variable to replace with.
         """
-        _ffi_api.dfb_rewrite_replace_all_uses(self, old_var, new_var)
+        _ffi_api.dfb_rewrite_replace_all_uses(self, old_var, new_var)  # type: ignore
 
     def add_binding(self, binding: Binding) -> None:
-        return _ffi_api.dfb_rewrite_add_binding(self, binding)
+        return _ffi_api.dfb_rewrite_add_binding(self, binding)  # type: ignore
 
     def add(self, expr: Expr, name: Optional[str] = None, is_dfvar: bool = False) -> None:
         """
@@ -89,7 +91,7 @@ class DataflowBlockRewrite(Object):
         it will be Var. Being Var means the variables are output variables of the DataflowBlock.
         While being DataflowVar means the variables are internal variables of the DataflowBlock.
         """
-        _ffi_api.dfb_rewrite_add(self, expr, name, is_dfvar)
+        _ffi_api.dfb_rewrite_add(self, expr, name, is_dfvar)  # type: ignore
 
     def remove_unused(self, var: Var, allow_undef=False) -> None:
         """
@@ -106,7 +108,7 @@ class DataflowBlockRewrite(Object):
         ------
         TVMError if the variable is used or undefined (allow_undef=False).
         """
-        _ffi_api.dfb_rewrite_remove_unused(self, var, allow_undef)
+        _ffi_api.dfb_rewrite_remove_unused(self, var, allow_undef)  # type: ignore
 
     def remove_all_unused(self) -> None:
         """
@@ -116,7 +118,7 @@ class DataflowBlockRewrite(Object):
         -----
         This could remove unused variables in other DataflowBlocks as well.
         """
-        _ffi_api.dfb_rewrite_remove_all_unused(self)
+        _ffi_api.dfb_rewrite_remove_all_unused(self)  # type: ignore
 
     def mutated_dfb(self) -> DataflowBlock:
         """
@@ -147,7 +149,7 @@ class DataflowBlockRewrite(Object):
         tvm.IRModule
             The updated IRModule.
         """
-        ret = _ffi_api.dfb_rewrite_mutate_irmodule(self, irmodule)
+        ret = _ffi_api.dfb_rewrite_mutate_irmodule(self, irmodule)  # type: ignore
         if hasattr(irmodule, "__name__"):
             ret.__name__ = irmodule.__name__
         return ret

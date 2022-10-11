@@ -137,19 +137,19 @@ class BlockBuilder(Object):
         return BlockBuilder._current
 
     def __init__(self, mod: IRModule = None):
-        self._blocks = []
+        self._blocks: List[BindingBlock] = []
         # a boolean flag that tracks if emit_func_output has been called
         self._is_emit_func_output_called = False
-        self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)
+        self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)  # type: ignore
 
     def _begin_dataflow_block(self) -> None:
-        _ffi_api.BlockBuilderBeginDataflowBlock(self)
+        _ffi_api.BlockBuilderBeginDataflowBlock(self)  # type: ignore
 
     def _begin_binding_block(self) -> None:
-        _ffi_api.BlockBuilderBeginBindingBlock(self)
+        _ffi_api.BlockBuilderBeginBindingBlock(self)  # type: ignore
 
     def _end_block(self) -> BindingBlock:
-        return _ffi_api.BlockBuilderEndBlock(self)
+        return _ffi_api.BlockBuilderEndBlock(self)  # type: ignore
 
     def _enter_function_scope(self, name, params, attrs):
         if BlockBuilder.current() is not None:
@@ -196,7 +196,7 @@ class BlockBuilder(Object):
         te_args_list = []
 
         def _convert_te_arg_helper(arg):
-            if isinstance(arg, Expr):
+            if isinstance(arg, Expr):  # type: ignore
                 arg = te_tensor(arg)
                 te_args_list.append(arg)
                 return arg
@@ -307,7 +307,7 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets bound to the input expr.
         """
-        return _ffi_api.BlockBuilderEmit(self, expr)
+        return _ffi_api.BlockBuilderEmit(self, expr)  # type: ignore
 
     def call_te(self, func: Callable, *args: Any, **kwargs: Any) -> Expr:
         """Generate a call node according to the te function.
@@ -521,7 +521,7 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets bound to the call code.
         """
-        return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)
+        return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)  # type: ignore
 
     def emit_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
         """Emit output for the current dataflow block or function.
@@ -538,7 +538,7 @@ class BlockBuilder(Object):
         """
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
-        return _ffi_api.BlockBuilderEmitOutput(self, output)
+        return _ffi_api.BlockBuilderEmitOutput(self, output)  # type: ignore
 
     def emit_func_output(
         self,
@@ -610,7 +610,7 @@ class BlockBuilder(Object):
         ret : Expr
             The expr with normalized shape and type.
         """
-        return _ffi_api.BlockBuilderNormalize(self, expr)
+        return _ffi_api.BlockBuilderNormalize(self, expr)  # type: ignore
 
     def get(self) -> tvm.IRModule:
         """Return the IRModule being built.
@@ -620,7 +620,7 @@ class BlockBuilder(Object):
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        return _ffi_api.BlockBuilderGetContextIRModule(self)
+        return _ffi_api.BlockBuilderGetContextIRModule(self)  # type: ignore
 
     def get_unique_name(self, name_prefix: str) -> str:
         """Generate a unique name with a specified prefix.
@@ -635,7 +635,7 @@ class BlockBuilder(Object):
         ret : str
             The generated name.
         """
-        return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)
+        return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)  # type: ignore
 
     def add_func(self, func: BaseFunc, func_name: str) -> GlobalVar:
         """Add a Relax function or a TIR PrimFunc to the IRModule being built.
@@ -653,7 +653,7 @@ class BlockBuilder(Object):
         gvar : GlobalVar
             The global var bound to the added function.
         """
-        return _ffi_api.BlockBuilderAddFunction(self, func, func_name)
+        return _ffi_api.BlockBuilderAddFunction(self, func, func_name)  # type: ignore
 
     def update_func(self, gv: GlobalVar, updated_func: BaseFunc) -> None:
         """Add a Relax function or a TIR PrimFunc to the IRModule being built.
@@ -666,7 +666,7 @@ class BlockBuilder(Object):
         updated_func : BaseFunc
             The updated function.
         """
-        return _ffi_api.BlockBuilderUpdateFunction(self, gv, updated_func)
+        return _ffi_api.BlockBuilderUpdateFunction(self, gv, updated_func)  # type: ignore
 
     def can_prove_shape_equal(self, lhs: Expr, rhs: Expr) -> bool:
         """Check if two shape expressions can be proven equal at compile time.
@@ -684,7 +684,7 @@ class BlockBuilder(Object):
         ret : bool
             Whether we can prove lhs shape is the same as the rhs shape.
         """
-        return _ffi_api.BlockBuilderCanProveShapeEqual(self, lhs, rhs)
+        return _ffi_api.BlockBuilderCanProveShapeEqual(self, lhs, rhs)  # type: ignore
 
     def current_block_is_dataflow(self) -> bool:
         """Check if the block being built is DataflowBlock or not.
@@ -694,7 +694,7 @@ class BlockBuilder(Object):
         ret : bool
             A boolean that indicates if the block being built is DataflowBlock or not.
         """
-        return _ffi_api.BlockBuilderCurrentBlockIsDataFlow(self)
+        return _ffi_api.BlockBuilderCurrentBlockIsDataFlow(self)  # type: ignore
 
     def emit_var_binding(self, binding: VarBinding) -> Var:
         """Emits a variable binding, and returns the bound Var.
@@ -709,7 +709,7 @@ class BlockBuilder(Object):
         var: Var
             The bound variable.
         """
-        return _ffi_api.BlockBuilderEmitVarBinding(self, binding)
+        return _ffi_api.BlockBuilderEmitVarBinding(self, binding)  # type: ignore
 
     def emit_output_var_binding(self, binding: VarBinding) -> Var:
         """Generate an output for the current dataflow block.
@@ -724,7 +724,7 @@ class BlockBuilder(Object):
         var: Var
             The variable bound to output.
         """
-        return _ffi_api.BlockBuilderEmitOutputVarBinding(self, binding)
+        return _ffi_api.BlockBuilderEmitOutputVarBinding(self, binding)  # type: ignore
 
     def match_shape_binding(self, binding: MatchShape) -> Var:
         """Emit a MatchShape binding.
@@ -739,7 +739,7 @@ class BlockBuilder(Object):
         var: Var
             The variable bound to the MatchShape.
         """
-        return _ffi_api.BlockBuilderEmitMatchShapeBinding(self, binding)
+        return _ffi_api.BlockBuilderEmitMatchShapeBinding(self, binding)  # type: ignore
 
     def lookup_binding(self, var: Var) -> Optional[Expr]:
         """Lookup a var in the binding table binding_table_.
@@ -754,4 +754,4 @@ class BlockBuilder(Object):
         expr: Expr
             The Expr bound to the input var.
         """
-        return _ffi_api.BlockBuilderLookupBinding(self, var)
+        return _ffi_api.BlockBuilderLookupBinding(self, var)  # type: ignore
