@@ -364,8 +364,18 @@ def test_free_vars():
     x = rx.Var("x", type_annotation=rx.DynTensorType(ndim=-1))
     y = rx.Var("y", type_annotation=rx.DynTensorType(ndim=-1))
     z = rx.Var("z", type_annotation=rx.DynTensorType(ndim=-1))
-    inner = rx.Function([z], rx.op.add(x, rx.op.add(y, z)), ret_type=rx.DynTensorType(ndim=-1))
-    outer = rx.Function([x, y], rx.Call(inner, [y]), ret_type=rx.DynTensorType(ndim=-1))
+    inner = rx.Function(
+        [z],
+        rx.op.add(x, rx.op.add(y, z)),
+        ret_type=rx.DynTensorType(ndim=-1),
+        ret_shape=rx.RuntimeDepShape(),
+    )
+    outer = rx.Function(
+        [x, y],
+        rx.Call(inner, [y]),
+        ret_type=rx.DynTensorType(ndim=-1),
+        ret_shape=rx.RuntimeDepShape(),
+    )
     assert len(free_vars(outer)) == 0
     assert var_name_set(free_vars(inner)) == {"x", "y"}
 
