@@ -102,13 +102,13 @@ TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
 TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 
 /*!
- * \brief Get all glabal variables for recursive call from expression expr.
+ * \brief Get all glabal variables used in calls in expression expr.
  *
  * \param expr the expression.
  *
- * \return List of all global variables for recursive call.
+ * \return List of all global variables called in expr.
  */
-TVM_DLL tvm::Array<GlobalVar> RecGlobalVars(const Expr& expr);
+TVM_DLL tvm::Array<GlobalVar> CalledGlobalVars(const Expr& expr);
 
 /*!
  * \brief Get all glabal variables from expression expr.
