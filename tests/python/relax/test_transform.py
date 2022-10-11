@@ -504,6 +504,7 @@ def test_normalize_function():
         [x],
         relax.op.multiply(relax.op.add(x, x), relax.op.add(x, x)),
         ret_type=type_anno,
+        ret_shape=relax.RuntimeDepShape(),
     )
     mul_add = mul_add.with_attr("global_symbol", "mul_add")
     before_mod = tvm.IRModule.from_expr(mul_add)
@@ -549,6 +550,7 @@ def test_normalize_if():
             y,
         ),
         ret_type=relax.DynTensorType(1, "float32"),
+        ret_shape=relax.RuntimeDepShape(),
     )
 
     f = f.with_attr("global_symbol", "f")

@@ -46,7 +46,7 @@ class NormalizeMutator : public ExprMutatorBase {
     if (body.same_as(op->body)) {
       return GetRef<Expr>(op);
     } else {
-      return Function(op->params, body, op->ret_type, op->attrs);
+      return Function(op->params, body, op->ret_type, op->ret_shape, op->attrs);
     }
   }
 
