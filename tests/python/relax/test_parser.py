@@ -871,5 +871,24 @@ def test_class_irmodule():
     check_shape(gv2_bind.var, ("n", "n"))
 
 
+def test_class_normalize():
+    @tvm.script.ir_module
+    class InputModule:
+        @R.function
+        def mul_add(x: Tensor) -> Tensor:
+            return R.multiply(R.add(x, x), R.add(x, x))
+
+    # The parser automatically normalizes the input AST to the following ANF form
+    @tvm.script.ir_module
+    class OutputModule:
+        @R.function
+        def mul_add(x: Tensor) -> Tensor:
+            gv = relax.add(x, x)
+            gv1 = relax.add(x, x)
+            return R.multiply(gv, gv1)
+
+    assert_structural_equal(InputModule, OutputModule)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
