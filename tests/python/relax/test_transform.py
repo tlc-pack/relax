@@ -492,9 +492,94 @@ def test_vm_shape_lower_int32_shape():
     assert cast_expr.dtype == "int64"
 
 
-def test_to_anf():
+def test_normalize_function():
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    type_anno = relax.DynTensorType(ndim=2, dtype="float16")
+    x = relax.Var("x", [m, n], type_anno)
+
+    # Note: the parser automatically normalize the IR written in TVMScript,
+    # so we manually construct the function here.
+    mul_add = relax.Function(
+        [x],
+        relax.op.multiply(relax.op.add(x, x), relax.op.add(x, x)),
+        ret_type=type_anno,
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    mul_add = mul_add.with_attr("global_symbol", "mul_add")
+    before_mod = tvm.IRModule.from_expr(mul_add)
+
+    after_mod = relax.transform.Normalize()(before_mod)
+
     @tvm.script.ir_module
-    class TestNormalizeInputModule:
+    class Expected:
+        @R.function
+        def mul_add(x: Tensor((m, n), "float16")) -> Tensor(None, "float16", ndim=2):
+            gv = R.add(x, x)
+            gv1 = relax.add(x, x)
+            return R.multiply(gv, gv1)
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_if():
+    cond = relax.Var("cond", [], type_annotation=relax.DynTensorType(0, "bool"))
+    x = relax.Var("x", [tir.IntImm("int64", 1)], type_annotation=relax.DynTensorType(1, "float32"))
+    # TODO(relax-team): add type and shape inference for IfNode
+    y = relax.Var("y")
+
+    # Note: the parser automatically normalize the IR written in TVMScript,
+    # so we manually construct the function and If here.
+    f = relax.Function(
+        [cond, x],
+        relax.SeqExpr(
+            [
+                relax.BindingBlock(
+                    [
+                        relax.VarBinding(
+                            y,
+                            relax.If(
+                                cond,
+                                relax.op.multiply(relax.op.add(x, x), relax.op.add(x, x)),
+                                relax.op.add(relax.op.multiply(x, x), relax.op.multiply(x, x)),
+                            ),
+                        )
+                    ]
+                )
+            ],
+            y,
+        ),
+        ret_type=relax.DynTensorType(1, "float32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def f(
+            cond: Tensor((), "bool"), x: Tensor((1,), "float32")
+        ) -> Tensor(None, "float32", ndim=1):
+            if cond:
+                gv = R.add(x, x)
+                gv1 = R.add(x, x)
+                y = R.multiply(gv, gv1)
+            else:
+                gv = R.multiply(x, x)
+                gv1 = R.multiply(x, x)
+                y = R.add(gv, gv1)
+            return y
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_no_op():
+    # the normalize pass should be no-op for IR in ANF
+    @tvm.script.ir_module
+    class ANFMod1:
         @R.function
         def f(x: Tensor(_, "float32")):
             gv = relax.add(x, x)
@@ -502,14 +587,12 @@ def test_to_anf():
             gv2 = relax.add(gv, gv1)
             return (gv, gv2)
 
-    before_mod = TestNormalizeInputModule
+    before_mod = ANFMod1
     after_mod = relax.transform.Normalize()(before_mod)
     assert_structural_equal(before_mod, after_mod, map_free_vars=True)
 
-
-def test_to_anf_no_op():
     @tvm.script.ir_module
-    class TestANFNoOp:
+    class ANFMod2:
         @R.function
         def foo(x: Tensor((m, n), "float32")):
             with relax.dataflow():
@@ -518,7 +601,7 @@ def test_to_anf_no_op():
                 relax.output(gv0)
             return gv0
 
-    mod = TestANFNoOp
+    mod = ANFMod2
     mod_post = relax.transform.Normalize()(mod)
 
     assert_structural_equal(mod, mod_post)
