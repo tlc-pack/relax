@@ -40,6 +40,38 @@ class NormalizeMutator : public ExprMutatorBase {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
   }
 
+  Expr VisitExpr_(const FunctionNode* op) {
+    Expr body = this->VisitWithNewScope(op->body);
+
+    if (body.same_as(op->body)) {
+      return GetRef<Expr>(op);
+    } else {
+      return Function(op->params, body, op->ret_type, op->ret_shape, op->attrs);
+    }
+  }
+
+  Expr VisitExpr_(const IfNode* op) {
+    Expr guard = this->VisitExpr(op->cond);
+    Expr true_b = this->VisitWithNewScope(op->true_branch);
+    Expr false_b = this->VisitWithNewScope(op->false_branch);
+    if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
+        op->false_branch.same_as(false_b)) {
+      return GetRef<Expr>(op);
+    } else {
+      return If(guard, true_b, false_b, op->span);
+    }
+  }
+
+  Expr VisitWithNewScope(const Expr& expr) {
+    builder_->BeginBindingBlock();
+    Expr ret = this->VisitExpr(expr);
+    BindingBlock prologue = builder_->EndBlock();
+    if (!prologue->bindings.empty()) {
+      ret = SeqExpr({prologue}, ret);
+    }
+    return ret;
+  }
+
   Expr VisitExpr_(const SeqExprNode* op) final {
     bool all_blocks_unchanged = true;
     Array<BindingBlock> blocks;
