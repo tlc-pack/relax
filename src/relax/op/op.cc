@@ -19,6 +19,7 @@
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
 
 #include "op_common.h"
@@ -131,18 +132,10 @@ Type InferAssertType(const Call& call, DiagnosticContext diag_ctx) {
                        << "Assert must have at least one argument (the condition).");
   }
   Type arg_type = call->args[0]->checked_type();
-  const DynTensorTypeNode* tt = arg_type.as<DynTensorTypeNode>();
-  if (!tt) {
+  if (!IsBoolScalarType(arg_type)) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "The argument to assert must have a tensor type.");
-  }
-  if (tt->ndim != 0 && tt->ndim != -1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "The argument must be a scalar or of unknown shape.");
-  }
-  if (!tt->dtype.is_void() && !tt->dtype.is_bool()) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "The argument must have a boolean data type.");
+                       << "The argument to assert must be a boolean scalar type, but received "
+                       << arg_type);
   }
   return VoidType();
 }
