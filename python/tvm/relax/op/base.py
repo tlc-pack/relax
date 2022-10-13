@@ -175,11 +175,6 @@ def relax_print(format_str: str, *format_args: List[tvm.Object]) -> None:
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
 
-    Since this function is called as a PackedFunc from the generated code,
-    we cannot have it be variadic _and_ have an optional format string attribute
-    except by taking in all the arguments as a single list. The last argument
-    should be a format string.
-
     Call from TVM script like this:
     `relax.print(value1, value2, ..., valueN, format=format_str)`
     or
@@ -234,11 +229,6 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: List[t
     a comma-separated list of the format arguments.
     The condition argument is not included in the format string.
 
-    Similarly to the print operator, since this function is called as a PackedFunc
-    from the generated code, we cannot have it be variadic _and_ have an optional
-    format string attribute except by taking in all the arguments as a single list.
-    The last argument should be a format string.
-
     Parameters
     ----------
     condition: tvm.Object
@@ -286,11 +276,14 @@ def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format:
 
     Parameters
     ----------
-    values : List[Expr]
-        The values to print.
+    condition: Expr
+        The assertion condition.
+
+    format_args: List[Expr]
+        Format arguments for the error message if the condition fails.
 
     format_str: str
-        The format string.
+        The format string for the error message.
 
     Returns
     -------
