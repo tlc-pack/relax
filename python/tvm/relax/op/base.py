@@ -170,7 +170,7 @@ def render_object(val: tvm.Object) -> str:
 
 
 @tvm.register_func("relax.run.print")
-def relax_print(format_str: str, *format_args: List[tvm.Object]) -> None:
+def relax_print(format_str: str, *format_args: tvm.Object) -> None:
     """
     Takes a list of values to print, formats with the given format string.
     If the format string is empty, simply prints.
@@ -217,7 +217,7 @@ def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
 
 
 @tvm.register_func("relax.run.assert_op")
-def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: List[tvm.Object]) -> None:
+def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Object) -> None:
     """
     A variadic function. The first value serves as the assertion condition:
     If the condition is true, then the operator does nothing.
@@ -292,7 +292,7 @@ def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format:
     """
     if format_args is None:
         format_args = []
-    return _ffi_api.assert_op(condition, format_args, format)
+    return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 
 def shape_of(expr: Expr) -> Expr:
