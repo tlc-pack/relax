@@ -19,6 +19,7 @@
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
 
 #include "op_common.h"
@@ -117,6 +118,51 @@ Expr MakePrint(Array<Expr> vals, std::string format_str) {
 }
 
 TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
+
+// assert_op
+
+// can't actually name it assert or else Python will consider it a syntax error
+
+Type InferAssertType(const Call& call, DiagnosticContext diag_ctx) {
+  // Ensure that the condition argument is a boolean scalar.
+  // Also permitted is a tensor with unknown shape and unknown dtype
+  // (checked dynamically in that case). Returns void.
+  if (call->args.size() < 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Assert must have at least one argument (the condition).");
+  }
+  Type arg_type = call->args[0]->checked_type();
+  if (!IsBoolScalarType(arg_type)) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "The argument to assert must be a boolean scalar type, but received "
+                       << arg_type);
+  }
+  return VoidType();
+}
+
+TVM_REGISTER_NODE_TYPE(AssertOpAttrs);
+
+RELAY_REGISTER_OP("relax.assert_op")
+    .set_attrs_type<AssertOpAttrs>()
+    .set_num_inputs(-1)
+    .add_argument("vals", "Array<Expr>",
+                  "The first value is used as the assertion condition. The others are used as "
+                  "format arguments if there is an error.")
+    .set_attr<FInferType>("FInferType", InferAssertType)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
+
+Expr MakeAssertOp(Expr condition, Array<Expr> vals, std::string format) {
+  auto attrs = make_object<AssertOpAttrs>();
+  attrs->format = format;
+  static const Op& op = Op::Get("relax.assert_op");
+  Array<Expr> args = {condition};
+  for (auto val : vals) {
+    args.push_back(val);
+  }
+  return Call(op, args, Attrs(attrs));
+}
+
+TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
 
 // make_closure
 

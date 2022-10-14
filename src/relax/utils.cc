@@ -67,5 +67,15 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
+bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dtype) {
+  const DynTensorTypeNode* tt = ty.as<DynTensorTypeNode>();
+  if (!tt) {
+    return false;
+  }
+  bool correct_dtype = tt->dtype.is_bool() || (permit_unknown_dtype && tt->dtype.is_void());
+  bool correct_rank = tt->ndim == 0 || (permit_unknown_rank && tt->ndim == -1);
+  return correct_dtype && correct_rank;
+}
+
 }  // namespace relax
 }  // namespace tvm
