@@ -42,3 +42,8 @@ class UniqueAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.PrintAttrs")
 class PrintAttrs(Attrs):
     """Attributes used for the print operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.AssertOpAttrs")
+class AssertOpAttrs(Attrs):
+    """Attributes used for the assert operator"""
