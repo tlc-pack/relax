@@ -385,7 +385,14 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     if (call_node->op == print_op_) {
       auto print_attrs = call_node->attrs.as<PrintAttrs>();
-      args.push_back(EmitConstantFromValue(print_attrs->format));
+      // format string is the first argument
+      args.insert(args.begin(), EmitConstantFromValue(print_attrs->format));
+      return;
+    }
+    if (call_node->op == assert_op_) {
+      auto assert_attrs = call_node->attrs.as<AssertOpAttrs>();
+      // format string comes before the format args
+      args.insert(args.begin() + 1, EmitConstantFromValue(assert_attrs->format));
       return;
     }
     LOG(FATAL) << "Support for attributes of Op " << call_node->op
@@ -520,6 +527,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& unique_op_ = Op::Get("relax.unique");
   const Op& print_op_ = Op::Get("relax.print");
+  const Op& assert_op_ = Op::Get("relax.assert_op");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };

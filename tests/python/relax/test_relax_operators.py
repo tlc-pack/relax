@@ -21,6 +21,7 @@ import tempfile
 import pytest
 import tvm
 from tvm import relax
+from tvm._ffi.base import TVMError
 
 from tvm.script import relax as R
 
@@ -86,6 +87,61 @@ def test_print():
             assert printed_text == expected
     finally:
         sys.stdout = stdout
+
+
+@tvm.script.ir_module
+class AssertOpTest:
+    @R.function
+    def passes(x: Tensor((), "int32")):
+        p1 = relax.assert_op(relax.const(True))
+        return x
+
+    @R.function
+    def pass_with_args(x: Tensor((), "int32")):
+        p1 = relax.assert_op(relax.const(True), x, format="You won't see me")
+        return x
+
+    @R.function
+    def simple_fail(x: Tensor((), "int32")):
+        p1 = relax.assert_op(relax.const(False))
+        return x
+
+    @R.function
+    def fail_with_message(x: Tensor((), "int32")):
+        p1 = relax.assert_op(relax.const(False), format="I failed...")
+        return x
+
+    @R.function
+    def fail_with_args(x: Tensor((), "int32")):
+        # no format
+        p1 = relax.assert_op(relax.const(False), x, x)
+        return x
+
+    @R.function
+    def fail_with_formatted_message(x: Tensor((), "int32")):
+        p1 = relax.assert_op(relax.const(False), x, format="Number: {}")
+        return x
+
+
+def test_assert_op():
+    def check_assertion_error(func_name, func_arg, expected_message):
+        passed = False
+        try:
+            run_cpu(AssertOpTest, func_name, func_arg)
+            passed = True
+        except TVMError as e:
+            # TVM will print out a TVMError that will contain the
+            # generated error at the bottom of a stack trace
+            assert "AssertionError" in e.args[0]
+            assert expected_message in e.args[0]
+        assert not passed
+
+    run_cpu(AssertOpTest, "passes", tvm.nd.array(1))
+    run_cpu(AssertOpTest, "pass_with_args", tvm.nd.array(2))
+    check_assertion_error("simple_fail", tvm.nd.array(3), "Assertion Failed")
+    check_assertion_error("fail_with_message", tvm.nd.array(4), "I failed...")
+    check_assertion_error("fail_with_args", tvm.nd.array(5), "5, 5")
+    check_assertion_error("fail_with_formatted_message", tvm.nd.array(6), "Number: 6")
 
 
 if __name__ == "__main__":
