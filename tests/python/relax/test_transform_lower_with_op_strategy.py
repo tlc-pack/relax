@@ -16,17 +16,19 @@
 # under the License.
 
 from __future__ import annotations
-import pytest
-import numpy as np
+
 import tempfile
+
+import numpy as np
+import pytest
 import tvm
 import tvm.script
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import relax
-from tvm.target import Target
 from tvm.relax.testing import transform
 from tvm.script import relax as R
-from tvm import meta_schedule as ms
+from tvm.target import Target
 
 
 @tvm.script.ir_module
@@ -43,18 +45,16 @@ class InputModule:
 def build_and_run(mod, target, dev, np_inputs):
     inputs = [tvm.nd.array(np_input, dev) for np_input in np_inputs]
     with tempfile.TemporaryDirectory() as work_dir:
-        ex = ms.tune_relax(
+        db = ms.relax_integration.tune_relax(
             mod=mod,
+            params=None,
             target=target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                task_scheduler="round_robin",
-                num_trials_per_iter=20,
-                max_trials_per_task=20,
-                max_trials_global=20,
-            ),
             work_dir=work_dir,
+            num_trials_per_iter=20,
+            max_trials_global=20,
+            task_scheduler="round-robin",
         )
+        ex = ms.relax_integration.compile_relax(db, mod, target, params=None)
     vm = relax.VirtualMachine(ex, dev)
     vm["main"](*inputs)
 
@@ -83,4 +83,5 @@ def test_lowering_gpu(target_str="nvidia/nvidia-t4"):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_lowering_cpu()
+    test_lowering_gpu()

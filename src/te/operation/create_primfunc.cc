@@ -551,8 +551,8 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
 
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
                                      const Array<runtime::NDArray>& constants,
-                                     std::optional<DataType> index_dtype_override)
-                                     const Optional<Array<tir::Var>>& tir_var_list) {
+                                     const Optional<Array<tir::Var>>& tir_var_list,
+                                     std::optional<DataType> index_dtype_override) {
   // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
@@ -580,19 +580,20 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
 }
 
 PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
+                        const Optional<Array<tir::Var>> tir_var_list,
                         std::optional<DataType> index_dtype_override) {
-  return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
+  return CreatePrimFuncWithConstants(arg_list, {}, tir_var_list, index_dtype_override);
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
   Array<te::Tensor> arg_list = args[0];
+  Optional<Array<tir::Var>> tir_var_list = args[1];
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
-  ICHECK_EQ(args.size(), 2);
-  if (args[1].type_code() != kTVMNullptr) {
-    index_dtype_override = args[1].operator DataType();
+  if (args[2].type_code() != kTVMNullptr) {
+    index_dtype_override = args[2].operator DataType();
   }
-  *ret = CreatePrimFunc(arg_list, index_dtype_override);
+  *ret = CreatePrimFunc(arg_list, tir_var_list, index_dtype_override);
 });
 
 }  // namespace tir

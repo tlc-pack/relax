@@ -54,6 +54,10 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   // TODO(@altanh): CopyOnWrite
 
   Expr VisitExpr(const Expr& expr) {
+    // TODO(relax-team): generalize prim_func support
+    if (expr->IsInstance<tir::PrimFuncNode>()) {
+      return expr;
+    }
     Optional<Expr> post = expr_memo_.Get(expr);
     if (post) {
       ICHECK(post.as<VarNode>()) << "memoized expressions should map to variables";
@@ -229,6 +233,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
         new_false.same_as(op->false_branch)) {
       return GetRef<Expr>(op);
     }
+    // TODO(relax-team): fix type/shape deduction for if node.
     return If(new_cond, new_true, new_false);
   }
 

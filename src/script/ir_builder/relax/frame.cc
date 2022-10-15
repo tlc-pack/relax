@@ -40,6 +40,7 @@ void SeqExprFrameNode::ExitWithScope() {
 }
 
 void FunctionFrameNode::ExitWithScope() {
+  using ir::IRModuleFrame;
   using tvm::relax::Expr;
   SeqExprFrameNode::ExitWithScope();
   IRBuilder builder = IRBuilder::Current();
