@@ -19,13 +19,10 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, Union, Optional, List
-import numpy as np
+from typing import Callable, Dict, List, Optional, Union
 
+import numpy as np
 import tvm.ir
-from tvm.target import Target
-from tvm.meta_schedule.tune import TuneConfig
-from tvm.meta_schedule.database import PyDatabase
 
 from . import _ffi_api
 
@@ -162,73 +159,6 @@ def ResolveGlobals() -> tvm.ir.transform.Pass:
     return _ffi_api.ResolveGlobals()
 
 
-def MetaScheduleTuneTIR(
-    target: Union[str, Target], config: TuneConfig, work_dir: str
-) -> tvm.ir.transform.Pass:
-    """Tune TIR with MetaSchedule.
-
-    Parameters
-    ----------
-    target: Union[str, Target]
-       target info
-    config: TuneConfig
-       MetaSchedule tuning info
-    work_dir: str
-       work directory
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-
-    """
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-    return _ffi_api.MetaScheduleTuneTIR(target, config, work_dir)
-
-
-def MetaScheduleTuneIRMod(
-    target: Union[str, Target], config: TuneConfig, work_dir: str
-) -> tvm.ir.transform.Pass:
-    """Tune Relax IRModule with MetaSchedule.
-
-    Parameters
-    ----------
-    target: Union[str, Target]
-       target info
-    config: TuneConfig
-       MetaSchedule tuning info
-    work_dir: str
-       work directory
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-
-    """
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-    return _ffi_api.MetaScheduleTuneIRMod(target, config, work_dir)
-
-
-def MetaScheduleApplyHistoryBest(
-    database: PyDatabase,
-    target: Target,
-) -> tvm.ir.transform.Pass:
-    """Apply the best schedule from tuning database.
-
-    Parameters
-    ----------
-    database : PyDatabase
-       metaschedule tuning database
-    target: Target
-       target info
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-
-    """
-    return _ffi_api.MetaScheduleApplyHistoryBest(database, target)
-
-
 def BindParams(
     func_name: str,
     params: Dict[str, Union[tvm.runtime.NDArray, np.ndarray]],
@@ -351,6 +281,17 @@ def FuseTIR() -> tvm.ir.transform.Pass:
         The registered pass for tir fusion.
     """
     return _ffi_api.FuseTIR()
+
+
+def MetaScheduleApplyDatabase() -> tvm.ir.transform.Pass:
+    """Apply the best schedule from tuning database.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for tir fusion.
+    """
+    return _ffi_api.MetaScheduleApplyDatabase()
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

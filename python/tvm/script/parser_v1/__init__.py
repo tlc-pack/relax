@@ -17,5 +17,6 @@
 """TVM Script APIs of TVM Python Package, aimed to support TIR"""
 
 from . import tir
+from . import relax
 
 from .parser import ir_module, from_source

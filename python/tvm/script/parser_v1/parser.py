@@ -20,36 +20,36 @@ We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
 different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
-# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except, import-outside-toplevel
-import types
+import functools
+import inspect
 import json
 import operator
-import inspect
-import functools
+
+# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except, import-outside-toplevel
+import types
 from typing import Any, Callable, Dict, List, Optional, Union
-from synr import ast, Transformer, to_ast
 
 import tvm
+from synr import Transformer, ast, to_ast
 from tvm import IRModule, relax
 from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
 from tvm.ir.function import BaseFunc
 from tvm.tir import buffer
 from tvm.tir.function import PrimFunc
-from . import _ffi_api
-from . import tir
 
+from .. import _ffi_api
+from . import tir
 from .context_maintainer import ContextMaintainer
+from .diagnostics import TVMDiagnosticCtx
 from .meta_unparser import MetaUnparser
 from .registry import Registry
-from .diagnostics import TVMDiagnosticCtx
-from .utils import tvm_span_from_synr, synr_span_from_tvm, call_with_error_reporting
-
-from .tir.intrin import Intrin
-from .tir.node import Slice, BufferSlice
-from .tir.scope_handler import ScopeHandler, WithScopeHandler, ForScopeHandler
-from .tir.special_stmt import SpecialStmt
 from .tir import ty
+from .tir.intrin import Intrin
+from .tir.node import BufferSlice, Slice
+from .tir.scope_handler import ForScopeHandler, ScopeHandler, WithScopeHandler
+from .tir.special_stmt import SpecialStmt
+from .utils import call_with_error_reporting, synr_span_from_tvm, tvm_span_from_synr
 
 
 class CallArgumentReader(object):
@@ -604,7 +604,7 @@ class TVMScriptParser(Transformer):
                     out = func(*args)
                 except Exception as e:
                     self.report_error(
-                        "Error occurred when invoking the function "
+                        "Error occured when invoking the function "
                         + func.__name__
                         + ": \n"
                         + str(e),
@@ -906,13 +906,6 @@ class TVMScriptParser(Transformer):
                 )
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
-                if node.func_name.name == ast.BuiltinOp.USub and isinstance(
-                    node.params[0], ast.Constant
-                ):
-                    # '-literal' should be parsed together for proper literal type inference
-                    if not isinstance(rhs, (tvm.tir.IntImm, tvm.tir.FloatImm)):
-                        self.report_error("The literal is illegal after -", node.params[0].span)
-                    return tvm.tir.const(-rhs.value)
                 return self._unaryop_maker[node.func_name.name](
                     rhs, span=tvm_span_from_synr(node.span)
                 )

@@ -25,8 +25,6 @@
 #define TVM_RELAX_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
-#include <tvm/meta_schedule/apply_history_best.h>
-#include <tvm/meta_schedule/database.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -118,14 +116,6 @@ TVM_DLL Pass CanonicalizeBindings();
  * \return The Pass.
  */
 TVM_DLL Pass Normalize();
-
-/*!
- * \brief Apply the best schedule from tuning database.
- *
- * \return The Pass.
- */
-TVM_DLL Pass MetaScheduleApplyHistoryBest(const tvm::meta_schedule::Database& database,
-                                          Target target);
 
 /*!
  * \brief Bind params of function of the module to constant tensors.

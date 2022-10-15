@@ -16,20 +16,19 @@
 # under the License.
 from __future__ import annotations
 
-import numpy as np
-import pytest
 import tempfile
 import time
+
+import numpy as np
+import pytest
 import tvm
 import tvm.testing
-
 from tvm import meta_schedule as ms
-from tvm import relax
-from tvm import transform
+from tvm import relax, transform
 from tvm.ir.module import IRModule
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.target.target import Target
-
 
 # Test case with dynamic shape.
 # Tuning with dynamic shape is not supported yet.
@@ -132,17 +131,21 @@ def test_autotir(dev: str):
     database = ms.database.MemoryDatabase()
 
     with tempfile.TemporaryDirectory() as work_dir:
-        relax_ex = ms.tune_relax(
+        db = ms.relax_integration.tune_relax(
             mod=mod,
             target=target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=2,
-                max_trials_per_task=4,
-                max_trials_global=4,
-            ),
+            params=None,
+            num_trials_per_iter=2,
+            max_trials_per_task=4,
+            max_trials_global=4,
             work_dir=work_dir,
             database=database,
+        )
+        relax_ex = ms.relax_integration.compile_relax(
+            db,
+            mod=mod,
+            target=target,
+            params=None,
         )
 
     if dev == "cpu":
@@ -175,7 +178,7 @@ def test_autotir_gpu():
     test_autotir("cuda")
 
 
-def test_meta_schedule_extract_task_from_relax():
+def test_meta_schedule_extract_tasks():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
@@ -220,7 +223,7 @@ def test_meta_schedule_extract_task_from_relax():
                 relax.output(gv)
             return gv
 
-    tasks = ms.relax_integration.extract_task_from_relax(Module, Target("llvm --num-cores=16"))
+    tasks = ms.relax_integration.extract_tasks(Module, Target("llvm --num-cores=16"))
     expected_weights = {"add1": 3, "add2": 1, "multiply1": 2}
     assert len(tasks) == len(expected_weights)
     for task in tasks:
