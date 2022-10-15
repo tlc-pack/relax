@@ -518,6 +518,11 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
   return LayoutFreePlaceholdersNormalizer().Process(std::move(func));
 }
 
+PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
+                        const Optional<Array<tir::Var>> tir_var_list) {
+  return CreatePrimFuncWithConstants(arg_list, {}, tir_var_list);
+}
+
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
 
 }  // namespace tir

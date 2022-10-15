@@ -14,19 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVMScript for TIR"""
+# pylint: disable=wildcard-import, redefined-builtin
+"""Relax builtin operators."""
 
-# Type system
-from .ty import void, boolean, handle, Ptr, Tuple, Buffer
-from .ty import bool  # pylint: disable=redefined-builtin
-
-from .prim_func import prim_func
-
-# add all floating point and integer datatypes to the module
-for _dtype in ["float", "uint", "int"]:
-    for _size in ["8", "16", "32", "64"]:
-        for _lanes in ["", "x4", "x8", "x16", "x32"]:
-            from . import ty
-
-            _name = _dtype + _size + _lanes
-            globals()[_name] = getattr(ty, _name)
+from .builtin import *

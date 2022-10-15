@@ -17,12 +17,12 @@
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import builtins
-from typing import List, Any
+from typing import Any, List
 
 import tvm.tir
-from tvm.tir import FloatImm
+
+from ....target import codegen
 from ..registry import register
-from ...target import codegen
 from ..utils import get_param_list, tvm_span_from_synr
 
 
@@ -52,9 +52,6 @@ for _dtype in ["float", "uint", "int"]:
             # nest closures so we copy the name string
             def wrap(name):
                 def f(imm, span):
-                    if name.startswith("float"):
-                        if imm in {"inf", "-inf", "nan"}:
-                            return FloatImm(dtype=name, value=float(imm), span=span)
                     return imm.astype(name, span)
 
                 f.__name__ = name
@@ -87,11 +84,6 @@ def floormod(x, y, span):
 @register
 def truncmod(x, y, span):
     return tvm.tir.truncmod(x, y, span)
-
-
-@register
-def truncdiv(x, y, span):
-    return tvm.tir.truncdiv(x, y, span)
 
 
 @register

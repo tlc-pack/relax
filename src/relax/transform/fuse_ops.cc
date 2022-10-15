@@ -29,9 +29,11 @@
 
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/function.h>
 
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
+
 namespace tvm {
 namespace relax {
 

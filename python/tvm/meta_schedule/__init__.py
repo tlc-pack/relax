@@ -24,6 +24,7 @@ from . import (
     measure_callback,
     mutator,
     postproc,
+    relax_integration,
     relay_integration,
     runner,
     schedule_rule,

@@ -17,15 +17,17 @@
 # pylint: disable=invalid-name, unused-import, super-init-not-called
 # pylint: disable=redefined-builtin
 """The expression nodes of Relax."""
-from typing import List, Optional, Union
-import tvm._ffi
+from typing import Any, List, Optional, Union
+
 import tvm
-from ..ir import Node, Span, SourceName, BaseFunc
-from ..runtime import String
-from ..relay import Id, Tuple, TupleGetItem
-from ..tir import PrimExpr
-from . import _ffi_api
+import tvm._ffi
+
 from .. import relay
+from ..ir import BaseFunc, Node, SourceName, Span
+from ..relay import Id, Tuple, TupleGetItem
+from ..runtime import String
+from ..tir import PrimExpr
+from . import _ffi_api, ty
 
 Expr = relay.Expr
 Type = relay.Type
@@ -97,6 +99,12 @@ class Var(Expr):
         """Get name hint of the current var."""
         name = str(self.vid.name_hint)
         return name
+
+    def __call__(self, *args: Any, attrs=None) -> Call:
+        if self.checked_type and isinstance(self.checked_type, ty.FuncType):
+            return Call(self, args, attrs=attrs)
+        else:
+            raise TypeError("Only vars with function type can be called")
 
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")

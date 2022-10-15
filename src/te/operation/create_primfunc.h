@@ -37,7 +37,8 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
  * will be embedded in the body as AllocateConstNode.
  */
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
-                                     const Array<runtime::NDArray>& constants);
+                                     const Array<runtime::NDArray>& constants,
+                                     const Optional<Array<tir::Var>>& tir_var_list);
 
 }  // namespace tir
 }  // namespace tvm

@@ -25,12 +25,12 @@ from tvm.ir import IRModule
 from tvm.tir import PrimFunc
 
 
-def cprint(printable: Union[IRModule, PrimFunc, str], style: Optional[str] = None) -> None:
+def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) -> None:
     """
     Print highlighted TVM script string with Pygments
     Parameters
     ----------
-    printable : Union[IRModule, PrimFunc, str]
+    printable : Union[IRModule, PrimFunc]
         The TVM script to be printed
     style : str, optional
         Printing style, auto-detected if None.
@@ -44,8 +44,7 @@ def cprint(printable: Union[IRModule, PrimFunc, str], style: Optional[str] = Non
     installing the Pygment library. Other Pygment styles can be found in
     https://pygments.org/styles/
     """
-    if isinstance(printable, (IRModule, PrimFunc)):
-        printable = printable.script()
+
     try:
         # pylint: disable=import-outside-toplevel
         import pygments
@@ -69,7 +68,7 @@ def cprint(printable: Union[IRModule, PrimFunc, str], style: Optional[str] = Non
                 + install_cmd,
                 category=UserWarning,
             )
-        print(printable)
+        print(printable.script())
     else:
 
         class JupyterLight(Style):
@@ -144,7 +143,7 @@ def cprint(printable: Union[IRModule, PrimFunc, str], style: Optional[str] = Non
 
             formatter = HtmlFormatter(style=JupyterLight)
             formatter.noclasses = True  # inline styles
-            html = highlight(printable, Python3Lexer(), formatter)
+            html = highlight(printable.script(), Python3Lexer(), formatter)
             display(HTML(html))
         else:
-            print(highlight(printable, Python3Lexer(), Terminal256Formatter(style=style)))
+            print(highlight(printable.script(), Python3Lexer(), Terminal256Formatter(style=style)))
