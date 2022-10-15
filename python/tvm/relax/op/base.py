@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import List, Optional, Union
+from typing import Union, List, Optional
 
 import tvm
 from tvm.runtime.object import Object
 
-from ...ir import Array
-from ..expr import Call, Expr, ExternFunc, ShapeExpr, Tuple
-from ..ty import DynTensorType, TupleType
 from . import _ffi_api
+from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
+from ..ty import DynTensorType, TupleType
+from ...ir import Array
 
 py_print = print  # pylint: disable=invalid-name
 

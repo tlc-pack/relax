@@ -28,8 +28,19 @@
 #include <unordered_map>
 
 #include "../../../meta_schedule/utils.h"
+
+namespace tvm {
+namespace meta_schedule {
+
+void JSONFileAppendLine(const String& path, const std::string& line);
+std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bool allow_missing);
+
+}  // namespace meta_schedule
+}  // namespace tvm
+
 namespace tvm {
 namespace relax {
+
 TuningRecord::TuningRecord(Trace trace, Optional<Array<FloatImm>> run_secs) {
   ObjectPtr<TuningRecordNode> n = make_object<TuningRecordNode>();
   n->trace = trace;
@@ -94,7 +105,8 @@ inline std::string get_database_key(int workload_idx, Target target) {
   return std::to_string(workload_idx) + "/" + target->str();
 }
 
-/*! \brief The default database implementation, which mimics two database tables with two files. */
+/*! \brief The default database implementation, which mimics two database tables with two files.
+ */
 class JSONDatabaseNode : public DatabaseNode {
  public:
   /*! \brief The path to the workload table */

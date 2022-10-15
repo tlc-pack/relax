@@ -46,7 +46,7 @@ Expr MakeUnique(Expr data, bool sorted, bool return_inverse, bool return_counts,
   attrs->return_inverse = return_inverse;
   attrs->return_counts = return_counts;
   attrs->dim = dim;
-  static const Op& op = Op::Get("unique");
+  static const Op& op = Op::Get("relax.unique");
   return Call(op, {data}, Attrs(attrs));
 }
 
