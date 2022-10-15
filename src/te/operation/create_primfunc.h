@@ -40,7 +40,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
  */
 PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
                                      const Array<runtime::NDArray>& constants,
-                                     std::optional<DataType> index_dtype_override = std::nullopt);
+                                     const Optional<Array<tir::Var>>& tir_var_list);
 
 }  // namespace tir
 }  // namespace tvm
