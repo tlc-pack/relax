@@ -191,18 +191,21 @@ def main():
     relax_mod = apply_opt_before_tuning(relay_mod, params, target=ARGS.target)
     assert isinstance(relax_mod, tvm.IRModule)
 
-    executable = ms.tune_relax(
+    db = ms.relax_integration.tune_relax(
         mod=relax_mod,
         target=ARGS.target,
-        config=ms.TuneConfig(
-            strategy="evolutionary",
-            num_trials_per_iter=64,
-            max_trials_per_task=ARGS.num_trials,
-            max_trials_global=ARGS.num_trials,
-        ),
+        params=params,
+        num_trials_per_iter=64,
+        max_trials_per_task=ARGS.num_trials,
+        max_trials_global=ARGS.num_trials,
         runner=get_runner(),
         work_dir=ARGS.work_dir,
-        num_threads=os.cpu_count(),
+    )
+    executable = ms.relax_integration.compile_relax(
+        db,
+        mod=relax_mod,
+        target=ARGS.target,
+        params=params,
     )
 
     for input_name, input_shape in input_info.items():
