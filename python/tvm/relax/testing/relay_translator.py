@@ -28,6 +28,7 @@ from tvm.relax.testing import nn
 from tvm.relay.backend.te_compiler import select_implementation
 from tvm.runtime import NDArray
 from tvm.target import Target
+from tvm.meta_schedule.relay_integration import _autotvm_silencer
 
 
 def from_relay(
@@ -196,7 +197,7 @@ def from_relay(
 
     # Since optimization passes and OpStrategy are highly context-dependent,
     # we match the exact same context with `extract_task_from_relay()` env
-    with tvm.transform.PassContext(
+    with _autotvm_silencer(), tvm.transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,

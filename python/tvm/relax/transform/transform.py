@@ -24,9 +24,6 @@ from typing import Callable, Dict, List, Optional, Union
 import numpy as np
 import tvm.ir
 from tvm.runtime import NDArray
-from tvm.target import Target
-from tvm.meta_schedule.database import PyDatabase
-
 from . import _ffi_api
 
 
