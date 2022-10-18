@@ -57,7 +57,10 @@ class TaskExtractor : public ExprVisitor {
 
  private:
   explicit TaskExtractor(IRModule mod, Target target)
-      : mod_(std::move(mod)), target_(std::move(target)) {}
+      : mod_(std::move(mod)), target_(std::move(target)) {
+    normalize_mod_func_ = runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
+    ICHECK(normalize_mod_func_) << "Normalization function is not found.";
+  }
 
   void VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
@@ -76,7 +79,7 @@ class TaskExtractor : public ExprVisitor {
       return;
     }
 
-    IRModule tir_mod({{global_var, func}});
+    IRModule tir_mod = (*normalize_mod_func_)(func);
     ExtractedTask task(/*task_name=*/global_var->name_hint,  //
                        /*mod=*/tir_mod,                      //
                        /*target=*/target_,                   //
@@ -90,6 +93,7 @@ class TaskExtractor : public ExprVisitor {
   Target target_;
   Array<ExtractedTask> tasks_;
   std::unordered_map<tir::PrimFunc, ExtractedTask, StructuralHash, StructuralEqual> func2task_;
+  const runtime::PackedFunc* normalize_mod_func_;
 };
 
 TVM_REGISTER_GLOBAL("relax.backend.MetaScheduleExtractTask")

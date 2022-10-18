@@ -22,11 +22,12 @@ from typing_extensions import Literal
 
 # isort: on
 
-from tvm._ffi import get_global_func
+from tvm._ffi import get_global_func, register_func
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.runtime import NDArray
 from tvm.target import Target
+from tvm.tir.expr import IntImm
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -221,6 +222,94 @@ def tune_relax(
         measure_callbacks=measure_callbacks,
         task_scheduler=task_scheduler,
     )
+
+
+@register_func("tvm.meta_schedule.tune_relax")
+def _tune_relax(
+    mod: Union[IRModule, "relax.Function"],
+    params: Dict[str, NDArray],
+    target: Union[str, Target],
+    work_dir: str,
+    max_trials_global: int,
+    *,
+    max_trials_per_task: Optional[int] = None,
+    num_trials_per_iter: int = 64,
+    builder: Builder.BuilderType = "local",
+    runner: Runner.RunnerType = "local",
+    database: Database.DatabaseType = "json",
+    cost_model: CostModel.CostModelType = "xgb",
+    measure_callbacks: MeasureCallback.CallbackListType = "default",
+    task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
+    space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
+    strategy: SearchStrategy.SearchStrategyType = "evolutionary",
+    seed: Optional[int] = None,
+) -> Database:
+    """Interface with tuning api to tune a Relax program.
+
+    Parameters
+    ----------
+    mod : Union[IRModule, relax.Function]
+        The module or function to tune
+    params : Optional[Dict[str, tvm.runtime.NDArray]]
+        The associated parameters of the program
+    target : Union[Target, str]
+        The compilation target
+    work_dir : str
+        The working directory to store the tuning records
+    max_trials_global : int
+        The maximum number of trials to run
+    max_trials_per_task : Optional[int]
+        The maximum number of trials to run for each task
+    num_trials_per_iter : int
+        The number of trials to run per iteration
+    builder : BuilderType
+        The builder to use
+    runner : RunnerType
+        The runner to use
+    database : DatabaseType
+        The database to use
+    cost_model : CostModelType
+        The cost model to use
+    measure_callbacks : CallbackListType
+        The measure callbacks to use
+    task_scheduler : TaskSchedulerType
+        The task scheduler to use
+    space : SpaceGeneratorType
+        The space generator to use
+    strategy : SearchStrategyType
+        The search strategy to use
+    seed : Optional[int]
+        The random seed
+
+    Returns
+    -------
+    ret_mod : IRModule
+        IRModule
+    """
+    if isinstance(max_trials_global, IntImm):
+        max_trials_global = int(max_trials_global)
+
+    tune_relax(
+        mod,
+        params,
+        target,
+        work_dir,
+        max_trials_global,
+        max_trials_per_task=max_trials_per_task,
+        num_trials_per_iter=num_trials_per_iter,
+        builder=builder,
+        runner=runner,
+        database=database,
+        cost_model=cost_model,
+        measure_callbacks=measure_callbacks,
+        task_scheduler=task_scheduler,
+        space=space,
+        strategy=strategy,
+        seed=seed,
+    )
+    # Return original IRModule
+    # This pass only makes optimization decision
+    return mod
 
 
 def compile_relax(
