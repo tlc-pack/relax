@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Optional, Any
+from typing import Union, List, Optional
 
 import tvm
 from tvm.runtime.object import Object

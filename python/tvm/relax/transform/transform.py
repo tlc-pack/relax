@@ -295,7 +295,7 @@ def MetaScheduleApplyDatabase(
     ret : tvm.transform.Pass
         The registered pass
     """
-    return _ffi_api.MetaScheduleApplyDatabase(work_dir)
+    return _ffi_api.MetaScheduleApplyDatabase(work_dir)  # type: ignore
 
 
 def MetaScheduleTuneTIR(
@@ -313,7 +313,7 @@ def MetaScheduleTuneTIR(
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.MetaScheduleTuneTIR(work_dir, max_trials_global)
+    return _ffi_api.MetaScheduleTuneTIR(work_dir, max_trials_global)  # type: ignore
 
 
 def MetaScheduleTuneIRMod(
@@ -334,7 +334,7 @@ def MetaScheduleTuneIRMod(
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)
+    return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
