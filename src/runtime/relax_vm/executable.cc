@@ -505,13 +505,11 @@ String Executable::AsText() const {
           break;
         }
         case Opcode::Ret: {
-          os << std::setw(6) << std::left << "ret"
-             << "ret " << RegNameToStr(instr.result) << "\n";
+          os << std::setw(6) << std::left << "ret " << RegNameToStr(instr.result) << "\n";
           break;
         }
         case Opcode::Goto: {
-          os << std::setw(6) << std::left << "goto"
-             << "goto " << instr.pc_offset << "\n";
+          os << std::setw(6) << std::left << "goto" << instr.pc_offset << "\n";
           break;
         }
         case Opcode::If: {

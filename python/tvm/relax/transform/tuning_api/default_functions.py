@@ -16,7 +16,6 @@
 # under the License.
 """Relax Tuning Pass API default functions"""
 from typing import Dict, List, Optional
-import copy
 import sys
 import itertools
 import logging
@@ -91,7 +90,7 @@ def default_generate_candidate(
                 choice = knob.choices[decision]
                 # Generate new candidate when this condition satisfies.
                 if choice.check_constr(cur_trace.out_mod):
-                    new_trace = copy.deepcopy(cur_trace)
+                    new_trace = cur_trace.deepcopy()
                     new_trace.add(knob, decision)
                     candidates.append(new_trace)
 
