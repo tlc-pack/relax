@@ -88,23 +88,24 @@ class MetaScheduleTuner {
 Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
   using tvm::meta_schedule::Database;
   Target target = Target::Current(false);
-  Database database;
-  if (Database::Current().defined()) {
-    database = Database::Current().value();
-  } else {
-    ICHECK(work_dir.defined());
-    String path_workload = work_dir.value() + "/database_workload.json";
-    String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
-    LOG(INFO) << "Creating JSONDatabase. Workload at: " << path_workload
-              << ", Tuning records at: " << path_tuning_record;
-    database = meta_schedule::Database::JSONDatabase(path_workload, path_tuning_record, true);
-  }
   const runtime::PackedFunc* normalize_mod_func_ =
       runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
   ICHECK(normalize_mod_func_) << "Normalization function is not found.";
 
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext ctx) {
+    Database database;
+    if (Database::Current().defined()) {
+      database = Database::Current().value();
+    } else {
+      ICHECK(work_dir.defined());
+      String path_workload = work_dir.value() + "/database_workload.json";
+      String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
+      LOG(WARNING) << "Creating JSONDatabase. Workload at: " << path_workload
+                   << ", Tuning records at: " << path_tuning_record;
+      database = meta_schedule::Database::JSONDatabase(path_workload, path_tuning_record, true);
+    }
+
     Map<GlobalVar, BaseFunc> result;
     for (const auto& iter : mod->functions) {
       GlobalVar gv = iter.first;

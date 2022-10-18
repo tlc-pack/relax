@@ -15,10 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Function defintiions."""
+from __future__ import annotations
+from typing import Union, Dict
 from enum import IntEnum
 import tvm.runtime
+from tvm.runtime.object import Object
 
 from .expr import RelayExpr
+from .attrs import DictAttrs
 from . import _ffi_api
 
 
@@ -38,7 +42,7 @@ class BaseFunc(RelayExpr):
         """Return the attrs member of the function."""
         return _ffi_api.BaseFunc_Attrs(self)
 
-    def with_attr(self, attr_key_or_dict, attr_value=None):
+    def with_attr(self, attr_key_or_dict, attr_value=None) -> BaseFunc:
         """Create a new copy of the function and update the attribute.
 
         Parameters
@@ -51,7 +55,7 @@ class BaseFunc(RelayExpr):
 
         Returns
         -------
-        func : Function
+        func : BaseFunc
             A new copy of the function
         """
         # make sure we first copy so that we can safely do copy on write
@@ -67,7 +71,23 @@ class BaseFunc(RelayExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
-    def without_attr(self, attr_key: str):
+    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> BaseFunc:
+        """Copy the IRModule and add the given attribute map to it.
+        Parameters
+        ----------
+        attr_map: Union[DictAttrs, Dict[str, Object]]
+            The attribute map
+        Returns
+        -------
+        func : BaseFunc
+            A new copy of the function
+        """
+        if isinstance(attr_map, tvm.ir.DictAttrs):
+            attr_map = attr_map._dict()
+
+        return _ffi_api.BaseFuncWithAttrs(self, attr_map)
+
+    def without_attr(self, attr_key: str) -> BaseFunc:
         """Create a new copy of the function with an attribute without provided key.
 
         Parameters
@@ -78,7 +98,7 @@ class BaseFunc(RelayExpr):
 
         Returns
         -------
-        func : Function
+        func : BaseFunc
             A new copy of the function
         """
         return _ffi_api.BaseFuncWithoutAttr(self, attr_key)

@@ -537,6 +537,14 @@ TVM_REGISTER_GLOBAL("ir.Module_WithAttr")
       return WithAttr(mod, key, value);
     });
 
+TVM_REGISTER_GLOBAL("ir.Module_WithoutAttr")
+    .set_body_typed([](IRModule mod, String key) -> IRModule { return WithoutAttr(mod, key); });
+
+TVM_REGISTER_GLOBAL("ir.Module_WithAttrs")
+    .set_body_typed([](IRModule mod, Map<String, ObjectRef> attr_map) -> IRModule {
+      return WithAttrs(mod, attr_map);
+    });
+
 TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String key) -> ObjectRef {
   return mod->GetAttr<ObjectRef>(key);
 });

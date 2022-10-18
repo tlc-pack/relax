@@ -84,8 +84,6 @@ def test_autotir(dev: str):
         @T.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
             k = T.var("int32")
             A = T.match_buffer(x, (32, 32))
             B = T.match_buffer(y, (32, 32))

@@ -51,6 +51,20 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
       }
     });
 
+TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
+    .set_body_typed([](BaseFunc func, Map<String, ObjectRef> attr_map) -> BaseFunc {
+      if (func->IsInstance<tir::PrimFuncNode>()) {
+        return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
+      } else if (func->IsInstance<relay::FunctionNode>()) {
+        return WithAttrs(Downcast<relay::Function>(std::move(func)), attr_map);
+      } else if (func->IsInstance<relax::FunctionNode>()) {
+        return WithAttrs(Downcast<relax::Function>(std::move(func)), attr_map);
+      } else {
+        LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
+        return func;
+      }
+    });
+
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
     .set_body_typed([](BaseFunc func, String key) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
