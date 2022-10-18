@@ -24,6 +24,8 @@
 
 #include "unary.h"
 
+#include "../make_op.h"
+
 namespace tvm {
 namespace relax {
 

@@ -32,7 +32,8 @@ from .expr import Call, CommReducer, IntImm, PrimExprWithOp, StringImm, Var
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape, span)
-    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
+    strides = Call("handle", "tir.tvm_stack_make_shape",
+                   buf.strides, span) if buf.strides else 0
     pack_args = [
         buf.data,
         shape,
@@ -208,7 +209,8 @@ def call_pure_extern(dtype, func_name, *args, span=None):
         The call expression.
     """
     return Call(
-        dtype, Op.get("tir.call_pure_extern"), convert((StringImm(func_name),) + args), span
+        dtype, Op.get("tir.call_pure_extern"), convert(
+            (StringImm(func_name),) + args), span
     )
 
 
@@ -271,7 +273,8 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        warnings.warn(
+            f"Unknown llvm intrinsic function {name}, falling back to 0")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_intrin"),
@@ -313,7 +316,8 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        warnings.warn(
+            f"Unknown llvm intrinsic function {name}, falling back to 0")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
@@ -2682,7 +2686,8 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
                 for init_i in range(size):
                     init_i = convert(init_i)
                     assert isinstance(
-                        init_i, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm)
+                        init_i, (tvm.tir.ProducerLoad,
+                                 tvm.tir.IntImm, tvm.tir.FloatImm)
                     )
             else:
                 init = convert([])
@@ -2702,7 +2707,8 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             rhs = convert([rvar])
             expr = convert([expr])
             if init is not None:
-                assert isinstance(init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm))
+                assert isinstance(
+                    init, (tvm.tir.ProducerLoad, tvm.tir.IntImm, tvm.tir.FloatImm))
                 init = convert([init])
         result = convert(result)
         id_elem = convert(id_elem)
@@ -2826,5 +2832,7 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
 
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
-max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore
+min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None),
+                   max_value, name="min")  # type: ignore
+max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None),
+                   min_value, name="max")  # type: ignore

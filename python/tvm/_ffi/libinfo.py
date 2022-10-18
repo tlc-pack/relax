@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Library information."""
-import sys
 import os
+import sys
 
 
 def split_env_var(env_var, split):
@@ -152,7 +152,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     return lib_found
 
 
-def find_include_path(name=None, search_path=None, optional=False):
+def find_include_path(name=None, search_path=None, optional=False, use_nvcc=False):
     """Find header files for C compilation.
 
     Parameters
@@ -197,11 +197,19 @@ def find_include_path(name=None, search_path=None, optional=False):
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
         dlpack_include_path = [os.path.join(p, "dlpack/include") for p in header_path]
         dmlc_include_path = [os.path.join(p, "dmlc-core/include") for p in header_path]
+        if use_nvcc:
+            cutlass_include_path = [os.path.join(p, "cutlass/include") for p in header_path]
+            cutlass_include_path += [
+                os.path.join(p, "cutlass/tools/util/include/") for p in header_path
+            ]
+        else:
+            cutlass_include_path = []
 
         # try to find include path
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dlpack_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dmlc_include_path if os.path.exists(p) and os.path.isdir(p)]
+        include_found += [p for p in cutlass_include_path if os.path.exists(p) and os.path.isdir(p)]
 
     if not include_found:
         message = (

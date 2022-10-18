@@ -17,18 +17,18 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
-import os
 import ctypes
+import os
 import struct
 from typing import Sequence
-import numpy as np
 
+import numpy as np
 import tvm._ffi
-from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
+from tvm._ffi.base import _LIB, _RUNTIME_ONLY, c_str, check_call, string_types
 from tvm._ffi.libinfo import find_include_path
-from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 
 from . import _ffi_api
+from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 
 
 class BenchmarkResult:
@@ -441,7 +441,10 @@ class Module(object):
             raise RuntimeError("Cannot call export_library in runtime only mode")
         # Extra dependencies during runtime.
         from pathlib import Path
-        from tvm.contrib import cc as _cc, tar as _tar, utils as _utils
+
+        from tvm.contrib import cc as _cc
+        from tvm.contrib import tar as _tar
+        from tvm.contrib import utils as _utils
 
         if isinstance(file_name, Path):
             file_name = str(file_name)
@@ -534,11 +537,12 @@ class Module(object):
         # Thus, it would not recognize the following include paths as options
         # which are there assuming a c compiler is the fcompile.
         if has_c_module and not file_name.endswith(".tar"):
+            use_nvcc = kwargs.get("cc", "") == "nvcc"
             options = []
             if "options" in kwargs:
                 opts = kwargs["options"]
                 options = opts if isinstance(opts, (list, tuple)) else [opts]
-            opts = options + ["-I" + path for path in find_include_path()]
+            opts = options + ["-I" + path for path in find_include_path(use_nvcc=use_nvcc)]
             kwargs.update({"options": opts})
 
         return fcompile(file_name, files, **kwargs)
@@ -602,7 +606,9 @@ def load_module(path, fmt=""):
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
-        from tvm.contrib import cc as _cc, utils as _utils, tar as _tar
+        from tvm.contrib import cc as _cc
+        from tvm.contrib import tar as _tar
+        from tvm.contrib import utils as _utils
 
         tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)

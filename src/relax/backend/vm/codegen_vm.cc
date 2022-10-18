@@ -67,6 +67,21 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
  protected:
   size_t NewRegister() { return registers_num_++; }
+  Instruction::Arg VisitExpr_(const ExternFuncNode* func) {
+    const static constexpr char* kCSource = "c_source";
+    const static constexpr char* kCSourceFmt = "c_source_fmt";
+    if (Optional<String> opt_code = func->attrs.GetAttr<String>(kCSource)) {
+      String sym = func->global_symbol;
+      String fmt = func->attrs.GetAttr<String>(kCSourceFmt).value_or("c");
+      String code = opt_code.value();
+      Module c_source_module =
+          codegen::CSourceModuleCreate(/*code=*/code, /*fmt=*/fmt, /*func_names=*/{sym},
+                                       /*const_vars=*/{});
+      builder_->exec->Import(c_source_module);
+    }
+    return Instruction::Arg{};
+  }
+
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     Optional<String> gsymbol = func_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(gsymbol.defined()) << "there should be no local functions in Relax VM codegen phase. "

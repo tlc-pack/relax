@@ -31,6 +31,9 @@ from .library import (
 
 def create_gemm_operator_with_epilogue(
     op_type,
+    out_layout,
+    arg0_layout,
+    arg1_layout,
     tile_description,
     data_type,
     alignment,
@@ -43,9 +46,9 @@ def create_gemm_operator_with_epilogue(
     """
     element_a, element_b, element_c, element_epilogue = data_type
 
-    A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
-    B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
-    C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
+    A = TensorDescription(element_a, LayoutType.RowMajor if arg0_layout == "row" else LayoutType.ColumnMajor, alignment)
+    B = TensorDescription(element_b, LayoutType.RowMajor if arg1_layout == "row" else LayoutType.ColumnMajor, alignment)
+    C = TensorDescription(element_c, LayoutType.RowMajor if out_layout == "row" else LayoutType.ColumnMajor, alignment)
 
     if batched:
         swizzling_functor = SwizzlingFunctor.Batched
@@ -73,6 +76,7 @@ def enumerate_gemm_operators(
     tile_descriptions,
     data_type,
     alignment_constraints,
+    layout_constraints,
     swizzling_functor=SwizzlingFunctor.Identity8,
 ):
     """Exhaustively instantiate all kernels from a given configuration."""
@@ -81,12 +85,15 @@ def enumerate_gemm_operators(
     profiler_emitter = GemmProfilerEmitter()
 
     element_a, element_b, element_c, element_epilogue = data_type
+    layoutA = LayoutType.RowMajor if layout_constraints[0] == "row" else LayoutType.ColumnMajor
+    layoutB = LayoutType.RowMajor if layout_constraints[1] == "row" else LayoutType.ColumnMajor
+    layoutC = LayoutType.RowMajor if layout_constraints[2] == "row" else LayoutType.ColumnMajor
 
     for tile_description in tile_descriptions:
         for alignment in alignment_constraints:
-            A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
-            B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
-            C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
+            A = TensorDescription(element_a, layoutA, alignment)
+            B = TensorDescription(element_b, layoutB, alignment)
+            C = TensorDescription(element_c, layoutC, alignment)
 
             if element_c == DataType.s32 and A.alignment == 1:
                 tile_description.threadblock_shape[0] = min(
@@ -206,6 +213,9 @@ class CutlassGemmProfiler:
         out_dtype,
         arg0_dtype,
         arg1_dtype,
+        out_layout,
+        arg0_layout,
+        arg1_layout,
         use_3xtf32,
         profile_all_alignments=False,
         find_first_valid=False,
@@ -227,6 +237,9 @@ class CutlassGemmProfiler:
             out_dtype,
             arg0_dtype,
             arg1_dtype,
+            out_layout,
+            arg0_layout,
+            arg1_layout,
             enumerate_gemm_operators,
             lambda align: all([dim % align == 0 for dim in [M, N, K]]),
             use_3xtf32,
@@ -258,6 +271,9 @@ class CutlassGemmProfiler:
         out_dtype,
         arg0_dtype,
         arg1_dtype,
+        out_layout,
+        arg0_layout,
+        arg1_layout,
         use_3xtf32=True,
         profile_all_alignments=False,
         find_first_valid=False,
@@ -275,6 +291,9 @@ class CutlassGemmProfiler:
             out_dtype,
             arg0_dtype,
             arg1_dtype,
+            out_layout,
+            arg0_layout,
+            arg1_layout,
             use_3xtf32,
             profile_all_alignments=profile_all_alignments,
             find_first_valid=find_first_valid,
@@ -283,6 +302,9 @@ class CutlassGemmProfiler:
 
         name, opdef = create_gemm_operator_with_epilogue(
             op_type,
+            out_layout,
+            arg0_layout,
+            arg1_layout,
             op["tile_description"],
             op["data_type"],
             op["alignment"],
