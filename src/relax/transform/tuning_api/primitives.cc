@@ -148,7 +148,9 @@ Trace::Trace() { data_ = make_object<TraceNode>(); }
 Trace::Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
   ICHECK(knobs.size() == decisions.size()) << "Size of knobs and decisions should match";
   // Deep-copy IRModule
-  IRModule out_mod = meta_schedule::DeepCopyIRModule(in_mod);
+  auto func_deepcopy = runtime::Registry::Get("relax.tuning_api.deepcopy_irmodule");
+  ICHECK(func_deepcopy);
+  IRModule out_mod = (*func_deepcopy)(in_mod);
   // Apply the decision history if provided
   int size = knobs.size();
   for (int i = 0; i < size; i++) {

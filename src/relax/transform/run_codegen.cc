@@ -90,7 +90,12 @@ class CodeGenRunner : ExprMutator {
         return Call(call_op, new_args, tvm::Attrs(), {func->ret_type});
       }
     }
-    return GetRef<Call>(call_node);
+    Array<Expr> new_args;
+    for (const auto& arg : call_node->args) {
+      new_args.push_back(VisitExpr(arg));
+    }
+
+    return Call(call_node->op, new_args, call_node->attrs, call_node->type_args, call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
