@@ -52,11 +52,6 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
   ICHECK_EQ(layout.IndexOf(tir::LayoutAxis::Get('w')), -1)
       << "max_pool2d does not support input split on width";
 
-  ICHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U || inputs[0].ndim() == 6U)
-      << "Pool2D only support 4-D input (e.g., NCHW)"
-      << " or 5-D input (e.g. NCHWc on for vector instructions)"
-      << " or 6-D input (e.g. NCHWnc for tensor accelerators)";
-
   if (param->padding.size() == 1) {
     padding.push_back(padding[0]);
     padding.push_back(padding[0]);
@@ -70,6 +65,7 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inp
     // bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
     // return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, stride, dilation, padding,
     //                                          mode, ceil_mode, layout.name(), count_include_pad)};
+    ICHECK(0) << "Not implemented yet";
   } else {
     return Array<te::Tensor>{topi::nn::pool2d(inputs[0], pool_size, strides, dilation, padding,
                                               mode, ceil_mode, layout.name())};

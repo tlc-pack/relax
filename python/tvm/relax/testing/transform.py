@@ -96,7 +96,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                     relax_op_attrs = call_node.attrs
                     relay_op_attrs = None
                     if relax_op_attrs:
-                        relax_attr_name = relax_op_attrs.get_name()
+                        relax_attr_name = relax_op_attrs.type_key
                         # Note: convert `tvm.runtime.container.String` to string
                         attrs_dict = {str(key): val for key, val in dict(relax_op_attrs).items()}
                         relay_attr_name = "relay." + relax_attr_name[6:]

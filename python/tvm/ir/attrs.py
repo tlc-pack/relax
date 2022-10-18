@@ -30,16 +30,6 @@ class Attrs(Object):
     Attrs is passed as the first argument to these functions.
     """
 
-    def get_name(self):
-        """Get name of the attribute.
-
-        Returns
-        -------
-        keys : str
-            name
-        """
-        return _ffi_api.AttrsGetName(self)
-
     def list_field_info(self):
         """Get fields information
 

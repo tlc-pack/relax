@@ -115,6 +115,40 @@ StructInfo InferStructInfoConv2D(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
+Type InferTypeConv2D(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Conv2d op should have 2 arguments");
+  }
+  Type type0 = call->args[0]->checked_type();
+  Type type1 = call->args[1]->checked_type();
+  auto* t0 = type0.as<DynTensorTypeNode>();
+  auto* t1 = type1.as<DynTensorTypeNode>();
+  if (!t0 || !t1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "The 2 arguments of Conv2d should be DynTensor");
+  }
+
+  ICHECK(t0->ndim == 4 && t1->ndim == 4) << "Both data and kernel tensors should have a rank of 4.";
+
+  DataType output_dtype;
+  if (t0->IsUnknownDtype() || t1->IsUnknownDtype()) {
+    output_dtype = DataType::Void();
+  } else if (t0->dtype != t1->dtype) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Data types " << t0->dtype << ", and"
+                                                     << t1->dtype << " must be equal for Conv2d");
+  } else {
+    output_dtype = t0->dtype;
+  }
+
+  int output_ndim;
+  if (t0->IsUnknownNdim() || t1->IsUnknownNdim()) {
+    output_ndim = kUnknownNDim;
+  } else {
+    output_ndim = t0->ndim;
+  }
+  return DynTensorType(output_ndim, output_dtype);
+}
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_NN_CONVOLUTION_H_

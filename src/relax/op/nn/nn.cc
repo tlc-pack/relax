@@ -67,6 +67,8 @@ RELAX_REGISTER_OP("relax.nn.softmax")
 
 - **data**: The input data
 )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnary);
 

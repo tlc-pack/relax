@@ -168,8 +168,6 @@ class BaseAttrsNode : public Object {
    * \return The fields in the Attrs.
    */
   TVM_DLL virtual Array<AttrFieldInfo> ListFieldInfo() const = 0;
-
-  TVM_DLL virtual String GetName() const = 0;
   /*!
    * \brief Initialize the attributes by arguments.
    * \param kwargs The key value pairs for initialization.
@@ -216,7 +214,6 @@ class DictAttrsNode : public BaseAttrsNode {
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
-  String GetName() const final;
 
   // type info
   static constexpr const char* _type_key = "DictAttrs";
@@ -850,7 +847,6 @@ class AttrsNode : public BaseAttrsNode {
     ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
-
     // applies two strategies to lookup
     if (args.size() < kLinearSearchBound) {
       // linear search.
@@ -921,8 +917,6 @@ class AttrsNode : public BaseAttrsNode {
     self()->_tvm_VisitAttrs(visitor);
     return visitor.fields_;
   }
-
-  String GetName() const final { return DerivedType::_type_key; }
 
  private:
   DerivedType* self() const {
