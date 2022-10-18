@@ -404,6 +404,9 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
+  /*! Default constructor */
+  Database() = default;
+
   /*! An in-memory database. */
   TVM_DLL static Database MemoryDatabase();
   /*!

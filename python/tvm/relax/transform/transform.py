@@ -23,6 +23,9 @@ from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 import tvm.ir
+from tvm.runtime import NDArray
+from tvm.target import Target
+from tvm.meta_schedule.database import PyDatabase
 
 from . import _ffi_api
 
@@ -283,15 +286,58 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()
 
 
-def MetaScheduleApplyDatabase() -> tvm.ir.transform.Pass:
+def MetaScheduleApplyDatabase(
+    work_dir: Optional[str] = None,
+) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
-
+    work_dir : Optional[str]
+       work directory to deduce default database if database is not provided
+       (it will be ignored when an user passes database)
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for tir fusion.
+        The registered pass
     """
-    return _ffi_api.MetaScheduleApplyDatabase()
+    return _ffi_api.MetaScheduleApplyDatabase(work_dir)
+
+
+def MetaScheduleTuneTIR(
+    work_dir: str,
+    max_trials_global: int,
+) -> tvm.ir.transform.Pass:
+    """Tune TIR with MetaSchedule.
+    Parameters
+    ----------
+    work_dir: str
+       work directory
+    max_trials_gloabl: int
+       maximum number of total trials allowed for tuning
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.MetaScheduleTuneTIR(work_dir, max_trials_global)
+
+
+def MetaScheduleTuneIRMod(
+    params: Dict[str, NDArray],
+    work_dir: str,
+    max_trials_global: int,
+) -> tvm.ir.transform.Pass:
+    """Tune Relax IRModule with MetaSchedule.
+    Parameters
+    ----------
+    params: Dict[str, NDArray]
+       model params
+    work_dir: str
+       work directory
+    max_trials_gloabl: int
+       maximum number of total trials allowed for tuning
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
