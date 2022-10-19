@@ -10,15 +10,15 @@ from tvm import relax
 class TestModule:
     # Input IRModule.
     @R.function
-    def main(c0: Tensor((16,), "float32")):
-        lv0 = relax.call_tir("ext_AddOneCPU", (c0,), (16,), dtype="float32")
+    def main(c0: Tensor((32, 32), "float32"), c1: Tensor((32, 32), "float32")):
+        lv0 = relax.call_tir("ext_AddCPU", (c0, c1), (32, 32), dtype="float32")
         return lv0
 
 
 def create_source_module():
     code = open("byo_libs.cc", "r").read()
     fmt = "cc"
-    func_names = ["ext_AddOneCPU"]
+    func_names = ["ext_AddCPU"]
     return tvm.get_global_func("runtime.CSourceModuleCreate")(code, fmt, func_names, [])
 
 
@@ -36,17 +36,25 @@ def main():
         cc="g++",
         options=[
             "-std=c++17",
-            "-I/path/to/libtorch/include",
-            "/path/to/libtorch/lib/libtorch.a",
+            "-I/home/yuchenj/libtorch/include",
+            "-L/home/yuchenj/libtorch/lib",
+            "-ltorch",
+            "-ltorch_cpu",
+            "-ltorch_global_deps",
+            # "-I/home/yuchenj/downloads/libtorch/include",
+            # "/home/yuchenj/downloads/libtorch/lib/libtorch.a",
+            # "/home/yuchenj/downloads/libtorch/lib/libc10d.a",
+            # "-L/home/yuchenj/downloads/libtorch/lib/",
         ],
     )
 
     ex = tvm.runtime.load_module("packaged.so")
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    data_nd = tvm.nd.array(np.arange(16).astype("float32"))
+    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"))
+    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"))
 
-    nd_res = vm["main"](data_nd)
+    nd_res = vm["main"](a, b)
     print(nd_res.numpy())
 
 

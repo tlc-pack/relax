@@ -3,11 +3,12 @@
 // Ensure all TVM env are defined correctly Macros
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <tvm/runtime/logging.h>
+// #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <ATen/ATen.h>
+#include <ATen/DLConvertor.h>
 
 namespace tvm_addon {
 using namespace tvm;
@@ -15,16 +16,19 @@ using namespace tvm::runtime;
 
 // simple specialized impl, can be replaced by
 // call into libraries.
-void AddOneCPU_(NDArray a, NDArray out) {
-  CHECK_EQ(a->ndim, 1);
-  CHECK_EQ(a->shape[0], out->shape[0]);
-  CHECK_EQ(a.DataType(), DataType::Float(32));
+void AddCPU_(NDArray a, NDArray b, NDArray out) {
+  DLManagedTensor* tensor;
+  tensor = a.ToDLPack();
+  at::Tensor a_torch = at::fromDLPack(tensor);
 
-  for (int i = 0; i < a->shape[0]; ++i) {
-    static_cast<float*>(out->data)[i] = static_cast<float*>(a->data)[i] + 1;
-  }
+  tensor = b.ToDLPack();
+  at::Tensor b_torch = at::fromDLPack(tensor);
+  at::Tensor c = at::add(a_torch, b_torch);
+
+  tensor = at::toDLPack(c);
+  out = NDArray::FromDLPack(tensor);
 }
 
 // export the implementation
-TVM_DLL_EXPORT_TYPED_FUNC(ext_AddOneCPU, AddOneCPU_);
+TVM_DLL_EXPORT_TYPED_FUNC(ext_AddCPU, AddCPU_);
 }
