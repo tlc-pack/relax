@@ -287,18 +287,21 @@ def emit_match_shape(
 ############################# Type Deduce ##############################
 
 
-def annotate_type_shape(var: Var, type: Type, shape: ShapeExpr) -> None:
+def annotate_type_shape(var: Var, anno_type: Type, anno_shape: ShapeExpr) -> None:
     """Annotate and check the type of relax var.
     Parameters
     ----------
     var: Var
         The input var to be annotated.
-    type: Type
-        The given type
-    shape: ShapeExpr
-        The given shape
+
+    anno_type: Type
+        The annotated type
+
+    anno_shape: ShapeExpr
+        The annotated shape
+
     """
-    _ffi_api.AnnotateTypeShape(var, type, shape)
+    _ffi_api.AnnotateTypeShape(var, anno_type, anno_shape)
 
 
 def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
