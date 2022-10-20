@@ -1614,10 +1614,8 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   buf_not_in_headers_.clear();
   // print signature
   Doc doc;
-
-  auto gv_name = op->GetAttr<String>("global_symbol").value_or("func");
   doc << "@" << tir_prefix_ << ".prim_func" << Doc::NewLine();
-  doc << "def " << (func2var_.find(op) == func2var_.end() ? gv_name : func2var_[op]->name_hint)
+  doc << "def " << (func2var_.find(op) == func2var_.end() ? "func" : func2var_[op]->name_hint)
       << "(";
   std::vector<Doc> params;
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> simple_buf;
@@ -1724,15 +1722,16 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
 
   // print func attrs
   Doc header_attr;
-  // if (primFunc->attrs.defined()) {
-  //   header_attr << Doc::NewLine() << "# function attr dict" << Doc::NewLine() << tir_prefix_
-  //               << ".func_attr({";
-  //   std::vector<Doc> attrs;
-  //   for (const auto& it : op->attrs->dict) {
-  //     attrs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
-  //   }
-  //   header_attr << PrintSep(attrs, Doc::Text(", ")) << "})";
-  // }
+  if (primFunc->attrs.defined() && primFunc->attrs->dict.size() > 2) {
+    header_attr << Doc::NewLine() << "# function attr dict" << Doc::NewLine() << tir_prefix_
+                << ".func_attr({";
+    std::vector<Doc> attrs;
+    for (const auto& it : op->attrs->dict) {
+      if (it.first == "global_symbol" || it.first == "tir.noalias") continue;
+      attrs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+    }
+    header_attr << PrintSep(attrs, Doc::Text(", ")) << "})";
+  }
   // print buffer declarations(buffers not defined by buffer_bind or buffer_allocate)
   Doc header_buf;
   std::vector<const BufferNode*> bufs;
