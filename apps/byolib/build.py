@@ -1,24 +1,27 @@
 from __future__ import annotations
+import torch
 
 import numpy as np
 import tvm
 from tvm.script import tir as T, relax as R
 from tvm import relax
+import tvm.testing
 
 
 @tvm.script.ir_module
 class TestModule:
     # Input IRModule.
     @R.function
-    def main(c0: Tensor((32, 32), "float32"), c1: Tensor((32, 32), "float32")):
-        lv0 = relax.call_tir("ext_AddCPU", (c0, c1), (32, 32), dtype="float32")
-        return lv0
+    def main(c0: Tensor((5,), "float64")):
+        lv0 = relax.call_tir("libtorch_at_abs_out", (c0), (5,), dtype="float64")
+        lv1 = relax.call_tir("libtorch_at_tanh_out", (lv0), (5,), dtype="float64")
+        return lv1
 
 
 def create_source_module():
     code = open("byo_libs.cc", "r").read()
     fmt = "cc"
-    func_names = ["ext_AddCPU"]
+    func_names = ["libtorch_at_abs_out", "libtorch_at_tanh_out"]
     return tvm.get_global_func("runtime.CSourceModuleCreate")(code, fmt, func_names, [])
 
 
@@ -36,26 +39,28 @@ def main():
         cc="g++",
         options=[
             "-std=c++17",
-            "-I/home/yuchenj/libtorch/include",
-            "-L/home/yuchenj/libtorch/lib",
+            "-I/home/spark/libtorch/include",
+            "-L/home/spark/libtorch/lib",
             "-ltorch",
             "-ltorch_cpu",
             "-ltorch_global_deps",
-            # "-I/home/yuchenj/downloads/libtorch/include",
-            # "/home/yuchenj/downloads/libtorch/lib/libtorch.a",
-            # "/home/yuchenj/downloads/libtorch/lib/libc10d.a",
-            # "-L/home/yuchenj/downloads/libtorch/lib/",
         ],
     )
 
     ex = tvm.runtime.load_module("packaged.so")
-
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(np.random.rand(32, 32).astype("float32"))
-    b = tvm.nd.array(np.random.rand(32, 32).astype("float32"))
 
-    nd_res = vm["main"](a, b)
-    print(nd_res.numpy())
+    # verify
+    a = np.array([-1.0, -2.0, 3.0, 4.0, -5.0], dtype=np.double)
+    tvm_a = tvm.nd.array(a)
+    tvm_out = vm["main"](tvm_a)
+
+    torch_a = torch.Tensor(a)
+    torch_out = torch.tanh(torch.abs(torch_a))
+
+    tvm.testing.assert_allclose(
+        tvm_out.numpy(), torch_out.cpu().detach().numpy(), atol=1e-5, rtol=1e-5
+    )
 
 
 main()
