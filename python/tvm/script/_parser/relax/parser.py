@@ -24,6 +24,7 @@ from tvm import relax, tir
 from tvm.ir import Type
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
+from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
@@ -138,7 +139,7 @@ def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) ->
     if isinstance(type_annotation, TensorType):
         shape = type_annotation.shape
         if shape is None:
-            return type_annotation.type, None
+            return type_annotation.type, relax.RuntimeDepShape()
         shape = list(shape.values)
         var_table = self.var_table.get()
         for i, expr in enumerate(shape):
@@ -162,11 +163,40 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         with R.function():
             R.func_name(node.name)
             if node.returns is not None:
-                ann_type, _ = eval_type_annotation(self, node.returns)
+                ann_type, ann_shape = eval_type_annotation(self, node.returns)
                 R.func_ret_type(ann_type)
+
+                # TODO(relax-team): remove the following line when fixing ret_shape issue
+                ann_shape = relax.RuntimeDepShape()
+
+                R.func_ret_shape(ann_shape)
             with self.with_dispatch_token("relax"):
                 self.visit(node.args)
                 self.visit_body(node.body)
+
+
+@dispatch.register(token="relax", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+    if node.returns is None:
+        ret_type, ret_shape = None, None
+    else:
+        ret_type, ret_shape = eval_type_annotation(self, node.returns)
+    params = []
+    arg_types = []
+    for arg in node.args.args:
+        if arg.annotation is None:
+            self.report_error(arg, "Type annotation is required for function parameters.")
+        param_type, param_shape = self.visit_tvm_annotation(arg.annotation)
+        arg_types.append(param_type)
+        params.append(relax.Var(arg.arg, param_shape, param_type))
+
+    # TODO(relax-team): remove the following line when fixing ret_shape issue in block builder
+    ret_shape = relax.RuntimeDepShape()
+
+    func_signature = relax.Function.create_unchecked(params, None, ret_type, ret_shape)
+    global_var = I.decl_function(node.name, func_signature)
+    relax.expr._update_type(global_var, relax.FuncType(arg_types, ret_type))
+    self.var_table.add(node.name, global_var)
 
 
 @dispatch.register(token="relax", type_name="pre_token_switch")

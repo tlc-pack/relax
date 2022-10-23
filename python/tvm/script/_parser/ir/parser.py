@@ -15,8 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+from typing import Optional, Tuple
+
+from tvm.ir import PrimExpr, PrimType, RelayExpr, Type
+
 from ...ir_builder import ir as I
 from .._core import Parser, dispatch, doc
+
+
+def eval_func_type_shape(
+    self: Parser, node: doc.FunctionDef
+) -> Tuple[Optional[Type], Optional[RelayExpr]]:
+    token = self.get_dispatch_token(node)
+    with self.with_dispatch_token(token):
+        result = self.visit_tvm_annotation(node.returns)
+    if result is None:
+        return None, None
+    elif isinstance(result, tuple) and len(result) == 2:
+        # relax dialect
+        return result
+    elif isinstance(result, PrimExpr):
+        # tir dialect
+        return PrimType(result.dtype), None
+    else:
+        raise TypeError(f"Unsupported annotation type: {result}")
 
 
 @dispatch.register(token="ir", type_name="ClassDef")
@@ -25,8 +47,7 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
         with I.ir_module():
             for stmt in node.body:
                 if isinstance(stmt, doc.FunctionDef):
-                    global_var = I.decl_function(stmt.name)
-                    self.var_table.add(stmt.name, global_var)
+                    self.visit_tvm_declare_function(stmt)
             with self.with_dispatch_token("ir"):
                 self.visit_body(node.body)
 
@@ -39,3 +60,9 @@ def _visit_assign(_self: Parser, _node: doc.Assign) -> None:
 @dispatch.register(token="ir", type_name="Expr")
 def _visit_expr(_self: Parser, _node: doc.Expr) -> None:
     pass
+
+
+@dispatch.register(token="default", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+    global_var = I.decl_function(node.name)
+    self.var_table.add(node.name, global_var)

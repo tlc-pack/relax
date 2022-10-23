@@ -94,6 +94,11 @@ class FunctionFrameNode : public SeqExprFrameNode {
    *       If the `ret_type` is not None, check the deduced type is a base type of the given one.
    */
   Optional<Type> ret_type;
+  /*!
+   * \brief The function return shape.
+   * \sa ret_type
+   */
+  Optional<tvm::relax::Expr> ret_shape;
   /*! \brief The function attributes. */
   Map<String, ObjectRef> attrs;
   /*! \brief The block builder to create Relax function. */

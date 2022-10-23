@@ -157,6 +157,17 @@ def func_ret_type(ret_type: Union[TensorType, Type]) -> None:
     return _ffi_api.FuncRetType(ret_type)  # pylint: disable=no-member # type: ignore
 
 
+def func_ret_shape(ret_shape: Expr) -> None:
+    """Specify the return shape of the last function frame.
+
+    Parameters
+    ----------
+    ret_shape: Expr
+        The function return shape.
+    """
+    return _ffi_api.FuncRetShape(ret_shape)  # pylint: disable=no-member # type: ignore
+
+
 def func_ret_value(value: Expr) -> None:
     """Specify the return value of the last function frame.
     Parameters
@@ -359,6 +370,7 @@ __all__ = [
     "func_attr",
     "func_name",
     "func_ret_type",
+    "func_ret_shape",
     "func_ret_value",
     "function",
     "invoke_closure",

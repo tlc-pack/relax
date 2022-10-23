@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/script/ir_builder/relax/frame.h>
 #include <tvm/script/ir_builder/relax/ir.h>
@@ -49,10 +50,16 @@ void FunctionFrameNode::ExitWithScope() {
                              "`return` to return an Expr";
   output = this->block_builder->Normalize(output.value());
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  Expr func_shape = ret_shape.value_or(tvm::relax::RuntimeDepShape());
+  if (func_shape->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
+    // If the return shape is not specified, we try to derive it from the body.
+    // TODO(relax-team): enable the following line when fixing ret_shape issue in block builder
+    // func_shape = tvm::relax::DeriveFuncRetShape(params, body);
+  }
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_type=*/ret_type.value_or(Type()),
-                            /*ret_shape=*/tvm::relax::RuntimeDepShape(),
+                            /*ret_shape=*/func_shape,
                             /*attrs=*/DictAttrs(attrs));
   // TODO(relax-team): remove this line
   func = WithAttr(func, "global_symbol", name.value());

@@ -34,12 +34,16 @@ IRModuleFrame IRModule() {
   return IRModuleFrame(n);
 }
 
-GlobalVar DeclFunction(const String& func_name) {
+GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func) {
   IRModuleFrame frame = FindModuleFrame("I.DeclFunction");
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
   GlobalVar gv = GlobalVar(func_name);
+
   frame->global_var_map.Set(func_name, gv);
+  if (func.defined()) {
+    frame->functions.Set(gv, func.value());
+  }
   return gv;
 }
 
@@ -49,9 +53,10 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   CHECK(it != frame->global_var_map.end())
       << "ValueError: function " << func_name << " does not exist, please declare it first.";
   const GlobalVar& gv = (*it).second;
-  CHECK(frame->functions.find(gv) == frame->functions.end())
-      << "ValueError: function " << func_name << " has already been defined.";
   frame->functions.Set(gv, func);
+  if (func->checked_type_.defined()) {
+    gv->checked_type_ = func->checked_type_;
+  }
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);

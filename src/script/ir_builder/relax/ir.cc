@@ -77,11 +77,16 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
 
 FunctionFrame Function() {
   ObjectPtr<FunctionFrameNode> n = make_object<FunctionFrameNode>();
-  n->block_builder = tvm::relax::BlockBuilder::Create(/*mod=*/NullOpt);
+  const IRBuilder& ir_builder = IRBuilder::Current();
+  Optional<tvm::IRModule> mod = NullOpt;
+  if (const Optional<ir::IRModuleFrame> mod_frame = ir_builder->GetLastFrame<ir::IRModuleFrame>()) {
+    mod = tvm::IRModule(mod_frame.value()->functions);
+  }
+  n->block_builder = tvm::relax::BlockBuilder::Create(/*mod=*/mod);
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::ShapeExpr& shape) {
+tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::relax::Var var(name, shape, type);
   frame->params.push_back(var);
@@ -114,6 +119,15 @@ void FuncRetType(tvm::Type ret_type) {
   frame->ret_type = ret_type;
 }
 
+void FuncRetShape(tvm::relax::Expr ret_shape) {
+  FunctionFrame frame = FindFunctionFrame("R.ret_shape");
+  if (frame->ret_shape.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate function return type, previous one is:\n "
+               << frame->ret_type.value();
+  }
+  frame->ret_shape = ret_shape;
+}
+
 void FuncRetValue(const tvm::relax::Expr& value) {
   // Step 1. The current Relax TVMScript syntax only allows function return appearing at the end of
   // a function body. Therefore if there is any unended block frame when dealing with function
@@ -137,6 +151,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetType").set_body_typed(FuncRetType);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetShape").set_body_typed(FuncRetShape);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
 
 ///////////////////////////// BindingBlock //////////////////////////////
@@ -257,7 +272,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 ///////////////////////////// Type Deduce //////////////////////////////
 
 void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                       const Optional<tvm::relax::ShapeExpr>& anno_shape) {
+                       const Optional<tvm::relax::Expr>& anno_shape) {
   using tvm::relax::IsBaseOf;
   if (var->checked_type_.defined()) {
     const Type& var_type = var->checked_type();
@@ -267,9 +282,17 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
   }
 
   if (var->shape_.defined() && anno_shape.defined()) {
-    const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
     tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
-    CHECK(block_builder->CanProveShapeEqual(var_shape, anno_shape.value()))
+    auto check_shape = [](const tvm::relax::Expr& lhs, const tvm::relax::Expr& rhs) {
+      if (lhs->IsInstance<tvm::relax::RuntimeDepShapeNode>() ||
+          rhs->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
+        return true;
+      } else {
+        const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+        return block_builder->CanProveShapeEqual(lhs, rhs);
+      }
+    };
+    CHECK(check_shape(var_shape, anno_shape.value()))
         << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
         << " but got annotation: " << anno_shape.value();
   }
