@@ -205,7 +205,7 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
   Array<Type> param_types;
-  for (Var param : params) {
+  for (const Var& param : params) {
     CHECK(param->checked_type_.defined())
         << "relax.Function requires params to contain checked_type_";
     param_types.push_back(param->checked_type_);

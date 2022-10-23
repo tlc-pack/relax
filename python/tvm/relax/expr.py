@@ -102,6 +102,8 @@ class Var(Expr):
 
     def __call__(self, *args: Any, attrs=None) -> Call:
         if self.checked_type and isinstance(self.checked_type, ty.FuncType):
+            if self.checked_type.ret_type is None:
+                raise ValueError("Cannot call a function with no return type")
             return Call(self, args, attrs=attrs)
         else:
             raise TypeError("Only vars with function type can be called")

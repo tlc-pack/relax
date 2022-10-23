@@ -78,8 +78,7 @@ TVM_DLL FunctionFrame Function();
  * \param shape The shape of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type,
-                            const tvm::relax::ShapeExpr& shape);
+TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -98,6 +97,12 @@ TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
  * \param ret_type The return type. Note: it's a standard `tvm::Type` instead of TensorType.
  */
 TVM_DLL void FuncRetType(tvm::Type ret_type);
+
+/*!
+ * \brief Specify the return shape of the last function frame.
+ * \param ret_shape The return shape.
+ */
+TVM_DLL void FuncRetShape(tvm::relax::Expr ret_shape);
 
 /*!
  * \brief Specify the return value of the last function frame.
@@ -161,7 +166,7 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
  * And we annotate to the var with more detailed type.
  */
 TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                               const Optional<tvm::relax::ShapeExpr>& anno_shape);
+                               const Optional<tvm::relax::Expr>& anno_shape);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

@@ -388,6 +388,10 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
       if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
+          if (!func->body.defined()) {
+            return func->ret_shape;
+          }
+          // TODO(relax-team): migrate shape deduction to `ret_shape`
           Expr func_shape = Downcast<Expr>(func->body->shape_);
           if (IsConstantShapes(func_shape)) {
             // Case 1. Nested tuples of constant shapes

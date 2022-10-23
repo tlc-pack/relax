@@ -46,6 +46,10 @@ def _deferred(f: Callable[[], None]):
     return context()
 
 
+def _do_nothing(*args, **kwargs):  # pylint: disable=unused-argument
+    pass
+
+
 class VarTableFrame:
     vars: Set[str]
 
@@ -122,14 +126,6 @@ def _dispatch(self: "Parser", type_name: str) -> dispatch.ParseMethod:
     return _dispatch_wrapper(lambda self, node: self.generic_visit(node))
 
 
-def _dispatch_optional(self: "Parser", type_name: str) -> Optional[dispatch.ParseMethod]:
-    for token in [self.dispatch_tokens[-1], "default"]:
-        func = dispatch.get(token=token, type_name=type_name, default=None)
-        if func is not None:
-            return _dispatch_wrapper(func)
-    return None
-
-
 class Parser(doc.NodeVisitor):
     """The TVMScript parser"""
 
@@ -150,6 +146,17 @@ class Parser(doc.NodeVisitor):
                 self.var_table.add(k, v)
             node = self.diag.source.as_ast()
             self.visit(node)
+
+    def get_dispatch_token(self, node: doc.FunctionDef) -> str:
+        if not isinstance(node, doc.FunctionDef):
+            self.report_error(node, "Only can get dispatch token for function.")
+        if not node.decorator_list:
+            self.report_error(node, "Function must be decorated")
+        # TODO: only the last decorator is parsed
+        decorator = self.eval_expr(node.decorator_list[-1])
+        if not hasattr(decorator, "dispatch_token"):
+            self.report_error(node, "The parser does not understand the decorator")
+        return decorator.dispatch_token
 
     def with_dispatch_token(self, token: str):
         def pop_token():
@@ -241,24 +248,26 @@ class Parser(doc.NodeVisitor):
     def visit_tvm_annotation(self, node: doc.expr) -> Any:
         return _dispatch(self, "tvm_annotation")(self, node)
 
-    def visit_FunctionDef(self, node: doc.FunctionDef) -> Any:  # pylint: disable=invalid-name
-        if not node.decorator_list:
-            self.report_error(node, "Function must be decorated")
-        # TODO: only the last decorator is parsed
-        decorator = self.eval_expr(node.decorator_list[-1])
-        if not hasattr(decorator, "dispatch_token"):
-            self.report_error(node, "The parser does not understand the decorator")
-        token = decorator.dispatch_token
+    def visit_FunctionDef(self, node: doc.FunctionDef) -> None:  # pylint: disable=invalid-name
+        token = self.get_dispatch_token(node)
+        current_token = self.dispatch_tokens[-1]
         func = dispatch.get(token=token, type_name="FunctionDef", default=None)
         if func is None:
             self.report_error(node, "The parser does not understand the decorator")
-        pre_func = _dispatch_optional(self, "pre_token_switch")
-        post_func = _dispatch_optional(self, "post_token_switch")
-        if pre_func:
-            pre_func(self, node)
+        pre_func = dispatch.get(
+            token=current_token, type_name="pre_token_switch", default=_do_nothing
+        )
+        post_func = dispatch.get(
+            token=current_token, type_name="post_token_switch", default=_do_nothing
+        )
+        pre_func(self, node)
         _dispatch_wrapper(func)(self, node)
-        if post_func:
-            post_func(self, node)
+        post_func(self, node)
+
+    def visit_tvm_declare_function(self, node: doc.FunctionDef) -> None:
+        token = self.get_dispatch_token(node)
+        with self.with_dispatch_token(token):
+            _dispatch(self, "tvm_declare_function")(self, node)
 
     def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
         func = dispatch.get(token="ir", type_name="ClassDef", default=None)
