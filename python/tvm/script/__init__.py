@@ -18,11 +18,11 @@
 from . import _parser, parser_v1
 
 #############
-from .parser import ir
-from .parser import ir_module
-from .parser import parse as from_source_v2
-from .parser import tir
-from .parser import relax
+from ._parser import ir
+from ._parser import ir_module
+from ._parser import parse as from_source_v2
+from ._parser import tir
+from ._parser import relax
 
 #############
 from .parser_v1 import from_source as from_source_v1

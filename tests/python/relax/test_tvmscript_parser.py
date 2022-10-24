@@ -227,7 +227,7 @@ def test_tuple_return_2():
         x0 = R.match_shape(x, (n, m))
         return (x0, (n + 1, m, 1))
 
-    x = relax.Var("x", type_annotation=relax.DynTensorType(2, "float32"))
+    x = relax.Var("x", RuntimeDepShape(), DynTensorType(2, "float32"))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -246,7 +246,7 @@ def test_tuple_binding():
         t1 = (x, (n, m), t0)
         return t1
 
-    x = relax.Var("x", type_annotation=relax.DynTensorType(2, "float32"))
+    x = relax.Var("x", RuntimeDepShape(), DynTensorType(2, "float32"))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):

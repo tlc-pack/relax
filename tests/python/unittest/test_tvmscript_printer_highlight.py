@@ -14,11 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
-
-import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T, relax as R
 
 
@@ -41,7 +39,7 @@ def test_highlight_script():
                     C[i, j] += A[i, k] * B[j, k]
 
         @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 R.output(lv0)
@@ -53,3 +51,6 @@ def test_highlight_script():
     Module["main"].show(style="light")
     Module["main"].show(style="dark")
     Module["main"].show(style="ansi")
+
+if __name__ == "__main__":
+    tvm.testing.main()

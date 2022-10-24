@@ -30,6 +30,10 @@ def multiply(lhs: Expr, rhs: Expr) -> Expr:
     return _ffi_api.multiply(lhs, rhs)  # type: ignore
 
 
+def ewise_fma(e1: Expr, e2: Expr, e3: Expr) -> Expr:
+    return _ffi_api.ewise_fma(e1, e2, e3)
+
+
 def unique(
     data: Expr,
     sorted: bool = True,
