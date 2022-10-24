@@ -19,10 +19,15 @@ class TestModule:
 
 
 def create_source_module():
+    missing_ops = set(["abs", "tanh"])
+    symbols = [f"libtorch_at_{op}_out" for op in missing_ops]
+    import toy_parser
+
+    toy_parser.parse_and_gen(missing_ops)
     code = open("byo_libs.cc", "r").read()
     fmt = "cc"
-    func_names = ["libtorch_at_abs_out", "libtorch_at_tanh_out"]
-    return tvm.get_global_func("runtime.CSourceModuleCreate")(code, fmt, func_names, [])
+
+    return tvm.get_global_func("runtime.CSourceModuleCreate")(code, fmt, symbols, [])
 
 
 def main():

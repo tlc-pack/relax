@@ -1,4 +1,3 @@
-from re import L
 import yaml
 from utils import LineLoader, NamespaceHelper, context
 from model import (
@@ -80,7 +79,7 @@ class NativeFunction:
         return dps_func_name_pair, ins, outs, params
 
 
-def parse(native_yaml_path):
+def parse(target_ops, native_yaml_path):
 
     aten_ops = []
     with open(native_yaml_path, "r") as f:
@@ -93,7 +92,13 @@ def parse(native_yaml_path):
             with context(lambda: f"in {loc}:\n  {funcs}"):
                 dps_func_name_pair, ins, outs, params = NativeFunction.from_yaml(e, loc)
 
-                if dps_func_name_pair:
+                # filter non-dps functions
+                if dps_func_name_pair is None:
+                    continue
+
+                # if dps function, check if op is our target of interest
+                op_name = dps_func_name_pair[1][:-4]
+                if op_name in target_ops:
                     aten_ops.append((dps_func_name_pair, ins, outs, params))
 
     return aten_ops
@@ -175,8 +180,8 @@ TVM_DLL_EXPORT_TYPED_FUNC(libtorch_{cpp_func_name}, {cpp_func_name});
         ofp.write("} // namespace libtorch\n")
 
 
-def parse_and_gen(native_yaml_path="native_functions.yaml"):
-    gen(parse(native_yaml_path))
+def parse_and_gen(target_ops, native_yaml_path="native_functions.yaml"):
+    gen(parse(target_ops, native_yaml_path))
 
 
 if __name__ == "__main__":
