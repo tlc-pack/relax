@@ -72,6 +72,8 @@ def collect_var_definitions(stmts: List[doc.stmt]) -> Dict[str, List[VarDefLoc]]
             collector.visit(stmt.targets[0])
         elif isinstance(stmt, doc.AugAssign):
             collector.visit(stmt.target)
+        elif isinstance(stmt, doc.AnnAssign):
+            collector.visit(stmt.target)
 
     return collector.results
 
@@ -318,18 +320,22 @@ def visit_with(self: Parser, node: doc.With) -> None:
             dataflow_var_names.append(arg.id)
 
         for i in range(len(node.body) - 1):
-            if not isinstance(node.body[i], (doc.Assign, doc.AnnAssign)):
+            if isinstance(node.body[i], doc.Assign):
+                if len(node.body[i].targets) != 1:
+                    self.report_error(
+                        node.body[i],
+                        "Consequential assignments like 'a = b = c' are not supported.",
+                    )
+                lhs = node.body[i].targets[0]
+            elif isinstance(node.body[i], doc.AnnAssign):
+                lhs = node.body[i].target
+            else:
                 self.report_error(
                     node.body[i],
                     "One non-assign statement appears unexpectedly inside a dataflow block. Only "
                     "the last statement inside a dataflow block is an Expr. Please make sure this "
                     "statement appears at a correct position.",
                 )
-            if len(node.body[i].targets) != 1:
-                self.report_error(
-                    node.body[i], "Consequential assignments like 'a = b = c' are not supported."
-                )
-            lhs = node.body[i].targets[0]
             rhs = self.eval_expr(node.body[i].value)
             self.eval_assign(
                 target=lhs,

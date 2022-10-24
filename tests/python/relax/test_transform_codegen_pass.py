@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
 import pytest
 import os
 import tvm
@@ -26,7 +25,6 @@ from tvm.script import relax as R
 from tvm.relax.testing import transform
 import tempfile
 from tvm.relax.transform.tuning_api import Trace
-from tvm import meta_schedule as ms
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -93,8 +91,8 @@ def test_single_annot_func():
     class InputModule:
         @R.function
         def relax_func(
-            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             z1 = relax.multiply(x, y)
             z2 = relax.add(z1, z1)
             z3 = relax.add(z1, z2)
@@ -102,9 +100,9 @@ def test_single_annot_func():
 
         @R.function
         def main(
-            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
-            lv0: Tensor((16, 16), "float32") = relax_func(x, y)
+            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
+            lv0: R.Tensor((16, 16), "float32") = relax_func(x, y)
             return lv0
 
     # Prepare IRModule and its input
@@ -152,8 +150,8 @@ def test_mix_use_tensorrt_and_tvm():
     class InputModule:
         @R.function
         def byoc_func(
-            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             z1 = relax.multiply(x, y)
             z2 = relax.add(z1, z1)
             z3 = relax.add(z1, z2)
@@ -161,16 +159,16 @@ def test_mix_use_tensorrt_and_tvm():
 
         @R.function
         def tvm_func(
-            x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.multiply(x, w)
             gv1 = R.add(x, gv0)
             return gv1
 
         @R.function
         def main(
-            x: Tensor((16, 16), "float32"), y: Tensor((16, 16), "float32")
-        ) -> Tensor((16, 16), "float32"):
+            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             lv0 = byoc_func(x, y)
             lv1 = tvm_func(x, lv0)
             return lv1
