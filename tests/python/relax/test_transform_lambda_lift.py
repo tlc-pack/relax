@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -79,6 +79,10 @@ def test_basic():
     # Perform Lambda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
+    print("Pass output:")
+    print(after.script())
+    print("Expected output:")
+    print(expected.script())
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 
@@ -91,7 +95,7 @@ def test_closure():
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
             outer_func = lifted_func_0
             in_call = outer_func(x)
-            res = relax.invoke_closure(in_call, (y,), type_args=(R.Tensor(ndim=2, dtype="float32")))
+            res = R.invoke_closure(in_call, (y,), type_args=(R.Tensor(ndim=2, dtype="float32")))
             return res
 
         @R.function
@@ -101,7 +105,7 @@ def test_closure():
 
         @R.function
         def lifted_func_0(y: R.Tensor((2, 3), "float32")):
-            return relax.make_closure(lifted_func_1, (y,))
+            return R.make_closure(lifted_func_1, (y,))
 
     # IRModule to perform Lambda Lifting
     @tvm.script.ir_module
@@ -280,8 +284,8 @@ def test_no_local_func():
                     C[vi, vj] = A[vi, vj] - B[vi, vj]
 
         @R.function
-        def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor((_, _), "float32")):
-            s = relax.call_tir(sub, (c0, x), (16, 16), dtype="float32")
+        def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor(dtype="float32", ndim=2)):
+            s = R.call_tir(sub, (c0, x), (16, 16), dtype="float32")
             return s
 
     before = Before
@@ -293,5 +297,5 @@ def test_no_local_func():
 
 
 if __name__ == "__main__":
-    test_basic()
+    test_closure()
     tvm.testing.main()

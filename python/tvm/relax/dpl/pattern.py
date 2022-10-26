@@ -819,14 +819,32 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     return PrimArrPattern(shape)
 
 
+def _is_call_tir(
+    func_pattern: DFPattern,
+    args: Union[List, Tuple, TuplePattern] = None,
+    shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
+) -> CallPattern:
+    if args is None:
+        args = wildcard()
+    elif isinstance(args, (list, tuple)):
+        args = TuplePattern(args)
+
+    if shape is None:
+        shape = wildcard()
+    elif isinstance(shape, (list, Array)):
+        shape = PrimArrPattern(shape)
+    elif isinstance(shape, (tuple)):
+        shape = is_tuple(shape)  # multiple shape patterns
+
+    return is_op("relax.call_tir")(func_pattern, args, shape)
+
+
 def is_call_tir(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
     shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
-    is_extern: bool = False,
 ) -> CallPattern:
-    """
-    Syntax sugar for creating a CallPattern for call_tir
+    """Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
 
     Parameters
     ----------
@@ -842,24 +860,33 @@ def is_call_tir(
     CallPattern
         The resulting CallPattern
     """
-    if args is None:
-        args = wildcard()
-    elif isinstance(args, (list, tuple)):
-        args = TuplePattern(args)
+    func_pattern = GlobalVarPattern(func_name)
+    return _is_call_tir(func_pattern, args, shape)
 
-    if shape is None:
-        shape = wildcard()
-    elif isinstance(shape, (list, Array)):
-        shape = PrimArrPattern(shape)
-    elif isinstance(shape, (tuple)):
-        shape = is_tuple(shape)  # multiple shape patterns
 
-    if is_extern:
-        func_pattern = ExternFuncPattern(func_name)
-    else:
-        func_pattern = GlobalVarPattern(func_name)
+def is_call_tir_extern(
+    func_name: str,
+    args: Union[List, Tuple, TuplePattern] = None,
+    shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
+) -> CallPattern:
+    """Syntax sugar for creating a CallPattern for call_tir that calls an extern function
 
-    return is_op("relax.call_tir")(func_pattern, args, shape)
+    Parameters
+    ----------
+    func_name : str
+        Name of the CPS function to call.
+    args : Union[List[DFPattern], Tuple[DFPattern]], optional
+        Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
+    shape : Union[Tuple, List[tvm.ir.PrimExpr], DFPattern], optional
+        Shape (or shapes in a tuple) of the output, by default None meaning arbitrary shape(s)
+
+    Returns
+    -------
+    CallPattern
+        The resulting CallPattern
+    """
+    func_pattern = ExternFuncPattern(func_name)
+    return _is_call_tir(func_pattern, args, shape)
 
 
 def is_call_packed(

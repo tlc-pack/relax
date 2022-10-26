@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
 import pytest
 import re
 
@@ -236,16 +235,17 @@ def test_call_packed():
     # test case from test_parser
     @R.function
     def f(
-        x: Tensor((32, m), "float32"),
-        y: Tensor((m, k), "float32"),
-        r: Tensor(_, "int64"),
-    ) -> Object:
-        z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
-        w: Tensor(None, _) = multiply(z, z)
-        q: Tensor(None, _, ndim=2) = add(w, w)
-        t = subtract(w, z)
-        sh: Shape = t.shape
-        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y, type_args=(Object))
+        x: R.Tensor((32, "m"), "float32"),
+        y: R.Tensor(("m"), "float32"),
+        r: R.Tensor(dtype="int64"),
+    ) -> R.Object:
+        m = T.var("int64")
+        z: R.Tensor((32, m), "float32") = R.multiply(x, y)
+        w: R.Tensor = R.multiply(z, z)
+        q: R.Tensor(ndim=2) = R.add(w, w)
+        t = R.add(w, z)
+        sh: R.Shape = R.shape_of(t)
+        o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
         return o
 
     # checking that the call_packed call is turned into a call to an extern func
@@ -274,7 +274,7 @@ def test_call_packed():
     op_call = strip_whitespace(
         """
         Call(
-            op=Op(name="nn.matmul"),
+            op=Op(name="relax.multiply"),
             args=[
                 Var(name_hint="x"),
                 Var(name_hint="y")
@@ -305,8 +305,9 @@ def test_call_packed():
 def test_call_tir():
     # also from test_parser
     @R.function
-    def foo(x: Tensor((m, n), "float32")):
-        gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+    def foo(x: R.Tensor(("m", "n"), "float32")):
+        m, n = T.var("int64"), T.var("int64")
+        gv0 = R.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
         return gv0
 
     foo_str = strip_whitespace(
@@ -342,8 +343,8 @@ def test_operators():
     # the operator attributes need to be registered to work in the printer
 
     @R.function
-    def foo(x: Tensor):
-        return relax.unique(x, sorted=True)
+    def foo(x: R.Tensor):
+        return R.unique(x, sorted=True)
 
     foo_str = strip_whitespace(
         dump_ast(
@@ -359,8 +360,8 @@ def test_operators():
     assert '"dim"' in foo_str
 
     @R.function
-    def bar(x: Tensor):
-        return relax.print(x, format="{}")
+    def bar(x: R.Tensor):
+        return R.print(x, format="{}")
 
     bar_str = strip_whitespace(
         dump_ast(

@@ -189,9 +189,9 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferType>("FInferType", InferTypeArg);
 
-Expr InvokeClosure(Expr closure, Tuple args) {
+Expr InvokeClosure(Expr closure, Tuple args, Array<Type> type_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
-  return Call(op, {closure, args}, {}, {});
+  return Call(op, {closure, args}, {}, type_args);
 }
 
 TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);

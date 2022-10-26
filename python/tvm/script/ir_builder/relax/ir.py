@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Attrs, Type
-from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, Var, const
+from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, Var, const
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -40,7 +40,8 @@ from tvm.relax.ty import ObjectType, ShapeType
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
 
-from ..tir import var as _tir_var, int64
+from ..tir import int64
+from ..tir import var as _tir_var
 from . import _ffi_api, frame
 
 ############################## Tensor Type ##############################
@@ -362,6 +363,7 @@ __all__ = [
     "Shape",
     "TensorType",
     "Then",
+    "TupleGetItem",
     "add",
     "arg",
     "builtin",

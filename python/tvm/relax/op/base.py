@@ -23,7 +23,7 @@ from tvm.runtime.object import Object
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
-from ...ir import Array
+from ...ir import Array, Type
 
 py_print = print  # pylint: disable=invalid-name
 
@@ -64,7 +64,14 @@ def call_tir(
         func = ExternFunc(func)
 
     if isinstance(shape, (list, tuple, Array)):
-        shape = ShapeExpr(shape)
+        if all([not isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
+            shape = ShapeExpr(shape)
+        elif all([isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
+            shape = Tuple([ShapeExpr(x) if not isinstance(x, ShapeExpr) else x for x in shape])
+        else:
+            raise TypeError(
+                f"The shape is expected to be ShapeExpr or Tuple[ShapeExpr], bot got: f{shape}"
+            )
 
     if isinstance(args, Expr):  # type: ignore
         args = Tuple((args,))
@@ -115,6 +122,7 @@ def make_closure(
 def invoke_closure(
     closure: Expr,
     args: Union[Tuple, List[Expr]],
+    type_args: Union[List[Type], Type],
 ) -> Object:
     """
     Invoke a closure.
@@ -127,6 +135,8 @@ def invoke_closure(
     args : Union[Tuple, List[Expr]]
         The input arguments.
 
+    type_args: Union[Tuple[Type], Type]
+        The type_args of the CallNode
 
     Returns
     -------
@@ -136,8 +146,10 @@ def invoke_closure(
 
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
+    if not isinstance(type_args, (list, tuple)):
+        type_args = (type_args,)
 
-    return _ffi_api.invoke_closure(closure, args)  # type: ignore
+    return _ffi_api.invoke_closure(closure, args, type_args)
 
 
 def render_object(val: tvm.Object) -> str:
