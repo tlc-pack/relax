@@ -273,5 +273,78 @@ def test_conv_tiny():
     add.show()
 
 
+def test_fold_elemwise():
+    mod = relax_graph()
+    func = mod["relu"]
+    # func = flow_constraint(
+    #     func,
+    #     "compute",
+    #     write_indices=[0],
+    #     read_indices=[],
+    #     write_index_map=lambda N, C, H, W: (N, H, W, C),
+    # )
+    func.show()
+
+
+def test_fold_broadcast():
+    mod = relax_graph()
+    func = mod["add"]
+    # func = flow_constraint(
+    #     func,
+    #     "T_add",
+    #     write_indices=[0],
+    #     read_indices=[],
+    #     write_index_map=lambda N, C, H, W: (N, C // 4, H, W, C % 4),
+    # )
+    func.show()
+
+
+def test_fold_reduce():
+    mod = relax_graph()
+    func = mod["reduce"]
+    # func = flow_constraint(
+    #     func,
+    #     "rxplaceholder_red",
+    #     write_indices=[0],
+    #     read_indices=[],
+    #     write_index_map=lambda N, C: (N, C // 4, C % 4),
+    # )
+    func.show()
+
+
+def test_fold_conv():
+    mod = relax_graph_tiny(add_constraints=True)
+    func = mod["conv2d"]
+    # func = flow_constraint(
+    #     func,
+    #     "conv2d_nchw",
+    #     write_indices=[],
+    #     read_indices=[1],
+    #     read_index_map=lambda K, C, H, W: (K//4, C // 4, H, W, C % 4, K %4),
+    # )
+    # func = flow_constraint(
+    #     func,
+    #     "conv2d_nchw",
+    #     write_indices=[],
+    #     read_indices=[0],
+    #     read_index_map=lambda N, C, H, W: (N, C // 4, H, W, C % 4),
+    # )
+    # func = flow_constraint(
+    #     func,
+    #     "pad_temp",
+    #     write_indices=[],
+    #     read_indices=[0],
+    #     read_index_map=lambda N, C, H, W: (N, C // 4, H, W, C % 4),
+    # )
+    # func = flow_constraint(
+    #     func,
+    #     "conv2d_nchw",
+    #     write_indices=[0],
+    #     read_indices=[],
+    #     read_index_map=lambda N, C, H, W: (N, C // 4, H, W, C % 4),
+    # )
+    func.show()
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
