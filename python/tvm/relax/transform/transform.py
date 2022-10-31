@@ -101,6 +101,16 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.CallTIRRewrite()
 
 
+def InsertMemoryKills() -> tvm.ir.transform.Pass:
+    """Inserts memory kills for alloc_tensor intrinsics.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.InsertMemoryKills()
+
+
 def VMMemoryLower() -> tvm.ir.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
