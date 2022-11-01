@@ -18,7 +18,7 @@
  */
 /*!
  * \file src/relax/backend/vm/vm_memory_lower.cc
- * \brief Perform memory lowering. Lowers the memory planning intrinsics to VM intrinsics.
+ * \brief Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
  */
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/backend.h>
@@ -32,15 +32,10 @@ namespace tvm {
 namespace relax {
 
 // ==================
-// VMMemLowerMutator
-// Lower the memory planning builtin functions to the VM builtin functions, and remove kill memory
-// ops.
-// Example: gv0 = relax.call_packed("relax.memory.alloc_storage", (m * n),
-// relax.attrs.MemAllocStorageAttrs) gv1 = relax.call_packed("relax.memory.alloc_tensor", gv0, (m,
-// n), relax.attrs.MemAllocTensorAttrs)
-// ...
-// relax.call_packed("relax.memory.kill_tensor", gv1)
-// relax.call_packed("relax.memory.kill_storage", gv0)
+// MemLowerMutator
+// Lower the relax.builtin.alloc_tensor op to VM builtin functions.
+// Example:
+// x = relax.builtin.alloc_tensor((m, n), relax.attrs.AllocTensorAttrs)
 // -->
 // gv0 = relax.call_packed("relax.vm.builtin.alloc_storage", (m * n),
 // relax.attrs.VMAllocStorageAttrs)
@@ -48,6 +43,29 @@ namespace relax {
 // relax.attrs.VMAllocTensorAttrs)
 
 class VMMemLowerMutator : public ExprMutator {
+  Expr ComputeStorageSize(const Expr& shape, const DataType& dtype) const {
+    // Question: what if the dtype of tensor_type is unknown?
+    // Symbolic/static shape case
+    if (auto* shape_expr = shape.as<ShapeExprNode>()) {
+      PrimExpr num = PrimExpr(dtype.bits()) * PrimExpr(dtype.lanes());
+      PrimExpr add = num + 7;
+      PrimExpr ret = 1;
+      for (PrimExpr dim : shape_expr->values) {
+        ret = ret * dim;
+      }
+      ret = ret * (add / PrimExpr(8));
+      return ShapeExpr({ret});
+    }
+    // Fully dynamic shape case
+    // will need to dedup with ComputeStorageInRelay when we upstream
+    Expr prod = relay::Prod(shape, Array<Integer>(nullptr), false, false);
+    Expr num = relay::MakeConstantScalar(DataType::Int(64), dtype.bits() * dtype.lanes());
+    Expr add = relay::Add(num, relay::MakeConstantScalar(DataType::Int(64), 7));
+    Expr div = relay::MakeConstantScalar(DataType::Int(64), 8);
+    Expr ret = relay::Multiply(prod, relay::Divide(add, div));
+    return ret;
+  }
+
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call) override {
@@ -55,40 +73,33 @@ class VMMemLowerMutator : public ExprMutator {
     Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
-    static const Op& memory_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
-    static const Op& memory_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
+    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& vm_alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
     static const Op& vm_alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
 
-    if (call->op == memory_alloc_storage_op) {
-      Expr storage_size = call->args[0];
-      auto mem_storage_attrs = call->attrs.as<MemAllocStorageAttrs>();
-      ICHECK(mem_storage_attrs != nullptr) << "must be MemAllocStorageAttrs";
-      auto storage_attrs = make_object<VMAllocStorageAttrs>();
-      storage_attrs->dtype = mem_storage_attrs->dtype;
-      storage_attrs->runtime_device_index = mem_storage_attrs->virtual_device_index;
-      return Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attrs));
-    } else if (call->op == memory_alloc_tensor_op) {
-      auto mem_tensor_attrs = call->attrs.as<MemAllocTensorAttrs>();
-      ICHECK(mem_tensor_attrs != nullptr) << "must be MemAllocTensorAttrs";
-      auto tensor_attrs = make_object<VMAllocTensorAttrs>();
-      tensor_attrs->offset = 0;
-      tensor_attrs->dtype = mem_tensor_attrs->dtype;
-      Expr storage = call->args[0];
-      Expr shape = call->args[1];
-      return Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attrs));
+    // TODO(@yuchen): memory planning
+    if (call->op == alloc_tensor_op) {
+      ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
+      auto alloc_attrs = call->attrs.as<AllocTensorAttrs>();
+      ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
+      DataType dtype = alloc_attrs->dtype;
+      Expr storage_size = ComputeStorageSize(output_shape, dtype);
+      auto storage_attr = make_object<VMAllocStorageAttrs>();
+      storage_attr->dtype = dtype;
+      storage_attr->runtime_device_index = alloc_attrs->runtime_device_index;
+
+      Var storage =
+          builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
+      auto tensor_attr = make_object<VMAllocTensorAttrs>();
+      tensor_attr->offset = 0;
+      tensor_attr->dtype = dtype;
+      Expr shape = call->args[0];
+      Var tensor =
+          builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
+      return std::move(tensor);
     }
 
     return GetRef<Expr>(call);
-  }
-
-  void VisitBinding_(const VarBindingNode* binding) {
-    static const Op& memory_kill_storage_op = Op::Get("relax.memory.kill_storage");
-    static const Op& memory_kill_tensor_op = Op::Get("relax.memory.kill_tensor");
-    if (auto* node = binding->value.as<CallNode>()) {
-      if (node->op == memory_kill_storage_op || node->op == memory_kill_tensor_op) return;
-    }
-    ExprMutator::VisitBinding_(binding);
   }
 };
 

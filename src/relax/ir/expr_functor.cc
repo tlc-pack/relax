@@ -630,7 +630,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
   Expr ret = this->VisitExpr(expr);
   BindingBlock prologue = builder_->EndBlock();
   if (!prologue->bindings.empty()) {
-    ret = builder_->Normalize(SeqExpr({prologue}, ret));
+    ret = SeqExpr({prologue}, ret);
   }
   return ret;
 }

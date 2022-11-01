@@ -101,19 +101,8 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.CallTIRRewrite()
 
 
-def NaivePlanMemory() -> tvm.ir.transform.Pass:
-    """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to the memory
-    planning intrinsics.
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-    return _ffi_api.NaivePlanMemory()
-
-
 def VMMemoryLower() -> tvm.ir.transform.Pass:
-    """Perform memory lowering. Lowers the memory planning intrinsics to VM intrinsics.
+    """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
 
     Returns
     -------

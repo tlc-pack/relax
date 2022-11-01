@@ -54,7 +54,6 @@ class CallTIRMutator : public ExprMutator {
 
     if (call->op == call_tir_op) {
       Array<Expr> outs;
-      Array<Type> out_type_args;
       if (call->shape_) {
         if (call->shape_.value()->IsInstance<ShapeExprNode>()) {
           // single output case
@@ -67,7 +66,6 @@ class CallTIRMutator : public ExprMutator {
             alloc_tensor_attr->runtime_device_index = 0;
             outs.push_back(builder_->Emit(
                 Call(alloc_tensor_op, {output_shape}, Attrs(alloc_tensor_attr)), "alloc"));
-            out_type_args.push_back(ObjectType());
           } else {
             LOG(FATAL) << "ValueError: the checked_type_ of call_tir has not populated.";
           }
@@ -98,7 +96,6 @@ class CallTIRMutator : public ExprMutator {
                 Call(alloc_tensor_op, {Downcast<ShapeExpr>(output_shapes->fields[i])},
                      Attrs(alloc_tensor_attr)),
                 "alloc"));
-            out_type_args.push_back(ObjectType());
           }
         }
       } else {
@@ -111,17 +108,16 @@ class CallTIRMutator : public ExprMutator {
         args.insert(args.end(), outs.begin(), outs.end());
 
         if (call->args.size() == 3) {
-          builder_->Emit(Call(call->args[0], args, Attrs(), out_type_args), "_");
+          builder_->Emit(Call(call->args[0], args), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[3]);
-          builder_->Emit(
-              Call(call_tir_dyn_op, {call->args[0], Tuple(args)}, Attrs(), out_type_args), "_");
+          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
         args = outs;
         args.insert(args.begin(), call->args[1]);
-        builder_->Emit(Call(call->args[0], args, Attrs(), out_type_args), "_");
+        builder_->Emit(Call(call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {
