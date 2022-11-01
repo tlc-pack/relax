@@ -297,18 +297,30 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocT
 // memory planning kill_storage
 
 RELAY_REGISTER_OP("relax.memory.kill_storage")
-    .set_attrs_type<MemAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("storage", "Expr", "The storage to kill.")
     .set_attr<FInferType>("FInferType", ReturnVoidType);
 
+Expr MakeMemKillStorage(Expr storage) {
+  static const Op& op = Op::Get("relax.memory.kill_storage");
+  return Call(op, {storage}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillStorage);
+
 // memory planning kill_tensor
 
 RELAY_REGISTER_OP("relax.memory.kill_tensor")
-    .set_attrs_type<MemAllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("tensor", "Expr", "The tensor to kill.")
     .set_attr<FInferType>("FInferType", ReturnVoidType);
+
+Expr MakeMemKillTensor(Expr tensor) {
+  static const Op& op = Op::Get("relax.memory.kill_tensor");
+  return Call(op, {tensor}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTensor);
 
 // vm alloc_storage
 
