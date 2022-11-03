@@ -27,6 +27,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/memory_pools.h>
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt.h>
@@ -130,8 +131,8 @@ class BufferInfo : public ObjectRef {
  * for memory planning algorithms.
  */
 struct BufferInfoAnalysisNode : public Object {
-  /*! \brief The BufferInfo object and its associated TIR statement */
-  Map<BufferInfo, tir::Stmt> buffer_info_stmts;
+  /*! \brief The BufferInfo object and its associated TIR statement/Relax expr */
+  Map<BufferInfo, runtime::ObjectRef> buffer_info_stmts;
   /*! \brief This represent maximum amount of memory being used at
    * any point of time in the inference. This value is largely the
    * best allocation an algorithm could achieve. Due to
@@ -159,7 +160,8 @@ struct BufferInfoAnalysisNode : public Object {
 
 class BufferInfoAnalysis : public ObjectRef {
  public:
-  TVM_DLL BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_stmts, Integer memory_pressure);
+  TVM_DLL BufferInfoAnalysis(Map<BufferInfo, runtime::ObjectRef> buffer_info_stmts,
+                             Integer memory_pressure);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BufferInfoAnalysis, ObjectRef, BufferInfoAnalysisNode);
 };
 
@@ -240,7 +242,7 @@ class AllocatedPoolInfo : public ObjectRef {
  *
  * \param buffer_info_map IR-bound BufferInfo map
  */
-Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map);
+Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, ObjectRef>& buffer_info_map);
 
 /*!
  * \brief Calculate workspace required to execute a IRModule with main expressed in TIR
@@ -289,7 +291,7 @@ Integer CalculateExtentsSize(const AllocateConstNode* op);
  * \param buffer_info_to_pool_allocation the map of BufferInfo objects to PoolAllocation objects
  */
 Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
-    const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
+    const Map<BufferInfo, ObjectRef>& buffer_info_to_stmt,
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
 
 /*!

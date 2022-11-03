@@ -615,7 +615,10 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
                  [&srch](const auto& c) { return srch.end() == srch.find(c); });
     buf->conflicts.Assign(conflicts.begin(), conflicts.end());
   }
-  return BufferInfoAnalysis(this->buffer_info_map_, max_open_set_size);
+
+  Map<BufferInfo, ObjectRef> buffer_info_map_ref =
+      Map<BufferInfo, ObjectRef>(this->buffer_info_map_.begin(), this->buffer_info_map_.end());
+  return BufferInfoAnalysis(buffer_info_map_ref, max_open_set_size);
 }
 
 BufferInfoAnalysis ExtractBufferInfo(const PrimFunc& main_func, const IRModule& mod) {

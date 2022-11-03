@@ -26,6 +26,8 @@
 
 #include <tvm/ir/attrs.h>
 
+#include "tvm/ir/memory_pools.h"
+
 namespace tvm {
 namespace relax {
 
@@ -35,6 +37,7 @@ namespace relax {
 struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
   DataType dtype;
   int64_t runtime_device_index;
+  Array<PoolInfo> candidate_memory_pools;
 
   TVM_DECLARE_ATTRS(AllocTensorAttrs, "relax.attrs.AllocTensorAttrs") {
     TVM_ATTR_FIELD(dtype).describe("The datatype of the tensor to be allocated.");
@@ -43,6 +46,9 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
             "The device index indicating on which device the tensor is to be allocated at runtime. "
             "Index -1 is reserved for the host device.")
         .set_default(-1);
+    TVM_ATTR_FIELD(candidate_memory_pools)
+        .describe("The candidate memory pools when USMP is used. Empty if USMP is not used.")
+        .set_default(Array<PoolInfo>());
   }
 };
 

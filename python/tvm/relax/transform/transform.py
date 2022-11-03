@@ -337,6 +337,20 @@ def MetaScheduleTuneIRMod(
     return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)
 
 
+def AssignPoolInfo() -> tvm.ir.transform.Pass:
+    """Assign PoolInfo objects to Relax and TIR allocates depending on the function target
+
+    This pass would assign default PoolInfo objects to allocates that are not otherwise
+    annotated, depending on pool info supplied for each target.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for assigning pool infos.
+    """
+    return _ffi_api.AssignPoolInfo()
+
+
 def _wrap_class_function_pass(pass_cls, pass_info):
     """Wrap a python class as function pass."""
 
