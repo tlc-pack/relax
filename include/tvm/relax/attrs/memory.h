@@ -26,8 +26,48 @@
 
 #include <tvm/ir/attrs.h>
 
+#include <string>
+
 namespace tvm {
 namespace relax {
+
+/*!
+ * \brief Attributes for allocating storage in memory planning.
+ */
+struct MemAllocStorageAttrs : public tvm::AttrsNode<MemAllocStorageAttrs> {
+  int64_t virtual_device_index;
+  std::string storage_scope;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(MemAllocStorageAttrs, "relax.attrs.MemAllocStorageAttrs") {
+    TVM_ATTR_FIELD(virtual_device_index)
+        .describe(
+            "The virtual device index indicating on which device the storage is to be allocated,"
+            "Index -1 is reserved for the host device.")
+        .set_default(-1);
+    TVM_ATTR_FIELD(storage_scope)
+        .describe("The storage scope of the storage to allocate.")
+        .set_default("global");
+    TVM_ATTR_FIELD(dtype)
+        .describe("The dtype of the tensor to allocate.")
+        .set_default(DataType::Float(32, 1));
+  }
+};
+
+/*!
+ * \brief Attributes for allocating tensor in memory planning.
+ */
+struct MemAllocTensorAttrs : public tvm::AttrsNode<MemAllocTensorAttrs> {
+  int offset;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(MemAllocTensorAttrs, "relax.attrs.MemAllocTensorAttrs") {
+    TVM_ATTR_FIELD(offset).describe("Storage offset to allocate the tensor.").set_default(0);
+    TVM_ATTR_FIELD(dtype)
+        .describe("The dtype of the tensor to allocate.")
+        .set_default(DataType::Float(32, 1));
+  }
+};
 
 /*!
  * \brief Attributes for allocating tensor.
