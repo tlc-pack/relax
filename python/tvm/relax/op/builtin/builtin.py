@@ -21,10 +21,28 @@ from . import _ffi_api
 from ...expr import ShapeExpr, Call
 
 
-# TODO(relax-team): add documents
 def alloc_tensor(
     shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]], dtype: str, runtime_device_index: int
 ) -> Call:
+    """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
+
+    Parameters
+    ----------
+    shape : Union[ShapeExpr, PrimExpr, List[PrimExpr]]
+        The shape of the tensor to be allocated.
+
+    dtype : str
+        The datatype of the tensor to be allocated.
+
+    runtime_device_index : int
+        The device index indicating on which device the tensor is to be allocated at runtime.
+        Index -1 is reserved for the host device.
+
+    Returns
+    -------
+    result : Call
+        A relax Call, which gets the allocated tensor.
+    """
     if not isinstance(shape, ShapeExpr):
         if not isinstance(shape, (tuple, list)):
             shape = (shape,)
