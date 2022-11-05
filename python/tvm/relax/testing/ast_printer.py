@@ -22,7 +22,7 @@ It is not a pretty-printer and, in fact, is more of an ugly-printer,
 but it can be useful for tutorials and debugging.
 """
 from __future__ import annotations  # must import to defer parsing of annotations
-from typing import Dict, Iterable
+from typing import Iterable
 import tvm
 from tvm import relax
 from tvm.ir.expr import PrimExpr
@@ -74,7 +74,7 @@ class ASTPrinter(ExprFunctor):
         lines = text.split("\n")
         return self.indent_str + f"\n{self.indent_str}".join(lines)
 
-    def build_ast_node(self, nodename: str, force_newline=False, **kwargs: Dict[str, str]):
+    def build_ast_node(self, nodename: str, force_newline=False, **kwargs: str) -> str:
         """
         Returns 'nodename(..., fields[i][0]=fields[i][1], ...)'
         with appropriate indentation

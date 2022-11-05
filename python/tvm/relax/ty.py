@@ -27,7 +27,7 @@ class ShapeType(Type):
     """The type of shape in Relax."""
 
     def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeType, span)
+        self.__init_handle_by_constructor__(_ffi_api.ShapeType, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.ObjectType")
@@ -36,7 +36,7 @@ class ObjectType(Type):
     values in TVM."""
 
     def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)
+        self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.DynTensorType")
@@ -55,7 +55,9 @@ class DynTensorType(Type):
     """
 
     def __init__(self, ndim=-1, dtype="float32", span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DynTensorType, ndim, dtype, span)
+        self.__init_handle_by_constructor__(
+            _ffi_api.DynTensorType, ndim, dtype, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.DimType")
@@ -63,7 +65,7 @@ class DimType(Type):
     """The type of indices/shape dimensions in Relax."""
 
     def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DimType, span)
+        self.__init_handle_by_constructor__(_ffi_api.DimType, span)  # type: ignore
 
 
 def is_base_of(base: Type, derived: Type) -> bool:
@@ -84,4 +86,4 @@ def is_base_of(base: Type, derived: Type) -> bool:
         If derived is a subtype of base or if both are the same type, returns true.
         Otherwise returns false.
     """
-    return _ffi_api.IsBaseOf(base, derived)
+    return _ffi_api.IsBaseOf(base, derived)  # type: ignore

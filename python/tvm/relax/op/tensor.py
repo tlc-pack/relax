@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """Basic tensor operations."""
-import numpy as np
+import numpy as np  # type: ignore
 import tvm
 
 from . import _ffi_api
@@ -23,11 +23,11 @@ from ..expr import Expr
 
 
 def add(lhs: Expr, rhs: Expr) -> Expr:
-    return _ffi_api.add(lhs, rhs)
+    return _ffi_api.add(lhs, rhs)  # type: ignore
 
 
 def multiply(lhs: Expr, rhs: Expr) -> Expr:
-    return _ffi_api.multiply(lhs, rhs)
+    return _ffi_api.multiply(lhs, rhs)  # type: ignore
 
 
 def unique(
@@ -64,7 +64,7 @@ def unique(
         The created relax call with
     """
 
-    return _ffi_api.unique(data, sorted, return_inverse, return_counts, dim)
+    return _ffi_api.unique(data, sorted, return_inverse, return_counts, dim)  # type: ignore
 
 
 @tvm.register_func("relax.run.unique")

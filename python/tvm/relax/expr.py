@@ -18,6 +18,7 @@
 # pylint: disable=redefined-builtin
 """The expression nodes of Relax."""
 from typing import Any, List, Optional, Union
+import typing
 
 import tvm
 import tvm._ffi
@@ -29,13 +30,16 @@ from ..runtime import String
 from ..tir import PrimExpr
 from . import _ffi_api, ty
 
-Expr = relay.Expr
-Type = relay.Type
-GlobalVar = relay.GlobalVar
-Call = relay.Call
-If = relay.If
-const = relay.const
-Constant = relay.Constant
+# It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
+# This feature is not supported until python 3.10:
+# https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
+Expr = Union[relay.Expr]
+Type = Union[relay.Type]
+GlobalVar = Union[relay.GlobalVar]
+Call = Union[relay.Call]
+If = Union[relay.If]
+const = Union[relay.const]
+Constant = Union[relay.Constant]
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
@@ -44,8 +48,12 @@ class ShapeExpr(Expr):
 
     values: List[PrimExpr]
 
-    def __init__(self, values: List[PrimExpr], span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)
+    def __init__(
+        self,
+        values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array],
+        span: Span = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -56,7 +64,7 @@ class ShapeExpr(Expr):
         return len(self.values)
 
 
-def make_shape(shape: List[PrimExpr]) -> ShapeExpr:
+def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
     raise ValueError("Wrong type")
@@ -67,7 +75,7 @@ class RuntimeDepShape(Expr):
     """A shape expression which allows users to construct a runtime dependent shape."""
 
     def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)
+        self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Var")
@@ -80,14 +88,14 @@ class Var(Expr):
     def __init__(
         self,
         name_hint: str,
-        shape_annotation: Optional[Expr] = None,
+        shape_annotation: Optional[Union[List[Any], typing.Tuple[Any, ...]]] = None,
         type_annotation: Optional[Type] = None,
         span: Span = None,
     ) -> None:
         if isinstance(shape_annotation, (list, tuple)):
             shape_annotation = make_shape(shape_annotation)
         self.__init_handle_by_constructor__(
-            _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,
+            _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,  # type: ignore
             name_hint,
             shape_annotation,
             type_annotation,
@@ -115,7 +123,7 @@ class DataflowVar(Var):
     def __init__(
         self,
         name_hint: Union[str, Id],
-        shape_annotation: Optional[Expr] = None,
+        shape_annotation: Optional[Union[List[Any], typing.Tuple[Any, ...]]] = None,
         type_annotation: Optional[Type] = None,
         span: Span = None,
     ) -> None:
@@ -123,7 +131,9 @@ class DataflowVar(Var):
             shape_annotation = make_shape(shape_annotation)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.DataflowVar if isinstance(name_hint, str) else _ffi_api.DataflowVarFromId,
+            _ffi_api.DataflowVar  # type: ignore
+            if isinstance(name_hint, str)
+            else _ffi_api.DataflowVarFromId,  # type: ignore
             name_hint,
             shape_annotation,
             type_annotation,
@@ -147,7 +157,9 @@ class MatchShape(Binding):
     var: Var
 
     def __init__(self, value: Expr, pattern: List[PrimExpr], var: Var, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.MatchShape, value, pattern, var, span)
+        self.__init_handle_by_constructor__(
+            _ffi_api.MatchShape, value, pattern, var, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
@@ -158,7 +170,7 @@ class VarBinding(Binding):
     value: Expr
 
     def __init__(self, var: Var, value: Expr, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)
+        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.BindingBlock")
@@ -169,7 +181,7 @@ class BindingBlock(Node):
     bindings: List[Binding]
 
     def __init__(self, bindings: List[Binding], span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)
+        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.DataflowBlock")
@@ -177,7 +189,7 @@ class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
 
     def __init__(self, bindings: List[Binding], span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)
+        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.SeqExpr")
@@ -188,7 +200,7 @@ class SeqExpr(Expr):
     body: Expr
 
     def __init__(self, blocks: List[BindingBlock], body: Expr, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)
+        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Function")
@@ -211,7 +223,7 @@ class Function(BaseFunc):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Function, params, body, ret_type, ret_shape, attrs, span
+            _ffi_api.Function, params, body, ret_type, ret_shape, attrs, span  # type: ignore
         )
 
     @staticmethod
@@ -224,7 +236,9 @@ class Function(BaseFunc):
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without type checking."""
-        return _ffi_api.Function_CreateUnchecked(params, body, ret_type, ret_shape, attrs, span)
+        return _ffi_api.Function_CreateUnchecked(  # type: ignore
+            params, body, ret_type, ret_shape, attrs, span
+        )
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -273,7 +287,9 @@ class ExternFunc(BaseFunc):
     global_symbol: String
 
     def __init__(self, global_symbol: String, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ExternFunc, global_symbol, span)
+        self.__init_handle_by_constructor__(
+            _ffi_api.ExternFunc, global_symbol, span  # type: ignore
+        )
 
 
 def extern(name: str, span: Span = None):
@@ -283,12 +299,12 @@ def extern(name: str, span: Span = None):
 
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
     """Create te tensor from relax expression."""
-    return _ffi_api.TETensor(value, name)
+    return _ffi_api.TETensor(value, name)  # type: ignore
 
 
 def _update_type(expr: Expr, type: Type) -> None:
-    _ffi_api.UpdateType(expr, type)
+    _ffi_api.UpdateType(expr, type)  # type: ignore
 
 
 def _update_shape(expr: Expr, shape: Optional[tvm.runtime.Object]) -> None:
-    _ffi_api.UpdateShape(expr, shape)
+    _ffi_api.UpdateShape(expr, shape)  # type: ignore

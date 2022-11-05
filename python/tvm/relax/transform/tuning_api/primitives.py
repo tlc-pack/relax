@@ -16,7 +16,7 @@
 # under the License.
 """Relax Tuning Pass API primitives"""
 
-from typing import Callable, Union, Dict, List, Optional
+from typing import Callable, Union, Dict, List, Optional, Sequence
 import logging
 import tvm
 from tvm.runtime import Object
@@ -100,7 +100,7 @@ class Choice(Object):
             constr_func_args = []
 
         self.__init_handle_by_constructor__(
-            _ffi_api.Choice,
+            _ffi_api.Choice,  # type: ignore
             transform_func_key,
             transform_func_args,
             constr_func_key,
@@ -114,7 +114,7 @@ class Choice(Object):
         ret: Callable
            registered transformation function
         """
-        return _ffi_api.ChoiceGetTransformFunc(self)
+        return _ffi_api.ChoiceGetTransformFunc(self)  # type: ignore
 
     def get_constr_func(self) -> Callable:
         """Getter for constr_func
@@ -123,7 +123,7 @@ class Choice(Object):
         ret: Callable
            registered constraint function
         """
-        return _ffi_api.ChoiceGetConstrFunc(self)
+        return _ffi_api.ChoiceGetConstrFunc(self)  # type: ignore
 
     def apply_transform_func(self, mod: IRModule) -> IRModule:
         """Perform transform_func with its arguments
@@ -132,7 +132,7 @@ class Choice(Object):
         ret: IRModule
            Transformed IRModule
         """
-        return _ffi_api.ChoiceApplyTransformFunc(self, mod)
+        return _ffi_api.ChoiceApplyTransformFunc(self, mod)  # type: ignore
 
     def check_constr(self, mod: IRModule) -> bool:
         """Perform constr_func with its arguments
@@ -141,7 +141,7 @@ class Choice(Object):
         ret: bool
            Returns whether the IRModule satisfies the constraint or not
         """
-        return _ffi_api.ChoiceCheckConstr(self, mod)
+        return _ffi_api.ChoiceCheckConstr(self, mod)  # type: ignore
 
     def as_json(self) -> JSON_TYPE:
         """Serialize the trace as a JSON-style object
@@ -166,7 +166,7 @@ class Choice(Object):
         choice: Choice
             Deserialized choice
         """
-        return _ffi_api.ChoiceFromJSON(json_obj)
+        return _ffi_api.ChoiceFromJSON(json_obj)  # type: ignore
 
     def deepcopy(self):
         return Choice.from_json(self.as_json())
@@ -211,13 +211,13 @@ class Knob(Object):
         """Verify if the decision is valid."""
         if isinstance(decision, int):
             decision = str(decision)
-        return _ffi_api.KnobIsValidDecision(self, decision)
+        return _ffi_api.KnobIsValidDecision(self, decision)  # type: ignore
 
     def apply(self, mod: IRModule, decision: Union[str, int]) -> IRModule:
         """Get choice if a decision is valid."""
         if isinstance(decision, int):
             decision = str(decision)
-        return _ffi_api.KnobApply(self, mod, decision)
+        return _ffi_api.KnobApply(self, mod, decision)  # type: ignore
 
     def as_json(self) -> JSON_TYPE:
         """Serialize the trace as a JSON-style object
@@ -226,7 +226,7 @@ class Knob(Object):
         json: JSON_TYPE
             The JSON-style object
         """
-        return _ffi_api.KnobAsJSON(self)
+        return _ffi_api.KnobAsJSON(self)  # type: ignore
 
     @staticmethod
     def from_json(json_obj: JSON_TYPE) -> "Knob":
@@ -242,7 +242,7 @@ class Knob(Object):
         knob: Knob
             Deserialized knob
         """
-        return _ffi_api.KnobFromJSON(json_obj)
+        return _ffi_api.KnobFromJSON(json_obj)  # type: ignore
 
     def __str__(self) -> str:
         msg = f"{self.name} (# of choices: {len(self.choices)})\n"
@@ -264,7 +264,7 @@ class Trace(Object):
         Input IRModule.
     knobs: Optional[List[Knob]]
         A list of knobs applied in the trace.
-    decisions: Optional[List[Union[str, int]]]
+    decisions: Optional[Sequence[Union[str, int]]]
         A list of decisions made for each knob
 
     Examples
@@ -285,7 +285,7 @@ class Trace(Object):
         self,
         in_mod: IRModule,
         knobs: Optional[List[Knob]] = None,
-        decisions: Optional[List[Union[str, int]]] = None,
+        decisions: Optional[Sequence[Union[str, int]]] = None,
     ):
         """Constructor."""
         knobs = knobs if knobs else list()
@@ -298,21 +298,21 @@ class Trace(Object):
 
     def verify(self) -> bool:
         """Verify if current history is valid."""
-        return _ffi_api.TraceVerify()
+        return _ffi_api.TraceVerify()  # type: ignore
 
     def add(self, knob: Knob, decision: Union[str, int]) -> IRModule:
         """Add & Apply new decision (with knob)."""
         if isinstance(decision, int):
             decision = str(decision)
-        return _ffi_api.TraceAdd(self, knob, decision)
+        return _ffi_api.TraceAdd(self, knob, decision)  # type: ignore
 
     def set_perf(self, perf: float) -> None:
         """Set performance number for the trace."""
-        return _ffi_api.TraceSetPerf(self, perf)
+        return _ffi_api.TraceSetPerf(self, perf)  # type: ignore
 
     def set_out_mod(self, mod: IRModule) -> None:
         """Set out_mod for the trace."""
-        return _ffi_api.TraceSetOutMod(self, mod)
+        return _ffi_api.TraceSetOutMod(self, mod)  # type: ignore
 
     def as_json(self, include_irmod: bool = True) -> JSON_TYPE:
         """Serialize the trace as a JSON-style object.
@@ -326,7 +326,7 @@ class Trace(Object):
         json: JSON_TYPE
             The JSON-style object.
         """
-        obj = _ffi_api.TraceAsJSON(self, include_irmod)
+        obj = _ffi_api.TraceAsJSON(self, include_irmod)  # type: ignore
         return _json_from_tvm(obj)
 
     @staticmethod
@@ -343,7 +343,7 @@ class Trace(Object):
         trace: Trace
             Deserialized trace.
         """
-        return _ffi_api.TraceFromJSON(json_obj)
+        return _ffi_api.TraceFromJSON(json_obj)  # type: ignore
 
     def __str__(self) -> str:
         n = len(self.knobs)
@@ -379,7 +379,7 @@ def get_trace(in_: Union[Trace, IRModule, Expr]) -> Trace:
         return in_
     if isinstance(in_, IRModule):
         return Trace(in_)
-    if isinstance(in_, Expr):
+    if isinstance(in_, Expr):  # type: ignore
         return Trace(tvm.IRModule.from_expr(in_))
 
     raise Exception(f"Invalid input type for trace: {type(in_)}")
