@@ -43,7 +43,7 @@ def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dty
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)
+    return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
 
 
 def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
@@ -68,7 +68,7 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    return _ffi_api.alloc_tensor(storage, shape, offset, dtype)
+    return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
 def kill_storage(storage: Expr) -> None:
@@ -79,7 +79,7 @@ def kill_storage(storage: Expr) -> None:
     storage : Expr
         The storage to be killed.
     """
-    return _ffi_api.kill_storage(storage)
+    return _ffi_api.kill_storage(storage)  # type: ignore
 
 
 def kill_tensor(tensor: Expr) -> None:
@@ -90,4 +90,4 @@ def kill_tensor(tensor: Expr) -> None:
     tensor : Expr
         The tensor to be killed.
     """
-    return _ffi_api.kill_tensor(tensor)
+    return _ffi_api.kill_tensor(tensor)  # type: ignore

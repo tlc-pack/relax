@@ -37,16 +37,16 @@ class PatternContext(tvm.runtime.Object):
         incremental : bool, optional
             perform incremental matching based on the recent context, by default False
         """
-        self.__init_handle_by_constructor__(ffi.PatternContext, incremental)
+        self.__init_handle_by_constructor__(ffi.PatternContext, incremental)  # type: ignore
 
     def __enter__(self):
         """Enter the context"""
-        ffi.enter_context(self)
+        ffi.enter_context(self)  # type: ignore
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the context"""
-        ffi.exit_context(self)
+        ffi.exit_context(self)  # type: ignore
 
     @staticmethod
     def current() -> "PatternContext":
@@ -58,7 +58,7 @@ class PatternContext(tvm.runtime.Object):
         PatternContext
             The current context
         """
-        return ffi.current_context()
+        return ffi.current_context()  # type: ignore
 
     def match_dfb(
         self,
@@ -83,4 +83,4 @@ class PatternContext(tvm.runtime.Object):
         Dict[DFPattern, Var]
             The mapping from DFPattern to matched expression
         """
-        return ffi.match_dfb(self, dfb, start_hint, must_include_hint)
+        return ffi.match_dfb(self, dfb, start_hint, must_include_hint)  # type: ignore
