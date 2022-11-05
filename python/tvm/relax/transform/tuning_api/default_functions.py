@@ -19,7 +19,7 @@ from typing import Dict, List, Optional
 import sys
 import itertools
 import logging
-import numpy as np
+import numpy as np  # type: ignore
 
 import tvm
 from tvm.ir.module import IRModule

@@ -47,4 +47,4 @@ def alloc_tensor(
         if not isinstance(shape, (tuple, list)):
             shape = (shape,)
         shape = ShapeExpr(shape)
-    return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)
+    return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)  # type: ignore

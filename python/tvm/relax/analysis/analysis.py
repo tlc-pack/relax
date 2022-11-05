@@ -42,7 +42,7 @@ def post_order_visit(expr, fvisit):
     fvisit : function
         The visitor function to be applied.
     """
-    return _ffi_api.post_order_visit(expr, fvisit)
+    return _ffi_api.post_order_visit(expr, fvisit)  # type: ignore
 
 
 def well_formed(mod: tvm.IRModule) -> bool:
@@ -58,7 +58,7 @@ def well_formed(mod: tvm.IRModule) -> bool:
     ret: bool
         True if the IRModule is well formed, False if not.
     """
-    return _ffi_api.well_formed(mod)
+    return _ffi_api.well_formed(mod)  # type: ignore
 
 
 def get_var2val(func: Function) -> Dict[Var, Expr]:
@@ -75,7 +75,7 @@ def get_var2val(func: Function) -> Dict[Var, Expr]:
     Dict[Var, Expr]
         A mapping from Var to Expr.
     """
-    return _ffi_api.get_var2val(func)
+    return _ffi_api.get_var2val(func)  # type: ignore
 
 
 def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
@@ -92,12 +92,12 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
     Dict[Var, List[Var]]
         A mapping from variable definition to its uses.
     """
-    return _ffi_api.udchain(dfb)
+    return _ffi_api.udchain(dfb)  # type: ignore
 
 
 def name_to_binding(func: Function) -> Dict[str, List[Binding]]:
     """Return a map from variable name to its bindings."""
-    return _ffi_api.name_to_binding(func)
+    return _ffi_api.name_to_binding(func)  # type: ignore
 
 
 def remove_all_unused(func: Function) -> Function:
@@ -113,7 +113,7 @@ def remove_all_unused(func: Function) -> Function:
     Function
         The function with unused variables removed.
     """
-    return _ffi_api.remove_all_unused(func)
+    return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
 def shape_vars(expr: Expr) -> List[tir.Var]:
@@ -133,7 +133,7 @@ def shape_vars(expr: Expr) -> List[tir.Var]:
     ret: List[tir.Var]
         A list of all shape variables (TIR variables) in the expression.
     """
-    return _ffi_api.shape_vars(expr)
+    return _ffi_api.shape_vars(expr)  # type: ignore
 
 
 def derive_func_ret_shape(args: List[Var], body: Expr) -> Expr:
@@ -156,7 +156,7 @@ def derive_func_ret_shape(args: List[Var], body: Expr) -> Expr:
     ret: Expr
         An expression that can serve as the return shape for the function
     """
-    return _ffi_api.derive_func_ret_shape(args, body)
+    return _ffi_api.derive_func_ret_shape(args, body)  # type: ignore
 
 
 def bound_vars(expr: Expr) -> List[Var]:
@@ -176,7 +176,7 @@ def bound_vars(expr: Expr) -> List[Var]:
     ret: List[Var]
         List of bound vars in expr, in post-DFS order
     """
-    return _ffi_api.bound_vars(expr)
+    return _ffi_api.bound_vars(expr)  # type: ignore
 
 
 def free_vars(expr: Expr) -> List[Var]:
@@ -196,7 +196,7 @@ def free_vars(expr: Expr) -> List[Var]:
     ret: List[Var]
         List of free vars in expr, in post-DFS order
     """
-    return _ffi_api.free_vars(expr)
+    return _ffi_api.free_vars(expr)  # type: ignore
 
 
 def all_vars(expr: Expr) -> List[Var]:
@@ -213,7 +213,7 @@ def all_vars(expr: Expr) -> List[Var]:
     ret: List[Var]
         List of vars in expr, in post-DFS order
     """
-    return _ffi_api.all_vars(expr)
+    return _ffi_api.all_vars(expr)  # type: ignore
 
 
 def all_global_vars(expr: Expr) -> List[GlobalVar]:
@@ -230,7 +230,7 @@ def all_global_vars(expr: Expr) -> List[GlobalVar]:
     ret: List[GlobalVar]
         List of global vars in expr, in post-DFS order
     """
-    return _ffi_api.all_global_vars(expr)
+    return _ffi_api.all_global_vars(expr)  # type: ignore
 
 
 def called_global_vars(expr: Expr) -> List[GlobalVar]:
@@ -248,4 +248,4 @@ def called_global_vars(expr: Expr) -> List[GlobalVar]:
         List of global vars that are used recursively in expr,
         in post-DFS order
     """
-    return _ffi_api.called_global_vars(expr)
+    return _ffi_api.called_global_vars(expr)  # type: ignore
