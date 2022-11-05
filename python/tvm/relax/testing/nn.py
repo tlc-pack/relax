@@ -18,8 +18,9 @@
 """PyTorch-like nn.Module API for constructing workloads."""
 
 
-from typing import List, Any, Callable
-import numpy as np
+from typing import List, Any, Callable, Union
+import typing
+import numpy as np  # type: ignore
 
 import tvm
 from tvm import relax, topi, tir
@@ -32,7 +33,9 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
 class Placeholder(relax.Var):
     """A placeholder variable that can represent model input."""
 
-    def __init__(self, shape, dtype="float32", name="data"):
+    def __init__(
+        self, shape: Union[List[Any], typing.Tuple[Any, ...]], dtype="float32", name="data"
+    ):
         if not isinstance(shape, (list, tuple)):
             raise TypeError("the shape of Placeholder is expected to be a list or a tuple")
         ndim = len(shape)
@@ -43,7 +46,9 @@ class Placeholder(relax.Var):
 class Parameter(relax.Var):
     """A special kind of relax Var that represents model parameter(weight)."""
 
-    def __init__(self, shape, dtype="float32", name="param"):
+    def __init__(
+        self, shape: Union[List[Any], typing.Tuple[Any, ...]], dtype="float32", name="param"
+    ):
         if not isinstance(shape, (list, tuple)):
             raise TypeError("the shape of Parameter is expected to be a list or a tuple")
         ndim = len(shape)
