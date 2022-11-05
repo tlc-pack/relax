@@ -46,7 +46,7 @@ def test_basic():
         @R.function
         def lifted_func_0(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor:
+        ) -> R.Tensor((10, 5), "float32"):
             s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
@@ -55,7 +55,7 @@ def test_basic():
             x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
             inner = lifted_func_0
-            gv1 = inner(x1, y1)
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
     @tvm.script.ir_module
@@ -79,10 +79,6 @@ def test_basic():
     # Perform Lambda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
-    print("Pass output:")
-    print(after.script())
-    print("Expected output:")
-    print(expected.script())
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 
@@ -104,7 +100,7 @@ def test_closure():
             return r_1
 
         @R.function
-        def lifted_func_0(y: R.Tensor((2, 3), "float32")):
+        def lifted_func_0(y: R.Tensor((2, 3), "float32")) -> R.Object:
             return R.make_closure(lifted_func_1, (y,))
 
     # IRModule to perform Lambda Lifting
@@ -130,6 +126,8 @@ def test_closure():
     before = Before
     after = transform.LambdaLift()(before)
     expected = Expected
+    print(after.script())
+    print(expected.script())
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 

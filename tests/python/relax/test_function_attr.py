@@ -38,13 +38,13 @@ def _check_save_roundtrip(x):
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def relax_add(x: R.Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")) -> Tensor:
-        z1 = relax.add(x, y)
-        z2 = relax.add(z1, z1)
+    def relax_add(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor:
+        z1 = R.add(x, y)
+        z2 = R.add(z1, z1)
         return z2
 
     @R.function
-    def main(x: Tensor((2, 3), "float32"), y: Tensor((2, 3), "float32")) -> Tensor:
+    def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor:
         lv0 = relax_add(x, y)
         return lv0
 

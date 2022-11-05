@@ -22,7 +22,8 @@ from typing import TypeVar as _TypeVar
 from typing import Union
 
 from tvm.ir import FuncType, TypeConstraint, TypeVar
-from tvm.relax import Expr, Function, TupleType, Type, Var
+from tvm.relax import DynTensorType, Expr, Function, TupleType, Type, Var
+from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
 from ...ir_builder.relax import TensorType, tensor
@@ -46,7 +47,7 @@ setattr(function, "dispatch_token", "relax")
 ############################### R.Tensor ###############################
 
 
-class TensorProxy:
+class TensorProxy(ObjectGeneric):
     def __call__(
         self,
         shape: Optional[List[Union[PrimExpr, str]]] = None,
@@ -60,6 +61,12 @@ class TensorProxy:
 
     def __getitem__(self, keys) -> Var:
         return self(*keys)  # pylint: disable=no-member # type: ignore
+
+    def asobject(self):
+        """Convert to object when direct call `R.Tensor`
+        e.g. `x = R.invoke_closure(clo, (y,), type_args=R.Tensor)`
+        """
+        return DynTensorType()
 
 
 Tensor = TensorProxy()  # pylint: disable=invalid-name

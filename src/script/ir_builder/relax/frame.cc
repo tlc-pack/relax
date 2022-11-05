@@ -34,8 +34,6 @@ void SeqExprFrameNode::ExitWithScope() {
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
   if (Optional<BlockFrame> block_frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
     block_frame.value()->ExitWithScope();
-    ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>().defined())
-        << "ValueError: There is some remaining BlockFrame that is not properly popped out.";
   }
   RelaxFrameNode::ExitWithScope();
 }

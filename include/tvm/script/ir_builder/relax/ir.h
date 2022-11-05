@@ -51,6 +51,8 @@ class TensorType : public runtime::ObjectRef {
  public:
   TVM_DLL explicit TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr> shape);
 
+  operator Type() const;
+
   TVM_DEFINE_OBJECT_REF_METHODS(TensorType, ObjectRef, TensorTypeNode);
 };
 

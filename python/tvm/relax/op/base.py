@@ -281,7 +281,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
         raise AssertionError(error_message)
 
 
-def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format: str = "") -> Expr:
+def assert_op(condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = None, format: str = "") -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
     so the name must be distinct).
@@ -291,7 +291,7 @@ def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format:
     condition: Expr
         The assertion condition.
 
-    format_args: List[Expr]
+    format_args: Optional[Union[Expr, List[Expr]]]
         Format arguments for the error message if the condition fails.
 
     format_str: str
@@ -304,6 +304,8 @@ def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format:
     """
     if format_args is None:
         format_args = []
+    if isinstance(format_args, Expr):
+        format_args = [format_args]
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 

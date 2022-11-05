@@ -17,15 +17,18 @@
 # pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
-from typing import Dict, List, Optional, Tuple, Union
+import functools
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union, Any
 
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Attrs, Type
-from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, Var, const
+from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
+from tvm.relax.utils import convert_to_expr
 
 ############################### Operators ###############################
 from tvm.relax.op import (
     add,
+    assert_op,
     builtin,
     call_tir,
     ewise_fma,
@@ -87,6 +90,7 @@ def tensor(
 
 Object = ObjectType()  # pylint: disable=invalid-name
 Shape = ShapeType()  # pylint: disable=invalid-name
+Void = TupleType(None)  # pylint: disable=invalid-name
 
 ############################### Function ################################
 
@@ -235,6 +239,7 @@ def call_packed(
         The created Relax Call
     """
     op = ExternFunc(func)
+    args = [convert_to_expr(arg) for arg in args]
     if type_args is None:
         raise ValueError("R.call_packed is required to have type_args")
     if isinstance(type_args, tuple):
@@ -354,6 +359,32 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
 
 
+############################### Operators ###############################
+
+FType = TypeVar("FType", bound=Callable[..., Any])
+
+
+def builder_warp(func: FType) -> FType:
+    """A wrapper to auto-convert builder.TensorType to relax.DynTensorType"""
+
+    def _convert_tensor_type(args: Any) -> Any:
+        if isinstance(args, (list, tuple)):
+            t = type(args)
+            return t([_convert_tensor_type(x) for x in args])
+        elif isinstance(args, dict):
+            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
+        else:
+            return args.type if isinstance(args, TensorType) else args
+
+    @functools.wraps(func)
+    def wrap(*args, **kwargs):
+        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
+
+    return wrap  # type: ignore
+
+
+invoke_closure = builder_warp(invoke_closure)
+
 ############################### Importer ###############################
 
 __all__ = [
@@ -364,8 +395,10 @@ __all__ = [
     "TensorType",
     "Then",
     "TupleGetItem",
+    "Void",
     "add",
     "arg",
+    "assert_op",
     "builtin",
     "call_packed",
     "call_tir",

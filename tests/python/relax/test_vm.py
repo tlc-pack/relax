@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations  # must import to defer parsing of annotations
 import os
 from typing import Any, Callable, List, Tuple
 
@@ -134,8 +133,8 @@ def test_vm_exec_serialize_export_library():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor((3, 4), "float32")):
-            z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor(ndim=2, dtype="float32")))
+        def foo(x: R.Tensor((3, 4), "float32")):
+            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(ndim=2, dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -244,8 +243,8 @@ def test_vm_copy():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function
-        def foo(x: Tensor((3, 4), "float32")):
-            z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor(ndim=2, dtype="float32")))
+        def foo(x: R.Tensor((3, 4), "float32")):
+            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(ndim=2, dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -310,11 +309,11 @@ def test_vm_compile_if():
     @tvm.script.ir_module
     class TestVMCompileIf:
         @R.function
-        def ife(cond: Tensor((), "bool"), x: Tensor((3, 4), "float32")) -> Tensor:
+        def ife(cond: R.Tensor((), "bool"), x: R.Tensor((3, 4), "float32")) -> R.Tensor:
             if cond:
-                w = relax.call_packed("test.vm.add", x, x, type_args=(Tensor))
+                w = R.call_packed("test.vm.add", x, x, type_args=(R.Tensor))
             else:
-                w = relax.call_packed("test.vm.mul", x, x, type_args=(Tensor))
+                w = R.call_packed("test.vm.mul", x, x, type_args=(R.Tensor))
             return w
 
     mod = TestVMCompileIf
@@ -336,8 +335,10 @@ def test_vm_compile_stage0():
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
-        def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
-            z = R.call_packed("test.vm.identity", x, y, type_args=(Tensor(ndim=2, dtype="float32")))
+        def foo(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
+            z = R.call_packed(
+                "test.vm.identity", x, y, type_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
             return y
 
     mod = TestVMCompileStage0
@@ -370,16 +371,14 @@ def test_vm_compile_stage1():
             H[3] = H[1] * T.int64(3)
 
         @R.function
-        def foo(x: Tensor(_, "float32")):
-            shape_heap: Tensor((4,), "int64") = relax.call_packed(
-                "vm.builtin.alloc_shape_heap", (4,), type_args=(Tensor(ndim=1, dtype="int64"))
+        def foo(x: R.Tensor(dtype="float32")):
+            shape_heap: R.Tensor((4,), "int64") = R.call_packed(
+                "vm.builtin.alloc_shape_heap", (4,), type_args=(R.Tensor(ndim=1, dtype="int64"))
             )
-            gv0 = relax.call_packed("vm.builtin.shape_of", x, type_args=(Shape))
-            gv1 = relax.call_packed(
-                "vm.builtin.store_shape", gv0, shape_heap, (0, 1), type_args=(Void)
-            )
+            gv0 = R.call_packed("vm.builtin.shape_of", x, type_args=R.Shape)
+            gv1 = R.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1), type_args=R.Void)
             gv2 = shape_func0(shape_heap)
-            gv3 = relax.call_packed("vm.builtin.load_shape", shape_heap, (2, 3), type_args=(Shape))
+            gv3 = R.call_packed("vm.builtin.load_shape", shape_heap, (2, 3), type_args=R.Shape)
             return gv3
 
     mod = TestVMCompileStage1
@@ -398,7 +397,8 @@ def test_vm_compile_stage2():
     @tvm.script.ir_module
     class TestVMCompileStage2:
         @R.function
-        def foo(x: Tensor(_, "float32")) -> Shape:
+        def foo(x: R.Tensor(dtype="float32")) -> R.Shape:
+            n, m = T.var("int64"), T.var("int64")
             R.match_shape(x, (n, m))
             return (n * 2, m * 3)
 
@@ -418,7 +418,7 @@ def test_vm_compile_stage3():
     @tvm.script.ir_module
     class TestVMCompileStage3:
         @R.function
-        def foo(x: Tensor((32, 16), "float32")) -> Tensor:
+        def foo(x: R.Tensor((32, 16), "float32")) -> R.Tensor:
             with R.dataflow():
                 y = R.call_tir("test.vm.identity", (x), (32, 16), dtype="float32")
                 R.output(y)
@@ -439,8 +439,9 @@ def test_vm_compile_e2e():
     @tvm.script.ir_module
     class TestVMCompileE2E:
         @R.function
-        def foo(x: Tensor(_, "float32")) -> Tensor:
+        def foo(x: R.Tensor(dtype="float32")) -> R.Tensor:
             with R.dataflow():
+                n, m = T.var("int64"), T.var("int64")
                 R.match_shape(x, (n, m))
                 y = R.call_tir("test.vm.tile", (x), (n, m * 2), dtype="float32")
                 R.output(y)
@@ -479,7 +480,8 @@ def test_vm_compile_e2e_func_param_with_shape():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def func(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")) -> Tensor:
+        def func(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")) -> R.Tensor:
+            m, k = T.var("int64"), T.var("int64")
             gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
@@ -773,11 +775,14 @@ def test_vm_tuplegetitem():
     @tvm.script.ir_module
     class TestVMTupleGetItem:
         @R.function
-        def tuple_get_item(x: Tensor((_, _), "float32"), y: Tensor((_, _), "float32")):
+        def tuple_get_item(
+            x: R.Tensor(ndim=2, dtype="float32"),
+            y: R.Tensor(ndim=2, dtype="float32"),
+        ):
             t = (x, y)
             a = t[0]
             b = t[1]
-            c = relax.call_packed("test.vm.add", a, b, type_args=(Tensor(ndim=2, dtype="float32")))
+            c = R.call_packed("test.vm.add", a, b, type_args=(R.Tensor(ndim=2, dtype="float32")))
             return c
 
     mod = TestVMTupleGetItem
@@ -795,8 +800,8 @@ def test_vm_print_const():
     class PrintConst:
         @R.function
         def main():
-            x = relax.const([1, 2])
-            y = relax.print(x)
+            x = R.const([1, 2])
+            y = R.print(x)
             return x
 
     try:
@@ -821,9 +826,9 @@ def test_vm_return_const_tuple():
     @tvm.script.ir_module
     class ReturnConstTuple:
         @R.function
-        def main(x: Tensor((_, _), "float32")):
-            y = relax.const([1, 2])
-            z = (y, relax.const([3, 4]), x)
+        def main(x: R.Tensor(ndim=2, dtype= "float32")):
+            y = R.const([1, 2])
+            z = (y, R.const([3, 4]), x)
             return z
 
     mod = ReturnConstTuple
@@ -841,18 +846,18 @@ def test_vm_const_as_call_arg():
     @tvm.script.ir_module
     class TestVMConstAsCallArg:
         @R.function
-        def main(x: Tensor((_, _), "float32")):
-            a = relax.call_packed(
+        def main(x: R.Tensor(ndim=2, dtype="float32")):
+            a = R.call_packed(
                 "test.vm.add",
                 relax.const([1, 2]),
                 relax.const([3, 4]),
-                type_args=(Tensor(ndim=2, dtype="float32")),
+                type_args=(R.Tensor(ndim=2, dtype="float32")),
             )
-            b = relax.call_packed(
+            b = R.call_packed(
                 "test.vm.add",
                 a,
                 x,
-                type_args=(Tensor(ndim=2, dtype="float32")),
+                type_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             return b
 
@@ -869,7 +874,7 @@ def test_vm_if_cond_const():
     @tvm.script.ir_module
     class TestVMIfCondConst:
         @R.function
-        def main(x: Tensor((_, _), "float32")) -> Tensor((1,), "int32"):
+        def main(x: R.Tensor(ndim=2, dtype="float32")) -> R.Tensor((1,), "int32"):
             if relax.const(True, dtype="bool"):
                 ret = x
             else:
@@ -907,8 +912,8 @@ def test_sub_func_call():
 
         @R.function
         def relax_matmul_tir(
-            x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")
-        ) -> Tensor:
+            x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
+        ) -> R.Tensor:
             with R.dataflow():
                 gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 R.output(gv0)
@@ -916,17 +921,15 @@ def test_sub_func_call():
 
         @R.function
         def relax_matmul_packed(
-            x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")
+            x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
         ) -> Object:
-            gv0 = relax.call_packed(
-                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
-            )
+            gv0 = R.call_packed("test.vm.mul", x, w, type_args=(R.Tensor(ndim=2, dtype="float32")))
             return gv0
 
         @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Object:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> Object:
             gv0 = relax_matmul_tir(x, w)
-            gv1 = relax_matmul_packed(gv0, gv0, type_args=(Tensor(ndim=2, dtype="float32")))
+            gv1 = relax_matmul_packed(gv0, gv0)
             return gv1
 
     target = tvm.target.Target("llvm", host="llvm")
@@ -944,19 +947,19 @@ def test_recursion():
     @tvm.script.ir_module
     class TestVMRecursion:
         @R.function
-        def recursion(n: Tensor((1,), "float32")) -> Tensor:
-            cond = relax.call_packed(
-                "test.vm.equal_zero", n, type_args=(Tensor(ndim=1, dtype="float32"))
+        def recursion(n: R.Tensor((1,), "float32")) -> R.Tensor:
+            cond = R.call_packed(
+                "test.vm.equal_zero", n, type_args=(R.Tensor(ndim=1, dtype="float32"))
             )
             if cond:
-                res = relax.const(1.0)
+                res = R.const(1.0)
             else:
-                gv0 = relax.call_packed(
-                    "test.vm.subtract_one", n, type_args=(Tensor(ndim=1, dtype="float32"))
+                gv0 = R.call_packed(
+                    "test.vm.subtract_one", n, type_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
                 tmp = recursion(gv0)
-                res = relax.call_packed(
-                    "test.vm.add", tmp, tmp, type_args=(Tensor(ndim=1, dtype="float32"))
+                res = R.call_packed(
+                    "test.vm.add", tmp, tmp, type_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
             return res
 
@@ -976,16 +979,16 @@ def test_vm_closure():
     @tvm.script.ir_module
     class TestClosure:
         @R.function
-        def lifted_func_1(x: Tensor((2, 3), "float32"), env: Tensor((2, 3), "float32")):
-            return relax.call_packed("test.vm.add", x, env, type_args=(Tensor))
+        def lifted_func_1(x: R.Tensor((2, 3), "float32"), env: R.Tensor((2, 3), "float32")):
+            return R.call_packed("test.vm.add", x, env, type_args=(R.Tensor))
 
         @R.function
         def main(
-            x: Tensor((2, 3), "float32"),
-            y: Tensor((2, 3), "float32"),
+            x: R.Tensor((2, 3), "float32"),
+            y: R.Tensor((2, 3), "float32"),
         ):
-            clo = relax.make_closure(lifted_func_1, (x,))
-            res = relax.invoke_closure(clo, (y,), type_args=(Tensor))
+            clo = R.make_closure(lifted_func_1, (x,))
+            res = R.invoke_closure(clo, (y,), type_args=(R.Tensor))
             return res
 
     mod = TestClosure
@@ -1027,8 +1030,8 @@ def test_time_evaluator():
     @tvm.script.ir_module
     class TestTimeEvaluator:
         @R.function
-        def main(x: Tensor((1,), "float32"), y: Tensor((1,), "float32")):
-            return R.call_packed("test.vm.add", x, y, type_args=(Tensor(ndim=1, dtype="float32")))
+        def main(x: R.Tensor((1,), "float32"), y: R.Tensor((1,), "float32")):
+            return R.call_packed("test.vm.add", x, y, type_args=(R.Tensor(ndim=1, dtype="float32")))
 
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(TestTimeEvaluator, target)
@@ -1069,18 +1072,28 @@ class TestVMSetInput:
 
     # test returning a tuple
     @R.function
-    def test_vm_tuple(x: Tensor((), "int32")) -> Tuple(Tensor((), "int32"), Tensor((), "int32")):
+    def test_vm_tuple(
+        x: R.Tensor((), "int32")
+    ) -> R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32")):
         return (x, x)
 
     # nested tuple too
     @R.function
     def test_vm_nested_tuple(
-        x: Tensor((), "int32")
-    ) -> Tuple(Tuple(Tensor((), "int32"), Tuple(Tensor((), "int32"),)), Tensor((), "int32")):
+        x: R.Tensor((), "int32")
+    ) -> R.Tuple(
+        R.Tuple(
+            R.Tensor((), "int32"),
+            R.Tuple(
+                R.Tensor((), "int32"),
+            ),
+        ),
+        R.Tensor((), "int32"),
+    ):
         return ((x, (x,)), x)
 
     @R.function
-    def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+    def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
         gv0 = R.call_tir("test_vm_mul", (x, w), (32, 32), dtype="float32")
         return gv0
 
@@ -1259,4 +1272,5 @@ def test_set_input_get_failure_rpc():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_sub_func_call()
+    tvm.testing.main()

@@ -15,7 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility functions for Relax"""
-from typing import List
+from typing import List, Tuple, Union
+
+from ..runtime import convert_to_object
+from ..tir import PrimExpr
+from . import Expr, ShapeExpr
+from . import Tuple as rx_Tuple
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:
@@ -58,3 +63,17 @@ def metadata_partitioner(rx_txt: str) -> List[str]:
     partitions.append(metadata)
 
     return partitions
+
+
+def convert_to_expr(value: Union[Expr, Tuple[Expr]]) -> Expr:
+    if not isinstance(value, tuple):
+        return convert_to_object(value)
+    value = list(value)
+    for i, v in enumerate(value):
+        value[i] = convert_to_expr(v)
+    if all([isinstance(f, PrimExpr) for f in value]):
+        return ShapeExpr(value)
+    elif all([isinstance(f, Expr) for f in value]):
+        return rx_Tuple(value)
+    else:
+        raise TypeError("Return types, with mixed PrimExpr and Relax Expr, is not supported.")

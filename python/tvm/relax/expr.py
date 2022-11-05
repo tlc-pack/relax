@@ -116,6 +116,15 @@ class Var(Expr):
                 f"Only vars with function type can be called, but got type: {self._checked_type_}"
             )
 
+    def __getitem__(self, key):
+        var_type = self._checked_type_
+        if var_type and isinstance(var_type, ty.TupleType):
+            return TupleGetItem(self, key)
+        else:
+            raise TypeError(
+                f"Only vars with TupleType is subscriptable, but got type: {self._checked_type_}"
+            )
+
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):

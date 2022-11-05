@@ -55,6 +55,7 @@ TVM_REGISTER_NODE_TYPE(RuntimeDepShapeNode);
 RuntimeDepShape::RuntimeDepShape(Span span) {
   ObjectPtr<RuntimeDepShapeNode> n = make_object<RuntimeDepShapeNode>();
   n->span = span;
+  n->checked_type_ = ShapeType();
   data_ = std::move(n);
 }
 

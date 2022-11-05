@@ -95,34 +95,34 @@ def test_print():
 @tvm.script.ir_module
 class AssertOpTest:
     @R.function
-    def passes(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(True))
+    def passes(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(True))
         return x
 
     @R.function
-    def pass_with_args(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(True), x, format="You won't see me")
+    def pass_with_args(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
     @R.function
-    def simple_fail(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(False))
+    def simple_fail(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(False))
         return x
 
     @R.function
-    def fail_with_message(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(False), format="I failed...")
+    def fail_with_message(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(False), format="I failed...")
         return x
 
     @R.function
-    def fail_with_args(x: Tensor((), "int32")):
+    def fail_with_args(x: R.Tensor((), "int32")):
         # no format
-        p1 = relax.assert_op(relax.const(False), x, x)
+        p1 = R.assert_op(relax.const(False), [x, x])
         return x
 
     @R.function
-    def fail_with_formatted_message(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(False), x, format="Number: {}")
+    def fail_with_formatted_message(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 
 
