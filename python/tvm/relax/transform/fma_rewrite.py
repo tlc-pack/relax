@@ -45,7 +45,7 @@ class EwiseFMARewriter(PyExprMutator):
 
         if call.op == add_op:
             value = self.lookup_binding(call.args[0])
-            if isinstance(value, Call) and value.op == multiply_op:
+            if isinstance(value, Call) and value.op == multiply_op:  # type: ignore
                 fma_call = Call(
                     ewise_fma_op, [value.args[0], value.args[1], call.args[1]], None, None
                 )
@@ -104,7 +104,7 @@ class EwiseFuseFMAMutator(PyExprMutator):
 
         if call.op == add_op:
             value = self.lookup_binding(call.args[0])
-            if isinstance(value, Call) and value.op == multiply_op:
+            if isinstance(value, Call) and value.op == multiply_op:  # type: ignore
                 mul = value
                 # construct a subgraph
                 x = Var("x", mul.args[0].shape_, mul.args[0]._checked_type_)
