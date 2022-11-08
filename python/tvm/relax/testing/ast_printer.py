@@ -96,9 +96,7 @@ class ASTPrinter(ExprFunctor):
             force_newline=force_newline,
         )
 
-    def build_expr(
-        self, node: relax.Expr, nodename: str, force_newline=False, **kwargs: str
-    ):
+    def build_expr(self, node: relax.Expr, nodename: str, force_newline=False, **kwargs: str):
         """
         Renders a Relax expression as a string using `build_ast_node`.
         Handles whether to include the checked_type_ and shape_ fields.
