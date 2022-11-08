@@ -61,6 +61,7 @@ TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
 TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   using namespace tvm::relax;
+  ICHECK_GE(ndim, -1) << "ndim must be >= -1, but got " << ndim;
   if (shape.defined() && ndim >= 0) {
     CHECK_EQ(shape.value().size(), ndim)
         << "The dimension of the given shape is mismatched with the given `ndim`";

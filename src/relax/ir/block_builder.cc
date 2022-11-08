@@ -689,7 +689,7 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
     for (size_t i = 0; i < lhs_ndim; ++i) {
       PrimExpr lhs_dim = lhs_shape->values[i];
       PrimExpr rhs_dim = rhs_shape->values[i];
-      if (!analyzer.CanProveEqual(lhs_dim, rhs_dim)) {
+      if (lhs_dim.dtype() != rhs_dim.dtype() || !analyzer.CanProveEqual(lhs_dim, rhs_dim)) {
         return false;
       }
     }

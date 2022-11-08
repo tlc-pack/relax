@@ -139,12 +139,13 @@ def test_unused_relax_func_symbolic_shape():
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
         @R.function
-        def unused_func(x: R.Tensor((m, n), "float32"), w: R.Tensor((n, k), "float32")):
+        def unused_func(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
             gv0 = R.add(x, w)
             return gv0
 
         @R.function
-        def main(x: R.Tensor((m, n), "float32"), w: R.Tensor((n, k), "float32")):
+        def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
+            m, k = T.var("int64"), T.var("int64")
             gv0 = R.call_tir(tir_add, (x, w), (m, k), dtype="float32")
             return gv0
 

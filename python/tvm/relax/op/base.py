@@ -23,7 +23,7 @@ from tvm.runtime.object import Object
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
-from ...ir import Array, Type
+from ...ir import Array, Type, PrimExpr
 
 py_print = print  # pylint: disable=invalid-name
 
@@ -63,11 +63,25 @@ def call_tir(
     if isinstance(func, str):
         func = ExternFunc(func)
 
+    def _create_shape(shape: List[Union[int, PrimExpr]]) -> ShapeExpr:
+        shape_array = []
+        for x in shape:
+            if isinstance(x, int):
+                shape_array.append(tvm.tir.IntImm("int64", x))
+            elif isinstance(x, PrimExpr):
+                if x.dtype != "int64":
+                    raise TypeError("Expect int64 dtype for shape")
+                shape_array.append(x)
+            else:
+                raise TypeError("Expect int or PrimExpr for shape")
+        return ShapeExpr(shape_array)
+
+
     if isinstance(shape, (list, tuple, Array)):
         if all([not isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
-            shape = ShapeExpr(shape)
+            shape = _create_shape(shape)
         elif all([isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
-            shape = Tuple([ShapeExpr(x) if not isinstance(x, ShapeExpr) else x for x in shape])
+            shape = Tuple([_create_shape(x) if not isinstance(x, ShapeExpr) else x for x in shape])
         else:
             raise TypeError(
                 f"The shape is expected to be ShapeExpr or Tuple[ShapeExpr], bot got: f{shape}"

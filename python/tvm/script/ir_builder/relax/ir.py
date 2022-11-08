@@ -20,8 +20,9 @@
 import functools
 from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union, Any
 
+import tvm
 from tvm._ffi import register_object as _register_object
-from tvm.ir import Attrs, Type
+from tvm.ir import Type
 from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
 from tvm.relax.utils import convert_to_expr
 
@@ -219,8 +220,8 @@ def output(*vars: Tuple[Var]) -> Tuple[Var]:
 def call_packed(
     func: str,
     *args: List[Expr],
-    attrs: Optional[Attrs] = None,
     type_args: Optional[Union[TensorType, List[TensorType]]] = None,
+    **kwargs: Dict[str, Expr],
 ) -> Call:
     """Create a relax Call, which calls a packed function.
     Parameters
@@ -229,10 +230,11 @@ def call_packed(
         The name of extern function.
     args : List[Expr]
         The arguments.
-    attrs: Optional[Attrs]
-        The call attributes
     type_args: Optional[Union[TensorType, List[TensorType]]]
         List of Types
+    kwargs: Dict[str, Expr]
+        The keyword arguments.
+
     Returns
     -------
     call: Call
@@ -258,6 +260,17 @@ def call_packed(
                 "call_packed `type_args` is expected to be list of TensorType/Type, "
                 f"but got {type(arg)}"
             )
+
+    is_default = False
+    if "attrs_type_key" in kwargs:
+        attrs_type_key = kwargs["attrs_type_key"]
+        kwargs.pop("attrs_type_key")
+    else:
+        attrs_type_key = "DictAttrs"
+        is_default = True
+    attrs = None
+    if kwargs or not is_default:
+        attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
     return Call(op, args, attrs=attrs, type_args=type_args)
 

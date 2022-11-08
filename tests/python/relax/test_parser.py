@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
 from tvm import tir, relay, relax
@@ -76,13 +75,13 @@ def check_call(call, op, args):
 def test_annotations():
     @R.function
     def f(
-        x: Tensor((32, m), "float32"),
-        y: Tensor((m, k), "float32"),
-        r: Tensor(_, "int64"),
+        x: R.Tensor((32, "m"), "float32"),
+        y: R.Tensor((m, k), "float32"),
+        r: R.Tensor(_, "int64"),
     ) -> Object:
-        z: Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
-        w: Tensor(None, _) = multiply(z, z)
-        q: Tensor(None, _, ndim=2) = add(w, w)
+        z: R.Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
+        w: R.Tensor(None, _) = multiply(z, z)
+        q: R.Tensor(None, _, ndim=2) = add(w, w)
         t = subtract(w, z)
         sh: Shape = t.shape
         o: Object = relax.call_packed("contrib.tensor_array_stack", x, y, type_args=(Object))
@@ -119,51 +118,53 @@ def test_annotations():
     assert len(o_call_packed.type_args) == 1
 
 
-def test_annotations_fail():
-    with pytest.raises(tvm.error.DiagnosticError):
-
-        @R.function
-        def f(x: Tensor("u", "int64")):
-            return x
-
-
 def test_mismatch_shape_dims_and_ndim():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(Exception):
+        # TODO: replace with DiagnosticError once we have better error reporting.
+        # with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor((2, 3), "float32", ndim=3)):
+        def f(x: R.Tensor((2, 3), "float32", ndim=3)):
             return x
 
 
 def test_unexpected_num_kw_args():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(Exception):
+        # TODO: replace with DiagnosticError once we have better error reporting.
+        # with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, "float32", ndim=1, foo=2)):
+        def f(x: R.Tensor(dtype="float32", ndim=1, foo=2)):
             return x
 
 
 def test_unexpected_kw_arg():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(Exception):
+        # TODO: replace with DiagnosticError once we have better error reporting.
+        # with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, "float32", foo=1)):
+        def f(x: R.Tensor(dtype="float32", foo=1)):
             return x
 
 
 def test_unexpected_ndim():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(Exception):
+        # TODO: replace with DiagnosticError once we have better error reporting.
+        # with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, "float32", ndim=-2)):
+        def f(x: R.Tensor(dtype="float32", ndim=-2)):
             return x
 
 
 def test_unexpected_ndim_type():
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(Exception):
+        # TODO: replace with DiagnosticError once we have better error reporting.
+        # with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, "float32", ndim="1")):
+        def f(x: R.Tensor(dtype="float32", ndim="1")):
             return x
 
 
@@ -172,24 +173,27 @@ def test_unexpected_tir_cast_args():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor((m,), "float32")):
-            return relax.call_tir("foo", (x,), (tir.cast("int32", m, 1),), dtype="float32")
+        def f(x: R.Tensor(("m",), "float32")):
+            m = T.var("int64")
+            return R.call_tir("foo", (x,), (T.cast("int32", m, 1),), dtype="float32")
 
 
 def test_unexpected_tir_max_args():
     # tir.max expects 2 arguments, but got 1
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(Exception):
 
         @R.function
-        def f(x: Tensor((m, n), "float32")):
-            return relax.call_tir("foo", (x,), (tir.max(m),), dtype="float32")
+        def f(x: R.Tensor(("m", "n"), "float32")):
+            m = T.var("int64")
+            return relax.call_tir("foo", (x,), (T.max(m),), dtype="float32")
 
 
 def test_match_shape():
     @R.function
-    def f(x: Tensor(_, "float32")):
-        relax.match_shape(x.shape, (n, m))
-        y: Tensor((n, m), "float32") = add(x, x)
+    def f(x: R.Tensor(dtype="float32")):
+        n, m = T.var("int64"), T.var("int64")
+        R.match_shape(R.shape_of(x), (n, m))
+        y: R.Tensor((n, m), "float32") = R.add(x, x)
         return x
 
     match_sh = f.body.blocks[0].bindings[0]
@@ -199,24 +203,26 @@ def test_match_shape():
     check_call(value, "relax.shape_of", [f.params[0]])
 
 
+@pytest.mark.xfail
 def test_dim_var_intro_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, _)):
-            y: Tensor((n, m), "float32") = x
+        def f(x: R.Tensor(ndim=2)):
+            n, m = T.var("int64"), T.var("int64")
+            y: R.Tensor((n, m), "float32") = x
             return y
 
 
 def test_if():
     @R.function
-    def f(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+    def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor:
         if cond:
-            w = add(x, x)
-            y = multiply(w, w)
+            w = R.add(x, x)
+            y = R.multiply(w, w)
         else:
-            w = multiply(x, x)
-            y = add(w, w)
+            w = R.multiply(x, x)
+            y = R.add(w, w)
         return y
 
     cond, x = f.params
@@ -236,14 +242,14 @@ def test_if():
     w_bind = ite.true_branch.blocks[0].bindings[0]
     body = ite.true_branch.body
     assert w_bind.var.name_hint == "w"
-    check_call(w_bind.value, "add", [x, x])
-    check_call(body, "multiply", [w_bind.var, w_bind.var])
+    check_call(w_bind.value, "relax.add", [x, x])
+    check_call(body, "relax.multiply", [w_bind.var, w_bind.var])
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
     body = ite.false_branch.body
     assert w_bind.var.name_hint == "w"
-    check_call(w_bind.value, "multiply", [x, x])
-    check_call(body, "add", [w_bind.var, w_bind.var])
+    check_call(w_bind.value, "relax.multiply", [x, x])
+    check_call(body, "relax.add", [w_bind.var, w_bind.var])
 
 
 # TODO: figure out if-else binding type and shape
@@ -254,7 +260,7 @@ def test_var_redefine_fail():
 
         @R.function
         def f(x, y):
-            z = add(x, y)
+            z = R.add(x, y)
             y = z
             return y
 
@@ -263,14 +269,14 @@ def test_var_redefine_fail_if():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+        def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
             y = x
             if cond:
-                w = add(x, x)
-                y = multiply(w, w)
+                w = R.add(x, x)
+                y = R.multiply(w, w)
             else:
-                w = multiply(x, x)
-                y = add(w, w)
+                w = R.multiply(x, x)
+                y = R.add(w, w)
             return y
 
 
@@ -280,7 +286,7 @@ def test_var_if_scoping_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+        def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
             if cond:
                 w = add(x, x)
                 y = multiply(w, w)
@@ -294,13 +300,13 @@ def test_if_mismatch_var_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+        def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
             if cond:
-                w = add(x, x)
-                y = multiply(w, w)
+                w = R.add(x, x)
+                y = R.multiply(w, w)
             else:
-                w = multiply(x, x)
-                z = add(w, w)
+                w = R.multiply(x, x)
+                z = R.add(w, w)
             return z
 
 
@@ -308,15 +314,15 @@ def test_unassigned_call_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, _)):
-            add(x, x)
+        def f(x: R.Tensor):
+            R.add(x, x)
             return x
 
 
 def test_tuple():
     @R.function
-    def f(x: Tensor(_, _), y: Tensor((32,), "float32")):
-        t: Tuple(Tensor(_, _), Tensor((32,), "float32")) = (x, y)
+    def f(x: R.Tensor, y: R.Tensor((32,), "float32")):
+        t: R.Tuple(R.Tensor(), R.Tensor((32,), "float32")) = (x, y)
         return t
 
     x, y = f.params
@@ -334,19 +340,20 @@ def test_tuple():
 
     assert isinstance(tup, relax.Tuple)
     assert_structural_equal(tup.fields, [x, y])
-    assert tup.shape_ is None
+
+    assert isinstance(tup.shape_, relax.Tuple)
     check_shape(tup.fields[0], relax.RuntimeDepShape())
     check_shape(tup.fields[1], (32,))
 
 
 def test_tuplegetitem():
     @R.function
-    def f(x: Tensor(_, _), y: Tensor(_, _)):
-        t1 = relax.Tuple((x, y))
+    def f(x: R.Tensor, y: R.Tensor):
+        t1 = R.Tuple((x, y))
         t2 = (x, y)
         a = t1[0]
-        b = relax.TupleGetItem(t2, 1)
-        c = add(a, b)
+        b = R.TupleGetItem(t2, 1)
+        c = R.add(a, b)
         return c
 
     x, y = f.params
@@ -365,14 +372,14 @@ def test_tuplegetitem():
     assert bind_3.value.index == 1
     assert bind_2.var.name_hint == "a"
     assert bind_3.var.name_hint == "b"
-    check_call(bind_4.value, "add", [bind_2.var, bind_3.var])
+    check_call(bind_4.value, "relax.add", [bind_2.var, bind_3.var])
 
 
 def test_local_func():
     @R.function
-    def f(x: Tensor(_, _)):
+    def f(x: R.Tensor):
         @R.function
-        def bar(y: Tensor(_, _)):
+        def bar(y: R.Tensor):
             return y
 
         y = bar(x)  # tests local function variable scoping
@@ -390,13 +397,13 @@ def test_local_func():
 
 def test_dataflow():
     @R.function
-    def f(x: Tensor(_, _)):
-        with relax.dataflow():
-            y = add(x, x)
-            z = multiply(y, x)
-            w = subtract(z, x)
-            relax.output(y, w)
-        t = divide(y, w)
+    def f(x: R.Tensor):
+        with R.dataflow():
+            y = R.add(x, x)
+            z = R.multiply(y, x)
+            w = R.multiply(z, x)
+            R.output(y, w)
+        t = R.add(y, w)
         return t
 
     assert len(f.body.blocks) == 2
@@ -410,26 +417,27 @@ def test_dataflow():
     assert isinstance(z, relax.DataflowVar)
     assert isinstance(w, relax.Var)
 
-    check_call(y_bind.value, "add", [x, x])
-    check_call(z_bind.value, "multiply", [y, x])
-    check_call(w_bind.value, "subtract", [z, x])
-    check_call(t_bind.value, "divide", [y, w])
+    check_call(y_bind.value, "relax.add", [x, x])
+    check_call(z_bind.value, "relax.multiply", [y, x])
+    check_call(w_bind.value, "relax.multiply", [z, x])
+    check_call(t_bind.value, "relax.add", [y, w])
 
     assert f.body.body == t
 
 
 def test_dataflow_match_shape():
     @R.function
-    def f(x: Tensor(_, _)):
-        with relax.dataflow():
-            x2: Tensor((n, m), _) = relax.match_shape(x, (n, m))
-            y = add(x2, x2)
-            z = multiply(y, x)
-            relax.match_shape(z.shape, (n, m))
-            w: Tensor((n, m), _) = subtract(z, x)
+    def f(x: R.Tensor):
+        n, m = T.var("int64"), T.var("int64")
+        with R.dataflow():
+            x2: R.Tensor((n, m)) = R.match_shape(x, (n, m))
+            y = R.add(x2, x2)
+            z = R.multiply(y, x)
+            R.match_shape(R.shape_of(z), (n, m))
+            w: R.Tensor((n, m)) = R.add(z, x)
             relax.output(y, w, x2)
-        t: Tensor((n, m), _) = divide(y, w)
-        q: Tensor((n, m), _) = add(t, x2)
+        t: R.Tensor((n, m)) = R.multiply(y, w)
+        q: R.Tensor((n, m)) = R.add(t, x2)
         return q
 
     x = f.params[0]
@@ -453,7 +461,7 @@ def test_dataflow_scope_fail():
     with pytest.raises(tvm.error.DiagnosticError):
         # FIXME
         @R.function
-        def f(x: Tensor(_, _)):
+        def f(x: R.Tensor(_, _)):
             with relax.dataflow():
                 y = add(x, x)
                 z = multiply(y, x)
@@ -467,7 +475,7 @@ def test_dataflow_syntax_fail_pattern():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, _)):
+        def f(x: R.Tensor(_, _)):
             with relax.dataflow() as df:
                 y = add(x, x)
                 z = multiply(y, x)
@@ -481,7 +489,7 @@ def test_dataflow_syntax_fail_params():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, _)):
+        def f(x: R.Tensor(_, _)):
             with relax.dataflow(x) as df:
                 y = add(x, x)
                 z = multiply(y, x)
@@ -495,7 +503,7 @@ def test_dataflow_unbound_outputs():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, _)):
+        def f(x: R.Tensor(_, _)):
             with relax.dataflow():
                 y = add(x, x)
                 z = multiply(y, x)
@@ -509,7 +517,7 @@ def test_invalid_special_op_dataflow():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor):
+        def f(x: R.Tensor):
             y = add(x, x)
             z = relax.dataflow()
             return z
@@ -519,7 +527,7 @@ def test_invalid_special_op_output():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor):
+        def f(x: R.Tensor):
             y = add(x, x)
             z = relax.output(y)
             return z
@@ -529,13 +537,14 @@ def test_func_no_return_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor(_, _)):
-            y = add(x, x)
+        def f(x: R.Tensor):
+            y = R.add(x, x)
 
 
 def test_call_tir():
     @R.function
-    def foo(x: Tensor((m, n), "float32")):
+    def foo(x: R.Tensor(("m", "n"), "float32")):
+        m, n = T.var("int64"), T.var("int64")
         gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
         return gv0
 
@@ -548,7 +557,7 @@ def test_call_tir():
 
 def test_inline_tir():
     @R.function
-    def f(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")):
+    def f(x: R.Tensor(("B", 128), "float32"), y: R.Tensor((128, 128), "float32")):
         @T.prim_func
         def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
@@ -562,7 +571,8 @@ def test_inline_tir():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        z = relax.call_tir(my_matmul, (x, y), (B, 128), dtype="float32")
+        B = T.var("int64")
+        z = R.call_tir(my_matmul, (x, y), (B, 128), dtype="float32")
         return z
 
     x, y = f.params
@@ -581,30 +591,31 @@ def test_inline_tir():
 
 def test_call_packed():
     @R.function
-    def f(x: Tensor((3, 3), "float32")):
-        z: Tensor((n, m), "float32") = relax.call_packed(
+    def f(x: R.Tensor((3, 3), "float32")):
+        n, m = T.var("int64"), T.var("int64")
+        z: R.Tensor((n, m), "float32") = R.call_packed(
             "contrib.my_matmul",
             x,
             x,
             mp=False,
-            type_args=(Tensor(ndim=2, dtype="float32")),
+            type_args=(R.Tensor(ndim=2, dtype="float32")),
         )
 
-        w = relax.call_packed(
+        w = R.call_packed(
             "contrib.my_shape_of",
             x,
             dtype="int32",
             attrs_type_key="relay.attrs.ShapeOfAttrs",
-            type_args=(Shape),
+            type_args=(R.Shape),
         )
 
-        o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
+        o = R.call_packed("contrib.tensor_array_stack", x, z, type_args=(R.Object))
 
-        k = relax.call_packed(
+        k = R.call_packed(
             "contrib.construct_tuple",
             x,
             x,
-            type_args=(Tuple(Tuple(Tensor(ndim=2, dtype="float32"), Tensor), Tensor)),
+            type_args=(R.Tuple(R.Tuple(R.Tensor(ndim=2, dtype="float32"), R.Tensor), R.Tensor)),
         )
         return k
 
@@ -646,8 +657,9 @@ def test_call_packed_no_type_args_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor((3, 3), "float32")):
-            z: Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x)
+        def f(x: R.Tensor((3, 3), "float32")):
+            n, m = T.var("int64"), T.var("int64")
+            z: R.Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x)
             return z
 
 
@@ -655,8 +667,8 @@ def test_call_packed_wrong_type_args_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: Tensor((3, 3), "float32")):
-            z: Tensor((n, m), "float32") = relax.call_packed(
+        def f(x: R.Tensor((3, 3), "float32")):
+            z: R.Tensor((n, m), "float32") = relax.call_packed(
                 "contrib.my_matmul", x, x, type_args=(Tuple)
             )
             return z
@@ -664,11 +676,11 @@ def test_call_packed_wrong_type_args_fail():
 
 def test_constant():
     @R.function
-    def f(x: Tensor((2, 3), "float32")):
-        y1 = relax.const(2, dtype="float32")
-        y2 = relax.const([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
-        z = add(x, y1)
-        r = add(z, y2)
+    def f(x: R.Tensor((2, 3), "float32")):
+        y1 = R.const(2, dtype="float32")
+        y2 = R.const([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+        z = R.add(x, y1)
+        r = R.add(z, y2)
         return r
 
     x = f.params[0]
@@ -680,17 +692,18 @@ def test_constant():
     assert bind_2.var.name_hint == "z"
     bind_3 = f.body.blocks[0].bindings[3]
     assert bind_3.var.name_hint == "r"
-    check_call(bind_2.value, "add", [x, bind_0.var])
-    check_call(bind_3.value, "add", [bind_2.var, bind_1.var])
+    check_call(bind_2.value, "relax.add", [x, bind_0.var])
+    check_call(bind_3.value, "relax.add", [bind_2.var, bind_1.var])
 
 
 def test_primexpr_arithmetic():
     @R.function
-    def f(x: Tensor((n, m), "float32")):
-        z: Tensor((n * m,), "float32") = relax.call_packed(
-            "my_flatten", (x,), type_args=(Tensor(ndim=2, dtype="float32"))
+    def f(x: R.Tensor(("n", "m"), "float32")):
+        n, m = T.var("int64"), T.var("int64")
+        z: R.Tensor((n * m,), "float32") = R.call_packed(
+            "my_flatten", (x,), type_args=(R.Tensor(ndim=1, dtype="float32"))
         )
-        sh: Shape = (n + m, n // m)
+        sh: R.Shape = (n + m, n // m)
         return z
 
     x = f.params[0]
@@ -703,8 +716,8 @@ def test_primexpr_arithmetic():
 
 def test_call_tir_extern():
     @R.function
-    def f(x: Tensor) -> Tensor:
-        z = relax.call_tir("my_extern", (x,), (10,), dtype="float32")
+    def f(x: R.Tensor) -> R.Tensor:
+        z = R.call_tir("my_extern", (x,), (10,), dtype="float32")
         return z
 
     x = f.params[0]
@@ -723,7 +736,7 @@ def test_call_tir_extern():
 
 def test_empty_shape():
     @R.function
-    def f(x: Tensor((), "float32"), y: Tensor((), "float32")):
+    def f(x: R.Tensor((), "float32"), y: R.Tensor((), "float32")):
         @T.prim_func
         def scalar_add(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, ())
@@ -766,32 +779,34 @@ def test_class_irmodule():
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
         @R.function
-        def f(x: Tensor((n, n), _)) -> Tensor:
+        def f(x: R.Tensor(("n", "n"))) -> R.Tensor:
             return g(x)
 
         @R.function
-        def g(y: Tensor((n, n), _)) -> Tensor:
-            return relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+        def g(y: R.Tensor(("n", "n"))) -> R.Tensor:
+            n = T.var("int64")
+            return R.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
 
         @R.function
-        def j(y: Tensor((n, n), _)) -> Tensor:
-            with relax.dataflow():
-                gv = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+        def j(y: R.Tensor(("n", "n"))) -> R.Tensor:
+            n = T.var("int64")
+            with R.dataflow():
+                gv = R.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
                 gv1 = (gv, gv)
                 gv2 = gv1[1]
-                relax.output(gv2)
+                R.output(gv2)
             return gv2
 
         @R.function
-        def h(x: Tensor((n, n), _), y: Tensor((n, n), _), z: Tensor((n, n), _)) -> Tensor:
+        def h(
+            x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))
+        ) -> R.Tensor:
             _ = my_matmul(x, y, z)
             return z
 
         @R.function
-        def k(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
-            gv0 = relax.call_packed(
-                "test.vm.mul", x, w, type_args=(Tensor(ndim=2, dtype="float32"))
-            )
+        def k(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
+            gv0 = R.call_packed("test.vm.mul", x, w, type_args=(R.Tensor(ndim=2, dtype="float32")))
             return gv0
 
     my_module = MyModule
@@ -875,20 +890,21 @@ def test_class_normalize():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def mul_add(x: Tensor) -> Tensor:
+        def mul_add(x: R.Tensor) -> R.Tensor:
             return R.multiply(R.add(x, x), R.add(x, x))
 
     # The parser automatically normalizes the input AST to the following ANF form
     @tvm.script.ir_module
     class OutputModule:
         @R.function
-        def mul_add(x: Tensor) -> Tensor:
-            gv = relax.add(x, x)
-            gv1 = relax.add(x, x)
+        def mul_add(x: R.Tensor) -> R.Tensor:
+            gv = R.add(x, x)
+            gv1 = R.add(x, x)
             return R.multiply(gv, gv1)
 
     assert_structural_equal(InputModule, OutputModule)
 
 
 if __name__ == "__main__":
+    test_if()
     pytest.main([__file__])

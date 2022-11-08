@@ -23,6 +23,7 @@ from typing import Union
 
 from tvm.ir import FuncType, TypeConstraint, TypeVar
 from tvm.relax import DynTensorType, Expr, Function, TupleType, Type, Var
+from tvm.relax import Tuple as RxTuple
 from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
@@ -131,9 +132,17 @@ class TupleProxy:
 
     def __call__(
         self,
-        *fields: List[Union[Type, TensorType]],
+        *fields: List[Union[Expr, Type, TensorType]],
     ) -> TupleType:
-        return TupleType([_convert_type(ty) for ty in fields])
+        if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
+            fields = fields[0]
+
+        if all([isinstance(f, Expr) for f in fields]):
+            return RxTuple(fields)
+        elif all([isinstance(f, (TensorType, Type, TensorProxy)) for f in fields]):
+            return TupleType([_convert_type(ty) for ty in fields])
+        else:
+            raise TypeError(f"Invalid tuple type: {fields}")
 
     def __getitem__(self, keys) -> Var:
         return self(*keys)  # pylint: disable=no-member # type: ignore
@@ -158,7 +167,9 @@ def match_shape(value: Expr, pattern: List[PrimExpr]):
 ################################ utils #################################
 
 
-def _convert_type(ty: Union[Type, TensorType]) -> Type:
+def _convert_type(ty: Union[Type, TensorType, TensorProxy]) -> Type:
+    if isinstance(ty, TensorProxy):
+        return ty().type
     if isinstance(ty, TensorType):
         return ty.type
     elif isinstance(ty, Type):
