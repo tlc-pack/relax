@@ -76,15 +76,16 @@ def test_annotations():
     @R.function
     def f(
         x: R.Tensor((32, "m"), "float32"),
-        y: R.Tensor((m, k), "float32"),
-        r: R.Tensor(_, "int64"),
-    ) -> Object:
-        z: R.Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
-        w: R.Tensor(None, _) = multiply(z, z)
-        q: R.Tensor(None, _, ndim=2) = add(w, w)
-        t = subtract(w, z)
-        sh: Shape = t.shape
-        o: Object = relax.call_packed("contrib.tensor_array_stack", x, y, type_args=(Object))
+        y: R.Tensor(("m"), "float32"),
+        r: R.Tensor(dtype="int64"),
+    ) -> R.Object:
+        m = T.var("int64")
+        z: R.Tensor((32, m), "float32") = R.multiply(x, y)
+        w: R.Tensor = R.multiply(z, z)
+        q: R.Tensor(ndim=2) = R.add(w, w)
+        t = R.add(w, z)
+        sh: R.Shape = R.shape_of(t)
+        o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
         return o
 
     x, y, r = f.params
@@ -97,17 +98,17 @@ def test_annotations():
     o, o_call_packed = o_bind.var, o_bind.value
 
     check_tensor_var(x, (32, "m"), "float32")
-    check_tensor_var(y, ("m", "k"), "float32")
+    check_tensor_var(y, ("m",), "float32")
     check_tensor_var(r, relax.RuntimeDepShape(), "int64")
-    check_tensor_var(z, (32, "k"), "float32")
-    check_tensor_var(w, None, "")
-    check_tensor_var(q, None, "", ndim=2)
-    assert t._checked_type_ is None
+    check_tensor_var(z, (32, "m"), "float32")
+    check_tensor_var(w, relax.RuntimeDepShape(), "")
+    check_tensor_var(q, relax.RuntimeDepShape(), "", ndim=2)
+    assert isinstance(t._checked_type_, relax.ty.DynTensorType)
     assert isinstance(sh._checked_type_, relax.ty.ShapeType)
 
-    check_call(mm, "nn.matmul", [x, y])
-    check_call(mul, "multiply", [z, z])
-    check_call(sub, "subtract", [w, z])
+    check_call(mm, "relax.multiply", [x, y])
+    check_call(mul, "relax.multiply", [z, z])
+    check_call(sub, "relax.add", [w, z])
     check_call(shape_of, "relax.shape_of", [t])
 
     assert f.body.body == o
@@ -456,46 +457,17 @@ def test_dataflow_match_shape():
     assert q_bind.value.args[1] == x2_bind.var
 
 
-@pytest.mark.xfail
 def test_dataflow_scope_fail():
     with pytest.raises(tvm.error.DiagnosticError):
-        # FIXME
-        @R.function
-        def f(x: R.Tensor(_, _)):
-            with relax.dataflow():
-                y = add(x, x)
-                z = multiply(y, x)
-                w = subtract(z, x)
-                relax.output(y, w)
-            t = divide(y, z)
-            return t
-
-
-def test_dataflow_syntax_fail_pattern():
-    with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: R.Tensor(_, _)):
-            with relax.dataflow() as df:
-                y = add(x, x)
-                z = multiply(y, x)
-                w = subtract(z, x)
-                relax.output(y, z)
-            t = divide(y, z)
-            return t
-
-
-def test_dataflow_syntax_fail_params():
-    with pytest.raises(tvm.error.DiagnosticError):
-
-        @R.function
-        def f(x: R.Tensor(_, _)):
-            with relax.dataflow(x) as df:
-                y = add(x, x)
-                z = multiply(y, x)
-                w = subtract(z, x)
-                relax.output(y, w)
-            t = divide(y, z)
+        def f(x: R.Tensor(ndim=2)):
+            with R.dataflow():
+                y = R.add(x, x)
+                z = R.multiply(y, x)
+                w = R.add(z, x)
+                R.output(y, w)
+            t = R.multiply(y, z)
             return t
 
 
@@ -503,13 +475,13 @@ def test_dataflow_unbound_outputs():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
-        def f(x: R.Tensor(_, _)):
-            with relax.dataflow():
-                y = add(x, x)
-                z = multiply(y, x)
-                w = subtract(z, x)
-                relax.output(x, y, w, q)
-            t = divide(y, z)
+        def f(x: R.Tensor(ndim=2)):
+            with R.dataflow():
+                y = R.add(x, x)
+                z = R.multiply(y, x)
+                w = R.add(z, x)
+                R.output(x, y, w, q)
+            t = R.multiply(y, z)
             return t
 
 
@@ -906,5 +878,4 @@ def test_class_normalize():
 
 
 if __name__ == "__main__":
-    test_if()
     pytest.main([__file__])

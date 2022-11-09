@@ -245,7 +245,9 @@ def test_call_packed():
         q: R.Tensor(ndim=2) = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
-        o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
+        o: R.Object = R.call_packed(
+            "contrib.tensor_array_stack", x, y, type_args=R.Object, test_attr=True
+        )
         return o
 
     # checking that the call_packed call is turned into a call to an extern func
@@ -254,7 +256,7 @@ def test_call_packed():
             f,
             include_type_annotations=False,
             include_shape_annotations=False,
-            include_call_attrs=False,
+            include_call_attrs=True,
         )
     )
     extern_call = strip_whitespace(
@@ -265,7 +267,8 @@ def test_call_packed():
                 Var(name_hint="x"),
                 Var(name_hint="y")
             ],
-            type_args=[ObjectType()]
+            type_args=[ObjectType()],
+            attrs={"test_attr":1}
         )
         """
     )
@@ -286,20 +289,7 @@ def test_call_packed():
     # the function has an annotated return type
     assert "ret_type=ObjectType()" in f_str
 
-    # the op call has attributes so let's check those too
-    f_str_complete = strip_whitespace(dump_ast(f))
-    assert f_str != f_str_complete
-    attrs_str = strip_whitespace(
-        """
-        attrs={
-            "units": None,
-            "out_dtype": "",
-            "transpose_a": 0,
-            "transpose_b": 0
-        }
-        """
-    )
-    assert attrs_str in f_str_complete
+    # TODO: add testcase for op attrs
 
 
 def test_call_tir():
@@ -375,5 +365,4 @@ def test_operators():
 
 
 if __name__ == "__main__":
-    test_call_packed()
     pytest.main([__file__])

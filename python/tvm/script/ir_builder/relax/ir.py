@@ -44,7 +44,6 @@ from tvm.relax.ty import ObjectType, ShapeType
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
 
-from ..tir import int64
 from ..tir import var as _tir_var
 from . import _ffi_api, frame
 

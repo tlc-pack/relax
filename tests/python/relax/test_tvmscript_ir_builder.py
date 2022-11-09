@@ -42,7 +42,11 @@ def test_function_simple():
             R.func_ret_value(out)
     func = ir_builder.get()
     # create with BlockBuilder
-    x = relax.Var("x", [128, 128], relax.DynTensorType(2, "float32"))
+    x = relax.Var(
+        "x",
+        [tvm.tir.IntImm("int64", 128), tvm.tir.IntImm("int64", 128)],
+        relax.DynTensorType(2, "float32"),
+    )
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": 1}):
         out = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
@@ -123,7 +127,11 @@ def test_dataflow_block():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    x = relax.Var("x", (128, 128), relax.DynTensorType(2, "float32"))
+    x = relax.Var(
+        "x",
+        [tvm.tir.IntImm("int64", 128), tvm.tir.IntImm("int64", 128)],
+        relax.DynTensorType(2, "float32"),
+    )
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         with bb.dataflow():
