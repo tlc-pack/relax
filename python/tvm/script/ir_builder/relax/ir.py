@@ -197,20 +197,14 @@ def dataflow() -> frame.BlockFrame:
     return _ffi_api.Dataflow()  # pylint: disable=no-member # type: ignore
 
 
-def output(*vars: Tuple[Var]) -> Tuple[Var]:
+def output(*vars: Tuple[Var]) -> None:
     """Expose the dataflow block output variables as global ones.
     Parameters
     ----------
     vars: Tuple[Var]
         The output variables of a dataflow block.
-    Returns
-    -------
-    vars: Tuple[Var]
-        The output variables of a dataflow block. Return the input variables to parser side for
-        followup process
     """
-    _ffi_api.DataflowBlockOutput(vars)  # pylint: disable=no-member # type: ignore
-    return vars
+    return _ffi_api.DataflowBlockOutput(vars)  # pylint: disable=no-member # type: ignore
 
 
 ################################## Ops #################################
@@ -277,25 +271,22 @@ def call_packed(
 ############################### Bindings ###############################
 
 
-def emit(value: Expr, is_dataflow_var: bool) -> Var:
+def emit(value: Expr) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
     value: Expr
         The right side value of the bindings to be emitted.
-    is_dataflow_var: bool
-        A boolean indicating if the emitted binding variable is a dataflow variable.
+
     Returns
     -------
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.Emit(value, is_dataflow_var)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Emit(value)  # pylint: disable=no-member # type: ignore
 
 
-def emit_match_shape(
-    value: Expr, pattern: List[PrimExpr], emit_var: bool, is_dataflow_var: bool
-) -> Optional[Var]:
+def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool) -> Optional[Var]:
     """Emit a match_shape binding to the last binding block frame.
     Parameters
     ----------
@@ -305,15 +296,13 @@ def emit_match_shape(
         The pattern of the MatchShape to be emitted.
     emit_var: bool
         A boolean indicating if the MatchShape contains the emitted variable.
-    is_dataflow_var: bool
-        A boolean indicating if the emitted variable is a dataflow variable when `emit_var` is True.
-        When `emit_var` is False, the value of this flag will be ignored.
+
     Returns
     -------
     var: Optional[Var]
         The emitted var if `emit_var` is True. Otherwise, return `None`.
     """
-    return _ffi_api.EmitMatchShape(value, pattern, emit_var, is_dataflow_var)  # type: ignore
+    return _ffi_api.EmitMatchShape(value, pattern, emit_var)  # type: ignore
 
 
 ############################# Type Deduce ##############################

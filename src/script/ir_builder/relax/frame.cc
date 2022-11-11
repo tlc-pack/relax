@@ -19,6 +19,7 @@
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/expr_functor.h>
 #include <tvm/script/ir_builder/relax/frame.h>
 #include <tvm/script/ir_builder/relax/ir.h>
 
@@ -107,6 +108,40 @@ void BlockFrameNode::EnterWithScope() {
   }
 }
 
+class DataflowBlockRewriter : public tvm::relax::ExprMutator {
+ public:
+  static tvm::relax::DataflowBlock Rewrite(const tvm::relax::DataflowBlock& block,
+                                           const Array<tvm::relax::Var>& output_vars) {
+    DataflowBlockRewriter rewriter(output_vars);
+    return Downcast<tvm::relax::DataflowBlock>(rewriter.VisitBindingBlock(block));
+  }
+
+ private:
+  explicit DataflowBlockRewriter(const Array<tvm::relax::Var>& output_vars) {
+    for (const tvm::relax::Var& var : output_vars) {
+      output_var_set_.insert(var.get());
+    }
+  }
+
+  tvm::relax::Var VisitVarDef_(const tvm::relax::DataflowVarNode* op) final {
+    auto it = output_var_set_.find(op);
+    if (it != output_var_set_.end()) {
+      // Rewrite dataflow vars to global vars
+      auto n = make_object<tvm::relax::VarNode>(*op);
+      tvm::relax::Var new_var(n);
+      this->var_remap_[op->vid] = new_var;
+      LOG(INFO) << op->name_hint() << " " << Downcast<tvm::relax::DynTensorType>(op->checked_type_)->ndim;
+      LOG(INFO) << new_var->name_hint() << " " << Downcast<tvm::relax::DynTensorType>(new_var->checked_type_)->ndim;
+      return new_var;
+    } else {
+      return GetRef<tvm::relax::Var>(op);
+    }
+  }
+
+ private:
+  std::unordered_set<const tvm::relax::VarNode*> output_var_set_;
+};
+
 void BlockFrameNode::ExitWithScope() {
   // Step 1. Pop the current frame out of the frame stack.
   RelaxFrameNode::ExitWithScope();
@@ -117,6 +152,38 @@ void BlockFrameNode::ExitWithScope() {
   tvm::relax::BindingBlock block = block_builder->EndBlock();
   CHECK(!block->bindings.empty())
       << "ValueError: A binding block should have at lease one binding.";
+
+  // Step 3. Rewrite the dataflow block.
+  if (is_dataflow) {
+    // Step 3.1. Rewrite block binding
+    block = DataflowBlockRewriter::Rewrite(Downcast<tvm::relax::DataflowBlock>(block), output_vars);
+
+    // Step 3.2. Collect global vars' reference in bindings
+    Map<tvm::relax::Id, tvm::relax::Var> new_global_vars;
+    for (const tvm::relax::Binding& binding : block->bindings) {
+      if (const auto* var_binding = binding.as<tvm::relax::VarBindingNode>()) {
+        if (!var_binding->var->IsInstance<tvm::relax::DataflowVarNode>()) {
+          new_global_vars.Set(var_binding->var->vid, var_binding->var);
+        }
+      } else if (const auto* match_shape = binding.as<tvm::relax::MatchShapeNode>()) {
+        if (match_shape->var.defined() &&
+            !match_shape->var->IsInstance<tvm::relax::DataflowVarNode>()) {
+          new_global_vars.Set(match_shape->var->vid, match_shape->var);
+        }
+      } else {
+        LOG(FATAL) << "ValueError: Unsupported binding type: " << binding;
+      }
+    }
+
+    // Step 3.3. Rewrite output vars
+    Array<tvm::relax::Var> new_output_vars;
+    for (const auto& var : output_vars) {
+      auto it = new_global_vars.find(var->vid);
+      ICHECK(it != new_global_vars.end());
+      new_output_vars.push_back((*it).second);
+    }
+    output_vars = std::move(new_output_vars);
+  }
 
   // Step 3. Get the last frame from the IRBuilder frame stack.
   Optional<RelaxFrame> opt_last_frame = IRBuilder::Current()->GetLastFrame<RelaxFrame>();
@@ -137,7 +204,6 @@ void BlockFrameNode::ExitWithScope() {
     LOG(FATAL) << "ValueError: Currently the last frame is supposed to be either a function frame "
                   "or a block frame. However, the last frame is \""
                << last_frame->GetTypeKey() << "\".";
-    // TODO(ruihang): support IfFrame and then IfFrame is a possible branch here.
   }
 }
 
@@ -159,7 +225,7 @@ void IfFrameNode::ExitWithScope() {
   CHECK(then_expr.defined())
       << "ValueError: The body of else part is expected to be defined before exiting.";
   auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value());
-  var = Emit(body, /*is_dataflow=*/false);
+  var = Emit(body);
   IRBuilder::Name(var_name, var);
 }
 

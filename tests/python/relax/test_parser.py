@@ -58,6 +58,7 @@ def check_tensor_var(v, s, d, ndim=None):
     assert isinstance(v._checked_type_, relax.ty.DynTensorType)
     assert v._checked_type_.dtype == d
     if isinstance(s, (list, tuple)):
+        print(v._checked_type_)
         assert v._checked_type_.ndim == len(s)
     if ndim is not None:
         assert v._checked_type_.ndim == ndim
@@ -436,7 +437,7 @@ def test_dataflow_match_shape():
             z = R.multiply(y, x)
             R.match_shape(R.shape_of(z), (n, m))
             w: R.Tensor((n, m)) = R.add(z, x)
-            relax.output(y, w, x2)
+            R.output(y, w, x2)
         t: R.Tensor((n, m)) = R.multiply(y, w)
         q: R.Tensor((n, m)) = R.add(t, x2)
         return q
@@ -447,6 +448,7 @@ def test_dataflow_match_shape():
     z_shape_bind = df_block.bindings[3]
     q_bind = f.body.blocks[1].bindings[1]
 
+    print(f)
     assert x2_bind.var.name_hint == "x2"
     check_tensor_var(x2_bind.var, ("n", "m"), "")
     check_shape(x2_bind.pattern, ("n", "m"))
@@ -878,4 +880,5 @@ def test_class_normalize():
 
 
 if __name__ == "__main__":
+    test_dataflow_match_shape()
     pytest.main([__file__])

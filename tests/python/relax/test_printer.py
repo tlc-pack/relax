@@ -278,11 +278,12 @@ def test_const_meta():
             return w
 
         relax_text = my_const.script(show_meta=True)
+        print(relax_text)
+
         texts = metadata_partitioner(relax_text)
         return texts[1]
 
     json_str = _get_meta_data()
-    print(json_str)
 
     @R.function(metadata=json_str)
     def my_const(x: Tensor((2, 3), "float32")):

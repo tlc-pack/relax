@@ -1272,5 +1272,4 @@ def test_set_input_get_failure_rpc():
 
 
 if __name__ == "__main__":
-    test_sub_func_call()
     tvm.testing.main()

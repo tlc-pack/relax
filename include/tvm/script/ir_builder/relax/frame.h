@@ -135,17 +135,23 @@ class BlockFrameNode : public RelaxFrameNode {
   /*! \brief The variables emitted in this block. */
   Array<tvm::relax::Var> emitted_vars;
   /*!
-   * \brief (Only used for a dataflow block.) A boolean indicating if the dataflow block is ended of
-   * construction. If it is true, any new binding trying to be emitted into this block will cause an
-   * error.
+   * \brief A boolean indicating if the dataflow block is ended of construction.
+   * If it is true, any new binding trying to be emitted into this block will cause an error.
+   * \note Only used for a dataflow block.
    */
   bool block_ended;
+  /*!
+   * \brief The output vars of the dataflow block.
+   * \note Only used for a dataflow block.
+   */
+  Array<tvm::relax::Var> output_vars;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     RelaxFrameNode::VisitAttrs(v);
     v->Visit("is_dataflow", &is_dataflow);
     v->Visit("emitted_vars", &emitted_vars);
-    v->Visit("block_ended", &block_ended);
+    v->Visit("output_vars", &output_vars);
+    // `block_ended` is not visited.
   }
 
   static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";
