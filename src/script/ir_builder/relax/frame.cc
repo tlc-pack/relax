@@ -33,21 +33,27 @@ namespace relax {
 void SeqExprFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
-  if (Optional<BlockFrame> block_frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
+  if (Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
     block_frame.value()->ExitWithScope();
+    ICHECK(!IRBuilder::Current()->GetLastFrame<BlockFrame>().defined())
+        << "ValueError: There is some remaining BlockFrame that is not properly popped out.";
   }
   RelaxFrameNode::ExitWithScope();
+}
+
+void SeqExprFrameNode::EnterWithScope() {
+  RelaxFrameNode::EnterWithScope();
+  BindingBlock()->EnterWithScope();
 }
 
 void FunctionFrameNode::ExitWithScope() {
   using ir::IRModuleFrame;
   using tvm::relax::Expr;
-  SeqExprFrameNode::ExitWithScope();
   IRBuilder builder = IRBuilder::Current();
+  SeqExprFrameNode::ExitWithScope();
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
                              "`return` to return an Expr";
-  output = this->block_builder->Normalize(output.value());
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   Expr func_shape = ret_shape.value_or(tvm::relax::RuntimeDepShape());
   if (func_shape->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
@@ -130,8 +136,6 @@ class DataflowBlockRewriter : public tvm::relax::ExprMutator {
       auto n = make_object<tvm::relax::VarNode>(*op);
       tvm::relax::Var new_var(n);
       this->var_remap_[op->vid] = new_var;
-      LOG(INFO) << op->name_hint() << " " << Downcast<tvm::relax::DynTensorType>(op->checked_type_)->ndim;
-      LOG(INFO) << new_var->name_hint() << " " << Downcast<tvm::relax::DynTensorType>(new_var->checked_type_)->ndim;
       return new_var;
     } else {
       return GetRef<tvm::relax::Var>(op);
@@ -150,8 +154,9 @@ void BlockFrameNode::ExitWithScope() {
   // lease one binding - otherwise, the block is not supposed to be created.
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::BindingBlock block = block_builder->EndBlock();
-  CHECK(!block->bindings.empty())
-      << "ValueError: A binding block should have at lease one binding.";
+  if (block->bindings.empty()) {
+    return;
+  }
 
   // Step 3. Rewrite the dataflow block.
   if (is_dataflow) {
@@ -204,6 +209,11 @@ void BlockFrameNode::ExitWithScope() {
     LOG(FATAL) << "ValueError: Currently the last frame is supposed to be either a function frame "
                   "or a block frame. However, the last frame is \""
                << last_frame->GetTypeKey() << "\".";
+  }
+
+  // Step 6. Start another binding block when a dataflow block ended.
+  if (is_dataflow) {
+    BindingBlock()->EnterWithScope();
   }
 }
 

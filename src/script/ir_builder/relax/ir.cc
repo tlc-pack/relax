@@ -138,6 +138,10 @@ void FuncRetShape(tvm::relax::Expr ret_shape) {
 }
 
 void FuncRetValue(const tvm::relax::Expr& value) {
+  // Step 0. Normalize the value.
+  const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+  tvm::relax::Expr normalized_value = block_builder->Normalize(value);
+
   // Step 1. The current Relax TVMScript syntax only allows function return appearing at the end of
   // a function body. Therefore if there is any unended block frame when dealing with function
   // return, we should end the block frame.
@@ -152,7 +156,8 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   CHECK(!frame->output.defined())
       << "ValueError: Relax functions don't support multiple return statement. Please make sure "
          "the return statement appears at the end of function.";
-  frame->output = value;
+
+  frame->output = std::move(normalized_value);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function);

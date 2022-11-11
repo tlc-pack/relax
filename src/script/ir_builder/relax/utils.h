@@ -66,11 +66,10 @@ inline BlockFrame CheckBlockFrameExistAndUnended() {
     CHECK(!block_frame.value()->block_ended)
         << "ValueError: New binding is not allowed after dataflow block output.";
     return block_frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: Block frame not find";
+    throw;
   }
-
-  BlockFrame new_block_frame = BindingBlock();
-  new_block_frame->EnterWithScope();
-  return new_block_frame;
 }
 
 inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String* var_name) {

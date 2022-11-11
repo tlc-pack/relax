@@ -67,6 +67,7 @@ class SeqExprFrameNode : public RelaxFrameNode {
   TVM_DECLARE_BASE_OBJECT_INFO(SeqExprFrameNode, RelaxFrameNode);
 
  public:
+  void EnterWithScope() override;
   void ExitWithScope() override;
 };
 

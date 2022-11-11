@@ -754,10 +754,10 @@ def test_class_irmodule():
 
         @R.function
         def f(x: R.Tensor(("n", "n"))) -> R.Tensor:
-            return g(x)
+            return gg(x)
 
         @R.function
-        def g(y: R.Tensor(("n", "n"))) -> R.Tensor:
+        def gg(y: R.Tensor(("n", "n"))) -> R.Tensor:
             n = T.var("int64")
             return R.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
 
@@ -880,5 +880,5 @@ def test_class_normalize():
 
 
 if __name__ == "__main__":
-    test_dataflow_match_shape()
+    test_class_irmodule()
     pytest.main([__file__])
