@@ -737,5 +737,5 @@ def test_other_cases():
 
 
 if __name__ == "__main__":
-    test_dataflow_block()
+    test_return_without_binding()
     tvm.testing.main()

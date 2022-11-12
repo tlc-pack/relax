@@ -99,13 +99,12 @@ def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) ->
         if shape is None:
             return type_annotation.type, relax.RuntimeDepShape()
         shape = list(shape.values)
-        var_table = self.var_table.get()
         for i, expr in enumerate(shape):
             # Define the symbolic shape var
             if isinstance(expr, tir.Var):
                 name = expr.name
-                if name in var_table:
-                    shape[i] = var_table[name]
+                if name in self.var_table.get():
+                    shape[i] = self.var_table.get()[name]
                 else:
                     self.var_table.add(name, shape[i])
         return type_annotation.type, relax.ShapeExpr(shape)
