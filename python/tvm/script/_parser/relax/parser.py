@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Tuple, Union
 
 from tvm import relax, tir
 from tvm.ir import Type

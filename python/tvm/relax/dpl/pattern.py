@@ -844,7 +844,8 @@ def is_call_tir(
     args: Union[List, Tuple, TuplePattern] = None,
     shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
 ) -> CallPattern:
-    """Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
+    """
+    Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
 
     Parameters
     ----------

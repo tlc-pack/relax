@@ -17,14 +17,12 @@
 # pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
-import functools
-from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union, Any
+from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Type
 from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
-from tvm.relax.utils import convert_to_expr
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -41,6 +39,7 @@ from tvm.relax.op import (
     unique,
 )
 from tvm.relax.ty import ObjectType, ShapeType
+from tvm.relax.utils import convert_to_expr
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
 
@@ -359,32 +358,6 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
     """
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
 
-
-############################### Operators ###############################
-
-FType = TypeVar("FType", bound=Callable[..., Any])
-
-
-def builder_warp(func: FType) -> FType:
-    """A wrapper to auto-convert builder.TensorType to relax.DynTensorType"""
-
-    def _convert_tensor_type(args: Any) -> Any:
-        if isinstance(args, (list, tuple)):
-            t = type(args)
-            return t([_convert_tensor_type(x) for x in args])
-        elif isinstance(args, dict):
-            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
-        else:
-            return args.type if isinstance(args, TensorType) else args
-
-    @functools.wraps(func)
-    def wrap(*args, **kwargs):
-        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
-
-    return wrap  # type: ignore
-
-
-invoke_closure = builder_warp(invoke_closure)
 
 ############################### Importer ###############################
 

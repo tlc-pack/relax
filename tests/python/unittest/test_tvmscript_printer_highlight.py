@@ -52,5 +52,6 @@ def test_highlight_script():
     Module["main"].show(style="dark")
     Module["main"].show(style="ansi")
 
+
 if __name__ == "__main__":
     tvm.testing.main()

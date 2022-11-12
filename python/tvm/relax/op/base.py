@@ -77,12 +77,16 @@ def call_tir(
                 raise TypeError("Expect int or PrimExpr for shape")
         return ShapeExpr(shape_array)
 
-
     if isinstance(shape, (list, tuple, Array)):
         if all([not isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
-            shape = _create_shape(shape)
+            shape = _create_shape(shape)  # type: ignore
         elif all([isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
-            shape = Tuple([_create_shape(x) if not isinstance(x, ShapeExpr) else x for x in shape])
+            shape = Tuple(
+                [
+                    _create_shape(x) if not isinstance(x, ShapeExpr) else x  # type: ignore
+                    for x in shape
+                ]
+            )
         else:
             raise TypeError(
                 f"The shape is expected to be ShapeExpr or Tuple[ShapeExpr], bot got: f{shape}"
@@ -164,7 +168,7 @@ def invoke_closure(
     if not isinstance(type_args, (list, tuple)):
         type_args = (type_args,)
 
-    return _ffi_api.invoke_closure(closure, args, type_args)
+    return _ffi_api.invoke_closure(closure, args, type_args)  # type: ignore
 
 
 def render_object(val: tvm.Object) -> str:
@@ -238,8 +242,6 @@ def print(*values: List[Expr], format: str = "") -> Expr:
     result : Expr
         A relax Call, which will print the value during runtime.
     """
-    if isinstance(values, Expr):  # type: ignore
-        values = [values]
     return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
 
 
@@ -296,7 +298,9 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
         raise AssertionError(error_message)
 
 
-def assert_op(condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = None, format: str = "") -> Expr:
+def assert_op(
+    condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = None, format: str = ""
+) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
     so the name must be distinct).
@@ -319,7 +323,7 @@ def assert_op(condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = 
     """
     if format_args is None:
         format_args = []
-    if isinstance(format_args, Expr):
+    if isinstance(format_args, Expr):  # type: ignore
         format_args = [format_args]
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 

@@ -480,7 +480,9 @@ def test_vm_compile_e2e_func_param_with_shape():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def func(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")) -> R.Tensor:
+        def func(
+            x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
+        ) -> R.Tensor:
             m, k = T.var("int64"), T.var("int64")
             gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
@@ -826,7 +828,7 @@ def test_vm_return_const_tuple():
     @tvm.script.ir_module
     class ReturnConstTuple:
         @R.function
-        def main(x: R.Tensor(ndim=2, dtype= "float32")):
+        def main(x: R.Tensor(ndim=2, dtype="float32")):
             y = R.const([1, 2])
             z = (y, R.const([3, 4]), x)
             return z

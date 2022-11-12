@@ -188,7 +188,9 @@ def test_block_builder_input_mod():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def before_main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")) -> R.Tensor:
+        def before_main(
+            x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
+        ) -> R.Tensor:
             m, n, k = T.var("int64"), T.var("int64"), T.var("int64")
             gv0 = R.call_tir("tir_matmul", (x, w), (m, k), dtype="float32")
             return gv0

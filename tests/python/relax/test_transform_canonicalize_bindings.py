@@ -247,5 +247,4 @@ def test_unbound_match_shape():
 
 
 if __name__ == "__main__":
-    test_casting()
     tvm.testing.main()

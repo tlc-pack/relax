@@ -65,7 +65,8 @@ def metadata_partitioner(rx_txt: str) -> List[str]:
     return partitions
 
 
-def convert_to_expr(value: Union[Expr, Tuple[Expr]]) -> Expr:
+def convert_to_expr(value: Union[PrimExpr, Expr, Tuple[PrimExpr, Expr]]) -> Expr:
+    """Helper function to convert tuple to Expr."""
     if not isinstance(value, tuple):
         return convert_to_object(value)
     value = list(value)
@@ -73,7 +74,7 @@ def convert_to_expr(value: Union[Expr, Tuple[Expr]]) -> Expr:
         value[i] = convert_to_expr(v)
     if all([isinstance(f, PrimExpr) for f in value]):
         return ShapeExpr(value)
-    elif all([isinstance(f, Expr) for f in value]):
+    elif all([isinstance(f, Expr) for f in value]):  # type: ignore
         return rx_Tuple(value)
     else:
         raise TypeError("Return types, with mixed PrimExpr and Relax Expr, is not supported.")

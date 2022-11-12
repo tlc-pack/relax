@@ -114,6 +114,7 @@ def test_autotir(dev: str):
                 lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
                 R.output(lv1)
             return lv1
+
     mod = InputModule
     assert isinstance(mod, IRModule)
 
