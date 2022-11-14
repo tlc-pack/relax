@@ -54,22 +54,14 @@ inline tvm::relax::BlockBuilder GetBlockBuilder() {
 }
 
 inline BlockFrame CheckBlockFrameExistAndUnended() {
-  // - If we're emitting a non-dataflow binding in the function (that is to say, the binding is not
-  // wrapped by `with R.dataflow()`), it is possible that there is no existing BlockFrame. In this
-  // case, we will create a BlockFrame and "enter its 'with' scope" first.
-  // - Otherwise, there is already an existing BlockFrame. We check if the block is "ended" - if a
-  // block is ended, it is not allowed to emit new bindings into this block, and we should throw
-  // exceptions.
+  // We check if the current block is "ended" - if a block is ended, it is not allowed to emit new
+  // bindings into this block, and we should throw exceptions.
 
   Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
-  if (block_frame.defined()) {
-    CHECK(!block_frame.value()->block_ended)
-        << "ValueError: New binding is not allowed after dataflow block output.";
-    return block_frame.value();
-  } else {
-    LOG(FATAL) << "ValueError: Block frame not find";
-    throw;
-  }
+  CHECK(block_frame.defined()) << "ValueError: Block frame not find";
+  CHECK(!block_frame.value()->block_ended)
+      << "ValueError: New binding is not allowed after dataflow block output.";
+  return block_frame.value();
 }
 
 inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String* var_name) {

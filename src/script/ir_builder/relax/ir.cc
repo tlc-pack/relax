@@ -55,8 +55,6 @@ TensorType::TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr
   data_ = std::move(n);
 }
 
-TensorType::operator tvm::Type() const { return (*this)->type; }
-
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
 TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {

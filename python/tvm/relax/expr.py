@@ -117,6 +117,8 @@ class Var(Expr):
             )
 
     def __getitem__(self, key):
+        if not isinstance(key, int):
+            raise TypeError("TupleGetItem only supports integer index")
         var_type = self._checked_type_
         if var_type and isinstance(var_type, ty.TupleType):
             return TupleGetItem(self, key)

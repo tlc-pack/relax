@@ -34,15 +34,16 @@ IRModuleFrame IRModule() {
   return IRModuleFrame(n);
 }
 
-GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func) {
+GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func_signature) {
   IRModuleFrame frame = FindModuleFrame("I.DeclFunction");
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
   GlobalVar gv = GlobalVar(func_name);
-
+  CHECK(frame->functions.find(gv) == frame->functions.end())
+      << "ValueError: function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);
-  if (func.defined()) {
-    frame->functions.Set(gv, func.value());
+  if (func_signature.defined()) {
+    frame->functions.Set(gv, func_signature.value());
   }
   return gv;
 }
