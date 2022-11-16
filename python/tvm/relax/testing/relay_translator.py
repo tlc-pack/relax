@@ -17,8 +17,6 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return
 """Relay to Relax translator."""
 
-from __future__ import annotations
-
 from typing import Any, Dict, List, Optional
 
 import tvm

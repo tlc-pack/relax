@@ -17,7 +17,9 @@
  * under the License.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/expr_functor.h>
 #include <tvm/script/ir_builder/relax/frame.h>
 #include <tvm/script/ir_builder/relax/ir.h>
 
@@ -31,28 +33,38 @@ namespace relax {
 void SeqExprFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
-  if (Optional<BlockFrame> block_frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
+  if (Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
     block_frame.value()->ExitWithScope();
-    ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>().defined())
+    ICHECK(!IRBuilder::Current()->GetLastFrame<BlockFrame>().defined())
         << "ValueError: There is some remaining BlockFrame that is not properly popped out.";
   }
   RelaxFrameNode::ExitWithScope();
 }
 
+void SeqExprFrameNode::EnterWithScope() {
+  RelaxFrameNode::EnterWithScope();
+  BindingBlock()->EnterWithScope();
+}
+
 void FunctionFrameNode::ExitWithScope() {
   using ir::IRModuleFrame;
   using tvm::relax::Expr;
-  SeqExprFrameNode::ExitWithScope();
   IRBuilder builder = IRBuilder::Current();
+  SeqExprFrameNode::ExitWithScope();
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
                              "`return` to return an Expr";
-  output = this->block_builder->Normalize(output.value());
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  Expr func_shape = ret_shape.value_or(tvm::relax::RuntimeDepShape());
+  if (func_shape->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
+    // If the return shape is not specified, we try to derive it from the body.
+    // TODO(relax-team): enable the following line when fixing ret_shape issue in block builder
+    // func_shape = tvm::relax::DeriveFuncRetShape(params, body);
+  }
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_type=*/ret_type.value_or(Type()),
-                            /*ret_shape=*/tvm::relax::RuntimeDepShape(),
+                            /*ret_shape=*/func_shape,
                             /*attrs=*/DictAttrs(attrs));
   // TODO(relax-team): remove this line
   func = WithAttr(func, "global_symbol", name.value());
@@ -102,6 +114,38 @@ void BlockFrameNode::EnterWithScope() {
   }
 }
 
+class DataflowBlockRewriter : public tvm::relax::ExprMutator {
+ public:
+  static tvm::relax::DataflowBlock Rewrite(const tvm::relax::DataflowBlock& block,
+                                           const Array<tvm::relax::Var>& output_vars) {
+    DataflowBlockRewriter rewriter(output_vars);
+    return Downcast<tvm::relax::DataflowBlock>(rewriter.VisitBindingBlock(block));
+  }
+
+ private:
+  explicit DataflowBlockRewriter(const Array<tvm::relax::Var>& output_vars) {
+    for (const tvm::relax::Var& var : output_vars) {
+      output_var_set_.insert(var.get());
+    }
+  }
+
+  tvm::relax::Var VisitVarDef_(const tvm::relax::DataflowVarNode* op) final {
+    auto it = output_var_set_.find(op);
+    if (it != output_var_set_.end()) {
+      // Rewrite dataflow vars to global vars
+      auto n = make_object<tvm::relax::VarNode>(*op);
+      tvm::relax::Var new_var(n);
+      this->var_remap_[op->vid] = new_var;
+      return new_var;
+    } else {
+      return GetRef<tvm::relax::Var>(op);
+    }
+  }
+
+ private:
+  std::unordered_set<const tvm::relax::VarNode*> output_var_set_;
+};
+
 void BlockFrameNode::ExitWithScope() {
   // Step 1. Pop the current frame out of the frame stack.
   RelaxFrameNode::ExitWithScope();
@@ -110,8 +154,41 @@ void BlockFrameNode::ExitWithScope() {
   // lease one binding - otherwise, the block is not supposed to be created.
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::BindingBlock block = block_builder->EndBlock();
-  CHECK(!block->bindings.empty())
-      << "ValueError: A binding block should have at lease one binding.";
+  if (block->bindings.empty()) {
+    return;
+  }
+
+  // Step 3. Rewrite the dataflow block.
+  if (is_dataflow) {
+    // Step 3.1. Rewrite block binding
+    block = DataflowBlockRewriter::Rewrite(Downcast<tvm::relax::DataflowBlock>(block), output_vars);
+
+    // Step 3.2. Collect global vars' reference in bindings
+    Map<tvm::relax::Id, tvm::relax::Var> new_global_vars;
+    for (const tvm::relax::Binding& binding : block->bindings) {
+      if (const auto* var_binding = binding.as<tvm::relax::VarBindingNode>()) {
+        if (!var_binding->var->IsInstance<tvm::relax::DataflowVarNode>()) {
+          new_global_vars.Set(var_binding->var->vid, var_binding->var);
+        }
+      } else if (const auto* match_shape = binding.as<tvm::relax::MatchShapeNode>()) {
+        if (match_shape->var.defined() &&
+            !match_shape->var->IsInstance<tvm::relax::DataflowVarNode>()) {
+          new_global_vars.Set(match_shape->var->vid, match_shape->var);
+        }
+      } else {
+        LOG(FATAL) << "ValueError: Unsupported binding type: " << binding;
+      }
+    }
+
+    // Step 3.3. Rewrite output vars
+    Array<tvm::relax::Var> new_output_vars;
+    for (const auto& var : output_vars) {
+      auto it = new_global_vars.find(var->vid);
+      ICHECK(it != new_global_vars.end());
+      new_output_vars.push_back((*it).second);
+    }
+    output_vars = std::move(new_output_vars);
+  }
 
   // Step 3. Get the last frame from the IRBuilder frame stack.
   Optional<RelaxFrame> opt_last_frame = IRBuilder::Current()->GetLastFrame<RelaxFrame>();
@@ -132,7 +209,11 @@ void BlockFrameNode::ExitWithScope() {
     LOG(FATAL) << "ValueError: Currently the last frame is supposed to be either a function frame "
                   "or a block frame. However, the last frame is \""
                << last_frame->GetTypeKey() << "\".";
-    // TODO(ruihang): support IfFrame and then IfFrame is a possible branch here.
+  }
+
+  // Step 6. Start another binding block when a dataflow block ended.
+  if (is_dataflow) {
+    BindingBlock()->EnterWithScope();
   }
 }
 
@@ -154,7 +235,7 @@ void IfFrameNode::ExitWithScope() {
   CHECK(then_expr.defined())
       << "ValueError: The body of else part is expected to be defined before exiting.";
   auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value());
-  var = Emit(body, /*is_dataflow=*/false);
+  var = Emit(body);
   IRBuilder::Name(var_name, var);
 }
 

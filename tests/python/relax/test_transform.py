@@ -15,14 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
 import pytest
 import tvm
 from tvm import relax
 from tvm import tir
 from tvm.ir import structural_equal
 from tvm.ir.base import assert_structural_equal
-from tvm.ir.module import IRModule
 
 import tvm.script
 from tvm.script import tir as T, relax as R
@@ -32,25 +30,25 @@ def test_fma_rewrite():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.ewise_fma(x, y, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.ewise_fma(x, y, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     After = relax.transform.RewriteFMA()(Before)
@@ -62,25 +60,25 @@ def test_fma_rewrite_python():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.ewise_fma(x, y, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.ewise_fma(x, y, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     After = relax.transform.EwiseRewriteFMA()(Before)
@@ -92,11 +90,11 @@ def test_fma_fuse():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
+        def main(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
             return gv0
 
     After = relax.transform.FuseFMA()(Before)
@@ -127,11 +125,11 @@ def test_fma_fuse_python():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
+        def main(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
             return gv0
 
     After = relax.transform.EwiseFuseFMA()(Before)
@@ -165,11 +163,11 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRemoveGlobalScopeVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
-                with relax.dataflow():
-                    gv_remove = relax.add(x, y)
-                    gv1 = relax.add(x, y)
-                    relax.output(gv_remove, gv1)
+            def main(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+                with R.dataflow():
+                    gv_remove = R.add(x, y)
+                    gv1 = R.add(x, y)
+                    R.output(gv_remove, gv1)
                 return (gv_remove, gv1)
 
         relax.transform.FailTestRewrite()(TestRemoveGlobalScopeVar)
@@ -179,11 +177,11 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRewriteGlobalScopeVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
-                with relax.dataflow():
-                    gv_rewrite = relax.add(x, y)
-                    gv1 = relax.add(x, y)
-                    relax.output(gv_rewrite, gv1)
+            def main(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+                with R.dataflow():
+                    gv_rewrite = R.add(x, y)
+                    gv1 = R.add(x, y)
+                    R.output(gv_rewrite, gv1)
                 return (gv_rewrite, gv1)
 
         relax.transform.FailTestRewrite()(TestRewriteGlobalScopeVar)
@@ -195,11 +193,11 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRewriteSymbolicVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
-                with relax.dataflow():
+            def main(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+                with R.dataflow():
                     lv0 = R.match_shape(x, (m, n))
-                    gv0 = relax.add(lv0, y)
-                    relax.output(gv0)
+                    gv0 = R.add(lv0, y)
+                    R.output(gv0)
                 return gv0
 
         relax.transform.FailTestRewrite()(TestRewriteSymbolicVar)
@@ -209,11 +207,11 @@ def test_dataflowpass_fail():
         @tvm.script.ir_module
         class TestRemoveSymbolicVar:
             @R.function
-            def main(x: Tensor(_, "float32"), y: Tensor(_, "float32")):
-                with relax.dataflow():
+            def main(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+                with R.dataflow():
                     lv0 = R.match_shape(x, (m, n, d))
-                    gv0 = relax.add(lv0, y)
-                    relax.output(gv0)
+                    gv0 = R.add(lv0, y)
+                    R.output(gv0)
                 return gv0
 
         relax.transform.FailTestRewrite()(TestRemoveSymbolicVar)
@@ -223,7 +221,7 @@ def test_visit_shape():
     @tvm.script.ir_module
     class TestVisitShape:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
+        def foo(x: R.Tensor(("m", "n"), "float32")):
             gv0 = R.add(x, x)
             return gv0
 
@@ -250,11 +248,12 @@ def test_to_non_dataflow():
     @tvm.script.ir_module
     class TestToNonDataflow:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
-                gv0 = relax.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
-                relax.output(gv0)
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            m, n = T.var("int64"), T.var("int64")
+            with R.dataflow():
+                lv0 = R.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+                gv0 = R.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
+                R.output(gv0)
             return gv0
 
     mod = TestToNonDataflow
@@ -294,8 +293,9 @@ def test_call_tir_rewrite():
     @tvm.script.ir_module
     class TestCallTIRRewrite:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
-            gv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            m, n = T.var("int64"), T.var("int64")
+            gv0 = R.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
             return gv0
 
     mod = TestCallTIRRewrite
@@ -326,10 +326,11 @@ def test_vm_memory_lower():
     @tvm.script.ir_module
     class TestVMMemoryLower:
         @R.function
-        def foo(x: Tensor((m, n), "float32")) -> Tensor:
-            alloc = relax.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
-            _ = relax.call_packed(
-                "test.op.identity", x, alloc, type_args=(Tensor(rank=2, dtype="float32"))
+        def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+            m, n = T.var("int64"), T.var("int64")
+            alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
+            _ = R.call_packed(
+                "test.op.identity", x, alloc, type_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             gv0 = alloc
             return gv0
@@ -359,8 +360,9 @@ def test_vm_shape_lowering():
     @tvm.script.ir_module
     class TestVMShapeLower:
         @R.function
-        def foo(x: Tensor(_, "float32")):
-            relax.match_shape(x, (n, m))
+        def foo(x: R.Tensor(dtype="float32")):
+            m, n = T.var("int64"), T.var("int64")
+            R.match_shape(x, (n, m))
             return (n * 2, m * 3)
 
     mod = TestVMShapeLower
@@ -395,10 +397,10 @@ def test_vm_static_shape_lowering():
     @tvm.script.ir_module
     class TestVMStaticShapeLower:
         @R.function
-        def foo(x: Tensor((2, 3), "float32")):
-            with relax.dataflow():
+        def foo(x: R.Tensor((2, 3), "float32")):
+            with R.dataflow():
                 y = R.call_tir("test.vm.tile", (x), (2, 6), dtype="float32")
-                relax.output(y)
+                R.output(y)
             return y
 
     mod = TestVMStaticShapeLower
@@ -432,7 +434,8 @@ def test_vm_shape_lowering_func_param_with_shape():
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
-        def foo(x: Tensor((m, n), "float32"), w: Tensor((n, k), "float32")):
+        def foo(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
+            m, k = T.var("int64"), T.var("int64")
             gv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             return gv0
 
@@ -474,8 +477,9 @@ def test_vm_shape_lower_int32_shape():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def foo(x: Tensor((d,), "float32")):
-            gv0 = R.call_tir("my_extern", (x,), (tir.cast("int32", d),), dtype="float32")
+        def foo(x: R.Tensor(("d",), "float32")):
+            d = T.var("int64")
+            gv0 = R.call_tir("my_extern", (x,), (T.cast(d, "int32"),), dtype="float32")
             return gv0
 
     before_mod = InputModule
@@ -514,9 +518,9 @@ def test_normalize_function():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def mul_add(x: Tensor((m, n), "float16")) -> Tensor(None, "float16", ndim=2):
+        def mul_add(x: R.Tensor(("m", "n"), "float16")) -> R.Tensor(dtype="float16", ndim=2):
             gv = R.add(x, x)
-            gv1 = relax.add(x, x)
+            gv1 = R.add(x, x)
             return R.multiply(gv, gv1)
 
     assert_structural_equal(after_mod, Expected)
@@ -561,8 +565,8 @@ def test_normalize_if():
     class Expected:
         @R.function
         def f(
-            cond: Tensor((), "bool"), x: Tensor((1,), "float32")
-        ) -> Tensor(None, "float32", ndim=1):
+            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+        ) -> R.Tensor(dtype="float32", ndim=1):
             if cond:
                 gv = R.add(x, x)
                 gv1 = R.add(x, x)
@@ -581,10 +585,10 @@ def test_normalize_no_op():
     @tvm.script.ir_module
     class ANFMod1:
         @R.function
-        def f(x: Tensor(_, "float32")):
-            gv = relax.add(x, x)
-            gv1 = relax.add(gv, gv)
-            gv2 = relax.add(gv, gv1)
+        def f(x: R.Tensor(dtype="float32")):
+            gv = R.add(x, x)
+            gv1 = R.add(gv, gv)
+            gv2 = R.add(gv, gv1)
             return (gv, gv2)
 
     before_mod = ANFMod1
@@ -594,11 +598,12 @@ def test_normalize_no_op():
     @tvm.script.ir_module
     class ANFMod2:
         @R.function
-        def foo(x: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
-                gv0 = relax.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
-                relax.output(gv0)
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            m, n = T.var("int64"), T.var("int64")
+            with R.dataflow():
+                lv0 = R.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+                gv0 = R.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
+                R.output(gv0)
             return gv0
 
     mod = ANFMod2

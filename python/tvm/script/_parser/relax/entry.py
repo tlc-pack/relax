@@ -22,7 +22,9 @@ from typing import TypeVar as _TypeVar
 from typing import Union
 
 from tvm.ir import FuncType, TypeConstraint, TypeVar
-from tvm.relax import Expr, Function, Type, Var
+from tvm.relax import DynTensorType, Expr, Function, TupleType, Type, Var
+from tvm.relax import Tuple as RxTuple
+from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
 from ...ir_builder.relax import TensorType, tensor
@@ -43,20 +45,34 @@ def function(f: FType) -> Union[Function, FType]:
 setattr(function, "dispatch_token", "relax")
 
 
-class TensorProxy:
+############################### R.Tensor ###############################
+
+
+class TensorProxy(ObjectGeneric):
     def __call__(
         self,
         shape: Optional[List[Union[PrimExpr, str]]] = None,
         dtype: str = None,
         ndim: int = -1,
     ) -> TensorType:
+        if isinstance(shape, str) and dtype is None:
+            dtype = shape
+            shape = None
         return tensor(shape, dtype, ndim)
 
     def __getitem__(self, keys) -> Var:
         return self(*keys)  # pylint: disable=no-member # type: ignore
 
+    def asobject(self):
+        """Convert to object when direct call `R.Tensor`
+        e.g. `x = R.invoke_closure(clo, (y,), type_args=R.Tensor)`
+        """
+        return DynTensorType()
+
 
 Tensor = TensorProxy()  # pylint: disable=invalid-name
+
+############################## R.Callable ##############################
 
 
 class CallableProxy:
@@ -92,14 +108,6 @@ class CallableProxy:
         type_params: Optional[List[TypeVar]] = None,
         type_constraints: Optional[List[TypeConstraint]] = None,
     ) -> FuncType:
-        def _convert_type(ty: Union[Type, TensorType]) -> Type:
-            if isinstance(ty, TensorType):
-                return ty.type
-            elif isinstance(ty, Type):
-                return ty
-            else:
-                raise TypeError(f"Expect a Type or TensorType, but got: {ty}")
-
         arg_types = [_convert_type(ty) for ty in arg_types]
         ret_type = _convert_type(ret_type)
         return FuncType(arg_types, ret_type, type_params, type_constraints)
@@ -110,7 +118,39 @@ class CallableProxy:
 
 Callable = CallableProxy()
 
+############################### R.Tuple ################################
 
+
+class TupleProxy:
+    """The type of tuple values.
+
+    Parameters
+    ----------
+    fields : List[Type]
+        The fields in the tuple
+    """
+
+    def __call__(
+        self,
+        *fields: List[Union[Expr, Type, TensorType]],
+    ) -> TupleType:
+        if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
+            fields = fields[0]
+
+        if all([isinstance(f, Expr) for f in fields]):
+            return RxTuple(fields)
+        elif all([isinstance(f, (TensorType, Type, TensorProxy)) for f in fields]):
+            return TupleType([_convert_type(ty) for ty in fields])
+        else:
+            raise TypeError(f"Invalid tuple type: {fields}")
+
+    def __getitem__(self, keys) -> Var:
+        return self(*keys)  # pylint: disable=no-member # type: ignore
+
+
+Tuple = TupleProxy()
+
+############################ R.match_shape #############################
 class MatchShapePair:
     value: Expr
     pattern: List[PrimExpr]
@@ -122,3 +162,17 @@ class MatchShapePair:
 
 def match_shape(value: Expr, pattern: List[PrimExpr]):
     return MatchShapePair(value, pattern)
+
+
+################################ utils #################################
+
+
+def _convert_type(ty: Union[Type, TensorType, TensorProxy]) -> Type:
+    if isinstance(ty, TensorProxy):
+        return ty().type
+    if isinstance(ty, TensorType):
+        return ty.type
+    elif isinstance(ty, Type):
+        return ty
+    else:
+        raise TypeError(f"Expect a Type or TensorType, but got: {ty}")

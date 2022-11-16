@@ -15,25 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
 import sys
 import tempfile
-import pytest
-import tvm
-from tvm import relax
-from tvm._ffi.base import TVMError
-
-from tvm.script import relax as R
 
 import numpy as np
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm._ffi.base import TVMError
+from tvm.script import relax as R
 
 
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def foo(x: Tensor((m, n), "int64")):
-        y = relax.unique(x, sorted=False)
-        y_sorted = relax.unique(x)
+    def foo(x: R.Tensor(("m", "n"), "int64")):
+        y = R.unique(x, sorted=False)
+        y_sorted = R.unique(x)
         return y, y_sorted
 
 
@@ -61,17 +59,17 @@ def test_unique():
 @tvm.script.ir_module
 class PrintTest:
     @R.function
-    def foo(x: Tensor((), "int32")):
+    def foo(x: R.Tensor((), "int32")):
         # results have to be bound, but we don't use them
         # TODO: We should allow calls whose results are not bound for side effects;
         #       it would be easy syntactic sugar to add.
-        p1 = relax.print(x)
-        p2 = relax.print(x, format="Number: {}")
+        p1 = R.print(x)
+        p2 = R.print(x, format="Number: {}")
         t = (x, x)
-        p3 = relax.print(t, format="Tuple: {}")
-        p4 = relax.print(x, t)
-        p5 = relax.print(x, x, format="Custom print: {} {}")
-        p6 = relax.print(x, t, format="Another print: {} {}")
+        p3 = R.print(t, format="Tuple: {}")
+        p4 = R.print(x, t)
+        p5 = R.print(x, x, format="Custom print: {} {}")
+        p6 = R.print(x, t, format="Another print: {} {}")
         return x
 
 
@@ -92,34 +90,34 @@ def test_print():
 @tvm.script.ir_module
 class AssertOpTest:
     @R.function
-    def passes(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(True))
+    def passes(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(True))
         return x
 
     @R.function
-    def pass_with_args(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(True), x, format="You won't see me")
+    def pass_with_args(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
     @R.function
-    def simple_fail(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(False))
+    def simple_fail(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(False))
         return x
 
     @R.function
-    def fail_with_message(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(False), format="I failed...")
+    def fail_with_message(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(False), format="I failed...")
         return x
 
     @R.function
-    def fail_with_args(x: Tensor((), "int32")):
+    def fail_with_args(x: R.Tensor((), "int32")):
         # no format
-        p1 = relax.assert_op(relax.const(False), x, x)
+        p1 = R.assert_op(relax.const(False), [x, x])
         return x
 
     @R.function
-    def fail_with_formatted_message(x: Tensor((), "int32")):
-        p1 = relax.assert_op(relax.const(False), x, format="Number: {}")
+    def fail_with_formatted_message(x: R.Tensor((), "int32")):
+        p1 = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 
 
@@ -145,4 +143,4 @@ def test_assert_op():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

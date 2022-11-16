@@ -296,7 +296,7 @@ class IRModule(Node, Scriptable):
 
         return _ffi_api.Module_GetAttrs(self)
 
-    def with_attr(self, attr_key, attr_value) -> IRModule:
+    def with_attr(self, attr_key, attr_value) -> "IRModule":
         """Copy the IRModule and add an attribute to it.
 
         Parameters
@@ -315,7 +315,7 @@ class IRModule(Node, Scriptable):
 
         return _ffi_api.Module_WithAttr(self, attr_key, attr_value)
 
-    def without_attr(self, attr_key: str) -> IRModule:
+    def without_attr(self, attr_key: str) -> "IRModule":
         """Copy the IRModule and remove an attribute key and its associated value.
         Parameters
         ----------
@@ -329,7 +329,7 @@ class IRModule(Node, Scriptable):
 
         return _ffi_api.Module_WithoutAttr(self, attr_key)
 
-    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> IRModule:
+    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> "IRModule":
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------

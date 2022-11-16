@@ -17,7 +17,6 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
-from __future__ import annotations
 from tvm import ir
 from tvm import relax
 from tvm.ir.module import IRModule
