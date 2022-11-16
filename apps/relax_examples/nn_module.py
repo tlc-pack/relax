@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     # get and print the IRmodule being built
     mod = builder.get()
-    print(R.parser.astext(mod))
+    mod.show()
 
     # build the IRModule and create relax vm
     target = tvm.target.Target("llvm", host="llvm")

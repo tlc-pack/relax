@@ -330,7 +330,8 @@ Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::arith::IntSet& range = regions[i][j];
-      region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])));
+      PrimExpr zero = make_zero(buffers[i]->shape[j]->dtype);
+      region.push_back(range.CoverRange(Range::FromMinExtent(zero, buffers[i]->shape[j])));
     }
     res.push_back(BufferRegion(buffers[i], region));
   }

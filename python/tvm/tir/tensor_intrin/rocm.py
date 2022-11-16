@@ -37,7 +37,7 @@ def sdot4(
             T.reinterpret(A.vload([0], "int8x4"), dtype="int32"),
             T.reinterpret(B.vload([0], "int8x4"), dtype="int32"),
             T.int32(0),
-            T.bool(1),
+            T.boolean(1),
             dtype="int32",
         )
 

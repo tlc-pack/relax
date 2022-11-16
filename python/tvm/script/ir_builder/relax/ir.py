@@ -19,15 +19,18 @@
 
 from typing import Dict, List, Optional, Tuple, Union
 
+import tvm
 from tvm._ffi import register_object as _register_object
-from tvm.ir import Attrs, Type
-from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, Var
+from tvm.ir import Type
+from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
 
 ############################### Operators ###############################
 from tvm.relax.op import (
     add,
+    assert_op,
     builtin,
     call_tir,
+    ewise_fma,
     invoke_closure,
     make_closure,
     multiply,
@@ -36,6 +39,7 @@ from tvm.relax.op import (
     unique,
 )
 from tvm.relax.ty import ObjectType, ShapeType
+from tvm.relax.utils import convert_to_expr
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
 
@@ -85,6 +89,7 @@ def tensor(
 
 Object = ObjectType()  # pylint: disable=invalid-name
 Shape = ShapeType()  # pylint: disable=invalid-name
+Void = TupleType(None)  # pylint: disable=invalid-name
 
 ############################### Function ################################
 
@@ -157,6 +162,17 @@ def func_ret_type(ret_type: Union[TensorType, Type]) -> None:
     return _ffi_api.FuncRetType(ret_type)  # pylint: disable=no-member # type: ignore
 
 
+def func_ret_shape(ret_shape: Expr) -> None:
+    """Specify the return shape of the last function frame.
+
+    Parameters
+    ----------
+    ret_shape: Expr
+        The function return shape.
+    """
+    return _ffi_api.FuncRetShape(ret_shape)  # pylint: disable=no-member # type: ignore
+
+
 def func_ret_value(value: Expr) -> None:
     """Specify the return value of the last function frame.
     Parameters
@@ -180,20 +196,14 @@ def dataflow() -> frame.BlockFrame:
     return _ffi_api.Dataflow()  # pylint: disable=no-member # type: ignore
 
 
-def output(*vars: Tuple[Var]) -> Tuple[Var]:
+def output(*vars: Tuple[Var]) -> None:
     """Expose the dataflow block output variables as global ones.
     Parameters
     ----------
     vars: Tuple[Var]
         The output variables of a dataflow block.
-    Returns
-    -------
-    vars: Tuple[Var]
-        The output variables of a dataflow block. Return the input variables to parser side for
-        followup process
     """
-    _ffi_api.DataflowBlockOutput(vars)  # pylint: disable=no-member # type: ignore
-    return vars
+    return _ffi_api.DataflowBlockOutput(vars)  # pylint: disable=no-member # type: ignore
 
 
 ################################## Ops #################################
@@ -202,8 +212,8 @@ def output(*vars: Tuple[Var]) -> Tuple[Var]:
 def call_packed(
     func: str,
     *args: List[Expr],
-    attrs: Optional[Attrs] = None,
     type_args: Optional[Union[TensorType, List[TensorType]]] = None,
+    **kwargs: Dict[str, Expr],
 ) -> Call:
     """Create a relax Call, which calls a packed function.
     Parameters
@@ -212,23 +222,27 @@ def call_packed(
         The name of extern function.
     args : List[Expr]
         The arguments.
-    attrs: Optional[Attrs]
-        The call attributes
     type_args: Optional[Union[TensorType, List[TensorType]]]
         List of Types
+    kwargs: Dict[str, Expr]
+        The keyword arguments.
+
     Returns
     -------
     call: Call
         The created Relax Call
     """
     op = ExternFunc(func)
+    args = [convert_to_expr(arg) for arg in args]
     if type_args is None:
-        raise ValueError(f"R.call_packed is required to have type_args")
-    if isinstance(type_args, (TensorType, Type)):
-        type_args = [type_args]
-    elif isinstance(type_args, tuple):
+        raise ValueError("R.call_packed is required to have type_args")
+    if isinstance(type_args, tuple):
         type_args = list(type_args)
+    elif not isinstance(type_args, list):
+        type_args = [type_args]
     for i, argument in enumerate(type_args):
+        if callable(argument):
+            argument = argument()
         if isinstance(argument, TensorType):
             type_args[i] = argument.type
         elif isinstance(argument, Type):
@@ -239,31 +253,39 @@ def call_packed(
                 f"but got {type(arg)}"
             )
 
+    is_default = False
+    if "attrs_type_key" in kwargs:
+        attrs_type_key = kwargs["attrs_type_key"]
+        kwargs.pop("attrs_type_key")
+    else:
+        attrs_type_key = "DictAttrs"
+        is_default = True
+    attrs = None
+    if kwargs or not is_default:
+        attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
+
     return Call(op, args, attrs=attrs, type_args=type_args)
 
 
 ############################### Bindings ###############################
 
 
-def emit(value: Expr, is_dataflow_var: bool) -> Var:
+def emit(value: Expr) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
     value: Expr
         The right side value of the bindings to be emitted.
-    is_dataflow_var: bool
-        A boolean indicating if the emitted binding variable is a dataflow variable.
+
     Returns
     -------
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.Emit(value, is_dataflow_var)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Emit(value)  # pylint: disable=no-member # type: ignore
 
 
-def emit_match_shape(
-    value: Expr, pattern: List[PrimExpr], emit_var: bool, is_dataflow_var: bool
-) -> Optional[Var]:
+def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool) -> Optional[Var]:
     """Emit a match_shape binding to the last binding block frame.
     Parameters
     ----------
@@ -273,15 +295,13 @@ def emit_match_shape(
         The pattern of the MatchShape to be emitted.
     emit_var: bool
         A boolean indicating if the MatchShape contains the emitted variable.
-    is_dataflow_var: bool
-        A boolean indicating if the emitted variable is a dataflow variable when `emit_var` is True.
-        When `emit_var` is False, the value of this flag will be ignored.
+
     Returns
     -------
     var: Optional[Var]
         The emitted var if `emit_var` is True. Otherwise, return `None`.
     """
-    return _ffi_api.EmitMatchShape(value, pattern, emit_var, is_dataflow_var)  # type: ignore
+    return _ffi_api.EmitMatchShape(value, pattern, emit_var)  # type: ignore
 
 
 ############################# Type Deduce ##############################
@@ -348,17 +368,23 @@ __all__ = [
     "Shape",
     "TensorType",
     "Then",
+    "TupleGetItem",
+    "Void",
     "add",
     "arg",
+    "assert_op",
     "builtin",
     "call_packed",
     "call_tir",
+    "const",
     "dataflow",
     "emit",
     "emit_match_shape",
+    "ewise_fma",
     "func_attr",
     "func_name",
     "func_ret_type",
+    "func_ret_shape",
     "func_ret_value",
     "function",
     "invoke_closure",

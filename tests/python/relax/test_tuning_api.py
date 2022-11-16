@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
 import pytest
 import numpy as np
 import os.path as osp
@@ -57,13 +56,13 @@ class TestModule:
 
     # Input IRModule.
     @R.function
-    def before(c0: Tensor((16, 16), "int32")):
-        lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="int32")
+    def before(c0: R.Tensor((16, 16), "int32")):
+        lv0 = R.call_tir(addone, (c0,), (16, 16), dtype="int32")
         return lv0
 
     # Expected IRModule after transformation.
     @R.function
-    def expected(c1: Tensor((16, 16), "int32")):
+    def expected(c1: R.Tensor((16, 16), "int32")):
         lv0 = c1
         return c1
 
@@ -695,21 +694,21 @@ def test_passes_with_mixed_granularities():
     @tvm.script.ir_module
     class MockModule:
         @R.function
-        def f1(x: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, x)
-                gv0 = relax.add(x, x)
-                relax.output(gv0)
+        def f1(x: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, x)
+                gv0 = R.add(x, x)
+                R.output(gv0)
             return gv0
 
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     mod = MockModule

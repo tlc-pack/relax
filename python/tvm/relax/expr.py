@@ -109,10 +109,23 @@ class Var(Expr):
         return name
 
     def __call__(self, *args: Any, attrs=None) -> Call:
-        if self.checked_type and isinstance(self.checked_type, ty.FuncType):
+        if self._checked_type_ and isinstance(self._checked_type_, ty.FuncType):
             return Call(self, args, attrs=attrs)
         else:
-            raise TypeError("Only vars with function type can be called")
+            raise TypeError(
+                f"Only vars with function type can be called, but got type: {self._checked_type_}"
+            )
+
+    def __getitem__(self, key):
+        if not isinstance(key, int):
+            raise TypeError("TupleGetItem only supports integer index")
+        var_type = self._checked_type_
+        if var_type and isinstance(var_type, ty.TupleType):
+            return TupleGetItem(self, key)
+        else:
+            raise TypeError(
+                f"Only vars with TupleType is subscriptable, but got type: {self._checked_type_}"
+            )
 
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")
