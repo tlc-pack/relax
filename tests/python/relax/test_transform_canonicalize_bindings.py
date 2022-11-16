@@ -15,23 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
-import pytest
 import tvm
+import tvm.script
+import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-
-from tvm.runtime.object import Object
-
-import tvm.script
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 
 def test_simple_assignments():
     @tvm.script.ir_module
     class TestChainAssignments:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             y = x
             z = y
             q = z
@@ -44,7 +40,7 @@ def test_simple_assignments():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             y = x
             z = x
             q = x
@@ -60,9 +56,9 @@ def test_dataflow_block():
     @tvm.script.ir_module
     class TestDataflowAssignments:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             with R.dataflow():
-                y = relax.const(1)
+                y = R.const(1)
                 z = y
                 o = z
                 p = o
@@ -76,9 +72,9 @@ def test_dataflow_block():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             with R.dataflow():
-                y = relax.const(1)
+                y = R.const(1)
                 z = y
                 o = y
                 p = y
@@ -96,20 +92,20 @@ def test_ops():
     @tvm.script.ir_module
     class TestOps:
         @R.function
-        def main(x: Tensor, y: Tensor):
+        def main(x: R.Tensor, y: R.Tensor):
             w = y
             q = x
-            z = relax.add(w, q)
-            return relax.add(q, z)
+            z = R.add(w, q)
+            return R.add(q, z)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor, y: Tensor):
+        def main(x: R.Tensor, y: R.Tensor):
             w = y
             q = x
-            z = relax.add(y, x)
-            return relax.add(x, z)
+            z = R.add(y, x)
+            return R.add(x, z)
 
     new_mod = relax.transform.CanonicalizeBindings()(TestOps)
     assert_structural_equal(new_mod, Expected)
@@ -119,19 +115,19 @@ def test_casting():
     @tvm.script.ir_module
     class TestCasting:
         @R.function
-        def main(x: Tensor) -> Object:
+        def main(x: R.Tensor) -> R.Object:
             y = x
             # z will be treated as object type even though it's a tensor
-            z: Object = y
+            z: R.Object = y
             return z
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor) -> Object:
+        def main(x: R.Tensor) -> R.Object:
             y = x
             # Cannot unify because the cast indicates user intent
-            z: Object = x
+            z: R.Object = x
             return z
 
     new_mod = relax.transform.CanonicalizeBindings()(TestCasting)
@@ -142,8 +138,9 @@ def test_match_shape():
     @tvm.script.ir_module
     class TestMatchShape:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             q = x
+            m, n = T.var("int64"), T.var("int64")
             z = R.match_shape(q, (m, n))
             w = z
             return w
@@ -151,9 +148,10 @@ def test_match_shape():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             q = x
             # can't get rid of z because its shape_ is different from x's
+            m, n = T.var("int64"), T.var("int64")
             z = R.match_shape(x, (m, n))
             w = z
             return z
@@ -166,24 +164,26 @@ def test_same_shape():
     @tvm.script.ir_module
     class TestSameShape:
         @R.function
-        def main(x: Tensor((m, n), _)):
+        def main(x: R.Tensor(("m", "n"))):
+            m, n = T.var("int64"), T.var("int64")
             y = x
             # trivial check
             z = R.match_shape(x, (m, n))
             w = z
-            q = relax.add(w, y)
-            return relax.add(q, w)
+            q = R.add(w, y)
+            return R.add(q, w)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), _)):
+        def main(x: R.Tensor(("m", "n"))):
+            m, n = T.var("int64"), T.var("int64")
             y = x
             # canonicalized into a var binding
             z = x
             w = x
-            q = relax.add(x, x)
-            return relax.add(q, x)
+            q = R.add(x, x)
+            return R.add(q, x)
 
     new_mod = relax.transform.CanonicalizeBindings()(TestSameShape)
     assert_structural_equal(new_mod, Expected)
@@ -193,24 +193,26 @@ def test_change_shape():
     @tvm.script.ir_module
     class TestChangeShape:
         @R.function
-        def main(x: Tensor((m, n), _)):
+        def main(x: R.Tensor(("m", "n"))):
             y = x
             # not trivial: introduces new shape vars
+            o, p = T.var("int64"), T.var("int64")
             z = R.match_shape(x, (o, p))
             w = z
-            q = relax.add(w, y)
-            return relax.add(q, w)
+            q = R.add(w, y)
+            return R.add(q, w)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), _)):
+        def main(x: R.Tensor(("m", "n"))):
             y = x
+            o, p = T.var("int64"), T.var("int64")
             z = R.match_shape(x, (o, p))
             w = z
             # the shape_ field on q will need to be updated
-            q = relax.add(z, x)
-            return relax.add(q, z)
+            q = R.add(z, x)
+            return R.add(q, z)
 
     new_mod = relax.transform.CanonicalizeBindings()(TestChangeShape)
     assert_structural_equal(new_mod, Expected)
@@ -221,9 +223,10 @@ def test_unbound_match_shape():
     @tvm.script.ir_module
     class TestUnboundMatchShape:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             y = x
             z = y
+            m, n = T.var("int64"), T.var("int64")
             R.match_shape(z, (m, n))
             w = z
             return w
@@ -231,9 +234,10 @@ def test_unbound_match_shape():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor):
+        def main(x: R.Tensor):
             y = x
             z = x
+            m, n = T.var("int64"), T.var("int64")
             R.match_shape(x, (m, n))
             w = x
             return x
@@ -243,4 +247,4 @@ def test_unbound_match_shape():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
