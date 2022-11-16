@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
 
 import tempfile
 import time
@@ -64,15 +63,15 @@ class InputModule:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @R.function
-    def main(x:Tensor((m,n), "float32"), w:Tensor((n,k), "float32")) -> Tensor:
+    def main(x:R.Tensor((m,n), "float32"), w:R.Tensor((n,k), "float32")) -> R.Tensor:
         with R.dataflow():
-            sh = relax.call_packed("vm.builtin.shape_of", x)
-            x0 = relax.match_shape(sh, (m, n))
-            sh1 = relax.call_packed("vm.builtin.shape_of", w)
-            x1 = relax.match_shape(sh1, (n, k))
+            sh = R.call_packed("vm.builtin.shape_of", x)
+            x0 = R.match_shape(sh, (m, n))
+            sh1 = R.call_packed("vm.builtin.shape_of", w)
+            x1 = R.match_shape(sh1, (n, k))
             lv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             lv1 = R.call_tir(tir_relu, (lv0), (m, k), dtype="float32)
-            relax.output(lv1)
+            R.output(lv1)
         return lv1
 """
 
@@ -109,11 +108,11 @@ def test_autotir(dev: str):
                     B[vi, vj] = T.max(A[vi, vj], 0.0)
 
         @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
-                relax.output(lv1)
+                R.output(lv1)
             return lv1
 
     mod = InputModule
@@ -210,7 +209,7 @@ def test_meta_schedule_extract_tasks():
                     B[vi, vj] = A[vi, vj] * 2.0
 
         @R.function
-        def main(x: Tensor((128, 128), "float32")) -> Tensor(_, "float32"):
+        def main(x: R.Tensor((128, 128), "float32")) -> R.Tensor(dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_tir(add1, (x,), (128, 128), dtype="float32")
                 lv1 = R.call_tir(multiply1, (lv0,), (128, 128), dtype="float32")
@@ -218,7 +217,7 @@ def test_meta_schedule_extract_tasks():
                 lv3 = R.call_tir(multiply1, (lv2,), (128, 128), dtype="float32")
                 lv4 = R.call_tir(add3, (lv3,), (128, 128), dtype="float32")
                 gv = R.call_tir(add1, (lv4,), (128, 128), dtype="float32")
-                relax.output(gv)
+                R.output(gv)
             return gv
 
     tasks = ms.relax_integration.extract_tasks(Module, Target("llvm --num-cores=16"))

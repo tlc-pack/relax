@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
 from typing import List, Set, Union
 import pytest
 
@@ -114,11 +113,11 @@ def test_chained_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
-                unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+                unused0 = R.call_tir("my_sigmoid", (x,), (32, 32), dtype="float32")
+                unused1 = R.call_tir("my_sigmoid", (unused0,), (32, 32), dtype="float32")
                 R.output(lv0)
             return lv0
 
@@ -127,7 +126,7 @@ def test_chained_remove_all_unused():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
@@ -140,13 +139,13 @@ def test_binding_block_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_tir(my_sigmoid, (x,), (32, 32), dtype="float32")
-                unused1 = R.call_tir(my_sigmoid, (unused0,), (32, 32), dtype="float32")
+                unused0 = R.call_tir("my_sigmoid", (x,), (32, 32), dtype="float32")
+                unused1 = R.call_tir("my_sigmoid", (unused0,), (32, 32), dtype="float32")
                 R.output(lv0)
-            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(R.Tensor((32, 32), "float32")))
             return z
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -154,11 +153,11 @@ def test_binding_block_remove_all_unused():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
-            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(R.Tensor((32, 32), "float32")))
             return z
 
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
@@ -168,11 +167,11 @@ def test_binding_block_fake_unused_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
-            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(R.Tensor((32, 32), "float32")))
             return lv0
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -180,12 +179,12 @@ def test_binding_block_fake_unused_remove_all_unused():
     @tvm.script.ir_module
     class GroundTruth:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
                 R.output(lv0)
             # This might bring side effect so cannot be removed.
-            z = R.call_packed("vm.builtin.copy", lv0, type_args=(Tensor((32, 32), "float32")))
+            z = R.call_packed("vm.builtin.copy", lv0, type_args=(R.Tensor((32, 32), "float32")))
             return lv0
 
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
@@ -195,8 +194,8 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
-        def main(x: Tensor((32, 32), "float32")) -> Tensor((32, 32), "float32"):
-            z = R.call_packed("vm.builtin.copy", x, type_args=(Tensor((32, 32), "float32")))
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
+            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor((32, 32), "float32")))
             return x
 
     optimized = remove_all_unused(IdentityUnused["main"])
@@ -205,7 +204,7 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
 
 def test_name_to_binding_var_shadowing():
     @R.function
-    def main(x: Tensor((32, 32), "float32")) -> Tensor:
+    def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             lv0 = x
             lv1 = lv0
@@ -304,11 +303,11 @@ def test_derive_func_ret_shape_free():
 @tvm.script.ir_module
 class VarExample:
     @R.function
-    def func(a: Tensor) -> Tensor:
+    def func(a: R.Tensor) -> R.Tensor:
         return R.add(a, a)
 
     @R.function
-    def main(x: Tensor, y: Tensor) -> Tensor:
+    def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
         z = R.add(x, y)
         # no binding here
         R.match_shape(x, (5, 5))

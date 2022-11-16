@@ -67,6 +67,7 @@ class SeqExprFrameNode : public RelaxFrameNode {
   TVM_DECLARE_BASE_OBJECT_INFO(SeqExprFrameNode, RelaxFrameNode);
 
  public:
+  void EnterWithScope() override;
   void ExitWithScope() override;
 };
 
@@ -94,6 +95,11 @@ class FunctionFrameNode : public SeqExprFrameNode {
    *       If the `ret_type` is not None, check the deduced type is a base type of the given one.
    */
   Optional<Type> ret_type;
+  /*!
+   * \brief The function return shape.
+   * \sa ret_type
+   */
+  Optional<tvm::relax::Expr> ret_shape;
   /*! \brief The function attributes. */
   Map<String, ObjectRef> attrs;
   /*! \brief The block builder to create Relax function. */
@@ -130,17 +136,23 @@ class BlockFrameNode : public RelaxFrameNode {
   /*! \brief The variables emitted in this block. */
   Array<tvm::relax::Var> emitted_vars;
   /*!
-   * \brief (Only used for a dataflow block.) A boolean indicating if the dataflow block is ended of
-   * construction. If it is true, any new binding trying to be emitted into this block will cause an
-   * error.
+   * \brief A boolean indicating if the dataflow block is ended of construction.
+   * If it is true, any new binding trying to be emitted into this block will cause an error.
+   * \note Only used for a dataflow block.
    */
   bool block_ended;
+  /*!
+   * \brief The output vars of the dataflow block.
+   * \note Only used for a dataflow block.
+   */
+  Array<tvm::relax::Var> output_vars;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     RelaxFrameNode::VisitAttrs(v);
     v->Visit("is_dataflow", &is_dataflow);
     v->Visit("emitted_vars", &emitted_vars);
-    v->Visit("block_ended", &block_ended);
+    v->Visit("output_vars", &output_vars);
+    // `block_ended` is not visited.
   }
 
   static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";

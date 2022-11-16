@@ -44,7 +44,7 @@ def test_highlight_script():
                     C[i, j] += A[i, k] * B[j, k]
 
         @R.function
-        def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 R.output(lv0)

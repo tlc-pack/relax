@@ -511,11 +511,15 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
     // in the case of `x = R.match_shape(val, pattern)`, we want `x` to directly get `pattern` as
     // the shape when `val` is a tensor.
     Optional<Expr> new_shape;
+    Type new_type = new_value->checked_type_;
     if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
       new_shape = new_pattern;
+      ICHECK(new_shape->IsInstance<ShapeExprNode>());
+      int ndim = Downcast<ShapeExpr>(new_shape.value())->values.size();
+      new_type = DynTensorType(ndim, new_value->checked_type_.as<DynTensorTypeNode>()->dtype);
     }
     new_var = this->VisitVarDef(binding->var);
-    Var temp = WithShapeAndType(new_var, new_shape, new_value->checked_type_);
+    Var temp = WithShapeAndType(new_var, new_shape, new_type);
     if (!temp.same_as(new_var)) {
       new_var = temp;
       this->var_remap_[binding->var->vid] = new_var;

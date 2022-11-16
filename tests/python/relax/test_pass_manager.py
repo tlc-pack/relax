@@ -15,16 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for relax pass manager."""
-from __future__ import annotations  # must import to defer parsing of annotations
 import numpy as np
-import pytest
 import tvm
-from tvm import relax, ir
+import tvm.testing
+from tvm import ir, relax
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.expr import Call
-
-import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm.script import relax as R
 
 
 def check_equal(mod1, mod2):
@@ -47,14 +44,14 @@ def test_function_class_pass():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def f1(x: Tensor((m, n), "float32")):
+        def f1(x: R.Tensor(("m", "n"), "float32")):
             return x
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def f2(x: Tensor((m, n), "float32")):
-            gv0 = relax.add(x, x)
+        def f2(x: R.Tensor(("m", "n"), "float32")):
+            gv0 = R.add(x, x)
             return gv0
 
     fpass = TestReplaceFunc(Expected["f2"])
@@ -87,25 +84,25 @@ def test_function_pass():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.add(x, y)
-                gv0 = relax.multiply(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.add(x, y)
-            gv2 = relax.multiply(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.add(x, y)
+                gv0 = R.multiply(lv0, y)
+                R.output(gv0)
+            gv1 = R.add(x, y)
+            gv2 = R.multiply(gv1, y)
             return (gv0, gv1, gv2)
 
     pass_name = "function_pass_test"
@@ -158,21 +155,21 @@ def test_dataflowblock_class_pass():
     @tvm.script.ir_module
     class Mod1:
         @R.function
-        def f(x: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, x)
-                gv0 = relax.add(x, x)
-                relax.output(gv0)
+        def f(x: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, x)
+                gv0 = R.add(x, x)
+                R.output(gv0)
             return gv0
 
     @tvm.script.ir_module
     class Mod2:
         @R.function
-        def f(x: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.add(x, x)
-                gv0 = relax.add(x, x)
-                relax.output(gv0)
+        def f(x: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.add(x, x)
+                gv0 = R.add(x, x)
+                R.output(gv0)
             return gv0
 
     block_pass = TestReplaceBinding()
@@ -187,25 +184,25 @@ def test_dataflowblock_pass():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.multiply(x, y)
-                gv0 = relax.add(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.multiply(x, y)
+                gv0 = R.add(lv0, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: Tensor((m, n), "float32"), y: Tensor((m, n), "float32")):
-            with relax.dataflow():
-                lv0 = relax.add(x, y)
-                gv0 = relax.multiply(lv0, y)
-                relax.output(gv0)
-            gv1 = relax.multiply(x, y)
-            gv2 = relax.add(gv1, y)
+        def main(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+            with R.dataflow():
+                lv0 = R.add(x, y)
+                gv0 = R.multiply(lv0, y)
+                R.output(gv0)
+            gv1 = R.multiply(x, y)
+            gv2 = R.add(gv1, y)
             return (gv0, gv1, gv2)
 
     pass_name = "dataflow_pass_test"
@@ -238,4 +235,4 @@ def test_dataflowblock_pass():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
 
 import tempfile
 
@@ -35,8 +34,8 @@ from tvm.target import Target
 class InputModule:
     @R.function
     def main(
-        x: Tensor((16, 16), "float32"), w: Tensor((16, 16), "float32")
-    ) -> Tensor((16, 16), "float32"):
+        x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+    ) -> R.Tensor((16, 16), "float32"):
         gv0 = R.multiply(x, w)
         gv1 = R.add(x, gv0)
         return gv1

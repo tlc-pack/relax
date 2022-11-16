@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test tuning a model in Relax over RPC, end-to-end."""
-from __future__ import annotations
 import os
 import subprocess
 import time
