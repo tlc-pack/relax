@@ -33,7 +33,6 @@ pytestmark = pytest.mark.skip(reason="Need fix after parser switch over")
 
 def check_roundtrip(f_pre):
     relax_text = f_pre.script(show_meta=True)
-    print(relax_text)
     f_post = tvm.script.from_source(relax_text)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
@@ -281,7 +280,6 @@ def test_const_meta():
             return w
 
         relax_text = my_const.script(show_meta=True)
-        print(relax_text)
 
         texts = metadata_partitioner(relax_text)
         return texts[1]

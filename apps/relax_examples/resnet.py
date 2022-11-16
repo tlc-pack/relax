@@ -33,7 +33,7 @@ if __name__ == "__main__":
     relax_mod = relay_translator.from_relay(relay_mod["main"], target)
 
     # print the ResNet IRmodule got translated
-    print(relax_mod.script())
+    relax_mod.show()
 
     # build the IRModule and create relax vm
     ex = relax.vm.build(relax_mod, target)

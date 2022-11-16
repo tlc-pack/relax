@@ -577,8 +577,6 @@ def test_normalize_if():
                 y = R.add(gv, gv1)
             return y
 
-    print(after_mod.script())
-    print(Expected["f"].params[1].shape[0].dtype)
     assert_structural_equal(after_mod, Expected)
 
 

@@ -49,7 +49,6 @@ class LambdaLifter : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
     if (auto const* var = call_node->op.as<VarNode>()) {
-      LOG(INFO) << var->name_hint();
       bool has_closure = HasClosure(GetRef<Var>(var));
       auto val = builder_->LookupBinding(GetRef<Var>(var));
       // Call "relax.invoke_closure" to invoke closure

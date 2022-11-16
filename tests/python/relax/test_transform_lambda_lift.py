@@ -128,7 +128,6 @@ def test_closure():
     before = Before
     after = transform.LambdaLift()(before)
     expected = Expected
-    print(after.script())
     print(expected.script())
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)

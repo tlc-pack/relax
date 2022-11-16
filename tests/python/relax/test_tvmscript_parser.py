@@ -90,8 +90,6 @@ def test_simple_module():
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
 
-    print(TestModule.script())
-    print(bb.get().script())
     _check(TestModule, bb.get())
 
 

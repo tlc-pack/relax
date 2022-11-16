@@ -17,17 +17,12 @@
 
 import sys
 import tempfile
-import pytest
-import tvm
-from tvm import relax
-from tvm._ffi.base import TVMError
-
-from tvm.script import relax as R
 
 import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm._ffi.base import TVMError
 from tvm.script import relax as R
 
 

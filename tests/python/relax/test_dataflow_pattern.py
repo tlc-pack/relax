@@ -875,5 +875,4 @@ def test_incremental_solving_counter():
 
 
 if __name__ == "__main__":
-    # test_is_call_tir()
     tvm.testing.main()
