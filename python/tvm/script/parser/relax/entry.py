@@ -44,6 +44,9 @@ def function(f: FType) -> Union[Function, FType]:
 setattr(function, "dispatch_token", "relax")
 
 
+############################### R.
+
+
 ############################### R.Tensor ###############################
 
 
@@ -90,7 +93,7 @@ class CallableProxy:
 
     Parameters
     ----------
-    arg_types : List[Type]
+    arg_types : List[Union[Type, TensorType]]
         The argument types
 
     ret_type : Type
@@ -105,11 +108,13 @@ class CallableProxy:
 
     def __call__(
         self,
-        arg_types: List[Type],
+        arg_types: List[Union[Type, TensorType]],
         ret_type: Type,
         type_params: Optional[List[TypeVar]] = None,
         type_constraints: Optional[List[TypeConstraint]] = None,
     ) -> FuncType:
+        if isinstance(arg_types, TensorType):
+            arg_types = [arg_types]
         arg_types = [_convert_type(ty) for ty in arg_types]
         ret_type = _convert_type(ret_type)
         return FuncType(arg_types, ret_type, type_params, type_constraints)
@@ -163,6 +168,10 @@ class MatchShapePair:
 
 
 def match_shape(value: Expr, pattern: List[PrimExpr]):
+    if value is None:
+        raise ValueError("value of match_shape cannot be None")
+    if pattern is None:
+        raise ValueError("pattern of match_shape cannot be None")
     return MatchShapePair(value, pattern)
 
 

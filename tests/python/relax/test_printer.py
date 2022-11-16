@@ -28,12 +28,18 @@ from tvm.relax.utils import metadata_partitioner
 from tvm.script import tir as T, relax as R
 
 
-pytestmark = pytest.mark.skip(reason="Need fix after parser switch over")
-
-
 def check_roundtrip(f_pre):
     relax_text = f_pre.script(show_meta=True)
-    f_post = tvm.script.from_source(relax_text)
+    print(relax_text)
+    f_post = tvm.script._parser.parse(relax_text)
+
+    def print_shape_(f):
+        bindings = f.body.blocks[0].bindings
+        print(*[(binding.var.name_hint, binding.var.shape_) for binding in bindings], sep="\n")
+
+    print(f_post.script())
+    # print_shape_(f_pre)
+    # print_shape_(f_post)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
         f_post = tvm.IRModule({global_vars[0]: f_post}, attrs=metadata)
@@ -42,10 +48,10 @@ def check_roundtrip(f_pre):
 
 def test_annotations():
     @R.function
-    def foo(x: R.Tensor((32, "m"), "float32"), y: R.Tensor(("m", "k"), "float32")) -> R.Tensor:
-        k = T.var("int64")
-        z: R.Tensor((32, k), "float32") = nn.matmul(x, y, units=None)
-        w: R.Tensor(ndim=2) = R.multiply(z, z)
+    def foo(x: R.Tensor((32, "m"), "float32"), y: R.Tensor(("m"), "float32")) -> R.Tensor:
+        m = T.var("int64")
+        z: R.Tensor((32, m), "float32") = R.multiply(x, y)
+        w = R.multiply(z, z)
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
         return t
@@ -68,9 +74,10 @@ def test_ndim_annotations():
 
 def test_match_shape():
     @R.function
-    def foo(x: Tensor(_, "float32")):
-        relax.match_shape(x.shape, (n, m))
-        y: Tensor((n, m), "float32") = add(x, x)
+    def foo(x: R.Tensor(dtype="float32")):
+        n, m = T.var("int64"), T.var("int64")
+        R.match_shape(R.shape_of(x), (n, m))
+        y: R.Tensor((n, m), "float32") = R.add(x, x)
         return x
 
     check_roundtrip(foo)
@@ -78,13 +85,13 @@ def test_match_shape():
 
 def test_if():
     @R.function
-    def foo(cond: Tensor((), "bool"), x: Tensor((1,), "float32")):
+    def foo(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor:
         if cond:
-            w = add(x, x)
-            y = multiply(w, w)
+            w = R.add(x, x)
+            y = R.multiply(w, w)
         else:
-            w = multiply(x, x)
-            y = add(w, w)
+            w = R.multiply(x, x)
+            y = R.add(w, w)
         return y
 
     check_roundtrip(foo)
@@ -92,22 +99,23 @@ def test_if():
 
 def test_tuple():
     @R.function
-    def foo(x: Tensor(_, _), y: Tensor((32,), "float32")):
-        t: Tuple(Tensor(_, _), Tensor((32,), "float32")) = (x, y)
+    def foo(x: R.Tensor(ndim=2), y: R.Tensor((32,), "float32")):
+        t: R.Tuple(R.Tensor(ndim=2), R.Tensor((32,), "float32")) = (x, y)
         return t
 
     check_roundtrip(foo)
 
 
+@pytest.mark.skip
 def test_tuplegetitem():
     @R.function
-    def foo(x: Tensor(_, _)):
-        y = add(x, x)
-        z = multiply(y, x)
-        t = relax.Tuple((y, z))
-        a = relax.TupleGetItem(t, 0)
-        b = relax.TupleGetItem(t, 1)
-        c = divide(a, b)
+    def foo(x: R.Tensor(ndim=2)):
+        y = R.add(x, x)
+        z = R.multiply(y, x)
+        t = R.Tuple((y, z))
+        a = R.TupleGetItem(t, 0)
+        b = R.TupleGetItem(t, 1)
+        c = R.multiply(a, b)
         return c
 
     check_roundtrip(foo)
@@ -115,9 +123,9 @@ def test_tuplegetitem():
 
 def test_local_func():
     @R.function
-    def foo(x: Tensor(_, _)):
+    def foo(x: R.Tensor(ndim=2)):
         @R.function
-        def bar(y: Tensor(_, _)):
+        def bar(y: R.Tensor(ndim=2)):
             return y
 
         y = bar(x)  # tests local function variable scoping
@@ -128,15 +136,15 @@ def test_local_func():
 
 def test_dataflow():
     @R.function
-    def foo(x: Tensor(_, _)):
-        with relax.dataflow():
+    def foo(x: R.Tensor(ndim=2)):
+        with R.dataflow():
             # TODO: parse this
             # nonlocal y, w
-            y = add(x, x)
-            z = multiply(y, x)
-            w = subtract(z, x)
-            relax.output(y, w)
-        t = divide(y, w)
+            y = R.add(x, x)
+            z = R.multiply(y, x)
+            w = R.add(z, x)
+            R.output(y, w)
+        t = R.multiply(y, w)
         return t
 
     check_roundtrip(foo)
@@ -144,16 +152,17 @@ def test_dataflow():
 
 def test_dataflow_match_shape():
     @R.function
-    def foo(x: Tensor(_, _)):
-        with relax.dataflow():
-            x2: Tensor((n, m), _) = relax.match_shape(x, (n, m))
-            y = add(x2, x2)
-            z = multiply(y, x)
-            relax.match_shape(z.shape, (n, m))
-            w: Tensor((n, m), _) = subtract(z, x)
-            relax.output(y, w, x2)
-        t: Tensor((n, m), _) = divide(y, w)
-        q: Tensor((n, m), _) = add(t, x2)
+    def foo(x: R.Tensor(ndim=2)):
+        n, m = T.var("int64"), T.var("int64")
+        with R.dataflow():
+            x2: R.Tensor((n, m)) = R.match_shape(x, (n, m))
+            y = R.add(x2, x2)
+            z = R.multiply(y, x)
+            R.match_shape(R.shape_of(z), (n, m))
+            w: R.Tensor((n, m)) = R.add(z, x)
+            R.output(y, w, x2)
+        t: R.Tensor((n, m)) = R.multiply(y, w)
+        q: R.Tensor((n, m)) = R.add(t, x2)
         return q
 
     check_roundtrip(foo)
@@ -161,7 +170,9 @@ def test_dataflow_match_shape():
 
 def test_inline_tir():
     @R.function
-    def foo(x: Tensor((B, 128), "float32"), y: Tensor((128, 128), "float32")):
+    def foo(x: R.Tensor(("B", 128), "float32"), y: R.Tensor((128, 128), "float32")):
+        B = T.var("int64")
+
         @T.prim_func
         def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, (128, 128))
@@ -175,7 +186,7 @@ def test_inline_tir():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        z = relax.call_tir(my_matmul, (x, y), (B, 128), dtype="float32")
+        z = R.call_tir(my_matmul, (x, y), (B, 128), dtype="float32")
         return z
 
     check_roundtrip(foo)
@@ -183,19 +194,20 @@ def test_inline_tir():
 
 def test_call_packed():
     @R.function
-    def foo(x: Tensor((3, 3), "float32")):
+    def foo(x: R.Tensor((3, 3), "float32")):
         # test that we can intro dim vars
-        z: Tensor((n, m), "float32") = relax.call_packed(
-            "contrib.my_matmul", x, x, mp=False, type_args=(Tensor(ndim=2, dtype="float32"))
+        n, m = T.var("int64"), T.var("int64")
+        z: R.Tensor((n, m), "float32") = R.call_packed(
+            "contrib.my_matmul", x, x, mp=False, type_args=R.Tensor(ndim=2, dtype="float32")
         )
-        w = relax.call_packed(
+        w = R.call_packed(
             "contrib.my_shape_of",
             x,
             dtype="int32",
             attrs_type_key="relay.attrs.ShapeOfAttrs",
-            type_args=(Shape),
+            type_args=R.Shape,
         )
-        o = relax.call_packed("contrib.tensor_array_stack", x, z, type_args=(Object))
+        o = R.call_packed("contrib.tensor_array_stack", x, z, type_args=R.Object)
         return z
 
     check_roundtrip(foo)
@@ -203,11 +215,12 @@ def test_call_packed():
 
 def test_primexpr_arithmetic():
     @R.function
-    def foo(x: Tensor((n, m), "float32")):
-        z: Tensor((n * m,), "float32") = relax.call_packed(
-            "my_flatten", (x,), type_args=(Tensor(ndim=2, dtype="float32"))
+    def foo(x: R.Tensor(("n", "m"), "float32")):
+        n, m = T.var("int64"), T.var("int64")
+        z: R.Tensor((n * m,), "float32") = R.call_packed(
+            "my_flatten", (x,), type_args=R.Tensor(ndim=1, dtype="float32")
         )
-        sh: Shape = (n + m, n // m)
+        sh: R.Shape = (n + m, n // m)
         return z
 
     check_roundtrip(foo)
@@ -215,8 +228,8 @@ def test_primexpr_arithmetic():
 
 def test_call_tir_extern():
     @R.function
-    def foo(x: Tensor):
-        z = relax.call_tir("my_extern", (x,), (10,), dtype="float32")
+    def foo(x: R.Tensor):
+        z = R.call_tir("my_extern", (x,), (10,), dtype="float32")
         return z
 
     check_roundtrip(foo)
@@ -227,11 +240,11 @@ def test_const_irmodule():
         @tvm.script.ir_module
         class Module:
             @R.function
-            def my_const(x: Tensor((2, 3), "float32")):
-                y: Tensor((2, 3), "float32") = relax.const(
+            def my_const(x: R.Tensor((2, 3), "float32")):
+                y: R.Tensor((2, 3), "float32") = R.const(
                     [[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]], dtype="float32"
                 )
-                z: Tensor((2, 3), "float32") = relax.add(x, y)
+                z: R.Tensor((2, 3), "float32") = R.add(x, y)
                 return z
 
         mod = Module
@@ -255,13 +268,13 @@ def test_const_irmodule():
 
 def test_const():
     @R.function
-    def my_const(x: Tensor((2, 3), "float32")):
-        y1 = relax.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
-        y2 = relax.const(2.1, dtype="float32")
-        y3 = relax.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
-        z = relax.add(x, y1)
-        r = relax.add(z, y2)
-        w = relax.add(r, y3)
+    def my_const(x: R.Tensor((2, 3), "float32")):
+        y1 = R.const([[0.1, 1.1, 2.1], [3.1, 4.1, 5.1]])
+        y2 = R.const(2.1, dtype="float32")
+        y3 = R.const([[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]])
+        z = R.add(x, y1)
+        r = R.add(z, y2)
+        w = R.add(r, y3)
         return w
 
     check_roundtrip(my_const)
@@ -314,18 +327,20 @@ def test_class_irmodule():
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
         @R.function
-        def f(x: Tensor((n, n), _)) -> Tensor:
+        def f(x: R.Tensor(("n", "n"))) -> R.Tensor:
             # todo(@yongwww): Update the check_type_ function's body is a call_node
             r = g(x)
             return r
 
         @R.function
-        def g(y: Tensor((n, n), _)) -> Tensor:
+        def g(y: R.Tensor(("n", "n"))) -> R.Tensor:
+            n = T.var("int64")
             r = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
             return r
 
         @R.function
-        def h(x: Tensor((n, n), _), y: Tensor((n, n), _), z: Tensor((n, n), _)) -> Tensor:
+        def h(x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))) -> R.Tensor:
+            n = T.var("int64")
             _ = my_matmul(x, y, z)
             return z
 
@@ -335,8 +350,9 @@ def test_class_irmodule():
 
 def test_tir_max():
     @R.function
-    def tir_max(x: Tensor((m, n), "float32")):
-        gv = relax.call_tir("my_extern", (x,), (tir.max(n, m),), dtype="float32")
+    def tir_max(x: R.Tensor(("m", "n"), "float32")):
+        m, n = T.var("int64"), T.var("int64")
+        gv = relax.call_tir("my_extern", (x,), (T.max(n, m),), dtype="float32")
         return gv
 
     check_roundtrip(tir_max)
@@ -344,8 +360,9 @@ def test_tir_max():
 
 def test_tir_cast():
     @R.function
-    def tir_cast(x: Tensor((m,), "float32")):
-        gv = relax.call_tir("my_extern", (x,), (tir.cast("int32", m),), dtype="float32")
+    def tir_cast(x: R.Tensor(("m",), "float32")):
+        m = T.var("int64")
+        gv = R.call_tir("my_extern", (x,), (T.cast(m, "int32"),), dtype="float32")
         return gv
 
     check_roundtrip(tir_cast)
@@ -366,49 +383,60 @@ def test_shape_expr():
     assert x.__str__() == "(10, 5)"
 
 
+@pytest.mark.xfail
 def test_runtime_dep_shape():
     x = relax.RuntimeDepShape()
     assert x.__str__() == "_"
 
 
 def test_func_type():
+    # Since current all functions have "global_symbol" attribute, we can't
+    # use the same name for different functions, even it's a local function.
     @tvm.script.ir_module
     class TestFuncType:
         @R.function
         def global_func_1(
-            x: Tensor((m, n), "float32")
-        ) -> Callable((Tensor((m, n), "float32")), Tensor((m, n), "float32")):
+            x: R.Tensor(("m", "n"), "float32")
+        ) -> R.Callable((R.Tensor(("m", "n"), "float32"),), R.Tensor(("m", "n"), "float32")):
+            m, n = T.var("int64"), T.var("int64")
+
             @R.function
-            def local_func_1(y: Tensor((m, n), "float32")) -> Tensor((m, n), "float32"):
-                s = relax.add(x, y)
+            def local_func_1(y: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
+                s = R.add(x, y)
                 return s
 
             return local_func_1
 
         @R.function
         def global_func_2(
-            x: Tensor((m, n), "float32")
-        ) -> Callable(
-            (Tensor(None, "float32", ndim=2)),
-            Callable((Tensor((m, n), "float32"),), Tensor((m, n), "float32")),
+            x: R.Tensor(("m", "n"), "float32")
+        ) -> R.Callable(
+            (R.Tensor(None, "float32", ndim=2),),
+            R.Callable((R.Tensor(("m", "n"), "float32"),), R.Tensor(("m", "n"), "float32")),
         ):
+            m, n = T.var("int64"), T.var("int64")
+
             @R.function
-            def local_func_1(
-                y: Tensor((m, n), "float32")
-            ) -> Callable((Tensor((m, n), "float32"),), Tensor((m, n), "float32")):
+            def local_func_2(
+                y: R.Tensor(("m", "n"), "float32")
+            ) -> R.Callable((R.Tensor((m, n), "float32"),), R.Tensor((m, n), "float32")):
                 @R.function
-                def local_func_2(z: Tensor((m, n), "float32")) -> Tensor(None, "float32", ndim=2):
-                    s1 = relax.add(x, y)
-                    s2 = relax.add(z, s1)
+                def local_func_3(
+                    z: R.Tensor((m, n), "float32")
+                ) -> R.Tensor(None, "float32", ndim=2):
+                    s1 = R.add(x, y)
+                    s2 = R.add(z, s1)
                     return s2
 
-                return local_func_2
+                return local_func_3
 
-            return local_func_1
+            return local_func_2
 
     func_type = TestFuncType
     check_roundtrip(func_type)
 
 
 if __name__ == "__main__":
+    # test_tuplegetitem()
+    test_const()
     pytest.main([__file__])

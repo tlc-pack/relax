@@ -40,7 +40,7 @@ from tvm.relax.op import (
     unique,
     memory,
 )
-from tvm.relax.ty import ObjectType, ShapeType
+from tvm.relax.ty import ObjectType, ShapeType, DynTensorType
 from tvm.relax.utils import convert_to_expr
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
@@ -55,12 +55,15 @@ from . import _ffi_api, frame
 class TensorType(tvm_Object):
     """A temporary Tensor type for `R.Tensor` in ir_builder."""
 
+    type: DynTensorType
+    shape: Optional[Expr]
+
 
 def tensor(
     shape: Optional[List[Union[PrimExpr, str]]] = None,
     dtype: Optional[str] = None,
     ndim: int = -1,
-):
+) -> TensorType:
     """Helper function for `R.Tensor` in parser
     Parameters
     ----------

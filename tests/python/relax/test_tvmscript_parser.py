@@ -744,5 +744,87 @@ def test_other_cases():
         return R.print(x, format="{}")
 
 
+def test_meta():
+    metadata = {
+        "root": 1,
+        "nodes": [
+            {"type_key": ""},
+            {"type_key": "Map", "keys": ["relay.Constant"], "data": [2]},
+            {"type_key": "Array", "data": [3, 12]},
+            {
+                "type_key": "relay.Constant",
+                "attrs": {
+                    "_checked_type_": "6",
+                    "data": "0",
+                    "shape_": "7",
+                    "span": "0",
+                    "virtual_device_": "4",
+                },
+            },
+            {
+                "type_key": "VirtualDevice",
+                "attrs": {
+                    "device_type_int": "-1",
+                    "memory_scope": "5",
+                    "target": "0",
+                    "virtual_device_id": "-1",
+                },
+            },
+            {"type_key": "runtime.String"},
+            {
+                "type_key": "relax.DynTensorType",
+                "attrs": {"dtype": "float32", "ndim": "2", "span": "0"},
+            },
+            {
+                "type_key": "relax.expr.ShapeExpr",
+                "attrs": {"_checked_type_": "11", "shape_": "0", "span": "0", "values": "8"},
+            },
+            {"type_key": "Array", "data": [9, 10]},
+            {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "2"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "3"}},
+            {"type_key": "relax.ShapeType", "attrs": {"span": "0"}},
+            {
+                "type_key": "relay.Constant",
+                "attrs": {
+                    "_checked_type_": "13",
+                    "data": "1",
+                    "shape_": "14",
+                    "span": "0",
+                    "virtual_device_": "4",
+                },
+            },
+            {
+                "type_key": "relax.DynTensorType",
+                "attrs": {"dtype": "float32", "ndim": "2", "span": "0"},
+            },
+            {
+                "type_key": "relax.expr.ShapeExpr",
+                "attrs": {"_checked_type_": "18", "shape_": "0", "span": "0", "values": "15"},
+            },
+            {"type_key": "Array", "data": [16, 17]},
+            {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "2"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "3"}},
+            {"type_key": "relax.ShapeType", "attrs": {"span": "0"}},
+        ],
+        "b64ndarrays": [
+            "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAADNzMw9zcyMP2ZmBkBmZkZAMzODQDMzo0A=",
+            "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAAAAAEBAAABAQAAAQEAAAEBAAABAQAAAQEA=",
+        ],
+        "attrs": {"tvm_version": "0.11.dev0"},
+    }
+
+    @R.function(metadata=metadata)
+    def my_const(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor(None, dtype="float32", ndim=2):
+        # block 0
+        y1: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][0]
+        y2: R.Tensor((), dtype="float32") = 2.1
+        y3: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][1]
+        z: R.Tensor((2, 3), dtype="float32") = relax.add(x, y1)
+        r: R.Tensor((2, 3), dtype="float32") = relax.add(z, y2)
+        w: R.Tensor((2, 3), dtype="float32") = relax.add(r, y3)
+        return w
+
+
 if __name__ == "__main__":
+    test_meta()
     tvm.testing.main()
