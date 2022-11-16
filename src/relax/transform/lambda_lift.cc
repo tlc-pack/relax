@@ -137,7 +137,7 @@ class LambdaLifter : public ExprMutator {
           Function(params, body, body->checked_type_, RuntimeDepShape(), func_node->attrs);
     } else {
       visited_func =
-          Function(params, body, func_node->ret_type, RuntimeDepShape(), func_node->attrs);
+          Function(params, body, func_node->ret_type, func_node->ret_shape, func_node->attrs);
     }
     auto new_func = Downcast<Function>(visited_func);
 
@@ -182,6 +182,7 @@ class LambdaLifter : public ExprMutator {
 
     // Add the lifted function to the module.
     builder_->UpdateFunction(global, lifted_func);
+    UpdateType(global, lifted_func->checked_type());
 
     if (!is_closure) {
       return std::move(global);

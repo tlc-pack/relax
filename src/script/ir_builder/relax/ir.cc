@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/script/ir_builder/relax/ir.h>
+#include <tvm/tir/op.h>
 
 #include "./utils.h"
 
@@ -58,6 +59,7 @@ TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
 TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   using namespace tvm::relax;
+  ICHECK_GE(ndim, -1) << "ndim must be >= -1, but got " << ndim;
   if (shape.defined() && ndim >= 0) {
     CHECK_EQ(shape.value().size(), ndim)
         << "The dimension of the given shape is mismatched with the given `ndim`";
@@ -66,7 +68,12 @@ TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   }
   Optional<Expr> shape_expr = NullOpt;
   if (shape.defined()) {
-    shape_expr = ShapeExpr(shape.value());
+    Array<PrimExpr> _shape;
+    _shape.reserve(shape.value().size());
+    for (const PrimExpr& expr : shape.value()) {
+      _shape.push_back(tvm::cast(DataType::Int(64), expr));
+    }
+    shape_expr = ShapeExpr(_shape);
   }
   return TensorType(DynTensorType(ndim, dtype), shape_expr);
 }
@@ -77,11 +84,16 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
 
 FunctionFrame Function() {
   ObjectPtr<FunctionFrameNode> n = make_object<FunctionFrameNode>();
-  n->block_builder = tvm::relax::BlockBuilder::Create(/*mod=*/NullOpt);
+  const IRBuilder& ir_builder = IRBuilder::Current();
+  Optional<tvm::IRModule> mod = NullOpt;
+  if (const Optional<ir::IRModuleFrame> mod_frame = ir_builder->GetLastFrame<ir::IRModuleFrame>()) {
+    mod = tvm::IRModule(mod_frame.value()->functions);
+  }
+  n->block_builder = tvm::relax::BlockBuilder::Create(/*mod=*/mod);
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::ShapeExpr& shape) {
+tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::relax::Var var(name, shape, type);
   frame->params.push_back(var);
@@ -114,7 +126,20 @@ void FuncRetType(tvm::Type ret_type) {
   frame->ret_type = ret_type;
 }
 
+void FuncRetShape(tvm::relax::Expr ret_shape) {
+  FunctionFrame frame = FindFunctionFrame("R.ret_shape");
+  if (frame->ret_shape.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate function return type, previous one is:\n "
+               << frame->ret_type.value();
+  }
+  frame->ret_shape = ret_shape;
+}
+
 void FuncRetValue(const tvm::relax::Expr& value) {
+  // Step 0. Normalize the value.
+  const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+  tvm::relax::Expr normalized_value = block_builder->Normalize(value);
+
   // Step 1. The current Relax TVMScript syntax only allows function return appearing at the end of
   // a function body. Therefore if there is any unended block frame when dealing with function
   // return, we should end the block frame.
@@ -129,7 +154,8 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   CHECK(!frame->output.defined())
       << "ValueError: Relax functions don't support multiple return statement. Please make sure "
          "the return statement appears at the end of function.";
-  frame->output = value;
+
+  frame->output = std::move(normalized_value);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function);
@@ -137,6 +163,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetType").set_body_typed(FuncRetType);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetShape").set_body_typed(FuncRetShape);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
 
 ///////////////////////////// BindingBlock //////////////////////////////
@@ -170,23 +197,12 @@ void DataflowBlockOutput(const Array<tvm::relax::Var>& vars) {
 
   // Step 3. All the output variables must be global variables and must be emitted by this dataflow
   // block.
-  Array<tvm::relax::Var> emitted_vars = block_frame.value()->emitted_vars;
+  const Array<tvm::relax::Var>& emitted_vars = block_frame.value()->emitted_vars;
   for (const tvm::relax::Var& var : vars) {
-    CHECK(!var->IsInstance<tvm::relax::DataflowVarNode>())
-        << "ValueError: The output variables of a dataflow block must be all global variables.";
     CHECK(std::find(emitted_vars.begin(), emitted_vars.end(), var) != emitted_vars.end())
         << "ValueError: An output variable is not emitted by this dataflow block. Please make sure "
            "all dataflow block output variables are emitted exactly by this block.";
-  }
-
-  // Step 4. All normal variables emitted by this dataflow blocks should be output variables.
-  for (const tvm::relax::Var& emitted_var : emitted_vars) {
-    if (!emitted_var->IsInstance<tvm::relax::DataflowVarNode>()) {
-      CHECK(std::find(vars.begin(), vars.end(), emitted_var) != vars.end())
-          << "ValueError: An non-dataflow variable of this dataflow block is not an output "
-             "variable. Please make sure all non-dataflow variables emitted by this block are all "
-             "contained in the output variable list.";
-    }
+    block_frame.value()->output_vars.push_back(var);
   }
 }
 
@@ -197,58 +213,32 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.DataflowBlockOutput")
 
 /////////////////////////////// Bindings ///////////////////////////////
 
-tvm::relax::Var Emit(const tvm::relax::Expr& expr, bool is_dataflow_var) {
+tvm::relax::Var Emit(const tvm::relax::Expr& expr) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::Var var{nullptr};
-  if (block_frame->is_dataflow && !is_dataflow_var) {
-    var = block_builder->EmitOutput(expr);
-  } else {
-    var = block_builder->Emit(expr);
-  }
+  var = block_builder->Emit(expr);
   block_frame->emitted_vars.push_back(var);
   return var;
 }
 
 Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
                                          const Array<PrimExpr>& pattern,  //
-                                         bool emit_var,                   //
-                                         bool is_dataflow_var) {
+                                         bool emit_var) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
   tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
 
-  // If we don't intend to emit a variable, just emit the binding and return.
   if (!emit_var) {
+    // If we don't intend to emit a variable, just emit the binding and return.
     tvm::relax::MatchShape match_shape(value, pattern, tvm::relax::Var{nullptr});
     block_builder->EmitMatchShape(match_shape);
     return NullOpt;
-  }
-
-  // TODO(tvm-team): Enhance the API of EmitMatchShape in BlockBuilder and then update the following
-  // code snippet
-  tvm::relax::Var var{nullptr};
-  tvm::relax::Id vid(is_dataflow_var ? "lv" : "gv");
-
-  if (is_dataflow_var) {
-    var = tvm::relax::DataflowVar(vid, NullOpt, NullOpt);
   } else {
-    var = tvm::relax::Var(vid, NullOpt, NullOpt);
+    // Otherwise, we need to emit a variable and bind it to the match shape.
+    tvm::relax::Var var = block_builder->EmitMatchShape(value, pattern);
+    block_frame->emitted_vars.push_back(var);
+    return var;
   }
-
-  if (value->checked_type().as<tvm::relax::ShapeTypeNode>()) {
-    UpdateType(var, tvm::relax::ShapeType());
-  } else if (const tvm::relax::DynTensorTypeNode* tty =
-                 value->checked_type().as<tvm::relax::DynTensorTypeNode>()) {
-    tvm::relax::ShapeExpr shape = tvm::relax::ShapeExpr(pattern);
-    UpdateShape(var, shape);
-    DataType dtype = tty->dtype;
-    UpdateType(var, tvm::relax::DynTensorType(pattern.size(), dtype));
-  } else {
-    LOG(FATAL) << "The value passed to EmitMatchShape must be of DynTensorType or ShapeType.";
-  }
-
-  block_frame->emitted_vars.push_back(var);
-  return block_builder->EmitMatchShape(tvm::relax::MatchShape(value, pattern, var));
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
@@ -257,7 +247,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 ///////////////////////////// Type Deduce //////////////////////////////
 
 void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                       const Optional<tvm::relax::ShapeExpr>& anno_shape) {
+                       const Optional<tvm::relax::Expr>& anno_shape) {
   using tvm::relax::IsBaseOf;
   if (var->checked_type_.defined()) {
     const Type& var_type = var->checked_type();
@@ -267,9 +257,17 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
   }
 
   if (var->shape_.defined() && anno_shape.defined()) {
-    const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
     tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
-    CHECK(block_builder->CanProveShapeEqual(var_shape, anno_shape.value()))
+    auto check_shape = [](const tvm::relax::Expr& lhs, const tvm::relax::Expr& rhs) {
+      if (lhs->IsInstance<tvm::relax::RuntimeDepShapeNode>() ||
+          rhs->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
+        return true;
+      } else {
+        const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+        return block_builder->CanProveShapeEqual(lhs, rhs);
+      }
+    };
+    CHECK(check_shape(var_shape, anno_shape.value()))
         << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
         << " but got annotation: " << anno_shape.value();
   }

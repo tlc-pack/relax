@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations
-
 import tempfile
 
-import pytest
 import tvm
+import tvm.testing
 import tvm.meta_schedule as ms
 from tvm import relax
 from tvm.ir import transform
@@ -61,11 +59,11 @@ class InputModule:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @R.function
-    def main(x: Tensor((32, 32), "float32"), w: Tensor((32, 32), "float32")) -> Tensor:
+    def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
             lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
-            relax.output(lv1)
+            R.output(lv1)
         return lv1
 
 
@@ -114,4 +112,4 @@ def test_ms_tuning_primfunc():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

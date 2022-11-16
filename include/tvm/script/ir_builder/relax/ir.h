@@ -78,8 +78,7 @@ TVM_DLL FunctionFrame Function();
  * \param shape The shape of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type,
-                            const tvm::relax::ShapeExpr& shape);
+TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -98,6 +97,12 @@ TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
  * \param ret_type The return type. Note: it's a standard `tvm::Type` instead of TensorType.
  */
 TVM_DLL void FuncRetType(tvm::Type ret_type);
+
+/*!
+ * \brief Specify the return shape of the last function frame.
+ * \param ret_shape The return shape.
+ */
+TVM_DLL void FuncRetShape(tvm::relax::Expr ret_shape);
 
 /*!
  * \brief Specify the return value of the last function frame.
@@ -130,25 +135,20 @@ TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
 /*!
  * \brief Emit a binding to the last binding block frame.
  * \param value The right side value of the bindings to be emitted.
- * \param is_dataflow_var A boolean indicating if the emitted binding variable is a dataflow
- * variable.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value, bool is_dataflow_var);
+TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value);
 
 /*!
  * \brief Emit a match_shape binding to the last binding block frame.
  * \param value The value of the MatchShape to be emitted.
  * \param pattern The pattern of the MatchShape to be emitted.
  * \param emit_var A boolean indicating if the MatchShape contains the emitted variable.
- * \param is_dataflow_var A boolean indicating if the emitted variable is a dataflow variable when
- * `emit_var` is true. When `emit_var` is false, the value of this flag will be ignored.
  * \return The emitted var if `emit_var` is true. Otherwise, return `NullOpt`.
  */
 TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
                                                  const Array<PrimExpr>& pattern,  //
-                                                 bool emit_var,                   //
-                                                 bool is_dataflow_var);
+                                                 bool emit_var);
 
 ///////////////////////////// Type Deduce //////////////////////////////
 
@@ -161,7 +161,7 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
  * And we annotate to the var with more detailed type.
  */
 TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                               const Optional<tvm::relax::ShapeExpr>& anno_shape);
+                               const Optional<tvm::relax::Expr>& anno_shape);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

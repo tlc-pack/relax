@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import annotations  # must import to defer parsing of annotations
-import pytest
-import sys
 import tvm
+
+import tvm.testing
 from tvm import relax as rx, tir
 from tvm.script import tir as T, relax as R
 
@@ -117,7 +116,8 @@ def test_match_shape_symbolic():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def f(x: Tensor((_, _), "float32")):
+        def f(x: R.Tensor("float32", ndim=2)):
+            n, m = T.var("int64"), T.var("int64")
             x0 = R.match_shape(x, (n, m))
             return (x0, (n + 1, m))
 
@@ -125,4 +125,4 @@ def test_match_shape_symbolic():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

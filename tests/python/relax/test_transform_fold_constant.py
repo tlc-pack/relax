@@ -14,13 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations  # must import to defer parsing of annotations
-import pytest
-import sys
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.ir.base import assert_structural_equal
 import numpy as np
 
 import tvm.script
@@ -70,12 +66,12 @@ def test_one_fold_addone():
                     B[vi, vj] = A[vi, vj] + T.float32(1)
 
         @R.function
-        def before(c0: Tensor((16, 16), "float32")):
+        def before(c0: R.Tensor((16, 16), "float32")):
             lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="float32")
             return lv0
 
         @R.function
-        def expected(c1: Tensor((16, 16), "float32")):
+        def expected(c1: R.Tensor((16, 16), "float32")):
             lv0 = c1
             return c1
 
@@ -100,12 +96,12 @@ def test_one_fold_transpose():
                     B[vi, vj] = A[vj, vi]
 
         @R.function
-        def before(c0: Tensor((2, 3), "float32")):
+        def before(c0: R.Tensor((2, 3), "float32")):
             lv0 = relax.call_tir(func, (c0,), (3, 2), dtype="float32")
             return lv0
 
         @R.function
-        def expected(c1: Tensor((3, 2), "float32")):
+        def expected(c1: R.Tensor((3, 2), "float32")):
             lv0 = c1
             return c1
 
@@ -129,13 +125,13 @@ def test_two_hop_addone():
                     B[vi, vj] = A[vi, vj] + T.float32(1)
 
         @R.function
-        def before(c0: Tensor((2, 2), "float32")):
+        def before(c0: R.Tensor((2, 2), "float32")):
             lv0 = relax.call_tir(addone, (c0,), (2, 2), dtype="float32")
             lv1 = relax.call_tir(addone, (lv0,), (2, 2), dtype="float32")
             return lv1
 
         @R.function
-        def expected(c1: Tensor((2, 2), "float32"), c2: Tensor((2, 2), "float32")):
+        def expected(c1: R.Tensor((2, 2), "float32"), c2: R.Tensor((2, 2), "float32")):
             lv0 = c1
             lv1 = c2
             return c2
@@ -161,14 +157,14 @@ def test_dataflow_fold():
                     B[vi, vj] = A[vi, vj]
 
         @R.function
-        def before(c0: Tensor((16, 16), "float32")):
+        def before(c0: R.Tensor((16, 16), "float32")):
             with R.dataflow():
                 gv0 = relax.call_tir(identity, (c0,), (16, 16), dtype="float32")
                 R.output(gv0)
             return gv0
 
         @R.function
-        def expected(c1: Tensor((16, 16), "float32")):
+        def expected(c1: R.Tensor((16, 16), "float32")):
             with R.dataflow():
                 gv0 = c1
                 R.output(gv0)
@@ -209,7 +205,8 @@ def test_fold_mixed_case():
                     C[vi, vj] = A[vi, vj] - B[vi, vj]
 
         @R.function
-        def before(c0: Tensor((16, 16), "float32"), x: Tensor((_, _), "float32")):
+        def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor("float32", ndim=2)):
+            n, m = T.var("int64"), T.var("int64")
             x0 = R.match_shape(x, (n, m))
             # this line cannot be folded because n is unknown
             lv0 = relax.call_tir(addone, (c0,), (n, 16), dtype="float32")
@@ -223,11 +220,12 @@ def test_fold_mixed_case():
 
         @R.function
         def expected(
-            c0: Tensor((16, 16), "float32"),
-            c1: Tensor((16, 16), "float32"),
-            c2: Tensor((16, 16), "float32"),
-            x: Tensor((_, _), "float32"),
-        ) -> Tensor:
+            c0: R.Tensor((16, 16), "float32"),
+            c1: R.Tensor((16, 16), "float32"),
+            c2: R.Tensor((16, 16), "float32"),
+            x: R.Tensor("float32", ndim=2),
+        ) -> R.Tensor:
+            n, m = T.var("int64"), T.var("int64")
             x0 = R.match_shape(x, (n, m))
             # this line cannot be folded because n is unknown
             lv0 = relax.call_tir(addone, (c0,), (n, 16), dtype="float32")
@@ -260,12 +258,12 @@ def test_int32_fold():
                     B[vi, vj] = A[vi, vj] + T.int32(1)
 
         @R.function
-        def before(c0: Tensor((16, 16), "int32")):
+        def before(c0: R.Tensor((16, 16), "int32")):
             lv0 = relax.call_tir(addone, (c0,), (16, 16), dtype="int32")
             return lv0
 
         @R.function
-        def expected(c1: Tensor((16, 16), "int32")):
+        def expected(c1: R.Tensor((16, 16), "int32")):
             lv0 = c1
             return c1
 
@@ -279,4 +277,4 @@ def test_int32_fold():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

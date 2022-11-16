@@ -16,6 +16,8 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
+from typing import Optional
+
 from tvm.ir import BaseFunc, GlobalVar
 
 from . import _ffi_api
@@ -32,12 +34,20 @@ def ir_module() -> IRModuleFrame:
     return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def decl_function(func_name: str) -> GlobalVar:
+def decl_function(
+    func_name: str,
+    func_signature: Optional[BaseFunc] = None,
+) -> GlobalVar:
     """Declare a Function without given the specific function implementation.
     Parameters
     ----------
     func_name : str
         The function unique name.
+
+    func_signature: Optional[BaseFunc]
+        A Function w/o body, which used to specify the function signature
+        (i.e. func params and func return type/shape).
+
     Note
     ----
     It is usually used in cross-function call. And we can specify the function by `DefFunction`
@@ -46,7 +56,10 @@ def decl_function(func_name: str) -> GlobalVar:
     gv : GlobalVar
         The corresponding GlobalVar.
     """
-    return _ffi_api.DeclFunction(func_name)  # pylint: disable=no-member # type: ignore
+
+    return _ffi_api.DeclFunction(  # pylint: disable=no-member # type: ignore
+        func_name, func_signature
+    )
 
 
 def def_function(func_name: str, func: BaseFunc) -> None:

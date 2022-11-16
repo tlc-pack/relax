@@ -23,7 +23,7 @@ from tvm.runtime.object import Object
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
-from ...ir import Array
+from ...ir import Array, Type, PrimExpr
 
 py_print = print  # pylint: disable=invalid-name
 
@@ -63,8 +63,34 @@ def call_tir(
     if isinstance(func, str):
         func = ExternFunc(func)
 
+    def _create_shape(shape: List[Union[int, PrimExpr]]) -> ShapeExpr:
+        shape_array = []
+        for x in shape:
+            if isinstance(x, int):
+                shape_array.append(tvm.tir.IntImm("int64", x))
+            elif isinstance(x, PrimExpr):
+                # TODO: enforce all shapes are i64
+                # if x.dtype != "int64":
+                #     raise TypeError("Expect int64 dtype for shape")
+                shape_array.append(x)
+            else:
+                raise TypeError("Expect int or PrimExpr for shape")
+        return ShapeExpr(shape_array)
+
     if isinstance(shape, (list, tuple, Array)):
-        shape = ShapeExpr(shape)
+        if all([not isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
+            shape = _create_shape(shape)  # type: ignore
+        elif all([isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
+            shape = Tuple(
+                [
+                    _create_shape(x) if not isinstance(x, ShapeExpr) else x  # type: ignore
+                    for x in shape
+                ]
+            )
+        else:
+            raise TypeError(
+                f"The shape is expected to be ShapeExpr or Tuple[ShapeExpr], bot got: f{shape}"
+            )
 
     if isinstance(args, Expr):  # type: ignore
         args = Tuple((args,))
@@ -115,6 +141,7 @@ def make_closure(
 def invoke_closure(
     closure: Expr,
     args: Union[Tuple, List[Expr]],
+    type_args: Union[List[Type], Type],
 ) -> Object:
     """
     Invoke a closure.
@@ -127,6 +154,8 @@ def invoke_closure(
     args : Union[Tuple, List[Expr]]
         The input arguments.
 
+    type_args: Union[Tuple[Type], Type]
+        The type_args of the CallNode
 
     Returns
     -------
@@ -136,8 +165,10 @@ def invoke_closure(
 
     if isinstance(args, (list, tuple)):
         args = Tuple(args)
+    if not isinstance(type_args, (list, tuple)):
+        type_args = (type_args,)
 
-    return _ffi_api.invoke_closure(closure, args)  # type: ignore
+    return _ffi_api.invoke_closure(closure, args, type_args)  # type: ignore
 
 
 def render_object(val: tvm.Object) -> str:
@@ -195,7 +226,7 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
+def print(*values: List[Expr], format: str = "") -> Expr:
     """Print op to print the values
 
     Parameters
@@ -211,8 +242,6 @@ def print(values: Union[Expr, List[Expr]], format: str) -> Expr:
     result : Expr
         A relax Call, which will print the value during runtime.
     """
-    if isinstance(values, Expr):  # type: ignore
-        values = [values]
     return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
 
 
@@ -269,7 +298,9 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
         raise AssertionError(error_message)
 
 
-def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format: str = "") -> Expr:
+def assert_op(
+    condition: Expr, format_args: Optional[Union[Expr, List[Expr]]] = None, format: str = ""
+) -> Expr:
     """
     Create a call to Relax's assert_op operation (`assert` is reserved in Python,
     so the name must be distinct).
@@ -279,7 +310,7 @@ def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format:
     condition: Expr
         The assertion condition.
 
-    format_args: List[Expr]
+    format_args: Optional[Union[Expr, List[Expr]]]
         Format arguments for the error message if the condition fails.
 
     format_str: str
@@ -292,6 +323,8 @@ def assert_op(condition: Expr, format_args: Optional[List[Expr]] = None, format:
     """
     if format_args is None:
         format_args = []
+    if isinstance(format_args, Expr):  # type: ignore
+        format_args = [format_args]
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 
