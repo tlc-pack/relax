@@ -434,5 +434,6 @@ def test_print_type_annotation_non_var():
     type_str = "checked_type_=ShapeType()"
     assert type_str in call_str
 
+
 if __name__ == "__main__":
     pytest.main([__file__])
