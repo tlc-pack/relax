@@ -121,7 +121,7 @@ def test_match_shape() -> None:
 
 def test_match_shape_unbound() -> None:
     @R.function
-    def func(x: Tensor) -> Tensor:
+    def func(x: R.Tensor) -> R.Tensor:
         R.match_shape(x, (1, 1))
         return x
 
@@ -397,7 +397,7 @@ def test_operators():
 
 def test_print_shape_annotation_non_var():
     @R.function
-    def f() -> Tensor:
+    def f() -> R.Tensor:
         return R.const([1, 2])
 
     body = normalize(f).body
@@ -417,21 +417,22 @@ def test_print_shape_annotation_non_var():
 
 def test_print_type_annotation_non_var():
     @R.function
-    def f() -> Shape:
+    def f() -> R.Shape:
         return R.shape_of(R.const(1))
 
     body = normalize(f).body
-    assert isinstance(body, rx.Call)
-    arg = body.args[0]
+    assert isinstance(body, rx.SeqExpr)
+    call = body.body
+    assert isinstance(call, rx.Call)
+    arg = call.args[0]
     arg_str = strip_whitespace(dump_ast(arg))
     # the constant should have a tensor type
     assert "checked_type_=DynTensorType(ndim=0" in arg_str
 
-    body_str = strip_whitespace(dump_ast(body))
+    call_str = strip_whitespace(dump_ast(call))
     # we expect the shape_of call to have a checked_type_ of ShapeType
     type_str = "checked_type_=ShapeType()"
-    assert type_str in body_str
-
+    assert type_str in call_str
 
 if __name__ == "__main__":
     pytest.main([__file__])
