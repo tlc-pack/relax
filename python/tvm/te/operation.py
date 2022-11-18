@@ -568,7 +568,9 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
 
 
 def create_prim_func(
-    ops: List[_tensor.Tensor], tir_var_list: List[tvm.tir.Var] = None
+    ops: List[_tensor.Tensor],
+    tir_var_list: List[tvm.tir.Var] = None,
+    index_dtype_override: Optional[str] = None,
 ) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 
@@ -576,6 +578,7 @@ def create_prim_func(
     ----------
     ops : List[Tensor]
         The source expression.
+
     tir_var_list: List[Var]
         TIR variables to add as parameters to generated PrimFunc
 
@@ -623,7 +626,7 @@ def create_prim_func(
     """
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
-    return _ffi_api.CreatePrimFunc(ops, tir_var_list)
+    return _ffi_api.CreatePrimFunc(ops, tir_var_list, index_dtype_override)
 
 
 def create_prim_func_from_outputs(

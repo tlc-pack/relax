@@ -536,7 +536,7 @@ class FusedTIRConstructor : public ExprVisitor {
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
-                       Optional<Map<tir::Var, tir::Buffer>>(), DictAttrs(attr_map));
+                       DictAttrs(attr_map));
     return func;
   }
 

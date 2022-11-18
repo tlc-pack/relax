@@ -21,9 +21,9 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tir
-from tvm.script._parser import ir as I
-from tvm.script._parser import relax as R
-from tvm.script._parser import tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 from tvm.relax import RuntimeDepShape, DynTensorType
 
 
@@ -610,7 +610,7 @@ def test_cross_function_call():
     # Current error: `gv2.shape` is different: (10, 5) vs RuntimeDepShape()
     # tvm.ir.assert_structural_equal(Mod0, Mod1)
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    with pytest.raises(OSError):
 
         @I.ir_module
         class ErrorMod:

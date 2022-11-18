@@ -29,7 +29,6 @@ from tvm.tir import PrimExpr
 
 from ...ir_builder.relax import TensorType, tensor
 from .._core import parse, utils
-from ..ir import is_defined_in_class
 
 FType = _TypeVar("FType", bound=_Callable)
 
@@ -37,7 +36,7 @@ FType = _TypeVar("FType", bound=_Callable)
 def function(f: FType) -> Union[Function, FType]:
     if not inspect.isfunction(f):
         raise TypeError(f"Expect a function, but got: {f}")
-    if is_defined_in_class(inspect.stack()):
+    if utils.is_defined_in_class(inspect.stack(), f):
         return f
     return parse(f, utils.inspect_function_capture(f))
 
