@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=missing-function-docstring,invalid-name,line-too-long
+"""Relax hexagon test."""
 
 import numpy as np
 import pytest
@@ -21,7 +23,6 @@ import tvm.testing
 from tvm import relay, relax, runtime
 from tvm.relax.testing import relay_translator
 from tvm.contrib.hexagon.session import Session
-from tvm.script import relax as R, tir as T
 from tvm.relay import testing
 
 
@@ -42,7 +43,6 @@ def test_conv2d(hexagon_session: Session):
     f = relay.Function([data, weight], y)
     relay_mod = tvm.IRModule.from_expr(f)
 
-    # target_hexagon = "llvm -keys=hexagon -link-params=0 -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
     target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target)

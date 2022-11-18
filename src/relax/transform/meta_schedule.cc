@@ -94,7 +94,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
 
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext ctx) {
-    Database database;
+    Database database{nullptr};
     if (Database::Current().defined()) {
       database = Database::Current().value();
     } else {

@@ -116,8 +116,7 @@ class JSONDatabaseNode : public DatabaseNode {
   /*! \brief The path to the measurement table */
   String path_measurement_record;
   /*! \brief All the workloads in the database */
-  std::unordered_map<meta_schedule::Workload, int, meta_schedule::WorkloadHash,
-                     meta_schedule::WorkloadEqual>
+  std::unordered_map<meta_schedule::Workload, int, meta_schedule::WorkloadHash, WorkloadEqual>
       workloads2idx_;
   /*! \brief All the tuning records in the database */
   std::unordered_map<std::string, std::multiset<TuningRecord, SortTuningRecordByMeanRunSecs>>

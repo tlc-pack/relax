@@ -297,6 +297,13 @@ class TuningRecord : public runtime::ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TuningRecord, runtime::ObjectRef, TuningRecordNode);
 };
 
+/*! \brief The equality check for Workload */
+struct WorkloadEqual {
+  bool operator()(const meta_schedule::Workload& a, const meta_schedule::Workload& b) const {
+    return a->shash == b->shash && tvm::StructuralEqual()(a->mod, b->mod);
+  }
+};
+
 /* \brief The abstract interface of database. */
 class DatabaseNode : public runtime::Object {
  public:
