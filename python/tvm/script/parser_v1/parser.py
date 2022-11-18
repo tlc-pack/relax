@@ -38,7 +38,6 @@ from tvm.ir.function import BaseFunc
 from tvm.tir import buffer
 from tvm.tir.function import PrimFunc
 
-from .. import _ffi_api
 from . import tir
 from .context_maintainer import ContextMaintainer
 from .diagnostics import TVMDiagnosticCtx

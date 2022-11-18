@@ -20,7 +20,6 @@ import builtins
 from typing import Any, List
 
 import tvm.tir
-from tvm.tir import FloatImm
 
 from ....target import codegen
 from ..registry import register

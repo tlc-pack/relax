@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
-from . import _parser, parser_v1
+"""TVM Script APIs of TVM Python Package"""
+from . import parser, parser_v1
 
 #############
-from ._parser import ir
-from ._parser import ir_module
-from ._parser import parse as from_source_v2
-from ._parser import tir
-from ._parser import relax
+from .parser import ir
+from .parser import ir_module
+from .parser import parse as from_source_v2
+from .parser import tir
+from .parser import relax
 
 #############
 from .parser_v1 import from_source as from_source_v1

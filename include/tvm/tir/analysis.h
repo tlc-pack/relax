@@ -260,10 +260,6 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
  * \return The anchor block if found, nullptr otherwise.
  */
 const tir::BlockNode* FindAnchorBlock(const IRModule& mod);
- * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
- * \param func The PrimFunc to be analyzed.
- * \return The Op Pattern Kind.
- */
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
