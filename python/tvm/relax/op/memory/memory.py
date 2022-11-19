@@ -16,7 +16,7 @@
 """Relax memory primitives."""
 
 from . import _ffi_api
-from ...expr import Expr, Call
+from ...expr import ShapeExpr, Expr, Call
 
 
 def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dtype: str) -> Call:
@@ -43,6 +43,10 @@ def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dty
     result : Call
         A relax Call, which gets the allocated storage.
     """
+    if not isinstance(size, ShapeExpr):
+        if not isinstance(size, (tuple, list)):
+            size = (size,)
+        size = ShapeExpr(size)
     return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
 
 
@@ -68,6 +72,10 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
+    if not isinstance(shape, ShapeExpr):
+        if not isinstance(shape, (tuple, list)):
+            shape = (shape,)
+        shape = ShapeExpr(shape)
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 

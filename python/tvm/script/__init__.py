@@ -15,25 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script APIs of TVM Python Package"""
-from . import parser, parser_v1
+from . import parser
 
-#############
 from .parser import ir
 from .parser import ir_module
-from .parser import parse as from_source_v2
+from .parser import parse
 from .parser import tir
 from .parser import relax
 
-#############
-from .parser_v1 import from_source as from_source_v1
-from .parser_v1 import ir_module as ir_module_v1
-from .parser_v1 import relax as relax_v1
-from .parser_v1 import tir as tir_v1
-
-# pylint: disable=invalid-name
-
-# ir = ir_v1
-# ir_module = ir_module_v1
-# tir = tir_v1
-# relax = relax_v1
-from_source = from_source_v2
+from_source = parse
