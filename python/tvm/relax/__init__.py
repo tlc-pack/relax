@@ -79,3 +79,6 @@ BlockBuilder = block_builder.BlockBuilder
 ExprFunctor = expr_functor.ExprFunctor
 PyExprVisitor = expr_functor.PyExprVisitor
 PyExprMutator = expr_functor.PyExprMutator
+
+# Frontends
+from . import frontends
