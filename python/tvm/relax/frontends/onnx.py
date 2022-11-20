@@ -80,8 +80,18 @@ def get_info(info_proto):
     return name, shape, dtype, shape_name
 
 
+def get_numpy(tensor_proto):
+    """Grab data in TensorProto and convert to numpy array."""
+    try:
+        from onnx.numpy_helper import to_array
+    except ImportError as e:
+        raise ImportError("Unable to import onnx which is required {}".format(e))
+    return to_array(tensor_proto)
+
+
 class onnx_input(list):
     """A helper extension to list that returns None for out of bound indices."""
+
     def __getitem__(self, item):
         if isinstance(item, slice):
             if item.stop is None:
@@ -127,13 +137,85 @@ class MatMul(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
-        assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
+        assert len(inputs) == 2, "MatMul op takes 2 inputs, {} given".format(len(inputs))
         return bb.emit_te(topi.matmul, inputs[0], inputs[1])
+
+
+class Tanh(OnnxOpConverter):
+    """Operator converter for Tanh."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        assert len(inputs) == 1, "Tanh op takes 1 input, {} given".format(len(inputs))
+        return bb.emit_te(topi.tanh, inputs[0])
+
+
+class Relu(OnnxOpConverter):
+    """Operator converter for Relu."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        assert len(inputs) == 1, "Relu op takes 1 input, {} given".format(len(inputs))
+        return bb.emit_te(topi.nn.relu, inputs[0])
+
+
+class Sigmoid(OnnxOpConverter):
+    """Operator converter for Sigmoid."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        assert len(inputs) == 1, "Sigmoid op takes 1 input, {} given".format(len(inputs))
+        return bb.emit_te(topi.sigmoid, inputs[0])
+
+
+class Gemm(OnnxOpConverter):
+    """Operator converter for Gemm."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        assert len(inputs) == 2, "Gemm op takes 2 inputs, {} given".format(len(inputs))
+        return bb.emit_te(topi.nn.gemm, inputs[0])
+
+
+class BiasGelu(OnnxOpConverter):
+    """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
+
+    bias_gelu(x, b) = 0.5(x + b)(1 + erf((x + b)/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        x = inputs[0]
+
+        b = inputs[1]
+        print(type(x))
+        print(type(b))
+
+        # assert len(x.shape) == 1, "BiasGelu bias term must be a 1D tensor"
+
+        inp = bb.emit_te(topi.add, x, b)
+
+        # Declare consts
+        const_dtype = x.checked_type.dtype
+        half = relax.const(0.5, const_dtype)
+        one = relax.const(1.0, const_dtype)
+        sqrt2 = relax.const(math.sqrt(2), const_dtype)
+
+        # Compute gelu
+        term1 = bb.emit_te(topi.multiply, half, inp)
+        divide = bb.emit_te(topi.divide, inp, sqrt2)
+        erf = bb.emit_te(topi.erf, divide)
+        term2 = bb.emit_te(topi.add, one, erf)
+        return bb.emit_te(topi.multiply, term1, term2)
 
 
 def _get_convert_map(opset):
     return {
         "MatMul": MatMul.get_converter(opset),
+        "Tanh": Tanh.get_converter(opset),
+        "Relu": Relu.get_converter(opset),
+        "Sigmoid": Sigmoid.get_converter(opset),
+        "BiasGelu": BiasGelu.get_converter(opset),
     }
 
 
@@ -155,7 +237,6 @@ class GraphProto:
     def __init__(self, shape, dtype):
         self._nodes = {}
         self._inputs = {}
-        self._renames = {}
         self._num_input = 0
         self._shape = shape.copy() if shape else {}
         self._input_names = []
@@ -267,7 +348,7 @@ class GraphProto:
             inputs = onnx_input()
             for i in node.input:
                 if i != "":
-                    inputs.append(self._nodes[self._renames.get(i, i)])
+                    inputs.append(self._nodes[i])
                 else:
                     inputs.append(None)
             i_name = self._parse_value_proto(node)
@@ -282,9 +363,7 @@ class GraphProto:
             else:
                 outputs_num = len(op)
 
-            assert (
-                len(outputs) == outputs_num
-            ), "Number of output mismatch {} vs {} in {}.".format(
+            assert len(outputs) == outputs_num, "Number of output mismatch {} vs {} in {}.".format(
                 len(outputs), outputs_num, op_name
             )
 
@@ -304,7 +383,7 @@ class GraphProto:
 
     def _parse_array(self, tensor_proto):
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
-        return _nd.array(np_array)
+        return tvm.nd.array(np_array)
 
     def _parse_attr(self, attr_proto):
         """Convert a list of AttributeProto to a dict, with names as keys."""
@@ -360,9 +439,7 @@ class GraphProto:
         return sym
 
 
-def from_onnx(
-    model, shape=None, dtype="float32", opset=None, convert_config=None
-):
+def from_onnx(model, shape=None, dtype="float32", opset=None, convert_config=None):
     """Convert a ONNX model into an equivalent Relax Function.
 
     ONNX graphs are represented as Python Protobuf objects.
