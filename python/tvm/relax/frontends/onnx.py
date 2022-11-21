@@ -188,10 +188,6 @@ class BiasGelu(OnnxOpConverter):
         x = inputs[0]
 
         b = inputs[1]
-        print(type(x))
-        print(type(b))
-
-        # assert len(x.shape) == 1, "BiasGelu bias term must be a 1D tensor"
 
         inp = bb.emit_te(topi.add, x, b)
 
@@ -209,6 +205,114 @@ class BiasGelu(OnnxOpConverter):
         return bb.emit_te(topi.multiply, term1, term2)
 
 
+def layer_norm(bb, x, eps, gamma, beta):
+    """A common function to handle layer norm.
+
+    Use LayerNormalization for the actual onnx op.
+    """
+    x_dtype = x.checked_type.dtype
+    x_shape = [val.value for val in x.shape.values]
+    num_elements = relax.const(np.prod(x_shape), dtype=x_dtype)
+
+    # Compute Mean
+    mean = bb.emit_te(topi.sum, x)
+    mean = bb.emit_te(topi.divide, mean, num_elements)
+
+    # Compute Variance
+    diff = bb.emit_te(topi.subtract, x, mean)
+    sq_diff = bb.emit_te(topi.multiply, diff, diff)
+    var_sum = bb.emit_te(topi.sum, sq_diff, -1, True)
+    var = bb.emit_te(topi.divide, var_sum, num_elements)
+
+    # Compute Layer Normalization
+    sub = bb.emit_te(topi.subtract, x, mean)
+    add = bb.emit_te(topi.add, var, relax.const(eps, dtype=x_dtype))
+    sqrt = bb.emit_te(topi.sqrt, add)
+    output = bb.emit_te(topi.divide, sub, sqrt)
+    output = bb.emit_te(topi.multiply, output, gamma)
+
+    if beta is not None:
+        output = bb.emit_te(topi.add, output, beta)
+
+    return output
+    
+
+class SkipLayerNormalization(OnnxOpConverter):
+    """Operator converter for SkipLayerNormalization from Microsoft onnxruntime contrib opset.
+
+    This layer sums the two input tensors (along with optional bias), and applies layer
+    normalization.
+    """
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        data = inputs[0]
+        skip = inputs[1]
+        gamma = inputs[2]
+        beta = inputs[3]
+        bias = inputs[4]
+
+        assert (
+            beta is not None and bias is not None
+        ), "SkipLayerNormalization import currently only supports required beta and bias"        
+
+        eps = attr.get("epsilon", 1e-12)
+
+        x = bb.emit_te(topi.add, data, skip)
+        if bias is not None:
+            x = bb.emit_te(topi.add, x, bias)
+
+        output = layer_norm(bb, x, eps, gamma, beta)
+        return output
+
+
+class EmbedLayerNormalization(OnnxOpConverter):
+    """Operator converter for EmbedLayerNormalization from Microsoft onnxruntime contrib opset.
+
+    This layer embeds the input tokens, sums them, and applies layer normalization.
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        input_ids = inputs[0]
+        segment_ids = inputs[1]
+        word_emb = inputs[2]
+        pos_emb = inputs[3]
+        segment_emb = inputs[4]
+        gamma = inputs[5]
+        beta = inputs[6]
+
+        mask = inputs[7]
+        pos_ids = inputs[8]
+
+        eps = attr.get("epsilon", 1e-12)
+
+        (batch_size, seq_len) = [val.value for val in input_ids.shape.values]
+
+        if segment_ids:
+            assert segment_emb
+
+        if pos_ids is None:
+            pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int32")
+
+        word_vec = bb.emit_te(topi.take, word_emb, input_ids, 0)
+        segment_vec = bb.emit_te(topi.take, segment_emb, segment_ids, 0)
+        pos_vec = bb.emit_te(topi.take, pos_emb, pos_ids, 0)
+
+        vec_sum = bb.emit_te(topi.add, word_vec, pos_vec)
+        if segment_ids:
+            vec_sum = bb.emit_te(topi.add, vec_sum, segment_vec)
+
+        ln = layer_norm(bb, vec_sum, eps, gamma, beta)
+
+        mask_index = relax.const(np.zeros((batch_size,), dtype="int64"))
+        if mask:
+            # calculate number of words per sentence
+            mask_index = bb.emit_te(topi.sum, mask, axis=1)
+
+        # TODO(@anwang2009): onnxruntime v1.10.0 requires a third output of vec_sum
+        return relax.Tuple([ln, mask_index])        
+
+
 def _get_convert_map(opset):
     return {
         "MatMul": MatMul.get_converter(opset),
@@ -216,6 +320,8 @@ def _get_convert_map(opset):
         "Relu": Relu.get_converter(opset),
         "Sigmoid": Sigmoid.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
+        "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
     }
 
 
