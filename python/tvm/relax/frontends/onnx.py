@@ -66,7 +66,7 @@ def get_info(info_proto):
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
-            value = _ty.Any()
+            value = tvm.tir.Var("d", "int64")
             shape_name.append(name)
         else:
             shape_name.append(value)
@@ -354,10 +354,10 @@ class Attention(OnnxOpConverter):
         input_emb = inputs[0]
 
         # (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
-        weight = inputs[1]
+        weight = bb.normalize(inputs[1])
 
         # (3 * out_hidden,)
-        bias = inputs[2]
+        bias = bb.normalize(inputs[2])
 
         # 1. (    batch,              1,        max_seq, max_seq)
         # 2. (    batch, past_seq + seq,)
@@ -365,7 +365,7 @@ class Attention(OnnxOpConverter):
         # 4. (    batch,)
         # 5. (2 * batch,)
         # For now, we only support case 2.
-        mask_index = inputs[3]
+        mask_index = bb.normalize(inputs[3])
 
         # (2, batch, num_heads, past_seq, head_size)
         past = inputs[4]
@@ -374,6 +374,7 @@ class Attention(OnnxOpConverter):
         extra_add = inputs[5]
 
         (batch_size, seq_len, _) = [val.value for val in input_emb.shape.values]
+
         (out_hidden_x3,) = [val.value for val in bias.shape.values]
         assert out_hidden_x3 % 3 == 0, "bias shape should be divisible by 3"
         out_hidden = out_hidden_x3 // 3
@@ -491,6 +492,7 @@ def _get_convert_map(opset):
         "MatMul": MatMul.get_converter(opset),
         "Tanh": Tanh.get_converter(opset),
         "Relu": Relu.get_converter(opset),
+        "Gemm": Gemm.get_converter(opset),
         "Sigmoid": Sigmoid.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
         "Gather": Gather.get_converter(opset),
@@ -613,7 +615,7 @@ class GraphProto:
             if (
                 op_name not in convert_map
                 and op_name != "Constant"
-                and op_name not in _identity_list
+                # and op_name not in _identity_list
             ):
                 unsupported_ops.add(op_name)
         if unsupported_ops:
