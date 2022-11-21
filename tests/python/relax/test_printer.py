@@ -20,7 +20,7 @@ import pytest
 import tvm
 
 from tvm import relax
-from tvm import tir, relay
+from tvm import tir
 from tvm.ir import assert_structural_equal
 
 import tvm.script
@@ -30,7 +30,6 @@ from tvm.script import tir as T, relax as R
 
 def check_roundtrip(f_pre):
     relax_text = f_pre.script(show_meta=True)
-    print(relax_text)
     f_post = tvm.script._parser.parse(relax_text)
 
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
@@ -433,5 +432,4 @@ def test_func_type():
 
 
 if __name__ == "__main__":
-    test_tuplegetitem()
     pytest.main([__file__])

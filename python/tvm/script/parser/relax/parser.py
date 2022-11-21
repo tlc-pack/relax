@@ -28,7 +28,7 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair, Tensor, TensorType
+from .entry import MatchShapePair, Tensor, ShapedType
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -79,14 +79,13 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         raise TypeError(f"Unsupported type {type(value)} in assignment")
 
 
-def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) -> Any:
-    type_annotation = self.eval_expr(node)
-    if callable(type_annotation):
-        type_annotation = Tensor()
-    if isinstance(type_annotation, TensorType):
-        shape = type_annotation.shape
-        if shape is None:
-            return type_annotation.type, relax.RuntimeDepShape()
+def eval_shape_annotation(
+    self: Parser, node: Union[doc.Expression, doc.expr], shape: relax.Expr
+) -> Any:
+    assert shape is not None
+    if isinstance(shape, relax.RuntimeDepShape):
+        return shape
+    elif isinstance(shape, relax.ShapeExpr):
         shape = list(shape.values)
         for i, expr in enumerate(shape):
             # Define the symbolic shape var
@@ -96,7 +95,21 @@ def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) ->
                     shape[i] = self.var_table.get()[name]
                 else:
                     self.var_table.add(name, shape[i])
-        return type_annotation.type, relax.ShapeExpr(shape)
+        return relax.ShapeExpr(shape)
+    elif isinstance(shape, relax.Tuple):
+        shapes = [eval_shape_annotation(self, node, s) for s in shape.fields]
+        return relax.Tuple(shapes)
+    else:
+        self.report_error(node, f"Unsupported shape {type(shape)}")
+
+
+def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) -> Any:
+    type_annotation = self.eval_expr(node)
+    if callable(type_annotation):
+        type_annotation = Tensor()
+    if isinstance(type_annotation, ShapedType):
+        shape = eval_shape_annotation(self, node, type_annotation.shape)
+        return type_annotation.type, shape
     else:
         if not isinstance(type_annotation, Type):
             self.report_error(node, f"Unsupported type annotation {type(type_annotation)}")

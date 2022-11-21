@@ -315,8 +315,7 @@ def test_tuple():
         isinstance(annot.fields[1], relax.ty.DynTensorType) and annot.fields[1].dtype == "float32"
     )
 
-    assert t.shape_ is None
-
+    assert isinstance(t.shape_, relax.Tuple)
     assert isinstance(tup, relax.Tuple)
     assert_structural_equal(tup.fields, [x, y])
 

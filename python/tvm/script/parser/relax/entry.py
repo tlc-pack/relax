@@ -24,11 +24,11 @@ from typing import Union
 from tvm.ir import FuncType, TypeConstraint, TypeVar
 from tvm.relax import DynTensorType, Expr, Function
 from tvm.relax import Tuple as RxTuple
-from tvm.relax import TupleType, Type, Var
+from tvm.relax import Type, Var
 from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
-from ...ir_builder.relax import TensorType, tensor
+from ...ir_builder.relax import ShapedType, tensor, create_shaped_tuple
 from .._core import parse, utils
 
 FType = _TypeVar("FType", bound=_Callable)
@@ -54,7 +54,7 @@ class TensorProxy(ObjectGeneric):
         shape: Optional[List[Union[PrimExpr, str]]] = None,
         dtype: str = None,
         ndim: int = -1,
-    ) -> TensorType:
+    ) -> ShapedType:
         # scalar tensor case
         if shape is not None and len(shape) == 0:
             shape = []
@@ -91,7 +91,7 @@ class CallableProxy:
 
     Parameters
     ----------
-    arg_types : List[Union[Type, TensorType]]
+    arg_types : List[Union[Type, ShapedType]]
         The argument types
 
     ret_type : Type
@@ -106,12 +106,12 @@ class CallableProxy:
 
     def __call__(
         self,
-        arg_types: List[Union[Type, TensorType]],
+        arg_types: List[Union[Type, ShapedType]],
         ret_type: Type,
         type_params: Optional[List[TypeVar]] = None,
         type_constraints: Optional[List[TypeConstraint]] = None,
     ) -> FuncType:
-        if isinstance(arg_types, TensorType):
+        if isinstance(arg_types, ShapedType):
             arg_types = [arg_types]
         arg_types = [_convert_type(ty) for ty in arg_types]
         ret_type = _convert_type(ret_type)
@@ -137,15 +137,17 @@ class TupleProxy:
 
     def __call__(
         self,
-        *fields: List[Union[Expr, Type, TensorType]],
-    ) -> TupleType:
+        *fields: List[Union[Expr, Type, ShapedType]],
+    ) -> Union[Expr, ShapedType]:
         if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
             fields = fields[0]
 
         if all([isinstance(f, Expr) for f in fields]):
             return RxTuple(fields)
-        elif all([isinstance(f, (TensorType, Type, TensorProxy)) for f in fields]):
-            return TupleType([_convert_type(ty) for ty in fields])
+        elif all([isinstance(f, (ShapedType, Type, TensorProxy)) for f in fields]):
+            types = [_convert_type(ty) for ty in fields]
+            shapes = [ty.shape if isinstance(ty, ShapedType) else None for ty in fields]
+            return create_shaped_tuple(types, shapes)
         else:
             raise TypeError(f"Invalid tuple type: {fields}")
 
@@ -176,12 +178,12 @@ def match_shape(value: Expr, pattern: List[PrimExpr]):
 ################################ utils #################################
 
 
-def _convert_type(ty: Union[Type, TensorType, TensorProxy]) -> Type:
+def _convert_type(ty: Union[Type, ShapedType, TensorProxy]) -> Type:
     if isinstance(ty, TensorProxy):
         return ty().type
-    if isinstance(ty, TensorType):
+    if isinstance(ty, ShapedType):
         return ty.type
     elif isinstance(ty, Type):
         return ty
     else:
-        raise TypeError(f"Expect a Type or TensorType, but got: {ty}")
+        raise TypeError(f"Expect a Type or ShapedType, but got: {ty}")
