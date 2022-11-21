@@ -188,8 +188,6 @@ class BiasGelu(OnnxOpConverter):
         x = inputs[0]
 
         b = inputs[1]
-        print(type(x))
-        print(type(b))
 
         # assert len(x.shape) == 1, "BiasGelu bias term must be a 1D tensor"
 
@@ -209,6 +207,26 @@ class BiasGelu(OnnxOpConverter):
         return bb.emit_te(topi.multiply, term1, term2)
 
 
+class Gather(OnnxOpConverter):
+    """Operator converter for Gather."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        axis = attr.get("axis", 0)
+        data = inputs[0]
+        indices = inputs[1]
+        return bb.emit_te(topi.take, data, indices, axis)
+
+
+class Concat(OnnxOpConverter):
+    """Operator converter for Concat."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        axis = attr.get("axis", 0)
+        return bb.emit_te(topi.concatenate, inputs, axis)
+
+
 def _get_convert_map(opset):
     return {
         "MatMul": MatMul.get_converter(opset),
@@ -216,6 +234,8 @@ def _get_convert_map(opset):
         "Relu": Relu.get_converter(opset),
         "Sigmoid": Sigmoid.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "Gather": Gather.get_converter(opset),
+        "Concat": Concat.get_converter(opset),
     }
 
 
