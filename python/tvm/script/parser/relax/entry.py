@@ -22,8 +22,9 @@ from typing import TypeVar as _TypeVar
 from typing import Union
 
 from tvm.ir import FuncType, TypeConstraint, TypeVar
-from tvm.relax import DynTensorType, Expr, Function, TupleType, Type, Var
+from tvm.relax import DynTensorType, Expr, Function
 from tvm.relax import Tuple as RxTuple
+from tvm.relax import TupleType, Type, Var
 from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
@@ -42,9 +43,6 @@ def function(f: FType) -> Union[Function, FType]:
 
 
 setattr(function, "dispatch_token", "relax")
-
-
-############################### R.
 
 
 ############################### R.Tensor ###############################

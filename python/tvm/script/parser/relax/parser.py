@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 
 from typing import Any, Union
+import numbers
 
 from tvm import relax, tir
 from tvm.ir import Type
@@ -60,6 +61,8 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
 
     if isinstance(value, tuple):
         value = convert_to_expr(value)
+    if isinstance(value, numbers.Number):
+        value = R.const(value)
     if isinstance(value, relax.Expr):
         var = R.emit(value)
         # It's an internal check, so directly use assert here.

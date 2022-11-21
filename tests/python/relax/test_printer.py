@@ -33,13 +33,6 @@ def check_roundtrip(f_pre):
     print(relax_text)
     f_post = tvm.script._parser.parse(relax_text)
 
-    def print_shape_(f):
-        bindings = f.body.blocks[0].bindings
-        print(*[(binding.var.name_hint, binding.var.shape_) for binding in bindings], sep="\n")
-
-    print(f_post.script())
-    # print_shape_(f_pre)
-    # print_shape_(f_post)
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
         f_post = tvm.IRModule({global_vars[0]: f_post}, attrs=metadata)
@@ -248,17 +241,18 @@ def test_const_irmodule():
                 return z
 
         mod = Module
-        relax_text = R.parser.astext(mod, show_meta_data=True)
+        relax_text = mod.script(show_meta=True)
         texts = metadata_partitioner(relax_text)
         return texts[1]
 
     json_str = _gen_meta_data()
+    metadata = tvm.ir.load_json(json_str)
 
-    @tvm.script.ir_module(metadata=json_str)
+    @tvm.script.ir_module
     class MyModule:
         @R.function
-        def my_const(x: Tensor((2, 3), "float32")):
-            z: Tensor((2, 3), "float32") = relax.add(x, meta[relay.Constant][0])
+        def my_const(x: R.Tensor((2, 3), "float32")):
+            z: R.Tensor((2, 3), "float32") = R.add(x, metadata["relay.Constant"][0])
             return z
 
     my_module = MyModule
@@ -298,13 +292,14 @@ def test_const_meta():
         return texts[1]
 
     json_str = _get_meta_data()
+    metadata = tvm.ir.load_json(json_str)
 
-    @R.function(metadata=json_str)
-    def my_const(x: Tensor((2, 3), "float32")):
-        y2 = relax.const(2.1, dtype="float32")
-        z: Tensor((2, 3), "float32") = relax.add(x, meta[relay.Constant][0])
-        r: Tensor((2, 3), "float32") = relax.add(z, y2)
-        w: Tensor((2, 3), "float32") = relax.add(r, meta[relay.Constant][1])
+    @R.function
+    def my_const(x: R.Tensor((2, 3), "float32")):
+        y2 = R.const(2.1, dtype="float32")
+        z: R.Tensor((2, 3), "float32") = R.add(x, metadata["relay.Constant"][0])
+        r: R.Tensor((2, 3), "float32") = R.add(z, y2)
+        w: R.Tensor((2, 3), "float32") = R.add(r, metadata["relay.Constant"][1])
         return w
 
     check_roundtrip(my_const)
@@ -339,7 +334,9 @@ def test_class_irmodule():
             return r
 
         @R.function
-        def h(x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))) -> R.Tensor:
+        def h(
+            x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))
+        ) -> R.Tensor:
             n = T.var("int64")
             _ = my_matmul(x, y, z)
             return z
@@ -383,10 +380,9 @@ def test_shape_expr():
     assert x.__str__() == "(10, 5)"
 
 
-@pytest.mark.xfail
 def test_runtime_dep_shape():
     x = relax.RuntimeDepShape()
-    assert x.__str__() == "_"
+    assert x.__str__() == "None"
 
 
 def test_func_type():
@@ -437,6 +433,5 @@ def test_func_type():
 
 
 if __name__ == "__main__":
-    # test_tuplegetitem()
-    test_const()
+    test_tuplegetitem()
     pytest.main([__file__])

@@ -620,9 +620,7 @@ class TextPrinter {
     relax_text_printer_.Print(node);
     Doc doc;
     if (show_meta_data_ && !meta_.empty()) {
-      doc << "metadata = ";
-      doc << meta_.GetMetaSection();
-      doc << Doc::NewLine();
+      doc << "metadata = tvm.ir.load_json(" << meta_.GetMetaSection() << ")" << Doc::NewLine();
     }
     doc << relax_text_printer_.Print(node);
     return doc;

@@ -183,6 +183,14 @@ Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline,
   Doc printed_expr;
   if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
+    // TODO(Siyuan): separate Relax printer and Relay printer, so that we can modify the
+    // TextMetaDataContext. Currently, we update the syntax locally.
+    std::string str = printed_expr.str();
+    int start_pos = 5;
+    int end_pos = str.find_first_of(']');
+    std::string type_key = str.substr(start_pos, end_pos - start_pos);
+    std::string index = str.substr(end_pos + 1);
+    printed_expr = Doc::Text("metadata[\"") << type_key << "\"]" << index;
   } else {
     printed_expr = VisitNode(expr);
   }
@@ -504,11 +512,7 @@ Doc RelaxScriptPrinter::VisitAttr_(const tir::FloatImmNode* op) {
 
 Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
   Doc doc;
-  if (ShowMetaData()) {
-    doc << "@tvm.script.ir_module(metadata=metadata)" << Doc::NewLine();
-  } else {
-    doc << "@tvm.script.ir_module" << Doc::NewLine();
-  }
+  doc << "@tvm.script.ir_module" << Doc::NewLine();
   doc << "class Module:";
   for (const std::pair<GlobalVar, BaseFunc>& pr : mod->functions) {
     Doc func;
@@ -567,11 +571,7 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   }
 
   // Step 2: print the function signature
-  if (ShowMetaData()) {
-    doc << "@R.function(metadata=metadata)" << Doc::NewLine();
-  } else {
-    doc << "@R.function" << Doc::NewLine();
-  }
+  doc << "@R.function" << Doc::NewLine();
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
   if (func->ret_type.defined()) {
     doc << " -> " << Print(func->ret_type);

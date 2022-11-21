@@ -745,7 +745,7 @@ def test_other_cases():
 
 
 def test_meta():
-    metadata = {
+    metadata = tvm.ir.load_json({
         "root": 1,
         "nodes": [
             {"type_key": ""},
@@ -810,21 +810,20 @@ def test_meta():
             "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAADNzMw9zcyMP2ZmBkBmZkZAMzODQDMzo0A=",
             "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAAAAAEBAAABAQAAAQEAAAEBAAABAQAAAQEA=",
         ],
-        "attrs": {"tvm_version": "0.11.dev0"},
-    }
+    })
 
-    @R.function(metadata=metadata)
+    @R.function
     def my_const(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor(None, dtype="float32", ndim=2):
         # block 0
         y1: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][0]
         y2: R.Tensor((), dtype="float32") = 2.1
         y3: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][1]
-        z: R.Tensor((2, 3), dtype="float32") = relax.add(x, y1)
-        r: R.Tensor((2, 3), dtype="float32") = relax.add(z, y2)
-        w: R.Tensor((2, 3), dtype="float32") = relax.add(r, y3)
+        z: R.Tensor((2, 3), dtype="float32") = R.add(x, y1)
+        r: R.Tensor((2, 3), dtype="float32") = R.add(z, y2)
+        w: R.Tensor((2, 3), dtype="float32") = R.add(r, y3)
         return w
 
 
 if __name__ == "__main__":
-    test_meta()
+    test_simple_module()
     tvm.testing.main()
