@@ -54,16 +54,31 @@ constant_initializer_tensor = create_initializer_tensor(
     name="constant0", tensor_array=bias_array, data_type=onnx.TensorProto.FLOAT
 )
 
+constant_initializer_tensor1 = create_initializer_tensor(
+    name="constant1", tensor_array=np.array(0, dtype="int64"), data_type=onnx.TensorProto.FLOAT
+)
+
 mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
 mul_node2 = helper.make_node("MatMul", ["out", "c"], ["out2"])
 relu_node = helper.make_node("Relu", ["out2"], ["relu_out"])
 tanh_node = helper.make_node("Tanh", ["out2"], ["tanh_out"])
 sigmoid_node = helper.make_node("Sigmoid", ["out2"], ["sigmoid_out"])
 biasgelu_node = helper.make_node("BiasGelu", ["out2", "constant0"], ["biasgelu_out"])
+gather_node = helper.make_node("Gather", ["out2", "constant1"], ["gather_out"])
+concat_node = helper.make_node("Concat", ["out2", "out"], ["concat_out"])
 
 
 graph = helper.make_graph(
-    [mul_node, mul_node2, relu_node, tanh_node, sigmoid_node, biasgelu_node],
+    [
+        mul_node,
+        mul_node2,
+        relu_node,
+        tanh_node,
+        sigmoid_node,
+        biasgelu_node,
+        gather_node,
+        concat_node,
+    ],
     "simple_test",
     inputs=[
         helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
@@ -77,6 +92,7 @@ graph = helper.make_graph(
     ],
     initializer=[
         constant_initializer_tensor,
+        constant_initializer_tensor1,
     ],
 )
 
