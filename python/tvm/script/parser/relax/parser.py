@@ -82,7 +82,8 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
 def eval_shape_annotation(
     self: Parser, node: Union[doc.Expression, doc.expr], shape: relax.Expr
 ) -> Any:
-    assert shape is not None
+    if shape is None:
+        return None
     if isinstance(shape, relax.RuntimeDepShape):
         return shape
     elif isinstance(shape, relax.ShapeExpr):
@@ -98,6 +99,8 @@ def eval_shape_annotation(
         return relax.ShapeExpr(shape)
     elif isinstance(shape, relax.Tuple):
         shapes = [eval_shape_annotation(self, node, s) for s in shape.fields]
+        if any([s is None for s in shapes]):
+            return None
         return relax.Tuple(shapes)
     else:
         self.report_error(node, f"Unsupported shape {type(shape)}")

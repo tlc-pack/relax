@@ -46,6 +46,8 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
     return VisitExpr(Downcast<PrimExpr>(node));
   } else if (node->IsInstance<tir::PrimFuncNode>()) {
     return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node), "T", false);
+  } else if (node->IsInstance<runtime::StringObj>()) {
+    return Doc::StrLiteral(Downcast<runtime::String>(node));
   } else {
     return VisitNode(node);
   }
@@ -126,9 +128,6 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   doc << "(" << Doc::Concat(args, Doc::Text(", "));
 
   std::vector<Doc> attrs = PrintAttrs(op->attrs);
-  if (op->attrs.defined()) {
-    attrs.push_back(Doc::Text("attrs_type_key=") << Doc::StrLiteral(op->attrs->GetTypeKey()));
-  }
   if (!attrs.empty()) {
     doc << ", " << Doc::Concat(attrs);
   }
@@ -145,7 +144,13 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   return doc;
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) { return Doc::Text(op->name); }
+Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) {
+  std::string name = op->name;
+  if (name.find("relax.") == 0) {
+    name = "R." + name.substr(6);
+  }
+  return Doc::Text(name);
+}
 
 Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
   Doc doc;
@@ -578,7 +583,19 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   }
   doc << ":" << Doc::NewLine(4);
 
-  // Step 3: print the function body
+  // Step 3: print function attr
+  Doc header_attr;
+  if (func->attrs.defined()) {
+    header_attr << "# function attr dict" << Doc::NewLine() << "R.func_attr({";
+    std::vector<Doc> attrs;
+    for (const auto& it : func->attrs->dict) {
+      attrs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+    }
+    header_attr << Doc::Concat(attrs, Doc::Text(", ")) << "})";
+    header_attr << Doc::NewLine();
+  }
+
+  // Step 4: print the function body
   Doc body_doc;
   if (const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>()) {
     body_doc << Print(func->body);
@@ -600,7 +617,7 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     body_doc << Doc::Text("return ") << Print(func->body) << Doc::NewLine();
   }
 
-  // Step 4: print the function used variables
+  // Step 5: print the function used variables
   if (is_global) {
     Doc used_vars;
     for (const tir::Var& var : symbolic_vars_) {
@@ -610,7 +627,7 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     doc << Doc::Indent(4, used_vars);
   }
 
-  doc << Doc::Indent(4, body_doc);
+  doc << Doc::Indent(4, header_attr << body_doc);
   return doc;
 }
 
@@ -658,18 +675,19 @@ Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
   Doc doc;
   doc << "R.Tuple";
   std::vector<Doc> fields;
+  if (!(shape.defined() && shape.value().as<TupleNode>())) {
+    return Print(ty);
+  }
+  const TupleNode* shape_tuple = shape.value().as<TupleNode>();
   for (size_t i = 0; i < ty->fields.size(); i++) {
-    if (shape) {
-      if (const TupleNode* shape_tuple = shape.value().as<TupleNode>()) {
-        if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
-          fields.push_back(
-              PrintTensorAnnotation(GetRef<DynTensorType>(type_field), shape_tuple->fields[i]));
-        }
-      }
+    if (const auto* tensor_field = ty->fields[i].as<DynTensorTypeNode>()) {
+      fields.push_back(
+          PrintTensorAnnotation(GetRef<DynTensorType>(tensor_field), shape_tuple->fields[i]));
+    } else if (const auto* tuple_field = ty->fields[i].as<TupleTypeNode>()) {
+      fields.push_back(
+          PrintTupleAnnotation(GetRef<TupleType>(tuple_field), shape_tuple->fields[i]));
     } else {
-      if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
-        fields.push_back(PrintTensorAnnotation(GetRef<DynTensorType>(type_field), NullOpt));
-      }
+      fields.push_back(Print(ty->fields[i]));
     }
   }
   doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")";
