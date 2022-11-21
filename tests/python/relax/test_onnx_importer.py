@@ -41,6 +41,18 @@ b_shape = [128, 256]
 c_shape = [256, 256]
 bias_shape = [256]
 
+hidden_size = 384
+batch_size = 4
+sequence_length = 4
+num_heads = 12
+head_size = 32
+
+dtype = "float32"
+input_array = np.random.random((batch_size, sequence_length, hidden_size)).astype(dtype)
+weight = np.random.normal(size=(hidden_size, 3 * hidden_size)).astype(dtype) * 0.1
+bias = np.random.randn(3 * hidden_size).astype(dtype)
+mask_index = np.full((batch_size, sequence_length), 1).astype("int32")
+
 # out_shape = [a_shape[0], b_shape[1]]
 out_shape = c_shape
 
@@ -66,6 +78,17 @@ sigmoid_node = helper.make_node("Sigmoid", ["out2"], ["sigmoid_out"])
 biasgelu_node = helper.make_node("BiasGelu", ["out2", "constant0"], ["biasgelu_out"])
 gather_node = helper.make_node("Gather", ["out2", "constant1"], ["gather_out"])
 concat_node = helper.make_node("Concat", ["out2", "out"], ["concat_out"])
+attention_node = helper.make_node(
+    "Attention",
+    [
+        "input_emb",
+        "attention_weight",
+        "attention_bias",
+        "attention_mask",
+    ],
+    ["attention_out"],
+    num_heads=num_heads,
+)
 
 
 graph = helper.make_graph(
@@ -78,12 +101,17 @@ graph = helper.make_graph(
         biasgelu_node,
         gather_node,
         concat_node,
+        attention_node,
     ],
     "simple_test",
     inputs=[
         helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
         helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
         helper.make_tensor_value_info("c", TensorProto.FLOAT, list(c_shape)),
+        helper.make_tensor_value_info("input_emb", TensorProto.FLOAT, list(input_array.shape)),
+        helper.make_tensor_value_info("attention_weight", TensorProto.FLOAT, list(weight.shape)),
+        helper.make_tensor_value_info("attention_bias", TensorProto.FLOAT, list(bias.shape)),
+        helper.make_tensor_value_info("attention_mask", TensorProto.FLOAT, list(mask_index.shape)),
     ],
     outputs=[
         helper.make_tensor_value_info("relu_out", TensorProto.FLOAT, list(b_shape)),

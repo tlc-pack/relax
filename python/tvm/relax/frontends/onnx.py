@@ -237,7 +237,7 @@ def layer_norm(bb, x, eps, gamma, beta):
         output = bb.emit_te(topi.add, output, beta)
 
     return output
-    
+
 
 class Gather(OnnxOpConverter):
     """Operator converter for Gather."""
@@ -265,6 +265,7 @@ class SkipLayerNormalization(OnnxOpConverter):
     This layer sums the two input tensors (along with optional bias), and applies layer
     normalization.
     """
+
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         data = inputs[0]
@@ -275,7 +276,7 @@ class SkipLayerNormalization(OnnxOpConverter):
 
         assert (
             beta is not None and bias is not None
-        ), "SkipLayerNormalization import currently only supports required beta and bias"        
+        ), "SkipLayerNormalization import currently only supports required beta and bias"
 
         eps = attr.get("epsilon", 1e-12)
 
@@ -332,7 +333,157 @@ class EmbedLayerNormalization(OnnxOpConverter):
             mask_index = bb.emit_te(topi.sum, mask, axis=1)
 
         # TODO(@anwang2009): onnxruntime v1.10.0 requires a third output of vec_sum
-        return relax.Tuple([ln, mask_index])        
+        return relax.Tuple([ln, mask_index])
+
+
+class Attention(OnnxOpConverter):
+    """Operator converter for Attention from Microsoft onnxruntime contrib opset.
+
+    This is the self-attention mechanism used in transformer models."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        num_heads = attr["num_heads"]
+
+        assert (
+            "qkv_hidden_sizes" not in attr
+        ), "different hidden sizes for Q, K, V are not currently supported"
+        assert "unidirectional" not in attr, "unidirectional attention not current supported"
+
+        # (batch, seq, in_hidden)
+        input_emb = inputs[0]
+
+        # (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
+        weight = inputs[1]
+
+        # (3 * out_hidden,)
+        bias = inputs[2]
+
+        # 1. (    batch,              1,        max_seq, max_seq)
+        # 2. (    batch, past_seq + seq,)
+        # 3. (    batch,            seq, past_seq + seq,)
+        # 4. (    batch,)
+        # 5. (2 * batch,)
+        # For now, we only support case 2.
+        mask_index = inputs[3]
+
+        # (2, batch, num_heads, past_seq, head_size)
+        past = inputs[4]
+
+        # (batch, num_heads, seq, seq)
+        extra_add = inputs[5]
+
+        (batch_size, seq_len, _) = [val.value for val in input_emb.shape.values]
+        (out_hidden_x3,) = [val.value for val in bias.shape.values]
+        assert out_hidden_x3 % 3 == 0, "bias shape should be divisible by 3"
+        out_hidden = out_hidden_x3 // 3
+        assert (
+            out_hidden % num_heads == 0
+        ), "output hidden size should be divisible by number of attention heads"
+        head_size = out_hidden // num_heads
+
+        assert (
+            mask_index is not None
+        ), "Attention import currently only supports required mask_index"
+        mask_index_shape = mask_index.shape
+        assert (
+            len(mask_index_shape) == 2
+            and mask_index_shape[0] == batch_size
+            and mask_index_shape[1] == seq_len
+        ), "currently only support (batch_size, sequence_length) mask index"
+
+        assert past is None, "past K, V state is not currently supported"
+        assert extra_add is None, "extra add to QxK not currently supported"
+
+        split_1 = bb.emit_te(topi.split, weight, 3, 1)
+        # split weight and biases and do the matmuls
+        w_Q, w_K, w_V = bb.emit(split_1[0]), bb.emit(split_1[1]), bb.emit(split_1[2])
+
+        split_2 = bb.emit_te(topi.split, bias, 3, 0)
+        b_Q, b_K, b_V = bb.emit(split_2[0]), bb.emit(split_2[1]), bb.emit(split_2[2])
+        # need to merge batch dimensions since TVM matmul is 2D
+
+        # TODO(@yuchen): check reverse_reshape, a hack here
+        input_emb = bb.emit_te(
+            topi.reshape, input_emb, (input_emb.shape[0] * input_emb.shape[1], input_emb.shape[2])
+        )
+
+        mul = bb.emit_te(topi.nn.matmul, input_emb, w_Q)
+
+        Q = bb.emit_te(topi.add, mul, b_Q)
+
+        mul2 = bb.emit_te(topi.nn.matmul, input_emb, w_K)
+        K = bb.emit_te(topi.add, mul2, b_K)
+
+        mul3 = bb.emit_te(topi.nn.matmul, input_emb, w_V)
+        V = bb.emit_te(topi.add, mul3, b_V)
+
+        # massage tensors in preparation for batched matmul
+        def massage(bb, tensor):
+            tensor = bb.emit_te(topi.reshape, tensor, (batch_size, seq_len, num_heads, head_size))
+
+            # (batch_size, num_heads, seq_len, head_size)
+            tensor = bb.emit_te(topi.transpose, tensor, [0, 2, 1, 3])
+
+            # (batch_size * num_heads, seq_len, head_size)
+            # TODO(@yuchen): check reverse_reshape, hack here
+            return bb.emit_te(
+                topi.reshape,
+                tensor,
+                (tensor.shape[0] * tensor.shape[1], tensor.shape[2], tensor.shape[3]),
+            )
+
+        Q = massage(bb, Q)
+        K = massage(bb, K)
+        V = massage(bb, V)
+
+        K_present = bb.emit_te(topi.reshape, K, (batch_size, num_heads, seq_len, head_size))
+        V_present = bb.emit_te(topi.reshape, V, (batch_size, num_heads, seq_len, head_size))
+        present = bb.emit_te(topi.stack, [K_present, V_present], 0)
+
+        att_scores = bb.emit_te(topi.nn.batch_matmul, Q, K, transpose_a=False, transpose_b=True)
+        score_dtype = att_scores.checked_type.dtype
+        att_scores = bb.emit_te(
+            topi.divide,
+            att_scores,
+            relax.const(np.sqrt(head_size), dtype=att_scores.checked_type.dtype),
+        )
+        att_scores = bb.emit_te(topi.reshape, att_scores, (batch_size, num_heads, seq_len, seq_len))
+
+        # build the attention mask
+        att_mask = bb.emit_te(topi.cast, mask_index, score_dtype)
+        att_mask = bb.emit_te(topi.expand_dims, att_mask, 1, num_newaxis=2)
+        att_mask = bb.emit_te(topi.subtract, relax.const(1, dtype=score_dtype), att_mask)
+        att_mask = bb.emit_te(topi.multiply, att_mask, relax.const(-10000, dtype=score_dtype))
+
+        # apply the mask
+        att_scores = bb.emit_te(topi.add, att_scores, att_mask)
+        att_scores = bb.emit_te(
+            topi.reshape, att_scores, (batch_size * num_heads, seq_len, seq_len)
+        )
+
+        att_probs = bb.emit_te(topi.nn.softmax, att_scores, axis=-1)
+
+        output = bb.emit_te(
+            topi.nn.batch_matmul, att_probs, V, transpose_a=False, transpose_b=False
+        )
+
+        # TODO(@yuchen): check reverse_reshape, hack here
+        output = bb.emit_te(
+            topi.reshape,
+            output,
+            (
+                int(output.shape[0]) // num_heads,
+                num_heads,
+                int(output.shape[1]),
+                int(output.shape[2]),
+            ),
+        )
+
+        output = bb.emit_te(topi.transpose, output, axes=[0, 2, 1, 3])
+        output = bb.emit_te(topi.reshape, output, (0, 0, out_hidden))
+
+        return bb.emit(relax.Tuple([output, present]))
 
 
 def _get_convert_map(opset):
@@ -346,6 +497,7 @@ def _get_convert_map(opset):
         "Concat": Concat.get_converter(opset),
         "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
         "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
+        "Attention": Attention.get_converter(opset),
     }
 
 
