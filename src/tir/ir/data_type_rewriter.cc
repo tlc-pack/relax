@@ -511,6 +511,7 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
 
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
+
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   Map<Var, Buffer> new_buffer_map = func->buffer_map;
   for (const auto& [var, buffer] : func->buffer_map) {
@@ -540,6 +541,14 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
     return std::move(new_var);
   }
   return GetRef<PrimExpr>(op);
+}
+
+PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
+  if (is_enabled_) {
+    PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
+    return value->dtype == target_data_type_ ? value : Cast(target_data_type_, value);
+  }
+  return IndexDataTypeRewriter::VisitExpr_(op);
 }
 
 }  // namespace tir
