@@ -19,8 +19,8 @@ from typing import List, Tuple, Union
 
 from ..runtime import convert_to_object
 from ..tir import PrimExpr
-from . import Expr, ShapeExpr
-from . import Tuple as rx_Tuple
+from tvm.relax.expr import Expr, ShapeExpr
+from tvm.relax.expr import Tuple as rx_Tuple
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:

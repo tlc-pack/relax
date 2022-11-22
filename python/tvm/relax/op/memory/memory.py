@@ -16,7 +16,8 @@
 """Relax memory primitives."""
 
 from . import _ffi_api
-from ...expr import ShapeExpr, Expr, Call
+from ...expr import Expr, Call
+from ...utils import convert_to_expr
 
 
 def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dtype: str) -> Call:
@@ -43,10 +44,7 @@ def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dty
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    if not isinstance(size, ShapeExpr):
-        if not isinstance(size, (tuple, list)):
-            size = (size,)
-        size = ShapeExpr(size)
+    size = convert_to_expr(size)
     return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
 
 
@@ -72,30 +70,37 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    if not isinstance(shape, ShapeExpr):
-        if not isinstance(shape, (tuple, list)):
-            shape = (shape,)
-        shape = ShapeExpr(shape)
+    shape = convert_to_expr(shape)
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
-def kill_storage(storage: Expr) -> None:
+def kill_storage(storage: Expr) -> Call:
     """Construct a Call to kill a storage.
 
     Parameters
     ----------
     storage : Expr
         The storage to be killed.
+
+    Returns
+    -------
+    result : Call
+        A relax Call to kill a storage.
     """
     return _ffi_api.kill_storage(storage)  # type: ignore
 
 
-def kill_tensor(tensor: Expr) -> None:
+def kill_tensor(tensor: Expr) -> Call:
     """Construct a Call to kill a tensor.
 
     Parameters
     ----------
     tensor : Expr
         The tensor to be killed.
+
+    Returns
+    -------
+    result : Call
+        A relax Call to kill a tensor.
     """
     return _ffi_api.kill_tensor(tensor)  # type: ignore
