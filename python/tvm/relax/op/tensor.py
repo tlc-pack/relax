@@ -95,3 +95,7 @@ def numpy_unique(
         return tvm.nd.array(output_sorted_numpy)
     output_numpy = [a_numpy.flatten()[index] for index in sorted(indices, reverse=True)]
     return tvm.nd.array(output_numpy)
+
+
+def vtx_mm(data, weight, transpose_a=False, transpose_b=False, epilogue_pattern="") -> Expr:
+    return _ffi_api.vtx_mm(data, weight, transpose_a, transpose_b, epilogue_pattern)  # type: ignore

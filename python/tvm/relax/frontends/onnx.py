@@ -138,12 +138,7 @@ class MatMul(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         assert len(inputs) == 2, "MatMul op takes 2 inputs, {} given".format(len(inputs))
-        if len(inputs[0].shape) == 2:
-            return bb.emit_te(topi.matmul, inputs[0], bb.normalize(inputs[1]))
-        else:
-            transpose = bb.emit_te(topi.transpose, inputs[1], [1, 0])
-            expend = bb.emit_te(topi.expand_dims, transpose, 0)
-            return bb.emit_te(topi.nn.batch_matmul, inputs[0], expend)
+        return bb.emit(relax.op.vtx_mm(inputs[0], bb.normalize(inputs[1])))
 
 
 class MatMulBiasGelu(OnnxOpConverter):
@@ -437,19 +432,19 @@ class AttentionCutlass(OnnxOpConverter):
 
         assert past is None, "past K, V state is not currently supported"
         assert extra_add is None, "extra add to QxK not currently supported"
-        
-        transpose = bb.emit_te(topi.transpose, weight, [1, 0])
-        expend = bb.emit_te(topi.expand_dims, transpose, 0)
-        batch_matmul = bb.emit_te(topi.nn.batch_matmul, input_emb, expend)
-        
-        qkv = bb.emit_te(topi.add, batch_matmul, bias)
-        
-        qkv = bb.emit(relax.call_tir(
-            "FusedQKVToCxt",
-            (qkv, mask_index),
-            (batch_size, num_heads, seq_len, head_size),
-            "float32",
-        ))
+
+        vtx_mm = bb.emit(relax.op.vtx_mm(input_emb, weight))
+
+        qkv = bb.emit_te(topi.add, vtx_mm, bias)
+
+        qkv = bb.emit(
+            relax.call_tir(
+                "FusedQKVToCxt",
+                (qkv, mask_index),
+                (batch_size, num_heads, seq_len, head_size),
+                "float32",
+            )
+        )
 
         output = bb.emit_te(topi.transpose, qkv, [0, 2, 1, 3])
         output = bb.emit_te(
@@ -968,4 +963,3 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, convert_config=Non
 
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     return g.from_onnx(graph, opset)
-
