@@ -202,6 +202,10 @@ def find_include_path(name=None, search_path=None, optional=False, use_nvcc=Fals
             cutlass_include_path += [
                 os.path.join(p, "cutlass/tools/util/include/") for p in header_path
             ]
+            cutlass_include_path += [
+                os.path.join(p, "cutlass/examples/42_fused_multi_head_attention")
+                for p in header_path
+            ]
         else:
             cutlass_include_path = []
 
