@@ -53,6 +53,17 @@ class ASTPrinter(ExprFunctor):
         self.include_shape_annotations = include_shape_annotations
         self.include_call_attrs = include_call_attrs
 
+        # for displaying shape_, we visit exprs just the same but don't include
+        # shapes within shapes to avoid infinite recursion
+        self.shape_visitor = None
+        # have to include this check or else the constructor does not terminate
+        if self.include_shape_annotations:
+            self.shape_visitor = ASTPrinter(
+                include_type_annotations=False,
+                include_shape_annotations=False,
+                include_call_attrs=include_call_attrs,
+            )
+
     def visit_expr(self, expr: relax.Expr) -> str:
         # extend so we also dispatch to bindings and binding blocks,
         # a little silly but IRFunctor hasn't been ported to Python
@@ -85,6 +96,18 @@ class ASTPrinter(ExprFunctor):
             force_newline=force_newline,
         )
 
+    def build_expr(self, node: relax.Expr, nodename: str, force_newline=False, **kwargs: str):
+        """
+        Renders a Relax expression as a string using `build_ast_node`.
+        Handles whether to include the checked_type_ and shape_ fields.
+        """
+        fields = kwargs.copy()
+        if node.shape_ and self.include_shape_annotations:
+            fields["shape_"] = self.visit_shape_(node.shape)
+        if node._checked_type_ and self.include_type_annotations:
+            fields["checked_type_"] = self.visit_type_(node.checked_type)
+        return self.build_ast_node(nodename, force_newline=force_newline, **fields)
+
     def build_list(
         self, members: Iterable[str], open_tok="[", close_tok="]", force_newline=False
     ) -> str:
@@ -106,41 +129,32 @@ class ASTPrinter(ExprFunctor):
     def visit_constant_(self, op: relax.Constant) -> str:
         # simple rule of thumb: keep scalars inline, but anything larger goes on a new one
         force_newline = len(op.data.shape) > 0
-        return self.build_ast_node("Constant", force_newline=force_newline, data=str(op.data))
+        return self.build_expr(op, "Constant", force_newline=force_newline, data=str(op.data))
 
     def visit_tuple_(self, op: relax.Tuple) -> str:
-        return self.build_ast_node("Tuple", fields=self.build_list(map(self.visit_expr, op.fields)))
+        return self.build_expr(op, "Tuple", fields=self.build_list(map(self.visit_expr, op.fields)))
 
     def visit_dataflow_var_(self, op: relax.DataflowVar) -> str:
-        fields = {"name_hint": wrap_quotes(op.name_hint)}
-        if op.shape_ and self.include_shape_annotations:
-            fields["shape_"] = self.visit_expr(op.shape_)
-        if op._checked_type_ and self.include_type_annotations:
-            fields["_checked_type_"] = self.visit_type_(op._checked_type_)
-        return self.build_ast_node("DataflowVar", **fields)
+        return self.build_expr(op, "DataflowVar", name_hint=wrap_quotes(op.name_hint))
 
     def visit_var_(self, op: relax.Var) -> str:
-        fields = {"name_hint": wrap_quotes(op.name_hint)}
-        if op.shape_ and self.include_shape_annotations:
-            fields["shape_"] = self.visit_expr(op.shape_)
-        if op._checked_type_ and self.include_type_annotations:
-            fields["_checked_type_"] = self.visit_type_(op._checked_type_)
-        return self.build_ast_node("Var", **fields)
+        return self.build_expr(op, "Var", name_hint=wrap_quotes(op.name_hint))
 
     def visit_shape_expr_(self, op: relax.ShapeExpr) -> str:
-        return self.build_ast_node(
-            "ShapeExpr", values=self.build_list(map(self.visit_prim_expr_, op.values))
+        return self.build_expr(
+            op, "ShapeExpr", values=self.build_list(map(self.visit_prim_expr_, op.values))
         )
 
-    def visit_runtime_dep_shape_(self, _: relax.RuntimeDepShape) -> str:
-        # no fields, apparently?
-        return self.build_ast_node("RuntimeDepShape")
+    def visit_runtime_dep_shape_(self, op: relax.RuntimeDepShape) -> str:
+        return self.build_expr(op, "RuntimeDepShape")
 
     def visit_extern_func_(self, op: relax.ExternFunc) -> str:
+        # ExternFunc does not inherit from relax.Expr either,
+        # so it doesn't have checked_type_ or shape_ fields and we don't use build_expr
         return self.build_ast_node("ExternFunc", global_symbol=wrap_quotes(op.global_symbol))
 
     def visit_global_var_(self, op: relax.GlobalVar) -> str:
-        return self.build_ast_node("GlobalVar", name_hint=wrap_quotes(op.name_hint))
+        return self.build_expr(op, "GlobalVar", name_hint=wrap_quotes(op.name_hint))
 
     def visit_function_(self, op: relax.Function) -> str:
         fields = {
@@ -159,7 +173,7 @@ class ASTPrinter(ExprFunctor):
                 open_tok="{",
                 close_tok="}",
             )
-        return self.build_ast_node("Function", **fields)
+        return self.build_expr(op, "Function", **fields)
 
     def visit_call_(self, op: relax.Call) -> str:
         fields = {
@@ -183,17 +197,19 @@ class ASTPrinter(ExprFunctor):
                 open_tok="{",
                 close_tok="}",
             )
-        return self.build_ast_node("Call", **fields)
+        return self.build_expr(op, "Call", **fields)
 
     def visit_seq_expr_(self, op: relax.SeqExpr) -> str:
-        return self.build_ast_node(
+        return self.build_expr(
+            op,
             "SeqExpr",
             blocks=self.build_list(map(self.visit_binding_block_, op.blocks)),
             body=self.visit_expr(op.body),
         )
 
     def visit_if_(self, op: relax.If) -> str:
-        return self.build_ast_node(
+        return self.build_expr(
+            op,
             "If",
             cond=self.visit_expr(op.cond),
             true_branch=self.visit_expr(op.true_branch),
@@ -202,6 +218,8 @@ class ASTPrinter(ExprFunctor):
 
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
+        # op is not actually a Relax expr and does not have checked_type_
+        # or shape_ fields, so we don't use build_expr here
         return self.build_ast_node("Op", name=wrap_quotes(op.name))
 
     def visit_prim_expr_(self, prim_expr: PrimExpr) -> str:
@@ -209,7 +227,8 @@ class ASTPrinter(ExprFunctor):
         return self.build_ast_node("PrimExpr", value=f"`{str(prim_expr)}`")
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> str:
-        return self.build_ast_node(
+        return self.build_expr(
+            op,
             "TupleGetItem",
             tuple_value=self.visit_expr(op.tuple_value),
             index=str(op.index),
@@ -245,6 +264,12 @@ class ASTPrinter(ExprFunctor):
             )
         raise ValueError(f"Invalid Relax Type {type_node} ({type(type_node)})")
 
+    def visit_shape_(self, expr: relax.Expr) -> str:
+        # used only for rendering the shape_ annotation, if it's intended to be included
+        if self.include_shape_annotations:
+            return self.shape_visitor.visit_expr(expr)
+        return ""
+
     def visit_binding_block_(self, block: relax.BindingBlock) -> str:
         """
         Recurse down binding blocks
@@ -277,12 +302,14 @@ class ASTPrinter(ExprFunctor):
         """
         Handle match shape
         """
-        return self.build_ast_node(
-            "MatchShape",
-            value=self.visit_expr(match_shape.value),
-            pattern=self.build_list(map(self.visit_prim_expr_, match_shape.pattern)),
-            var=self.visit_expr(match_shape.var),
-        )
+        fields = {
+            "value": self.visit_expr(match_shape.value),
+            "pattern": self.build_list(map(self.visit_prim_expr_, match_shape.pattern)),
+        }
+        # not always defined
+        if match_shape.var:
+            fields["var"] = self.visit_expr(match_shape.var)
+        return self.build_ast_node("MatchShape", **fields)
 
     def visit_var_binding_(self, var_binding: relax.VarBinding) -> str:
         """
