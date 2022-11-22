@@ -146,6 +146,37 @@ class MatMul(OnnxOpConverter):
             return bb.emit_te(topi.nn.batch_matmul, inputs[0], expend)
 
 
+class MatMulBiasGelu(OnnxOpConverter):
+    """Operator converter for MatMul fused with BiasGelu."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        assert len(inputs) == 3, "MatMulBiasGelu op takes 3 inputs, {} given".format(len(inputs))
+        if len(inputs[0].shape) == 2:
+            output = bb.emit_te(topi.matmul, inputs[0], bb.normalize(inputs[1]))
+        else:
+            transpose = bb.emit_te(topi.transpose, inputs[1], [1, 0])
+            expend = bb.emit_te(topi.expand_dims, transpose, 0)
+            output = bb.emit_te(topi.nn.batch_matmul, inputs[0], expend)
+
+        # Add bias
+        bias = inputs[2]
+        inp = bb.emit_te(topi.add, output, bias)
+
+        # Declare consts
+        const_dtype = output.checked_type.dtype
+        half = relax.const(0.5, const_dtype)
+        one = relax.const(1.0, const_dtype)
+        sqrt2 = relax.const(math.sqrt(2), const_dtype)
+
+        # Compute gelu
+        term1 = bb.emit_te(topi.multiply, half, inp)
+        divide = bb.emit_te(topi.divide, inp, sqrt2)
+        erf = bb.emit_te(topi.erf, divide)
+        term2 = bb.emit_te(topi.add, one, erf)
+        return bb.emit_te(topi.multiply, term1, term2)
+
+
 class Tanh(OnnxOpConverter):
     """Operator converter for Tanh."""
 
@@ -581,14 +612,24 @@ class Attention(OnnxOpConverter):
         return output
 
 
+class Identity(OnnxOpConverter):
+    """Pass through a single input"""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return inputs[0]
+
+
 def _get_convert_map(opset):
     return {
         "MatMul": MatMul.get_converter(opset),
+        "MatMulBiasGelu": MatMulBiasGelu.get_converter(opset),
         "Tanh": Tanh.get_converter(opset),
         "Relu": Relu.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "Sigmoid": Sigmoid.get_converter(opset),
-        "BiasGelu": BiasGelu.get_converter(opset),
+        #"BiasGelu": BiasGelu.get_converter(opset),
+        "BiasGelu": Identity.get_converter(opset),
         "Gather": Gather.get_converter(opset),
         "Concat": Concat.get_converter(opset),
         "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
@@ -735,7 +776,27 @@ class GraphProto:
             attr["tvm_custom"]["name"] = i_name
             attr["tvm_custom"]["num_outputs"] = len(outputs)
 
+            def _get_next_op(name):
+                # Gets the operator type for a specific node in the graph.
+                for node in graph.node:
+                    if name in node.input:
+                        return node.op_type
+                return None
+
+            def _get_op_arg(name, arg):
+                for node in graph.node:
+                    if name in node.input:
+                        return node.input[arg]
+
+            if op_name == "MatMul" and _get_next_op(node.output[0]) == "BiasGelu":
+                op_name = "MatMulBiasGelu"
+                # Get weight of bias gelu and append to inputs.
+                weight_name = _get_op_arg(node.output[0], 1)
+                weight = self._nodes[weight_name]
+                inputs.append(weight)
+
             op = self._convert_operator(op_name, inputs, attr, self.opset)
+
             if not isinstance(op, relax.Tuple):
                 outputs_num = 1
             else:
