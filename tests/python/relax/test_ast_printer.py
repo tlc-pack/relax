@@ -33,6 +33,23 @@ def strip_whitespace(text: str) -> str:
     return re.sub(r"\s", "", text)
 
 
+def normalize(func: rx.Function) -> rx.Function:
+    """
+    Normalize the expr to fill in the checked_type_ and shape_ fields everywhere
+    """
+    # using a default mutator to use the BlockBuilder's normalizer,
+    # which oddly differs from the Normalize pass
+    @rx.expr_functor.mutator
+    class DefaultMutator(rx.PyExprMutator):
+        pass
+
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mut = DefaultMutator(mod)
+    mod["main"] = mut.visit_expr(func)
+    return mod["main"]
+
+
 # test cases are mostly adapted from text_expr, only testing very basic properties
 
 
@@ -50,7 +67,7 @@ def test_var() -> None:
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
     assert "shape_" in v1_annos
-    assert "_checked_type_" in v1_annos
+    assert "checked_type_" in v1_annos
 
 
 def test_dataflow_var() -> None:
@@ -67,7 +84,7 @@ def test_dataflow_var() -> None:
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
     assert "shape_" in v1_annos
-    assert "_checked_type_" in v1_annos
+    assert "checked_type_" in v1_annos
 
 
 def test_match_shape() -> None:
@@ -102,11 +119,25 @@ def test_match_shape() -> None:
     assert b1_str != dump_ast(b1, include_type_annotations=False, include_shape_annotations=False)
 
 
+def test_match_shape_unbound() -> None:
+    @R.function
+    def func(x: R.Tensor) -> R.Tensor:
+        R.match_shape(x, (1, 1))
+        return x
+
+    # no var field on the match shape!
+    func_str = strip_whitespace(dump_ast(func))
+    assert "MatchShape" in func_str
+    assert "value=Var(" in func_str
+    assert "pattern=[PrimExpr(" in func_str
+    assert "var=" not in func_str
+
+
 def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    b0_str = dump_ast(b0)
+    b0_str = dump_ast(b0, include_type_annotations=False, include_shape_annotations=False)
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name_hint="v0")' in b0_str
     assert "value=" in b0_str
@@ -362,6 +393,46 @@ def test_operators():
     )
     print_attrs_str = strip_whitespace('{"format": "{}"}')
     assert print_attrs_str in bar_str
+
+
+def test_print_shape_annotation_non_var():
+    @R.function
+    def f() -> R.Tensor:
+        return R.const([1, 2])
+
+    body = normalize(f).body
+    body_str = strip_whitespace(dump_ast(body))
+    # the constant has a shape of (2,)
+    shape_str = strip_whitespace(
+        """
+        shape_ = ShapeExpr(
+            values = [
+                PrimExpr(value=`2i64`)
+            ]
+        )
+        """
+    )
+    assert shape_str in body_str
+
+
+def test_print_type_annotation_non_var():
+    @R.function
+    def f() -> R.Shape:
+        return R.shape_of(R.const(1))
+
+    body = normalize(f).body
+    assert isinstance(body, rx.SeqExpr)
+    call = body.body
+    assert isinstance(call, rx.Call)
+    arg = call.args[0]
+    arg_str = strip_whitespace(dump_ast(arg))
+    # the constant should have a tensor type
+    assert "checked_type_=DynTensorType(ndim=0" in arg_str
+
+    call_str = strip_whitespace(dump_ast(call))
+    # we expect the shape_of call to have a checked_type_ of ShapeType
+    type_str = "checked_type_=ShapeType()"
+    assert type_str in call_str
 
 
 if __name__ == "__main__":
