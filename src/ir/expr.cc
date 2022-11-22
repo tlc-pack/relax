@@ -172,6 +172,7 @@ Range::Range(PrimExpr begin, PrimExpr end, Span span)
     : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
+  ICHECK(min->dtype == extent->dtype);
   return Range(make_object<RangeNode>(min, extent, span));
 }
 
