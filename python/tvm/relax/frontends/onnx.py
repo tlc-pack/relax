@@ -138,7 +138,12 @@ class MatMul(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         assert len(inputs) == 2, "MatMul op takes 2 inputs, {} given".format(len(inputs))
-        return bb.emit_te(topi.matmul, inputs[0], inputs[1])
+        if len(inputs[0].shape) == 2:
+            return bb.emit_te(topi.matmul, inputs[0], bb.normalize(inputs[1]))
+        else:
+            transpose = bb.emit_te(topi.transpose, inputs[1], [1, 0])
+            expend = bb.emit_te(topi.expand_dims, transpose, 0)
+            return bb.emit_te(topi.nn.batch_matmul, inputs[0], expend)
 
 
 class Tanh(OnnxOpConverter):
@@ -173,8 +178,14 @@ class Gemm(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
-        assert len(inputs) == 2, "Gemm op takes 2 inputs, {} given".format(len(inputs))
-        return bb.emit_te(topi.nn.gemm, inputs[0])
+        # assert len(inputs) == 3, "Gemm op takes 3 inputs, {} given".format(len(inputs))
+        a = inputs[0]
+        b = inputs[1]
+        c = inputs[2]
+        dense = bb.emit_te(topi.nn.dense, a, b)
+        if c is not None:
+            return bb.emit_te(topi.add, dense, c)
+        return dense
 
 
 class BiasGelu(OnnxOpConverter):
@@ -482,9 +493,11 @@ class Attention(OnnxOpConverter):
         )
 
         output = bb.emit_te(topi.transpose, output, axes=[0, 2, 1, 3])
-        output = bb.emit_te(topi.reshape, output, (0, 0, out_hidden))
+        output = bb.emit_te(
+            topi.reshape, output, (int(output.shape[0]), int(output.shape[1]), out_hidden)
+        )
 
-        return bb.emit(relax.Tuple([output, present]))
+        return output
 
 
 def _get_convert_map(opset):
