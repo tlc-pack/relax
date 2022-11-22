@@ -24,6 +24,44 @@ from onnx import helper, TensorProto
 from tvm import meta_schedule as ms
 import onnxruntime
 
+SRC_FILE = "./apps/vtx/fmha.cu"
+PKG_FILE = "/tmp/packaged.so"
+
+BATCH_SIZE = 1
+SEQ_LEN = 512
+NUM_HEADS = 12
+HEAD_SIZE = 64
+
+
+"""
+Input to FusedQKVToCxt:
+    qkv: [batch_size, seq_len, 3 * num_heads * head_size], "float32"
+    mask: [batch_size, seq_len], "int32"
+    num_heads: "int32"
+    output: [batch_size, num_heads, seq_len, head_size], "float32"
+"""
+
+QKV_SHAPE = (BATCH_SIZE, SEQ_LEN, 3 * NUM_HEADS * HEAD_SIZE)
+MASK_SHAPE = (BATCH_SIZE, SEQ_LEN)
+OUTPUT_SHAPE = (BATCH_SIZE, NUM_HEADS, SEQ_LEN, HEAD_SIZE)
+
+print(f"QKV: {QKV_SHAPE}")
+print(f"MASK: {MASK_SHAPE}")
+print(f"OUTPUT: {OUTPUT_SHAPE}")
+
+def import_source_module(executable):
+    code = open(SRC_FILE, "r").read()
+    fmt = "cu"
+    func_names = ["whatever.cu"]
+    const_vars = []  # type: ignore
+    mod = tvm.get_global_func("runtime.CSourceModuleCreate")(
+        code,
+        fmt,
+        func_names,
+        const_vars,
+    )
+    executable.mod.import_module(mod)
+
 
 def test_construct_onnx_graph():
     def create_initializer_tensor(
@@ -134,7 +172,7 @@ def test_construct_onnx_graph():
 
 
 def test_onnx_model():
-    model = onnx.load("path/to/model.onnx")
+    model = onnx.load("/home/ubuntu/onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx")
 
     shape_dict = {
         "q_title_token_ids": [1, 512],
@@ -144,41 +182,51 @@ def test_onnx_model():
 
     mod = relax.frontends.from_onnx(model, shape=shape_dict)
 
-    # compile and run on CPU
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
+    ## compile and run on CPU
+    #target = tvm.target.Target("llvm", host="llvm")
+    #ex = relax.vm.build(mod, target)
+    #vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
-    input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
-    input2 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+    #input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+    #input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+    #input2 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
 
-    res = vm["main"](input0, input1, input2)
-    print("CPU: ", res[0], res[1], res[2])
+    #res = vm["main"](input0, input1, input2)
+    #print("CPU: ", res[0], res[1], res[2])
 
     # compile and run on GPU
-    target = tvm.target.Target("nvidia/nvidia-t4")
-    database = ms.database.MemoryDatabase()
+    target = tvm.target.Target("nvidia/nvidia-v100")
+    
 
-    with tempfile.TemporaryDirectory() as work_dir:
-        db = ms.relax_integration.tune_relax(
-            mod=mod,
-            target=target,
-            params=None,
-            num_trials_per_iter=1,
-            max_trials_per_task=1,
-            max_trials_global=80,
-            work_dir=work_dir,
-            database=database,
-        )
-        relax_ex = ms.relax_integration.compile_relax(
-            db,
-            mod=mod,
-            target=target,
-            params=None,
+    with target:
+        database = ms.database.JSONDatabase("./workload.json", "./records.json")
+
+        with tempfile.TemporaryDirectory() as work_dir:
+            db = ms.relax_integration.tune_relax(
+                mod=mod,
+                target=target,
+                params=None,
+                num_trials_per_iter=1,
+                max_trials_per_task=1,
+                max_trials_global=80,
+                work_dir=work_dir,
+                database=database,
+            )
+            relax_ex = ms.relax_integration.compile_relax(
+                db,
+                mod=mod,
+                target=target,
+                params=None,
+            )
+       
+        import_source_module(relax_ex)
+        relax_ex.mod.export_library(
+            PKG_FILE,
+            cc="nvcc",
         )
 
-    vm = relax.VirtualMachine(relax_ex, tvm.cuda())
+    executable = tvm.runtime.load_module(PKG_FILE)
+    vm = relax.VirtualMachine(executable, tvm.cuda())
 
     input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
     input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
@@ -188,15 +236,15 @@ def test_onnx_model():
     print("GPU: ", res[0], res[1], res[2])
 
     # run on onnxruntime
-    input_dict = {
-        "q_title_token_ids": input0.numpy(),
-        "q_title_token_types": input1.numpy(),
-        "q_title_token_masks": input2.numpy(),
-    }
+    #input_dict = {
+    #    "q_title_token_ids": input0.numpy(),
+    #    "q_title_token_types": input1.numpy(),
+    #    "q_title_token_masks": input2.numpy(),
+    #}
 
-    session = onnxruntime.InferenceSession("path/to/model.onnx")
-    results = session.run([], input_dict)
-    print("Onnx: ", results)
+    #session = onnxruntime.InferenceSession("path/to/model.onnx")
+    #results = session.run([], input_dict)
+    #print("Onnx: ", results)
 
 
 if __name__ == "__main__":

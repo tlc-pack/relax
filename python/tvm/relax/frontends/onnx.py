@@ -347,6 +347,87 @@ class EmbedLayerNormalization(OnnxOpConverter):
         return relax.Tuple([ln, mask_index])
 
 
+class AttentionCutlass(OnnxOpConverter):
+    """Operator converter for Attention from Microsoft onnxruntime contrib opset.
+
+    This is the self-attention mechanism used in transformer models."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        num_heads = attr["num_heads"]
+
+        assert (
+            "qkv_hidden_sizes" not in attr
+        ), "different hidden sizes for Q, K, V are not currently supported"
+        assert "unidirectional" not in attr, "unidirectional attention not current supported"
+
+        # (batch, seq, in_hidden)
+        input_emb = inputs[0]
+
+        # (in_hidden, 3 * out_hidden), where out_hidden = num_heads * head_size
+        weight = bb.normalize(inputs[1])
+
+        # (3 * out_hidden,)
+        bias = bb.normalize(inputs[2])
+
+        # 1. (    batch,              1,        max_seq, max_seq)
+        # 2. (    batch, past_seq + seq,)
+        # 3. (    batch,            seq, past_seq + seq,)
+        # 4. (    batch,)
+        # 5. (2 * batch,)
+        # For now, we only support case 2.
+        mask_index = bb.normalize(inputs[3])
+
+        # (2, batch, num_heads, past_seq, head_size)
+        past = inputs[4]
+
+        # (batch, num_heads, seq, seq)
+        extra_add = inputs[5]
+
+        (batch_size, seq_len, _) = [val.value for val in input_emb.shape.values]
+
+        (out_hidden_x3,) = [val.value for val in bias.shape.values]
+        assert out_hidden_x3 % 3 == 0, "bias shape should be divisible by 3"
+        out_hidden = out_hidden_x3 // 3
+        assert (
+            out_hidden % num_heads == 0
+        ), "output hidden size should be divisible by number of attention heads"
+        head_size = out_hidden // num_heads
+
+        assert (
+            mask_index is not None
+        ), "Attention import currently only supports required mask_index"
+        mask_index_shape = mask_index.shape
+        assert (
+            len(mask_index_shape) == 2
+            and mask_index_shape[0] == batch_size
+            and mask_index_shape[1] == seq_len
+        ), "currently only support (batch_size, sequence_length) mask index"
+
+        assert past is None, "past K, V state is not currently supported"
+        assert extra_add is None, "extra add to QxK not currently supported"
+        
+        transpose = bb.emit_te(topi.transpose, weight, [1, 0])
+        expend = bb.emit_te(topi.expand_dims, transpose, 0)
+        batch_matmul = bb.emit_te(topi.nn.batch_matmul, input_emb, expend)
+        
+        qkv = bb.emit_te(topi.add, batch_matmul, bias)
+        
+        qkv = bb.emit(relax.call_tir(
+            "FusedQKVToCxt",
+            (qkv, mask_index),
+            (batch_size, num_heads, seq_len, head_size),
+            "float32",
+        ))
+
+        output = bb.emit_te(topi.transpose, qkv, [0, 2, 1, 3])
+        output = bb.emit_te(
+            topi.reshape, output, (int(output.shape[0]), int(output.shape[1]), out_hidden)
+        )
+
+        return output
+
+
 class Attention(OnnxOpConverter):
     """Operator converter for Attention from Microsoft onnxruntime contrib opset.
 
@@ -512,7 +593,7 @@ def _get_convert_map(opset):
         "Concat": Concat.get_converter(opset),
         "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
         "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
-        "Attention": Attention.get_converter(opset),
+        "Attention": AttentionCutlass.get_converter(opset),
     }
 
 
@@ -826,3 +907,4 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, convert_config=Non
 
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     return g.from_onnx(graph, opset)
+
