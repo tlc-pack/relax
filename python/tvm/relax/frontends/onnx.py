@@ -682,22 +682,24 @@ class GraphProto:
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
         with self.bb.function("main"):
-            self.opset = opset
-            self._parse_graph_initializers(graph)
-            self._parse_graph_input(graph)
-            self._check_for_unsupported_ops(graph)
-            self._construct_nodes(graph)
+            with self.bb.dataflow() as df:
+                self.opset = opset
+                self._parse_graph_initializers(graph)
+                self._parse_graph_input(graph)
+                self._check_for_unsupported_ops(graph)
+                self._construct_nodes(graph)
 
-            # now return the outputs
-            outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
-            outputs = outputs[0] if len(outputs) == 1 else relax.Tuple(outputs)
+                # now return the outputs
+                outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
+                outputs = outputs[0] if len(outputs) == 1 else relax.Tuple(outputs)
 
-            ## Maintain the order of inputs and parameters from the ONNX graph, but only include
-            ## those parameters that are needed to execute the relax graph
-            nodes = {v: k for k, v in self._nodes.items()}
-            # Create a function from our output expression and all input variables.
-            param_list = [v for k, v in self._inputs.items()]
-            self.bb.emit_func_output(outputs, params=param_list)
+                ## Maintain the order of inputs and parameters from the ONNX graph, but only include
+                ## those parameters that are needed to execute the relax graph
+                nodes = {v: k for k, v in self._nodes.items()}
+                # Create a function from our output expression and all input variables.
+                param_list = [v for k, v in self._inputs.items()]
+                output_var = self.bb.emit_output(outputs)
+            self.bb.emit_func_output(output_var, params=param_list)
         return self.bb.get()
 
     def _parse_graph_initializers(self, graph):

@@ -49,6 +49,7 @@ print(f"QKV: {QKV_SHAPE}")
 print(f"MASK: {MASK_SHAPE}")
 print(f"OUTPUT: {OUTPUT_SHAPE}")
 
+
 def import_source_module(executable):
     code = open(SRC_FILE, "r").read()
     fmt = "cu"
@@ -172,7 +173,9 @@ def test_construct_onnx_graph():
 
 
 def test_onnx_model():
-    model = onnx.load("/home/ubuntu/onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx")
+    model = onnx.load(
+        "/home/yuchenj/dup/relax/python/tvm/relax/testing/onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx"
+    )
 
     shape_dict = {
         "q_title_token_ids": [1, 512],
@@ -182,21 +185,24 @@ def test_onnx_model():
 
     mod = relax.frontends.from_onnx(model, shape=shape_dict)
 
-    ## compile and run on CPU
-    #target = tvm.target.Target("llvm", host="llvm")
-    #ex = relax.vm.build(mod, target)
-    #vm = relax.VirtualMachine(ex, tvm.cpu())
+    mod = relax.transform.AnnotateTIROpPattern()(mod)
+    mod = relax.transform.FuseOps()(mod)
+    mod = relax.transform.FuseTIR()(mod)
 
-    #input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
-    #input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
-    #input2 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+    # # compile and run on CPU
+    # target = tvm.target.Target("llvm", host="llvm")
+    # ex = relax.vm.build(mod, target)
+    # vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    #res = vm["main"](input0, input1, input2)
-    #print("CPU: ", res[0], res[1], res[2])
+    # input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+    # input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+    # input2 = tvm.nd.array(np.random.rand(1, 512).astype("int32"))
+
+    # res = vm["main"](input0, input1, input2)
+    # print("CPU: ", res[0], res[1], res[2])
 
     # compile and run on GPU
     target = tvm.target.Target("nvidia/nvidia-v100")
-    
 
     with target:
         database = ms.database.JSONDatabase("./workload.json", "./records.json")
@@ -218,7 +224,7 @@ def test_onnx_model():
                 target=target,
                 params=None,
             )
-       
+
         import_source_module(relax_ex)
         relax_ex.mod.export_library(
             PKG_FILE,
@@ -236,15 +242,15 @@ def test_onnx_model():
     print("GPU: ", res[0], res[1], res[2])
 
     # run on onnxruntime
-    #input_dict = {
+    # input_dict = {
     #    "q_title_token_ids": input0.numpy(),
     #    "q_title_token_types": input1.numpy(),
     #    "q_title_token_masks": input2.numpy(),
-    #}
+    # }
 
-    #session = onnxruntime.InferenceSession("path/to/model.onnx")
-    #results = session.run([], input_dict)
-    #print("Onnx: ", results)
+    # session = onnxruntime.InferenceSession("path/to/model.onnx")
+    # results = session.run([], input_dict)
+    # print("Onnx: ", results)
 
 
 if __name__ == "__main__":

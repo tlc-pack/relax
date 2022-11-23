@@ -174,18 +174,19 @@ class GraphCreator : public ExprVisitor {
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get()) {
-      const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-      tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
-
-      // Override args for call_tir
+      // handle both call_dps_packed and call_tir
       args = Downcast<Tuple>(call->args[1])->fields;
+      if (call->args[0].as<GlobalVarNode>()) {
+        const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
+        tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 
-      // TODO(tvm-team): handle the shape argument (args[3])
-      Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
-      if (opt_pattern.defined()) {
-        pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
-      } else {
-        pattern = OpPatternKind::kOpaque;
+        // TODO(tvm-team): handle the shape argument (args[3])
+        Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
+        if (opt_pattern.defined()) {
+          pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+        } else {
+          pattern = OpPatternKind::kOpaque;
+        }
       }
     }
     // The pattern of the current binding variable node is set to the pattern of this operator.
@@ -240,7 +241,7 @@ class GraphCreator : public ExprVisitor {
       // Since we never fuse constants, the pattern of the constant is set to `kOpaque`.
       SetNodePattern(leaf_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(leaf_node, leaf_expr.get());
-    } else {
+    }else {
       LOG(FATAL) << "The leaf Expr is supposed to be defined before, but got: " << leaf_expr
                  << " used before definition.";
     }
@@ -769,6 +770,7 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 
   // Step 3. Transform the IRModule by fusing the operators in accordance with the graph partition
   // results.
+  LOG(INFO) << "group size: " << groups.size();
   mod = OperatorFusor(mod, graph, groups).Transform();
 
   return mod;
