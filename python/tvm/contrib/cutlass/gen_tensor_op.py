@@ -17,17 +17,18 @@
 # pylint: disable=invalid-name
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 import logging
-import os
-import tempfile
-import subprocess
 import multiprocessing
+import os
+import subprocess
+import tempfile
+
 from .library import (
-    MathInstruction,
     DataType,
-    OpcodeClass,
-    MathOperation,
-    TileDescription,
     EpilogueFunctor,
+    MathInstruction,
+    MathOperation,
+    OpcodeClass,
+    TileDescription,
 )
 
 logger = logging.getLogger("cutlass")
@@ -42,7 +43,11 @@ dtype_map = {
 
 
 def generate_tensor_op_common(
-    math_instructions, alignment_constraints, get_tile_descriptions, layout_constraints, op_creator, 
+    math_instructions,
+    alignment_constraints,
+    get_tile_descriptions,
+    layout_constraints,
+    op_creator,
 ):
     """Common kernel generator to be used by archtecture specific generators."""
     ops = []
@@ -142,7 +147,11 @@ def generate_sm75_tensor_op_1688(
 
     layout_constraints = [arg0_layout, arg1_layout, out_layout]
     return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions, layout_constraints, op_creator
+        math_instructions,
+        alignment_constraints,
+        get_tile_descriptions,
+        layout_constraints,
+        op_creator,
     )
 
 
@@ -280,7 +289,11 @@ def generate_sm80_tensor_op_16816(
     if len(alignment_constraints) > 0:
         layout_constraints = [arg0_layout, arg1_layout, out_layout]
         sm80_kernels = generate_tensor_op_common(
-            math_instructions, alignment_constraints, get_tile_descriptions, layout_constraints, op_creator
+            math_instructions,
+            alignment_constraints,
+            get_tile_descriptions,
+            layout_constraints,
+            op_creator,
         )
     else:
         sm80_kernels = []

@@ -16,16 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
-from .gemm_operation import GemmOperation, EmitGemmInstance
+from .gemm_operation import EmitGemmInstance, GemmOperation
 from .gemm_profiler import GemmProfilerEmitter
-from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
+from .gen_tensor_op import EPILOGUE_MAP, GENERATOR_FUNC_TABLE, ProfilerEngine
 from .library import (
     DataType,
+    DataTypeTag,
     EpilogueFunctor,
+    LayoutType,
     SwizzlingFunctor,
     TensorDescription,
-    DataTypeTag,
-    LayoutType,
 )
 
 
@@ -46,9 +46,19 @@ def create_gemm_operator_with_epilogue(
     """
     element_a, element_b, element_c, element_epilogue = data_type
 
-    A = TensorDescription(element_a, LayoutType.RowMajor if arg0_layout == "row" else LayoutType.ColumnMajor, alignment)
-    B = TensorDescription(element_b, LayoutType.RowMajor if arg1_layout == "row" else LayoutType.ColumnMajor, alignment)
-    C = TensorDescription(element_c, LayoutType.RowMajor if out_layout == "row" else LayoutType.ColumnMajor, alignment)
+    A = TensorDescription(
+        element_a,
+        LayoutType.RowMajor if arg0_layout == "row" else LayoutType.ColumnMajor,
+        alignment,
+    )
+    B = TensorDescription(
+        element_b,
+        LayoutType.RowMajor if arg1_layout == "row" else LayoutType.ColumnMajor,
+        alignment,
+    )
+    C = TensorDescription(
+        element_c, LayoutType.RowMajor if out_layout == "row" else LayoutType.ColumnMajor, alignment
+    )
 
     if batched:
         swizzling_functor = SwizzlingFunctor.Batched
@@ -69,6 +79,7 @@ def create_gemm_operator_with_epilogue(
     return (
         op.procedural_name(),
         EmitGemmInstance().emit(op, no_beta_scaling=no_beta_scaling, batched=batched),
+        op,
     )
 
 
@@ -194,7 +205,7 @@ class CutlassGemmProfiler:
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
         op = filtered[0]
-        name, opdef = create_gemm_operator_with_epilogue(
+        name, opdef, _ = create_gemm_operator_with_epilogue(
             op_type,
             op["tile_description"],
             op["data_type"],
@@ -300,7 +311,7 @@ class CutlassGemmProfiler:
             use_multiprocessing=use_multiprocessing,
         )
 
-        name, opdef = create_gemm_operator_with_epilogue(
+        name, opdef, gemm_op = create_gemm_operator_with_epilogue(
             op_type,
             out_layout,
             arg0_layout,
@@ -312,4 +323,4 @@ class CutlassGemmProfiler:
             batched=batched,
         )
 
-        return name, opdef, op["runtime"]
+        return name, opdef, op["runtime"], gemm_op

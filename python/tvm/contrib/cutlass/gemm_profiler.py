@@ -185,6 +185,13 @@ int main(int argc, const char *arg[]) {
         )
 
     def emit(self, op_name, op_def, dtype_a, dtype_b, dtype_c, ld):
+        # print("--------------------------")
+        # print("op_name: ", op_name)
+        # print("op_def: ", op_def)
+        # print("dtype_a: ", dtype_a)
+        # print("dtype_b: ", dtype_b)
+        # print("dtype_c: ", dtype_c)
+        # print("ld: ", ld)
         src = self.template.render(
             OperatorName=op_name,
             OperatorDef=op_def,

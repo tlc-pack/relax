@@ -17,14 +17,16 @@
 # pylint: disable=invalid-name, dangerous-default-value
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
-import os
 import multiprocessing
+import os
+
 import tvm
-from tvm import runtime, relay
-from tvm.contrib.nvcc import get_cuda_version
+from tvm import relay, runtime
 from tvm._ffi.registry import register_func
-from .gen_gemm import CutlassGemmProfiler
+from tvm.contrib.nvcc import get_cuda_version
+
 from .gen_conv2d import CutlassConv2DProfiler
+from .gen_gemm import CutlassGemmProfiler
 from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
@@ -126,7 +128,7 @@ def select_gemm_kernel(
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:
-        name, cutlass_op_def, _ = cutlass_profiler.profile(
+        name, cutlass_op_def, _, op = cutlass_profiler.profile(
             op_type,
             MM,
             NN,
@@ -147,7 +149,7 @@ def select_gemm_kernel(
         else:
             logger.info("Picked the first kernel found %s", name)
 
-    return name, cutlass_op_def
+    return name, cutlass_op_def, op
 
 
 def handle_batch_matmul(
