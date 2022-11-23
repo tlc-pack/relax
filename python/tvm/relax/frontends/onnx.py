@@ -206,10 +206,13 @@ class Gemm(OnnxOpConverter):
         a = inputs[0]
         b = inputs[1]
         c = inputs[2]
-        dense = bb.emit_te(topi.nn.dense, a, b)
+        a = bb.emit_te(topi.expand_dims, a, 0)
+        b = bb.emit_te(topi.expand_dims, b, 0)
+        dense = bb.emit(relax.op.vtx_mm(a, b))
         if c is not None:
-            return bb.emit_te(topi.add, dense, c)
-        return dense
+            dense = bb.emit_te(topi.add, dense, c)
+
+        return bb.emit_te(topi.squeeze, dense, 0)
 
 
 class BiasGelu(OnnxOpConverter):

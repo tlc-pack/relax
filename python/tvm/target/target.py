@@ -161,7 +161,8 @@ class Target(Object):
         ------
         ValueError if current target is not set.
         """
-        return _ffi_api.TargetCurrent(allow_none)
+        #return _ffi_api.TargetCurrent(allow_none)
+        return Target("cuda -arch=sm_80 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
 
     @property
     def arch(self):
