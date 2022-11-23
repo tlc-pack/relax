@@ -22,32 +22,17 @@
  * \brief vtx operators.
  */
 
-#include "../op_common.h"
 #include "../make_op.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relax {
-
-struct VtxMMAttrs : public tvm::AttrsNode<VtxMMAttrs> {
-  bool transpose_a;
-  bool transpose_b;
-  std::string epilogue_pattern;
-  TVM_DECLARE_ATTRS(VtxMMAttrs, "relax.attrs.VtxMMAttrs") {
-    TVM_ATTR_FIELD(transpose_a)
-        .set_default(false);
-    TVM_ATTR_FIELD(transpose_b)
-        .set_default(false);
-    TVM_ATTR_FIELD(epilogue_pattern)
-        .set_default("");
-  }
-}; 
 
 TVM_REGISTER_NODE_TYPE(VtxMMAttrs);
 
 Type InferTypeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "vtxmm op should have 2 arguments");
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "vtxmm op should have 2 arguments");
   }
   Type lhs_type = call->args[0]->checked_type();
   Type rhs_type = call->args[1]->checked_type();
@@ -59,23 +44,22 @@ Type InferTypeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
 }
 
 Optional<Expr> InferShapeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
-    if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                        << "vtxmm op should have 2 arguments");
-    }
-    Expr lhs_shape = call->args[0]->shape();
-    Expr rhs_shape = call->args[1]->shape();
-    auto* s0 = lhs_shape.as<ShapeExprNode>();
-    auto* s1 = rhs_shape.as<ShapeExprNode>();
-    if (s0 && s1) {
-        Array<tvm::PrimExpr> output_shape;
-        // super hack to suit the vortex case
-        output_shape.push_back(s0->values[0]);
-        output_shape.push_back(s0->values[1]);
-        output_shape.push_back(s1->values[1]);
-        return ShapeExpr(output_shape);
-    }
-    return RuntimeDepShape();
+  if (call->args.size() != 2) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "vtxmm op should have 2 arguments");
+  }
+  Expr lhs_shape = call->args[0]->shape();
+  Expr rhs_shape = call->args[1]->shape();
+  auto* s0 = lhs_shape.as<ShapeExprNode>();
+  auto* s1 = rhs_shape.as<ShapeExprNode>();
+  if (s0 && s1) {
+    Array<tvm::PrimExpr> output_shape;
+    // super hack to suit the vortex case
+    output_shape.push_back(s0->values[0]);
+    output_shape.push_back(s0->values[1]);
+    output_shape.push_back(s1->values[1]);
+    return ShapeExpr(output_shape);
+  }
+  return RuntimeDepShape();
 }
 
 RELAY_REGISTER_OP("relax.vtx_mm")
@@ -86,13 +70,14 @@ RELAY_REGISTER_OP("relax.vtx_mm")
     .set_attr<FInferShape>("FInferShape", InferShapeVtxMM)
     .set_attr<FInferType>("FInferType", InferTypeVtxMM);
 
-Expr MakeVtxMM(Expr data, Expr weight, bool transpose_a, bool transpose_b, String epilogue_pattern) {
-    auto attrs = make_object<VtxMMAttrs>();
-    attrs->transpose_a = transpose_a;
-    attrs->transpose_b = transpose_b;
-    attrs->epilogue_pattern = epilogue_pattern;
-    static const Op& op = Op::Get("relax.vtx_mm");
-    return Call(op, {data, weight}, Attrs(attrs));
+Expr MakeVtxMM(Expr data, Expr weight, bool transpose_a, bool transpose_b,
+               String epilogue_pattern) {
+  auto attrs = make_object<VtxMMAttrs>();
+  attrs->transpose_a = transpose_a;
+  attrs->transpose_b = transpose_b;
+  attrs->epilogue_pattern = epilogue_pattern;
+  static const Op& op = Op::Get("relax.vtx_mm");
+  return Call(op, {data, weight}, Attrs(attrs));
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vtx_mm").set_body_typed(MakeVtxMM);

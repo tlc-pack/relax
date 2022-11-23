@@ -18,8 +18,8 @@
 import numpy as np  # type: ignore
 import tvm
 
-from . import _ffi_api
 from ..expr import Expr
+from . import _ffi_api
 
 
 def add(lhs: Expr, rhs: Expr) -> Expr:

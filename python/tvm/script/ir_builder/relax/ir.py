@@ -22,7 +22,16 @@ from typing import Dict, List, Optional, Tuple, Union
 import tvm
 from tvm._ffi import register_object as _register_object
 from tvm.ir import Type
-from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
+from tvm.relax import (
+    Call,
+    Expr,
+    ExternFunc,
+    ShapeExpr,
+    TupleGetItem,
+    TupleType,
+    Var,
+    const,
+)
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -37,6 +46,7 @@ from tvm.relax.op import (
     print,
     shape_of,
     unique,
+    vtx_mm,
 )
 from tvm.relax.ty import ObjectType, ShapeType
 from tvm.relax.utils import convert_to_expr
@@ -395,4 +405,5 @@ __all__ = [
     "unique",
     "shape_of",
     "tensor",
+    "vtx_mm",
 ]

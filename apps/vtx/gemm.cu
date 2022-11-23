@@ -39,15 +39,23 @@ using namespace tvm;
 using namespace tvm::runtime;
 
 void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
+  // HACK: it's (1, m, k) x (1, n, k) -> (1, m, n)
+  CHECK_EQ(A->ndim, 3);
+  CHECK_EQ(B->ndim, 3);
+  CHECK_EQ(C->ndim, 3);
 
-  // Step 1. Extract M, N, K; layout = 1/0  ===> row/col major
+  // Step 1. Extract M, N, K; layout = 0/1  ===> row/col major
   {{Layout}}
-  int m_a = A->shape[layout_a], k_a = A->shape[1 ^ layout_a];
-  int k_b = B->shape[layout_b], n_b = B->shape[1 ^ layout_b];
-  int m_c = C->shape[layout_c], n_c = C->shape[1 ^ layout_c];
+  int m_a = A->shape[layout_a + 1], k_a = A->shape[1 + (1 ^ layout_a)];
+  int k_b = B->shape[layout_b + 1], n_b = B->shape[1 + (1 ^ layout_b)];
+  int m_c = C->shape[layout_c + 1], n_c = C->shape[1 + (1 ^ layout_c)];
+  // LOG(INFO) << "layout_a = " << layout_a << ", layout_b = " << layout_b << ", layout_c = " << layout_c;
+  // LOG(INFO) << "A->shape = " << A->shape[0] << ", " << A->shape[1] << ", " << A->shape[2];
+  // LOG(INFO) << "B->shape = " << B->shape[0] << ", " << B->shape[1] << ", " << B->shape[2];
+  // LOG(INFO) << "C->shape = " << C->shape[0] << ", " << C->shape[1] << ", " << C->shape[2];
+  // LOG(INFO) << "m_a = " << m_a << ", k_a = " << k_a;
+  // LOG(INFO) << "k_b = " << k_b << ", n_b = " << n_b;
+  // LOG(INFO) << "m_c = " << m_c << ", n_c = " << n_c;
   ICHECK_EQ(m_a, m_c);
   ICHECK_EQ(n_b, n_c);
   ICHECK_EQ(k_a, k_b);
@@ -57,9 +65,9 @@ void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
 
   // Step 2. Extract leading dim
   {{LeadingDim}}
-  ICHECK_EQ(lda, A->shape[1]);
-  ICHECK_EQ(ldb, B->shape[1]);
-  ICHECK_EQ(ldc, C->shape[1]);
+  ICHECK_EQ(lda, A->shape[2]);
+  ICHECK_EQ(ldb, B->shape[2]);
+  ICHECK_EQ(ldc, C->shape[2]);
 
   // Step 3. Pointers
   {{DTypeDef}}

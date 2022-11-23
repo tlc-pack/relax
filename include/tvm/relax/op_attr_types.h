@@ -109,6 +109,17 @@ struct AssertOpAttrs : public tvm::AttrsNode<AssertOpAttrs> {
   }
 };
 
+struct VtxMMAttrs : public tvm::AttrsNode<VtxMMAttrs> {
+  bool transpose_a;
+  bool transpose_b;
+  std::string epilogue_pattern;
+  TVM_DECLARE_ATTRS(VtxMMAttrs, "relax.attrs.VtxMMAttrs") {
+    TVM_ATTR_FIELD(transpose_a).set_default(false);
+    TVM_ATTR_FIELD(transpose_b).set_default(false);
+    TVM_ATTR_FIELD(epilogue_pattern).set_default("");
+  }
+};
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_ATTR_TYPES_H_

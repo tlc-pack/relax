@@ -68,9 +68,9 @@ def _cutlass_gemm(
         use_multiprocessing=True,
     )
     layout = "const int layout_a = {}, layout_b = {}, layout_c = {};\n".format(
-        1 if layout_a == "row" else 0,
-        1 if layout_b == "row" else 0,
-        1 if layout_c == "row" else 0,
+        1 if layout_a == "col" else 0,
+        1 if layout_b == "col" else 0,
+        1 if layout_c == "col" else 0,
     )
     leading_dim = op.leading_dim()
     dtype_def = "using DTypeA = {}; using DTypeB = {}; using DTypeC = {};\n".format(
@@ -87,7 +87,6 @@ def _cutlass_gemm(
         .replace("{{OperatorName}}", operator_name)
         .replace("{{FUNC_NAME}}", func_name)
     )
-    print(source_code)
     return source_code
 
 
@@ -120,16 +119,18 @@ def cutlass_gemm(
 
 
 if __name__ == "__main__":
-    cutlass_gemm(
-        func_name="my_func",
-        m=4096,
-        n=4096,
-        k=4096,
-        type_a="float32",
-        type_b="float32",
-        type_c="float32",
-        layout_a="row",
-        layout_b="row",
-        layout_c="row",
-        op_type="cutlass.dense",
+    print(
+        cutlass_gemm(
+            func_name="my_func",
+            m=4096,
+            n=4096,
+            k=4096,
+            type_a="float32",
+            type_b="float32",
+            type_c="float32",
+            layout_a="row",
+            layout_b="row",
+            layout_c="row",
+            op_type="cutlass.dense",
+        )
     )
