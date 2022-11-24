@@ -38,6 +38,16 @@ namespace {
 using namespace tvm;
 using namespace tvm::runtime;
 
+#define CUTLASS_CHECK(status)                                                                  \
+{                                                                                              \
+  cutlass::Status error = status;                                                              \
+  if (error != cutlass::Status::kSuccess) {                                                    \
+    std::cerr << "Got cutlass error: " << cutlassGetStatusString(error) << " at: " << __LINE__ \
+              << std::endl;                                                                    \
+    exit(EXIT_FAILURE);                                                                        \
+  }                                                                                            \
+}
+
 void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
   // HACK: it's (1, m, k) x (1, n, k) -> (1, m, n)
   CHECK_EQ(A->ndim, 3);
@@ -49,13 +59,13 @@ void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
   int m_a = A->shape[layout_a + 1], k_a = A->shape[1 + (1 ^ layout_a)];
   int k_b = B->shape[layout_b + 1], n_b = B->shape[1 + (1 ^ layout_b)];
   int m_c = C->shape[layout_c + 1], n_c = C->shape[1 + (1 ^ layout_c)];
-  // LOG(INFO) << "layout_a = " << layout_a << ", layout_b = " << layout_b << ", layout_c = " << layout_c;
-  // LOG(INFO) << "A->shape = " << A->shape[0] << ", " << A->shape[1] << ", " << A->shape[2];
-  // LOG(INFO) << "B->shape = " << B->shape[0] << ", " << B->shape[1] << ", " << B->shape[2];
-  // LOG(INFO) << "C->shape = " << C->shape[0] << ", " << C->shape[1] << ", " << C->shape[2];
-  // LOG(INFO) << "m_a = " << m_a << ", k_a = " << k_a;
-  // LOG(INFO) << "k_b = " << k_b << ", n_b = " << n_b;
-  // LOG(INFO) << "m_c = " << m_c << ", n_c = " << n_c;
+  LOG(INFO) << "layout_a = " << layout_a << ", layout_b = " << layout_b << ", layout_c = " << layout_c;
+  LOG(INFO) << "A->shape = " << A->shape[0] << ", " << A->shape[1] << ", " << A->shape[2];
+  LOG(INFO) << "B->shape = " << B->shape[0] << ", " << B->shape[1] << ", " << B->shape[2];
+  LOG(INFO) << "C->shape = " << C->shape[0] << ", " << C->shape[1] << ", " << C->shape[2];
+  LOG(INFO) << "m_a = " << m_a << ", k_a = " << k_a;
+  LOG(INFO) << "k_b = " << k_b << ", n_b = " << n_b;
+  LOG(INFO) << "m_c = " << m_c << ", n_c = " << n_c;
   ICHECK_EQ(m_a, m_c);
   ICHECK_EQ(n_b, n_c);
   ICHECK_EQ(k_a, k_b);
@@ -88,6 +98,7 @@ void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
       {c, ldc},      //
       {alpha, beta}  //
   });
+  CUTLASS_CHECK(status);
   CHECK(status == cutlass::Status::kSuccess);
 }
 }  // namespace

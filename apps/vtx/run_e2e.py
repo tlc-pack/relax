@@ -194,7 +194,7 @@ if __name__ == "__main__":
     # print(mod.script())
     print("Transformed to Cutlass")
 
-    target = tvm.target.Target("cuda -arch=sm_80 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
+    target = tvm.target.Target("cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
     with target:
         database = ms.database.JSONDatabase("./workload.json", "./records.json")
         print("Database Loaded")

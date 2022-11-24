@@ -45,7 +45,7 @@ def _load_vm(executable):
 
 
 def main():
-    target = tvm.target.Target("cuda -arch=sm_80 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
+    target = tvm.target.Target("cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
     mod = TestModule
     with tvm.transform.PassContext():
         mod = relax.transform.LowerVtxMM()(mod)
