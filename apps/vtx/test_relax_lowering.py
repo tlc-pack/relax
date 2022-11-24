@@ -51,7 +51,7 @@ def main():
         mod = relax.transform.LowerVtxMM()(mod)
         _print_lowered_mod(mod)
         executable = relax.vm.build(mod, target=target)
-    vm = _load_vm(executable)
+        vm = _load_vm(executable)
 
     a_np = np.random.rand(1, M, K).astype("float32")
     b_np = np.random.rand(1, N, K).astype("float32")

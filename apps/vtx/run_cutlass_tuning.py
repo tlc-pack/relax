@@ -24,7 +24,7 @@ from tvm.contrib.cutlass.build import _get_cutlass_path, select_gemm_kernel
 from tvm.contrib.cutlass.gen_gemm import CutlassGemmProfiler
 from tvm.contrib.cutlass.library import DataTypeTag
 
-SM = 80  # T4 GPU is sm_75, but for some reason it's not supported
+SM = 75
 TMP_DIR = "/tmp/"
 
 

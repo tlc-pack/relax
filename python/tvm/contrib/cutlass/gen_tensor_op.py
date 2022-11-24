@@ -107,9 +107,7 @@ def generate_sm75_tensor_op_1688(
             ([64, 64, 32], 2, [2, 2, 1], min_cc, max_cc),
             ([64, 128, 64], 2, [1, 2, 2], min_cc, max_cc),
         ]
-
-    else:
-        assert out_dtype == "int32"
+    elif out_dtype == "int32":
         math_instructions = [
             MathInstruction(
                 [8, 8, 16],
@@ -131,6 +129,27 @@ def generate_sm75_tensor_op_1688(
             ([64, 128, 64], 2, [2, 2, 1], min_cc, max_cc),
             ([128, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
+        ]
+    else:
+        math_instructions = [
+            MathInstruction(
+                [1, 1, 1],
+                dtype_map[arg0_dtype],
+                dtype_map[arg1_dtype],
+                dtype_map[out_dtype],
+                dtype_map[accumlator_dtype],
+                OpcodeClass.Simt,
+                MathOperation.multiply_add,
+            ),
+        ]
+        alignment_constraints = [1, ]
+        tile_descriptions = [
+            ([128, 128, 8], 2, [4, 2, 1], min_cc, max_cc),
+            ([128, 64, 8], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 128, 8], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 64, 8], 2, [2, 1, 1], min_cc, max_cc),
+            ([128, 32, 8], 2, [2, 1, 1], min_cc, max_cc),
+            ([32, 128, 8], 2, [1, 2, 1], min_cc, max_cc),
         ]
 
     alignment_constraints = [align for align in alignment_constraints if check_align(align)]
