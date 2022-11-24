@@ -180,7 +180,7 @@ class Tanh(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         assert len(inputs) == 1, "Tanh op takes 1 input, {} given".format(len(inputs))
-        return bb.emit_te(topi.tanh, inputs[0])
+        return bb.emit_te(topi.fast_tanh, inputs[0])
 
 
 class Relu(OnnxOpConverter):
@@ -244,7 +244,7 @@ class BiasGelu(OnnxOpConverter):
         # Compute gelu
         term1 = bb.emit_te(topi.multiply, half, inp)
         divide = bb.emit_te(topi.divide, inp, sqrt2)
-        erf = bb.emit_te(topi.erf, divide)
+        erf = bb.emit_te(topi.fast_erf, divide)
         term2 = bb.emit_te(topi.add, one, erf)
         return bb.emit_te(topi.multiply, term1, term2)
 
@@ -271,8 +271,8 @@ def layer_norm(bb, x, eps, gamma, beta):
     # Compute Layer Normalization
     sub = bb.emit_te(topi.subtract, x, mean)
     add = bb.emit_te(topi.add, var, relax.const(eps, dtype=x_dtype))
-    sqrt = bb.emit_te(topi.sqrt, add)
-    output = bb.emit_te(topi.divide, sub, sqrt)
+    sqrt = bb.emit_te(topi.rsqrt, add)
+    output = bb.emit_te(topi.multiply, sub, sqrt)
     output = bb.emit_te(topi.multiply, output, gamma)
 
     if beta is not None:
