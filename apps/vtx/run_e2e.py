@@ -16,14 +16,15 @@
 # under the License.
 
 import tempfile
-import onnx
-import tvm
-from tvm import relax
+
 import numpy as np
-from onnx import helper, TensorProto
-from tvm import meta_schedule as ms
+import onnx
 import onnxruntime
 import run_cutlass_tuning
+import tvm
+from onnx import TensorProto, helper
+from tvm import meta_schedule as ms
+from tvm import relax
 
 SRC_FILE = "./fmha.cu"
 PKG_FILE = "/tmp/packaged.so"
@@ -185,10 +186,11 @@ if __name__ == "__main__":
     }
 
     mod = relax.frontends.from_onnx(model, shape=shape_dict)
+    mod = relax.transform.FoldConstant()(mod)
     mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
     mod = relax.transform.FuseTIR()(mod)
-
+    mod.show()
     mod = relax.transform.LowerVtxMM()(mod)
     # print(mod["vtx_mm_0"].attrs["c_source"])
     # print(mod.script())
@@ -199,16 +201,16 @@ if __name__ == "__main__":
         database = ms.database.JSONDatabase("./workload.json", "./records.json")
         print("Database Loaded")
         with tempfile.TemporaryDirectory() as work_dir:
-            #db = ms.relax_integration.tune_relax(
-            #    mod=mod,
-            #    target=target,
-            #    params=None,
-            #    num_trials_per_iter=4,
-            #    max_trials_per_task=4,
-            #    max_trials_global=160,
-            #    work_dir=work_dir,
-            #    database=database,
-            #)
+            db = ms.relax_integration.tune_relax(
+               mod=mod,
+               target=target,
+               params=None,
+               num_trials_per_iter=64,
+               max_trials_per_task=64,
+               max_trials_global=2000,
+               work_dir=work_dir,
+               database=database,
+            )
             relax_ex = ms.relax_integration.compile_relax(
                 database,
                 mod=mod,
@@ -221,11 +223,20 @@ if __name__ == "__main__":
             PKG_FILE,
             cc="nvcc",
         )
-        executable = tvm.runtime.load_module(PKG_FILE)
-        vm = relax.VirtualMachine(executable, tvm.cuda())
+    executable = tvm.runtime.load_module(PKG_FILE)
+    vm = relax.VirtualMachine(executable, tvm.cuda())
     print("VM Created")
     input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
     input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
     input2 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
-    res = vm["main"](input0, input1, input2)
-    print("GPU: ", res[0], res[1], res[2])
+    evaluator = vm.time_evaluator(
+        func_name="main",
+        dev=tvm.cuda(),
+        repeat=10,
+        number=50,
+        min_repeat_ms=500,
+    )
+    result = evaluator(input0, input1, input2)
+    print(result)
+    # # res = vm["main"](input0, input1, input2)
+    # print("GPU: ", res[0], res[1], res[2])
