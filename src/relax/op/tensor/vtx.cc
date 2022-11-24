@@ -56,7 +56,7 @@ Optional<Expr> InferShapeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
     // super hack to suit the vortex case
     output_shape.push_back(s0->values[0]);
     output_shape.push_back(s0->values[1]);
-    output_shape.push_back(s1->values[2]);
+    output_shape.push_back(s1->values[1]);
     return ShapeExpr(output_shape);
   }
   return RuntimeDepShape();

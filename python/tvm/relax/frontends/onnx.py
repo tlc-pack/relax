@@ -138,7 +138,8 @@ class MatMul(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         assert len(inputs) == 2, "MatMul op takes 2 inputs, {} given".format(len(inputs))
-        weight = bb.emit_te(topi.expand_dims, inputs[1], 0)
+        weight = bb.emit_te(topi.transpose, inputs[1], [1, 0])
+        weight = bb.emit_te(topi.expand_dims, weight, 0)
         return bb.emit(relax.op.vtx_mm(inputs[0], bb.normalize(weight)))
 
 
@@ -151,7 +152,8 @@ class MatMulBiasGelu(OnnxOpConverter):
         if len(inputs[0].shape) == 2:
             output = bb.emit_te(topi.matmul, inputs[0], bb.normalize(inputs[1]))
         else:
-            weight = bb.emit_te(topi.expand_dims, inputs[1], 0)
+            weight = bb.emit_te(topi.transpose, inputs[1], [1, 0])
+            weight = bb.emit_te(topi.expand_dims, weight, 0)
             output = bb.emit(relax.op.vtx_mm(inputs[0], weight))
 
         # Add bias
@@ -209,7 +211,6 @@ class Gemm(OnnxOpConverter):
         b = inputs[1]
         c = inputs[2]
         a = bb.emit_te(topi.expand_dims, a, 0)
-        b = bb.emit_te(topi.transpose, b, [1, 0])
         b = bb.emit_te(topi.expand_dims, b, 0)
         dense = bb.emit(relax.op.vtx_mm(a, b))
         if c is not None:
@@ -437,6 +438,7 @@ class AttentionCutlass(OnnxOpConverter):
         assert past is None, "past K, V state is not currently supported"
         assert extra_add is None, "extra add to QxK not currently supported"
 
+        weight = bb.emit_te(topi.transpose, weight, [1, 0])
         weight = bb.emit_te(topi.expand_dims, weight, 0)
         vtx_mm = bb.emit(relax.op.vtx_mm(input_emb, weight))
 
