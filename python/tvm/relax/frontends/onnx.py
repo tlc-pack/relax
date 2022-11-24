@@ -164,11 +164,11 @@ class MatMulBiasGelu(OnnxOpConverter):
         const_dtype = output.checked_type.dtype
         half = relax.const(0.5, const_dtype)
         one = relax.const(1.0, const_dtype)
-        sqrt2 = relax.const(math.sqrt(2), const_dtype)
+        sqrt2 = relax.const(1 / math.sqrt(2), const_dtype)
 
         # Compute gelu
         term1 = bb.emit_te(topi.multiply, half, inp)
-        divide = bb.emit_te(topi.divide, inp, sqrt2)
+        divide = bb.emit_te(topi.multiply, inp, sqrt2)
         erf = bb.emit_te(topi.erf, divide)
         term2 = bb.emit_te(topi.add, one, erf)
         return bb.emit_te(topi.multiply, term1, term2)
@@ -239,11 +239,11 @@ class BiasGelu(OnnxOpConverter):
         const_dtype = x.checked_type.dtype
         half = relax.const(0.5, const_dtype)
         one = relax.const(1.0, const_dtype)
-        sqrt2 = relax.const(math.sqrt(2), const_dtype)
+        sqrt2 = relax.const(1 / math.sqrt(2), const_dtype)
 
         # Compute gelu
         term1 = bb.emit_te(topi.multiply, half, inp)
-        divide = bb.emit_te(topi.divide, inp, sqrt2)
+        divide = bb.emit_te(topi.multiply, inp, sqrt2)
         erf = bb.emit_te(topi.fast_erf, divide)
         term2 = bb.emit_te(topi.add, one, erf)
         return bb.emit_te(topi.multiply, term1, term2)
@@ -256,17 +256,17 @@ def layer_norm(bb, x, eps, gamma, beta):
     """
     x_dtype = x.checked_type.dtype
     x_shape = [val.value for val in x.shape.values]
-    num_elements = relax.const(np.prod(x_shape), dtype=x_dtype)
+    rnum_elements = relax.const(1 / np.prod(x_shape), dtype=x_dtype)
 
     # Compute Mean
     mean = bb.emit_te(topi.sum, x)
-    mean = bb.emit_te(topi.divide, mean, num_elements)
+    mean = bb.emit_te(topi.multiply, mean, rnum_elements)
 
     # Compute Variance
     diff = bb.emit_te(topi.subtract, x, mean)
     sq_diff = bb.emit_te(topi.multiply, diff, diff)
     var_sum = bb.emit_te(topi.sum, sq_diff, -1, True)
-    var = bb.emit_te(topi.divide, var_sum, num_elements)
+    var = bb.emit_te(topi.multiply, var_sum, rnum_elements)
 
     # Compute Layer Normalization
     sub = bb.emit_te(topi.subtract, x, mean)
@@ -570,9 +570,9 @@ class Attention(OnnxOpConverter):
         att_scores = bb.emit_te(topi.nn.batch_matmul, Q, K, transpose_a=False, transpose_b=True)
         score_dtype = att_scores.checked_type.dtype
         att_scores = bb.emit_te(
-            topi.divide,
+            topi.multiply,
             att_scores,
-            relax.const(np.sqrt(head_size), dtype=att_scores.checked_type.dtype),
+            relax.const(1 / np.sqrt(head_size), dtype=att_scores.checked_type.dtype),
         )
         att_scores = bb.emit_te(topi.reshape, att_scores, (batch_size, num_heads, seq_len, seq_len))
 
