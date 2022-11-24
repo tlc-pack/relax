@@ -52,8 +52,8 @@ def test_dataflow_var() -> None:
 
 def test_match_shape() -> None:
     # match_shape([16, 8], [m, n])
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", type_annotation=rx.ShapeType())
     b0 = rx.MatchShape(shape, [m, n], var)

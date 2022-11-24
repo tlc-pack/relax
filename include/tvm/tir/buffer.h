@@ -135,7 +135,7 @@ class BufferNode : public Object {
 
   /*! \return preferred index type for this buffer node */
   DataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
+    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(64);
   }
 
   /*! \brief Determine the offset in the buffer of the given index.

@@ -464,12 +464,15 @@ def test_annotation():
         y: R.Tensor(("m"), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
-        m = T.var("int64")
+        m = T.var("int64", "m")
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor = R.multiply(z, z)
         q: R.Tensor(ndim=2) = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
+        _: R.Tensor((1, 1), "int8") = R.builtin.alloc_tensor(
+            (1, 1), dtype="int8", runtime_device_index=0
+        )
         o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
         return o
 
@@ -491,7 +494,12 @@ def test_annotation():
     _check_type_shape(bindings[2], relax.DynTensorType(ndim=2, dtype=""), RuntimeDepShape())
     _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), RuntimeDepShape())
     _check_type_shape(bindings[4], relax.ShapeType(), None)
-    _check_type_shape(bindings[5], relax.ObjectType(), None)
+    _check_type_shape(
+        bindings[5],
+        relax.DynTensorType(ndim=2, dtype="int8"),
+        relax.ShapeExpr([tvm.tir.IntImm("int64", 1), tvm.tir.IntImm("int64", 1)]),
+    )
+    _check_type_shape(bindings[6], relax.ObjectType(), None)
 
 
 def test_annotate_override():

@@ -129,17 +129,17 @@ def test_symbolic_var():
 
 
 def test_symbolic_var_invalid_type():
-    # Error: dim must be of integer type, but got float32
-    dim = tir.Var("dim", "float32")
-    type_anno = rx.DynTensorType(ndim=1, dtype="float32")
-    y = rx.Var("y", [dim], type_anno)
-    gv0 = rx.Var("gv0", [dim], type_anno)
-    call_node = rx.op.add(y, y)
-    bindings = [rx.VarBinding(gv0, call_node)]
-    blocks = [rx.BindingBlock(bindings)]
-    func = build_function(blocks, [y])
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    with pytest.raises(tvm.TVMError, match="Data type of shape must be integer"):
+        dim = tir.Var("dim", "float32")
+        type_anno = rx.DynTensorType(ndim=1, dtype="float32")
+        y = rx.Var("y", [dim], type_anno)
+        gv0 = rx.Var("gv0", [dim], type_anno)
+        call_node = rx.op.add(y, y)
+        bindings = [rx.VarBinding(gv0, call_node)]
+        blocks = [rx.BindingBlock(bindings)]
+        func = build_function(blocks, [y])
+        mod = tvm.IRModule({rx.GlobalVar("foo"): func})
+        assert not rx.analysis.well_formed(mod)
 
 
 def test_seq_expr():

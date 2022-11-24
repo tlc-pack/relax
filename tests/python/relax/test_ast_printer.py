@@ -249,8 +249,8 @@ def test_shape_of():
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
     assert "values=" in s1_str
-    assert "PrimExpr(value=`96`)" in s1_str
-    assert "PrimExpr(value=`54`)" in s1_str
+    assert "PrimExpr(value=`96i64`)" in s1_str
+    assert "PrimExpr(value=`54i64`)" in s1_str
 
 
 def test_shape_expr():
@@ -258,8 +258,8 @@ def test_shape_expr():
     shape_expr_str = dump_ast(shape_expr)
     assert shape_expr_str.startswith("ShapeExpr(")
     assert "values" in shape_expr_str
-    assert "PrimExpr(value=`10`)" in shape_expr_str
-    assert "PrimExpr(value=`20`)" in shape_expr_str
+    assert "PrimExpr(value=`10i64`)" in shape_expr_str
+    assert "PrimExpr(value=`20i64`)" in shape_expr_str
 
 
 def test_call_packed():
