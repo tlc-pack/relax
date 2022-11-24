@@ -79,22 +79,26 @@ class TaskExtractor : public ExprVisitor {
     }
 
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-    const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
+    if (mod_->Lookup(global_var).as<tir::PrimFuncNode>()) {
+      const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 
-    auto it = func2task_.find(func);
-    if (it != func2task_.end()) {
-      it->second->weight += 1;
-      return;
+      auto it = func2task_.find(func);
+      if (it != func2task_.end()) {
+        it->second->weight += 1;
+        return;
+      }
+
+      IRModule tir_mod = (*normalize_mod_func_)(func);
+      ExtractedTask task(/*task_name=*/global_var->name_hint,  //
+                        /*mod=*/tir_mod,                      //
+                        /*target=*/target_,                   //
+                        /*dispatched=*/{tir_mod},             //
+                        /*weight=*/1);
+      tasks_.push_back(task);
+      func2task_.emplace(func, task);
     }
-
-    IRModule tir_mod = (*normalize_mod_func_)(func);
-    ExtractedTask task(/*task_name=*/global_var->name_hint,  //
-                       /*mod=*/tir_mod,                      //
-                       /*target=*/target_,                   //
-                       /*dispatched=*/{tir_mod},             //
-                       /*weight=*/1);
-    tasks_.push_back(task);
-    func2task_.emplace(func, task);
+    return;
+    
   }
 
   IRModule mod_;
