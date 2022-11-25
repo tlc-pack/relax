@@ -149,29 +149,17 @@ class MatMulBiasGelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         assert len(inputs) == 3, "MatMulBiasGelu op takes 3 inputs, {} given".format(len(inputs))
-        if len(inputs[0].shape) == 2:
-            output = bb.emit_te(topi.matmul, inputs[0], bb.normalize(inputs[1]))
-        else:
-            weight = bb.emit_te(topi.transpose, inputs[1], [1, 0])
-            weight = bb.emit_te(topi.expand_dims, weight, 0)
-            output = bb.emit(relax.op.vtx_mm(inputs[0], weight))
 
-        # Add bias
-        bias = inputs[2]
-        inp = bb.emit_te(topi.add, output, bias)
+        output = bb.emit(
+            relax.op.vtx_mm(
+                inputs[0],
+                bb.normalize(inputs[1]),
+                inputs[2],
+                epilogue_pattern="cutlass.dense_bias_gelu_fp32",
+            )
+        )
 
-        # Declare consts
-        const_dtype = output.checked_type.dtype
-        half = relax.const(0.5, const_dtype)
-        one = relax.const(1.0, const_dtype)
-        sqrt2 = relax.const(1 / math.sqrt(2), const_dtype)
-
-        # Compute gelu
-        term1 = bb.emit_te(topi.multiply, half, inp)
-        divide = bb.emit_te(topi.multiply, inp, sqrt2)
-        erf = bb.emit_te(topi.erf, divide)
-        term2 = bb.emit_te(topi.add, one, erf)
-        return bb.emit_te(topi.multiply, term1, term2)
+        return output
 
 
 class Tanh(OnnxOpConverter):

@@ -31,8 +31,8 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(VtxMMAttrs);
 
 Type InferTypeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
-  if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "vtxmm op should have 2 arguments");
+  if (call->args.size() != 2 && call->args.size() != 3) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "vtxmm op should have 2 or 3 arguments");
   }
   Type lhs_type = call->args[0]->checked_type();
   Type rhs_type = call->args[1]->checked_type();
@@ -44,8 +44,8 @@ Type InferTypeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
 }
 
 Optional<Expr> InferShapeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
-  if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "vtxmm op should have 2 arguments");
+  if (call->args.size() != 2 && call->args.size() != 3) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "vtxmm op should have 2 or 3 arguments");
   }
   Expr lhs_shape = call->args[0]->shape();
   Expr rhs_shape = call->args[1]->shape();
@@ -63,21 +63,29 @@ Optional<Expr> InferShapeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
 }
 
 RELAY_REGISTER_OP("relax.vtx_mm")
-    .set_num_inputs(2)
+    .set_num_inputs(3)
     .add_argument("data", "Tensor", "The data tensor")
     .add_argument("weight", "Tensor", "The weight tensor")
+    .add_argument("bias", "Tensor", "Optional bias tensor")
     .set_attrs_type<VtxMMAttrs>()
     .set_attr<FInferShape>("FInferShape", InferShapeVtxMM)
     .set_attr<FInferType>("FInferType", InferTypeVtxMM);
 
-Expr MakeVtxMM(Expr data, Expr weight, bool transpose_a, bool transpose_b,
+Expr MakeVtxMM(Expr data, Expr weight, Optional<Expr> bias, bool transpose_a, bool transpose_b,
                String epilogue_pattern) {
+  static const Op& op = Op::Get("relax.vtx_mm");
   auto attrs = make_object<VtxMMAttrs>();
   attrs->transpose_a = transpose_a;
   attrs->transpose_b = transpose_b;
   attrs->epilogue_pattern = epilogue_pattern;
-  static const Op& op = Op::Get("relax.vtx_mm");
-  return Call(op, {data, weight}, Attrs(attrs));
+
+  Call call;
+  if (!bias) {
+    call = Call(op, {data, weight}, Attrs(attrs));
+  } else {
+    call = Call(op, {data, weight, bias.value()}, Attrs(attrs));
+  }
+  return call;
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vtx_mm").set_body_typed(MakeVtxMM);

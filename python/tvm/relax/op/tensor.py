@@ -97,5 +97,7 @@ def numpy_unique(
     return tvm.nd.array(output_numpy)
 
 
-def vtx_mm(data, weight, transpose_a=False, transpose_b=False, epilogue_pattern="") -> Expr:
-    return _ffi_api.vtx_mm(data, weight, transpose_a, transpose_b, epilogue_pattern)  # type: ignore
+def vtx_mm(
+    data, weight, bias=None, transpose_a=False, transpose_b=False, epilogue_pattern=""
+) -> Expr:
+    return _ffi_api.vtx_mm(data, weight, bias, transpose_a, transpose_b, epilogue_pattern)  # type: ignore
