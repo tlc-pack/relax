@@ -23,11 +23,12 @@ import onnxruntime
 import run_cutlass_tuning
 import tvm
 from onnx import TensorProto, helper
+from schedule_sum import inject_sum_schedule
 from tvm import meta_schedule as ms
 from tvm import relax
 
 SRC_FILE = "./fmha.cu"
-PKG_FILE = "/tmp/packaged.so"
+PKG_FILE = "./packaged.so"
 
 BATCH_SIZE = 1
 SEQ_LEN = 512
@@ -70,7 +71,6 @@ def test_construct_onnx_graph():
     def create_initializer_tensor(
         name: str, tensor_array: np.ndarray, data_type: onnx.TensorProto = onnx.TensorProto.FLOAT
     ) -> onnx.TensorProto:
-
         initializer_tensor = onnx.helper.make_tensor(
             name=name,
             data_type=data_type,
@@ -175,10 +175,10 @@ def test_construct_onnx_graph():
 
 
 if __name__ == "__main__":
+    WORK_DIR = "./logs"
     model = onnx.load(
         "./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx"
     )
-
     shape_dict = {
         "q_title_token_ids": [1, 512],
         "q_title_token_types": [1, 512],
@@ -190,39 +190,39 @@ if __name__ == "__main__":
     mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
     mod = relax.transform.FuseTIR()(mod)
+    print("Fused")
     mod.show()
     mod = relax.transform.LowerVtxMM()(mod)
-    # print(mod["vtx_mm_0"].attrs["c_source"])
-    # print(mod.script())
-    print("Transformed to Cutlass")
+    print("Transformed to cutlass")
 
     target = tvm.target.Target("cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
     with target:
-        database = ms.database.JSONDatabase("./workload.json", "./records.json")
+        tasks, task_weights = inject_sum_schedule(
+            ms.relax_integration.extract_tasks(mod, target, params=None),
+            work_dir=WORK_DIR,
+        )
+        database = ms.tune_tasks(
+            tasks=tasks,
+            task_weights=task_weights,
+            work_dir=WORK_DIR,
+            max_trials_global=2000,
+            num_trials_per_iter=64,
+        )
+        database = ms.database.create(work_dir=WORK_DIR)
         print("Database Loaded")
-        with tempfile.TemporaryDirectory() as work_dir:
-            db = ms.relax_integration.tune_relax(
-               mod=mod,
-               target=target,
-               params=None,
-               num_trials_per_iter=64,
-               max_trials_per_task=64,
-               max_trials_global=2000,
-               work_dir=work_dir,
-               database=database,
-            )
-            relax_ex = ms.relax_integration.compile_relax(
-                database,
-                mod=mod,
-                target=target,
-                params=None,
-            )
-            print("Compiled")
+        relax_ex = ms.relax_integration.compile_relax(
+            database,
+            mod=mod,
+            target=target,
+            params=None,
+        )
+        print("Compiled")
         import_source_module(relax_ex)
         relax_ex.mod.export_library(
             PKG_FILE,
             cc="nvcc",
         )
+        print("Exported")
     executable = tvm.runtime.load_module(PKG_FILE)
     vm = relax.VirtualMachine(executable, tvm.cuda())
     print("VM Created")
@@ -232,11 +232,11 @@ if __name__ == "__main__":
     evaluator = vm.time_evaluator(
         func_name="main",
         dev=tvm.cuda(),
-        repeat=10,
-        number=50,
+        repeat=5,
+        number=5,
         min_repeat_ms=500,
     )
     result = evaluator(input0, input1, input2)
     print(result)
-    # # res = vm["main"](input0, input1, input2)
-    # print("GPU: ", res[0], res[1], res[2])
+    res = vm["main"](input0, input1, input2)
+    print("GPU: ", res[0], res[1], res[2])
