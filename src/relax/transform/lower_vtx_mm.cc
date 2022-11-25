@@ -42,8 +42,15 @@ class VtxMMRewriter : public ExprMutator {
     const auto* f = runtime::Registry::Get("tvm.relax.vtx.cutlass_gemm");
     ICHECK(f != nullptr);
     ICHECK(attr != nullptr);
-    ICHECK_EQ(call->args.size(), 2);
+    ICHECK(call->args.size() == 2 || call->args.size() == 3);
+    bool has_bias = call->args.size() == 3;
     std::string func_name = "vtx_mm_" + std::to_string(counter_++);
+    LOG(INFO) << "====== " << func_name << " ======";
+    LOG(INFO) << "a->shape = " << Downcast<ShapeExpr>(call->args[0]->shape());
+    LOG(INFO) << "b->shape = " << Downcast<ShapeExpr>(call->args[1]->shape());
+    if (has_bias) {
+      LOG(INFO) << "bias->shape = " << Downcast<ShapeExpr>(call->args[2]->shape());
+    }
     // HACK: assume [1, m, k] * [1, n, k] => [1, m, n]
     int m = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[1])->value;
     int k = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[2])->value;
@@ -58,12 +65,15 @@ class VtxMMRewriter : public ExprMutator {
     std::string layout_c = "row";
     // HACK: assume it's just dense
     std::string op_type = "cutlass.dense";
+    if (!attr->epilogue_pattern.empty()) {
+      op_type = attr->epilogue_pattern;
+    }
     // Call cutlass tuner
     std::string source = (*f)(func_name,                     //
                               m, n, k,                       //
                               type_a, type_b, type_c,        //
                               layout_a, layout_b, layout_c,  //
-                              op_type);
+                              op_type, has_bias);
 
     const static constexpr char* kCSource = "c_source";
     const static constexpr char* kCSourceFmt = "c_source_fmt";

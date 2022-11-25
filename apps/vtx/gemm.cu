@@ -7,6 +7,9 @@
  * {{OperatorDef}}
  * {{OperatorName}}
  * {{FUNC_NAME}}
+ * {{BiasNDArray}}
+ * {{BiasExists}}
+ * {{BiasPtr}}
  *
  * Flags:
   nvcc ./apps/vtx/gemm.cu -o /tmp/packaged.so \
@@ -21,6 +24,7 @@
  */
 #include <cuda_runtime.h>
 #include <cutlass/gemm/device/gemm.h>
+#include <cutlass/util/device_memory.h>
 
 #include <chrono>
 #include <iostream>
@@ -48,17 +52,17 @@ using namespace tvm::runtime;
   }                                                                                            \
 }
 
-void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
-  // HACK: it's (1, m, k) x (1, n, k) -> (1, m, n)
-  CHECK_EQ(A->ndim, 3);
-  CHECK_EQ(B->ndim, 3);
-  CHECK_EQ(C->ndim, 3);
+void _{{FUNC_NAME}}(NDArray A, NDArray B, {{BiasNDArray}} NDArray C) {
+  int a_pad = 1, b_pad = 1, c_pad = 1;
+  CHECK_EQ(A->ndim, 2 + a_pad);
+  CHECK_EQ(B->ndim, 2 + b_pad);
+  CHECK_EQ(C->ndim, 2 + c_pad);
 
   // Step 1. Extract M, N, K; layout = 0/1  ===> row/col major
   {{Layout}}
-  int m_a = A->shape[layout_a + 1], k_a = A->shape[1 + (1 ^ layout_a)];
-  int k_b = B->shape[layout_b + 1], n_b = B->shape[1 + (1 ^ layout_b)];
-  int m_c = C->shape[layout_c + 1], n_c = C->shape[1 + (1 ^ layout_c)];
+  int m_a = A->shape[layout_a + a_pad], k_a = A->shape[(layout_a ^ 1) + a_pad];
+  int k_b = B->shape[layout_b + b_pad], n_b = B->shape[(layout_b ^ 1) + b_pad];
+  int m_c = C->shape[layout_c + c_pad], n_c = C->shape[(layout_c ^ 1) + c_pad];
   // LOG(INFO) << "layout_a = " << layout_a << ", layout_b = " << layout_b << ", layout_c = " << layout_c;
   // LOG(INFO) << "A->shape = " << A->shape[0] << ", " << A->shape[1] << ", " << A->shape[2];
   // LOG(INFO) << "B->shape = " << B->shape[0] << ", " << B->shape[1] << ", " << B->shape[2];
@@ -75,31 +79,36 @@ void _{{FUNC_NAME}}(NDArray A, NDArray B, NDArray C) {
 
   // Step 2. Extract leading dim
   {{LeadingDim}}
-  ICHECK_EQ(lda, A->shape[2]);
-  ICHECK_EQ(ldb, B->shape[2]);
-  ICHECK_EQ(ldc, C->shape[2]);
+  ICHECK_EQ(lda, A->shape[1 + a_pad]);
+  ICHECK_EQ(ldb, B->shape[1 + b_pad]);
+  ICHECK_EQ(ldc, C->shape[1 + c_pad]);
 
   // Step 3. Pointers
   {{DTypeDef}}
   auto* a = reinterpret_cast<DTypeA*>(A->data);
   auto* b = reinterpret_cast<DTypeB*>(B->data);
+  {{BiasPtr}}
   auto* c = reinterpret_cast<DTypeC*>(C->data);
 
   // Step 4. Launch Op
   {{OperatorDef}}
-  Operation_{{OperatorName}} gemm_operator;
+  using GemmOp = Operation_{{OperatorName}};
+  GemmOp gemm_operator;
+
   const DTypeC alpha = 1.0;
-  const DTypeC beta = 0.0;
-  cutlass::Status status = gemm_operator({
+  const DTypeC beta = {{BiasExists}};
+  typename GemmOp::Arguments arguments{
       {M, N, K},     //
       {a, lda},      //
       {b, ldb},      //
-      {c, ldc},      //
+      {bias_ptr, 0}, //
       {c, ldc},      //
       {alpha, beta}  //
-  });
-  CUTLASS_CHECK(status);
-  CHECK(status == cutlass::Status::kSuccess);
+  };
+  cutlass::device_memory::allocation<uint8_t> workspace(GemmOp::get_workspace_size(arguments));
+  CUTLASS_CHECK(gemm_operator.can_implement(arguments));
+  CUTLASS_CHECK(gemm_operator.initialize(arguments, workspace.get()));
+  CUTLASS_CHECK(gemm_operator());
 }
 }  // namespace
 

@@ -48,6 +48,7 @@ def _cutlass_gemm(
     layout_b,
     layout_c,
     op_type,
+    has_bias,
 ):
     cutlass_profiler = CutlassGemmProfiler(SM, _get_cutlass_path(), TMP_DIR)
     operator_name, operator_def, op = select_gemm_kernel(
@@ -78,6 +79,14 @@ def _cutlass_gemm(
         DataTypeTag[op.B.element],
         DataTypeTag[op.C.element],
     )
+    if has_bias:
+        bias_ndarray = "NDArray bias,"
+        bias_exists = "1.0"
+        bias_ptr = "auto* bias_ptr = reinterpret_cast<DTypeC*>(bias->data);"
+    else:
+        bias_ndarray = ""
+        bias_exists = "0.0"
+        bias_ptr = "DTypeC* bias_ptr = nullptr;"
     source_code = (
         get_template()
         .replace("{{Layout}}", layout)
@@ -86,6 +95,9 @@ def _cutlass_gemm(
         .replace("{{OperatorDef}}", operator_def)
         .replace("{{OperatorName}}", operator_name)
         .replace("{{FUNC_NAME}}", func_name)
+        .replace("{{BiasNDArray}}", bias_ndarray)
+        .replace("{{BiasPtr}}", bias_ptr)
+        .replace("{{BiasExists}}", bias_exists)
     )
     return source_code
 
@@ -102,6 +114,7 @@ def cutlass_gemm(
     layout_b,
     layout_c,
     op_type,
+    has_bias,
 ):
     return _cutlass_gemm(
         func_name,
@@ -115,22 +128,24 @@ def cutlass_gemm(
         layout_b,
         layout_c,
         op_type,
+        has_bias,
     )
 
 
 if __name__ == "__main__":
     print(
         cutlass_gemm(
-            func_name="my_func",
-            m=4096,
-            n=4096,
-            k=4096,
+            func_name="vtx_mm_0",
+            m=512,
+            n=2304,
+            k=768,
             type_a="float32",
             type_b="float32",
             type_c="float32",
             layout_a="row",
-            layout_b="row",
+            layout_b="col",
             layout_c="row",
-            op_type="cutlass.dense",
+            op_type="cutlass.dense_bias_gelu_fp32",
+            has_bias=True,
         )
     )
