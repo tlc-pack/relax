@@ -459,13 +459,19 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
       if (it_func != ctx_mod->functions.end()) {
         if (const auto* func = (*it_func).second.as<FunctionNode>()) {
-          return func->ret_type;
+          Type rtype = func->ret_type;
+          ICHECK(rtype.defined()) << "Failed to deduce type of " << func;
+          return rtype;
         }
         // TODO(@yuchen): add this check after normalization in parser
         // else {
         //   LOG(FATAL) << "ValueError: Cannot find function " << gv->name_hint
         //              << " in the context IRModule.";
         // }
+      } else {
+        LOG(FATAL) << "Cannot find function in ctx "
+                   << "ctx_mod.functions size=" << ctx_mod->functions.size()
+                   << ". Note for pass writer, did you populate ctx mod in your pass?";
       }
     } else if (auto* var = call->op.as<VarNode>()) {
       // TODO(@yongwww, yuchen): handle the infer with more specific cases
@@ -597,6 +603,8 @@ Var BlockBuilderNode::Emit(const VarBinding& binding) {
         << "Emit can only be used for local bindings in a dataflow block, use EmitOutput for "
            "output bindings instead";
   }
+  ICHECK(binding->var->checked_type_.defined())
+      << "Trying to remite a var binding without checked type" << binding->value;
   cur_frame->bindings.push_back(binding);
   binding_table_[binding->var->vid] = binding->value;
   return binding->var;
