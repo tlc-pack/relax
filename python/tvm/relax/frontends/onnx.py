@@ -200,9 +200,11 @@ class Gemm(OnnxOpConverter):
         c = inputs[2]
         a = bb.emit_te(topi.expand_dims, a, 0)
         b = bb.emit_te(topi.expand_dims, b, 0)
-        dense = bb.emit(relax.op.vtx_mm(a, b))
+
         if c is not None:
-            dense = bb.emit_te(topi.add, dense, c)
+            dense = bb.emit(relax.op.vtx_mm(a, b, c, epilogue_pattern="cutlass.dense_bias"))
+        else:
+            dense = bb.emit(relax.op.vtx_mm(a, b))
 
         return bb.emit_te(topi.squeeze, dense, 0)
 
@@ -428,9 +430,9 @@ class AttentionCutlass(OnnxOpConverter):
 
         weight = bb.emit_te(topi.transpose, weight, [1, 0])
         weight = bb.emit_te(topi.expand_dims, weight, 0)
-        vtx_mm = bb.emit(relax.op.vtx_mm(input_emb, weight))
-
-        qkv = bb.emit_te(topi.add, vtx_mm, bias)
+        qkv = bb.emit(
+            relax.op.vtx_mm(input_emb, weight, bias, epilogue_pattern="cutlass.dense_bias")
+        )
 
         qkv = bb.emit(
             relax.call_tir(
