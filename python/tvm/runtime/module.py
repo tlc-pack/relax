@@ -501,12 +501,15 @@ class Module(object):
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
-            is_system_lib = (
-                module.type_key == "llvm" and module.get_function("__tvm_is_system_module")()
-            )
-            llvm_target_string = (
-                module.type_key == "llvm" and module.get_function("_get_target_string")()
-            )
+
+            if module.type_key == "llvm":
+                is_system_lib = (
+                    module.get_function("__tvm_is_system_module")()
+                )
+                llvm_target_string = (
+                    module.get_function("_get_target_string")()
+                )
+
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
@@ -523,7 +526,7 @@ class Module(object):
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_string:
-                path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
+                path_obj = os.path.join(workspace_dir, "devc.o")
                 m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
                 m.save(path_obj)
                 files.append(path_obj)
