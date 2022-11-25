@@ -23,9 +23,10 @@ import warnings
 from typing import Optional
 
 import numpy as np
+
 import tvm
-from tvm.ir import IRModule
 from tvm import relax, topi
+from tvm.ir import IRModule
 from tvm.relax import testing
 
 
@@ -149,12 +150,18 @@ class MatMulBiasGelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
         assert len(inputs) == 3, "MatMulBiasGelu op takes 3 inputs, {} given".format(len(inputs))
+        assert len(inputs[0].shape) == 3
 
+        a = inputs[0]
+        b = inputs[1]
+        bias = inputs[2]
+        b = bb.emit_te(topi.transpose, b, [1, 0])
+        b = bb.emit_te(topi.expand_dims, b, 0)
         output = bb.emit(
             relax.op.vtx_mm(
-                inputs[0],
-                bb.normalize(inputs[1]),
-                inputs[2],
+                a,
+                b,
+                bias,
                 epilogue_pattern="cutlass.dense_bias_gelu_fp32",
             )
         )

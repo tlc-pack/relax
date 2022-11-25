@@ -68,6 +68,8 @@ class VtxMMRewriter : public ExprMutator {
     if (!attr->epilogue_pattern.empty()) {
       op_type = attr->epilogue_pattern;
     }
+    LOG(INFO) << "op_type = " << op_type;
+    LOG(INFO) << "out = " << call->shape();
     // Call cutlass tuner
     std::string source = (*f)(func_name,                     //
                               m, n, k,                       //

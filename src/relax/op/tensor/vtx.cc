@@ -38,6 +38,7 @@ Type InferTypeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
   Type rhs_type = call->args[1]->checked_type();
   auto* t0 = lhs_type.as<DynTensorTypeNode>();
   auto* t1 = rhs_type.as<DynTensorTypeNode>();
+  ICHECK_EQ(t0->ndim, t1->ndim);
   int output_ndim = std::max(t0->ndim, t1->ndim);
   DataType output_dtype = t0->dtype;
   return DynTensorType(output_ndim, output_dtype);
@@ -52,6 +53,13 @@ Optional<Expr> InferShapeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
   auto* s0 = lhs_shape.as<ShapeExprNode>();
   auto* s1 = rhs_shape.as<ShapeExprNode>();
   if (s0 && s1) {
+    arith::Analyzer analyzer;
+    ICHECK_EQ(s0->values.size(), 3);
+    ICHECK_EQ(s1->values.size(), 3);
+    // Here we always assume [1, m, k] * [1, n, k]
+    ICHECK(analyzer.CanProve(s0->values[0] == 1));
+    ICHECK(analyzer.CanProve(s1->values[0] == 1));
+    ICHECK(analyzer.CanProve(s0->values[2] == s1->values[2]));
     Array<tvm::PrimExpr> output_shape;
     // super hack to suit the vortex case
     output_shape.push_back(s0->values[0]);
