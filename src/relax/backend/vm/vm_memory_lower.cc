@@ -27,6 +27,7 @@
 #include <tvm/tir/op.h>
 
 #include "../../../relay/transforms/pattern_utils.h"
+#include "../../op/make_op.h"
 
 namespace tvm {
 namespace relax {
@@ -74,8 +75,8 @@ class VMMemLowerMutator : public ExprMutator {
     call = expr.as<CallNode>();
 
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& vm_alloc_storage_op = Op::Get("relax.vm.builtin.alloc_storage");
-    static const Op& vm_alloc_tensor_op = Op::Get("relax.vm.builtin.alloc_tensor");
+    static const Op& memory_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+    static const Op& memory_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
 
     // TODO(@yuchen): memory planning
     if (call->op == alloc_tensor_op) {
@@ -84,22 +85,38 @@ class VMMemLowerMutator : public ExprMutator {
       ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
       DataType dtype = alloc_attrs->dtype;
       Expr storage_size = ComputeStorageSize(output_shape, dtype);
-      auto storage_attr = make_object<VMAllocStorageAttrs>();
-      storage_attr->dtype = dtype;
-      storage_attr->runtime_device_index = alloc_attrs->runtime_device_index;
-
-      Var storage =
-          builder_->Emit(Call(vm_alloc_storage_op, {storage_size}, Attrs(storage_attr)), "storage");
-      auto tensor_attr = make_object<VMAllocTensorAttrs>();
-      tensor_attr->offset = 0;
-      tensor_attr->dtype = dtype;
-      Expr shape = call->args[0];
+      Var storage = builder_->Emit(
+          MakeVMAllocStorage(std::move(storage_size), dtype, alloc_attrs->runtime_device_index),
+          "storage");
       Var tensor =
-          builder_->Emit(Call(vm_alloc_tensor_op, {storage, shape}, Attrs(tensor_attr)), "tensor");
-      return std::move(tensor);
+          builder_->Emit(MakeVMAllocTensor(std::move(storage), call->args[0], 0, dtype), "tensor");
+      return tensor;
+    } else if (call->op == memory_alloc_storage_op) {
+      const auto* attrs = call->attrs.as<MemAllocStorageAttrs>();
+      ICHECK_NOTNULL(attrs);
+      ICHECK(call->args.size() == 1);
+      return MakeVMAllocStorage(call->args[0], attrs->dtype, attrs->virtual_device_index);
+    } else if (call->op == memory_alloc_tensor_op) {
+      const auto* attrs = call->attrs.as<MemAllocTensorAttrs>();
+      ICHECK_NOTNULL(attrs);
+      ICHECK(call->args.size() == 2);
+      return MakeVMAllocTensor(call->args[0], call->args[1], attrs->offset, attrs->dtype);
     }
 
     return GetRef<Expr>(call);
+  }
+
+  // A walk-around to remove these bindings at this moment...
+  void VisitBinding_(const VarBindingNode* binding) final {
+    static const Op& memory_kill_tensor_op = Op::Get("relax.memory.kill_tensor");
+    static const Op& memory_kill_storage_op = Op::Get("relax.memory.kill_storage");
+    const auto* call = binding->value.as<CallNode>();
+    if (call != nullptr &&
+        (call->op == memory_kill_tensor_op || call->op == memory_kill_storage_op)) {
+      return;
+    }
+
+    ExprMutator::VisitBinding_(binding);
   }
 };
 

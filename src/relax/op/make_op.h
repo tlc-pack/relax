@@ -33,6 +33,19 @@ namespace relax {
 
 Expr MakeCast(Expr data, DataType dtype);
 
+Expr MakeAllocStorage(Expr size, int64_t virtual_device_index, std::string storage_scope,
+                      DataType dtype);
+
+Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype);
+
+Expr MakeMemKillStorage(Expr storage);
+
+Expr MakeMemKillTensor(Expr tensor);
+
+Expr MakeVMAllocStorage(Expr size, DataType dtype, int64_t runtime_device_index);
+
+Expr MakeVMAllocTensor(Expr storage, Expr shape, int offset, DataType dtype);
+
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_OP_MAKE_OP_H_

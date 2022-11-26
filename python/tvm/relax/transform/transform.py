@@ -101,6 +101,9 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.CallTIRRewrite()  # type: ignore
 
+def VMGraphMemoryPlan() -> tvm.ir.transform.Pass:
+    return _ffi_api.VMGraphMemoryPlan()
+
 
 def VMMemoryLower() -> tvm.ir.transform.Pass:
     """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
