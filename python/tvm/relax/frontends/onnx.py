@@ -251,29 +251,7 @@ def layer_norm(bb, x, eps, gamma, beta):
 
     Use LayerNormalization for the actual onnx op.
     """
-    x_dtype = x.checked_type.dtype
-    x_shape = [val.value for val in x.shape.values]
-    rnum_elements = relax.const(1 / np.prod(x_shape), dtype=x_dtype)
-
-    # Compute Mean
-    mean = bb.emit_te(topi.sum, x)
-    mean = bb.emit_te(topi.multiply, mean, rnum_elements)
-
-    # Compute Variance
-    diff = bb.emit_te(topi.subtract, x, mean)
-    sq_diff = bb.emit_te(topi.multiply, diff, diff)
-    var_sum = bb.emit_te(topi.sum, sq_diff, -1, True)
-    var = bb.emit_te(topi.multiply, var_sum, rnum_elements)
-
-    # Compute Layer Normalization
-    sub = bb.emit_te(topi.subtract, x, mean)
-    add = bb.emit_te(topi.add, var, relax.const(eps, dtype=x_dtype))
-    sqrt = bb.emit_te(topi.rsqrt, add)
-    output = bb.emit_te(topi.multiply, sub, sqrt)
-    output = bb.emit_te(topi.multiply, output, gamma)
-
-    if beta is not None:
-        output = bb.emit_te(topi.add, output, beta)
+    output = bb.emit_te(topi.nn.layer_norm, x, gamma, beta, (2,), eps)
 
     return output
 

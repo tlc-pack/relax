@@ -176,9 +176,7 @@ def test_construct_onnx_graph():
 
 if __name__ == "__main__":
     WORK_DIR = "./logs"
-    model = onnx.load(
-        "./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx"
-    )
+    model = onnx.load("./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx")
     shape_dict = {
         "q_title_token_ids": [1, 512],
         "q_title_token_types": [1, 512],
@@ -186,6 +184,9 @@ if __name__ == "__main__":
     }
 
     mod = relax.frontends.from_onnx(model, shape=shape_dict)
+    # mark layer_norm as injective
+    mod["layer_norm"] = mod["layer_norm"].with_attr("op_pattern", 2)
+
     mod = relax.transform.FoldConstant()(mod)
     mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
@@ -195,7 +196,9 @@ if __name__ == "__main__":
     mod = relax.transform.LowerVtxMM()(mod)
     print("Transformed to cutlass")
 
-    target = tvm.target.Target("cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536")
+    target = tvm.target.Target(
+        "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536"
+    )
     with target:
         tasks, task_weights = inject_sum_schedule(
             ms.relax_integration.extract_tasks(mod, target, params=None),
@@ -239,4 +242,31 @@ if __name__ == "__main__":
     result = evaluator(input0, input1, input2)
     print(result)
     res = vm["main"](input0, input1, input2)
-    print("GPU: ", res[0], res[1], res[2])
+    print("TVM result: ", res[0], res[1], res[2])
+
+    # ORT
+    onnx_providers = onnxruntime.get_available_providers()
+
+    print("Available Providers: ", onnx_providers)
+
+    input_dict = {
+        "q_title_token_ids": np.random.randint(256, size=[1, 512]).astype("int32"),
+        "q_title_token_types": np.random.randint(256, size=[1, 512]).astype("int32"),
+        "q_title_token_masks": np.random.randint(256, size=[1, 512]).astype("int32"),
+    }
+
+    import time
+
+    session = onnxruntime.InferenceSession(
+        "onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx", providers=onnx_providers
+    )
+    outputs = session.run([], input_dict)
+    print("Onnx result: ", outputs)
+
+    num_iters = 100
+    start = time.time()
+    for i in range(num_iters):
+        outputs = session.run([], input_dict)
+    end = time.time()
+
+    print("Onnx Runtime: %f ms" % ((end - start) * 1000 / num_iters))
