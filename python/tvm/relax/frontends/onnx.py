@@ -433,7 +433,7 @@ class AttentionCutlass(OnnxOpConverter):
                 "FusedQKVToCxt",
                 (qkv, mask_index),
                 (batch_size, num_heads, seq_len, head_size),
-                "float32",
+                weight.checked_type.dtype,
             )
         )
 
