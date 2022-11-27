@@ -205,15 +205,24 @@ class Gemm(OnnxOpConverter):
         a = inputs[0]
         b = inputs[1]
         c = inputs[2]
-        a = bb.emit_te(topi.expand_dims, a, 0)
-        b = bb.emit_te(topi.expand_dims, b, 0)
+
+        out = bb.emit_te(topi.nn.dense, a, b)
 
         if c is not None:
-            dense = bb.emit(relax.op.vtx_mm(a, b, c, epilogue_pattern="cutlass.dense_bias"))
-        else:
-            dense = bb.emit(relax.op.vtx_mm(a, b))
+            out = bb.emit_te(topi.add, out, c)
 
-        return bb.emit_te(topi.squeeze, dense, 0)
+        return out
+
+        # Cutlass integration
+        #a = bb.emit_te(topi.expand_dims, a, 0)
+        #b = bb.emit_te(topi.expand_dims, b, 0)
+
+        #if c is not None:
+        #    dense = bb.emit(relax.op.vtx_mm(a, b, c, epilogue_pattern="cutlass.dense_bias"))
+        #else:
+        #    dense = bb.emit(relax.op.vtx_mm(a, b))
+
+        #return bb.emit_te(topi.squeeze, dense, 0)
 
 
 class BiasGelu(OnnxOpConverter):
