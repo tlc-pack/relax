@@ -23,7 +23,6 @@ import onnxruntime
 import run_cutlass_tuning
 import tvm
 from onnx import TensorProto, helper
-from schedule_sum import inject_sum_schedule
 from tvm import meta_schedule as ms
 from tvm import relax
 
@@ -174,6 +173,53 @@ def test_construct_onnx_graph():
     mod.show()
 
 
+def inject_schedule(extracted_tasks, work_dir):
+    from schedule_gemv import sch_fn as sch_gemv
+    from schedule_sum import sch_fn as sch_sum
+
+    tasks = []
+    task_weights = []
+    for task, logger, rand_state in zip(
+        extracted_tasks,
+        ms.logging.get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
+        ms.utils.fork_seed(None, n=len(extracted_tasks)),
+    ):
+        if task.task_name == "sum":
+            space = ms.space_generator.ScheduleFn(
+                sch_fn=sch_sum,
+                sch_rules=[],
+                postprocs=[],
+            )
+        elif task.task_name in [
+            "fused_dense_add2_fast_tanh_concatenate",
+            "fused_dense1_add3_relu",
+            "fused_dense2_add4",
+            "fused_dense2_add4_relu1",
+            "fused_dense3_add5",
+        ]:
+            space = ms.space_generator.ScheduleFn(
+                sch_fn=sch_gemv,
+                sch_rules=[],
+                postprocs=[],
+            )
+        else:
+            space = "post-order-apply"
+        tasks.append(
+            ms.TuneContext(
+                mod=task.dispatched[0],
+                target=task.target,
+                space_generator=space,
+                search_strategy="evolutionary",
+                task_name=task.task_name,
+                logger=logger,
+                rand_state=rand_state,
+                num_threads="physical",
+            ).clone()
+        )
+        task_weights.append(task.weight)
+    return tasks, task_weights
+
+
 if __name__ == "__main__":
     WORK_DIR = "./logs"
     model = onnx.load("./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx")
@@ -200,7 +246,7 @@ if __name__ == "__main__":
         "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536"
     )
     with target:
-        tasks, task_weights = inject_sum_schedule(
+        tasks, task_weights = inject_schedule(
             ms.relax_integration.extract_tasks(mod, target, params=None),
             work_dir=WORK_DIR,
         )

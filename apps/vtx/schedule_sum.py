@@ -51,37 +51,6 @@ def sch_fn(sch: tir.Schedule, bx_decision=None, tx_decision=None) -> None:
     sch.bind(tx, "threadIdx.x")
 
 
-def inject_sum_schedule(extracted_tasks, work_dir):
-    tasks = []
-    task_weights = []
-    for task, logger, rand_state in zip(
-        extracted_tasks,
-        ms.logging.get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
-        ms.utils.fork_seed(None, n=len(extracted_tasks)),
-    ):
-        if task.task_name == "sum":
-            space = ms.space_generator.ScheduleFn(
-                sch_fn=sch_fn,
-                sch_rules=[],
-            )
-        else:
-            space = "post-order-apply"
-        tasks.append(
-            ms.TuneContext(
-                mod=task.dispatched[0],
-                target=task.target,
-                space_generator=space,
-                search_strategy="evolutionary",
-                task_name=task.task_name,
-                logger=logger,
-                rand_state=rand_state,
-                num_threads="physical",
-            ).clone()
-        )
-        task_weights.append(task.weight)
-    return tasks, task_weights
-
-
 def main():
     target = tvm.target.Target("nvidia/nvidia-t4")
     with tempfile.TemporaryDirectory() as work_dir:
