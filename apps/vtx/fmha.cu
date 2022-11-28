@@ -24,13 +24,12 @@ namespace {
 
 const int num_heads = 12;
 
-int _FusedQKVToCxt(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
-  using T = float;
+template<typename T>
+int _FusedQKVToCxtImpl(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
   CHECK_EQ(QKV->ndim, 3);     // B, S, (NH + NH + NH')
   CHECK_EQ(Mask->ndim, 2);    // B, S
   CHECK_EQ(Output->ndim, 4);  // B, N, S, H'
 
-  using T = float;
   using Attention = AttentionKernel<T, cutlass::arch::Sm75, /*is_aligned=*/true,
                                     /*queries_per_block=*/64, /*keys_per_block=*/64,
                                     /*single_value_iteration=*/true>;
@@ -86,6 +85,15 @@ int _FusedQKVToCxt(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
   CHECK(Attention::check_supported(p));
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes /*cuda stream?*/>>>(p);
   return 0;
+}
+
+int _FusedQKVToCxt(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
+  if (QKV->dtype.code == kDLFloat && QKV->dtype.bits == 32) {
+    return _FusedQKVToCxtImpl<float>(QKV, Mask, Output);
+  } else if (QKV->dtype.code == kDLFloat && QKV->dtype.bits == 16) {
+    return _FusedQKVToCxtImpl<cutlass::half_t>(QKV, Mask, Output);
+  }
+  ICHECK(0);
 }
 
 }  // namespace
