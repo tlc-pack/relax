@@ -55,10 +55,10 @@ class VtxMMRewriter : public ExprMutator {
     int m = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[1])->value;
     int k = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[2])->value;
     int n = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[1]->shape())->values[1])->value;
-    // HACK: assume f32, f32 -> f32
-    std::string type_a = "float32";
-    std::string type_b = "float32";
-    std::string type_c = "float32";
+
+    std::string type_a = DLDataType2String(Downcast<DynTensorType>(call->args[0]->checked_type())->dtype);
+    std::string type_b = DLDataType2String(Downcast<DynTensorType>(call->args[1]->checked_type())->dtype);
+    std::string type_c = DLDataType2String(Downcast<DynTensorType>(call->checked_type())->dtype);
     // HACK: assume row, col -> row
     std::string layout_a = "row";
     std::string layout_b = "col";
@@ -90,7 +90,7 @@ class VtxMMRewriter : public ExprMutator {
     new_funcs.Set(gv, func);  // HACK: somehow the line above doesn't work with FunctionPass
     return Call(call_tir, {gv, Tuple(call->args), ShapeExpr({1, m, n})}, Attrs(),
                 {
-                    DynTensorType(3, DataType::Float(32)),
+                    DynTensorType(3, Downcast<DynTensorType>(call->checked_type())->dtype),
                 });
   }
 

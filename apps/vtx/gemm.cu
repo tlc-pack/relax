@@ -95,8 +95,8 @@ void _{{FUNC_NAME}}(NDArray A, NDArray B, {{BiasNDArray}} NDArray C) {
   using GemmOp = Operation_{{OperatorName}};
   GemmOp gemm_operator;
 
-  const DTypeC alpha = 1.0;
-  const DTypeC beta = {{BiasExists}};
+  const DTypeC alpha{1.0};
+  const DTypeC beta{ {{BiasExists}} };
   typename GemmOp::Arguments arguments{
       {M, N, K},     //
       {a, lda},      //

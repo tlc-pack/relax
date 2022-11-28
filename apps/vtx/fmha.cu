@@ -94,6 +94,7 @@ int _FusedQKVToCxt(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
     return _FusedQKVToCxtImpl<cutlass::half_t>(QKV, Mask, Output);
   }
   ICHECK(0);
+  throw;
 }
 
 }  // namespace
