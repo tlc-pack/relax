@@ -25,6 +25,11 @@ import tvm
 from onnx import TensorProto, helper
 from tvm import meta_schedule as ms
 from tvm import relax
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--fp16', action='store_true', default=False)
+ARGS = parser.parse_args()
 
 SRC_FILE = "./fmha.cu"
 PKG_FILE = "./packaged.so"
@@ -222,7 +227,11 @@ def inject_schedule(extracted_tasks, work_dir):
 
 if __name__ == "__main__":
     WORK_DIR = "./logs"
-    model = onnx.load("./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx")
+    model_path = "./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx"
+    if ARGS.fp16:
+        model_path = "./vortex_fp16.onnx"
+
+    model = onnx.load(model_path)
     shape_dict = {
         "q_title_token_ids": [1, 512],
         "q_title_token_types": [1, 512],
@@ -304,7 +313,7 @@ if __name__ == "__main__":
     import time
 
     session = onnxruntime.InferenceSession(
-        "onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx", providers=onnx_providers
+        model_path, providers=onnx_providers
     )
     outputs = session.run([], input_dict)
     print("Onnx result: ", outputs)
