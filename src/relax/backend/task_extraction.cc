@@ -21,6 +21,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -82,6 +83,16 @@ class TaskExtractor : public ExprVisitor {
     if (mod_->Lookup(global_var).as<tir::PrimFuncNode>()) {
       const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 
+      // Note: call_packed emitted via emit_te doesn't have root block. We may consider better ways
+      // like using annotation instead of checking func body here.
+      if (auto* eval =
+              func->body.as<tir::BlockRealizeNode>()->block->body.as<tir::EvaluateNode>()) {
+        if (auto* call = eval->value.as<tir::CallNode>();
+            call->op.same_as(tir::builtin::tvm_call_packed())) {
+          return;
+        }
+      }
+
       auto it = func2task_.find(func);
       if (it != func2task_.end()) {
         it->second->weight += 1;
@@ -90,15 +101,14 @@ class TaskExtractor : public ExprVisitor {
 
       IRModule tir_mod = (*normalize_mod_func_)(func);
       ExtractedTask task(/*task_name=*/global_var->name_hint,  //
-                        /*mod=*/tir_mod,                      //
-                        /*target=*/target_,                   //
-                        /*dispatched=*/{tir_mod},             //
-                        /*weight=*/1);
+                         /*mod=*/tir_mod,                      //
+                         /*target=*/target_,                   //
+                         /*dispatched=*/{tir_mod},             //
+                         /*weight=*/1);
       tasks_.push_back(task);
       func2task_.emplace(func, task);
     }
     return;
-    
   }
 
   IRModule mod_;
