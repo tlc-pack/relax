@@ -16,43 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
-from typing import Callable, List, Optional, Union, Dict, Tuple
+from typing import Callable, List, Optional, Union, Dict, Tuple, Any
 import numpy as np  # type: ignore
 
-from tvm._ffi import base as _base
 import tvm
-from tvm import relax
 from tvm._ffi import base as _base
-from tvm.ir.module import IRModule
-from tvm.relay import Any
 from tvm.runtime import Device, Module, PackedFunc, container
 from tvm.runtime.object import Object
-from tvm.tir.function import PrimFunc
 
 from ..rpc.base import RPC_SESS_MASK
 from . import _ffi_api
-
-
-class Executable(object):
-    """The executable object emitted by the VM compiler or the ExecBuilder."""
-
-    def __init__(self, mod: Module):
-        self.mod = mod
-        self._stats = self.mod["stats"]
-        self._as_text = self.mod["as_text"]
-        self._as_python = self.mod["as_python"]
-
-    def stats(self) -> str:
-        """print the detailed statistics of the executable."""
-        return self._stats()
-
-    def as_text(self) -> str:
-        """print the instructions as text format."""
-        return self._as_text()
-
-    def as_python(self) -> str:
-        """print the instructions as python program."""
-        return self._as_python()
 
 
 class VirtualMachine(object):
@@ -63,7 +36,7 @@ class VirtualMachine(object):
 
     def __init__(
         self,
-        exec: Union[Executable, Module],
+        exec: Module,
         device: Union[Device, List[Device]],
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
     ) -> None:
@@ -86,11 +59,7 @@ class VirtualMachine(object):
             type specified in the dict, or pooled allocator if not specified in the
             dict.
         """
-        self.module = (
-            exec.mod["vm_load_executable"]()
-            if isinstance(exec, Executable)
-            else exec["vm_load_executable"]()
-        )
+        self.module = exec.mod["vm_load_executable"]()
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
@@ -453,92 +422,3 @@ class VirtualMachine(object):
             repeats_to_cooldown=repeats_to_cooldown,
             f_preproc=f_preproc,
         )
-
-
-def build(
-    mod: tvm.IRModule,
-    target: Union[str, tvm.target.Target],
-    params: Optional[Dict[str, list]] = None,
-) -> Executable:
-    """
-    Build an IRModule to VM executable.
-
-    Parameters
-    ----------
-    mod: IRModule
-        The input IRModule to be built.
-
-    target : Union[str, tvm.target.Target]
-        A build target which can have optional host side compilation target.
-
-        When TVM compiles device specific program such as CUDA,
-        we also need host(CPU) side code to interact with the driver
-        to setup the dimensions and parameters correctly.
-        host is used to specify the host side codegen target.
-        By default, llvm is used if it is enabled,
-        otherwise a stackvm interpreter is used.
-
-    params: Optional[Dict[str, list]]
-        Parameters for the input IRModule that will be bound.
-
-    Returns
-    -------
-    ex: tvm.relax.vm.Executable
-        An executable that can be loaded by virtual machine.
-
-    Example
-    -------
-
-    .. code-block:: python
-        class InputModule:
-            @R.function
-            def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
-                z = R.add(x, y)
-                return z
-
-        mod = InputModule
-        target = tvm.target.Target("llvm", host="llvm")
-        ex = relax.vm.build(mod, target)
-    """
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-
-    passes = [relax.transform.ToNonDataflow()]
-    passes.append(relax.transform.CallTIRRewrite())
-    passes.append(relax.transform.VMGraphMemoryPlan())
-    passes.append(relax.transform.VMMemoryLower())
-    passes.append(relax.transform.VMShapeLower())
-    seq = tvm.transform.Sequential(passes)
-    new_mod = seq(mod)
-
-    # Split primfunc and relax function
-    rx_mod, tir_mod = _split_tir_relax(new_mod)
-    lib = tvm.build(tir_mod, target=target)
-
-    # Extract external runtime modules if exist.
-    ext_libs = []
-    if mod.attrs and "external_mods" in mod.attrs:
-        ext_libs = mod.attrs["external_mods"]
-
-    if params is None:
-        params = {}
-
-    # type: ignore
-    return Executable(_ffi_api.VMCodeGen(rx_mod, lib, ext_libs, target, params))
-
-
-def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
-    rx_mod = IRModule({})
-    tir_mod = IRModule({})
-    for gv in mod.get_global_vars():
-        if isinstance(mod[gv], PrimFunc):
-            tir_mod[gv] = mod[gv]
-        elif isinstance(mod[gv], (relax.Function, relax.ExternFunc)):
-            rx_mod[gv] = mod[gv]
-        else:
-            raise TypeError(
-                "IRModule is expected to contain PrimFunc or Function, but gets {}".format(
-                    type(mod[gv])
-                )
-            )
-    return rx_mod, tir_mod

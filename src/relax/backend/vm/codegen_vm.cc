@@ -589,7 +589,7 @@ Module CodeGen(IRModule mod, Optional<Module> lib, Array<Module> ext_libs, Targe
   return Module(executable);
 }
 
-TVM_REGISTER_GLOBAL("runtime.VMCodeGen").set_body_typed(CodeGen);
+TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(CodeGen);
 
 }  // namespace relax_vm
 }  // namespace relax
