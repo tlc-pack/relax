@@ -69,6 +69,10 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     store_ = NullOpt;
     // Step 2. Visit block body.
     StmtVisitor::VisitStmt(op->body);
+    if (!store_) {
+      kind_ = relay::kOpaque;
+      return;
+    }
     BufferStore store = store_.value();
 
     // Step 3. Checking load store indices pattern
