@@ -263,7 +263,7 @@ if __name__ == "__main__":
             tasks=tasks,
             task_weights=task_weights,
             work_dir=WORK_DIR,
-            max_trials_global=2000,
+            max_trials_global=200,
             num_trials_per_iter=64,
         )
         database = ms.database.create(work_dir=WORK_DIR)

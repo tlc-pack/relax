@@ -12,12 +12,16 @@ input_dict = {
     "q_title_token_masks": np.random.randint(256, size=[1, 512]).astype("int32"),
 }
 
-session = onnxruntime.InferenceSession("onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx", providers=onnx_providers)
+#session = onnxruntime.InferenceSession("onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx", providers=["CUDAExecutionProvider"])
+session = onnxruntime.InferenceSession("vortex_fp16.onnx", providers=["CUDAExecutionProvider"])
 
-num_iters = 100
+# Warm up run
+outputs = session.run([], input_dict)
+
+num_iters = 1000
 start = time.time()
 for i in range(num_iters):
     outputs = session.run([], input_dict)
 end = time.time()
 
-print("Runtime: %d ms" % ((end - start) * 1000 / num_iters))
+print("Runtime: %f ms" % ((end - start) * 1000 / num_iters))
