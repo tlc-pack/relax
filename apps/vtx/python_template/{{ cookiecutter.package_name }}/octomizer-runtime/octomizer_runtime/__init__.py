@@ -1,7 +1,7 @@
 import os
 import tvm
 import tvm.runtime
-from tvm import relax
+from tvm.runtime.relax_vm import VirtualMachine
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,7 @@ class OctomizedModelVM:
         exported_module_path = exported_module_path or PKG_PATH.joinpath("module.so")
 
         loaded_lib = tvm.runtime.load_module(str(exported_module_path))
-        self._vm = relax.VirtualMachine(loaded_lib, ctx)
+        self._vm = VirtualMachine(loaded_lib, ctx)
         self._ctx = ctx
 
     def __call__(self, *args, **kwargs):
