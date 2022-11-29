@@ -59,7 +59,7 @@ class VirtualMachine(object):
             type specified in the dict, or pooled allocator if not specified in the
             dict.
         """
-        self.module = exec.mod["vm_load_executable"]()
+        self.module = exec["vm_load_executable"]()
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
