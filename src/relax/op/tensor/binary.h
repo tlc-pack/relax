@@ -36,7 +36,7 @@
 namespace tvm {
 namespace relax {
 
-Optional<Expr> InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
+Expr InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 2) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
                        << "Binary broadcast op should have 2 arguments");
@@ -62,8 +62,10 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call, DiagnosticContext dia
       } else {
         // defer the computation of output shapes to runtime
         // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        return Call(ExternFunc(String("vm.binary_broadcast_shape_infer")),
-                    {call->args[0], call->args[1]}, {}, {});
+        Call call_infer(ExternFunc(String("vm.binary_broadcast_shape_infer")),
+                        {call->args[0], call->args[1]}, {}, {});
+        call_infer->checked_type_ = ShapeType();
+        return call_infer;
       }
     }
     size_t max_ndim = std::max(ndim0, ndim1);
@@ -72,9 +74,8 @@ Optional<Expr> InferShapeBinaryBroadcast(const Call& call, DiagnosticContext dia
       output_shape.push_back(longer_shape->values[max_ndim - i]);
     }
     return ShapeExpr(Array<PrimExpr>(output_shape.rbegin(), output_shape.rend()));
-  } else {
-    return NullOpt;
   }
+  return RuntimeDepShape();
 }
 
 Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {

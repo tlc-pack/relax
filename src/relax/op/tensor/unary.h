@@ -35,7 +35,7 @@
 namespace tvm {
 namespace relax {
 
-Optional<Expr> InferShapeUnique(const Call& call, DiagnosticContext diag_ctx) {
+Expr InferShapeUnique(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 1) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
   }
@@ -44,7 +44,7 @@ Optional<Expr> InferShapeUnique(const Call& call, DiagnosticContext diag_ctx) {
   if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1)
     diag_ctx.EmitFatal(Diagnostic::Error(call->span)
                        << "support for return_inverse, return_counts, and dim is not implemented");
-  return relax::RuntimeDepShape(call->span);
+  return RuntimeDepShape(call->span);
 }
 
 Type InferTypeUnique(const Call& call, DiagnosticContext diag_ctx) {

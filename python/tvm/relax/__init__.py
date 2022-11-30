@@ -63,6 +63,7 @@ DynTensorType = ty.DynTensorType
 DimType = ty.DimType
 TupleType = ty.TupleType
 FuncType = ty.FuncType
+PackedFuncType = ty.PackedFuncType
 
 # VM
 ExecBuilder = exec_builder.ExecBuilder

@@ -35,7 +35,7 @@
 namespace tvm {
 namespace relax {
 
-Optional<Expr> InferShapeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
+Expr InferShapeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 3) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "EwiseFMA op should have 3 arguments");
   }
@@ -69,9 +69,8 @@ Optional<Expr> InferShapeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) 
       }
     }
     return ShapeExpr(Array<PrimExpr>(output_shape.begin(), output_shape.end()));
-  } else {
-    return NullOpt;
   }
+  return RuntimeDepShape();
 }
 
 Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {

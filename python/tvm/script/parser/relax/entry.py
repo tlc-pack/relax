@@ -54,6 +54,9 @@ class TensorProxy(ObjectGeneric):
         dtype: str = None,
         ndim: int = -1,
     ) -> TensorType:
+        # scalar tensor case
+        if shape is not None and len(shape) == 0:
+            shape = []
         if isinstance(shape, str) and dtype is None:
             dtype = shape
             shape = None

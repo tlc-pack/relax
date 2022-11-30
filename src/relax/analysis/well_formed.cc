@@ -19,8 +19,10 @@
 
 /*!
  * \file relax/analysis/well_formed.cc
- * \brief Check if the IRModule is well formed. If it's malformed, messages
- *    will be logged as Warning. This pass will check:
+ * \brief Check if the IRModule is well-formed. 
+ * This pass is supposed to be applied to normalized Relax AST.
+ * If it's malformed, messages will be logged as Warning. 
+ * This pass will check:
  *    1. GlobalVars are defined before use.
  *    2. Vars are defined before use.
  *    3. Vars are defined exactly once.
@@ -34,6 +36,7 @@
  *       (a) No nested call
  *       (b) The fields of the Tuple can only be Var/DataflowVar/Constant/
  *           ShapeExpr/RuntimeDepShape/Tuple
+ *    8. Expr always has checked_type_ (with the exception of Op).
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -74,6 +77,14 @@ class WellFormedChecker : public relax::ExprVisitor {
     LOG(WARNING) << "This IR is not well formed: " << diag->message;
   }
 
+  void VisitExpr(const Expr& expr) override {
+    if (!expr->checked_type_.defined()) {
+      Malformed(Diagnostic::Error(expr->span)
+                << "The checked_type_ of Expr " << expr << " is nullptr.");
+    }
+    ExprVisitor::VisitExpr(expr);
+  }
+
   void RegisterGlobalVar(GlobalVar var) { global_var_set_.insert(var); }
 
  private:
@@ -82,6 +93,14 @@ class WellFormedChecker : public relax::ExprVisitor {
     if (global_var_set_.count(var) == 0) {
       Malformed(Diagnostic::Error(var->span)
                 << "GlobalVar " << op->name_hint << " is not defined.");
+    }
+    
+    if (op->checked_type_.defined()) {
+      if ((!op->checked_type_->IsInstance<FuncTypeNode>()) && 
+          (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
+        Malformed(Diagnostic::Error(var->span)
+                << "The checked_type_ of GlobalVar " << op->name_hint << " must be either FuncType or PackedFuncType.");
+      }
     }
   }
 

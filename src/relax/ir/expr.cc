@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/expr.h>
+#include <tvm/relax/type.h>
 
 namespace tvm {
 
@@ -26,7 +27,9 @@ RelayExpr RelayExprNode::shape() const {
   }
   static const Op& op = Op::Get("relax.shape_of");
   RelayExpr self = GetRef<RelayExpr>(this);
-  return relay::Call(op, {self}, {}, {});
+  relay::Call call_shape_of(op, {self}, {}, {});
+  call_shape_of->checked_type_ = relax::ShapeType();
+  return call_shape_of;
 }
 
 TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNode::shape);
@@ -278,6 +281,7 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
   ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
   n->span = span;
+  n->checked_type_ = PackedFuncType();
   data_ = std::move(n);
 }
 
@@ -287,7 +291,7 @@ TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, 
 
 void UpdateType(Expr expr, Type type) {
   ICHECK(!expr->checked_type_.defined() || tvm::StructuralEqual()(expr->checked_type_, type))
-      << "the checked_type_ of the Expr must not be nullptr for idempotency";
+      << "the checked_type_ of the Expr to be updated must be nullptr for idempotency";
   expr->checked_type_ = type;
 }
 
@@ -296,7 +300,7 @@ TVM_REGISTER_GLOBAL("relax.UpdateType").set_body_typed([](Expr expr, Type type) 
 });
 
 void UpdateShape(Expr expr, Optional<ObjectRef> shape) {
-  ICHECK(!expr->shape_.defined()) << "the shape_ of the Expr must not be nullptr for idempotency";
+  ICHECK(!expr->shape_.defined()) << "the shape_ of the Expr to be updated must be nullptr for idempotency";
   expr->shape_ = shape;
 }
 

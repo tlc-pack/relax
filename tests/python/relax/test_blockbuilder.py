@@ -307,7 +307,7 @@ def test_emit_match_shape_binding_in_dataflow_block():
 
     x = rx.Var("x", type_annotation=rx.DynTensorType(-1, "float32"))
     m = tir.Var("m", dtype="int32")
-    gv = rx.Var("gv")
+    gv = rx.Var("gv", type_annotation=rx.DynTensorType(-1, "float32"))
     match_shape = rx.MatchShape(x, (m,), gv)
 
     with bb.function("main", [x]):
