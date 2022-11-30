@@ -41,6 +41,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/utils.h>
 #include <tvm/tir/expr_functor.h>
 
 #include <unordered_set>
@@ -170,9 +171,7 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitExpr_(const CallNode* op) {
     for (size_t i = 0; i < op->args.size(); i++) {
       Expr arg = op->args[i];
-      if (arg.as<GlobalVarNode>() || arg.as<ExternFuncNode>() || arg.as<TupleNode>() ||
-          arg.as<ShapeExprNode>() || arg.as<VarNode>() || arg.as<DataflowVarNode>() ||
-          arg.as<ConstantNode>()) {
+      if (IsLeafExpr(arg)) {
         this->VisitExpr(arg);
       } else {
         Malformed(Diagnostic::Error(arg->span)

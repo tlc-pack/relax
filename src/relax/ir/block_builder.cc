@@ -28,6 +28,7 @@
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_analysis.h>
 #include <tvm/relay/op.h>
+#include <tvm/relax/utils.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -631,13 +632,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     return NullOpt;
   }
 
-  static bool IsLeaf(const Expr& expr) {
-    // NB: tuples are treated as leaf nodes for ergonomics
-    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-           expr.as<ShapeExprNode>() || expr.as<RuntimeDepShapeNode>() ||
-           expr.as<ExternFuncNode>() || expr.as<OpNode>() || expr.as<TupleNode>();
-  }
-
   Expr VisitWithNewScope(const Expr& expr) {
     builder_->BeginBindingBlock();
     Expr post = this->VisitExpr(expr);
@@ -650,7 +644,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   Expr Bind(const Expr& expr) {
     Expr post = this->VisitExpr(expr);
-    if (!IsLeaf(post)) {
+    if (!IsLeafExpr(post)) {
       post = builder_->Emit(post);
       expr_memo_.Set(expr, post);
     }
