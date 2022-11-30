@@ -435,5 +435,23 @@ def test_print_type_annotation_non_var():
     assert type_str in call_str
 
 
+def test_if():
+    @R.function
+    def f(cond: R.Tensor((), dtype="bool")) -> R.Tensor((), dtype="int32"):
+        if cond:
+            x = R.const(1)
+        else:
+            x = R.const(2)
+        return x
+
+    body = normalize(f).body
+    assert isinstance(body, rx.SeqExpr)
+    body_str = strip_whitespace(dump_ast(body))
+    # we expect both branches to be seq exprs
+    assert "If" in body_str
+    assert "true_branch=SeqExpr(" in body_str
+    assert "false_branch=SeqExpr(" in body_str
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
