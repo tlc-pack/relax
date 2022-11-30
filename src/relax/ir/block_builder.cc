@@ -27,8 +27,8 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_analysis.h>
-#include <tvm/relay/op.h>
 #include <tvm/relax/utils.h>
+#include <tvm/relay/op.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -214,7 +214,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     builder_->BeginBindingBlock();
-    Expr new_body = this->VisitExpr(op->body);
+    // the body may not be a leaf expression, so check for that
+    Expr new_body = this->Bind(op->body);
     unchanged &= new_body.same_as(op->body);
     BindingBlock prologue = builder_->EndBlock();
 
@@ -228,8 +229,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     SeqExpr seq_expr;
     if (unchanged) {
       seq_expr = GetRef<SeqExpr>(op);
+    } else {
+      seq_expr = SeqExpr(new_blocks, new_body);
     }
-    seq_expr = SeqExpr(new_blocks, new_body);
 
     // only do shape/type inference if the SeqExpr does not have shape/type
     if (seq_expr->shape_ && seq_expr->checked_type_.defined()) {
@@ -636,10 +638,18 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     builder_->BeginBindingBlock();
     Expr post = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
-    if (!prologue->bindings.empty()) {
-      post = SeqExpr({prologue}, post);
+    // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
+    // Don't wrap if it's already a seq and there are no bindings to add
+    if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
+      return post;
     }
-    return post;
+    Array<BindingBlock> bindings;
+    if (!prologue->bindings.empty()) {
+      bindings.push_back(prologue);
+    }
+    auto seq = SeqExpr(bindings, post);
+    // visit in case post is not a leaf and we need to bind it too
+    return this->VisitExpr(seq);
   }
 
   Expr Bind(const Expr& expr) {
