@@ -108,8 +108,7 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitExpr_(const TupleNode* op) {
     for (size_t i = 0; i < op->fields.size(); i++) {
       Expr expr = op->fields[i];
-      if (expr.as<VarNode>() || expr.as<DataflowVarNode>() || expr.as<ShapeExprNode>() ||
-          expr.as<RuntimeDepShapeNode>() || expr.as<ConstantNode>() || expr.as<TupleNode>()) {
+      if (IsLeafExpr(expr)) {
         this->VisitExpr(expr);
       } else {
         Malformed(Diagnostic::Error(expr->span)
