@@ -111,7 +111,7 @@ class LocalBuilder(PyBuilder):
         self,
         *,
         max_workers: Optional[int] = None,
-        timeout_sec: float = 30.0,
+        timeout_sec: float = 50.0,
         f_build: Union[None, str, T_BUILD] = None,
         f_export: Union[None, str, T_EXPORT] = None,
         initializer: Optional[Callable[[], None]] = None,
