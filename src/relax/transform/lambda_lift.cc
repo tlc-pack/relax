@@ -209,6 +209,11 @@ class LambdaLifter : public ExprMutator {
           if (call_node->op == make_closure_op_) {
             return true;
           }
+        } else if (const auto* seq_expr_node = func_node->body.as<SeqExprNode>()) {
+          // the return var points to a make_closure intrinsic
+          if (const auto* var = seq_expr_node->body.as<VarNode>()) {
+            return HasClosure(GetRef<Var>(var));
+          }
         }
       }
     } else if (const auto* func_node = val.as<FunctionNode>()) {
