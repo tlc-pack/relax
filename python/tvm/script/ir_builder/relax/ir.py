@@ -17,6 +17,7 @@
 # pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
+import functools
 from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
@@ -265,6 +266,27 @@ def call_packed(
         attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
     return Call(op, args, attrs=attrs, type_args=type_args)
+
+
+def _tensor_type_wrapper(func):
+    """A wrapper to convert builder.TensorType to relax.DynTensorType"""
+
+    def _convert_tensor_type(args):
+        if isinstance(args, (list, tuple)):
+            new_args = [_convert_tensor_type(x) for x in args]
+            return type(args)(new_args)
+        if isinstance(args, dict):
+            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
+        return args.type if isinstance(args, TensorType) else args
+
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
+
+    return wrapped  # type: ignore
+
+
+invoke_closure = _tensor_type_wrapper(invoke_closure)  # pylint: disable=invalid-name
 
 
 ############################### Bindings ###############################
