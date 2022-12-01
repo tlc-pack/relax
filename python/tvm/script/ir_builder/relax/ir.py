@@ -38,6 +38,7 @@ from tvm.relax.op import (
     print,
     shape_of,
     unique,
+    memory,
 )
 from tvm.relax.ty import ObjectType, ShapeType
 from tvm.relax.utils import convert_to_expr
@@ -417,4 +418,5 @@ __all__ = [
     "unique",
     "shape_of",
     "tensor",
+    "memory",
 ]
