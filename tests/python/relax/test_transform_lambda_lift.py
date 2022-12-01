@@ -84,7 +84,6 @@ def test_basic():
     _check_save_roundtrip(after)
 
 
-@pytest.mark.skip(reason="Need fix after parser switch over")
 def test_closure():
     # the expected IRModule
     @tvm.script.ir_module
@@ -103,7 +102,8 @@ def test_closure():
 
         @R.function
         def lifted_func_0(y: R.Tensor((2, 3), "float32")) -> R.Object:
-            return R.make_closure(lifted_func_1, (y,))
+            inner_func = R.make_closure(lifted_func_1, (y,))
+            return inner_func
 
     # IRModule to perform Lambda Lifting
     @tvm.script.ir_module
@@ -128,7 +128,6 @@ def test_closure():
     before = Before
     after = transform.LambdaLift()(before)
     expected = Expected
-    print(expected.script())
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 
@@ -158,7 +157,9 @@ def test_recursive():
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             while_loop = R.make_closure(lifted_func_0, (x,))
             gv = R.invoke_closure(
-                while_loop, (relax.const(0), x), type_args=(R.Tensor(ndim=2, dtype="float32"))
+                while_loop,
+                (relax.const(0), x),
+                type_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             return gv
 
