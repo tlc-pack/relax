@@ -163,9 +163,13 @@ class WellFormedChecker : public relax::ExprVisitor {
 
       this->VisitVarDef(param);
     }
-    this->VisitBody(op->body);
-    var_set_ = previous_var_set_;
-    prim_expr_visitor_.symbolic_var_set_.clear();
+    if (auto seq = op->body.as<SeqExprNode>()) {
+      this->VisitSeqExpr(seq);
+      var_set_ = previous_var_set_;
+      prim_expr_visitor_.symbolic_var_set_.clear();
+    } else {
+      Malformed(Diagnostic::Error(op->span) << "Function bodies must be sequence expressions");
+    }
   }
 
   void VisitExpr_(const CallNode* op) {
@@ -189,12 +193,18 @@ class WellFormedChecker : public relax::ExprVisitor {
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set_ = var_set_;
     std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolic_var_set_ =
         prim_expr_visitor_.symbolic_var_set_;
-    this->VisitBody(op->true_branch);
-    var_set_ = previous_var_set_;
-    prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
-    this->VisitBody(op->false_branch);
-    var_set_ = previous_var_set_;
-    prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
+    auto true_seq = op->true_branch.as<SeqExprNode>();
+    auto false_seq = op->false_branch.as<SeqExprNode>();
+    if (true_seq && false_seq) {
+      this->VisitSeqExpr(true_seq);
+      var_set_ = previous_var_set_;
+      prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
+      this->VisitSeqExpr(false_seq);
+      var_set_ = previous_var_set_;
+      prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
+    } else {
+      Malformed(Diagnostic::Error(op->span) << "If node branches must be seq exprs");
+    }
   }
 
   void VisitExpr_(const ShapeExprNode* op) {
@@ -220,15 +230,10 @@ class WellFormedChecker : public relax::ExprVisitor {
     for (BindingBlock block : op->blocks) {
       this->VisitBindingBlock(block);
     }
-    this->VisitExpr(op->body);
-  }
-
-  void VisitBody(const Expr& expr) {
-    if (const SeqExprNode* seq_expr = expr.as<SeqExprNode>()) {
-      this->VisitSeqExpr(seq_expr);
-    } else {
-      this->VisitExpr(expr);
+    if (!IsLeafExpr(op->body)) {
+      Malformed(Diagnostic::Error(op->span) << "SeqExpr bodies must be leaf expressions.");
     }
+    this->VisitExpr(op->body);
   }
 
   void VisitBinding_(const VarBindingNode* binding) {
