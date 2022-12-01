@@ -44,7 +44,7 @@ using relay::Call;
  * \return The inferred output shape expression.
  */
 using FInferShape =
-    runtime::TypedPackedFunc<Optional<RelayExpr>(const Call& call, DiagnosticContext diag_ctx)>;
+    runtime::TypedPackedFunc<RelayExpr(const Call& call, DiagnosticContext diag_ctx)>;
 
 /*!
  * \brief Infer the output type for operators. This function will

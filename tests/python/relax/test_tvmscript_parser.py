@@ -489,7 +489,7 @@ def test_annotation():
     )
     _check_type_shape(bindings[1], relax.DynTensorType(dtype=""), RuntimeDepShape())
     _check_type_shape(bindings[2], relax.DynTensorType(ndim=2, dtype=""), RuntimeDepShape())
-    _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), None)
+    _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), RuntimeDepShape())
     _check_type_shape(bindings[4], relax.ShapeType(), None)
     _check_type_shape(bindings[5], relax.ObjectType(), None)
 
