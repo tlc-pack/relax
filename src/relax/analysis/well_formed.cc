@@ -190,12 +190,12 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void VisitExpr_(const IfNode* op) {
     this->VisitExpr(op->cond);
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set_ = var_set_;
-    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolic_var_set_ =
-        prim_expr_visitor_.symbolic_var_set_;
     auto true_seq = op->true_branch.as<SeqExprNode>();
     auto false_seq = op->false_branch.as<SeqExprNode>();
     if (true_seq && false_seq) {
+      std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set_ = var_set_;
+      std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolic_var_set_ =
+          prim_expr_visitor_.symbolic_var_set_;
       this->VisitSeqExpr(true_seq);
       var_set_ = previous_var_set_;
       prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;

@@ -191,6 +191,80 @@ def test_if():
     assert not rx.analysis.well_formed(mod)
 
 
+def test_if_non_seq_body():
+    # Error: If node has a body that is not a seq node
+    if_node = rx.If(cond=cond, true_branch=x, false_branch=x)
+    blocks = [
+        rx.BindingBlock(
+            [
+                rx.VarBinding(
+                    rx.Var("gv1", [m, n], type_anno),
+                    if_node,
+                )
+            ]
+        )
+    ]
+    func = build_function(blocks)
+    mod = tvm.IRModule.from_expr(func)
+    assert not rx.analysis.well_formed(mod)
+
+    # on the other hand, if they're wrapped in a seq node, it's fine
+    seq = rx.SeqExpr([], x)
+    new_if_node = rx.If(cond=cond, true_branch=seq, false_branch=seq)
+    new_blocks = [
+        rx.BindingBlock(
+            [
+                rx.VarBinding(
+                    rx.Var("gv1", [m, n], type_anno),
+                    new_if_node,
+                )
+            ]
+        )
+    ]
+    new_func = build_function(new_blocks)
+    new_mod = tvm.IRModule.from_expr(new_func)
+    assert rx.analysis.well_formed(new_mod)
+
+
+def test_complex_seq_body():
+    # Error: seq expr with a body that is not a leaf expression is not permitted
+    x = rx.Var("x", [], rx.DynTensorType(ndim=0, dtype="int32"))
+    y = rx.Var("y", [], rx.DynTensorType(ndim=0, dtype="int32"))
+    ret_type = rx.DynTensorType(ndim=0, dtype="float32")
+    ret_shape = rx.RuntimeDepShape()
+    func = rx.Function(
+        [x, y],
+        rx.SeqExpr([], rx.op.add(x, y)),
+        ret_type,
+        ret_shape,
+    ).with_attr("global_symbol", "foo")
+    mod = tvm.IRModule.from_expr(func)
+    assert not rx.analysis.well_formed(mod)
+
+    # but if the result is bound, then it's okay
+    z = rx.Var("z", [], rx.DynTensorType(ndim=0, dtype="int32"))
+    new_func = rx.Function(
+        [x, y],
+        rx.SeqExpr(
+            [
+                rx.BindingBlock(
+                    [
+                        rx.VarBinding(
+                            var=z,
+                            value=rx.op.add(x, y),
+                        )
+                    ]
+                )
+            ],
+            z,
+        ),
+        ret_type,
+        ret_shape,
+    ).with_attr("global_symbol", "foo")
+    new_mod = tvm.IRModule.from_expr(new_func)
+    assert rx.analysis.well_formed(new_mod)
+
+
 def test_ANF():
     # Error: Nested Call
     gv0 = rx.Var("gv0", [m, n], type_anno)
