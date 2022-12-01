@@ -37,7 +37,6 @@ namespace relax {
  */
 bool IsBaseOf(const Type& base, const Type& derived);
 
-
 /*!
  * \brief Find the lowest common ancestor of two types.
  * \param t Type 1.
