@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/relax/type.h
- * \brief Relax typed AST nodes.
+ * \brief Relax Types.
  */
 #ifndef TVM_RELAX_TYPE_H_
 #define TVM_RELAX_TYPE_H_
@@ -37,7 +37,8 @@
 namespace tvm {
 namespace relax {
 
-static const int kUnknownDim = -1;
+/*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
+static constexpr int kUnknownDim = -1;
 
 class ShapeTypeNode : public TypeNode {
  public:
@@ -150,7 +151,6 @@ class DimType : public Type {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
-
 class PackedFuncTypeNode : public TypeNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
@@ -169,24 +169,6 @@ class PackedFuncType : public Type {
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PackedFuncType, Type, PackedFuncTypeNode);
 };
-
-/*!
- * \brief Check the subtype relationship between base and derived.
- * \param base The base type.
- * \param derived The derived type.
- * \return If \p derived is a subtype of \p base or if both are the same type, returns true.
- * Otherwise returns false.
- */
-bool IsBaseOf(const Type& base, const Type& derived);
-
-
-/*!
- * \brief Find the lowest common ancestor of two types.
- * \param t Type 1.
- * \param u Type 2.
- * \return The lowest common ancestor of two types.
- */
-Type FindLCA(const Type& t1, const Type& t2);
 
 }  // namespace relax
 }  // namespace tvm

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/type_analysis.h>
 #include <tvm/script/ir_builder/relax/ir.h>
 #include <tvm/tir/op.h>
 

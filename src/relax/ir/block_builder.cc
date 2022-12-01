@@ -26,6 +26,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/type_analysis.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/function.h>
 
@@ -108,11 +109,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
     Tuple tuple = unchanged ? GetRef<Tuple>(op) : Tuple(new_fields);
 
-    // recurse into its shape
-    if (tuple->shape_ && tuple->shape_.value()->IsInstance<TupleNode>()) {
-      this->VisitExpr(Downcast<Expr>(tuple->shape_.value()));
-    }
-
     // only do shape/type inference if the Tuple does not have shape/type
     if (tuple->shape_ && tuple->checked_type_.defined()) {
       return tuple;
@@ -137,6 +133,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     // it has a shape.
     if (!tuple->shape_) {
       UpdateShape(tuple, GetTupleShape(tuple));
+    }
+
+    // recurse into its shape in case its shape also need to be normalized
+    if (tuple->shape_ && tuple->shape_.value()->IsInstance<TupleNode>()) {
+      this->VisitExpr(Downcast<Expr>(tuple->shape_.value()));
     }
 
     return tuple;

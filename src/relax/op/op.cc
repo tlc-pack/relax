@@ -212,9 +212,7 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 
 // alloc_tensor
 
-Expr InferShapeAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  return call->args[0];
-}
+Expr InferShapeAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[0]; }
 
 Type InferTypeAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
   auto attrs = call->attrs.as<AllocTensorAttrs>();
@@ -342,9 +340,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAl
 
 // vm alloc_tensor
 
-Expr InferShapeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  return call->args[1];
-}
+Expr InferShapeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[1]; }
 
 Type InferTypeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
   auto attrs = call->attrs.as<VMAllocTensorAttrs>();

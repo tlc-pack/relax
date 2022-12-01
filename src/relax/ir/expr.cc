@@ -18,6 +18,7 @@
  */
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/type_analysis.h>
 
 namespace tvm {
 
@@ -300,7 +301,8 @@ TVM_REGISTER_GLOBAL("relax.UpdateType").set_body_typed([](Expr expr, Type type) 
 });
 
 void UpdateShape(Expr expr, Optional<ObjectRef> shape) {
-  ICHECK(!expr->shape_.defined()) << "the shape_ of the Expr to be updated must be nullptr for idempotency";
+  ICHECK(!expr->shape_.defined())
+      << "the shape_ of the Expr to be updated must be nullptr for idempotency";
   expr->shape_ = shape;
 }
 

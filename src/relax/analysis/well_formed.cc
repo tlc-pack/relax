@@ -19,9 +19,9 @@
 
 /*!
  * \file relax/analysis/well_formed.cc
- * \brief Check if the IRModule is well-formed. 
+ * \brief Check if the IRModule is well-formed.
  * This pass is supposed to be applied to normalized Relax AST.
- * If it's malformed, messages will be logged as Warning. 
+ * If it's malformed, messages will be logged as Warning.
  * This pass will check:
  *    1. GlobalVars are defined before use.
  *    2. Vars are defined before use.
@@ -94,12 +94,12 @@ class WellFormedChecker : public relax::ExprVisitor {
       Malformed(Diagnostic::Error(var->span)
                 << "GlobalVar " << op->name_hint << " is not defined.");
     }
-    
+
     if (op->checked_type_.defined()) {
-      if ((!op->checked_type_->IsInstance<FuncTypeNode>()) && 
+      if ((!op->checked_type_->IsInstance<FuncTypeNode>()) &&
           (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
-        Malformed(Diagnostic::Error(var->span)
-                << "The checked_type_ of GlobalVar " << op->name_hint << " must be either FuncType or PackedFuncType.");
+        Malformed(Diagnostic::Error(var->span) << "The checked_type_ of GlobalVar " << op->name_hint
+                                               << " must be either FuncType or PackedFuncType.");
       }
     }
   }
