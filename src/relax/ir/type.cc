@@ -18,10 +18,9 @@
  */
 
 /*!
- * \file src/relax/type.cc
- * \brief Relax's type system AST nodes throughout the IR.
+ * \file src/relax/ir/type.cc
+ * \brief Relax type system.
  */
-#include <tvm/ir/type_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/registry.h>
 
@@ -80,79 +79,16 @@ TVM_REGISTER_NODE_TYPE(DimTypeNode);
 
 TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimType(span); });
 
-/*!
- * \brief Utility class for generic type dispatching:
- * VisitType dispatches on the base type and checks if the derived type is a subtype of the base
- * type.
- */
-class BaseTypeChecker : public TypeFunctor<bool(const Type& n)> {
- public:
-  explicit BaseTypeChecker(const Type& derived) : derived_{derived} {}
-
-  bool VisitType_(const ShapeTypeNode* base) final {
-    if (derived_.as<ShapeTypeNode>()) {
-      return true;
-    }
-    return false;
-  }
-  bool VisitType_(const ObjectTypeNode* base) final { return true; }
-
-  bool VisitType_(const DynTensorTypeNode* base) final {
-    if (auto derived_tensor = derived_.as<DynTensorTypeNode>()) {
-      if (base->IsUnknownNdim() || base->ndim == derived_tensor->ndim) {
-        if (base->IsUnknownDtype() || base->dtype == derived_tensor->dtype) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  bool VisitType_(const TupleTypeNode* base) final {
-    if (auto derived_tuple = derived_.as<TupleTypeNode>()) {
-      if (base->fields.size() != derived_tuple->fields.size()) {
-        return false;
-      }
-
-      for (size_t i = 0; i < base->fields.size(); ++i) {
-        if (!IsBaseOf(base->fields[i], derived_tuple->fields[i])) {
-          return false;
-        }
-      }
-      return true;
-    }
-    return false;
-  }
-
-  bool VisitType_(const FuncTypeNode* base) final {
-    if (auto derived_func = derived_.as<FuncTypeNode>()) {
-      if (base->arg_types.size() != derived_func->arg_types.size()) {
-        return false;
-      }
-      for (size_t i = 0; i < base->arg_types.size(); ++i) {
-        if (!IsBaseOf(base->arg_types[i], derived_func->arg_types[i])) {
-          return false;
-        }
-      }
-      if (!IsBaseOf(base->ret_type, derived_func->ret_type)) {
-        return false;
-      }
-      return true;
-    }
-    return false;
-  }
-
- private:
-  Type derived_;
-};
-
-bool IsBaseOf(const Type& base, const Type& derived) {
-  BaseTypeChecker visitor(derived);
-  return visitor.VisitType(base);
+PackedFuncType::PackedFuncType(Span span) {
+  ObjectPtr<PackedFuncTypeNode> n = make_object<PackedFuncTypeNode>();
+  n->span = span;
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.IsBaseOf").set_body_typed([](const Type& base, const Type& derived) {
-  return IsBaseOf(base, derived);
+TVM_REGISTER_NODE_TYPE(PackedFuncTypeNode);
+
+TVM_REGISTER_GLOBAL("relax.PackedFuncType").set_body_typed([](Span span) {
+  return PackedFuncType(span);
 });
 
 }  // namespace relax

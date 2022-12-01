@@ -876,7 +876,7 @@ def test_vm_if_cond_const():
     @tvm.script.ir_module
     class TestVMIfCondConst:
         @R.function
-        def main(x: R.Tensor(ndim=2, dtype="float32")) -> R.Tensor((1,), "int32"):
+        def main(x: R.Tensor(ndim=2, dtype="float32")) -> R.Tensor(ndim=2, dtype="float32"):
             if relax.const(True, dtype="bool"):
                 ret = x
             else:

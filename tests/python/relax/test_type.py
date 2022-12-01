@@ -15,10 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-import numpy as np
-import tvm
-from tvm import relax as rx
-from tvm.relax.ty import is_base_of
+from tvm import relax as rx, TVMError
+from tvm.relax.ty import is_base_of, find_lca
 
 
 def test_shape_type():
@@ -143,6 +141,69 @@ def test_subtype():
     assert is_base_of(t24, t23) == False
     assert is_base_of(t26, t23) == False
     assert is_base_of(t28, t27) == False
+
+    # check the subtype relation for PackedFuncType
+    t29 = rx.PackedFuncType()
+    t30 = rx.PackedFuncType()
+    assert is_base_of(t29, t30)
+    assert is_base_of(t30, t29)
+    assert is_base_of(t18, t29)
+    assert is_base_of(t1, t29) == False
+
+
+def test_lca():
+    t0 = rx.DynTensorType(-1, None)
+    t1 = rx.DynTensorType(3, None)
+    t2 = rx.DynTensorType(3, "int32")
+    t3 = rx.DynTensorType(3, "float32")
+    t4 = rx.DynTensorType(3, "float32")
+    assert find_lca(t0, t1) == t0
+    assert find_lca(t0, t2) == t0
+    assert find_lca(t0, t3) == t0
+    assert find_lca(t0, t4) == t0
+    assert find_lca(t1, t2) == t1
+    assert find_lca(t1, t3) == t1
+    assert find_lca(t4, t3) == t3
+
+    t5 = rx.ShapeType()
+    t6 = rx.ShapeType()
+    assert find_lca(t5, t5) == t5
+    assert find_lca(t5, t6) == t5
+
+    t7 = rx.TupleType([t0, t1, t5])
+    t8 = rx.TupleType([t1, t1, t5])
+    t9 = rx.TupleType([t1, t3, t5])
+    t10 = rx.TupleType([t5, t3, t1])
+    t11 = rx.TupleType([t1, t3])
+    assert find_lca(t7, t8) == t7
+    assert find_lca(t7, t9) == t7
+    assert find_lca(t8, t9) == t8
+    assert find_lca(t8, t8) == t8
+    assert find_lca(t7, t10) == rx.TupleType([rx.ObjectType(), t1, rx.ObjectType()])
+    assert find_lca(t7, t11) == rx.ObjectType()
+
+    t12 = rx.FuncType([t7], t0)
+    t13 = rx.FuncType([t7], t1)
+    t14 = rx.FuncType([t8], t0)
+    t15 = rx.FuncType([t8], t1)
+    t16 = rx.FuncType([t7, t0], t1)
+    t17 = rx.FuncType([t7, t4], t1)
+    assert find_lca(t12, t13) == t12
+    with pytest.raises(TVMError):
+        find_lca(t12, t14)
+        find_lca(t16, t17)
+    assert find_lca(t14, t15) == t14
+
+    t18 = rx.ObjectType()
+    assert find_lca(t18, t0) == t18
+    assert find_lca(t18, t5) == t18
+    assert find_lca(t18, t7) == t18
+    assert find_lca(t18, t12) == t18
+    assert find_lca(t18, t18) == t18
+
+    t19 = rx.PackedFuncType()
+    assert find_lca(t19, t0) == t18
+    assert find_lca(t19, t12) == t18
 
 
 if __name__ == "__main__":

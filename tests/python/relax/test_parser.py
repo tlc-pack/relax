@@ -226,6 +226,11 @@ def test_if():
     assert y.name_hint == "y"
 
     assert isinstance(ite, relax.If)
+    assert ite.checked_type == relax.DynTensorType(1, "float32")
+    check_shape(ite.shape, (1,))
+    assert y.checked_type == relax.DynTensorType(1, "float32")
+    check_shape(y.shape, (1,))
+
     assert isinstance(ite.true_branch, relax.SeqExpr)
     assert isinstance(ite.false_branch, relax.SeqExpr)
 
@@ -242,31 +247,13 @@ def test_if():
     check_call(body, "relax.add", [w_bind.var, w_bind.var])
 
 
-# TODO: figure out if-else binding type and shape
-
-
-def test_var_redefine_fail():
+def test_func_type_annotation_fail():
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
         def f(x, y):
             z = R.add(x, y)
             y = z
-            return y
-
-
-def test_var_redefine_fail_if():
-    with pytest.raises(tvm.error.DiagnosticError):
-
-        @R.function
-        def f(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")):
-            y = x
-            if cond:
-                w = R.add(x, x)
-                y = R.multiply(w, w)
-            else:
-                w = R.multiply(x, x)
-                y = R.add(w, w)
             return y
 
 
@@ -755,13 +742,6 @@ def test_class_irmodule():
                 gv2 = gv1[1]
                 R.output(gv2)
             return gv2
-
-        @R.function
-        def h(
-            x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))
-        ) -> R.Tensor:
-            _ = my_matmul(x, y, z)
-            return z
 
         @R.function
         def k(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:

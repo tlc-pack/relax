@@ -60,6 +60,14 @@ class DynTensorType(Type):
         )
 
 
+@tvm._ffi.register_object("relax.PackedFuncType")
+class PackedFuncType(Type):
+    """The type of ExternFunc in Relax."""
+
+    def __init__(self, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.PackedFuncType, span)  # type: ignore
+
+
 @tvm._ffi.register_object("relax.DimType")
 class DimType(Type):
     """The type of indices/shape dimensions in Relax."""
@@ -87,3 +95,22 @@ def is_base_of(base: Type, derived: Type) -> bool:
         Otherwise returns false.
     """
     return _ffi_api.IsBaseOf(base, derived)  # type: ignore
+
+
+def find_lca(t: Type, u: Type) -> Type:
+    """Find the lowest common ancestor of two types.
+
+    Parameters
+    ----------
+    t : Type
+        Type 1.
+
+    u : Type
+        Type 2.
+
+    Returns
+    -------
+    ret : Type
+        The lowest common ancestor of two types.
+    """
+    return _ffi_api.FindLCA(t, u)  # type: ignore

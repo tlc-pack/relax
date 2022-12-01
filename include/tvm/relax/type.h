@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/relax/type.h
- * \brief Relax typed AST nodes.
+ * \brief Relax Types.
  */
 #ifndef TVM_RELAX_TYPE_H_
 #define TVM_RELAX_TYPE_H_
@@ -36,6 +36,9 @@
 
 namespace tvm {
 namespace relax {
+
+/*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
+static constexpr int kUnknownDim = -1;
 
 class ShapeTypeNode : public TypeNode {
  public:
@@ -100,7 +103,7 @@ class DynTensorTypeNode : public BaseTensorTypeNode {
     hash_reduce(dtype);
   }
 
-  inline bool IsUnknownNdim() const { return ndim == -1; }
+  inline bool IsUnknownNdim() const { return ndim == kUnknownDim; }
 
   inline bool IsUnknownDtype() const { return dtype.is_void(); }
 
@@ -148,14 +151,24 @@ class DimType : public Type {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
-/*!
- * \brief Check the subtype relationship between base and derived.
- * \param base The base type.
- * \param derived The derived type.
- * \return If \p derived is a subtype of \p base or if both are the same type, returns true.
- * Otherwise returns false.
- */
-bool IsBaseOf(const Type& base, const Type& derived);
+class PackedFuncTypeNode : public TypeNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+
+  bool SEqualReduce(const PackedFuncTypeNode* other, SEqualReducer equal) const { return true; }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
+
+  static constexpr const char* _type_key = "relax.PackedFuncType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncTypeNode, TypeNode);
+};
+
+class PackedFuncType : public Type {
+ public:
+  TVM_DLL PackedFuncType(Span span = Span());
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PackedFuncType, Type, PackedFuncTypeNode);
+};
 
 }  // namespace relax
 }  // namespace tvm
