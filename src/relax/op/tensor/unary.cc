@@ -52,5 +52,37 @@ Expr MakeUnique(Expr data, bool sorted, bool return_inverse, bool return_counts,
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(MakeUnique);
 
+Type InferTypeUnique(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
+  }
+  auto* input_ty = call->args[0]->checked_type().as<DynTensorTypeNode>();
+  if (!input_ty) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "Input should be DynTensor, but got "
+                       << call->args[0]->checked_type()->GetTypeKey());
+  }
+
+  // TODO(prakalp): Add support for return_inverse, return_counts and dim attributes. Only defaults
+  // are supported right now.
+  auto unique_attrs = call->attrs.as<UniqueAttrs>();
+  if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1)
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "support for return_inverse, return_counts, and dim is not implemented");
+  return DynTensorType(/*ndim=*/1, input_ty->dtype);
+}
+
+Expr InferShapeUnique(const Call& call, DiagnosticContext diag_ctx) {
+  if (call->args.size() != 1) {
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
+  }
+  auto unique_attrs = call->attrs.as<UniqueAttrs>();
+  // Only default values of these attributes are supported right now.
+  if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1)
+    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+                       << "support for return_inverse, return_counts, and dim is not implemented");
+  return RuntimeDepShape(call->span);
+}
+
 }  // namespace relax
 }  // namespace tvm

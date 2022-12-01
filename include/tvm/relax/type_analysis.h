@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,28 +18,33 @@
  */
 
 /*!
- * \file binary.h
- * \brief shape and type deduction for binary broadcast operators.
+ * \file tvm/relax/type_analysis.h
+ * \brief Relax type analysis APIs.
  */
+#ifndef TVM_RELAX_TYPE_ANALYSIS_H_
+#define TVM_RELAX_TYPE_ANALYSIS_H_
 
-#ifndef TVM_RELAX_OP_TENSOR_BINARY_H_
-#define TVM_RELAX_OP_TENSOR_BINARY_H_
-
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
-
-#include <algorithm>
-#include <vector>
-
-#include "../op_common.h"
+#include <tvm/ir/type.h>
 
 namespace tvm {
 namespace relax {
+/*!
+ * \brief Check the subtype relationship between base and derived.
+ * \param base The base type.
+ * \param derived The derived type.
+ * \return If \p derived is a subtype of \p base or if both are the same type, returns true.
+ * Otherwise returns false.
+ */
+bool IsBaseOf(const Type& base, const Type& derived);
 
-Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx);
-Expr InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx);
+/*!
+ * \brief Find the lowest common ancestor of two types.
+ * \param t Type 1.
+ * \param u Type 2.
+ * \return The lowest common ancestor of two types.
+ */
+Type FindLCA(const Type& t1, const Type& t2);
 
 }  // namespace relax
 }  // namespace tvm
-
-#endif  // TVM_RELAX_OP_TENSOR_BINARY_H_
+#endif  // TVM_RELAX_TYPE_ANALYSIS_H_
