@@ -268,6 +268,27 @@ def call_packed(
     return Call(op, args, attrs=attrs, type_args=type_args)
 
 
+def _tensor_type_wrapper(func):
+    """A wrapper to convert builder.TensorType to relax.DynTensorType"""
+
+    def _convert_tensor_type(args):
+        if isinstance(args, (list, tuple)):
+            new_args = [_convert_tensor_type(x) for x in args]
+            return type(args)(new_args)
+        if isinstance(args, dict):
+            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
+        return args.type if isinstance(args, TensorType) else args
+
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
+
+    return wrapped  # type: ignore
+
+
+invoke_closure = _tensor_type_wrapper(invoke_closure)  # pylint: disable=invalid-name
+
+
 ############################### Bindings ###############################
 
 
@@ -358,28 +379,6 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
         The result ElseFrame.
     """
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
-
-
-def _tensor_type_wrapper(func):
-    """A wrapper to convert builder.TensorType to relax.DynTensorType"""
-
-    def _convert_tensor_type(arg):
-        if isinstance(arg, (list, tuple)):
-            new_arg = [_convert_tensor_type(x) for x in arg]
-            return type(arg)(new_arg)
-        elif isinstance(arg, dict):
-            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in arg.items()}
-        else:
-            return arg.type if isinstance(arg, TensorType) else arg
-
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
-
-    return wrapped  # type: ignore
-
-
-invoke_closure = _tensor_type_wrapper(invoke_closure)
 
 
 ############################### Importer ###############################
