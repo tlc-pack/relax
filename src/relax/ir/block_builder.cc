@@ -392,6 +392,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     return new_block;
   }
 
+  void ResetMemo() { expr_memo_.Reset(); }
+
  private:
   /*!
    * \brief Memoization map for expressions using Id for equality of variables.
@@ -419,6 +421,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       } else {
         expr_memo_[pre] = post;
       }
+    }
+
+    void Reset() {
+      var_memo_ = std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual>();
+      expr_memo_ = std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>();
     }
 
    private:
@@ -826,6 +833,8 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   }
   return false;
 }
+
+void BlockBuilderNode::ResetMemo() { normalizer_->ResetMemo(); }
 
 // TODO(@altanh, @yuchen): need an internal Emit_ that doesn't call normalize
 Expr BlockBuilderNode::Normalize(const Expr& expr) {

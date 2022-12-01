@@ -134,6 +134,15 @@ class BlockBuilderNode : public Object {
   bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
 
   /*!
+   * \brief Resets the memo in the normalizer to prevent false hits when visiting 
+   *   the same expression more than once.
+   *   Use if before visiting a given expression again.
+   */
+  // TODO(@relax-team): Memoization should be tied to the scope tracking to prevent memo hits
+  // when the associated var is out of scope
+  void ResetMemo();
+
+  /*!
    * \brief Convert an expression to A-normal form, and try to eagerly infer types and shapes.
    * \param expr The input expression.
    * \return The normalized expression.
