@@ -845,5 +845,27 @@ def test_class_normalize():
     assert_structural_equal(InputModule, OutputModule)
 
 
+def test_memory_op():
+    @R.function
+    def memory(x: R.Tensor) -> R.Tensor:
+        storage = R.memory.alloc_storage((1024,), -1, "global", "float32")
+        alloca = R.memory.alloc_tensor(storage, (1, 256), 0, "float32")
+        _ = R.memory.kill_tensor(alloca)
+        _ = R.memory.kill_storage(storage)
+        return alloca
+
+    b0, b1, b2, b3 = memory.body.blocks[0].bindings
+    assert b0.value.op.name == "relax.memory.alloc_storage"
+    assert isinstance(b0.value.args[0], relax.ShapeExpr)
+    check_shape(b0.value.args[0], (1024,))
+    assert isinstance(b0.value.attrs, relax.op.MemAllocStorageAttrs)
+
+    assert b1.value.op.name == "relax.memory.alloc_tensor"
+    assert isinstance(b1.value.attrs, relax.op.MemAllocTensorAttrs)
+
+    assert b2.value.op.name == "relax.memory.kill_tensor"
+    assert b3.value.op.name == "relax.memory.kill_storage"
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
