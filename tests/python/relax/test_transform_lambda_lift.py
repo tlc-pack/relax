@@ -92,9 +92,7 @@ def test_closure():
         def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
             outer_func = lifted_func_0
             in_call = outer_func(x)
-            res = R.invoke_closure(
-                in_call, (y,), type_args=(relax.DynTensorType(ndim=2, dtype="float32"),)
-            )
+            res = R.invoke_closure(in_call, (y,), type_args=(R.Tensor(ndim=2, dtype="float32")))
             return res
 
         @R.function
@@ -161,7 +159,7 @@ def test_recursive():
             gv = R.invoke_closure(
                 while_loop,
                 (relax.const(0), x),
-                type_args=(relax.DynTensorType(ndim=2, dtype="float32")),
+                type_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             return gv
 

@@ -17,6 +17,7 @@
 # pylint: disable=redefined-builtin, wrong-import-order
 """IRBuilder for Relax dialect"""
 
+import functools
 from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
@@ -357,6 +358,28 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
         The result ElseFrame.
     """
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
+
+
+def _tensor_type_wrapper(func):
+    """A wrapper to convert builder.TensorType to relax.DynTensorType"""
+
+    def _convert_tensor_type(arg):
+        if isinstance(arg, (list, tuple)):
+            new_arg = [_convert_tensor_type(x) for x in arg]
+            return type(arg)(new_arg)
+        elif isinstance(arg, dict):
+            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in arg.items()}
+        else:
+            return arg.type if isinstance(arg, TensorType) else arg
+
+    @functools.wraps(func)
+    def wrapped(*args, **kwargs):
+        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
+
+    return wrapped  # type: ignore
+
+
+invoke_closure = _tensor_type_wrapper(invoke_closure)
 
 
 ############################### Importer ###############################
