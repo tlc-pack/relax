@@ -307,7 +307,7 @@ def test_emit_match_shape_binding_in_dataflow_block():
 
     x = rx.Var("x", type_annotation=rx.DynTensorType(-1, "float32"))
     m = tir.Var("m", dtype="int32")
-    gv = rx.Var("gv")
+    gv = rx.Var("gv", type_annotation=rx.DynTensorType(-1, "float32"))
     match_shape = rx.MatchShape(x, (m,), gv)
 
     with bb.function("main", [x]):
@@ -335,6 +335,7 @@ def test_normalize():
     y = rx.Var("y", [n], type_anno1)
     bb = rx.BlockBuilder()
 
+    # Call node
     add_call = rx.op.multiply(x, y)
     assert isinstance(add_call.shape, rx.Call)
 
@@ -342,6 +343,27 @@ def test_normalize():
     assert isinstance(add_call.shape, rx.ShapeExpr)
     assert add_call.shape[0] == m
     assert add_call.shape[1] == n
+
+    # Tuple node
+    tuple_1 = rx.Tuple([x, y])
+    bb.normalize(tuple_1)
+    assert_structural_equal(tuple_1.checked_type, rx.TupleType([type_anno0, type_anno1]))
+    assert_structural_equal(tuple_1.shape, rx.Tuple([x.shape, y.shape]))
+    assert_structural_equal(
+        tuple_1.shape.checked_type, rx.TupleType([rx.ShapeType(), rx.ShapeType()])
+    )
+
+    # Nested Tuple
+    tuple_2 = rx.Tuple([x, rx.Tuple([x, y])])
+    bb.normalize(tuple_2)
+    assert_structural_equal(
+        tuple_2.checked_type, rx.TupleType([type_anno0, rx.TupleType([type_anno0, type_anno1])])
+    )
+    assert_structural_equal(tuple_2.shape, rx.Tuple([x.shape, rx.Tuple([x.shape, y.shape])]))
+    assert_structural_equal(
+        tuple_2.shape.checked_type,
+        rx.TupleType([rx.ShapeType(), rx.TupleType([rx.ShapeType(), rx.ShapeType()])]),
+    )
 
 
 def test_call_te():
