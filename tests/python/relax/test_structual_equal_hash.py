@@ -57,7 +57,7 @@ def test_var_binding():
 def test_match_shape():
     dtype = rx.DynTensorType(1)
     x = rx.Var("x", [10], dtype)
-    m = tir.Var("m", dtype="int32")
+    m = tir.Var("m", dtype="int64")
 
     def generator(x):
         bb = rx.BlockBuilder()

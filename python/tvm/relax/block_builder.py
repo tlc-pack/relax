@@ -353,7 +353,7 @@ class BlockBuilder(Object):
         unbound_tir_vars = self._get_unbound_tir_vars(te_args + outs)
 
         inputs = [*te_args] + outs
-        tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars)
+        tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars, "int64")
 
         if primfunc_name_hint:
             gvar = self.add_func(tir_func, primfunc_name_hint)

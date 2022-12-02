@@ -28,6 +28,7 @@
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace relax {
