@@ -25,6 +25,8 @@ from tvm.ir.base import assert_structural_equal
 import tvm.script
 from tvm.script import tir as T, relax as R
 
+from tvm.relax.testing import dump_ast
+
 
 def test_fma_rewrite():
     @tvm.script.ir_module
@@ -587,6 +589,207 @@ def test_normalize_no_op():
     mod_post = relax.transform.Normalize()(mod)
 
     assert_structural_equal(mod, mod_post)
+
+
+def test_normalize_seq_body():
+    # a seq expression with a non-leaf body should bind the body to a var as well
+    x = relax.Var("x", [], type_annotation=relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], type_annotation=relax.DynTensorType(ndim=0, dtype="int32"))
+    seq = relax.SeqExpr([], relax.op.add(x, y))
+    f = relax.Function(
+        [x, y],
+        seq,
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def f(
+            x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
+        ) -> R.Tensor(ndim=0, dtype="int32"):
+            # normalization inserts a binding like this
+            z = R.add(x, y)
+            return z
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_func_body():
+    # a function with a body that is not a seq expr should have it wrapped in a seq expr
+    x = relax.Var("x", [], type_annotation=relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], type_annotation=relax.DynTensorType(ndim=0, dtype="int32"))
+    f = relax.Function(
+        [x, y],
+        relax.op.add(x, y),
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def f(
+            x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
+        ) -> R.Tensor(ndim=0, dtype="int32"):
+            # result will be a seq expr where the body is a var
+            z = R.add(x, y)
+            return z
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_if_branches():
+    # an if node's branches must be seq exprs
+    x = relax.Var("x", [], type_annotation=relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], type_annotation=relax.DynTensorType(ndim=0, dtype="int32"))
+    # TODO(@relax-team): z has a shape of () and type of DynTensorType(ndim=0),
+    # but normalization fails to infer these even though it should
+    z = relax.Var("z")
+    cond = relax.Var("cond", [], type_annotation=relax.DynTensorType(ndim=0, dtype="bool"))
+    plus = relax.op.add(x, y)
+    mult = relax.op.multiply(x, y)
+    if_node = relax.If(cond, plus, mult)
+    seq = relax.SeqExpr([relax.BindingBlock([relax.VarBinding(z, if_node)])], z)
+    f = relax.Function(
+        [cond, x, y],
+        seq,
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def f(
+            cond: R.Tensor((), dtype="bool"),
+            x: R.Tensor((), dtype="int32"),
+            y: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor(ndim=0, dtype="int32"):
+            # the bodies of the branches will be seq exprs with a binding
+            if cond:
+                w = R.add(x, y)
+                z = w
+            else:
+                w = R.multiply(x, y)
+                z = w
+            return z
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_if_condition():
+    cond = relax.Var("cond", [], type_annotation=relax.DynTensorType(0, "bool"))
+    x = relax.Var("x", [tir.IntImm("int64", 1)], type_annotation=relax.DynTensorType(1, "float32"))
+    # TODO(relax-team): add type and shape inference for IfNode
+    y = relax.Var("y")
+
+    # The condition is wrapped in a tuple and then indexed
+    f = relax.Function(
+        [cond, x],
+        relax.SeqExpr(
+            [
+                relax.BindingBlock(
+                    [
+                        relax.VarBinding(
+                            y,
+                            relax.If(
+                                relax.TupleGetItem(relax.Tuple([cond]), 0),
+                                relax.op.add(x, x),
+                                relax.op.multiply(x, x),
+                            ),
+                        )
+                    ]
+                )
+            ],
+            y,
+        ),
+        ret_type=relax.DynTensorType(1, "float32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def f(
+            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+        ) -> R.Tensor(dtype="float32", ndim=1):
+            c = R.TupleGetItem(R.Tuple(cond), 0)
+            if c:
+                gv = R.add(x, x)
+                y = gv
+            else:
+                gv = R.multiply(x, x)
+                y = gv
+            return y
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_tuple_get_item():
+    x = relax.Var("x", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    f = relax.Function(
+        [x],
+        relax.TupleGetItem(
+            relax.TupleGetItem(
+                relax.Tuple([relax.Tuple([x])]),
+                0,
+            ),
+            0,
+        ),
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    # TODO: Revisit once we canonicalize SeqExprs (part of normalization?)
+    # Not using the parser this time because writing it out correctly results in
+    # *one* binding block, whereas the normalized version has *two*
+    idx_var = relax.Var(
+        "idx_var",
+        shape_annotation=relax.Tuple([relax.ShapeExpr([])]),
+        type_annotation=relax.TupleType([relax.DynTensorType(ndim=0, dtype="int32")]),
+    )
+    ret_var = relax.Var("ret", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    expected_f = relax.Function(
+        [x],
+        relax.SeqExpr(
+            [
+                relax.BindingBlock(
+                    [
+                        relax.VarBinding(
+                            idx_var, relax.TupleGetItem(relax.Tuple([relax.Tuple([x])]), 0)
+                        )
+                    ]
+                ),
+                relax.BindingBlock([relax.VarBinding(ret_var, relax.TupleGetItem(idx_var, 0))]),
+            ],
+            ret_var,
+        ),
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    expected_f = expected_f.with_attr("global_symbol", "f")
+    expected_mod = tvm.IRModule.from_expr(expected_f)
+    # apply normalization to fill in type and shape annotations (tedious otherwise)
+    final_mod = relax.transform.Normalize()(expected_mod)
+
+    assert_structural_equal(after_mod, final_mod)
 
 
 if __name__ == "__main__":

@@ -304,6 +304,7 @@ def test_derive_func_ret_shape_free():
 class VarExample:
     @R.function
     def func(a: R.Tensor) -> R.Tensor:
+        # normalized into assigning R.add(a, a) to a var and returning it
         return R.add(a, a)
 
     @R.function
@@ -322,8 +323,10 @@ class VarExample:
 
 def test_all_vars():
     vars = all_vars(VarExample["func"])
-    assert len(vars) == 1
+    assert len(vars) == 2
     assert vars[0].name_hint == "a"
+    # the body of the seq expr in the func body is a var
+    assert vars[1] == VarExample["func"].body.body
 
     var_names = var_name_set(all_vars(VarExample["main"]))
     assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
@@ -331,8 +334,10 @@ def test_all_vars():
 
 def test_bound_vars():
     vars = bound_vars(VarExample["func"])
-    assert len(vars) == 1
+    assert len(vars) == 2
     assert vars[0].name_hint == "a"
+    # the body of the seq expr in the func body is a bound var
+    assert vars[1] == VarExample["func"].body.body
 
     # all the vars are bound
     var_names = var_name_set(bound_vars(VarExample["main"]))
@@ -342,8 +347,10 @@ def test_bound_vars():
     body_names = var_name_set(bound_vars(VarExample["main"].body))
     assert body_names == {"z", "p", "q", "r", "s"}
 
-    # if the argument isn't bound, then nothing is
-    assert len(bound_vars(VarExample["func"].body)) == 0
+    # only binding is in the (normalized) body
+    simple_body_vars = bound_vars(VarExample["func"].body)
+    assert len(simple_body_vars) == 1
+    assert simple_body_vars[0] == VarExample["func"].body.body
 
 
 def test_free_vars():
