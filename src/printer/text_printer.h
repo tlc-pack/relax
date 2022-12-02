@@ -247,7 +247,6 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   explicit RelaxScriptPrinter(bool show_meta_data, TextMetaDataContext* meta)
       : show_meta_data_(show_meta_data), meta_(meta) {}
   TVM_DLL Doc Print(const ObjectRef& node);
-  bool ShowMetaData();
 
  private:
   NameTable name_table_;

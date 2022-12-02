@@ -104,6 +104,7 @@ def eval_shape_annotation(
         return relax.Tuple(shapes)
     else:
         self.report_error(node, f"Unsupported shape {type(shape)}")
+        return None
 
 
 def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) -> Any:

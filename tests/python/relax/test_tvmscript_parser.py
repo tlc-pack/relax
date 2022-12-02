@@ -32,7 +32,7 @@ def _check(
     expect: Optional[Union[relax.Function, IRModule]],
 ):
     test = parsed.script(show_meta=True)
-    roundtrip_mod = tvm.script._parser.parse(test)
+    roundtrip_mod = tvm.script.parse(test)
     tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
     if expect:
         tvm.ir.assert_structural_equal(parsed, expect)
@@ -127,7 +127,6 @@ def test_relax_base_op():
         shape = bb.emit(relax.op.shape_of(alloc))
         bb.emit_func_output(shape)
 
-    print(foo)
     _check(foo, bb.get()["foo"])
 
 

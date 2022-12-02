@@ -312,7 +312,6 @@ class SEqualHandlerDefault::Impl {
     if (IsPathTracingEnabled() && !result && !first_mismatch_->defined()) {
       *first_mismatch_ = current_paths;
     }
-    // LOG(INFO) << lhs << " " << rhs;
     if (assert_mode_ && !result) {
       LOG(FATAL) << "ValueError: StructuralEqual check failed, caused by lhs:" << std::endl
                  << PrettyPrint(lhs) << std::endl

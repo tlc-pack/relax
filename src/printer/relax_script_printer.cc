@@ -129,14 +129,20 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
 
   std::vector<Doc> attrs = PrintAttrs(op->attrs);
   if (!attrs.empty()) {
+    if (op->op.as<relax::ExternFuncNode>()) {
+      attrs.push_back(Doc::Text("attrs_type_key=") << Doc::StrLiteral(op->attrs->GetTypeKey()));
+    }
     doc << ", " << Doc::Concat(attrs);
   }
 
   if (!op->type_args.empty()) {
-    doc << ", type_args=(";
+    doc << ", type_args=";
     std::vector<Doc> type_args = PrintTypeArgs(op->type_args);
-    doc << Doc::Concat(type_args);
-    doc << ")";
+    if (type_args.size() == 1) {
+      doc << type_args[0];
+    } else {
+      doc << "(" << Doc::Concat(type_args, Doc::Text(", ")) << ")";
+    }
   }
 
   doc << ")";
@@ -700,8 +706,6 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
   }
   return Doc::Text(name_table_.GetUniqueName(prefix));
 }
-
-bool RelaxScriptPrinter::ShowMetaData() { return show_meta_data_ && !meta_->empty(); }
 
 String AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
   ICHECK(mod->IsInstance<IRModuleNode>() || mod->IsInstance<relax::FunctionNode>() ||

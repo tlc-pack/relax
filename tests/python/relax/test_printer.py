@@ -30,7 +30,9 @@ from tvm.script import tir as T, relax as R
 
 def check_roundtrip(f_pre):
     relax_text = f_pre.script(show_meta=True)
-    f_post = tvm.script._parser.parse(relax_text)
+    f_post = tvm.script.parse(relax_text)
+    print(f_pre.script())
+    print(f_post.script())
 
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
@@ -337,7 +339,7 @@ def test_class_irmodule():
             x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))
         ) -> R.Tensor:
             n = T.var("int64")
-            _ = my_matmul(x, y, z)
+            _ = R.call_tir(my_matmul, (x, y), (n, n), dtype="float32")
             return z
 
     my_module = MyModule
@@ -358,7 +360,7 @@ def test_tir_cast():
     @R.function
     def tir_cast(x: R.Tensor(("m",), "float32")):
         m = T.var("int64")
-        gv = R.call_tir("my_extern", (x,), (T.cast(m, "int32"),), dtype="float32")
+        gv = R.call_tir("my_extern", (x,), (T.cast(T.cast(m, "int32"), "int64"),), dtype="float32")
         return gv
 
     check_roundtrip(tir_cast)

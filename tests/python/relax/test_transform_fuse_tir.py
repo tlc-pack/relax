@@ -24,9 +24,6 @@ from tvm import relax
 
 def _check(mod_before, mod_expected):
     mod = relax.transform.FuseTIR()(mod_before)
-    print(mod["fused_add_exp_squeeze"].script())
-    print(mod_expected["fused_add_exp_squeeze"].script())
-    tvm.ir.assert_structural_equal(mod["fused_add_exp_squeeze"], mod_expected["fused_add_exp_squeeze"])
     tvm.ir.assert_structural_equal(mod, mod_expected)
 
 
@@ -575,5 +572,4 @@ def test_fuse_return_partial_result():
 
 
 if __name__ == "__main__":
-    test_simple()
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

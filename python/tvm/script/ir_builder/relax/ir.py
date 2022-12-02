@@ -289,7 +289,7 @@ def call_packed(
 
 
 def _tensor_type_wrapper(func):
-    """A wrapper to convert builder.TensorType to relax.DynTensorType"""
+    """A wrapper to convert builder.ShapedType to relax.DynTensorType"""
 
     def _convert_tensor_type(args):
         if isinstance(args, (list, tuple)):
@@ -297,7 +297,7 @@ def _tensor_type_wrapper(func):
             return type(args)(new_args)
         if isinstance(args, dict):
             return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
-        return args.type if isinstance(args, TensorType) else args
+        return args.type if isinstance(args, ShapedType) else args
 
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
