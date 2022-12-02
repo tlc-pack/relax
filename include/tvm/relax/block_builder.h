@@ -134,7 +134,7 @@ class BlockBuilderNode : public Object {
   bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
 
   /*!
-   * \brief Resets the memo in the normalizer to prevent false hits when visiting 
+   * \brief Resets the memo in the normalizer to prevent false hits when visiting
    *   the same expression more than once.
    *   Use if before visiting a given expression again.
    */
