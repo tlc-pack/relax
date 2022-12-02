@@ -19,8 +19,8 @@ import tvm
 from tvm import tir
 from tvm import relax as rx
 
-m = tir.Var("m", "int32")
-n = tir.Var("n", "int32")
+m = tir.Var("m", "int64")
+n = tir.Var("n", "int64")
 type_anno = rx.DynTensorType(ndim=2, dtype="float16")
 bool_type_anno = rx.DynTensorType(ndim=0, dtype="bool")
 x = rx.Var("x", [m, n], type_anno)
@@ -118,7 +118,7 @@ def test_global_var():
 
 def test_symbolic_var():
     # Error: Symbolic Var new_s is not defined
-    new_s = tir.Var("new_s", "int32")
+    new_s = tir.Var("new_s", "int64")
     gv0 = rx.Var("gv0", [m, new_s], type_anno)
     call_node = rx.op.add(x, x)
     bindings = [rx.VarBinding(gv0, call_node)]
@@ -129,17 +129,17 @@ def test_symbolic_var():
 
 
 def test_symbolic_var_invalid_type():
-    # Error: dim must be of integer type, but got float32
-    dim = tir.Var("dim", "float32")
-    type_anno = rx.DynTensorType(ndim=1, dtype="float32")
-    y = rx.Var("y", [dim], type_anno)
-    gv0 = rx.Var("gv0", [dim], type_anno)
-    call_node = rx.op.add(y, y)
-    bindings = [rx.VarBinding(gv0, call_node)]
-    blocks = [rx.BindingBlock(bindings)]
-    func = build_function(blocks, [y])
-    mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    with pytest.raises(tvm.TVMError, match="the value in ShapeExpr can only have dtype of int64"):
+        dim = tir.Var("dim", "float32")
+        type_anno = rx.DynTensorType(ndim=1, dtype="float32")
+        y = rx.Var("y", [dim], type_anno)
+        gv0 = rx.Var("gv0", [dim], type_anno)
+        call_node = rx.op.add(y, y)
+        bindings = [rx.VarBinding(gv0, call_node)]
+        blocks = [rx.BindingBlock(bindings)]
+        func = build_function(blocks, [y])
+        mod = tvm.IRModule({rx.GlobalVar("foo"): func})
+        assert not rx.analysis.well_formed(mod)
 
 
 def test_seq_expr():

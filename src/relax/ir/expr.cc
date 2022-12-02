@@ -43,7 +43,18 @@ TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
 ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
   ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
-  n->values = std::move(values);
+  Array<PrimExpr> new_values;
+  new_values.reserve(values.size());
+  for (const PrimExpr& value : values) {
+    PrimExpr new_value = value;
+    if (value->IsInstance<IntImmNode>()) {
+      new_value = tvm::cast(DataType::Int(64), value);
+    } else if (value.dtype() != DataType::Int(64)) {
+      LOG(FATAL) << "the value in ShapeExpr can only have dtype of int64";
+    }
+    new_values.push_back(new_value);
+  }
+  n->values = std::move(new_values);
   n->span = span;
   n->shape_ = NullOpt;
   n->checked_type_ = ShapeType();

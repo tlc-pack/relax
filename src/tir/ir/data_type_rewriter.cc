@@ -534,7 +534,7 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
   if (auto it = var_remap_.find(GetRef<Var>(op)); it != var_remap_.end()) {
     return (*it).second;
   }
-  if (is_enabled_) {
+  if (is_enabled_ && op->dtype != target_data_type_) {
     Var new_var = GetRef<Var>(op).copy_with_dtype(target_data_type_);
     var_remap_.Set(GetRef<Var>(op), new_var);
     return std::move(new_var);

@@ -41,8 +41,8 @@ def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
 
 
 def test_dispatch_var():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     v0 = rx.Var("v0", [m, n], type_anno0)
@@ -60,8 +60,8 @@ def test_dispatch_var():
 
 
 def test_post_order_visit():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
@@ -87,8 +87,8 @@ def test_post_order_visit():
 
 
 def test_use_def():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
