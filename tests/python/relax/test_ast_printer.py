@@ -422,7 +422,7 @@ def test_print_type_annotation_non_var():
 
     body = normalize(f).body
     assert isinstance(body, rx.SeqExpr)
-    call = body.body
+    call = body.blocks[-1].bindings[-1].value
     assert isinstance(call, rx.Call)
     arg = call.args[0]
     arg_str = strip_whitespace(dump_ast(arg))
