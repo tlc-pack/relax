@@ -297,7 +297,6 @@ def test_types():
     )
 
 
-
 def test_call_packed():
     # test case from test_parser
     @R.function
