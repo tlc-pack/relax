@@ -242,6 +242,8 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("ShapeType")
         if isinstance(type_node, relax.ObjectType):
             return self.build_ast_node("ObjectType")
+        if isinstance(type_node, relax.PackedFuncType):
+            return self.build_ast_node("PackedFuncType")
         if isinstance(type_node, relax.DynTensorType):
             fields = {}
             if type_node.ndim is not None:
