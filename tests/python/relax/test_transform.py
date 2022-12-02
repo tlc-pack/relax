@@ -27,6 +27,7 @@ from tvm.script import tir as T, relax as R
 
 from tvm.relax.testing import dump_ast
 
+
 def test_fma_rewrite():
     @tvm.script.ir_module
     class Before:
@@ -760,9 +761,9 @@ def test_normalize_tuple_get_item():
     # Not using the parser this time because writing it out correctly results in
     # *one* binding block, whereas the normalized version has *two*
     idx_var = relax.Var(
-        "idx_var", 
+        "idx_var",
         shape_annotation=relax.Tuple([relax.ShapeExpr([])]),
-        type_annotation=relax.TupleType([relax.DynTensorType(ndim=0, dtype="int32")])
+        type_annotation=relax.TupleType([relax.DynTensorType(ndim=0, dtype="int32")]),
     )
     ret_var = relax.Var("ret", [], relax.DynTensorType(ndim=0, dtype="int32"))
     expected_f = relax.Function(
