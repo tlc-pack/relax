@@ -292,7 +292,7 @@ def test_types():
         FuncType(
             arg_types=[DynTensorType(ndim=2,dtype=int32)],
             ret_type=TupleType(fields=[])
-        )   
+        )
         """
     )
 
