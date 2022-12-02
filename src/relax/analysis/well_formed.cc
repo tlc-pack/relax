@@ -173,11 +173,11 @@ class WellFormedChecker : public relax::ExprVisitor {
     }
     if (auto seq = op->body.as<SeqExprNode>()) {
       this->VisitSeqExpr(seq);
-      var_set_ = previous_var_set_;
-      prim_expr_visitor_.symbolic_var_set_.clear();
     } else {
       Malformed(Diagnostic::Error(op->span) << "Function bodies must be sequence expressions");
     }
+    var_set_ = previous_var_set_;
+    prim_expr_visitor_.symbolic_var_set_.clear();
   }
 
   void VisitExpr_(const CallNode* op) {
