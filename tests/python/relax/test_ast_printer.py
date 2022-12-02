@@ -422,7 +422,7 @@ def test_print_type_annotation_non_var():
 
     body = normalize(f).body
     assert isinstance(body, rx.SeqExpr)
-    call = body.body
+    call = body.blocks[-1].bindings[-1].value
     assert isinstance(call, rx.Call)
     arg = call.args[0]
     arg_str = strip_whitespace(dump_ast(arg))
@@ -433,6 +433,38 @@ def test_print_type_annotation_non_var():
     # we expect the shape_of call to have a checked_type_ of ShapeType
     type_str = "checked_type_=ShapeType()"
     assert type_str in call_str
+
+
+def test_if():
+    @R.function
+    def f(cond: R.Tensor((), dtype="bool")) -> R.Tensor((), dtype="int32"):
+        if cond:
+            x = R.const(1)
+        else:
+            x = R.const(2)
+        return x
+
+    body = normalize(f).body
+    assert isinstance(body, rx.SeqExpr)
+    body_str = strip_whitespace(dump_ast(body))
+    # we expect both branches to be seq exprs
+    assert "If" in body_str
+    assert "true_branch=SeqExpr(" in body_str
+    assert "false_branch=SeqExpr(" in body_str
+
+
+def test_tuple_get_item():
+    @R.function
+    def f(x: R.Tuple(R.Tensor((), dtype="int32"))) -> R.Tensor((), dtype="int32"):
+        return x[0]
+
+    body = normalize(f).body
+    assert isinstance(body, rx.SeqExpr)
+    body_str = strip_whitespace(dump_ast(body))
+
+    assert "TupleGetItem" in body_str
+    assert 'tuple_value=Var(name_hint="x"' in body_str
+    assert "index=0" in body_str
 
 
 if __name__ == "__main__":
