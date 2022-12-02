@@ -385,9 +385,6 @@ def basic_check(expr, visitor_str, mutator_str):
     # skip normalize GlobalVar since it requires context IRModule to get the checked_type_
     if isinstance(expr, relax.Expr) and not isinstance(expr, relax.GlobalVar):
         expr = bb.normalize(expr)
-        print(dump_ast(visit(basic_mutator, expr)))
-        print()
-        print(dump_ast(expr))
         assert_structural_equal(visit(basic_mutator, expr), expr)
 
     # check the output log and return value
