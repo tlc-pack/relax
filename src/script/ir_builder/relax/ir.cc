@@ -69,12 +69,7 @@ TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   }
   Optional<Expr> shape_expr = NullOpt;
   if (shape.defined()) {
-    Array<PrimExpr> _shape;
-    _shape.reserve(shape.value().size());
-    for (const PrimExpr& expr : shape.value()) {
-      _shape.push_back(tvm::cast(DataType::Int(64), expr));
-    }
-    shape_expr = ShapeExpr(_shape);
+    shape_expr = ShapeExpr(shape.value());
   }
   return TensorType(DynTensorType(ndim, dtype), shape_expr);
 }

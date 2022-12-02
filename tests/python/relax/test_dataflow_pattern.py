@@ -226,7 +226,7 @@ def test_shape_pattern():
     tvm.ir.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
     assert wildcard().has_shape([32, 32]).match(bindings[0].var)
-    n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
+    n, m = tir.Var("n", dtype="int64"), tir.Var("m", dtype="int64")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     symsh_var = rx.Var("x", symbolic_shape, rx.DynTensorType(3, "float32"))
     assert wildcard().has_shape([n, m, n + m]).match(symsh_var)
@@ -246,7 +246,7 @@ def test_prim_arr_pattern():
     assert pattern[1] == 32
     assert isinstance(pattern, PrimArrPattern)
     assert pattern.match(bindings[0].var.shape)
-    n, m = tir.Var("n", dtype="int32"), tir.Var("m", dtype="int32")
+    n, m = tir.Var("n", dtype="int64"), tir.Var("m", dtype="int64")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     assert is_shape([n, m, n + m]).match(symbolic_shape)
     assert not is_shape([n, m, n * m]).match(symbolic_shape)
@@ -496,7 +496,8 @@ def test_distiguish_diamond_and_parallel():
         # Due to one-one mathcing:
         # is_call_tir_extern("my_relu") creates the 1st relu
         is_call_tir_extern("my_relu") >> join
-        # is_call_tir_extern("my_relu") creates the another different relu (obj address is different)
+        # is_call_tir_extern("my_relu")
+        # creates the another different relu (obj address is different)
         is_call_tir_extern("my_relu") >> join
 
         assert ctx.match_dfb(parallel)

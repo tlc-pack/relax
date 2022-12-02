@@ -52,7 +52,7 @@ te::Tensor TETensor(Expr value, std::string name) {
     Array<PrimExpr> shape;
     shape.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      shape.push_back(IntImm(DataType::Int(32), shape_tuple[i]));
+      shape.push_back(IntImm(DataType::Int(64), shape_tuple[i]));
     }
     n->shape = std::move(shape);
     return te::PlaceholderOp(n).output(0);
