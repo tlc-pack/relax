@@ -230,12 +230,15 @@ class ASTPrinter(ExprFunctor):
         return self.build_ast_node("PrimExpr", value=f"`{str(prim_expr)}`")
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> str:
-        return self.build_expr(
-            op,
-            "TupleGetItem",
-            tuple_value=self.visit_expr(op.tuple_value),
-            index=str(op.index),
-        )
+        # TupleGetItem is copied from Relay's AST, so it cannot have a Shape
+        # TODO(@relax-team): We should eventually assign a shape_ to TupleGetItem
+        fields = {
+            "tuple_value": self.visit_expr(op.tuple_value),
+            "index": str(op.index),
+        }
+        if op._checked_type_ and self.include_type_annotations:
+            fields["checked_type_"] = self.visit_type_(op.checked_type)
+        return self.build_ast_node("TupleGetItem", **fields)
 
     def visit_type_(self, type_node: relax.Type) -> str:
         """

@@ -453,5 +453,19 @@ def test_if():
     assert "false_branch=SeqExpr(" in body_str
 
 
+def test_tuple_get_item():
+    @R.function
+    def f(x: R.Tuple(R.Tensor((), dtype="int32"))) -> R.Tensor((), dtype="int32"):
+        return x[0]
+
+    body = normalize(f).body
+    assert isinstance(body, rx.SeqExpr)
+    body_str = strip_whitespace(dump_ast(body))
+
+    assert "TupleGetItem" in body_str
+    assert 'tuple_value=Var(name_hint="x"' in body_str
+    assert "index=0" in body_str
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
