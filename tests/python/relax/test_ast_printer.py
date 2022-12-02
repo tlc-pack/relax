@@ -21,6 +21,7 @@ import tvm
 from tvm import tir
 from tvm import relax as rx
 from tvm.relax.testing import dump_ast
+from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import tir as T, relax as R
 
 import numpy as np
@@ -260,6 +261,40 @@ def test_shape_expr():
     assert "values" in shape_expr_str
     assert "PrimExpr(value=`10i64`)" in shape_expr_str
     assert "PrimExpr(value=`20i64`)" in shape_expr_str
+
+
+def test_types():
+    printer = ASTPrinter()
+    shape_type = rx.ShapeType()
+    assert strip_whitespace(printer.visit_type_(shape_type)) == "ShapeType()"
+    object_type = rx.ObjectType()
+    assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
+    packed_type = rx.PackedFuncType()
+    assert strip_whitespace(printer.visit_type_(packed_type)) == "PackedFuncType()"
+    tensor_type = rx.DynTensorType(ndim=2, dtype="int32")
+    assert strip_whitespace(printer.visit_type_(tensor_type)) == "DynTensorType(ndim=2,dtype=int32)"
+    unit_type = rx.TupleType([])
+    assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
+    tuple_type = rx.TupleType([shape_type, object_type])
+    assert strip_whitespace(printer.visit_type_(tuple_type)) == strip_whitespace(
+        """
+        TupleType(
+            fields=[
+                ShapeType(),
+                ObjectType()
+            ]
+        )
+        """
+    )
+    func_type = rx.FuncType([tensor_type], unit_type)
+    assert strip_whitespace(printer.visit_type_(func_type)) == strip_whitespace(
+        """
+        FuncType(
+            arg_types=[DynTensorType(ndim=2,dtype=int32)],
+            ret_type=TupleType(fields=[])
+        )
+        """
+    )
 
 
 def test_call_packed():
