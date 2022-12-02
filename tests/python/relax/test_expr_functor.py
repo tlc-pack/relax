@@ -385,6 +385,9 @@ def basic_check(expr, visitor_str, mutator_str):
     # skip normalize GlobalVar since it requires context IRModule to get the checked_type_
     if isinstance(expr, relax.Expr) and not isinstance(expr, relax.GlobalVar):
         expr = bb.normalize(expr)
+        print(dump_ast(visit(basic_mutator, expr)))
+        print()
+        print(dump_ast(expr))
         assert_structural_equal(visit(basic_mutator, expr), expr)
 
     # check the output log and return value
@@ -464,7 +467,7 @@ def test_if():
     basic_check(
         if_node,
         "\n".join(["If", "\tVar", "\tVar", "\tVar"]),
-        "\n".join(["Var", "Var", "Var", "If"]),
+        "\n".join(["Var", "Var", "SeqExpr", "Var", "SeqExpr", "If"]),
     )
 
 
@@ -565,7 +568,7 @@ def test_function():
     bindings = [relax.VarBinding(x, relax.const(1))]
     blocks = [relax.BindingBlock(bindings)]
     seq_expr = relax.SeqExpr(blocks, x)
-    ret_type = relax.DynTensorType(-1, "float32")
+    ret_type = relax.DynTensorType(1, "float32")
     ret_shape = relax.RuntimeDepShape()
     func = relax.Function([x], seq_expr, ret_type, ret_shape)
     basic_check(
