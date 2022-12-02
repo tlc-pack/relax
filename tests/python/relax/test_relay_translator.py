@@ -233,7 +233,7 @@ def test_multiple_dynamic_dims():
 
 
 def test_layout_transform():
-    shape = (relay.Any(), 3, 224, 224)
+    shape = (1, 3, 224, 224)
     a = relay.var("a", shape=shape)
     b = relay.layout_transform(a, "NCHW", "NHWC")
     relay_mod = tvm.IRModule.from_expr(relay.Function([a], b))
