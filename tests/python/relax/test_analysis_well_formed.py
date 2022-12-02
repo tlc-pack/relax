@@ -226,6 +226,91 @@ def test_if_non_seq_body():
     assert rx.analysis.well_formed(new_mod)
 
 
+def test_if_complex_condition():
+    # Error: If condition must be a leaf expression
+    cond_tuple = rx.Tuple([cond])
+    cond_idx = rx.TupleGetItem(cond_tuple, 0)
+    if_node = rx.If(cond_idx, rx.SeqExpr([], x), rx.SeqExpr([], x))
+    blocks = [
+        rx.BindingBlock(
+            [
+                rx.VarBinding(
+                    rx.Var("gv1", [m, n], type_anno),
+                    if_node,
+                )
+            ]
+        )
+    ]
+    func = build_function(blocks)
+    mod = tvm.IRModule.from_expr(func)
+    assert not rx.analysis.well_formed(mod)
+
+    cond_var = rx.Var("q", [], bool_type_anno)
+    new_if = rx.If(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
+    blocks = [
+        rx.BindingBlock(
+            [
+                rx.VarBinding(cond_var, cond_idx),
+                rx.VarBinding(
+                    rx.Var("gv1", [m, n], type_anno),
+                    new_if,
+                ),
+            ]
+        )
+    ]
+    func = build_function(blocks)
+    mod = tvm.IRModule.from_expr(func)
+    assert rx.analysis.well_formed(mod)
+
+
+def test_tuple_get_item_nested():
+    # Error: The tuple value in tuple get item must be a leaf expression
+    nested_tup = rx.Var(
+        "t",
+        type_annotation=rx.TupleType(
+            [
+                rx.TupleType(
+                    [
+                        rx.DynTensorType(ndim=0, dtype="int32"),
+                    ]
+                )
+            ]
+        ),
+    )
+    double_idx = rx.TupleGetItem(rx.TupleGetItem(nested_tup, 0), 0)
+    ret_var = rx.Var("r", [], rx.DynTensorType(ndim=0, dtype="int32"))
+    f = rx.Function(
+        [nested_tup],
+        rx.SeqExpr([rx.BindingBlock([rx.VarBinding(ret_var, double_idx)])], ret_var),
+        ret_type=rx.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=rx.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    mod = tvm.IRModule.from_expr(f)
+    assert not rx.analysis.well_formed(mod)
+
+    # okay with an intermediate binding
+    first_idx = rx.TupleGetItem(nested_tup, 0)
+    idx_var = rx.Var("v", type_annotation=rx.TupleType([rx.DynTensorType(ndim=0, dtype="int32")]))
+    second_idx = rx.TupleGetItem(idx_var, 0)
+    new_f = rx.Function(
+        [nested_tup],
+        rx.SeqExpr(
+            [
+                rx.BindingBlock(
+                    [rx.VarBinding(idx_var, first_idx), rx.VarBinding(ret_var, second_idx)]
+                )
+            ],
+            ret_var,
+        ),
+        ret_type=rx.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=rx.RuntimeDepShape(),
+    )
+    new_f = new_f.with_attr("global_symbol", "new_f")
+    mod = tvm.IRModule.from_expr(new_f)
+    assert rx.analysis.well_formed(mod)
+
+
 def test_complex_seq_body():
     # Error: seq expr with a body that is not a leaf expression is not permitted
     x = rx.Var("x", [], rx.DynTensorType(ndim=0, dtype="int32"))

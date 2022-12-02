@@ -25,6 +25,7 @@ from tvm.ir.base import assert_structural_equal
 import tvm.script
 from tvm.script import tir as T, relax as R
 
+from tvm.relax.testing import dump_ast
 
 def test_fma_rewrite():
     @tvm.script.ir_module
@@ -684,6 +685,110 @@ def test_normalize_if_branches():
             return z
 
     assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_if_condition():
+    cond = relax.Var("cond", [], type_annotation=relax.DynTensorType(0, "bool"))
+    x = relax.Var("x", [tir.IntImm("int64", 1)], type_annotation=relax.DynTensorType(1, "float32"))
+    # TODO(relax-team): add type and shape inference for IfNode
+    y = relax.Var("y")
+
+    # The condition is wrapped in a tuple and then indexed
+    f = relax.Function(
+        [cond, x],
+        relax.SeqExpr(
+            [
+                relax.BindingBlock(
+                    [
+                        relax.VarBinding(
+                            y,
+                            relax.If(
+                                relax.TupleGetItem(relax.Tuple([cond]), 0),
+                                relax.op.add(x, x),
+                                relax.op.multiply(x, x),
+                            ),
+                        )
+                    ]
+                )
+            ],
+            y,
+        ),
+        ret_type=relax.DynTensorType(1, "float32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def f(
+            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+        ) -> R.Tensor(dtype="float32", ndim=1):
+            c = R.TupleGetItem(R.Tuple(cond), 0)
+            if c:
+                gv = R.add(x, x)
+                y = gv
+            else:
+                gv = R.multiply(x, x)
+                y = gv
+            return y
+
+    assert_structural_equal(after_mod, Expected)
+
+
+def test_normalize_tuple_get_item():
+    x = relax.Var("x", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    f = relax.Function(
+        [x],
+        relax.TupleGetItem(
+            relax.TupleGetItem(
+                relax.Tuple([relax.Tuple([x])]),
+                0,
+            ),
+            0,
+        ),
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    f = f.with_attr("global_symbol", "f")
+    before_mod = tvm.IRModule.from_expr(f)
+    after_mod = relax.transform.Normalize()(before_mod)
+
+    # TODO: Revisit once we canonicalize SeqExprs (part of normalization?)
+    # Not using the parser this time because writing it out correctly results in
+    # *one* binding block, whereas the normalized version has *two*
+    idx_var = relax.Var(
+        "idx_var", 
+        shape_annotation=relax.Tuple([relax.ShapeExpr([])]),
+        type_annotation=relax.TupleType([relax.DynTensorType(ndim=0, dtype="int32")])
+    )
+    ret_var = relax.Var("ret", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    expected_f = relax.Function(
+        [x],
+        relax.SeqExpr(
+            [
+                relax.BindingBlock(
+                    [
+                        relax.VarBinding(
+                            idx_var, relax.TupleGetItem(relax.Tuple([relax.Tuple([x])]), 0)
+                        )
+                    ]
+                ),
+                relax.BindingBlock([relax.VarBinding(ret_var, relax.TupleGetItem(idx_var, 0))]),
+            ],
+            ret_var,
+        ),
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    expected_f = expected_f.with_attr("global_symbol", "f")
+    expected_mod = tvm.IRModule.from_expr(expected_f)
+    # apply normalization to fill in type and shape annotations (tedious otherwise)
+    final_mod = relax.transform.Normalize()(expected_mod)
+
+    assert_structural_equal(after_mod, final_mod)
 
 
 if __name__ == "__main__":

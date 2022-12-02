@@ -274,7 +274,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const IfNode* op) final {
-    Expr new_cond = this->VisitExpr(op->cond);
+    Expr new_cond = this->Bind(op->cond);
     Expr new_true = this->VisitWithNewScope(op->true_branch);
     Expr new_false = this->VisitWithNewScope(op->false_branch);
 
@@ -306,7 +306,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const TupleGetItemNode* op) final {
-    Expr new_tuple = this->VisitExpr(op->tuple);
+    Expr new_tuple = this->Bind(op->tuple);
     TupleGetItem node;
     if (new_tuple.same_as(op->tuple)) {
       node = GetRef<TupleGetItem>(op);

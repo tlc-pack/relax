@@ -121,6 +121,15 @@ class WellFormedChecker : public relax::ExprVisitor {
     }
   }
 
+  void VisitExpr_(const TupleGetItemNode* op) {
+    if (IsLeafExpr(op->tuple)) {
+      this->VisitExpr(op->tuple);
+    } else {
+      Malformed(Diagnostic::Error(op->span)
+                << "The tuple value in a TupleGetItem node must be a leaf expression.");
+    }
+  }
+
   void VisitExpr_(const VarNode* op) {
     Var var = GetRef<Var>(op);
     if (var_set_.count(var) == 0) {
@@ -188,7 +197,12 @@ class WellFormedChecker : public relax::ExprVisitor {
   }
 
   void VisitExpr_(const IfNode* op) {
-    this->VisitExpr(op->cond);
+    if (IsLeafExpr(op->cond)) {
+      this->VisitExpr(op->cond);
+    } else {
+      Malformed(Diagnostic::Error(op->span)
+                << "The condition for an if node must be a leaf expression.");
+    }
     auto true_seq = op->true_branch.as<SeqExprNode>();
     auto false_seq = op->false_branch.as<SeqExprNode>();
     if (true_seq && false_seq) {
