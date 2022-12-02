@@ -33,9 +33,20 @@
  *    6. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
  *    7. The IR is in ANF:
- *       (a) No nested call
- *       (b) The fields of the Tuple can only be Var/DataflowVar/Constant/
- *           ShapeExpr/RuntimeDepShape/Tuple
+ *       (a) Expressions cannot contain nested complex expressions.
+ *           Here are the expressions that may be nested inside other expressions:
+ *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr, RuntimeDepShape,
+ *           Op, Tuple (we call these "leaf" expressions).
+ *       (b) The right-hand side of a binding may contain a non-leaf expression 
+ *           (where all expressions nested in it are leaf expressions),
+ *           other than SeqExprs (see rule 6)
+ *       (c) Exceptions: The body of a Function node and the true branch
+ *           and false branch of If nodes *must* be SeqExprs.
+ *       (d) Places where non-leaf expressions cannot appear:
+ *           * The tuple_value field of TupleGetItem nodes
+ *           * The cond field of If nodes
+ *           * The op or args fields of Call nodes
+ *           * Inside the fields of Tuple nodes
  *    8. Expr always has checked_type_ (with the exception of Op).
  */
 #include <tvm/relax/analysis.h>
