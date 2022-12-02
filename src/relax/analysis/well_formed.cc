@@ -37,7 +37,7 @@
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr, RuntimeDepShape,
  *           Op, Tuple (we call these "leaf" expressions).
- *       (b) The right-hand side of a binding may contain a non-leaf expression 
+ *       (b) The right-hand side of a binding may contain a non-leaf expression
  *           (where all expressions nested in it are leaf expressions),
  *           other than SeqExprs (see rule 6)
  *       (c) Exceptions: The body of a Function node and the true branch
@@ -90,7 +90,7 @@ class WellFormedChecker : public relax::ExprVisitor {
   }
 
   void VisitExpr(const Expr& expr) override {
-    if (!expr->checked_type_.defined()) {
+    if (!expr.as<OpNode>() && !expr->checked_type_.defined()) {
       Malformed(Diagnostic::Error(expr->span)
                 << "The checked_type_ of Expr " << expr << " is nullptr.");
     }
@@ -192,6 +192,11 @@ class WellFormedChecker : public relax::ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) {
+    if (IsLeafExpr(op->op)) {
+      this->VisitExpr(op->op);
+    } else {
+      Malformed(Diagnostic::Error(op->span) << "The called expression must be a leaf expression");
+    }
     for (size_t i = 0; i < op->args.size(); i++) {
       Expr arg = op->args[i];
       if (IsLeafExpr(arg)) {

@@ -158,7 +158,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    Expr new_op = this->VisitExpr(op->op);
+    Expr new_op = this->Bind(op->op);
     bool unchanged = new_op.same_as(op->op);
 
     Array<Expr> new_args;
