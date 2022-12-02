@@ -140,6 +140,28 @@ TVM_REGISTER_GLOBAL("relax.DataflowVarFromId")
       return DataflowVar(vid, shape_annotation, type_annotation, span);
     });
 
+Constant::Constant(runtime::NDArray data, Span span) {
+  ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
+  n->data = std::move(data);
+  n->span = std::move(span);
+  DataType dtype = n->data.DataType();
+  ShapeTuple shape_tuple = n->data.Shape();
+  Type type = DynTensorType(shape_tuple.size(), dtype);
+  n->checked_type_ = type;
+  Array<PrimExpr> values;
+  for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
+    values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
+  }
+  n->shape_ = ShapeExpr(values);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(ConstantNode);
+
+TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, Span span = Span()) {
+  return Constant(data, span);
+});
+
 TVM_REGISTER_NODE_TYPE(BindingNode);
 
 TVM_REGISTER_NODE_TYPE(MatchShapeNode);

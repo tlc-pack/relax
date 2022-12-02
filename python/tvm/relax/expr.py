@@ -22,6 +22,8 @@ import typing
 
 import tvm
 import tvm._ffi
+import numpy as _np
+from tvm.runtime import ndarray as _nd
 
 from .. import relay
 from ..ir import BaseFunc, Node, SourceName, Span
@@ -29,6 +31,7 @@ from ..relay import Id, Tuple, TupleGetItem
 from ..runtime import String
 from ..tir import PrimExpr
 from . import _ffi_api, ty
+from tvm._ffi import base as _base
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
@@ -38,8 +41,6 @@ Type = Union[relay.Type]
 GlobalVar = Union[relay.GlobalVar]
 Call = Union[relay.Call]
 If = Union[relay.If]
-const = Union[relay.const]
-Constant = Union[relay.Constant]
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
@@ -76,6 +77,12 @@ class RuntimeDepShape(Expr):
 
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)  # type: ignore
+
+
+@tvm._ffi.register_object("relax.expr.Constant")
+class Constant(Expr):
+    def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)
 
 
 @tvm._ffi.register_object("relax.expr.Var")
@@ -308,6 +315,46 @@ class ExternFunc(BaseFunc):
 def extern(name: str, span: Span = None):
     """Create extern function."""
     return ExternFunc(name, span)
+
+
+def const(value, dtype=None):
+    """Create a constant value.
+
+    Parameters
+    ----------
+    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+        The constant value.
+
+    dtype: str, optional
+        The data type of the resulting constant.
+
+    Note
+    ----
+    When dtype is None, we use the following rule:
+
+    - int maps to "int32"
+    - float maps to "float32"
+    - bool maps to "bool"
+    - other using the same default rule as numpy.
+    """
+    if isinstance(value, (_base.numeric_types, (bool, list))):
+        value = _np.array(value, dtype=dtype)
+
+    if not dtype:
+        # when dtype is None: int maps to "int32", float maps to "float32"
+        dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
+            value.dtype, None
+        )
+
+    if isinstance(value, (_np.ndarray, _np.generic)):
+        if dtype is not None:
+            value = value.astype(dtype)
+        value = _nd.array(value)
+
+    if not isinstance(value, _nd.NDArray):
+        raise ValueError("value has to be scalar or NDArray")
+
+    return Constant(value)
 
 
 def te_tensor(value: Expr, name: str = "rxplaceholder"):

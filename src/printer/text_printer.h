@@ -271,13 +271,13 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   // IR nodes inherited from Relay
   Doc VisitNode_(const relay::TupleNode* op) override;
   Doc VisitNode_(const relay::GlobalVarNode* op) override;
-  Doc VisitNode_(const relay::ConstantNode* op) override;
   Doc VisitNode_(const relay::CallNode* op) override;
   // Doc VisitNode_(const relay::IfNode* op) override;
   Doc VisitNode_(const OpNode* op) override;
   Doc VisitNode_(const relay::TupleGetItemNode* op) override;
 
   // IR nodes introduced by Relax
+  Doc VisitNode_(const relax::ConstantNode* op) override;
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;
   Doc VisitNode_(const relax::ShapeExprNode* op) override;

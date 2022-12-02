@@ -37,8 +37,6 @@ using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
 using relay::Call;
 using relay::CallNode;
-using relay::Constant;
-using relay::ConstantNode;
 using relay::Id;
 using relay::If;
 using relay::IfNode;
@@ -211,6 +209,59 @@ class DataflowVar : public Var {
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
 };
+
+
+/*!
+ * \brief Constant tensor.
+ *
+ * \note Scalar constants are represented by ndim-0 constant tensors.
+ */
+class Constant;
+/*!
+ * \brief Constant tensor type.
+ */
+class ConstantNode : public ExprNode {
+ public:
+  /*! \brief The data of the tensor */
+  runtime::NDArray data;
+
+  /*! \return The corresponding tensor type of the data */
+  TensorType tensor_type() const;
+
+  /*! \return Whether it is scalar(ndim-0 tensor) */
+  bool is_scalar() const { return data->ndim == 0; }
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("data", &data);
+    v->Visit("virtual_device_", &virtual_device_);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+  }
+
+  bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
+    return equal(data, other->data);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(data); }
+
+  static constexpr const char* _type_key = "relax.expr.Constant";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
+};
+
+class Constant : public Expr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param data The data of the constant tensor.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
+};
+
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public Object {
@@ -407,7 +458,7 @@ class SeqExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };
 
-/*! \brief A Relax function, eventually to replace the current Relay function definition. */
+/*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief The parameters to the function. */
