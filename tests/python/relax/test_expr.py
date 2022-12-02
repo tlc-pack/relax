@@ -180,6 +180,10 @@ def test_shape_expr():
     assert x.shape_.checked_type == rx.ShapeType()
     assert x.shape_.shape_ is None
 
+    m = tir.Var("m", "int32")
+    with pytest.raises(tvm.TVMError, match="the value in ShapeExpr can only have dtype of int64"):
+        rx.ShapeExpr([m, 3])
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

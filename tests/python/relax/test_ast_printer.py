@@ -89,16 +89,16 @@ def test_dataflow_var() -> None:
 
 def test_match_shape() -> None:
     # match_shape([16, 8], [m, n])
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", type_annotation=rx.ShapeType())
     b0 = rx.MatchShape(shape, [m, n], var)
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchShape(")
     assert "Constant" in b0_str
-    assert "PrimExpr(value=`m: int32`)" in b0_str
-    assert "PrimExpr(value=`n: int32`)" in b0_str
+    assert "PrimExpr(value=`m: int64`)" in b0_str
+    assert "PrimExpr(value=`n: int64`)" in b0_str
     assert "16" in b0_str
     assert "8" in b0_str
     assert b0_str != dump_ast(b0, include_type_annotations=False)
@@ -114,8 +114,8 @@ def test_match_shape() -> None:
     b1 = rx.MatchShape(value, [m, n], var)
     b1_str = dump_ast(b1)
     assert b1_str.startswith("MatchShape(")
-    assert "PrimExpr(value=`m: int32`)" in b1_str
-    assert "PrimExpr(value=`n: int32`)" in b1_str
+    assert "PrimExpr(value=`m: int64`)" in b1_str
+    assert "PrimExpr(value=`n: int64`)" in b1_str
     assert b1_str != dump_ast(b1, include_type_annotations=False, include_shape_annotations=False)
 
 

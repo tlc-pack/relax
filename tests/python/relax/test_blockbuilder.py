@@ -35,8 +35,8 @@ def nop():
 
 
 def test_block_builder():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
@@ -131,8 +131,8 @@ def test_function_multi_blocks():
 
 
 def test_multi_functions():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
@@ -173,9 +173,9 @@ def test_block_builder_input_mod():
         @T.prim_func
         def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.var("int32")
-            n = T.var("int32")
-            k = T.var("int32")
+            m = T.var("int64")
+            n = T.var("int64")
+            k = T.var("int64")
             A = T.match_buffer(x, (m, n))
             B = T.match_buffer(y, (n, k))
             C = T.match_buffer(z, (m, k))
@@ -306,7 +306,7 @@ def test_emit_match_shape_binding_in_dataflow_block():
     bb = rx.BlockBuilder()
 
     x = rx.Var("x", type_annotation=rx.DynTensorType(-1, "float32"))
-    m = tir.Var("m", dtype="int32")
+    m = tir.Var("m", dtype="int64")
     gv = rx.Var("gv", type_annotation=rx.DynTensorType(-1, "float32"))
     match_shape = rx.MatchShape(x, (m,), gv)
 
@@ -574,8 +574,8 @@ def test_emit_tuple_get_item():
 
 
 def test_nested_function_fail():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
@@ -591,8 +591,8 @@ def test_nested_function_fail():
 
 
 def test_emit_func_output_twice_fail():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
@@ -607,8 +607,8 @@ def test_emit_func_output_twice_fail():
 
 
 def test_func_params_twice_fail():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)
@@ -622,8 +622,8 @@ def test_func_params_twice_fail():
 
 
 def test_no_func_params_fail():
-    m = tir.Var("m", "int32")
-    n = tir.Var("n", "int32")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
     type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
     type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
     x = rx.Var("x", [m, n], type_anno0)

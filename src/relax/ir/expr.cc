@@ -46,9 +46,13 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
   Array<PrimExpr> new_values;
   new_values.reserve(values.size());
   for (const PrimExpr& value : values) {
-    ICHECK(value.dtype().is_int() || value.dtype().is_uint())
-        << "Data type of shape must be integer";
-    new_values.push_back(tvm::cast(DataType::Int(64), value));
+    PrimExpr new_value = value;
+    if (value->IsInstance<IntImmNode>()) {
+      new_value = tvm::cast(DataType::Int(64), value);
+    } else if (value.dtype() != DataType::Int(64)) {
+      LOG(FATAL) << "the value in ShapeExpr can only have dtype of int64";
+    }
+    new_values.push_back(new_value);
   }
   n->values = std::move(new_values);
   n->span = span;
