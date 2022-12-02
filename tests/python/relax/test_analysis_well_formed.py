@@ -21,7 +21,7 @@ from tvm import relax as rx
 
 m = tir.Var("m", "int64")
 n = tir.Var("n", "int64")
-type_anno = rx.DynTensorType(ndim=2, dtype="float16")
+type_anno = rx.DynTensorType(ndim=2, dtype="float32")
 bool_type_anno = rx.DynTensorType(ndim=0, dtype="bool")
 x = rx.Var("x", [m, n], type_anno)
 cond = rx.Var("cond", [], bool_type_anno)
@@ -223,7 +223,9 @@ def test_if_non_seq_body():
     ]
     new_func = build_function(new_blocks)
     new_mod = tvm.IRModule.from_expr(new_func)
-    assert rx.analysis.well_formed(new_mod)
+    # apply normalization to fill in checked_type_
+    normalized = rx.transform.Normalize()(new_mod)
+    assert rx.analysis.well_formed(normalized)
 
 
 def test_if_complex_condition():
@@ -260,7 +262,9 @@ def test_if_complex_condition():
     ]
     func = build_function(blocks)
     mod = tvm.IRModule.from_expr(func)
-    assert rx.analysis.well_formed(mod)
+    # apply normalization to fill in checked_type_
+    normalized = rx.transform.Normalize()(mod)
+    assert rx.analysis.well_formed(normalized)
 
 
 def test_tuple_get_item_nested():
@@ -308,14 +312,16 @@ def test_tuple_get_item_nested():
     )
     new_f = new_f.with_attr("global_symbol", "new_f")
     mod = tvm.IRModule.from_expr(new_f)
-    assert rx.analysis.well_formed(mod)
+    # normalize in order to fill in checked type
+    normalized = rx.transform.Normalize()(mod)
+    assert rx.analysis.well_formed(normalized)
 
 
 def test_complex_seq_body():
     # Error: seq expr with a body that is not a leaf expression is not permitted
     x = rx.Var("x", [], rx.DynTensorType(ndim=0, dtype="int32"))
     y = rx.Var("y", [], rx.DynTensorType(ndim=0, dtype="int32"))
-    ret_type = rx.DynTensorType(ndim=0, dtype="float32")
+    ret_type = rx.DynTensorType(ndim=0, dtype="int32")
     ret_shape = rx.RuntimeDepShape()
     func = rx.Function(
         [x, y],
@@ -347,7 +353,9 @@ def test_complex_seq_body():
         ret_shape,
     ).with_attr("global_symbol", "foo")
     new_mod = tvm.IRModule.from_expr(new_func)
-    assert rx.analysis.well_formed(new_mod)
+    # normalize in order to fill in checked type
+    normalized = rx.transform.Normalize()(new_mod)
+    assert rx.analysis.well_formed(normalized)
 
 
 def test_ANF():
