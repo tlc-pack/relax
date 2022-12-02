@@ -27,6 +27,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_analysis.h>
+#include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/function.h>
 
@@ -157,7 +158,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    Expr new_op = this->VisitExpr(op->op);
+    Expr new_op = this->Bind(op->op);
     bool unchanged = new_op.same_as(op->op);
 
     Array<Expr> new_args;
@@ -213,7 +214,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     builder_->BeginBindingBlock();
-    Expr new_body = this->VisitExpr(op->body);
+    // the body may not be a leaf expression, so check for that
+    Expr new_body = this->Bind(op->body);
     unchanged &= new_body.same_as(op->body);
     BindingBlock prologue = builder_->EndBlock();
 
@@ -227,8 +229,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     SeqExpr seq_expr;
     if (unchanged) {
       seq_expr = GetRef<SeqExpr>(op);
+    } else {
+      seq_expr = SeqExpr(new_blocks, new_body);
     }
-    seq_expr = SeqExpr(new_blocks, new_body);
 
     // only do shape/type inference if the SeqExpr does not have shape/type
     if (seq_expr->shape_ && seq_expr->checked_type_.defined()) {
@@ -271,7 +274,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const IfNode* op) final {
-    Expr new_cond = this->VisitExpr(op->cond);
+    Expr new_cond = this->Bind(op->cond);
     Expr new_true = this->VisitWithNewScope(op->true_branch);
     Expr new_false = this->VisitWithNewScope(op->false_branch);
 
@@ -303,7 +306,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
   }
 
   Expr VisitExpr_(const TupleGetItemNode* op) final {
-    Expr new_tuple = this->VisitExpr(op->tuple);
+    Expr new_tuple = this->Bind(op->tuple);
     TupleGetItem node;
     if (new_tuple.same_as(op->tuple)) {
       node = GetRef<TupleGetItem>(op);
@@ -389,6 +392,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     return new_block;
   }
 
+  void ResetMemo() { expr_memo_.Reset(); }
+
  private:
   /*!
    * \brief Memoization map for expressions using Id for equality of variables.
@@ -416,6 +421,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
       } else {
         expr_memo_[pre] = post;
       }
+    }
+
+    void Reset() {
+      var_memo_ = std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual>();
+      expr_memo_ = std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>();
     }
 
    private:
@@ -631,26 +641,27 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     return NullOpt;
   }
 
-  static bool IsLeaf(const Expr& expr) {
-    // NB: tuples are treated as leaf nodes for ergonomics
-    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-           expr.as<ShapeExprNode>() || expr.as<RuntimeDepShapeNode>() ||
-           expr.as<ExternFuncNode>() || expr.as<OpNode>() || expr.as<TupleNode>();
-  }
-
   Expr VisitWithNewScope(const Expr& expr) {
     builder_->BeginBindingBlock();
     Expr post = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
-    if (!prologue->bindings.empty()) {
-      post = SeqExpr({prologue}, post);
+    // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
+    // Don't wrap if it's already a seq and there are no bindings to add
+    if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
+      return post;
     }
-    return post;
+    Array<BindingBlock> bindings;
+    if (!prologue->bindings.empty()) {
+      bindings.push_back(prologue);
+    }
+    auto seq = SeqExpr(bindings, post);
+    // visit in case post is not a leaf and we need to bind it too
+    return this->VisitExpr(seq);
   }
 
   Expr Bind(const Expr& expr) {
     Expr post = this->VisitExpr(expr);
-    if (!IsLeaf(post)) {
+    if (!IsLeafExpr(post)) {
       post = builder_->Emit(post);
       expr_memo_.Set(expr, post);
     }
@@ -822,6 +833,8 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   }
   return false;
 }
+
+void BlockBuilderNode::ResetMemo() { normalizer_->ResetMemo(); }
 
 // TODO(@altanh, @yuchen): need an internal Emit_ that doesn't call normalize
 Expr BlockBuilderNode::Normalize(const Expr& expr) {

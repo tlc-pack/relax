@@ -54,6 +54,9 @@ void FunctionFrameNode::ExitWithScope() {
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
                              "`return` to return an Expr";
+  // Normalizing a second time could result in false hits to the memo
+  // TODO(relax-team): We should fix the memoization not to require this
+  this->block_builder->ResetMemo();
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   Expr func_shape = ret_shape.value_or(tvm::relax::RuntimeDepShape());
   if (func_shape->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {

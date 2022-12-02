@@ -238,13 +238,17 @@ def test_if():
     body = ite.true_branch.body
     assert w_bind.var.name_hint == "w"
     check_call(w_bind.value, "relax.add", [x, x])
-    check_call(body, "relax.multiply", [w_bind.var, w_bind.var])
+    body_bind = ite.true_branch.blocks[1].bindings[0]
+    check_call(body_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
+    assert ite.true_branch.body == body_bind.var
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
     body = ite.false_branch.body
     assert w_bind.var.name_hint == "w"
     check_call(w_bind.value, "relax.multiply", [x, x])
-    check_call(body, "relax.add", [w_bind.var, w_bind.var])
+    body_bind = ite.false_branch.blocks[1].bindings[0]
+    check_call(body_bind.value, "relax.add", [w_bind.var, w_bind.var])
+    assert ite.false_branch.body == body_bind.var
 
 
 def test_func_type_annotation_fail():
@@ -766,9 +770,15 @@ def test_class_irmodule():
     func_j = my_module[var_j]
     func_k = my_module[var_k]
 
-    assert len(func_f.body.blocks) == 0
-    assert func_f.body.body.op == var_g
-    assert func_g.body.body.args[0] == var_my_matmul
+    assert len(func_f.body.blocks) == 1
+    assert len(func_f.body.blocks[0].bindings) == 1
+    f_call_var = func_f.body.blocks[0].bindings[0].var
+    assert func_f.body.blocks[0].bindings[0].value.op == var_g
+    assert func_f.body.body == f_call_var
+
+    g_call_var = func_g.body.blocks[0].bindings[-1].var
+    assert func_g.body.blocks[0].bindings[-1].value.args[0] == var_my_matmul
+    assert func_g.body.body == g_call_var
 
     gv_bind = func_j.body.blocks[0].bindings[0]
     assert gv_bind.value.checked_type.ndim == 2

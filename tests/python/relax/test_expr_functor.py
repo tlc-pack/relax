@@ -464,7 +464,7 @@ def test_if():
     basic_check(
         if_node,
         "\n".join(["If", "\tVar", "\tVar", "\tVar"]),
-        "\n".join(["Var", "Var", "Var", "If"]),
+        "\n".join(["Var", "Var", "SeqExpr", "Var", "SeqExpr", "If"]),
     )
 
 
@@ -565,7 +565,7 @@ def test_function():
     bindings = [relax.VarBinding(x, relax.const(1))]
     blocks = [relax.BindingBlock(bindings)]
     seq_expr = relax.SeqExpr(blocks, x)
-    ret_type = relax.DynTensorType(-1, "float32")
+    ret_type = relax.DynTensorType(1, "float32")
     ret_shape = relax.RuntimeDepShape()
     func = relax.Function([x], seq_expr, ret_type, ret_shape)
     basic_check(

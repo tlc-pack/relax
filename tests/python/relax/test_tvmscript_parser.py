@@ -668,16 +668,18 @@ def test_if_branch():
         tvm.ir.assert_structural_equal(call.args, args)
 
     w_bind = ite.true_branch.blocks[0].bindings[0]
-    body = ite.true_branch.body
+    # the seq exprts in the branches are normalized to bind any call
+    # in the seq expr "body" to a var
+    y_bind = ite.true_branch.blocks[-1].bindings[-1]
     assert w_bind.var.name_hint == "w"
     check_call(w_bind.value, "relax.add", [x, x])
-    check_call(body, "relax.multiply", [w_bind.var, w_bind.var])
+    check_call(y_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
-    body = ite.false_branch.body
+    y_bind = ite.false_branch.blocks[-1].bindings[-1]
     assert w_bind.var.name_hint == "w"
     check_call(w_bind.value, "relax.multiply", [x, x])
-    check_call(body, "relax.add", [w_bind.var, w_bind.var])
+    check_call(y_bind.value, "relax.add", [w_bind.var, w_bind.var])
 
 
 def test_if_inside_dataflow():
