@@ -747,6 +747,7 @@ def test_other_cases():
         return R.print(x, format="{}")
 
 
+@pytest.mark.skip(reason="potential upstream Metadata changes.")
 def test_meta():
     metadata = tvm.ir.load_json(
         {

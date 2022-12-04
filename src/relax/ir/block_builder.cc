@@ -446,34 +446,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
   }
 
-  // Helper function to generate RuntimeDepShape according to the type
-  Optional<Expr> RuntimeDepShapeFromType(const Type& type) {
-    if (!type.defined()) {
-      return NullOpt;
-    }
-    if (type.as<DynTensorTypeNode>()) {
-      return RuntimeDepShape();
-    } else if (const auto* tuple = type.as<TupleTypeNode>()) {
-      if (tuple->fields.empty()) {
-        // Special case for empty tuple (R.Void)
-        return NullOpt;
-      }
-      Array<Expr> fields;
-      for (const Type& field : tuple->fields) {
-        Optional<Expr> field_shape = RuntimeDepShapeFromType(field);
-        if (!field_shape.defined()) {
-          // Currently we cannot use None Shape inside a Tuple
-          // so we return None for the whole tuple.
-          return NullOpt;
-        }
-        fields.push_back(field_shape.value());
-      }
-      return Tuple(fields);
-    } else {
-      return NullOpt;
-    }
-  }
-
   // Helper function to infer the shape of a Call.
   Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
     if (call->op.as<ExternFuncNode>()) {

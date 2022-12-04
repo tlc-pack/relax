@@ -170,7 +170,6 @@ def test_conv2d_fuse():
                 gv = bb.emit_output(bb.call_te(fused_conv2d1_add2, lv1, w2, lv2))
             bb.emit_func_output(gv)
 
-        print(bb.get()["fused_conv2d_add1_add2"].script())
         return bb.get()
 
     _check(before("float32"), expected("float32"))

@@ -31,8 +31,6 @@ from tvm.script import tir as T, relax as R
 def check_roundtrip(f_pre):
     relax_text = f_pre.script(show_meta=True)
     f_post = tvm.script.parse(relax_text)
-    print(f_pre.script())
-    print(f_post.script())
 
     if isinstance(f_pre, tvm.IRModule) and not isinstance(f_post, tvm.IRModule):
         global_vars = f_pre.get_global_vars()
@@ -389,6 +387,9 @@ def test_runtime_dep_shape():
 def test_func_type():
     # Since current all functions have "global_symbol" attribute, we can't
     # use the same name for different functions, even it's a local function.
+
+    # TODO(relax-team): remove "global_symbol" and enable the same-name local
+    # function under different scope.
     @tvm.script.ir_module
     class TestFuncType:
         @R.function
