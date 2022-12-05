@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
+import json
+from typing import Union
+
 import tvm._ffi
 import tvm.error
 from tvm._ffi import get_global_func, register_object
@@ -108,7 +111,8 @@ def load_json(json_str) -> Object:
     node : Object
         The loaded tvm node.
     """
-
+    if isinstance(json_str, dict):
+        json_str = json.dumps(json_str)
     try:
         return _ffi_node_api.LoadJSON(json_str)
     except tvm.error.TVMError:

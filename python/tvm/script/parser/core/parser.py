@@ -403,6 +403,8 @@ class Parser(doc.NodeVisitor):
         # Only take the last line of the error message
         if isinstance(err, TVMError):
             msg = list(filter(None, str(err).split("\n")))[-1]
+        elif isinstance(err, KeyError):
+            msg = "KeyError: " + str(err)
         else:
             msg = str(err)
         self.diag.error(node, msg)
