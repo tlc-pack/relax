@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Union, List
+from typing import Optional, Union, List
 
 import pytest
 import tvm
@@ -29,10 +29,13 @@ from tvm.relax import RuntimeDepShape, DynTensorType
 
 def _check(
     parsed: Union[relax.Function, IRModule],
-    expect: Union[relax.Function, IRModule],
+    expect: Optional[Union[relax.Function, IRModule]],
 ):
-    # TODO(siyuan): add round-trip tests
-    tvm.ir.assert_structural_equal(parsed, expect)
+    test = parsed.script(show_meta=True)
+    roundtrip_mod = tvm.script.parse(test)
+    tvm.ir.assert_structural_equal(parsed, roundtrip_mod)
+    if expect:
+        tvm.ir.assert_structural_equal(parsed, expect)
 
 
 def _create_shape(*shape: List[int]) -> relax.ShapeExpr:
@@ -742,6 +745,91 @@ def test_other_cases():
     @R.function
     def bar(x: R.Tensor):
         return R.print(x, format="{}")
+
+
+@pytest.mark.skip(reason="potential upstream Metadata changes.")
+def test_meta():
+    metadata = tvm.ir.load_json(
+        {
+            "root": 1,
+            "nodes": [
+                {"type_key": ""},
+                {"type_key": "Map", "keys": ["relay.Constant"], "data": [2]},
+                {"type_key": "Array", "data": [3, 12]},
+                {
+                    "type_key": "relay.Constant",
+                    "attrs": {
+                        "_checked_type_": "6",
+                        "data": "0",
+                        "shape_": "7",
+                        "span": "0",
+                        "virtual_device_": "4",
+                    },
+                },
+                {
+                    "type_key": "VirtualDevice",
+                    "attrs": {
+                        "device_type_int": "-1",
+                        "memory_scope": "5",
+                        "target": "0",
+                        "virtual_device_id": "-1",
+                    },
+                },
+                {"type_key": "runtime.String"},
+                {
+                    "type_key": "relax.DynTensorType",
+                    "attrs": {"dtype": "float32", "ndim": "2", "span": "0"},
+                },
+                {
+                    "type_key": "relax.expr.ShapeExpr",
+                    "attrs": {"_checked_type_": "11", "shape_": "0", "span": "0", "values": "8"},
+                },
+                {"type_key": "Array", "data": [9, 10]},
+                {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "2"}},
+                {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "3"}},
+                {"type_key": "relax.ShapeType", "attrs": {"span": "0"}},
+                {
+                    "type_key": "relay.Constant",
+                    "attrs": {
+                        "_checked_type_": "13",
+                        "data": "1",
+                        "shape_": "14",
+                        "span": "0",
+                        "virtual_device_": "4",
+                    },
+                },
+                {
+                    "type_key": "relax.DynTensorType",
+                    "attrs": {"dtype": "float32", "ndim": "2", "span": "0"},
+                },
+                {
+                    "type_key": "relax.expr.ShapeExpr",
+                    "attrs": {"_checked_type_": "18", "shape_": "0", "span": "0", "values": "15"},
+                },
+                {"type_key": "Array", "data": [16, 17]},
+                {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "2"}},
+                {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "3"}},
+                {"type_key": "relax.ShapeType", "attrs": {"span": "0"}},
+            ],
+            "b64ndarrays": [
+                "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAADNzMw9zcyMP2ZmBkBmZkZAMzODQDMzo0A=",
+                "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAgAAAAIgAQACAAAAAAAAAAMAAAAAAAAAGAAAAAAAAAAAAEBAAABAQAAAQEAAAEBAAABAQAAAQEA=",
+            ],
+        }
+    )
+
+    @R.function
+    def my_const(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor(None, dtype="float32", ndim=2):
+        # block 0
+        y1: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][0]
+        y2: R.Tensor((), dtype="float32") = 2.1
+        y3: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][1]
+        z: R.Tensor((2, 3), dtype="float32") = R.add(x, y1)
+        r: R.Tensor((2, 3), dtype="float32") = R.add(z, y2)
+        w: R.Tensor((2, 3), dtype="float32") = R.add(r, y3)
+        return w
+
+    _check(my_const, None)
 
 
 if __name__ == "__main__":

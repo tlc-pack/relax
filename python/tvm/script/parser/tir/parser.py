@@ -24,6 +24,7 @@ import tvm
 from tvm.ir import PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
+from ...ir_builder import ir as I
 from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
@@ -471,3 +472,9 @@ def visit_return(self: Parser, node: doc.Return) -> None:
         The doc AST return node.
     """
     self.report_error(node, "Return is not allowed.")
+
+
+@dispatch.register(token="tir", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+    global_var = I.decl_function(node.name)
+    self.var_table.add(node.name, global_var)
