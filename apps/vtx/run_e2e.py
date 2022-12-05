@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import onnxruntime
 import tempfile
 
 import numpy as np
 import onnx
-import onnxruntime
 import run_cutlass_tuning
 import tvm
 from onnx import TensorProto, helper
@@ -32,7 +32,7 @@ parser.add_argument('--fp16', action='store_true', default=False)
 ARGS = parser.parse_args()
 
 SRC_FILE = "./fmha.cu"
-PKG_FILE = "./packaged.so"
+PKG_FILE = "./packaged.o"
 
 BATCH_SIZE = 1
 SEQ_LEN = 512
@@ -56,6 +56,13 @@ print(f"QKV: {QKV_SHAPE}")
 print(f"MASK: {MASK_SHAPE}")
 print(f"OUTPUT: {OUTPUT_SHAPE}")
 
+
+def create_archive(output, objects, options=None, cc=None):
+    cc = cc or tvm.contrib.cc.get_cc()
+
+    tvm.contrib.cc._linux_compile(
+        output, objects, options, cc, compile_shared=False
+    )
 
 def import_source_module(executable):
     code = open(SRC_FILE, "r").read()
@@ -278,7 +285,9 @@ if __name__ == "__main__":
         import_source_module(relax_ex)
         relax_ex.mod.export_library(
             PKG_FILE,
+            fcompile=create_archive,
             cc="nvcc",
+            options=["-r"],
         )
         print("Exported")
     executable = tvm.runtime.load_module(PKG_FILE)
