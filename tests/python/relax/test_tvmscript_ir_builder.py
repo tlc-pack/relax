@@ -83,8 +83,8 @@ def test_match_shape():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    x = relax.Var("x", type_annotation=relax.DynTensorType(-1, "float32"))
-    y = relax.Var("y", type_annotation=relax.DynTensorType(-1, "float32"))
+    x = relax.Var("x", relax.RuntimeDepShape(), relax.DynTensorType(-1, "float32"))
+    y = relax.Var("y", relax.RuntimeDepShape(), relax.DynTensorType(-1, "float32"))
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()

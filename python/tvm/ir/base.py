@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
-import tvm._ffi
+import json
+from typing import Union
 
+import tvm._ffi
 import tvm.error
 import tvm.runtime._ffi_node_api
 from tvm.runtime import Object
 
-from . import _ffi_api
-from . import json_compact
+from . import _ffi_api, json_compact
 
 
 class Node(Object):
@@ -120,7 +121,7 @@ class EnvFunc(Object):
         return _ffi_api.EnvFuncGet(name)
 
 
-def load_json(json_str):
+def load_json(json_str: Union[str, dict]):
     """Load tvm object from json_str.
 
     Parameters
@@ -133,7 +134,8 @@ def load_json(json_str):
     node : Object
         The loaded tvm node.
     """
-
+    if isinstance(json_str, dict):
+        json_str = json.dumps(json_str)
     try:
         return tvm.runtime._ffi_node_api.LoadJSON(json_str)
     except tvm.error.TVMError:

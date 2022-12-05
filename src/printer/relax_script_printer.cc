@@ -46,6 +46,8 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
     return VisitExpr(Downcast<PrimExpr>(node));
   } else if (node->IsInstance<tir::PrimFuncNode>()) {
     return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node), "T", false);
+  } else if (node->IsInstance<runtime::StringObj>()) {
+    return Doc::StrLiteral(Downcast<runtime::String>(node));
   } else {
     return VisitNode(node);
   }
@@ -126,18 +128,21 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   doc << "(" << Doc::Concat(args, Doc::Text(", "));
 
   std::vector<Doc> attrs = PrintAttrs(op->attrs);
-  if (op->attrs.defined()) {
-    attrs.push_back(Doc::Text("attrs_type_key=") << Doc::StrLiteral(op->attrs->GetTypeKey()));
-  }
   if (!attrs.empty()) {
+    if (op->op.as<relax::ExternFuncNode>()) {
+      attrs.push_back(Doc::Text("attrs_type_key=") << Doc::StrLiteral(op->attrs->GetTypeKey()));
+    }
     doc << ", " << Doc::Concat(attrs);
   }
 
   if (!op->type_args.empty()) {
-    doc << ", type_args=(";
+    doc << ", type_args=";
     std::vector<Doc> type_args = PrintTypeArgs(op->type_args);
-    doc << Doc::Concat(type_args);
-    doc << ")";
+    if (type_args.size() == 1) {
+      doc << type_args[0];
+    } else {
+      doc << "(" << Doc::Concat(type_args, Doc::Text(", ")) << ")";
+    }
   }
 
   doc << ")";
@@ -145,7 +150,13 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
   return doc;
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) { return Doc::Text(op->name); }
+Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) {
+  std::string name = op->name;
+  if (name.find("relax.") == 0) {
+    name = "R." + name.substr(6);
+  }
+  return Doc::Text(name);
+}
 
 Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
   Doc doc;
@@ -183,6 +194,14 @@ Doc RelaxScriptPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline,
   Doc printed_expr;
   if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
+    // TODO(Siyuan): separate Relax printer and Relay printer, so that we can modify the
+    // TextMetaDataContext. Currently, we update the syntax locally.
+    std::string str = printed_expr.str();
+    int start_pos = 5;
+    int end_pos = str.find_first_of(']');
+    std::string type_key = str.substr(start_pos, end_pos - start_pos);
+    std::string index = str.substr(end_pos + 1);
+    printed_expr = Doc::Text("metadata[\"") << type_key << "\"]" << index;
   } else {
     printed_expr = VisitNode(expr);
   }
@@ -243,8 +262,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::RuntimeDepShapeNode* op) {
   Doc doc;
-
-  doc << "_";
+  doc << "None";
   return doc;
 }
 
@@ -265,7 +283,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
   if (const relay::IfNode* ite = op->value.as<relay::IfNode>()) {
     return PrintIfStmt(op->var, GetRef<relay::If>(ite));
   } else if (const relax::FunctionNode* func = op->value.as<relax::FunctionNode>()) {
-    return PrintFunctionDef(Print(op->var), GetRef<relax::Function>(func));
+    return PrintFunctionDef(Print(op->var), GetRef<relax::Function>(func), /*is_global=*/false);
   } else if (const tir::PrimFuncNode* prim_func = op->value.as<tir::PrimFuncNode>()) {
     return PrintPrimFunc(op->var->name_hint(), GetRef<tir::PrimFunc>(prim_func));
   } else {
@@ -332,7 +350,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::SeqExprNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::FunctionNode* op) {
   Optional<String> gsymbol = op->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(gsymbol.defined());
-  return PrintFunctionDef(Doc::Text(gsymbol.value()), GetRef<relax::Function>(op));
+  return PrintFunctionDef(Doc::Text(gsymbol.value()), GetRef<relax::Function>(op),
+                          /*is_global=*/true);
 }
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::ExternFuncNode* op) {
@@ -344,7 +363,17 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::VarNode* op) {
   if (!dim_var_map_.count(var)) {
     dim_var_map_[var] = GetUniqueName(var->name_hint, "dim");
   }
-  return dim_var_map_[var];
+  if (print_symbolic_shape_as_str_) {
+    Doc doc;
+    doc << "\"" << dim_var_map_[var] << "\"";
+    return doc;
+  } else {
+    if (std::none_of(symbolic_vars_.begin(), symbolic_vars_.end(),
+                     [&var](const tir::Var& v) { return v.same_as(var); })) {
+      symbolic_vars_.push_back(var);
+    }
+    return dim_var_map_[var];
+  }
 }
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::IntImmNode* op) {
@@ -367,7 +396,7 @@ TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ")
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::CastNode* op) {
   Doc doc;
-  doc << "T.cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";
+  doc << "T.cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
   return doc;
 }
 
@@ -377,10 +406,12 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::MaxNode* op) {
   return doc;
 }
 
-Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) { return Doc::Text("Shape"); }
+Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) {
+  return Doc::Text("R.Shape");
+}
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ObjectTypeNode* node) {
-  return Doc::Text("Object");
+  return Doc::Text("R.Object");
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
@@ -390,7 +421,7 @@ Doc RelaxScriptPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
 
 Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   if (node->fields.empty()) {
-    return Doc::Text("Tuple()");
+    return Doc::Text("R.Tuple()");
   }
 
   Doc doc;
@@ -399,14 +430,14 @@ Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   for (Type ty : node->fields) {
     fields.push_back(Print(ty));
   }
-  doc << "Tuple(" << Doc::Concat(fields) << ")";
+  doc << "R.Tuple(" << Doc::Concat(fields) << ")";
 
   return doc;
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relay::FuncTypeNode* node) {
   Doc doc;
-  doc << "Callable";
+  doc << "R.Callable";
   if (node->type_params.size() != 0) {
     doc << "(";
     std::vector<Doc> type_params;
@@ -458,7 +489,7 @@ std::vector<Doc> RelaxScriptPrinter::PrintTypeArgs(const Array<tvm::Type>& type_
     for (const auto& type : type_args) {
       if (const auto* tensor = type.as<DynTensorTypeNode>()) {
         Doc doc;
-        doc << "Tensor(ndim=" << tensor->ndim << ", dtype=" << PrintDType(tensor->dtype) << ")";
+        doc << "R.Tensor(ndim=" << tensor->ndim << ", dtype=" << PrintDType(tensor->dtype) << ")";
         type_args_doc.push_back(doc);
       } else {
         type_args_doc.push_back(this->VisitType(type));
@@ -492,11 +523,7 @@ Doc RelaxScriptPrinter::VisitAttr_(const tir::FloatImmNode* op) {
 
 Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
   Doc doc;
-  if (ShowMetaData()) {
-    doc << "@tvm.script.ir_module(metadata=metadata)" << Doc::NewLine();
-  } else {
-    doc << "@tvm.script.ir_module" << Doc::NewLine();
-  }
+  doc << "@tvm.script.ir_module" << Doc::NewLine();
   doc << "class Module:";
   for (const std::pair<GlobalVar, BaseFunc>& pr : mod->functions) {
     Doc func;
@@ -536,30 +563,49 @@ Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite)
   return doc;
 }
 
-Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function& func) {
+Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function& func,
+                                         bool is_global) {
   Doc doc;
-
+  // Step 1: print the function parameters
+  print_symbolic_shape_as_str_ = is_global;
   std::vector<Doc> params;
   for (size_t i = 0; i < func->params.size(); ++i) {
-    relax::Var var = func->params[i];
+    const relax::Var& var = func->params[i];
     Doc param;
     param << Print(var) << PrintVarAnnotation(var);
     params.push_back(param);
   }
-  if (ShowMetaData()) {
-    doc << "@R.function(metadata=metadata)" << Doc::NewLine();
-  } else {
-    doc << "@R.function" << Doc::NewLine();
+  print_symbolic_shape_as_str_ = false;
+
+  if (is_global) {
+    ICHECK(symbolic_vars_.empty());
   }
+
+  // Step 2: print the function signature
+  doc << "@R.function" << Doc::NewLine();
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
   if (func->ret_type.defined()) {
     doc << " -> " << Print(func->ret_type);
   }
   doc << ":" << Doc::NewLine(4);
 
+  // Step 3: print function attr
+  Doc header_attr;
+  if (func->attrs.defined()) {
+    header_attr << "# function attr dict" << Doc::NewLine() << "R.func_attr({";
+    std::vector<Doc> attrs;
+    for (const auto& it : func->attrs->dict) {
+      attrs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+    }
+    header_attr << Doc::Concat(attrs, Doc::Text(", ")) << "})";
+    header_attr << Doc::NewLine();
+  }
+
+  // Step 4: print the function body
+  Doc body_doc;
   if (const relax::SeqExprNode* body = func->body.as<relax::SeqExprNode>()) {
-    doc << Doc::Indent(4, Print(func->body));
-    doc << Doc::Indent(4, Doc::Text("return ") << Print(body->body)) << Doc::NewLine();
+    body_doc << Print(func->body);
+    body_doc << Doc::Text("return ") << Print(body->body) << Doc::NewLine();
   } else if (const relax::FunctionNode* body = func->body.as<relax::FunctionNode>()) {
     // nested function
     String func_name;
@@ -569,13 +615,25 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     } else {
       func_name = "local_func_" + std::to_string(local_func_counter_++);
     }
-    Doc nested_func = PrintFunctionDef(Doc::Text(func_name), GetRef<relax::Function>(body));
-    doc << Doc::Indent(4, nested_func);
-    doc << Doc::Indent(4, Doc::Text("return ") << func_name) << Doc::NewLine();
+    Doc nested_func =
+        PrintFunctionDef(Doc::Text(func_name), GetRef<relax::Function>(body), /*is_global=*/false);
+    body_doc << nested_func;
+    body_doc << Doc::Text("return ") << func_name << Doc::NewLine();
   } else {
-    doc << Doc::Indent(4, Doc::Text("return ") << Print(func->body)) << Doc::NewLine();
+    body_doc << Doc::Text("return ") << Print(func->body) << Doc::NewLine();
   }
 
+  // Step 5: print the function used variables
+  if (is_global) {
+    Doc used_vars;
+    for (const tir::Var& var : symbolic_vars_) {
+      used_vars << Print(var) << " = T.var(" << PrintDType(var->dtype) << ")" << Doc::NewLine();
+    }
+    symbolic_vars_.clear();
+    doc << Doc::Indent(4, used_vars);
+  }
+
+  doc << Doc::Indent(4, header_attr << body_doc);
   return doc;
 }
 
@@ -599,7 +657,7 @@ Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
 Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
                                               const Optional<ObjectRef>& shape) {
   Doc doc;
-  doc << "Tensor(";
+  doc << "R.Tensor(";
   // Print shape annotation
   if (shape.defined()) {
     doc << Print(Downcast<relay::Expr>(shape.value()));
@@ -607,15 +665,12 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
     doc << "None";
   }
   // Print dtype annotation
-  doc << ", ";
-  if (ty->dtype.is_void()) {
-    doc << "_";
-  } else {
-    doc << PrintDType(ty->dtype);
+  if (!ty->dtype.is_void()) {
+    doc << ", dtype=" << PrintDType(ty->dtype);
   }
   // Print ndim annotation only when it cannot be inferred from shape itself.
   if (!shape.defined() || shape->IsInstance<relax::RuntimeDepShapeNode>()) {
-    doc << ", ndim = " << ty->ndim;
+    doc << ", ndim=" << ty->ndim;
   }
   doc << ")";
   return doc;
@@ -624,20 +679,21 @@ Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
 Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
                                              const Optional<ObjectRef>& shape) {
   Doc doc;
-  doc << "Tuple";
+  doc << "R.Tuple";
   std::vector<Doc> fields;
+  if (!(shape.defined() && shape.value().as<TupleNode>())) {
+    return Print(ty);
+  }
+  const TupleNode* shape_tuple = shape.value().as<TupleNode>();
   for (size_t i = 0; i < ty->fields.size(); i++) {
-    if (shape) {
-      if (const TupleNode* shape_tuple = shape.value().as<TupleNode>()) {
-        if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
-          fields.push_back(
-              PrintTensorAnnotation(GetRef<DynTensorType>(type_field), shape_tuple->fields[i]));
-        }
-      }
+    if (const auto* tensor_field = ty->fields[i].as<DynTensorTypeNode>()) {
+      fields.push_back(
+          PrintTensorAnnotation(GetRef<DynTensorType>(tensor_field), shape_tuple->fields[i]));
+    } else if (const auto* tuple_field = ty->fields[i].as<TupleTypeNode>()) {
+      fields.push_back(
+          PrintTupleAnnotation(GetRef<TupleType>(tuple_field), shape_tuple->fields[i]));
     } else {
-      if (const DynTensorTypeNode* type_field = ty->fields[i].as<DynTensorTypeNode>()) {
-        fields.push_back(PrintTensorAnnotation(GetRef<DynTensorType>(type_field), NullOpt));
-      }
+      fields.push_back(Print(ty->fields[i]));
     }
   }
   doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")";
@@ -650,8 +706,6 @@ Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback =
   }
   return Doc::Text(name_table_.GetUniqueName(prefix));
 }
-
-bool RelaxScriptPrinter::ShowMetaData() { return show_meta_data_; }
 
 String AsRelaxScript(const ObjectRef& mod, bool show_meta_data) {
   ICHECK(mod->IsInstance<IRModuleNode>() || mod->IsInstance<relax::FunctionNode>() ||

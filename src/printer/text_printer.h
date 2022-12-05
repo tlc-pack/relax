@@ -247,7 +247,6 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   explicit RelaxScriptPrinter(bool show_meta_data, TextMetaDataContext* meta)
       : show_meta_data_(show_meta_data), meta_(meta) {}
   TVM_DLL Doc Print(const ObjectRef& node);
-  bool ShowMetaData();
 
  private:
   NameTable name_table_;
@@ -257,6 +256,13 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   size_t local_func_counter_ = 0;
   /*! \brief meta data context */
   TextMetaDataContext* meta_;
+  /*!
+   * \brief A bool flag to indicate if we print symbolic shape as str, usually for global
+   * function.
+   */
+  bool print_symbolic_shape_as_str_ = false;
+  /*! \brief symbolic vars used in a global function. */
+  std::vector<tir::Var> symbolic_vars_;
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
   std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
 
@@ -297,7 +303,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc PrintPrimFunc(const String& name, const tir::PrimFunc& func);
 
   Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
-  Doc PrintFunctionDef(const Doc& name, const relax::Function& func);
+  Doc PrintFunctionDef(const Doc& name, const relax::Function& func, bool is_global);
 
   Doc PrintVarAnnotation(const relax::Var& var);
   Doc PrintTensorAnnotation(const relax::DynTensorType& ty, const Optional<ObjectRef>& shape);
@@ -613,9 +619,7 @@ class TextPrinter {
     relax_text_printer_.Print(node);
     Doc doc;
     if (show_meta_data_ && !meta_.empty()) {
-      doc << "metadata = ";
-      doc << meta_.GetMetaSection();
-      doc << Doc::NewLine();
+      doc << "metadata = tvm.ir.load_json(" << meta_.GetMetaSection() << ")" << Doc::NewLine();
     }
     doc << relax_text_printer_.Print(node);
     return doc;

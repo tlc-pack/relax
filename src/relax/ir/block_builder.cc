@@ -813,9 +813,11 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   if (lhs == rhs) {
     return true;
   }
-  const auto* lhs_shape = lhs.as<ShapeExprNode>();
-  const auto* rhs_shape = rhs.as<ShapeExprNode>();
-  if (lhs_shape && rhs_shape) {
+  if (lhs->IsInstance<RuntimeDepShapeNode>() && rhs->IsInstance<RuntimeDepShapeNode>()) {
+    return true;
+  } else if (lhs->IsInstance<ShapeExprNode>() && rhs->IsInstance<ShapeExprNode>()) {
+    const auto* lhs_shape = lhs.as<ShapeExprNode>();
+    const auto* rhs_shape = rhs.as<ShapeExprNode>();
     size_t lhs_ndim = lhs_shape->values.size();
     size_t rhs_ndim = rhs_shape->values.size();
     if (lhs_ndim != rhs_ndim) {
@@ -826,6 +828,18 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
       PrimExpr lhs_dim = lhs_shape->values[i];
       PrimExpr rhs_dim = rhs_shape->values[i];
       if (lhs_dim.dtype() != rhs_dim.dtype() || !analyzer.CanProveEqual(lhs_dim, rhs_dim)) {
+        return false;
+      }
+    }
+    return true;
+  } else if (lhs->IsInstance<TupleNode>() && rhs->IsInstance<TupleNode>()) {
+    const auto* lhs_tuple = lhs.as<TupleNode>();
+    const auto* rhs_tuple = rhs.as<TupleNode>();
+    if (lhs_tuple->fields.size() != rhs_tuple->fields.size()) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs_tuple->fields.size(); ++i) {
+      if (!CanProveShapeEqual(lhs_tuple->fields[i], rhs_tuple->fields[i])) {
         return false;
       }
     }

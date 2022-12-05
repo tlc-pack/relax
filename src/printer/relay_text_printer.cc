@@ -773,7 +773,7 @@ Doc RelayTextPrinter::VisitType_(const relax::ObjectTypeNode* node) {
 
 Doc RelayTextPrinter::VisitAttrDefault_(const Object* op) {
   // Since we don't have any overload for a specific attribute type we'll need to force
-  // the meta[...] representation to avoid infinite regress.
+  // the metadata[...] representation to avoid infinite regress.
   return PrintAttributeValue(GetRef<ObjectRef>(op), /*force_meta=*/true);
 }
 
@@ -875,7 +875,8 @@ std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr
   const auto* op_node = op.as<OpNode>();
   if (show_meta_data_ && op_node && (attrs->type_index() != op_node->attrs_type_index)) {
     // The parser can only understand calls with attributes if they match the operator's
-    // declared attribute type. If that's not the case fall back to the meta[...] representation.
+    // declared attribute type. If that's not the case fall back to the metadata[...]
+    // representation.
     docs.push_back(meta_->GetMetaNode(attrs));
   } else {
     AppendGenericAttrs(&docs, attrs, /*include_type_key=*/!op_node);

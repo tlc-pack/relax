@@ -28,13 +28,16 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-////////////////////////////// Tensor Type //////////////////////////////
+////////////////////////////// Shaped Type //////////////////////////////
 
-/*! \brief A temporary Tensor type for `R.Tensor` in ir_builder. */
-class TensorTypeNode : public runtime::Object {
+/*!
+ * \brief A temporary data structure for unified type and shape in ir_builder.
+ * \note Used for `R.Tensor` and `R.Tuple`
+ */
+class ShapedTypeNode : public runtime::Object {
  public:
-  /*! \brief The type, usually is DynTensorType */
-  tvm::relax::DynTensorType type;
+  /*! \brief The type, usually is DynTensorType or TupleType */
+  Type type;
   /*! \brief The shape, which is optional. */
   Optional<tvm::relax::Expr> shape;
 
@@ -43,25 +46,27 @@ class TensorTypeNode : public runtime::Object {
     v->Visit("shape", &shape);
   }
 
-  static constexpr const char* _type_key = "script.ir_builder.relax.TensorType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorTypeNode, runtime::Object);
+  static constexpr const char* _type_key = "script.ir_builder.relax.ShapedType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapedTypeNode, runtime::Object);
 };
 
-class TensorType : public runtime::ObjectRef {
+class ShapedType : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr> shape);
+  TVM_DLL explicit ShapedType(Type type, Optional<tvm::relax::Expr> shape);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorType, ObjectRef, TensorTypeNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapedType, ObjectRef, ShapedTypeNode);
 };
 
 /*!
- * \brief Create a TensorType for a DynTensor.
+ * \brief Create a ShapedType for a DynTensor.
  * \param shape The shape of the tensor. It's runtime dependent if `shape` is None.
  * \param dtype The element data type of the tensor. It's runtime dependent if `dtype` is None.
  * \param ndim The number of dimensions of the tensor. It's runtime dependent if `ndim` is -1.
- * \return The TensorType that is only used in ir_builder.
+ * \return The ShapedType that is only used in ir_builder.
  */
-TVM_DLL TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim = -1);
+TVM_DLL ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim = -1);
+
+TVM_DLL ShapedType CreateShapedTuple(Array<Type> types, Array<Optional<tvm::relax::Expr>> shapes);
 
 /////////////////////////////// Function ////////////////////////////////
 
@@ -94,7 +99,7 @@ TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
 
 /*!
  * \brief Specify the return type of the last function frame.
- * \param ret_type The return type. Note: it's a standard `tvm::Type` instead of TensorType.
+ * \param ret_type The return type. Note: it's a standard `tvm::Type` instead of ShapedType.
  */
 TVM_DLL void FuncRetType(tvm::Type ret_type);
 
