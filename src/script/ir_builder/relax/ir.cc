@@ -49,16 +49,16 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 ////////////////////////////// Tensor Type //////////////////////////////
 
-TensorType::TensorType(tvm::relax::DynTensorType type, Optional<tvm::relax::Expr> shape) {
-  auto n = make_object<TensorTypeNode>();
+ShapedType::ShapedType(Type type, Optional<tvm::relax::Expr> shape) {
+  auto n = make_object<ShapedTypeNode>();
   n->type = std::move(type);
   n->shape = std::move(shape);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(TensorTypeNode);
+TVM_REGISTER_NODE_TYPE(ShapedTypeNode);
 
-TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
+ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   using namespace tvm::relax;
   ICHECK_GE(ndim, -1) << "ndim must be >= -1, but got " << ndim;
   if (shape.defined() && ndim >= 0) {
@@ -67,14 +67,36 @@ TensorType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   } else if (shape.defined()) {
     ndim = shape.value().size();
   }
-  Optional<Expr> shape_expr = NullOpt;
+  Expr shape_expr = RuntimeDepShape();
   if (shape.defined()) {
     shape_expr = ShapeExpr(shape.value());
   }
-  return TensorType(DynTensorType(ndim, dtype), shape_expr);
+  return ShapedType(DynTensorType(ndim, dtype), shape_expr);
+}
+
+ShapedType CreateShapedTuple(Array<Type> types, Array<Optional<tvm::relax::Expr>> shapes) {
+  CHECK_EQ(types.size(), shapes.size())
+      << "ValueError: The number of types and shapes mismatched, got " << types.size() << " vs "
+      << shapes.size();
+  Array<tvm::relax::Expr> _shapes;
+  bool has_none_shape = false;
+  for (const auto& shape : shapes) {
+    if (shape.defined()) {
+      _shapes.push_back(shape.value());
+    } else {
+      has_none_shape = true;
+      break;
+    }
+  }
+  Optional<tvm::relax::Expr> final_shape = NullOpt;
+  if (!has_none_shape) {
+    final_shape = tvm::relax::Tuple(_shapes);
+  }
+  return ShapedType(TupleType(types), final_shape);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.CreateShapedTuple").set_body_typed(CreateShapedTuple);
 
 /////////////////////////////// Function ////////////////////////////////
 
