@@ -92,13 +92,16 @@ namespace relax {
  * - Use MapToNestedMsg to remap the remaining body.
  *
  * On a backward propagation message passing analysis:
- * - Create map [leadnode=>NestedMsg<T>], scan backward
+ * - Create map [leafnode=>NestedMsg<T>], scan backward
  * - output_msg = lookup map(binding->var)
  * - handle case when output_msg is null
  * - input_msg = BackProp[call->op](out_msg, call)
  * - for arg, msg in zip(call->args, input_msg),
  *     DecomposeNestedMessage(arg, msg, lambda node, m: update_map(node, m))
  * - update_map(node, m) => CombineNestedMessage(map[node], m)
+ *
+ * Here leafnode is a node that you would like to propagate messages to
+ * such as constant, var and should not include tuple.
  *
  * We also recommend writing unit-test cases that involve nested tuple composition
  * and decomposition.
