@@ -392,45 +392,66 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     return new_block;
   }
 
-  void ResetMemo() { expr_memo_.Reset(); }
-
  private:
   /*!
    * \brief Memoization map for expressions using Id for equality of variables.
+   *        Note: The memo keeps track of scopes because it deals with var nodes
+   *        (either mapping vars to exprs or exprs to vars), which are also scoped.
+   *        This ensures that there will never be a false hit to the memo, resulting
+   *        in returning a var outside of its scope.
    */
   class ExprMemo {
    public:
     Optional<Expr> Get(const Expr& expr) {
       if (const VarNode* var = expr.as<VarNode>()) {
-        auto it = var_memo_.find(var->vid);
-        if (it != var_memo_.end()) {
-          return it->second;
+        // check the different scopes for a match
+        for (size_t i = 0; i < var_memo_.size(); i++) {
+          auto scope = var_memo_.at(var_memo_.size() - i - 1);
+          auto it = scope.find(var->vid);
+          if (it != scope.end()) {
+            return it->second;
+          }
         }
       } else {
-        auto it = expr_memo_.find(expr);
-        if (it != expr_memo_.end()) {
-          return it->second;
+        for (size_t i = 0; i < expr_memo_.size(); i++) {
+          auto scope = expr_memo_.at(expr_memo_.size() - i - 1);
+          auto it = scope.find(expr);
+          if (it != scope.end()) {
+            return it->second;
+          }
         }
       }
       return NullOpt;
     }
 
     void Set(const Expr& pre, const Expr& post) {
+      // if we are not in a scope, do not save, since we can't know
+      // when the vars will be out of scope
+      if (var_memo_.size() == 0 || expr_memo_.size() == 0) {
+        return;
+      }
       if (const VarNode* var = pre.as<VarNode>()) {
-        var_memo_[var->vid] = post;
+        var_memo_.back()[var->vid] = post;
       } else {
-        expr_memo_[pre] = post;
+        expr_memo_.back()[pre] = post;
       }
     }
 
-    void Reset() {
-      var_memo_ = std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual>();
-      expr_memo_ = std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>();
+    void PushScope() {
+      std::cout << "Push scope" << std::endl;
+      var_memo_.push_back({});
+      expr_memo_.push_back({});
+    }
+
+    void PopScope() {
+      std::cout << "Pop scope" << std::endl;
+      var_memo_.pop_back();
+      expr_memo_.pop_back();
     }
 
    private:
-    std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
-    std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> expr_memo_;
+    std::vector<std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual>> var_memo_;
+    std::vector<std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>> expr_memo_;
   };
 
   // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape
@@ -643,7 +664,9 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
 
   Expr VisitWithNewScope(const Expr& expr) {
     builder_->BeginBindingBlock();
+    expr_memo_.PushScope();
     Expr post = this->VisitExpr(expr);
+    expr_memo_.PopScope();
     BindingBlock prologue = builder_->EndBlock();
     // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
     // Don't wrap if it's already a seq and there are no bindings to add
@@ -656,7 +679,10 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
     auto seq = SeqExpr(bindings, post);
     // visit in case post is not a leaf and we need to bind it too
-    return this->VisitExpr(seq);
+    expr_memo_.PushScope();
+    auto ret = this->VisitExpr(seq);
+    expr_memo_.PopScope();
+    return ret;
   }
 
   Expr Bind(const Expr& expr) {
@@ -847,8 +873,6 @@ bool BlockBuilderNode::CanProveShapeEqual(const Expr& lhs, const Expr& rhs) {
   }
   return false;
 }
-
-void BlockBuilderNode::ResetMemo() { normalizer_->ResetMemo(); }
 
 // TODO(@altanh, @yuchen): need an internal Emit_ that doesn't call normalize
 Expr BlockBuilderNode::Normalize(const Expr& expr) {
