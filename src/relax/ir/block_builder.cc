@@ -397,8 +397,8 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
    * \brief Memoization map for expressions using Id for equality of variables.
    *        Note: The memo keeps track of scopes because it deals with var nodes
    *        (either mapping vars to exprs or exprs to vars), which are also scoped.
-   *        This ensures that there will never be a false hit to the memo, resulting
-   *        in returning a var outside of its scope.
+   *        This ensures that there will never be a false hit to the memo, 
+   *        which would result in returning a var outside of its scope.
    */
   class ExprMemo {
    public:
@@ -438,13 +438,11 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     }
 
     void PushScope() {
-      std::cout << "Push scope" << std::endl;
       var_memo_.push_back({});
       expr_memo_.push_back({});
     }
 
     void PopScope() {
-      std::cout << "Pop scope" << std::endl;
       var_memo_.pop_back();
       expr_memo_.pop_back();
     }
