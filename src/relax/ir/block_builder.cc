@@ -397,7 +397,7 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
    * \brief Memoization map for expressions using Id for equality of variables.
    *        Note: The memo keeps track of scopes because it deals with var nodes
    *        (either mapping vars to exprs or exprs to vars), which are also scoped.
-   *        This ensures that there will never be a false hit to the memo, 
+   *        This ensures that there will never be a false hit to the memo,
    *        which would result in returning a var outside of its scope.
    */
   class ExprMemo {
