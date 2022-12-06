@@ -40,7 +40,7 @@ namespace relax {
 /*!
  * \brief Container that stores possibly nested message with leaf message type T.
  *
- * NestedMsg is a ver helper structure to store intermediate
+ * NestedMsg is a helper structure to store intermediate
  * message state in pass analysis so we can robustly handle message
  * passing with the presence of nested tuple types.
  *
@@ -85,20 +85,20 @@ namespace relax {
  * Please consider the following patterns in our pass:
  *
  * On a forward propagation message passing analysis:
- * - Create map [var=>NestedMsg<T>], scan forward
+ * - Create map [leafnode=>NestedMsg<T>], scan forward
  * - input_msg = [MapToNestedMsg<T>(x, lookup_map) for x in call->args]
  * - output_msg = ForwardProp[call->op](input_msg, call)
  * - map[binding->var] = output_msg
  * - Use MapToNestedMsg to remap the remaining body.
  *
  * On a backward propagation message passing analysis:
- * - Create map [var=>NestedMsg<T>], scan backward
+ * - Create map [leadnode=>NestedMsg<T>], scan backward
  * - output_msg = lookup map(binding->var)
  * - handle case when output_msg is null
  * - input_msg = BackProp[call->op](out_msg, call)
  * - for arg, msg in zip(call->args, input_msg),
- *     DecomposeNestedMessage(arg, msg, lambda var, m: update_map(var, m))
- * - update_map(var, m) => CombineNestedMessage(map[var], m)
+ *     DecomposeNestedMessage(arg, msg, lambda node, m: update_map(node, m))
+ * - update_map(node, m) => CombineNestedMessage(map[node], m)
  *
  * We also recommend writing unit-test cases that involve nested tuple composition
  * and decomposition.
@@ -253,7 +253,7 @@ bool Equal(const NestedMsg<T>& lhs, const NestedMsg<T>& rhs, FType fequal) {
  * The nesting structure will corresponds to the tuple structure.
  *
  * \param expr The input expression.
- * \param fmap The mapping function for each leaf with signature
+ * \param fmapleaf The mapping function for each leaf with signature
  *             NestedMsg<T> fmap(Expr)
  * \tparam T the content type of nested msg
  * \tparam FType The mapping function type
