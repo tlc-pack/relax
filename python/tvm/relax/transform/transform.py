@@ -122,6 +122,16 @@ def VMShapeLower() -> tvm.ir.transform.Pass:
     return _ffi_api.VMShapeLower()  # type: ignore
 
 
+def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
+    """Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.AttachGlobalSymbol()  # type: ignore
+
+
 def Normalize() -> tvm.ir.transform.Pass:
     """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
     and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are available.

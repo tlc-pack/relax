@@ -112,9 +112,6 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
       BaseFunc base_func = iter.second;
       if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
         tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
-        // Global symbol has to be defined.
-        Optional<String> gsymbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-        ICHECK(gsymbol.defined());
 
         IRModule tir_mod = (*normalize_mod_func_)(prim_func);
         if (Optional<tir::Schedule> sch = database->QuerySchedule(tir_mod, target, gv->name_hint)) {
@@ -128,7 +125,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir) {
           result.Set(gv, new_prim_func);
           continue;
         } else {
-          LOG(WARNING) << "Tuning record is not found for primfunc: " << gsymbol.value();
+          LOG(WARNING) << "Tuning record is not found for primfunc: " << gv->name_hint;
         }
       }
       result.Set(gv, base_func);

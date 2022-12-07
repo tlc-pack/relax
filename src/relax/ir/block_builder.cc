@@ -882,7 +882,6 @@ GlobalVar BlockBuilderNode::AddFunction(const BaseFunc& func, const String& func
     GlobalVar gvar = GlobalVar(func_name);
     if (const tir::PrimFuncNode* prim_func = func.as<tir::PrimFuncNode>()) {
       tir::PrimFunc fn = GetRef<tir::PrimFunc>(prim_func);
-      fn = WithAttr(std::move(fn), "global_symbol", func_name);
       ICHECK(fn->checked_type_.defined())
           << "The function to be added does not have checked_type_.";
       gvar->checked_type_ = fn->checked_type_;

@@ -176,7 +176,6 @@ class LambdaLifter : public ExprMutator {
         param_types.push_back(param->checked_type_);
       }
     }
-    lifted_func = WithAttr(std::move(lifted_func), tvm::attr::kGlobalSymbol, lift_func_name);
 
     ICHECK(lifted_func.defined());
 

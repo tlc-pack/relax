@@ -127,8 +127,7 @@ class EwiseFuseFMAMutator : public ExprMutator {
 
         String func_name = "ewise_fma_fused";
         Function func = Function({x, y, z}, body, call->args[1]->checked_type_, RuntimeDepShape());
-        Expr ewise_fma_fused = WithAttr(std::move(func), "global_symbol", func_name);
-        Expr normalized = builder_->Normalize(ewise_fma_fused);
+        Expr normalized = builder_->Normalize(func);
         GlobalVar global_var1 =
             builder_->AddFunction(Downcast<BaseFunc>(normalized), "ewise_fma_fused");
 
