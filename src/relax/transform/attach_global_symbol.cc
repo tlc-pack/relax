@@ -47,6 +47,7 @@ class GlobalSymbolAttacher {
     }
     return ret;
   }
+
  private:
   IRModule mod_;
 };

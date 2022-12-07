@@ -489,6 +489,8 @@ def test_normalize_function():
         ret_type=type_anno,
         ret_shape=relax.RuntimeDepShape(),
     )
+
+    # Note: from_expr api names private function (function without global_symbol) as "main"
     before_mod = tvm.IRModule.from_expr(mul_add)
 
     after_mod = relax.transform.Normalize()(before_mod)
