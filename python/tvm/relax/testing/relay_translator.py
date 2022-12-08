@@ -207,4 +207,6 @@ def from_relay(
             bb._begin_dataflow_block()
             relay.analysis.post_order_visit(mod["main"], visit_func)
 
+    relax_mod = bb.get()
+    relax_mod["main"] = relax_mod["main"].with_attr("global_symbol", "main")
     return bb.get()

@@ -251,8 +251,10 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   bool show_meta_data_;
   /*! \brief A counter for naming local functions. */
   size_t local_func_counter_ = 0;
-  /*! \brief meta data context */
+  /*! \brief meta data context. */
   TextMetaDataContext* meta_;
+  /*! \brief the current relax function name. */
+  String relax_func_name_ = "foo";
   /*!
    * \brief A bool flag to indicate if we print symbolic shape as str, usually for global
    * function.
