@@ -585,7 +585,6 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, tir_var_list, index_dtype_override);
 }
 
-// TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
   Array<te::Tensor> arg_list = args[0];
   Optional<Array<tir::Var>> tir_var_list = args[1];

@@ -444,7 +444,6 @@ class FunctionCreator : public ExprMutator {
     body = builder_->Normalize(body);
     body = builder_->Normalize(SeqExpr({new_block}, body));
     Map<String, ObjectRef> attrs;
-    attrs.Set(tvm::attr::kGlobalSymbol, name_hint_);
     attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
     function_ = Function(/*params=*/params_,  //
                          /*body=*/body,       //
