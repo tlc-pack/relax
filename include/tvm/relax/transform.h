@@ -101,6 +101,13 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
+ * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass AttachGlobalSymbol();
+
+/*!
  * \brief Simplify a Relax module by folding var bindings and match shape nodes.
  * May include other forms of expression simplification in the future.
  * Best used alongside constant folding and eliminating unused bindings.

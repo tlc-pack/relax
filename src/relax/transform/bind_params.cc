@@ -18,6 +18,7 @@
  */
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -78,10 +79,19 @@ IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> p
   Map<GlobalVar, BaseFunc> functions = m->functions;
   for (const auto& func_pr : functions) {
     if (const auto* relax_f = func_pr.second.as<FunctionNode>()) {
-      Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      if (gsymbol.defined() && gsymbol.value() == func_name) {
-        Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
-        new_module->Update(func_pr.first, f_after_bind);
+      if (relax_f->GetLinkageType() == LinkageType::kExternal) {
+        // Use global_symbol if it's external linkage
+        Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        if (gsymbol.defined() && gsymbol.value() == func_name) {
+          Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
+          new_module->Update(func_pr.first, f_after_bind);
+        }
+      } else {
+        // Use global var's name_hint if it's internal linkage
+        if (func_pr.first->name_hint == func_name) {
+          Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
+          new_module->Update(func_pr.first, f_after_bind);
+        }
       }
     }
   }

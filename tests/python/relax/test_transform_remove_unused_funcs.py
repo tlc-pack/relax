@@ -22,11 +22,6 @@ from tvm import relax
 import tvm.script
 from tvm.script import tir as T, relax as R
 
-# TODO (sunggg):
-# Currently, parser sets each function name as the global symbol by default.
-# And printer uses the global symbol to print out the function name.
-# This is temproray and will improve in the future.
-
 
 def check_if_func_exists(mod, func_name):
     gvs = [str(gv) for gv in mod.get_global_vars()]
@@ -61,16 +56,6 @@ def test_unused_relax_func():
 
     mod = InputModule
     assert mod
-    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
-    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
-    assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_add")
-    assert check_if_func_exists(new_mod, "unused_func")
-
-    # Remove global symbol from the function.
-    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
-
-    # Then, this removes the unused function without any global symbol.
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "tir_add")
@@ -106,17 +91,7 @@ def test_unused_relax_func_custom_entry_func():
     mod = InputModule
     assert mod
 
-    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
     # Test entry function other than "main".
-    new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
-    assert check_if_func_exists(new_mod, "foo")
-    assert check_if_func_exists(new_mod, "tir_add")
-    assert check_if_func_exists(new_mod, "unused_func")
-
-    # Remove global symbol from the function.
-    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
-
-    # Then, this removes the unused function without any global symbol.
     new_mod = relax.transform.RemoveUnusedFunctions(entry_functions=["foo"])(mod)
     assert check_if_func_exists(new_mod, "foo")
     assert check_if_func_exists(new_mod, "tir_add")
@@ -152,16 +127,6 @@ def test_unused_relax_func_symbolic_shape():
     mod = InputModule
     assert mod
 
-    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
-    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
-    assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_add")
-    assert check_if_func_exists(new_mod, "unused_func")
-
-    # Remove global symbol from the unused function
-    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
-    # Remove unused function before shape lowering.
-    # Test entry function other than "main".
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "tir_add")
@@ -207,19 +172,11 @@ def test_unused_prim_func():
 
     mod = InputModule
     assert mod
-    # RemoveUnusedFunction pass won't remove the function with global symbol for the external reference.
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "relax_add")
+    # RemoveUnusedFunction pass won't remove the function with global symbol for the external linkage.
     assert check_if_func_exists(new_mod, "unused_func")
-
-    # Remove global symbol from the unused function
-    mod["unused_func"] = mod["unused_func"].without_attr("global_symbol")
-
-    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
-    assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "relax_add")
-    assert not check_if_func_exists(new_mod, "unused_func")
 
 
 def test_multiple_unused_funcs():
@@ -254,16 +211,8 @@ def test_multiple_unused_funcs():
 
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
+    # RemoveUnusedFunction pass won't remove the function with global symbol for the external linkage.
     assert check_if_func_exists(new_mod, "unused_func1")
-    assert check_if_func_exists(new_mod, "unused_func2")
-
-    # Remove global symbol from unused functions
-    mod["unused_func1"] = mod["unused_func1"].without_attr("global_symbol")
-    mod["unused_func2"] = mod["unused_func2"].without_attr("global_symbol")
-
-    new_mod = relax.transform.RemoveUnusedFunctions()(mod)
-    assert check_if_func_exists(new_mod, "main")
-    assert not check_if_func_exists(new_mod, "unused_func1")
     assert not check_if_func_exists(new_mod, "unused_func2")
 
 

@@ -75,7 +75,7 @@ def test_simple_module():
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"global_symbol": "tir_func", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.block():
                     vi, vj = T.axis.remap("SS", [i, j])

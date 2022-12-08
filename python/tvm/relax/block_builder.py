@@ -355,6 +355,8 @@ class BlockBuilder(Object):
         inputs = [*te_args] + outs
         tir_func = tvm.te.create_prim_func(inputs, unbound_tir_vars, "int64")
 
+        tir_func = tir_func.without_attr("global_symbol")
+
         if primfunc_name_hint:
             gvar = self.add_func(tir_func, primfunc_name_hint)
         else:
@@ -434,7 +436,7 @@ class BlockBuilder(Object):
                 def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
                             var_compute: T.handle) -> None:
                     # function attr dict
-                    T.func_attr({"global_symbol": "te_func"})
+                    T.func_attr({"tir.noalias": True})
                     m = T.var("int64")
                     n = T.var("int64")
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
@@ -482,8 +484,6 @@ class BlockBuilder(Object):
             class Module:
                 @T.prim_func
                 def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
-                    # function attr dict
-                    T.func_attr({"global_symbol": "te_func"})
                     rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
                                                    dtype="float32")
                     compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
@@ -592,7 +592,6 @@ class BlockBuilder(Object):
         # TODO(@yuchen): handle the case where the body's checked_type_ is null
         # TODO: Deduce the ret shape too
         func = rx.Function(self._func_params, seqe, None, rx.RuntimeDepShape())
-        func = func.with_attr("global_symbol", self._func_name)
         for key, value in self._func_attrs.items():
             func = func.with_attr(key, value)
         self.add_func(func, self._func_name)

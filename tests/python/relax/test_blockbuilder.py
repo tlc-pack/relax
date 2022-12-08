@@ -122,7 +122,6 @@ def test_function_multi_blocks():
     assert gv2.checked_type.dtype == "float16"
     assert func.params[0] == x
     assert func.params[1] == y
-    assert func.attrs["global_symbol"] == "func"
     assert func.body.body == gv2
     assert len(func.body.blocks) == 3
     assert len(func.body.blocks[0].bindings) == 2
@@ -158,12 +157,10 @@ def test_multi_functions():
     func1 = mod["func1"]
     assert func1.params[0] == x
     assert func1.params[1] == y
-    assert func1.attrs["global_symbol"] == "func1"
     assert len(func1.body.blocks) == 1
     func2 = mod["func2"]
     assert func2.params[0] == x
     assert func2.params[1] == y
-    assert func2.attrs["global_symbol"] == "func2"
     assert len(func2.body.blocks) == 1
 
 
@@ -392,7 +389,6 @@ def test_call_te():
     assert rx_func.params[0] == x
     assert rx_func.params[1] == y
     assert rx_func.params[2] == z
-    assert rx_func.attrs["global_symbol"] == "rx_func"
     assert rx_func.body.body == out
     assert len(rx_func.body.blocks) == 1
     assert len(rx_func.body.blocks[0].bindings) == 1
@@ -434,7 +430,6 @@ def test_emit_te():
     assert rx_func.params[0] == x
     assert rx_func.params[1] == y
     assert rx_func.params[2] == z
-    assert rx_func.attrs["global_symbol"] == "rx_func"
     assert rx_func.body.body == out
     assert len(rx_func.body.blocks) == 1
     assert len(rx_func.body.blocks[0].bindings) == 1
@@ -501,7 +496,6 @@ def test_emit_te_multiple_output():
 
     # check call tir output shape is a Tuple of ShapeExpr
     assert rx_func.params[0] == x
-    assert rx_func.attrs["global_symbol"] == "rx_func"
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert call_node.op == relay.op.get("relax.call_tir")
     assert call_node.args[0].name_hint == "te_func"
