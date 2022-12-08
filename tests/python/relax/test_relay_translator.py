@@ -99,6 +99,8 @@ def verify_e2e_translation(target_str, layout, batch_size, image_shape):
     input_shape = (1, *image_shape)
     data = tvm.nd.array(np.random.rand(*input_shape).astype(np.float32), dev)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
+    assert relax_mod["main"].attrs["global_symbol"] == "main"
+
     _, _, relay_out = relay_build_and_run(relay_mod, target, dev, params, data)
     _, _, relax_out = relax_build_and_run(relax_mod, target, dev, params, data)
     tvm.testing.assert_allclose(relay_out, relax_out, atol=1e-5, rtol=1e-5)

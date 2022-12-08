@@ -64,13 +64,12 @@ void FunctionFrameNode::ExitWithScope() {
     // TODO(relax-team): enable the following line when fixing ret_shape issue in block builder
     // func_shape = tvm::relax::DeriveFuncRetShape(params, body);
   }
+  auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_type=*/ret_type.value_or(Type()),
                             /*ret_shape=*/func_shape,
-                            /*attrs=*/DictAttrs(attrs));
-  // TODO(relax-team): remove this line
-  func = WithAttr(func, "global_symbol", name.value());
+                            /*attrs=*/dict_attrs);
   // Step 2: Update IRModule.
   if (builder->frames.empty()) {
     // Case 0. No outer frame, return function directly

@@ -522,8 +522,6 @@ class FusedTIRConstructor : public ExprVisitor {
     Map<String, ObjectRef> attr_map;
     attr_map.Set("tir.noalias", tir::const_true());
     ICHECK(func_info_.global_name != "fused");
-    // TODO(relax-team): remove global_symbol later.
-    attr_map.Set("global_symbol", String(func_info_.global_name));
     // Remove output buffers from func_info_.alloc_buffers
     Array<tir::Buffer> alloc_buffers;
     for (const tir::Buffer& buf : func_info_.alloc_buffers) {

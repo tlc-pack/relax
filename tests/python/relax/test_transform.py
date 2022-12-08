@@ -489,7 +489,8 @@ def test_normalize_function():
         ret_type=type_anno,
         ret_shape=relax.RuntimeDepShape(),
     )
-    mul_add = mul_add.with_attr("global_symbol", "mul_add")
+
+    # Note: from_expr api names private function (function without global_symbol) as "main"
     before_mod = tvm.IRModule.from_expr(mul_add)
 
     after_mod = relax.transform.Normalize()(before_mod)
@@ -502,7 +503,7 @@ def test_normalize_function():
             gv1 = R.add(x, x)
             return R.multiply(gv, gv1)
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], Expected["mul_add"])
 
 
 def test_normalize_if():
@@ -536,7 +537,6 @@ def test_normalize_if():
         ret_shape=relax.RuntimeDepShape(),
     )
 
-    f = f.with_attr("global_symbol", "f")
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
@@ -556,7 +556,7 @@ def test_normalize_if():
                 y = R.add(gv, gv1)
             return y
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], Expected["f"])
 
 
 def test_normalize_no_op():
@@ -602,7 +602,6 @@ def test_normalize_seq_body():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
@@ -616,7 +615,7 @@ def test_normalize_seq_body():
             z = R.add(x, y)
             return z
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], Expected["f"])
 
 
 def test_normalize_func_body():
@@ -629,7 +628,6 @@ def test_normalize_func_body():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
@@ -643,7 +641,7 @@ def test_normalize_func_body():
             z = R.add(x, y)
             return z
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], Expected["f"])
 
 
 def test_normalize_if_branches():
@@ -664,7 +662,6 @@ def test_normalize_if_branches():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
@@ -685,7 +682,7 @@ def test_normalize_if_branches():
                 z = w
             return z
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], Expected["f"])
 
 
 def test_normalize_if_condition():
@@ -717,7 +714,6 @@ def test_normalize_if_condition():
         ret_type=relax.DynTensorType(1, "float32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
@@ -736,7 +732,7 @@ def test_normalize_if_condition():
                 y = gv
             return y
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], Expected["f"])
 
 
 def test_normalize_tuple_get_item():

@@ -82,5 +82,4 @@ def test_lowering_gpu(target_str="nvidia/nvidia-t4"):
 
 
 if __name__ == "__main__":
-    test_lowering_cpu()
-    test_lowering_gpu()
+    tvm.testing.main()
