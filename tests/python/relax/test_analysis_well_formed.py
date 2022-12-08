@@ -99,6 +99,21 @@ def test_dataflow_var():
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
+def test_param_var():
+    v0 = rx.Var("v0", R.Tensor([m, n], "float32"))
+    v1 = rx.Var("v1", R.Tensor([m, n], "float32"))
+    v2 = rx.Var("v2", R.Tensor([m, n], "float32"))
+    bb = rx.BlockBuilder()
+    with bb.function("func1", [v0, v1]):
+        gv0 = bb.emit(rx.op.add(v0, v1))
+        bb.emit_func_output(gv0)
+    with bb.function("func2", [v0, v2]):
+        gv0 = bb.emit(rx.op.add(v2, v1))
+        bb.emit_func_output(gv0)
+    mod = bb.get()
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
+
+
 def test_global_var():
     # Error: GlobalVar GlobalVar0 is not defined
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))

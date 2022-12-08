@@ -64,6 +64,8 @@
 
 #include <unordered_set>
 
+#include "../../printer/text_printer.h"
+
 namespace tvm {
 namespace relax {
 
@@ -215,6 +217,15 @@ class WellFormedChecker : public relax::ExprVisitor,
     // check all expr are well defined.
     for (Var param : op->params) {
       this->VisitVarDef(param);
+
+      if (param_var_func_map_.count(param) == 1) {
+        Malformed(Diagnostic::Error(param->span)
+                  << "Relax variable " << param->name_hint()
+                  << " is repeatedly used as parameters in function:\n"
+                  << AsRelaxScript(param_var_func_map_[param], false) << "\nand function:\n"
+                  << AsRelaxScript(GetRef<Function>(op), false));
+      }
+      param_var_func_map_.insert({param, GetRef<Function>(op)});
     }
 
     if (auto seq = op->body.as<SeqExprNode>()) {
@@ -440,6 +451,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
+  std::unordered_map<Var, Function, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
 };
 
 bool WellFormed(IRModule m, bool check_struct_info) {
