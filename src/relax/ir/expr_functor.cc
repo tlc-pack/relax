@@ -28,7 +28,54 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
-#include <tvm/relay/pattern_functor.h>
+
+// functions to be overriden.
+#define RELAX_VISIT_BINDING_DISPATCH(OP)                                   \
+  vtable.template set_dispatch<OP>(                                        \
+      [](const ObjectRef& n, TSelf* self, const VarBindingNode* binding) { \
+        self->VisitBinding_(binding, static_cast<const OP*>(n.get()));     \
+      });
+
+#define RELAX_VAR_BINDING_DISPATCH_IMPL(Type)                                        \
+  Type::VisitBindingVTable Type::InitVisitBindingVTable() {                          \
+    VisitBindingVTable vtable;                                                       \
+    RELAX_VISIT_BINDING_DISPATCH(ConstantNode);                                      \
+    RELAX_VISIT_BINDING_DISPATCH(TupleNode);                                         \
+    RELAX_VISIT_BINDING_DISPATCH(VarNode);                                           \
+    RELAX_VISIT_BINDING_DISPATCH(DataflowVarNode);                                   \
+    RELAX_VISIT_BINDING_DISPATCH(ShapeExprNode);                                     \
+    RELAX_VISIT_BINDING_DISPATCH(ExternFuncNode);                                    \
+    RELAX_VISIT_BINDING_DISPATCH(GlobalVarNode);                                     \
+    RELAX_VISIT_BINDING_DISPATCH(FunctionNode);                                      \
+    RELAX_VISIT_BINDING_DISPATCH(CallNode);                                          \
+    RELAX_VISIT_BINDING_DISPATCH(SeqExprNode);                                       \
+    RELAX_VISIT_BINDING_DISPATCH(IfNode);                                            \
+    RELAX_VISIT_BINDING_DISPATCH(OpNode);                                            \
+    RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                  \
+    return vtable;                                                                   \
+  }                                                                                  \
+  void Type::VisitBinding_(const VarBindingNode* binding) {                          \
+    static VisitBindingVTable vtable = InitVisitBindingVTable();                     \
+    const Expr& value = binding->value;                                              \
+    ICHECK(value.defined()) << "Found null pointer node while traversing AST.";      \
+    ICHECK(vtable.can_dispatch(value))                                               \
+        << "VisitVarBinding do not allow binding value type" << value->GetTypeKey(); \
+    vtable(value, this, binding);                                                    \
+  }
+
+// functions to be overriden.
+#define RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OP)                                   \
+  void ExprVisitor::VisitBinding_(const VarBindingNode* binding, const OP* value) { \
+    this->VisitExpr(binding->value);                                                \
+    this->VisitVarDef(binding->var);                                                \
+  }
+
+// functions to be overriden.
+#define RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OP)                                   \
+  void ExprMutator::VisitBinding_(const VarBindingNode* binding, const OP* value) { \
+    Expr new_value = this->VisitExpr(binding->value);                               \
+    this->ReEmitBinding(binding, new_value);                                        \
+  }
 
 namespace tvm {
 namespace relax {
@@ -123,10 +170,21 @@ void ExprVisitor::VisitType(const Type& t) {}
 
 void ExprVisitor::VisitSpan(const Span& span) {}
 
-void ExprVisitor::VisitBinding_(const VarBindingNode* binding) {
-  this->VisitExpr(binding->value);
-  this->VisitVarDef(binding->var);
-}
+// implementations of binding visitor dispatch
+RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(VarNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataflowVarNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ShapeExprNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ExternFuncNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(GlobalVarNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(FunctionNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(CallNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(SeqExprNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(IfNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 
 void ExprVisitor::VisitBinding_(const MatchShapeNode* binding) {
   this->VisitExpr(binding->value);
@@ -468,8 +526,22 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
   }
 }
 
-void ExprMutator::VisitBinding_(const VarBindingNode* binding) {
-  Expr new_value = this->VisitExpr(binding->value);
+RELAX_VAR_BINDING_DISPATCH_IMPL(ExprMutator);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(VarNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataflowVarNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ShapeExprNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ExternFuncNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(GlobalVarNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(FunctionNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(CallNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(SeqExprNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(IfNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
+
+void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);
 
   auto emit = [this](VarBinding b) {
