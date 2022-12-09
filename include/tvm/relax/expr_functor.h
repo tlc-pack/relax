@@ -214,7 +214,21 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   // specific leaf level visitor functions
   virtual void VisitBinding_(const VarBindingNode* binding);
   virtual void VisitBinding_(const MatchShapeNode* binding);
-
+  // second level dispatching based on binding value type.
+  // these dispatching functions get called from first-level dispatch on VarBinding
+  virtual void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const TupleNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const VarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const ShapeExprNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const ExternFuncNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const GlobalVarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const CallNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const SeqExprNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const IfNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const OpNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
   /*!
    * \brief Generic dispatcher for binding blocks.
    * \param block The binding block to be visited.
@@ -236,6 +250,13 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
 
   virtual void VisitType(const Type& t);
   virtual void VisitSpan(const Span& span);
+
+ private:
+  using TSelf = ExprVisitor;
+  using VisitBindingVTable =
+      tvm::NodeFunctor<void(const ObjectRef& n, ExprVisitor* self, const VarBindingNode* binding)>;
+  // initialize the vtable.
+  static VisitBindingVTable InitVisitBindingVTable();
 };
 
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
@@ -311,7 +332,21 @@ class ExprMutator : public ExprMutatorBase {
   // specific leaf level visitor functions
   virtual void VisitBinding_(const VarBindingNode* binding);
   virtual void VisitBinding_(const MatchShapeNode* binding);
-
+  // second level dispatching based on binding value type.
+  // these dispatching functions get called from first-level dispatch on VarBinding
+  virtual void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const TupleNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const VarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const ShapeExprNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const ExternFuncNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const GlobalVarNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const CallNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const SeqExprNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const IfNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const OpNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
   /*!
    * \brief Generic dispatcher for binding blocks.
    * \param block The binding block to be visited.
@@ -335,6 +370,19 @@ class ExprMutator : public ExprMutatorBase {
 
  protected:
   class ExprNormalizer;
+
+  /*!
+   * \brief Try to remit binding and bind it to a new_value
+   *
+   * This function is called after VisitExpr(binding->value) in
+   * VisitBinding_(const VarBinding*).
+   * It will try to reuse the current binding when the new value's shape/type
+   * matches the original binding and no changes in var is needed.
+   *
+   * Otherwise, a new binding will be emitted to replace the var specified in
+   * the current binding.
+   */
+  void ReEmitBinding(const VarBindingNode* binding, Expr new_value);
 
   /*!
    * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
@@ -377,6 +425,13 @@ class ExprMutator : public ExprMutatorBase {
 
   /*! \brief Remap a var to a new var in use-site. */
   std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+
+ private:
+  using TSelf = ExprMutator;
+  using VisitBindingVTable =
+      tvm::NodeFunctor<void(const ObjectRef& n, ExprMutator* self, const VarBindingNode* binding)>;
+  // initialize the vtable.
+  static VisitBindingVTable InitVisitBindingVTable();
 };
 
 /*!
