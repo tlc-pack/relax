@@ -33,6 +33,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/function.h>
 
 #include <deque>
 #include <string>
@@ -151,6 +152,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tir::PrimFuncNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;
@@ -159,6 +161,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
  private:
   // initialize the vtable.
   static FType InitVTable() {
+    using tir::PrimFuncNode;
+
     FType vtable;
     // Set dispatch
     RELAX_EXPR_FUNCTOR_DISPATCH(ConstantNode);
@@ -175,6 +179,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(IfNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(PrimFuncNode);
     return vtable;
   }
 };
@@ -369,8 +374,6 @@ class ExprMutator : public ExprMutatorBase {
   virtual Var VisitVarDef_(const DataflowVarNode* var);
 
  protected:
-  class ExprNormalizer;
-
   /*!
    * \brief Try to remit binding and bind it to a new_value
    *
