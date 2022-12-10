@@ -33,6 +33,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/function.h>
 
 #include <deque>
 #include <string>
@@ -137,6 +138,8 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
+  // NOTE: cross dialect calls are invoked through global var
+  // We do not expect inline PrimFunc to appear in relax IR.
   virtual R VisitExpr_(const ConstantNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -369,8 +372,6 @@ class ExprMutator : public ExprMutatorBase {
   virtual Var VisitVarDef_(const DataflowVarNode* var);
 
  protected:
-  class ExprNormalizer;
-
   /*!
    * \brief Try to remit binding and bind it to a new_value
    *
