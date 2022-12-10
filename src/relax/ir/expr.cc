@@ -18,6 +18,7 @@
  */
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type_analysis.h>
 
 namespace tvm {
@@ -246,6 +247,7 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
   n->span = span;
   n->shape_ = NullOpt;
   n->checked_type_ = ShapeType();
+  n->struct_info_ = ShapeStructInfo(values, span);
   data_ = std::move(n);
 }
 

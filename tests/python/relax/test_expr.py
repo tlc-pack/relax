@@ -136,6 +136,8 @@ def test_shape_expr() -> None:
     assert s.values[0] == m
     assert s.values[1] == n
 
+    assert isinstance(s.struct_info, rx.ShapeStructInfo)
+
 
 def test_func():
     type_anno = rx.DynTensorType(2, "float32")

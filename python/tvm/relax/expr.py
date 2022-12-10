@@ -478,3 +478,7 @@ def _update_type(expr: Expr, type: Type) -> None:
 
 def _update_shape(expr: Expr, shape: Optional[tvm.runtime.Object]) -> None:
     _ffi_api.UpdateShape(expr, shape)  # type: ignore
+
+
+def _update_struct_info(expr: Expr, struct_info: Optional["StructInfo"]) -> None:
+    _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore

@@ -376,6 +376,14 @@ class RelayExprNode : public BaseExprNode {
    */
   mutable Optional<ObjectRef> shape_ = Optional<ObjectRef>();
 
+
+  /*!
+   * \brief Stores the result of structure information of the
+   *        expression that encapsulate both static shape and
+   *        runtime information such as shape.
+   */
+  mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
+
   /*!
    * \return The checked_type
    */

@@ -62,6 +62,17 @@ class RelayExpr(BaseExpr):
         """
         return _ffi_api.RelayExprShape(self)
 
+    @property
+    def struct_info(self):
+        """Get the struct info field
+
+        Returns
+        -------
+        struct_info : tvm.relax.StructInfo
+            The struct info if available.
+        """
+        return _ffi_api.ExprStructInfo(self)
+
 
 @tvm._ffi.register_object("GlobalVar")
 class GlobalVar(RelayExpr):
