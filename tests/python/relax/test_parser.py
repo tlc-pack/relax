@@ -238,7 +238,7 @@ def test_if():
     body = ite.true_branch.body
     assert w_bind.var.name_hint == "w"
     check_call(w_bind.value, "relax.add", [x, x])
-    body_bind = ite.true_branch.blocks[1].bindings[0]
+    body_bind = ite.true_branch.blocks[0].bindings[1]
     check_call(body_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
     assert ite.true_branch.body == body_bind.var
 
@@ -246,7 +246,7 @@ def test_if():
     body = ite.false_branch.body
     assert w_bind.var.name_hint == "w"
     check_call(w_bind.value, "relax.multiply", [x, x])
-    body_bind = ite.false_branch.blocks[1].bindings[0]
+    body_bind = ite.false_branch.blocks[0].bindings[1]
     check_call(body_bind.value, "relax.add", [w_bind.var, w_bind.var])
     assert ite.false_branch.body == body_bind.var
 
