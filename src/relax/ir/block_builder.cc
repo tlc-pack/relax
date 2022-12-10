@@ -207,7 +207,6 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     bool unchanged = true;
     Array<BindingBlock> new_blocks;
     for (const BindingBlock& block : op->blocks) {
-      // TODO(@altanh): we could merge sequential non-dataflow BindingBlocks here
       BindingBlock new_block = this->VisitBindingBlock(block);
       new_blocks.push_back(new_block);
       unchanged &= new_block.same_as(block);
@@ -219,18 +218,20 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     unchanged &= new_body.same_as(op->body);
     BindingBlock prologue = builder_->EndBlock();
 
-    // TODO(@altanh, @yuchen): normalize nested SeqExprs and BindingBlocks
-
     if (!prologue->bindings.empty()) {
       new_blocks.push_back(prologue);
       unchanged = false;
     }
 
+    // Combine nearby blocks if possible
+    Array<BindingBlock> normalized_blocks = NormalizeBlocks(new_blocks);
+    unchanged &= normalized_blocks.same_as(new_blocks);
+
     SeqExpr seq_expr;
     if (unchanged) {
       seq_expr = GetRef<SeqExpr>(op);
     } else {
-      seq_expr = SeqExpr(new_blocks, new_body);
+      seq_expr = SeqExpr(normalized_blocks, new_body);
     }
 
     // only do shape/type inference if the SeqExpr does not have shape/type
@@ -657,6 +658,41 @@ class BlockBuilderNode::ExprNormalizer : public ExprFunctor<Expr(const Expr&)> {
     auto seq = SeqExpr(bindings, post);
     // visit in case post is not a leaf and we need to bind it too
     return this->VisitExpr(seq);
+  }
+
+  Array<BindingBlock> NormalizeBlocks(const Array<BindingBlock>& blocks) {
+    bool changed = false;
+    Array<BindingBlock> ret;
+    for (const BindingBlock& block : blocks) {
+      if (block->bindings.empty()) {
+        // Case 1. Skip empty blocks
+        changed = true;
+      } else if (!ret.empty() && ret.back()->type_index() == block->type_index()) {
+        // Case 2. Merge with previous block if possible
+        BindingBlock merged;
+        // NOTE: should check DataflowBlockNode first.
+        if (const auto* dataflow_block = ret.back().as<DataflowBlockNode>()) {
+          auto n = make_object<DataflowBlockNode>(*dataflow_block);
+          n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
+          merged = DataflowBlock(n);
+        } else if (const auto* binding_block = ret.back().as<BindingBlockNode>()) {
+          auto n = make_object<BindingBlockNode>(*binding_block);
+          n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
+          merged = BindingBlock(n);
+        } else {
+          LOG(FATAL) << "Unknown block type: " << ret.back()->GetTypeKey();
+        }
+        ret.pop_back();
+        ret.push_back(merged);
+        changed = true;
+      } else if (false) {
+        // Case 3. TODO(@Hzfengsy): normalize nested SeqExprs and BindingBlocks
+      } else {
+        // Case 4. Add to the result
+        ret.push_back(block);
+      }
+    }
+    return changed ? ret : blocks;
   }
 
   Expr Bind(const Expr& expr) {
