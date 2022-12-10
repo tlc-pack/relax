@@ -40,20 +40,19 @@ def test_normalize_function():
         ret_type=type_anno,
         ret_shape=relax.RuntimeDepShape(),
     )
-    mul_add = mul_add.with_attr("global_symbol", "mul_add")
+
+    # Note: from_expr api names private function (function without global_symbol) as "main"
     before_mod = tvm.IRModule.from_expr(mul_add)
 
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def mul_add(x: R.Tensor(("m", "n"), "float16")) -> R.Tensor(dtype="float16", ndim=2):
-            gv = R.add(x, x)
-            gv1 = R.add(x, x)
-            return R.multiply(gv, gv1)
+    @R.function
+    def expected(x: R.Tensor(("m", "n"), "float16")) -> R.Tensor(dtype="float16", ndim=2):
+        gv = R.add(x, x)
+        gv1 = R.add(x, x)
+        return R.multiply(gv, gv1)
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 def test_normalize_if():
@@ -87,27 +86,24 @@ def test_normalize_if():
         ret_shape=relax.RuntimeDepShape(),
     )
 
-    f = f.with_attr("global_symbol", "f")
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def f(
-            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
-        ) -> R.Tensor(dtype="float32", ndim=1):
-            if cond:
-                gv = R.add(x, x)
-                gv1 = R.add(x, x)
-                y = R.multiply(gv, gv1)
-            else:
-                gv = R.multiply(x, x)
-                gv1 = R.multiply(x, x)
-                y = R.add(gv, gv1)
-            return y
+    @R.function
+    def expected(
+        cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+    ) -> R.Tensor(dtype="float32", ndim=1):
+        if cond:
+            gv = R.add(x, x)
+            gv1 = R.add(x, x)
+            y = R.multiply(gv, gv1)
+        else:
+            gv = R.multiply(x, x)
+            gv1 = R.multiply(x, x)
+            y = R.add(gv, gv1)
+        return y
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 def test_normalize_no_op():
@@ -153,21 +149,19 @@ def test_normalize_seq_body():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
+
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def f(
-            x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
-        ) -> R.Tensor(ndim=0, dtype="int32"):
-            # normalization inserts a binding like this
-            z = R.add(x, y)
-            return z
+    @R.function
+    def expected(
+        x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
+    ) -> R.Tensor(ndim=0, dtype="int32"):
+        # normalization inserts a binding like this
+        z = R.add(x, y)
+        return z
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 def test_normalize_func_body():
@@ -180,21 +174,19 @@ def test_normalize_func_body():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
+
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def f(
-            x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
-        ) -> R.Tensor(ndim=0, dtype="int32"):
-            # result will be a seq expr where the body is a var
-            z = R.add(x, y)
-            return z
+    @R.function
+    def expected(
+        x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
+    ) -> R.Tensor(ndim=0, dtype="int32"):
+        # result will be a seq expr where the body is a var
+        z = R.add(x, y)
+        return z
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 def test_normalize_if_branches():
@@ -215,28 +207,26 @@ def test_normalize_if_branches():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
+
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def f(
-            cond: R.Tensor((), dtype="bool"),
-            x: R.Tensor((), dtype="int32"),
-            y: R.Tensor((), dtype="int32"),
-        ) -> R.Tensor(ndim=0, dtype="int32"):
-            # the bodies of the branches will be seq exprs with a binding
-            if cond:
-                w = R.add(x, y)
-                z = w
-            else:
-                w = R.multiply(x, y)
-                z = w
-            return z
+    @R.function
+    def expected(
+        cond: R.Tensor((), dtype="bool"),
+        x: R.Tensor((), dtype="int32"),
+        y: R.Tensor((), dtype="int32"),
+    ) -> R.Tensor(ndim=0, dtype="int32"):
+        # the bodies of the branches will be seq exprs with a binding
+        if cond:
+            w = R.add(x, y)
+            z = w
+        else:
+            w = R.multiply(x, y)
+            z = w
+        return z
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 def test_normalize_if_condition():
@@ -268,26 +258,24 @@ def test_normalize_if_condition():
         ret_type=relax.DynTensorType(1, "float32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
+
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def f(
-            cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
-        ) -> R.Tensor(dtype="float32", ndim=1):
-            c = R.TupleGetItem(R.Tuple(cond), 0)
-            if c:
-                gv = R.add(x, x)
-                y = gv
-            else:
-                gv = R.multiply(x, x)
-                y = gv
-            return y
+    @R.function
+    def expected(
+        cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
+    ) -> R.Tensor(dtype="float32", ndim=1):
+        c = R.TupleGetItem(R.Tuple(cond), 0)
+        if c:
+            gv = R.add(x, x)
+            y = gv
+        else:
+            gv = R.multiply(x, x)
+            y = gv
+        return y
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 def test_normalize_tuple_get_item():
@@ -304,7 +292,7 @@ def test_normalize_tuple_get_item():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    f = f.with_attr("global_symbol", "f")
+
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
@@ -335,7 +323,6 @@ def test_normalize_tuple_get_item():
         ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
         ret_shape=relax.RuntimeDepShape(),
     )
-    expected_f = expected_f.with_attr("global_symbol", "f")
     expected_mod = tvm.IRModule.from_expr(expected_f)
     # apply normalization to fill in type and shape annotations (tedious otherwise)
     final_mod = relax.transform.Normalize()(expected_mod)
@@ -364,22 +351,19 @@ def test_normalize_combine_nearby_blocks():
         ret_shape=relax.RuntimeDepShape(),
     )
 
-    f = f.with_attr("global_symbol", "f")
     after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
 
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def f(x: R.Tensor((), "int32")):
-            with R.dataflow():
-                v0 = x
-                v1 = v0
-                R.output(v0, v1)
-            v2 = v1
-            v3 = v2
-            return v3
+    @R.function
+    def expected(x: R.Tensor((), "int32")):
+        with R.dataflow():
+            v0 = x
+            v1 = v0
+            R.output(v0, v1)
+        v2 = v1
+        v3 = v2
+        return v3
 
-    assert_structural_equal(after_mod, Expected)
+    assert_structural_equal(after_mod["main"], expected)
 
 
 if __name__ == "__main__":

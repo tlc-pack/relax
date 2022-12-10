@@ -434,5 +434,4 @@ def test_func_type():
 
 
 if __name__ == "__main__":
-    test_if()
     pytest.main([__file__])

@@ -378,16 +378,16 @@ def test_vm_shape_lowering():
     assert isinstance(s1.op, relax.ExternFunc)
     assert s1.op.global_symbol == "vm.builtin.alloc_shape_heap"
     assert s1.args[0].values[0] == 4
-    s2 = func.body.blocks[1].bindings[0].value
+    s2 = func.body.blocks[0].bindings[1].value
     assert isinstance(s2.op, relax.ExternFunc)
     assert s2.op.global_symbol == "vm.builtin.shape_of"
-    s3 = func.body.blocks[1].bindings[1].value
+    s3 = func.body.blocks[0].bindings[2].value
     assert isinstance(s3, tvm.relay.Call)
     assert s3.op.name == "relax.vm.builtin.store_shape"
-    s4 = func.body.blocks[2].bindings[0].value
+    s4 = func.body.blocks[0].bindings[3].value
     assert isinstance(s4.op, relax.GlobalVar)
     assert s4.op.name_hint == "shape_func"
-    s5 = func.body.blocks[2].bindings[1].value
+    s5 = func.body.blocks[0].bindings[4].value
     assert isinstance(s5, tvm.relay.Call)
     assert s5.op.name == "relax.vm.builtin.load_shape"
 
