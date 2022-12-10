@@ -75,7 +75,6 @@ def test_match_shape():
     check_roundtrip(foo)
 
 
-@pytest.mark.skip(reason="fix me by merging nearby binding blocks")
 def test_if():
     @R.function
     def foo(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor:
@@ -435,4 +434,5 @@ def test_func_type():
 
 
 if __name__ == "__main__":
+    test_if()
     pytest.main([__file__])
