@@ -696,8 +696,8 @@ class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
 
     if (!op->shape_.defined()) {
       if (new_true->shape_ && new_false->shape_ &&
-          this->ShapeUnchanged(Downcast<Expr>(new_true->shape_.value()),
-                               Downcast<Expr>(new_false->shape_.value()))) {
+          this->ShapeStructEqual(Downcast<Expr>(new_true->shape_.value()),
+                                 Downcast<Expr>(new_false->shape_.value()))) {
         UpdateShape(if_node, new_true->shape_);
       } else {
         UpdateShape(if_node, RuntimeDepShape());
@@ -784,7 +784,7 @@ class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
   }
 
  private:
-  bool ShapeUnchanged(const Expr& lhs, const Expr& rhs) { return CanProveShapeEqual(lhs, rhs); }
+  bool ShapeStructEqual(const Expr& lhs, const Expr& rhs) { return CanProveShapeEqual(lhs, rhs); }
 
   // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape
   bool IsConstantShapes(const Expr& shape) const {
