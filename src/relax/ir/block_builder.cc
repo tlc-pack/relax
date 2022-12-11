@@ -398,7 +398,14 @@ class BlockBuilderImpl : public BlockBuilderNode {
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
 
-// Invariance: If an Expr have a shape_ field, it must have already been normalized.
+// Invariance assumption: If an Expr's shape_ is not null
+// then the Expr must have already been normalized.
+//
+// This would be the case if all the shape of leaf expr are set,
+// and normalizer is the primary location of setting shape.
+//
+// TODO(relax-team): check this assumption in wellform check
+// and report to pass writer.
 class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
                                       private ExprFunctor<Expr(const Expr&)> {
  public:
