@@ -494,7 +494,7 @@ class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
   Optional<Expr> GetTupleShape(const Tuple& tuple) {
     Array<Expr> tuple_shape;
     for (Expr field : tuple->fields) {
-      if (field->shape_) {
+      if (field->shape_.defined()) {
         tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
       } else {
         break;
