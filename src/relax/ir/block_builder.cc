@@ -398,18 +398,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
 #define RELAX_EXPR_NORMALIZER_LEAF(OP) \
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
 
-// Invariance assumption: If an Expr's shape_ is not null
-// then the Expr must have already been normalized.
-//
-// This would be the case if all the shape of leaf expr are set,
-// and normalizer is the primary location of setting shape.
-//
-// TODO(relax-team): check this assumption in wellform check
-// and report to pass writer.
-class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
-                                      private ExprFunctor<Expr(const Expr&)> {
+// TODO(relax-team): Check normalize logic after struct info.
+class Normalizer : public BlockBuilderImpl,
+                   private ExprFunctor<Expr(const Expr&)> {
  public:
-  explicit BlockBuilderImplWithNormalize(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
+  explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
 
   Expr Normalize(const Expr& expr) final {
     Expr normalized = this->VisitExpr(expr);
@@ -461,7 +454,6 @@ class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
-  RELAX_EXPR_NORMALIZER_LEAF(tir::PrimFuncNode);
 
   template <typename T>
   Expr VisitVar_(const typename T::ContainerType* var) {
@@ -1052,7 +1044,7 @@ class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
 
 BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
   ObjectPtr<BlockBuilderNode> n =
-      make_object<BlockBuilderImplWithNormalize>(mod.value_or(IRModule()));
+      make_object<Normalizer>(mod.value_or(IRModule()));
   return BlockBuilder(n);
 }
 
