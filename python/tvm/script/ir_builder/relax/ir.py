@@ -21,9 +21,9 @@ import functools
 from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
-from tvm._ffi import register_object as _register_object
 from tvm.ir import Type
 from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
+from tvm.relax.struct_info import StructInfo, TensorStructInfo, get_type_shape_from_structure_info
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -40,7 +40,6 @@ from tvm.relax.op import (
     unique,
     memory,
 )
-from tvm.relax.ty import ObjectType, ShapeType, DynTensorType
 from tvm.relax.utils import convert_to_expr
 from tvm.runtime import Object as tvm_Object
 from tvm.tir import PrimExpr
@@ -51,19 +50,11 @@ from . import _ffi_api, frame
 ############################## Tensor Type ##############################
 
 
-@_register_object("script.ir_builder.relax.ShapedType")
-class ShapedType(tvm_Object):
-    """A temporary Tensor type for `R.Tensor` in ir_builder."""
-
-    type: DynTensorType
-    shape: Optional[Expr]
-
-
 def tensor(
     shape: Optional[List[Union[PrimExpr, str]]] = None,
     dtype: Optional[str] = None,
     ndim: int = -1,
-) -> ShapedType:
+) -> TensorStructInfo:
     """Helper function for `R.Tensor` in parser
     Parameters
     ----------
@@ -75,8 +66,8 @@ def tensor(
         The number of dimensions of the tensor. It's runtime dependent if `ndim` is -1.
     Returns
     -------
-    tensor_type: ShapedType
-        The ShapedType that is only used in ir_builder.
+    ret: TensorStructInfo
+        The result TensorStructInfo
     """
 
     if shape is not None:
@@ -90,26 +81,10 @@ def tensor(
     return _ffi_api.Tensor(shape, dtype, ndim)  # pylint: disable=no-member # type: ignore
 
 
-def create_shaped_tuple(types: List[Type], shapes: List[Optional[Expr]]) -> ShapedType:
-    """Helper function for `R.Tuple` in parser
-    Parameters
-    ----------
-    types: List[Type]
-        The list of type of it's fields
-    shapes: List[Optional[Expr]]
-        The list of shape of it's fields.
-    Returns
-    -------
-    tuple_type: ShapedType
-        The ShapedType that is only used in ir_builder.
-    """
-    return _ffi_api.CreateShapedTuple(types, shapes)  # pylint: disable=no-member # type: ignore
-
-
 ############################## Other Types ##############################
 
-Object = ObjectType()  # pylint: disable=invalid-name
-Shape = ShapeType()  # pylint: disable=invalid-name
+Object = tvm.relax.ObjectStructInfo()  # pylint: disable=invalid-name
+Shape = tvm.relax.ShapeStructInfo()  # pylint: disable=invalid-name
 Void = TupleType([])  # pylint: disable=invalid-name
 
 ############################### Function ################################
@@ -125,14 +100,19 @@ def function() -> frame.FunctionFrame:
     return _ffi_api.Function()  # pylint: disable=no-member # type: ignore
 
 
-def arg(name: str, type: Union[Type, ShapedType], shape: Optional[ShapeExpr] = None) -> Var:
+def arg(
+    name: str,
+    type: Union[Type, StructInfo],
+    shape: Optional[ShapeExpr] = None,
+    struct_info: Optional[StructInfo] = None,
+) -> Var:
     """Add a parameter to the last function frame.
     Parameters
     ----------
     name: str
         The name of the parameter.
-    type: Union[Type, ShapedType]
-        The type of the parameter. It can be a typical TVM Type or a ShapedType,
+    type: Union[Type, StructInfo]
+        The type of the parameter. It can be a typical TVM Type or a StructInfo,
         which contains both type and shape
     shape: Optional[ShapeExpr]
         The shape of the parameter.
@@ -142,13 +122,14 @@ def arg(name: str, type: Union[Type, ShapedType], shape: Optional[ShapeExpr] = N
         The created function parameter var.
     """
 
-    if isinstance(type, ShapedType):
+    if isinstance(type, StructInfo):
         if shape is not None:
-            raise ValueError("Cannot specify the shape if we use ShapedType")
-        shape = type.shape
-        type = type.type
+            raise ValueError("Cannot specify the shape if we use StructInfo")
+        type, shape = get_type_shape_from_structure_info(type)
+    elif not isinstance(type, Type):
+        raise TypeError(f"Expect a Type or a StructInfo, but got {type}")
 
-    return _ffi_api.Arg(name, type, shape)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Arg(name, type, shape, struct_info)  # pylint: disable=no-member # type: ignore
 
 
 def func_name(name: str) -> None:
@@ -171,15 +152,17 @@ def func_attr(attrs: Dict[str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # pylint: disable=no-member # type: ignore
 
 
-def func_ret_type(ret_type: Union[ShapedType, Type]) -> None:
+def func_ret_type(ret_type: Union[StructInfo, Type]) -> None:
     """Specify the return type of the last function frame.
     Parameters
     ----------
-    ret_type: Union[ShapedType, Type]
+    ret_type: Union[StructInfo, Type]
         The function return type.
     """
-    if isinstance(ret_type, ShapedType):
-        ret_type = ret_type.type
+    if isinstance(ret_type, StructInfo):
+        ret_type, _ = get_type_shape_from_structure_info(ret_type)
+    elif not isinstance(ret_type, Type):
+        raise TypeError(f"Expect a Type or a StructInfo, but got {ret_type}")
     return _ffi_api.FuncRetType(ret_type)  # pylint: disable=no-member # type: ignore
 
 
@@ -233,7 +216,7 @@ def output(*vars: Tuple[Var]) -> None:
 def call_packed(
     func: str,
     *args: List[Expr],
-    type_args: Optional[Union[ShapedType, List[ShapedType]]] = None,
+    type_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
     **kwargs: Dict[str, Expr],
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -243,7 +226,7 @@ def call_packed(
         The name of extern function.
     args : List[Expr]
         The arguments.
-    type_args: Optional[Union[ShapedType, List[ShapedType]]]
+    type_args: Optional[Union[StructInfo, List[StructInfo]]]
         List of Types
     kwargs: Dict[str, Expr]
         The keyword arguments.
@@ -264,13 +247,13 @@ def call_packed(
     for i, argument in enumerate(type_args):
         if callable(argument):
             argument = argument()
-        if isinstance(argument, ShapedType):
-            type_args[i] = argument.type
+        if isinstance(argument, StructInfo):
+            type_args[i] = get_type_shape_from_structure_info(argument)[0]
         elif isinstance(argument, Type):
             type_args[i] = argument
         else:
             raise TypeError(
-                "call_packed `type_args` is expected to be list of ShapedType/Type, "
+                "call_packed `type_args` is expected to be list of StructInfo/Type, "
                 f"but got {type(arg)}"
             )
 
@@ -289,7 +272,7 @@ def call_packed(
 
 
 def _tensor_type_wrapper(func):
-    """A wrapper to convert builder.ShapedType to relax.DynTensorType"""
+    """A wrapper to convert StructInfo to relax.DynTensorType"""
 
     def _convert_tensor_type(args):
         if isinstance(args, (list, tuple)):
@@ -297,7 +280,7 @@ def _tensor_type_wrapper(func):
             return type(args)(new_args)
         if isinstance(args, dict):
             return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
-        return args.type if isinstance(args, ShapedType) else args
+        return get_type_shape_from_structure_info(args)[0] if isinstance(args, StructInfo) else args
 
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
@@ -349,7 +332,9 @@ def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool) -> Op
 ############################# Type Deduce ##############################
 
 
-def annotate_type_shape(var: Var, anno_type: Type, anno_shape: ShapeExpr) -> None:
+def annotate_type_shape(
+    var: Var, anno_type: Type, anno_shape: ShapeExpr, anno_sinfo: StructInfo
+) -> None:
     """Annotate and check the type of relax var.
     Parameters
     ----------
@@ -362,8 +347,11 @@ def annotate_type_shape(var: Var, anno_type: Type, anno_shape: ShapeExpr) -> Non
     anno_shape: ShapeExpr
         The annotated shape
 
+    anno_sinfo: StructInfo
+        The annotated struct info
+
     """
-    _ffi_api.AnnotateTypeShape(var, anno_type, anno_shape)
+    _ffi_api.AnnotateTypeShape(var, anno_type, anno_shape, anno_sinfo)
 
 
 def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
@@ -408,7 +396,6 @@ __all__ = [
     "If",
     "Object",
     "Shape",
-    "ShapedType",
     "Then",
     "TupleGetItem",
     "Void",
@@ -419,7 +406,6 @@ __all__ = [
     "call_packed",
     "call_tir",
     "const",
-    "create_shaped_tuple",
     "dataflow",
     "emit",
     "emit_match_shape",

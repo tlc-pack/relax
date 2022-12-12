@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=missing-docstring
 
-from typing import Any, Union
 import numbers
+from typing import Any, Optional, Tuple, Union
 
 from tvm import relax, tir
 from tvm.ir import Type
+from tvm.relax import StructInfo, Expr
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
@@ -28,7 +29,7 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair, Tensor, ShapedType
+from .entry import MatchShapePair, Tensor
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -107,17 +108,20 @@ def eval_shape_annotation(
         return None
 
 
-def eval_type_annotation(self: Parser, node: Union[doc.Expression, doc.expr]) -> Any:
-    type_annotation = self.eval_expr(node)
-    if callable(type_annotation):
-        type_annotation = Tensor()
-    if isinstance(type_annotation, ShapedType):
-        shape = eval_shape_annotation(self, node, type_annotation.shape)
-        return type_annotation.type, shape
+def eval_type_annotation(
+    self: Parser, node: Union[doc.Expression, doc.expr]
+) -> Tuple[Type, Optional[Expr], StructInfo]:
+    annotation = self.eval_expr(node)
+    if callable(annotation):
+        annotation = Tensor()
+    if isinstance(annotation, StructInfo):
+        type_, shape = relax.struct_info.get_type_shape_from_structure_info(annotation)
+        shape = eval_shape_annotation(self, node, shape)
+        return type_, shape, annotation
     else:
-        if not isinstance(type_annotation, Type):
-            self.report_error(node, f"Unsupported type annotation {type(type_annotation)}")
-        return type_annotation, None
+        if not isinstance(annotation, Type):
+            self.report_error(node, f"Unsupported type annotation {type(annotation)}")
+        return annotation, None, None
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
@@ -126,7 +130,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         with R.function():
             R.func_name(node.name)
             if node.returns is not None:
-                ann_type, ann_shape = eval_type_annotation(self, node.returns)
+                ann_type, ann_shape, ann_sinfo = eval_type_annotation(self, node.returns)
                 R.func_ret_type(ann_type)
 
                 # TODO(relax-team): remove the following line when fixing ret_shape issue
@@ -143,13 +147,13 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
     if node.returns is None:
         ret_type, ret_shape = None, None
     else:
-        ret_type, ret_shape = eval_type_annotation(self, node.returns)
+        ret_type, ret_shape, ret_sinfo = eval_type_annotation(self, node.returns)
     params = []
     arg_types = []
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_type, param_shape = self.visit_tvm_annotation(arg.annotation)
+        param_type, param_shape, param_sinfo = self.visit_tvm_annotation(arg.annotation)
         arg_types.append(param_type)
         params.append(relax.Var(arg.arg, param_shape, param_type))
 
@@ -193,8 +197,8 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_type, param_shape = self.visit_tvm_annotation(arg.annotation)
-        param = R.arg(arg.arg, param_type, param_shape)
+        param_type, param_shape, param_sinfo = self.visit_tvm_annotation(arg.annotation)
+        param = R.arg(arg.arg, param_type, param_shape, param_sinfo)
 
         self.var_table.add(arg.arg, param)
 
@@ -243,7 +247,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    ann_type, ann_shape = self.visit_tvm_annotation(node.annotation)
+    ann_type, ann_shape, ann_sinfo = self.visit_tvm_annotation(node.annotation)
     self.eval_assign(
         target=lhs,
         source=rhs,
@@ -252,7 +256,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     )
     var = self.var_table.get().get(lhs.id)
     assert isinstance(var, relax.Var)
-    R.ir.annotate_type_shape(var, ann_type, ann_shape)
+    R.ir.annotate_type_shape(var, ann_type, ann_shape, ann_sinfo)
 
 
 @dispatch.register(token="relax", type_name="Return")

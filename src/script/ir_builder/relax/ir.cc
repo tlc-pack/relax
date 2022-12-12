@@ -49,16 +49,10 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 ////////////////////////////// Tensor Type //////////////////////////////
 
-ShapedType::ShapedType(Type type, Optional<tvm::relax::Expr> shape) {
-  auto n = make_object<ShapedTypeNode>();
-  n->type = std::move(type);
-  n->shape = std::move(shape);
-  data_ = std::move(n);
-}
+using tvm::relax::TensorStructInfo;
+using tvm::relax::TupleStructInfo;
 
-TVM_REGISTER_NODE_TYPE(ShapedTypeNode);
-
-ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
+TensorStructInfo Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   using namespace tvm::relax;
   ICHECK_GE(ndim, -1) << "ndim must be >= -1, but got " << ndim;
   if (shape.defined() && ndim >= 0) {
@@ -67,36 +61,15 @@ ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   } else if (shape.defined()) {
     ndim = shape.value().size();
   }
-  Expr shape_expr = RuntimeDepShape();
   if (shape.defined()) {
-    shape_expr = ShapeExpr(shape.value());
+    ShapeExpr shape_expr(shape.value());
+    return TensorStructInfo(shape_expr, dtype);
+  } else {
+    return TensorStructInfo(dtype, ndim);
   }
-  return ShapedType(DynTensorType(ndim, dtype), shape_expr);
-}
-
-ShapedType CreateShapedTuple(Array<Type> types, Array<Optional<tvm::relax::Expr>> shapes) {
-  CHECK_EQ(types.size(), shapes.size())
-      << "ValueError: The number of types and shapes mismatched, got " << types.size() << " vs "
-      << shapes.size();
-  Array<tvm::relax::Expr> _shapes;
-  bool has_none_shape = false;
-  for (const auto& shape : shapes) {
-    if (shape.defined()) {
-      _shapes.push_back(shape.value());
-    } else {
-      has_none_shape = true;
-      break;
-    }
-  }
-  Optional<tvm::relax::Expr> final_shape = NullOpt;
-  if (!has_none_shape) {
-    final_shape = tvm::relax::Tuple(_shapes);
-  }
-  return ShapedType(TupleType(types), final_shape);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.CreateShapedTuple").set_body_typed(CreateShapedTuple);
 
 /////////////////////////////// Function ////////////////////////////////
 
@@ -111,9 +84,11 @@ FunctionFrame Function() {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape) {
+tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape,
+                    const Optional<tvm::relax::StructInfo>& struct_info) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::relax::Var var(name, shape, type);
+  var->struct_info_ = struct_info;
   frame->params.push_back(var);
   return var;
 }
@@ -265,7 +240,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 ///////////////////////////// Type Deduce //////////////////////////////
 
 void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                       const Optional<tvm::relax::Expr>& anno_shape) {
+                       const Optional<tvm::relax::Expr>& anno_shape,
+                       const Optional<tvm::relax::StructInfo>& anno_sinfo) {
   using tvm::relax::IsBaseOf;
   if (var->checked_type_.defined()) {
     const Type& var_type = var->checked_type();
@@ -292,6 +268,9 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
 
   var->checked_type_ = anno_type;
   var->shape_ = anno_shape;
+
+  // TODO(@Hzfengsy, @tqchen): add struct info checks
+  var->struct_info_ = anno_sinfo;
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
