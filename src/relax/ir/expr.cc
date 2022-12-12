@@ -39,6 +39,157 @@ namespace relax {
 using tvm::ReprPrinter;
 using tvm::runtime::Optional;
 
+
+Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+  ObjectPtr<CallNode> n = make_object<CallNode>();
+  n->op = std::move(op);
+  n->args = std::move(args);
+  n->attrs = std::move(attrs);
+  n->type_args = std::move(type_args);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
+                Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
+                Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+  // Collect new values for fields.
+  Expr op = opt_op.value_or(call->op);
+  Array<Expr> args = opt_args.value_or(call->args);
+  Attrs attrs = opt_attrs.value_or(call->attrs);
+  Array<Type> type_args = opt_type_args.value_or(call->type_args);
+  VirtualDevice virtual_device = opt_virtual_device.value_or(call->virtual_device());
+  Span span = opt_span.value_or(call->span);
+
+  // Check if anything changed.
+  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) &&
+                   virtual_device.same_as(call->virtual_device()) && span.same_as(call->span);
+  if (unchanged) {
+    if (args.size() == call->args.size()) {
+      for (size_t i = 0; i < args.size(); i++) {
+        unchanged &= args[i].same_as(call->args[i]);
+      }
+    } else {
+      unchanged = false;
+    }
+  }
+  if (unchanged) {
+    if (type_args.size() == call->type_args.size()) {
+      for (size_t i = 0; i < type_args.size(); i++) {
+        unchanged &= type_args[i].same_as(call->type_args[i]);
+      }
+    } else {
+      unchanged = false;
+    }
+  }
+
+  if (!unchanged) {
+    // If call is only references, update it in place. Otherwise copy and update.
+    CallNode* cow_call_node = call.CopyOnWrite();
+    cow_call_node->op = op;
+    cow_call_node->args = args;
+    cow_call_node->attrs = attrs;
+    cow_call_node->type_args = type_args;
+    cow_call_node->virtual_device_ = virtual_device;
+    cow_call_node->span = span;
+  }
+  return call;
+}
+
+TVM_REGISTER_NODE_TYPE(CallNode);
+
+TVM_REGISTER_GLOBAL("relax.Call")
+    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+      return Call(op, args, attrs, type_args, span);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<CallNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const CallNode*>(ref.get());
+      p->stream << "CallNode(" << node->op << ", " << node->args << ", " << node->attrs << ", "
+                << node->type_args << ")";
+    });
+
+
+/*
+ * Non-recursive traversal with dismantling unused call nodes,
+ * a derivative from ExpandDataflow method
+ */
+inline void Dismantle(const Expr& expr) {
+  std::stack<std::pair<Expr, bool>> stack;
+  auto fpush_to_stack = [&stack](const Expr& expr) {
+    // do not visit nodes with more than 2 refs (one can be in stack)
+    if (expr.use_count() < 3) {
+      stack.push({expr, false});
+    }
+  };
+  fpush_to_stack(expr);
+  while (stack.size() > 0) {
+    const auto& node = stack.top().first;
+    if (stack.top().second) {
+      // dismantle node
+      // +1 ref in stack/deque;
+      if (node.use_count() < 3) {
+        if (auto* op = const_cast<CallNode*>(node.as<CallNode>())) {
+          op->args = Array<Expr>();
+        }
+      }
+      // eject
+      stack.pop();
+    } else {
+      stack.top().second = true;
+
+      // special handling
+      if (const auto* call_node = node.as<CallNode>()) {
+        // do not process args if used elsewhere
+        if (call_node->args.use_count() < 2) {
+          for (auto it = call_node->args.rbegin(); it != call_node->args.rend(); ++it) {
+            fpush_to_stack(*it);
+          }
+        }
+      } else if (const auto* tuple_node = node.as<TupleNode>()) {
+        // do not process fields if used elsewhere
+        if (tuple_node->fields.use_count() < 2) {
+          for (auto it = tuple_node->fields.rbegin(); it != tuple_node->fields.rend(); ++it) {
+            fpush_to_stack(*it);
+          }
+        }
+      } else if (const auto* tuple_get_item_node = node.as<TupleGetItemNode>()) {
+        // do not process tuple if used elsewhere
+        if (tuple_get_item_node->tuple.use_count() < 2) {
+          fpush_to_stack(tuple_get_item_node->tuple);
+        }
+      }
+    }
+  }
+}
+
+
+/*
+ * Non-recursive destructor
+ */
+Call::~Call() {
+  // attempt to dismantle if referenced one or zero times
+  if (this->use_count() < 2) {
+    if (this->as<CallNode>() && this->as<CallNode>()->args.size()) {
+      Dismantle(*this);
+    }
+  }
+}
+
+/*
+ * CallNode's deleter
+ */
+void CallNode::Deleter_(Object* ptr) {
+  auto p = reinterpret_cast<CallNode*>(ptr);
+  // resore original deleter
+  p->deleter_ = p->saved_deleter_;
+  // create Call reference in order to invoke ~Call
+  auto c = GetRef<Call>(p);
+}
+
+
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
 ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {

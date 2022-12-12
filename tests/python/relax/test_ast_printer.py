@@ -195,7 +195,7 @@ def test_seq_expr() -> None:
     assert "VarBinding(" in seqe_str
     assert "Constant(" in seqe_str
     assert 'var=Var(name_hint="foo")' in seqe_str
-    assert "value=Constant(data=1)" in seqe_str
+    assert "value=Constant(data=1" in seqe_str
     assert "body=" in seqe_str
 
 

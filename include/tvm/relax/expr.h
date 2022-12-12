@@ -35,8 +35,6 @@ namespace relax {
 
 using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
-using relay::Call;
-using relay::CallNode;
 using relay::Id;
 using relay::If;
 using relay::IfNode;
@@ -44,6 +42,124 @@ using relay::Tuple;
 using relay::TupleGetItem;
 using relay::TupleGetItemNode;
 using relay::TupleNode;
+
+
+/*!
+ * \brief Call corresponds to callable invocation.
+ *  Corresponds to operation in computational graph terminology.
+ */
+class Call;
+/*! \brief Call container. */
+class CallNode : public ExprNode {
+ protected:
+  // CallNode uses own deleter to indirectly call non-recursive destructor
+  Object::FDeleter saved_deleter_;
+  static void Deleter_(Object* ptr);
+
+ public:
+  /*!
+   * \brief The operator(function) being invoked
+   *
+   *  - It can be tvm::Op which corresponds to the primitive operators.
+   *  - It can also be user defined functions (Function, GlobalVar, Var).
+   */
+  Expr op;
+
+  /*! \brief The arguments(inputs) of the call */
+  tvm::Array<Expr> args;
+
+  /*! \brief The additional attributes */
+  Attrs attrs;
+
+  /*!
+   * \brief The type arguments passed to polymorphic(template) function.
+   *
+   * This is the advance feature that is only used when the function is
+   * polymorphic. It is safe to be ignored in most cases. For example, in the
+   * following code, the type_args of addone call is [int].
+   *
+   * \code
+   *
+   * template<typename T>
+   * T addone(T a) { return a + 1; }
+   *
+   * void main() {
+   *   int x = addone<int>(10);
+   * }
+   *
+   * \endcode
+   */
+  tvm::Array<Type> type_args;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("op", &op);
+    v->Visit("args", &args);
+    v->Visit("attrs", &attrs);
+    v->Visit("type_args", &type_args);
+    v->Visit("virtual_device_", &virtual_device_);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+  }
+
+  bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
+    // skip type_args check for primitive ops.
+    equal->MarkGraphNode();
+    return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
+           (IsPrimitiveOp(op) || equal(type_args, other->type_args));
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(op);
+    hash_reduce(args);
+    hash_reduce(attrs);
+    if (!IsPrimitiveOp(op)) {
+      hash_reduce(type_args);
+    }
+  }
+
+  static constexpr const char* _type_key = "relax.expr.Call";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
+  template <typename>
+  friend class runtime::ObjAllocatorBase;
+  friend class Call;
+};
+
+class Call : public Expr {
+ public:
+  /*!
+   * \brief The destructor
+   */
+  ~Call();
+
+  /*!
+   * \brief The constructor
+   * \param op The operator to be invoked.
+   * \param args The arguments of the call.
+   * \param attrs The attributes of the call node.
+   * \param type_args The type arguments passed to a polymorphic function.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
+               Array<Type> type_args = Array<Type>(), Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
+};
+
+/*!
+ * \brief Returns \p call with the given properties. A null property denotes 'no change'.
+ * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
+                Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
+                Optional<Attrs> opt_attrs = Optional<Attrs>(),
+                Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(),
+                Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                Optional<Span> opt_span = Optional<Span>());
+
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */

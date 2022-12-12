@@ -79,7 +79,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::GlobalVarNode* op) {
   return Doc::Text(op->name_hint);
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   // TODO(@altanh): how to support when func cannot be printed as Python expr?
   //                e.g. Function or If
   Doc doc;

@@ -802,7 +802,7 @@ class RelaxTransformer(Transformer):
         else:
             rhs = self.transform_expr(stmt.rhs)
         # an ExternFunc call comes from call_packed
-        bind_free_vars = isinstance(rhs, relay.Call) and isinstance(rhs.op, relax.ExternFunc)
+        bind_free_vars = isinstance(rhs, relax.Call) and isinstance(rhs.op, relax.ExternFunc)
         ty, shape = self.transform_type(stmt.ty, bind_free_vars)
         lhs = self.decl_var(var.id.name, ty, shape, var.span, is_dataflow=is_dataflow)
         return relax.VarBinding(lhs, rhs, self.to_tvm_span(stmt.span))
@@ -1026,7 +1026,7 @@ class RelaxTransformer(Transformer):
         """
         if expr.field.name == "shape":
             obj = self.transform_expr(expr.object)
-            return relay.Call(
+            return relax.Call(
                 relay.op.get("relax.shape_of"), [obj], span=self.to_tvm_span(expr.span)
             )
         else:

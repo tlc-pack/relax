@@ -19,6 +19,7 @@
 """The expression nodes of Relax."""
 from typing import Any, List, Optional, Union
 import typing
+from numbers import Number as _Number
 
 import tvm
 import tvm._ffi
@@ -39,8 +40,169 @@ from tvm._ffi import base as _base
 Expr = Union[relay.Expr]
 Type = Union[relay.Type]
 GlobalVar = Union[relay.GlobalVar]
-Call = Union[relay.Call]
 If = Union[relay.If]
+
+# will be registered afterwards
+_op_make = None
+
+
+class ExprWithOp(Expr):
+    """Basetype of all relay expressions that defines op overloading."""
+
+    def astype(self, dtype):
+        """Cast the content type of the current data to dtype.
+
+        Parameters
+        ----------
+        dtype : str
+            The target data type.
+
+        Note
+        ----
+        This function only works for TensorType Exprs.
+
+        Returns
+        -------
+        result : tvm.relay.Expr
+            The result expression.
+        """
+        return _ffi_api.cast(self, dtype)
+
+    def __neg__(self):
+        return _op_make.negative(self)
+
+    def __lt__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.less(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __gt__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.greater(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __ge__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.greater_equal(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __le__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.less_equal(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __add__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.add(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.subtract(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rsub__(self, other):
+        if isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        raise TypeError("type %s not supported" % str(type(other)))
+
+    def __mul__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.multiply(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __div__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.divide(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rdiv__(self, other):
+        if isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        raise TypeError("type %s not supported" % str(type(other)))
+
+    def __truediv__(self, other):
+        return self.__div__(other)
+
+    def __rtruediv__(self, other):
+        return self.__rdiv__(other)
+
+    def __call__(self, *args):
+        """Call the variable (if it represents a function).
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            The arguments to the call.
+
+        Returns
+        -------
+        call: Call
+            A call taking the variable as a function.
+        """
+        return Call(self, args)
+
+
+@tvm._ffi.register_object("relax.expr.Call")
+class Call(ExprWithOp):
+    """Function call node in Relax.
+
+    Call node corresponds the operator application node
+    in computational graph terminology.
+
+    Parameters
+    ----------
+    op: tvm.ir.Op or any tvm.relay.Expr with function type.
+        The operation to be called.
+
+    args: List[tvm.relay.Expr]
+        The arguments to the call.
+
+    attrs: Optional[tvm.Attrs]
+        Attributes to the call, can be None
+
+    type_args: Optional[List[tvm.relay.Type]]
+        The additional type arguments, this is only
+        used in advanced usecase of template functions.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
+    """
+
+    def __init__(self, op, args, attrs=None, type_args=None, span=None):
+        if not type_args:
+            type_args = []
+        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
