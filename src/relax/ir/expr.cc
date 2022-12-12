@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/relax/type_analysis.h>
 
 namespace tvm {

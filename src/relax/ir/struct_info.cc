@@ -185,8 +185,7 @@ TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, Struc
 });
 
 TVM_REGISTER_GLOBAL("ir.ExprStructInfo").set_body_typed([](Expr expr) {
-  ICHECK(expr->struct_info_.defined())
-      << "struct info is not populated";
+  ICHECK(expr->struct_info_.defined()) << "struct info is not populated";
   return expr->struct_info_;
 });
 

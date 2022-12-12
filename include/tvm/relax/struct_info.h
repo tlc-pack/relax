@@ -22,14 +22,12 @@
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/span.h>
 #include <tvm/node/node.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
-
-// forward declare block builder
-class BlockBuilder;
 
 /*!
  * \brief Base type of all structure information.
@@ -413,7 +411,7 @@ class FuncStructInfo : public StructInfo {
  * \return The result of match.
  * \tparam T the underlying structure info type
  */
-template<typename T>
+template <typename T>
 inline Optional<T> MatchStructInfo(const Expr& expr) {
   using TNode = typename T::ContainerType;
   if (const TNode* ptr = expr->struct_info_.as<TNode>()) {
@@ -431,8 +429,7 @@ inline Optional<T> MatchStructInfo(const Expr& expr) {
  */
 inline StructInfo GetStructInfo(const Expr& expr) {
   auto* ptr = expr->struct_info_.as<StructInfoNode>();
-  ICHECK(ptr)
-      << "The struct_info is not populated, check if you have normalized the expr";
+  ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
   return GetRef<StructInfo>(ptr);
 }
 

@@ -19,22 +19,141 @@
 
 /*!
  * \file tvm/relax/analysis.h
- * \brief The set of Relax specific analysis passes.
+ * \brief The set of Relax specific analysis on IR.
  */
 #ifndef TVM_RELAX_ANALYSIS_H_
 #define TVM_RELAX_ANALYSIS_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/function.h>
 
+#include <functional>
 #include <utility>
 
 namespace tvm {
 namespace relax {
+//-----------------------------------
+// Shape expression analysis
+//----------------------------------
+/*!
+ * \brief Can prove the two symbolic shape arrays equals
+ *        to each other during runtime after compilation.
+ * \param lhs The left operand.
+ * \param rhs The right operand.
+ * \param ana The analyzer used for integer analysis.
+ * \return The prove result.
+ *
+ * \note This function does best effort prove, which means
+ *       if result is false, there is still possibility that
+ *       two shapes equals to each other during runtime.
+ */
+TVM_DLL bool CanProveShapeEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs,
+                                arith::Analyzer* ana);
 
+/*!
+ * \brief Can prove the two symbolic shape expressions equals
+ *        to each other during runtime after compilation.
+ * \param lhs The left operand.
+ * \param rhs The right operand.
+ * \param ana The analyzer used for integer analysis.
+ *
+ * \note This function does best effort prove, which means
+ *       if result is false, there is still possibility that
+ *       two shapes equals to each other during runtime.
+ */
+TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, arith::Analyzer* ana);
+
+//-----------------------------------
+// Foundation StructInfo analysis
+//-----------------------------------
+/*!
+ * \brief Get the corresponding static type from a given struct info.
+ * \param info The struct info.
+ * \return the corresponding static type.
+ */
+TVM_DLL Type GetStaticType(const StructInfo& info);
+
+/*!
+ * \brief Erase the info to a corresponding more coarse grained
+ *        struct info that is still well-defined(with all the vars in scope).
+ *
+ * When we are returning a StructInfo to another scope,
+ * it is important to remember that StructInfo may carry
+ * dependencies on var that is not defined the other scope.
+ *
+ * In such cases, it is important to call EraseToWellDefined to get
+ * another StructInfo that **only** contains the vars that are defined
+ * in the target scope.
+ *
+ * For example, consider the following function
+ *
+ * \code
+ *
+ * def f(x: R.Tensor[(n, m)]):
+ *     k = tir.Var("k", "int64")
+ *     v0 = opaque_fn(x)
+ *     v1 = match_cast(v0, R.Tensor[(n, k)])
+ *     v2 : R.Tensor[(n+1, k+2)] = pad(v1)
+ *     return v2
+ *
+ * \endcode
+ *
+ * In the above code, the return value y have shape `(n + 1, k + 1)`,
+ * However, at the level of function signature, only n, m are defined,
+ * k is un-defined here.
+ *
+ * When we call EraseToWellDefined(R.Tensor[(n + 1, k + 2)], fshape_var_defined={n, m}),
+ * we will obntain R.Tensor(ndim=2), which is an erased info that does not depend
+ * on k(which is un-defined from parameter signature).
+ *
+ * However, if we call EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_defined={n, m}),
+ * Then the return value will be R.Tensor[(n + 1, m)], because both n and m are defined.
+ *
+ * Use this function in the following scenario:
+ * - Decide the struct_info of expr with sub-scopes, such as If, SeqExpr
+ * - Decide the deduced return struct_info of a function that can be fully decided by params.
+ *
+ * \param info The struct info.
+ * \param f_shape_var_defined callback function to specify
+ *        whether a symbolic shape var is in the target scope.
+ * \param f_var_defined callback function to specify
+ *        whether a var is in the target scope.
+ *
+ * \return the corresponding erased struct info.
+ */
+TVM_DLL StructInfo EraseToWellDefined(
+    const StructInfo& info, std::function<bool(const tir::Var& var)> f_shape_var_defined = nullptr,
+    std::function<bool(const Var& var)> f_var_defined = nullptr);
+
+/*!
+ * \brief Check the relation of two struct info to see if one subsumes another one.
+ * \param base The base struct info.
+ * \param derived The derived struct info.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return Whether the base of relation holds.
+ */
+TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
+                      arith::Analyzer* ana = nullptr);
+
+/*!
+ * \brief Unify the two struct info their least common acenstor.
+ *
+ * \param lhs The left operand.
+ * \param rhs The right operand.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return The unified information.
+ */
+TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
+                                 arith::Analyzer* ana = nullptr);
+
+//-----------------------------------
+// General IR analysis
+//----------------------------------
 /*!
  * \brief Check if the IRModule is well formed.
  *

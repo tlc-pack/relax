@@ -21,10 +21,10 @@ from typing import List, Optional, Union
 import tvm._ffi
 import tvm
 
-from tvm.ir import Span, Node, EnvFunc, Array
+from tvm.ir import Span, Node, EnvFunc, Array, Type
 from tvm.tir import PrimExpr
-from .expr import Expr, ShapeExpr
-from . import _ffi_api
+from .expr import Var, Expr, ShapeExpr
+from . import _ffi_api, ty, expr
 
 
 class StructInfo(Node):
@@ -44,6 +44,21 @@ class StructInfo(Node):
     def same_as(self, other):
         """Overload with structural equality."""
         return super().__eq__(other)
+
+    def is_base_of(self, derived: "StructInfo") -> bool:
+        """Check if self is base of another derived struct info.
+
+        Parameters
+        ----------
+        derived : StructInfo
+            The derived struct info to be checked.
+
+        Returns
+        -------
+        result : bool
+            The check result.
+        """
+        return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.ObjectStructInfo")
@@ -153,10 +168,12 @@ class FuncStructInfo(StructInfo):
         )  # type: ignore
 
     @staticmethod
-    def opaque_func(*,
-                    ret: Optional[StructInfo] = None,
-                    derive_func: Optional[EnvFunc] = None,
-                    span: Span = None) -> "FuncStructInfo":
+    def opaque_func(
+        *,
+        ret: Optional[StructInfo] = None,
+        derive_func: Optional[EnvFunc] = None,
+        span: Span = None,
+    ) -> "FuncStructInfo":
         """
         Create an opaque FuncStructInfo
 

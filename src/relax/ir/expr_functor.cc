@@ -152,7 +152,12 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitExpr(op->tuple);
 }
 
-void ExprVisitor::VisitExpr_(const ShapeExprNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
+  for (PrimExpr val : op->values) {
+    this->VisitPrimExpr(val);
+  }
+  this->VisitSpan(op->span);
+}
 
 void ExprVisitor::VisitExpr_(const RuntimeDepShapeNode* op) { this->VisitSpan(op->span); }
 
@@ -169,6 +174,8 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
 void ExprVisitor::VisitType(const Type& t) {}
 
 void ExprVisitor::VisitSpan(const Span& span) {}
+
+void ExprVisitor::VisitPrimExpr(const PrimExpr& expr) {}
 
 // implementations of binding visitor dispatch
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
@@ -367,7 +374,15 @@ Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* op) {
   }
 }
 
-Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
+  auto values = op->values.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+
+  if (values.same_as(op->values)) {
+    return GetRef<Expr>(op);
+  } else {
+    return ShapeExpr(values, op->span);
+  }
+}
 
 Expr ExprMutatorBase::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
 
@@ -420,6 +435,8 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
 }
 
 Type ExprMutatorBase::VisitType(const Type& t) { return t; }
+
+PrimExpr ExprMutatorBase::VisitPrimExpr(const PrimExpr& expr) { return expr; }
 
 // ==================
 // ExprMutator

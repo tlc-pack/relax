@@ -21,12 +21,81 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import tvm
 from tvm import tir
+from tvm.relax.ty import Type
+from tvm.relax.struct_info import StructInfo
 from tvm.relax.expr import DataflowBlock, GlobalVar, Var, Expr, Function, Binding
 from . import _ffi_api
+
+
+def get_static_type(sinfo: StructInfo) -> Type:
+    """Get the corresponding static type from a StructInfo.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The input struct info.
+
+    Returns
+    -------
+    ret : Type
+        The corresponding static type.
+    """
+    return _ffi_api.GetStaticType(sinfo)  # type: ignore
+
+
+def erase_to_well_defined(
+    sinfo: StructInfo,
+    defined_shape_vars: Optional[List[tir.Var]] = None,
+    defined_vars: Optional[List[Var]] = None,
+) -> StructInfo:
+    """Erase sinfo into a well defined form.
+
+    This function removes the StructInfo's dependencies on shape and vars that
+    are not being defined.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The input struct info.
+
+    defined_shape_vars : Optional[List[tir.Var]]
+        List of shape vars defined in the scope.
+
+    defined_vars : Optional[List[Var]]
+        List of vars defined in the scope.
+
+    Returns
+    -------
+    ret : StructInfo
+        The corresponding erased struct info.
+    """
+    defined_shape_vars = [] if defined_shape_vars is None else defined_shape_vars
+    defined_vars = [] if defined_vars is None else defined_vars
+
+    return _ffi_api.EraseToWellDefined(sinfo, defined_shape_vars, defined_vars)  # type: ignore
+
+
+def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
+    """Unify the two struct info their least common acenstor.
+
+    Parameters
+    ----------
+    lhs: StructInfo
+        The left operand.
+
+    rhs: StructInfo
+        The right operand.
+
+    Returns
+    -------
+    ret : StructInfo
+        The corresponding lca result.
+    """
+    return _ffi_api.StructInfoLCA(lhs, rhs)  # type: ignore
 
 
 def post_order_visit(expr, fvisit):

@@ -314,7 +314,6 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = 
                         Optional<Integer> opt_index = Optional<Integer>(),
                         Optional<Span> opt_span = Optional<Span>());
 
-
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
 class ShapeExprNode : public ExprNode {
