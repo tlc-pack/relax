@@ -202,7 +202,7 @@ class BlockBuilderNode : public Object {
    * \param expr The input expression.
    * \return The normalized expression.
    *
-   * \note Invariance: If any of the sub expr have a shape field,
+   * \note Invariant: If any of the sub expr have a shape field,
    *       they are required to already be in the normal form.
    *       This is because we cannot normalize shape in argument values.
    */
