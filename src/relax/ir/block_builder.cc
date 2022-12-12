@@ -413,7 +413,7 @@ class BlockBuilderImplWithNormalize : public BlockBuilderImpl,
 
   Expr Normalize(const Expr& expr) final {
     Expr normalized = this->VisitExpr(expr);
-    // Invariance:
+    // Invariant:
     // After Normalize: an Expr always have checked_type (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
       ICHECK(normalized->checked_type_.defined())
