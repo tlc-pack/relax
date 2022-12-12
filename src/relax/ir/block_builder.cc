@@ -294,7 +294,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     /*!
      * \brief Binding map used by normalizer.
      *
-     * \note The normalizer only caches resue in the current scope
+     * \note The normalizer only caches reuse in the current scope
      *       and will not cache bindings from parent scope.
      */
     std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> normalize_binding_map;
