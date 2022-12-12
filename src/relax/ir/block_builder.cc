@@ -399,8 +399,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
 
 // TODO(relax-team): Check normalize logic after struct info.
-class Normalizer : public BlockBuilderImpl,
-                   private ExprFunctor<Expr(const Expr&)> {
+class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
   explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
 
@@ -426,6 +425,10 @@ class Normalizer : public BlockBuilderImpl,
    * \note This function create a new binding for non-leaf expressions except for tuple.
    */
   Expr NormalizeArgument(Expr arg) {
+    // Temp patch to ensure we handle inline PrimFunc case.
+    // TODO(relax-team) remove such cases from parser and testcases.
+    if (arg->IsInstance<tir::PrimFuncNode>()) return arg;
+
     if (!block_stack_.empty()) {
       // cache lookup
       BlockFrame* cur_frame = CurrentFrame();
@@ -478,6 +481,10 @@ class Normalizer : public BlockBuilderImpl,
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 
   Expr VisitExpr(const Expr& expr) final {
+    // Temp patch to ensure we handle inline PrimFunc case.
+    // TODO(relax-team) remove such cases from parser and testcases.
+    if (expr->IsInstance<tir::PrimFuncNode>()) return expr;
+
     // lookup normalize map
     if (!block_stack_.empty()) {
       BlockFrame* cur_frame = CurrentFrame();
@@ -1043,8 +1050,7 @@ class Normalizer : public BlockBuilderImpl,
 };
 
 BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
-  ObjectPtr<BlockBuilderNode> n =
-      make_object<Normalizer>(mod.value_or(IRModule()));
+  ObjectPtr<BlockBuilderNode> n = make_object<Normalizer>(mod.value_or(IRModule()));
   return BlockBuilder(n);
 }
 
