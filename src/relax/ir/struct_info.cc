@@ -101,7 +101,6 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Span span) {
   n->ndim = ndim;
   n->dtype = dtype;
   n->span = span;
-  n->shape = RuntimeDepShape();
   data_ = std::move(n);
 }
 
