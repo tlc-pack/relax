@@ -300,7 +300,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc PrintIRModule(const IRModule& mod);
   Doc PrintPrimFunc(const String& name, const tir::PrimFunc& func);
 
-  Doc PrintIfStmt(const relax::Var& var, const relay::If& ite);
+  Doc PrintIfStmt(const relax::Var& var, const relax::If& ite);
   Doc PrintFunctionDef(const Doc& name, const relax::Function& func, bool is_global);
 
   Doc PrintVarAnnotation(const relax::Var& var);
