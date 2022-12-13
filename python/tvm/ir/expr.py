@@ -79,6 +79,8 @@ class GlobalVar(RelayExpr):
     def __init__(self, name_hint, type_annot=None):
         self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, type_annot)
 
+    # TODO(@relax-team): parser now calls it, ban calling a GlobalVar() after fixing
+    # on parser side.
     def __call__(self, *args):
         """Call the global variable.
 
@@ -166,6 +168,7 @@ class Range(Node):
         return _ffi_api.Range_from_min_extent(min_value, extent, span)
 
 
+# TODO(@relax-team): remove when we have a RelaxExpr base class
 def is_relax_expr(expr: RelayExpr) -> bool:
     """check if a RelayExpr is a Relax expresssion.
 

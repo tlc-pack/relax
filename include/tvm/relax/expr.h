@@ -44,11 +44,6 @@ using relay::Id;
 class Call;
 /*! \brief Call container. */
 class CallNode : public ExprNode {
- protected:
-  // CallNode uses own deleter to indirectly call non-recursive destructor
-  Object::FDeleter saved_deleter_;
-  static void Deleter_(Object* ptr);
-
  public:
   /*!
    * \brief The operator(function) being invoked
@@ -120,11 +115,6 @@ class CallNode : public ExprNode {
 
 class Call : public Expr {
  public:
-  /*!
-   * \brief The destructor
-   */
-  ~Call();
-
   /*!
    * \brief The constructor
    * \param op The operator to be invoked.
