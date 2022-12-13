@@ -24,67 +24,134 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
-#include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
-#include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/support/with.h>
-
-#include <memory>
-#include <stack>
-#include <string>
-#include <unordered_map>
 
 namespace tvm {
 namespace relax {
 
-class BlockBuilder;
-
 /*!
- * \brief A builder that provides APIs to build Relax binding blocks.
+ * \brief A builder to build Relax binding blocks.
+ *
+ * BlockBuilder provides the following three categories
+ * of main functionalities for IR building and transformations:
+ *
+ * - Global context management: manages the IRModule,
+ *   allowing query, update the surrounding global context.
+ *   Provide context tools for analysis.
+ * - Scope management:
+ *   - Manages block scopes for bulding nested blocks.
+ *   - Emit bindings to the current scope.
+ *   - Construct blocks by calling EndScope.
+ * - Normalization: Take an Expr, normalize it
+ *   to deduce shape/type, turn things into normal forms.
+ *
+ * Importantly, these three categories of features can be dependent
+ * on each other. For example, when we emit into scope we will call
+ * normalize to ensure the code is in normal form. Similarly, when we
+ * normalize we could choose to emit into the current context.
+ *
+ * We would encourage the developers to keep these three category
+ * in mind when using and developing BlockBuilder, we can group
+ * the code in a logically clean way.
+ *
+ * BlockBuilderNode is implemented as a virtual interface to
+ * allow logically grouped implementation and internal data
+ * structures that are hidden from the users.
  */
 class BlockBuilderNode : public Object {
  public:
-  BlockBuilderNode();
+  //-------------------------------
+  // Global Context management
+  //-------------------------------
+  /*!
+   * \brief Get the name table for generating unique names.
+   *
+   * \return The name table.
+   */
+  virtual NameTable* name_table() = 0;
 
-  ~BlockBuilderNode();
+  /*!
+   * \brief Check if two shape expressions can be proven equal at compile time.
+   * \param lhs The input lhs shape.
+   * \param rhs The input rhs shape.
+   * \return Whether we can prove lhs shape is the same as the rhs shape.
+   */
+  virtual bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs) = 0;
+
+  /*!
+   * \brief Get the context IRModule in this builder.
+   *
+   * \note The context
+   * \return The IRModule in this BlockBuilder.
+   */
+  virtual IRModule GetContextIRModule() const = 0;
+
+  /*!
+   * \brief Add a Relax function or a TIR PrimFunc to internal context module.
+   * \param func The function to be added.
+   * \param func_name_hint The name hint of the function to be added.
+   * \note If the function to be added already exists, return its
+   * GlobalVar directly.
+   * \return The global var bound to the added function.
+   */
+  virtual GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) = 0;
+
+  /*!
+   * \brief Update a Relax function or a TIR PrimFunc in the internal context module.
+   * \param gv The global var referring the function to be updated.
+   * \param function The updated function.
+   */
+  virtual void UpdateFunction(const GlobalVar& gv, BaseFunc function) = 0;
+
+  //-------------------------------
+  // Scope management
+  //-------------------------------
+  /*!
+   * \brief Lookup the binding value that var binds to in the current emitted sequences.
+   * \param var The input var.
+   * \return The Expr bound to the input \p var.
+   * \note For function parameters, this function returns NullOpt.
+   */
+  virtual Optional<Expr> LookupBinding(const Var& var) = 0;
 
   /*! \brief Begin to build a DataflowBlock. */
-  void BeginDataflowBlock();
+  virtual void BeginDataflowBlock() = 0;
 
   /*! \brief Begin to build a BindingBlock. */
-  void BeginBindingBlock();
-
+  virtual void BeginBindingBlock() = 0;
   /*!
    * \brief End building a BindingBlock.
    * \return The BindingBlock being built.
    */
-  BindingBlock EndBlock();
+  virtual BindingBlock EndBlock() = 0;
 
   /*!
    * \brief Check if the block being built is DataflowBlock or not.
    * \return A boolean that indicates if the block being built is DataflowBlock or not.
    */
-  inline bool CurrentBlockIsDataFlow() { return CurrentFrame()->is_dataflow; }
+  virtual bool CurrentBlockIsDataFlow() = 0;
 
   /*!
    * \brief Emits an Expr, and returns the variable it is bound to.
    * \param expr The Expr to be emitted.
    * \param name_hint Name hint for the bound variable.
-   * \note This Emit function normalizes the \p expr, and performs shape and type deductions by
-   * calling Normalize.
    * \return The new variable that \p expr is bound to.
+   *
+   * \note This Emit function normalizes the \p expr, and
+   *       performs shape and type deductions by calling Normalize.
    */
-  virtual Var Emit(const Expr& expr, std::string name_hint = "");
+  virtual Var Emit(Expr expr, String name_hint = "") = 0;
 
   /*!
    * \brief Emits a variable binding, and returns the bound Var.
    * \param binding The variable binding.
    * \return The bound variable.
+   *
+   * \note This function requires binding to be pre-normalized.
    */
-  virtual Var Emit(const VarBinding& binding);
+  virtual Var Emit(VarBinding binding) = 0;
 
   /*!
    * \brief Emit a MatchShape.
@@ -93,14 +160,16 @@ class BlockBuilderNode : public Object {
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to the MatchShape.
    */
-  Var EmitMatchShape(const Expr& value, const Array<PrimExpr>& pattern, std::string name_hint = "");
+  virtual Var EmitMatchShape(Expr value, Array<PrimExpr> pattern, String name_hint = "") = 0;
 
   /*!
    * \brief Emit a MatchShape binding.
    * \param binding The MatchShape binding to be emitted.
    * \return The variable bound to the MatchShape.
+   *
+   * \note This function requires binding to be pre-normalized.
    */
-  Var EmitMatchShape(const MatchShape& binding);
+  virtual Var EmitMatchShape(MatchShape binding) = 0;
 
   /*!
    * \brief Generate an output for the current dataflow block.
@@ -108,155 +177,55 @@ class BlockBuilderNode : public Object {
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to \p output.
    */
-  Var EmitOutput(const Expr& output, std::string name_hint = "");
+  virtual Var EmitOutput(Expr output, String name_hint = "") = 0;
 
   /*!
    * \brief Generate an output for the current dataflow block.
    * \param binding The output binding to output.
    * \return The variable bound to \p output.
+   *
+   * \note This function requires binding to be pre-normalized.
    */
-  Var EmitOutput(const VarBinding& binding);
+  virtual Var EmitOutput(VarBinding binding) = 0;
 
   /*!
-   * \brief Lookup a var in the binding table \p binding_table_.
-   * \param var The input var.
-   * \return The Expr bound to the input \p var.
-   * \note For function parameters, this function returns NullOpt.
+   * \brief Emit a binding that is already normalized.
+   *
+   * \param binding A binding whose value is already normalized.
+   *
+   * \note This function requires binding to be pre-normalized.
    */
-  Optional<Expr> LookupBinding(const Var& var);
+  virtual void EmitNormalized(Binding normalized_binding) = 0;
 
   /*!
-   * \brief Check if two shape expressions can be proven equal at compile time.
-   * \param lhs The input lhs shape.
-   * \param rhs The input rhs shape.
-   * \return Whether we can prove lhs shape is the same as the rhs shape.
-   */
-  bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs);
-
-  /*!
-   * \brief Resets the memo in the normalizer to prevent false hits when visiting
-   *   the same expression more than once.
-   *   Use if before visiting a given expression again.
-   */
-  // TODO(@relax-team): Memoization should be tied to the scope tracking to prevent memo hits
-  // when the associated var is out of scope
-  void ResetMemo();
-
-  /*!
-   * \brief Convert an expression to A-normal form, and try to eagerly infer types and shapes.
+   * \brief Convert an expression to normal form, and try to eagerly infer types and shapes.
    * \param expr The input expression.
    * \return The normalized expression.
-   */
-  Expr Normalize(const Expr& expr);
-
-  /*!
-   * \brief Get the name table for generating unique names.
    *
-   * \return The name table.
+   * \note Invariant: If any of the sub expr have a shape field,
+   *       they are required to already be in the normal form.
+   *       This is because we cannot normalize shape in argument values.
    */
-  NameTable* name_table();
-
-  /*!
-   * \brief Add a Relax function or a TIR PrimFunc to \p context_mod_.
-   * \param func The function to be added.
-   * \param func_name_hint The name hint of the function to be added.
-   * \note If the function to be added already exists in \p context_mod_, return its
-   * GlobalVar directly.
-   * \return The global var bound to the added function.
-   */
-  GlobalVar AddFunction(const BaseFunc& func, const String& func_name_hint);
-
-  /*!
-   * \brief Update a Relax function or a TIR PrimFunc in \p context_mod_.
-   * \param gv The global var referring the function to be updated.
-   * \param function The updated function.
-   */
-  void UpdateFunction(const GlobalVar& gv, BaseFunc function);
-
-  /*!
-   * \brief Get the context IRModule being built.
-   * \return The IRModule being built by BlockBuilder.
-   */
-  IRModule GetContextIRModule() const;
-
-  void VisitAttrs(AttrVisitor* v) {}
+  virtual Expr Normalize(const Expr& expr) = 0;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.BlockBuilder";
   TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
-
- private:
-  /*!
-   * \brief Emits an Expr, and returns the variable it is bound to.
-   * \param expr The Expr to be emitted.
-   * \param is_dataflow Is the bound variable a DataflowVar or not(i.e. Var).
-   * \param name_hint Name hint for the bound variable.
-   * \note This Emit function normalizes the \p expr, and performs shape and type deductions by
-   * calling Normalize.
-   * \return The new variable that \p expr is bound to.
-   */
-  Var Emit(const Expr& expr, bool is_dataflow, std::string name_hint);
-
-  /*! \brief The IRModule being built by the BlockBuilder. */
-  IRModule context_mod_;
-
-  /*!
-   * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
-   * in \p _context_mod to their GlobalVar to avoid generating duplicated functions.
-   */
-  std::unordered_map<BaseFunc, GlobalVar, StructuralHash, StructuralEqual> func_map_;
-
- protected:
-  /*!
-   * \brief A representation of a block frame.
-   *
-   * A block frame is a record containing the bindings needed
-   * to build a binding block, and a boolean to indicate if the
-   * block being built is a DataflowBlock or not.
-   */
-  struct BlockFrame {
-    Array<Binding> bindings;
-    bool is_dataflow;
-  };
-
-  /*!
-   * \brief Utility class for performing IR normalization (conversion to ANF, eager forward shape
-   * and type inference).
-   */
-  class ExprNormalizer;
-
-  friend class BlockBuilder;
-
-  /*!
-   * \brief Get the current block frame.
-   * \return The current block frame.
-   */
-  BlockFrame* CurrentFrame();
-
-  /*! \brief A stack to store block frames. */
-  std::stack<BlockFrame> block_stack_;
-
-  /*! \brief A diagnostic context for reporting errors. */
-  DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
-
-  /*! \brief A binding table that maps var to value. */
-  std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
-
-  /*! \brief A name table to get unique names for IR construction. */
-  std::unique_ptr<NameTable> name_table_;
-
-  /*! \brief The internal normalizer used for ANF conversion. */
-  std::unique_ptr<ExprNormalizer> normalizer_;
 };
 
 class BlockBuilder : public ObjectRef {
  public:
   /*!
    * \brief Create a BlockBuilder.
-   * \param mod Optional before-transformation IRModule for rewriting.
+   *
+   * \param ctx_mod Optional before-transformation context module for rewriting.
    * \return The created BlockBuilder.
+   *
+   * \note When rewriting an existing IRModule, it is important to pass it in as
+   *       ctx_mod so you can lookup the context functions for cross function
+   *       call analysis.
    */
-  TVM_DLL static BlockBuilder Create(Optional<IRModule> mod);
+  TVM_DLL static BlockBuilder Create(Optional<IRModule> ctx_mod);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };
