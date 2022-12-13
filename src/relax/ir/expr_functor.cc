@@ -702,13 +702,17 @@ Var ExprMutator::VisitVarDef(const Var& var) {
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
-  builder_->BeginBindingBlock();
-  Expr ret = this->VisitExpr(expr);
-  BindingBlock prologue = builder_->EndBlock();
-  if (!prologue->bindings.empty()) {
-    ret = SeqExpr({prologue}, ret);
+  if (expr->IsInstance<SeqExprNode>()) {
+    return this->VisitExpr(expr);
+  } else {
+    builder_->BeginBindingBlock();
+    Expr ret = this->VisitExpr(expr);
+    BindingBlock prologue = builder_->EndBlock();
+    if (!prologue->bindings.empty()) {
+      ret = SeqExpr({prologue}, ret);
+    }
+    return ret;
   }
-  return ret;
 }
 
 Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
@@ -794,77 +798,77 @@ TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitSpan")
 TVM_REGISTER_GLOBAL("relax.MakePyExprMutator").set_body_typed(PyExprMutator::MakePyExprMutator);
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExpr")
-    .set_body_typed([](PyExprMutator visitor, const Expr& expr) {
-      return visitor->VisitExpr(expr);
+    .set_body_typed([](PyExprMutator mutator, const Expr& expr) {
+      return mutator->VisitExpr(expr);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitBinding")
-    .set_body_typed([](PyExprMutator visitor, const Binding& binding) {
-      visitor->VisitBinding(binding);
+    .set_body_typed([](PyExprMutator mutator, const Binding& binding) {
+      mutator->VisitBinding(binding);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitBindingBlock")
-    .set_body_typed([](PyExprMutator visitor, const BindingBlock& block) {
-      return visitor->VisitBindingBlock(block);
+    .set_body_typed([](PyExprMutator mutator, const BindingBlock& block) {
+      return mutator->VisitBindingBlock(block);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitVarDef")
-    .set_body_typed([](PyExprMutator visitor, const Var& var) {
-      return visitor->VisitVarDef(var);
+    .set_body_typed([](PyExprMutator mutator, const Var& var) {
+      return mutator->VisitVarDef(var);
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitExpr")
-    .set_body_typed([](PyExprMutator visitor, const Expr& expr) {
-      return visitor->ExprMutator::VisitExpr(expr);
+    .set_body_typed([](PyExprMutator mutator, const Expr& expr) {
+      return mutator->ExprMutator::VisitExpr(expr);
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBinding")
-    .set_body_typed([](PyExprMutator visitor, const Binding& binding) {
-      return visitor->ExprMutator::VisitBinding(binding);
+    .set_body_typed([](PyExprMutator mutator, const Binding& binding) {
+      return mutator->ExprMutator::VisitBinding(binding);
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBindingBlock")
-    .set_body_typed([](PyExprMutator visitor, const BindingBlock& block) {
-      return visitor->ExprMutator::VisitBindingBlock(block);
+    .set_body_typed([](PyExprMutator mutator, const BindingBlock& block) {
+      return mutator->ExprMutator::VisitBindingBlock(block);
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitVarDef")
-    .set_body_typed([](PyExprMutator visitor, const Var& var) {
-      return visitor->ExprMutator::VisitVarDef(var);
+    .set_body_typed([](PyExprMutator mutator, const Var& var) {
+      return mutator->ExprMutator::VisitVarDef(var);
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitType")
-    .set_body_typed([](PyExprMutator visitor, const Type& type) {
-      return visitor->ExprMutator::VisitType(type);
+    .set_body_typed([](PyExprMutator mutator, const Type& type) {
+      return mutator->ExprMutator::VisitType(type);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExprPostOrder")
-    .set_body_typed([](PyExprMutator visitor, const Expr& expr) {
-      return visitor->VisitExprPostOrder(expr);
+    .set_body_typed([](PyExprMutator mutator, const Expr& expr) {
+      return mutator->VisitExprPostOrder(expr);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitWithNewScope")
-    .set_body_typed([](PyExprMutator visitor, const Expr& expr) {
-      return visitor->VisitWithNewScope(expr);
+    .set_body_typed([](PyExprMutator mutator, const Expr& expr) {
+      return mutator->VisitWithNewScope(expr);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorLookupBinding")
-    .set_body_typed([](PyExprMutator visitor, const Var& var) {
-      return visitor->LookupBinding(var);
+    .set_body_typed([](PyExprMutator mutator, const Var& var) {
+      return mutator->LookupBinding(var);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorWithShapeAndType")
-    .set_body_typed([](PyExprMutator visitor, Var var, Optional<ObjectRef> shape, Type type) {
-      return visitor->WithShapeAndType(var, shape, type);
+    .set_body_typed([](PyExprMutator mutator, Var var, Optional<ObjectRef> shape, Type type) {
+      return mutator->WithShapeAndType(var, shape, type);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorSetVarRemap")
-    .set_body_typed([](PyExprMutator visitor, Id id, Var var) {
-      return visitor->var_remap_[id] = var;
+    .set_body_typed([](PyExprMutator mutator, Id id, Var var) {
+      return mutator->var_remap_[id] = var;
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorGetVarRemap")
-    .set_body_typed([](PyExprMutator visitor, Id id) { return visitor->var_remap_[id]; });
+    .set_body_typed([](PyExprMutator mutator, Id id) { return mutator->var_remap_[id]; });
 
 }  // namespace relax
 }  // namespace tvm
