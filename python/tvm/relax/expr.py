@@ -80,7 +80,9 @@ class Call(Expr):
     ):
         if not type_args:
             type_args = []
-        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)  # type: ignore
+        self.__init_handle_by_constructor__(
+            _ffi_api.Call, op, args, attrs, type_args, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.expr.If")
@@ -100,7 +102,9 @@ class If(Expr):
     """
 
     def __init__(self, cond, true_branch, false_branch, span: Span = None):
-        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)  # type: ignore
+        self.__init_handle_by_constructor__(
+            _ffi_api.If, cond, true_branch, false_branch, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.expr.Tuple")
@@ -145,7 +149,9 @@ class TupleGetItem(Expr):
     """
 
     def __init__(self, tuple_value: Expr, index: int):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)  # type: ignore
+        self.__init_handle_by_constructor__(
+            _ffi_api.TupleGetItem, tuple_value, index  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
