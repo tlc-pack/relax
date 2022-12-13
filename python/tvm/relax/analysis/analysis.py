@@ -60,7 +60,7 @@ def get_shape(sinfo: StructInfo) -> Optional[Expr]:
     ret : Type
         The corresponding shape.
     """
-    return _ffi_api.GetShape(sinfo)  # type: ignore
+
 
 
 def erase_to_well_defined(

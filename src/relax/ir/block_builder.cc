@@ -399,6 +399,13 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
 
 // TODO(relax-team): Check normalize logic after struct info.
+
+// Normalizer on struct info:
+//
+// We take benefit of the following invariances(that are checked in constructor):
+// - If an expr appears in StructInfo, then it is already normalized.
+//   As a result, we do not need to peek into StructInfo in Normalization.
+// - Constant, ShapeExpr, already have their StructInfo populated in constructing time.
 class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
   explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
@@ -407,10 +414,10 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr normalized = this->VisitExpr(expr);
     // Invariant:
     // After Normalize: an Expr always have
-    // checked_type (with the exception of Op).
+    // struct_info (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      ICHECK(normalized->checked_type_.defined())
-          << "The checked_type_ of an Expr except OpNode after "
+      ICHECK(normalized->struct_info_.defined())
+          << "The struct_info_ of an Expr except OpNode after "
              "normalization must not be nullptr. However, this Expr does not have checked_type_: "
           << normalized;
     }

@@ -51,6 +51,12 @@ namespace relax {
  * Each struct info can be uniquely erased to a static-type.
  * The compiler will still compile the code(with less information)
  * when we erase to the static type.
+ *
+ * If an StructInfo contains an Expr field, then that field
+ * must be normalized already through NormalizeArg.
+ * This invariance will be checked in constructors
+ * and help us to simplify our assumption
+ * during struct info deduction.
  */
 class StructInfoNode : public Object {
  public:
@@ -198,7 +204,10 @@ class ShapeStructInfo : public StructInfo {
  */
 class TensorStructInfoNode : public StructInfoNode {
  public:
-  /*! \brief optionally store the shape expression of the tensor. */
+  /*!
+   * \brief optionally store the shape expression of the tensor.
+   * \note shape must be normalized: it can only be NullOpt or ShapeExpr or Var.
+   */
   Optional<Expr> shape;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;

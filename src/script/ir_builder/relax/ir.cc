@@ -87,10 +87,9 @@ FunctionFrame Function() {
 
 tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_info) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  const Type& type = GetStaticType(struct_info);
-  const Optional<tvm::relax::Expr>& shape = GetShape(struct_info);
-  tvm::relax::Var var(name, shape, type);
-  var->struct_info_ = struct_info;
+  // TODO(relax-team): Update constructor to include struct info as argument.
+  tvm::relax::Var var(name, NullOpt, NullOpt);
+  UpdateStructInfo(var, struct_info);
   frame->params.push_back(var);
   return var;
 }
@@ -120,7 +119,7 @@ void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
   }
   frame->ret_sinfo = ret_sinfo;
   frame->ret_type = GetStaticType(ret_sinfo);
-  frame->ret_shape = GetShape(ret_sinfo);
+  frame->ret_shape = GetLegacyShapeHint(ret_sinfo);
   // TODO(@Hzfengsy): remove it
   frame->ret_shape = tvm::relax::RuntimeDepShape();
 }
@@ -240,7 +239,7 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const tvm::relax::StructInfo&
   using tvm::relax::StructInfo;
 
   Type type = GetStaticType(anno_struct_info);
-  Optional<tvm::relax::Expr> shape = GetShape(anno_struct_info);
+  Optional<tvm::relax::Expr> shape = GetLegacyShapeHint(anno_struct_info);
 
   if (var->struct_info_.defined()) {
     // Case 1. The var already has struct info.

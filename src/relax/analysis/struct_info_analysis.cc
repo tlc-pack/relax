@@ -70,9 +70,10 @@ TVM_REGISTER_GLOBAL("relax.analysis.GetStaticType").set_body_typed([](const Stru
 });
 
 //--------------------------
-// GetShape
+// GetLegacyShapeHint
 //--------------------------
-class ShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructInfo&)> {
+// TODO(relax-team) remove this function after phasing out shape.
+class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructInfo&)> {
  public:
   Optional<Expr> VisitStructInfo_(const ObjectStructInfoNode* op) final { return NullOpt; }
 
@@ -95,12 +96,7 @@ class ShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructInfo&)>
   Optional<Expr> VisitStructInfo_(const FuncStructInfoNode* op) final { return NullOpt; }
 };
 
-Optional<Expr> GetShape(const StructInfo& info) { return ShapeDeriver()(info); }
-
-TVM_REGISTER_GLOBAL("relax.analysis.GetShape").set_body_typed([](const StructInfo& info) {
-  return GetShape(info);
-});
-
+Optional<Expr> GetLegacyShapeHint(const StructInfo& info) { return LegacyShapeDeriver()(info); }
 //--------------------------
 // EraseToWellDefined
 //--------------------------

@@ -22,6 +22,8 @@
  * \brief Relax struct info.
  */
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -88,6 +90,10 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Span span) {
   // assign ndim before move
   Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
   ICHECK(sinfo) << "We expect shape to contain pre-set shape struct info";
+  ICHECK(shape.defined()) << "Must provide a shape in this constructor";
+  ICHECK(shape->IsInstance<ShapeExprNode>() ||
+         shape->IsInstance<VarNode>())
+      << "We require shape to be normalized when constructing TensorStructInfo";
   n->ndim = sinfo.get()->ndim;
   // assign rest of the fields.
   n->shape = std::move(shape);
@@ -173,11 +179,15 @@ TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
       }
     });
 
+
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
   ICHECK(!expr->struct_info_.defined())
       << "the struct+info_ of the Expr to be updated must be nullptr for idempotency";
   expr->struct_info_ = struct_info;
+  // also set checked type
+  expr->checked_type_ = GetStaticType(struct_info);
+  expr->shape_ = GetLegacyShapeHint(struct_info);
 }
 
 TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, StructInfo struct_info) {
