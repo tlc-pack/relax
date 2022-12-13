@@ -22,8 +22,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm.ir import Type
-from tvm.relax import Call, Expr, ExternFunc, ShapeExpr, TupleGetItem, TupleType, Var, const
-from tvm.relax.struct_info import StructInfo, TensorStructInfo, get_type_shape_from_structure_info
+from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, TupleType, Var, const
+from tvm.relax.struct_info import StructInfo, TensorStructInfo
+from tvm.relax.analysis import get_static_type
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -100,36 +101,22 @@ def function() -> frame.FunctionFrame:
     return _ffi_api.Function()  # pylint: disable=no-member # type: ignore
 
 
-def arg(
-    name: str,
-    type: Union[Type, StructInfo],
-    shape: Optional[ShapeExpr] = None,
-    struct_info: Optional[StructInfo] = None,
-) -> Var:
+def arg(name: str, struct_info: StructInfo) -> Var:
     """Add a parameter to the last function frame.
     Parameters
     ----------
     name: str
         The name of the parameter.
-    type: Union[Type, StructInfo]
-        The type of the parameter. It can be a typical TVM Type or a StructInfo,
-        which contains both type and shape
-    shape: Optional[ShapeExpr]
-        The shape of the parameter.
+    struct_info: StructInfo
+        The Struct Info of the parameter
+
     Returns
     -------
     var: Var
         The created function parameter var.
     """
 
-    if isinstance(type, StructInfo):
-        if shape is not None:
-            raise ValueError("Cannot specify the shape if we use StructInfo")
-        type, shape = get_type_shape_from_structure_info(type)
-    elif not isinstance(type, Type):
-        raise TypeError(f"Expect a Type or a StructInfo, but got {type}")
-
-    return _ffi_api.Arg(name, type, shape, struct_info)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Arg(name, struct_info)  # pylint: disable=no-member # type: ignore
 
 
 def func_name(name: str) -> None:
@@ -152,29 +139,14 @@ def func_attr(attrs: Dict[str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # pylint: disable=no-member # type: ignore
 
 
-def func_ret_type(ret_type: Union[StructInfo, Type]) -> None:
-    """Specify the return type of the last function frame.
+def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
+    """Specify the return struct info of the last function frame.
     Parameters
     ----------
-    ret_type: Union[StructInfo, Type]
-        The function return type.
+    ret_type: StructInfo
+        The function return struct info.
     """
-    if isinstance(ret_type, StructInfo):
-        ret_type, _ = get_type_shape_from_structure_info(ret_type)
-    elif not isinstance(ret_type, Type):
-        raise TypeError(f"Expect a Type or a StructInfo, but got {ret_type}")
-    return _ffi_api.FuncRetType(ret_type)  # pylint: disable=no-member # type: ignore
-
-
-def func_ret_shape(ret_shape: Expr) -> None:
-    """Specify the return shape of the last function frame.
-
-    Parameters
-    ----------
-    ret_shape: Expr
-        The function return shape.
-    """
-    return _ffi_api.FuncRetShape(ret_shape)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.FuncRetStructInfo(ret_sinfo)  # pylint: disable=no-member # type: ignore
 
 
 def func_ret_value(value: Expr) -> None:
@@ -248,7 +220,7 @@ def call_packed(
         if callable(argument):
             argument = argument()
         if isinstance(argument, StructInfo):
-            type_args[i] = get_type_shape_from_structure_info(argument)[0]
+            type_args[i] = get_static_type(argument)
         elif isinstance(argument, Type):
             type_args[i] = argument
         else:
@@ -280,7 +252,7 @@ def _tensor_type_wrapper(func):
             return type(args)(new_args)
         if isinstance(args, dict):
             return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
-        return get_type_shape_from_structure_info(args)[0] if isinstance(args, StructInfo) else args
+        return get_static_type(args) if isinstance(args, StructInfo) else args
 
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
@@ -332,26 +304,22 @@ def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool) -> Op
 ############################# Type Deduce ##############################
 
 
-def annotate_type_shape(
-    var: Var, anno_type: Type, anno_shape: ShapeExpr, anno_sinfo: StructInfo
-) -> None:
+def annotate_type_shape(var: Var, anno_struct_info: StructInfo) -> None:
     """Annotate and check the type of relax var.
     Parameters
     ----------
     var: Var
         The input var to be annotated.
 
-    anno_type: Type
-        The annotated type
 
-    anno_shape: ShapeExpr
-        The annotated shape
-
-    anno_sinfo: StructInfo
+    anno_struct_info: StructInfo
         The annotated struct info
 
     """
-    _ffi_api.AnnotateTypeShape(var, anno_type, anno_shape, anno_sinfo)
+    _ffi_api.AnnotateTypeShape(var, anno_struct_info)
+
+
+############################# If Then Else #############################
 
 
 def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
@@ -389,12 +357,31 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
 
 
+######################## Symbolic Shape Rewriter ########################
+
+
+def RewriteSymbolicShape(
+    struct_info: StructInfo,
+    var_table: Dict[str, tvm.tir.Var],
+) -> Tuple[StructInfo, List[tvm.tir.Var]]:
+    """Helper function to rewrite symbolic shape
+    Returns
+    -------
+    res : frame.ElseFrame
+        The result ElseFrame.
+    """
+    return _ffi_api.RewriteSymbolicShape(
+        struct_info, var_table
+    )  # pylint: disable=no-member # type: ignore
+
+
 ############################### Importer ###############################
 
 __all__ = [
     "Else",
     "If",
     "Object",
+    "RewriteSymbolicShape",
     "Shape",
     "Then",
     "TupleGetItem",
@@ -412,8 +399,7 @@ __all__ = [
     "ewise_fma",
     "func_attr",
     "func_name",
-    "func_ret_type",
-    "func_ret_shape",
+    "func_ret_struct_info",
     "func_ret_value",
     "function",
     "invoke_closure",

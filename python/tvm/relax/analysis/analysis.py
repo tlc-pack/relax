@@ -47,6 +47,22 @@ def get_static_type(sinfo: StructInfo) -> Type:
     return _ffi_api.GetStaticType(sinfo)  # type: ignore
 
 
+def get_shape(sinfo: StructInfo) -> Optional[Expr]:
+    """Get the corresponding shape from a StructInfo.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The input struct info.
+
+    Returns
+    -------
+    ret : Type
+        The corresponding shape.
+    """
+    return _ffi_api.GetShape(sinfo)  # type: ignore
+
+
 def erase_to_well_defined(
     sinfo: StructInfo,
     defined_shape_vars: Optional[List[tir.Var]] = None,

@@ -115,13 +115,13 @@ def eval_type_annotation(
     if callable(annotation):
         annotation = Tensor()
     if isinstance(annotation, StructInfo):
-        type_, shape = relax.struct_info.get_type_shape_from_structure_info(annotation)
-        shape = eval_shape_annotation(self, node, shape)
-        return type_, shape, annotation
+        var_table = {k: v for k, v in self.var_table.get().items() if isinstance(v, tir.Var)}
+        annotation, undefined_vars = R.RewriteSymbolicShape(annotation, var_table)
+        for var in undefined_vars:
+            self.var_table.add(var.name, var)
+        return annotation
     else:
-        if not isinstance(annotation, Type):
-            self.report_error(node, f"Unsupported type annotation {type(annotation)}")
-        return annotation, None, None
+        self.report_error(node, f"Unsupported type annotation {annotation}")
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
@@ -130,13 +130,9 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         with R.function():
             R.func_name(node.name)
             if node.returns is not None:
-                ann_type, ann_shape, ann_sinfo = eval_type_annotation(self, node.returns)
-                R.func_ret_type(ann_type)
+                ann_sinfo = eval_type_annotation(self, node.returns)
+                R.func_ret_struct_info(ann_sinfo)
 
-                # TODO(relax-team): remove the following line when fixing ret_shape issue
-                ann_shape = relax.RuntimeDepShape()
-
-                R.func_ret_shape(ann_shape)
             with self.with_dispatch_token("relax"):
                 self.visit(node.args)
                 self.visit_body(node.body)
@@ -147,13 +143,17 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
     if node.returns is None:
         ret_type, ret_shape = None, None
     else:
-        ret_type, ret_shape, ret_sinfo = eval_type_annotation(self, node.returns)
+        ret_sinfo = eval_type_annotation(self, node.returns)
+        ret_type = relax.analysis.get_static_type(ret_sinfo)
+        ret_shape = relax.analysis.get_shape(ret_sinfo)
     params = []
     arg_types = []
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_type, param_shape, param_sinfo = self.visit_tvm_annotation(arg.annotation)
+        param_sinfo = self.visit_tvm_annotation(arg.annotation)
+        param_type = relax.analysis.get_static_type(param_sinfo)
+        param_shape = relax.analysis.get_shape(param_sinfo)
         arg_types.append(param_type)
         params.append(relax.Var(arg.arg, param_shape, param_type))
 
@@ -197,8 +197,8 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_type, param_shape, param_sinfo = self.visit_tvm_annotation(arg.annotation)
-        param = R.arg(arg.arg, param_type, param_shape, param_sinfo)
+        param_sinfo = self.visit_tvm_annotation(arg.annotation)
+        param = R.arg(arg.arg, param_sinfo)
 
         self.var_table.add(arg.arg, param)
 
@@ -247,7 +247,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    ann_type, ann_shape, ann_sinfo = self.visit_tvm_annotation(node.annotation)
+    ann_sinfo = self.visit_tvm_annotation(node.annotation)
     self.eval_assign(
         target=lhs,
         source=rhs,
@@ -256,7 +256,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     )
     var = self.var_table.get().get(lhs.id)
     assert isinstance(var, relax.Var)
-    R.ir.annotate_type_shape(var, ann_type, ann_shape, ann_sinfo)
+    R.ir.annotate_type_shape(var, ann_sinfo)
 
 
 @dispatch.register(token="relax", type_name="Return")

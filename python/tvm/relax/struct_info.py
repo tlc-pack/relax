@@ -199,30 +199,3 @@ class FuncStructInfo(StructInfo):
         info: FuncStructInfo
         """
         return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, span)
-
-
-
-# TODO(Siyuan, tqchen): remove the following lines and implement the similar function in C++
-def get_type_shape_from_structure_info(
-    struct_info: StructInfo,
-) -> Tuple[Type, Optional[Expr]]:
-    if isinstance(struct_info, TensorStructInfo):
-        return ty.DynTensorType(struct_info.ndim, struct_info.dtype), struct_info.shape
-    elif isinstance(struct_info, TupleStructInfo):
-        type_shape = [get_type_shape_from_structure_info(s) for s in struct_info.fields]
-        type_, shape_ = list(zip(*type_shape))
-        if [s is not None for s in shape_]:
-            shape_ = expr.Tuple(shape_)
-        else:
-            shape_ = expr.RuntimeDepShape()
-        return ty.TupleType(type_), shape_
-    elif isinstance(struct_info, ShapeStructInfo):
-        return ty.ShapeType(), None
-    elif isinstance(struct_info, ObjectStructInfo):
-        return ty.ObjectType(), None
-    elif isinstance(struct3A_info, FuncStructInfo):
-        arg_types = [get_type_shape_from_structure_info(s)[0] for s in struct_info.params]
-        ret_type = get_type_shape_from_structure_info(struct_info.ret)[0]
-        return ty.FuncType(arg_types, ret_type), None
-    else:
-        raise ValueError(f"Unsupported structure info {struct_info}")

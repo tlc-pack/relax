@@ -52,13 +52,10 @@ TVM_DLL FunctionFrame Function();
 /*!
  * \brief Add a parameter to the last function frame.
  * \param name The name of the parameter.
- * \param type The type of the parameter.
- * \param shape The shape of the parameter.
  * \param struct_info The struct_info of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape,
-                            const Optional<tvm::relax::StructInfo>& struct_info);
+TVM_DLL tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_info);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -73,16 +70,10 @@ TVM_DLL void FuncName(const String& name);
 TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
 
 /*!
- * \brief Specify the return type of the last function frame.
- * \param ret_type The return type.
+ * \brief Specify the return struct info of the last function frame.
+ * \param ret_sinfo The return struct info.
  */
-TVM_DLL void FuncRetType(tvm::Type ret_type);
-
-/*!
- * \brief Specify the return shape of the last function frame.
- * \param ret_shape The return shape.
- */
-TVM_DLL void FuncRetShape(tvm::relax::Expr ret_shape);
+TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo);
 
 /*!
  * \brief Specify the return value of the last function frame.
@@ -135,15 +126,12 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
 /*!
  * \brief Annotate and check the type and shape of relax var.
  * \param var The input var to be annotated.
- * \param anno_type The annotated type.
- * \param anno_shape The annotated shape, which can be undefined.
- * \param anno_sinfo The annotated struct info, which can be undefined.
+ * \param anno_struct_info The annotated struct info, which can be undefined.
  * \note This function will check if the type of var is compatible with the annotated type.
  * And we annotate to the var with more detailed type.
  */
-TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                               const Optional<tvm::relax::Expr>& anno_shape,
-                               const Optional<tvm::relax::StructInfo>& anno_sinfo);
+TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var,
+                               const tvm::relax::StructInfo& anno_struct_info);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

@@ -70,6 +70,38 @@ TVM_REGISTER_GLOBAL("relax.analysis.GetStaticType").set_body_typed([](const Stru
 });
 
 //--------------------------
+// GetShape
+//--------------------------
+class ShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructInfo&)> {
+ public:
+  Optional<Expr> VisitStructInfo_(const ObjectStructInfoNode* op) final { return NullOpt; }
+
+  Optional<Expr> VisitStructInfo_(const PrimStructInfoNode* op) final { return NullOpt; }
+
+  Optional<Expr> VisitStructInfo_(const ShapeStructInfoNode* op) final { return NullOpt; }
+
+  Optional<Expr> VisitStructInfo_(const TensorStructInfoNode* op) final { return op->shape; }
+
+  Optional<Expr> VisitStructInfo_(const TupleStructInfoNode* op) final {
+    bool valid = true;
+    Array<Expr> fields = op->fields.Map([this, &valid](const StructInfo& sinfo) {
+      Optional<Expr> shape = this->VisitStructInfo(sinfo);
+      valid &= shape.defined();
+      return shape.value_or(Expr(nullptr));
+    });
+    return valid ? Optional<Expr>(Tuple(fields, op->span)) : NullOpt;
+  }
+
+  Optional<Expr> VisitStructInfo_(const FuncStructInfoNode* op) final { return NullOpt; }
+};
+
+Optional<Expr> GetShape(const StructInfo& info) { return ShapeDeriver()(info); }
+
+TVM_REGISTER_GLOBAL("relax.analysis.GetShape").set_body_typed([](const StructInfo& info) {
+  return GetShape(info);
+});
+
+//--------------------------
 // EraseToWellDefined
 //--------------------------
 class WellDefinedEraser : public StructInfoMutator, public ExprVisitor, public tir::ExprVisitor {
@@ -311,12 +343,11 @@ TVM_REGISTER_GLOBAL("relax.StructInfoIsBaseOf")
       return IsBaseOf(base, derived);
     });
 
-
 //--------------------------
 // UnifyToLCA
 //--------------------------
-class StructInfoLCAFinder :
-      public StructInfoFunctor<StructInfo(const StructInfo&, const StructInfo&)> {
+class StructInfoLCAFinder
+    : public StructInfoFunctor<StructInfo(const StructInfo&, const StructInfo&)> {
  public:
   explicit StructInfoLCAFinder(arith::Analyzer* ana) : analyzer_(ana) {}
 
@@ -343,9 +374,7 @@ class StructInfoLCAFinder :
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownDim;
-    if (lhs->ndim != rhs->ndim ||
-        !lhs->values.defined() ||
-        !rhs->values.defined() ||
+    if (lhs->ndim != rhs->ndim || !lhs->values.defined() || !rhs->values.defined() ||
         !CanProveShapeEqual(lhs->values.value(), rhs->values.value(), analyzer_)) {
       // refers return same when possible
       if (!lhs->values.defined() && lhs->ndim == ndim) {
@@ -367,9 +396,7 @@ class StructInfoLCAFinder :
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownDim;
     // if ndim mismatch or one side of shape is missing
     // then we cannot keep in symbolic shape
-    if (lhs->ndim != rhs->ndim ||
-        !lhs->shape.defined() ||
-        !rhs->shape.defined() ||
+    if (lhs->ndim != rhs->ndim || !lhs->shape.defined() || !rhs->shape.defined() ||
         !CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(), analyzer_)) {
       // reuse lhs when possible
       if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim) {
@@ -451,8 +478,7 @@ class StructInfoLCAFinder :
     auto params = UnifyArray(lhs->params.value(), rhs->params.value());
     auto ret = this->VisitStructInfo(lhs->ret, rhs->ret);
 
-    if (params.same_as(lhs->params) &&
-        ret.same_as(lhs->ret)) {
+    if (params.same_as(lhs->params) && ret.same_as(lhs->ret)) {
       return GetRef<StructInfo>(lhs);
     } else {
       // fail to unify the params
@@ -476,9 +502,7 @@ class StructInfoLCAFinder :
     if (lhs.same_as(rhs)) return lhs;
     if (lhs.size() != rhs.size()) return NullOpt;
     size_t index = 0;
-    return lhs.Map([&](const StructInfo& a) {
-      return this->VisitStructInfo(a, rhs[index++]);
-    });
+    return lhs.Map([&](const StructInfo& a) { return this->VisitStructInfo(a, rhs[index++]); });
   }
 };
 
