@@ -22,7 +22,7 @@ import typing
 
 import tvm
 import tvm._ffi
-import numpy as _np
+import numpy as _np  # type: ignore
 from tvm.runtime import ndarray as _nd
 
 from tvm._ffi import base as _base
@@ -56,13 +56,13 @@ class Call(Expr):
     op: tvm.ir.Op or any tvm.relax.Expr with function type.
         The operation to be called.
 
-    args: List[Expr]
+    args: Union[List[Expr], typing.Tuple[Expr, ...]]
         The arguments to the call.
 
     attrs: Optional[tvm.ir.Attrs]
         Attributes to the call, can be None
 
-    type_args: Optional[List[Type]]
+    type_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]]
         The additional type arguments, this is only
         used in advanced usecase of template functions.
 
@@ -73,14 +73,14 @@ class Call(Expr):
     def __init__(
         self,
         op: Union[Expr, tvm.ir.Op],
-        args: List[Expr],
+        args: Union[List[Expr], typing.Tuple[Expr, ...]],
         attrs: Optional[tvm.ir.Attrs] = None,
-        type_args: Optional[List[Type]] = None,
+        type_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]] = None,
         span: Optional[Span] = None,
     ):
         if not type_args:
             type_args = []
-        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
+        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.If")
@@ -100,7 +100,7 @@ class If(Expr):
     """
 
     def __init__(self, cond, true_branch, false_branch, span: Span = None):
-        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)
+        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Tuple")
@@ -109,15 +109,15 @@ class Tuple(Expr):
 
     Parameters
     ----------
-    fields : List[Expr]
+    fields : Union[List[Expr], typing.Tuple[Expr, ...]]
         The fields in the tuple.
 
     span: Optional[Span]
         Span that points to original source code
     """
 
-    def __init__(self, fields: List[Expr], span: Span = None):
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
+    def __init__(self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
 
     def __getitem__(self, index: int):
         if index >= len(self):
@@ -145,7 +145,7 @@ class TupleGetItem(Expr):
     """
 
     def __init__(self, tuple_value: Expr, index: int):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
@@ -187,7 +187,7 @@ class RuntimeDepShape(Expr):
 @tvm._ffi.register_object("relax.expr.Constant")
 class Constant(Expr):
     def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)
+        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Var")
