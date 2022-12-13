@@ -702,13 +702,17 @@ Var ExprMutator::VisitVarDef(const Var& var) {
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
-  builder_->BeginBindingBlock();
-  Expr ret = this->VisitExpr(expr);
-  BindingBlock prologue = builder_->EndBlock();
-  if (!prologue->bindings.empty()) {
-    ret = SeqExpr({prologue}, ret);
+  if (expr->IsInstance<SeqExprNode>()) {
+    return this->VisitExpr(expr);
+  } else {
+    builder_->BeginBindingBlock();
+    Expr ret = this->VisitExpr(expr);
+    BindingBlock prologue = builder_->EndBlock();
+    if (!prologue->bindings.empty()) {
+      ret = SeqExpr({prologue}, ret);
+    }
+    return ret;
   }
-  return ret;
 }
 
 Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
