@@ -626,7 +626,7 @@ def test_no_func_params_fail():
 
     with pytest.raises(RuntimeError):
         with bb.function("func"):
-            gv0 = bb.emit(rx.Call(ExternFunc("test.blockbuilder.nop"), None))
+            gv0 = bb.emit(rx.Call(ExternFunc("test.blockbuilder.nop"), []))
             bb.emit_func_output(gv0)
 
 
