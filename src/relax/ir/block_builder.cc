@@ -406,7 +406,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr Normalize(const Expr& expr) final {
     Expr normalized = this->VisitExpr(expr);
     // Invariant:
-    // After Normalize: an Expr always have checked_type (with the exception of Op).
+    // After Normalize: an Expr always have
+    // checked_type (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
       ICHECK(normalized->checked_type_.defined())
           << "The checked_type_ of an Expr except OpNode after "
