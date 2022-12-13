@@ -36,13 +36,6 @@ namespace relax {
 using Expr = RelayExpr;
 using ExprNode = RelayExprNode;
 using relay::Id;
-using relay::If;
-using relay::IfNode;
-using relay::Tuple;
-using relay::TupleGetItem;
-using relay::TupleGetItemNode;
-using relay::TupleNode;
-
 
 /*!
  * \brief Call corresponds to callable invocation.
@@ -160,6 +153,192 @@ Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                 Optional<Span> opt_span = Optional<Span>());
 
+/*!
+ * \brief Condition expression
+ *
+ * Unlike traditional statement `if`s, the if evalutes
+ * to the result of the branch taken.
+ *
+ * x = if (true) { 1 } else { 0 }; // x is 1
+ * y = if (false) { 1 } else { 0 }; // y is 0
+ *
+ * \note This is similar to C's ternary operator.
+ */
+class If;
+/*! \brief container of If */
+class IfNode : public ExprNode {
+ public:
+  /*! \brief The condition. */
+  Expr cond;
+  /*! \brief The expression evaluated when condition is true. */
+  Expr true_branch;
+  /*! \brief The expression evaluated when condition is false */
+  Expr false_branch;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("cond", &cond);
+    v->Visit("true_branch", &true_branch);
+    v->Visit("false_branch", &false_branch);
+    v->Visit("virtual_device_", &virtual_device_);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
+           equal(false_branch, other->false_branch);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(cond);
+    hash_reduce(true_branch);
+    hash_reduce(false_branch);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.If";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
+};
+
+class If : public Expr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param cond The condition of a if node.
+   * \param true_branch The fall through branch
+   * \param false_branch The branch for execution when condition is false.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
+};
+
+/*!
+ * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
+ * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
+              Optional<Expr> opt_true_branch = Optional<Expr>(),
+              Optional<Expr> opt_false_branch = Optional<Expr>(),
+              Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+              Optional<Span> opt_span = Optional<Span>());
+
+/*! \brief Tuple of multiple Exprs */
+class Tuple;
+/*! \brief Tuple container */
+class TupleNode : public ExprNode {
+ public:
+  /*! \brief the fields of the tuple */
+  tvm::Array<Expr> fields;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("fields", &fields);
+    v->Visit("virtual_device_", &virtual_device_);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("shape_", &shape_);
+  }
+
+  bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
+    // specially handle empty tuple as a constant is not a graph node.
+    if (fields.size() == other->fields.size() && fields.size() == 0) {
+      return true;
+    } else {
+      equal->MarkGraphNode();
+      return equal(fields, other->fields);
+    }
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    if (fields.size() != 0) {
+      hash_reduce->MarkGraphNode();
+      hash_reduce(fields);
+    }
+  }
+
+  static constexpr const char* _type_key = "relax.expr.Tuple";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
+};
+
+class Tuple : public Expr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param fields The fields of a tuple.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
+};
+
+/*!
+ * \brief Returns \p tuple with the given properties. A null property denotes 'no change'.
+ * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
+                 Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                 Optional<Span> opt_span = Optional<Span>());
+
+/*! \brief Get index-th field out of a tuple. */
+class TupleGetItem;
+class TupleGetItemNode : public ExprNode {
+ public:
+  /*! \brief The tuple Expression */
+  Expr tuple;
+  /*! \brief which value to get */
+  int index;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("tuple_value", &tuple);
+    v->Visit("index", &index);
+    v->Visit("virtual_device_", &virtual_device_);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
+    return equal(tuple, other->tuple) && equal(index, other->index);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(tuple);
+    hash_reduce(index);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.TupleGetItem";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
+};
+
+class TupleGetItem : public Expr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param tuple The tuple to get an element from.
+   * \param index The index for extracting a value in the tuple.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, Expr, TupleGetItemNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
+};
+
+/*!
+ * \brief Returns \p tuple_get_item with the given properties. A null property denotes 'no change'.
+ * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
+                        Optional<Integer> opt_index = Optional<Integer>(),
+                        Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                        Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
@@ -326,7 +505,6 @@ class DataflowVar : public Var {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
 };
 
-
 /*!
  * \brief Constant tensor.
  *
@@ -377,7 +555,6 @@ class Constant : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
-
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public Object {

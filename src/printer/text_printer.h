@@ -268,15 +268,11 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   std::unordered_map<relay::Id, Doc, ObjectPtrHash, ObjectPtrEqual> var_id_map_;
   std::unordered_map<tir::Var, Doc, ObjectPtrHash, ObjectPtrEqual> dim_var_map_;
 
-  // IR nodes inherited from Relay
-  Doc VisitNode_(const relay::TupleNode* op) override;
-  Doc VisitNode_(const relay::GlobalVarNode* op) override;
-  // Doc VisitNode_(const relay::IfNode* op) override;
   Doc VisitNode_(const OpNode* op) override;
-  Doc VisitNode_(const relay::TupleGetItemNode* op) override;
-
-  // IR nodes introduced by Relax
+  Doc VisitNode_(const relay::GlobalVarNode* op) override;
   Doc VisitNode_(const relax::CallNode* op) override;
+  Doc VisitNode_(const relax::TupleNode* op) override;
+  Doc VisitNode_(const relax::TupleGetItemNode* op) override;
   Doc VisitNode_(const relax::ConstantNode* op) override;
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;

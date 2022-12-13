@@ -53,7 +53,7 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   }
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::TupleNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::TupleNode* op) {
   size_t num_fields = op->fields.size();
 
   if (num_fields == 0) {
@@ -158,7 +158,7 @@ Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) {
   return Doc::Text(name);
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::TupleGetItemNode* op) {
   Doc doc;
   doc << Print(op->tuple) << "[" << op->index << "]";
   return doc;

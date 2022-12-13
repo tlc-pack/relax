@@ -93,10 +93,17 @@ class GlobalVar(RelayExpr):
             A call taking the variable as a function.
         """
         # pylint: disable=import-outside-toplevel
-        if all(isinstance(x, RelayExpr) for x in args):
-            from tvm import relay
 
-            return relay.Call(self, args)
+        # TODO(@relax-team): replace with Relax base class after it's introduced
+        if all(isinstance(x, RelayExpr) for x in args):
+            if all(is_relax_expr(x) for x in args):
+                from tvm import relax
+
+                return relax.Call(self, args)
+            else:
+                from tvm import relay
+
+                return relay.Call(self, args)
         arg_types = [type(x) for x in args]
         raise RuntimeError(
             "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)
@@ -157,3 +164,38 @@ class Range(Node):
             The constructed range.
         """
         return _ffi_api.Range_from_min_extent(min_value, extent, span)
+
+
+def is_relax_expr(expr: RelayExpr) -> bool:
+    """check if a RelayExpr is a Relax expresssion.
+
+    Parameters
+    ----------
+    expr : RelayExpr
+        The expression to check.
+
+    Returns
+    -------
+    res : bool
+        If the expression is Relax expression, return True; otherwise return False.
+    """
+    from tvm import relax  # pylint: disable=import-outside-toplevel
+
+    if isinstance(
+        expr,
+        (
+            relax.Call,
+            relax.Tuple,
+            relax.TupleGetItem,
+            relax.If,
+            relax.Var,
+            relax.DataflowVar,
+            relax.ShapeExpr,
+            relax.RuntimeDepShape,
+            relax.SeqExpr,
+            relax.Function,
+            relax.ExternFunc,
+        ),
+    ):
+        return True
+    return False

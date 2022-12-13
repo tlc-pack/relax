@@ -19,20 +19,19 @@
 """The expression nodes of Relax."""
 from typing import Any, List, Optional, Union
 import typing
-from numbers import Number as _Number
 
 import tvm
 import tvm._ffi
 import numpy as _np
 from tvm.runtime import ndarray as _nd
 
+from tvm._ffi import base as _base
 from .. import relay
 from ..ir import BaseFunc, Node, SourceName, Span
-from ..relay import Id, Tuple, TupleGetItem
+from ..relay import Id
 from ..runtime import String
 from ..tir import PrimExpr
 from . import _ffi_api, ty
-from tvm._ffi import base as _base
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
@@ -40,141 +39,13 @@ from tvm._ffi import base as _base
 Expr = Union[relay.Expr]
 Type = Union[relay.Type]
 GlobalVar = Union[relay.GlobalVar]
-If = Union[relay.If]
 
 # will be registered afterwards
 _op_make = None
 
 
-class ExprWithOp(Expr):
-    """Basetype of all relay expressions that defines op overloading."""
-
-    def astype(self, dtype):
-        """Cast the content type of the current data to dtype.
-
-        Parameters
-        ----------
-        dtype : str
-            The target data type.
-
-        Note
-        ----
-        This function only works for TensorType Exprs.
-
-        Returns
-        -------
-        result : tvm.relay.Expr
-            The result expression.
-        """
-        return _ffi_api.cast(self, dtype)
-
-    def __neg__(self):
-        return _op_make.negative(self)
-
-    def __lt__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.less(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __gt__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.greater(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __ge__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.greater_equal(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __le__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.less_equal(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __add__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.add(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.subtract(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __rsub__(self, other):
-        if isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        raise TypeError("type %s not supported" % str(type(other)))
-
-    def __mul__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.multiply(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __div__(self, other):
-        if isinstance(other, Expr):
-            return _op_make.divide(self, other)
-        elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
-
-    def __rdiv__(self, other):
-        if isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        raise TypeError("type %s not supported" % str(type(other)))
-
-    def __truediv__(self, other):
-        return self.__div__(other)
-
-    def __rtruediv__(self, other):
-        return self.__rdiv__(other)
-
-    def __call__(self, *args):
-        """Call the variable (if it represents a function).
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            The arguments to the call.
-
-        Returns
-        -------
-        call: Call
-            A call taking the variable as a function.
-        """
-        return Call(self, args)
-
-
 @tvm._ffi.register_object("relax.expr.Call")
-class Call(ExprWithOp):
+class Call(Expr):
     """Function call node in Relax.
 
     Call node corresponds the operator application node
@@ -182,27 +53,99 @@ class Call(ExprWithOp):
 
     Parameters
     ----------
-    op: tvm.ir.Op or any tvm.relay.Expr with function type.
+    op: tvm.ir.Op or any tvm.relax.Expr with function type.
         The operation to be called.
 
-    args: List[tvm.relay.Expr]
+    args: List[Expr]
         The arguments to the call.
 
-    attrs: Optional[tvm.Attrs]
+    attrs: Optional[tvm.ir.Attrs]
         Attributes to the call, can be None
 
-    type_args: Optional[List[tvm.relay.Type]]
+    type_args: Optional[List[Type]]
         The additional type arguments, this is only
         used in advanced usecase of template functions.
 
-    span: Optional[tvm.relay.Span]
+    span: Optional[Span]
         Span that points to original source code
     """
 
-    def __init__(self, op, args, attrs=None, type_args=None, span=None):
+    def __init__(
+        self,
+        op: Union[Expr, tvm.ir.Op],
+        args: List[Expr],
+        attrs: Optional[tvm.ir.Attrs] = None,
+        type_args: Optional[List[Type]] = None,
+        span: Optional[Span] = None,
+    ):
         if not type_args:
             type_args = []
         self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
+
+
+@tvm._ffi.register_object("relax.expr.If")
+class If(Expr):
+    """A conditional expression in Relax.
+
+    Parameters
+    ----------
+    cond: Expr
+        The condition.
+
+    true_branch: Expr
+        The expression evaluated when condition is true.
+
+    false_branch: Expr
+        The expression evaluated when condition is false.
+    """
+
+    def __init__(self, cond, true_branch, false_branch, span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)
+
+
+@tvm._ffi.register_object("relax.expr.Tuple")
+class Tuple(Expr):
+    """Tuple expression that groups several fields together.
+
+    Parameters
+    ----------
+    fields : List[Expr]
+        The fields in the tuple.
+
+    span: Optional[Span]
+        Span that points to original source code
+    """
+
+    def __init__(self, fields: List[Expr], span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
+
+    def __getitem__(self, index: int):
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return self.fields[index]
+
+    def __len__(self):
+        return len(self.fields)
+
+    def astype(self, _):
+        raise TypeError("astype cannot be used on tuple")
+
+
+@tvm._ffi.register_object("relax.expr.TupleGetItem")
+class TupleGetItem(Expr):
+    """Get index-th item from a tuple.
+
+    Parameters
+    ----------
+    tuple_value: Expr
+        The input tuple expression.
+
+    index: int
+        The index.
+    """
+
+    def __init__(self, tuple_value: Expr, index: int):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")

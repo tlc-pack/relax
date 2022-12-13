@@ -28,7 +28,7 @@ RelayExpr RelayExprNode::shape() const {
   }
   static const Op& op = Op::Get("relax.shape_of");
   RelayExpr self = GetRef<RelayExpr>(this);
-  relay::Call call_shape_of(op, {self}, {}, {});
+  relax::Call call_shape_of(op, {self}, {}, {});
   call_shape_of->checked_type_ = relax::ShapeType();
   return call_shape_of;
 }
@@ -38,7 +38,6 @@ TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNo
 namespace relax {
 using tvm::ReprPrinter;
 using tvm::runtime::Optional;
-
 
 Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
   ObjectPtr<CallNode> n = make_object<CallNode>();
@@ -111,7 +110,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->type_args << ")";
     });
 
-
 /*
  * Non-recursive traversal with dismantling unused call nodes,
  * a derivative from ExpandDataflow method
@@ -165,7 +163,6 @@ inline void Dismantle(const Expr& expr) {
   }
 }
 
-
 /*
  * Non-recursive destructor
  */
@@ -189,6 +186,141 @@ void CallNode::Deleter_(Object* ptr) {
   auto c = GetRef<Call>(p);
 }
 
+If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
+  ObjectPtr<IfNode> n = make_object<IfNode>();
+  n->cond = std::move(cond);
+  n->true_branch = std::move(true_branch);
+  n->false_branch = std::move(false_branch);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branch,
+              Optional<Expr> opt_false_branch, Optional<VirtualDevice> opt_virtual_device,
+              Optional<Span> opt_span) {
+  Expr cond = opt_cond.value_or(if_expr->cond);
+  Expr true_branch = opt_true_branch.value_or(if_expr->true_branch);
+  Expr false_branch = opt_false_branch.value_or(if_expr->false_branch);
+  VirtualDevice virtual_device = opt_virtual_device.value_or(if_expr->virtual_device());
+  Span span = opt_span.value_or(if_expr->span);
+
+  bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
+                   false_branch.same_as(if_expr->false_branch) &&
+                   virtual_device.same_as(if_expr->virtual_device()) && span.same_as(if_expr->span);
+
+  if (!unchanged) {
+    IfNode* cow_if_node = if_expr.CopyOnWrite();
+    cow_if_node->cond = cond;
+    cow_if_node->true_branch = true_branch;
+    cow_if_node->false_branch = false_branch;
+    cow_if_node->virtual_device_ = virtual_device;
+    cow_if_node->span = span;
+  }
+  return if_expr;
+}
+
+TVM_REGISTER_NODE_TYPE(IfNode);
+
+TVM_REGISTER_GLOBAL("relax.If")
+    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch, Span span) {
+      return If(cond, true_branch, false_branch, span);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<IfNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const IfNode*>(ref.get());
+      p->stream << "IfNode(" << node->cond << ", " << node->true_branch << ", "
+                << node->false_branch << ")";
+    });
+
+Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
+  ObjectPtr<TupleNode> n = make_object<TupleNode>();
+  n->fields = std::move(fields);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(TupleNode);
+
+TVM_REGISTER_GLOBAL("relax.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
+  return Tuple(fields, span);
+});
+
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
+                 Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+  Array<Expr> fields = opt_fields.value_or(tuple->fields);
+  VirtualDevice virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
+  Span span = opt_span.value_or(tuple->span);
+
+  bool all_fields_unchanged = true;
+  if (fields.size() == tuple->fields.size()) {
+    for (size_t i = 0; i < fields.size(); i++) {
+      all_fields_unchanged &= fields[i].same_as(tuple->fields[i]);
+    }
+  } else {
+    all_fields_unchanged = false;
+  }
+
+  all_fields_unchanged = all_fields_unchanged && virtual_device.same_as(tuple->virtual_device()) &&
+                         span.same_as(tuple->span);
+  if (!all_fields_unchanged) {
+    TupleNode* cow_tuple_node = tuple.CopyOnWrite();
+    cow_tuple_node->fields = fields;
+    cow_tuple_node->virtual_device_ = virtual_device;
+    cow_tuple_node->span = span;
+  }
+  return tuple;
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TupleNode*>(ref.get());
+      p->stream << "Tuple(" << node->fields << ")";
+    });
+
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+  ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
+  n->tuple = std::move(tuple);
+  n->index = index;
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
+                        Optional<Integer> opt_index, Optional<VirtualDevice> opt_virtual_device,
+                        Optional<Span> opt_span) {
+  Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
+  Integer index = opt_index.value_or(tuple_get_item->index);
+  VirtualDevice virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
+  Span span = opt_span.value_or(tuple_get_item->span);
+
+  bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
+                   virtual_device.same_as(tuple_get_item->virtual_device()) &&
+                   span.same_as(tuple_get_item->span);
+  if (!unchanged) {
+    TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
+    cow_tuple_get_item_node->tuple = tuple;
+    cow_tuple_get_item_node->index = index.IntValue();
+    cow_tuple_get_item_node->span = span;
+    cow_tuple_get_item_node->virtual_device_ = virtual_device;
+  }
+  return tuple_get_item;
+}
+
+TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
+
+TVM_REGISTER_GLOBAL("relax.TupleGetItem").set_body_typed([](Expr tuple, int index) {
+  return TupleGetItem(tuple, index);
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TupleGetItemNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TupleGetItemNode*>(ref.get());
+      p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
