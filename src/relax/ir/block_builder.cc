@@ -457,6 +457,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
+  RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
 
   template <typename T>

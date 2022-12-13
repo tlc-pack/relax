@@ -89,7 +89,6 @@ class CallNode : public ExprNode {
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
@@ -150,7 +149,6 @@ Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
                 Optional<Attrs> opt_attrs = Optional<Attrs>(),
                 Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(),
-                Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                 Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -179,7 +177,6 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -224,7 +221,6 @@ class If : public Expr {
 If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
               Optional<Expr> opt_true_branch = Optional<Expr>(),
               Optional<Expr> opt_false_branch = Optional<Expr>(),
-              Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
               Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Tuple of multiple Exprs */
@@ -237,7 +233,6 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
@@ -283,7 +278,6 @@ class Tuple : public Expr {
  * fields.
  */
 Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
-                 Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                  Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
@@ -298,7 +292,6 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -337,7 +330,6 @@ class TupleGetItem : public Expr {
  */
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
                         Optional<Integer> opt_index = Optional<Integer>(),
-                        Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                         Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
@@ -527,7 +519,6 @@ class ConstantNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);

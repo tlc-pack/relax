@@ -45,25 +45,22 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   n->args = std::move(args);
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
-  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
                 Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
-                Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+                Optional<Span> opt_span) {
   // Collect new values for fields.
   Expr op = opt_op.value_or(call->op);
   Array<Expr> args = opt_args.value_or(call->args);
   Attrs attrs = opt_attrs.value_or(call->attrs);
   Array<Type> type_args = opt_type_args.value_or(call->type_args);
-  VirtualDevice virtual_device = opt_virtual_device.value_or(call->virtual_device());
   Span span = opt_span.value_or(call->span);
 
   // Check if anything changed.
-  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) &&
-                   virtual_device.same_as(call->virtual_device()) && span.same_as(call->span);
+  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
   if (unchanged) {
     if (args.size() == call->args.size()) {
       for (size_t i = 0; i < args.size(); i++) {
@@ -90,7 +87,6 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
     cow_call_node->args = args;
     cow_call_node->attrs = attrs;
     cow_call_node->type_args = type_args;
-    cow_call_node->virtual_device_ = virtual_device;
     cow_call_node->span = span;
   }
   return call;
@@ -191,30 +187,25 @@ If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);
-  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branch,
-              Optional<Expr> opt_false_branch, Optional<VirtualDevice> opt_virtual_device,
-              Optional<Span> opt_span) {
+              Optional<Expr> opt_false_branch, Optional<Span> opt_span) {
   Expr cond = opt_cond.value_or(if_expr->cond);
   Expr true_branch = opt_true_branch.value_or(if_expr->true_branch);
   Expr false_branch = opt_false_branch.value_or(if_expr->false_branch);
-  VirtualDevice virtual_device = opt_virtual_device.value_or(if_expr->virtual_device());
   Span span = opt_span.value_or(if_expr->span);
 
   bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
-                   false_branch.same_as(if_expr->false_branch) &&
-                   virtual_device.same_as(if_expr->virtual_device()) && span.same_as(if_expr->span);
+                   false_branch.same_as(if_expr->false_branch) && span.same_as(if_expr->span);
 
   if (!unchanged) {
     IfNode* cow_if_node = if_expr.CopyOnWrite();
     cow_if_node->cond = cond;
     cow_if_node->true_branch = true_branch;
     cow_if_node->false_branch = false_branch;
-    cow_if_node->virtual_device_ = virtual_device;
     cow_if_node->span = span;
   }
   return if_expr;
@@ -237,7 +228,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
-  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -248,10 +238,8 @@ TVM_REGISTER_GLOBAL("relax.Tuple").set_body_typed([](tvm::Array<relay::Expr> fie
   return Tuple(fields, span);
 });
 
-Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
-                 Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> opt_span) {
   Array<Expr> fields = opt_fields.value_or(tuple->fields);
-  VirtualDevice virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
   Span span = opt_span.value_or(tuple->span);
 
   bool all_fields_unchanged = true;
@@ -263,12 +251,10 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
     all_fields_unchanged = false;
   }
 
-  all_fields_unchanged = all_fields_unchanged && virtual_device.same_as(tuple->virtual_device()) &&
-                         span.same_as(tuple->span);
+  all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
   if (!all_fields_unchanged) {
     TupleNode* cow_tuple_node = tuple.CopyOnWrite();
     cow_tuple_node->fields = fields;
-    cow_tuple_node->virtual_device_ = virtual_device;
     cow_tuple_node->span = span;
   }
   return tuple;
@@ -284,28 +270,23 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
   n->tuple = std::move(tuple);
   n->index = index;
-  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
-                        Optional<Integer> opt_index, Optional<VirtualDevice> opt_virtual_device,
-                        Optional<Span> opt_span) {
+                        Optional<Integer> opt_index, Optional<Span> opt_span) {
   Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
   Integer index = opt_index.value_or(tuple_get_item->index);
-  VirtualDevice virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
-                   virtual_device.same_as(tuple_get_item->virtual_device()) &&
                    span.same_as(tuple_get_item->span);
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
     cow_tuple_get_item_node->tuple = tuple;
     cow_tuple_get_item_node->index = index.IntValue();
     cow_tuple_get_item_node->span = span;
-    cow_tuple_get_item_node->virtual_device_ = virtual_device;
   }
   return tuple_get_item;
 }
