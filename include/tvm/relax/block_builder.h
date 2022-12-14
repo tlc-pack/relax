@@ -105,6 +105,12 @@ class BlockBuilderNode : public Object {
    */
   virtual void UpdateFunction(const GlobalVar& gv, BaseFunc function) = 0;
 
+  /*!
+   * \brief Report an error during transformation construction.
+   * \param diagnostic The diagnostic information.
+   */
+  virtual void ReportFatal(const Diagnostic& diagnostic) = 0;
+
   //-------------------------------
   // Scope management
   //-------------------------------
@@ -202,11 +208,19 @@ class BlockBuilderNode : public Object {
    * \param expr The input expression.
    * \return The normalized expression.
    *
-   * \note Invariant: If any of the sub expr have a shape field,
-   *       they are required to already be in the normal form.
-   *       This is because we cannot normalize shape in argument values.
+   * \note Invariant: If any of the sub expr have struct_info field.
+   *       they must have already been normalized.
    */
   virtual Expr Normalize(const Expr& expr) = 0;
+
+  /*!
+   * \brief Normalize argument to a call or another IRNode.
+   * \param expr The input expression.
+   * \return The normalized expression.
+   *
+   * \note This function will create a binding var for non-leaf expressions such as Call.
+   */
+  virtual Expr NormalizeArgument(const Expr& expr) = 0;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.BlockBuilder";

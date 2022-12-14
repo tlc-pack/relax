@@ -313,11 +313,10 @@ class TupleStructInfo : public StructInfo {
 /*!
  * \brief custom-defined StructInfo derivation function.
  * \param call The call expression to be derived.
- * \param ctx_builder the additional block builder to provide scope context.
+ * \param ctx The builder context.
  * \return The derived struct info of the call.
  */
-using StructInfoDeriveFunc =
-    TypedEnvFunc<StructInfo(const Call& call, const BlockBuilder& ctx_builder)>;
+using StructInfoDeriveFunc = TypedEnvFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief Structure information about function.

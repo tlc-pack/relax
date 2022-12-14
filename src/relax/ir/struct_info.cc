@@ -21,9 +21,9 @@
  * \file src/relax/ir/struct_info.cc
  * \brief Relax struct info.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
-#include <tvm/relax/analysis.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -91,8 +91,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Span span) {
   Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
   ICHECK(sinfo) << "We expect shape to contain pre-set shape struct info";
   ICHECK(shape.defined()) << "Must provide a shape in this constructor";
-  ICHECK(shape->IsInstance<ShapeExprNode>() ||
-         shape->IsInstance<VarNode>())
+  ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
   n->ndim = sinfo.get()->ndim;
   // assign rest of the fields.
@@ -178,7 +177,6 @@ TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
         return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), span);
       }
     });
-
 
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {

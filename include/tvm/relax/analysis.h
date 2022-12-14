@@ -79,6 +79,13 @@ TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, arith::Analyze
 TVM_DLL Type GetStaticType(const StructInfo& info);
 
 /*!
+ * \brief Get the corresponding struct info from static type.
+ * \param type The input type
+ * \return the corresponding struct info.
+ */
+TVM_DLL StructInfo StructInfoFromType(const Type& type);
+
+/*!
  * \brief Get the corresponding legacy shape hint from struct info
  * \param info The struct info.
  * \return the corresponding legacy shape hint.

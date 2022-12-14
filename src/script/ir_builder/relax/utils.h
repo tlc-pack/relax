@@ -110,8 +110,6 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
   return tvm::relax::SeqExpr(new_blocks, body);
 }
 
-
-
 }  // namespace relax
 }  // namespace ir_builder
 }  // namespace script
