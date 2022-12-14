@@ -250,7 +250,7 @@ def test_const_irmodule():
     class MyModule:
         @R.function
         def my_const(x: R.Tensor((2, 3), "float32")):
-            z: R.Tensor((2, 3), "float32") = R.add(x, metadata["relay.Constant"][0])
+            z: R.Tensor((2, 3), "float32") = R.add(x, metadata["relax.expr.Constant"][0])
             return z
 
     my_module = MyModule
@@ -295,9 +295,9 @@ def test_const_meta():
     @R.function
     def my_const(x: R.Tensor((2, 3), "float32")):
         y2 = R.const(2.1, dtype="float32")
-        z: R.Tensor((2, 3), "float32") = R.add(x, metadata["relay.Constant"][0])
+        z: R.Tensor((2, 3), "float32") = R.add(x, metadata["relax.expr.Constant"][0])
         r: R.Tensor((2, 3), "float32") = R.add(z, y2)
-        w: R.Tensor((2, 3), "float32") = R.add(r, metadata["relay.Constant"][1])
+        w: R.Tensor((2, 3), "float32") = R.add(r, metadata["relax.expr.Constant"][1])
         return w
 
     check_roundtrip(my_const)

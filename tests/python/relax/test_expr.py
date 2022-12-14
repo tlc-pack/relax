@@ -157,7 +157,7 @@ def test_func():
 def test_shape_of():
     v0 = rx.Var("v0")
     s0 = v0.shape
-    assert isinstance(s0, tvm.relay.Call)
+    assert isinstance(s0, rx.Call)
     assert s0.op.name == "relax.shape_of"
 
     shape_anno = [96, 54]
