@@ -366,5 +366,170 @@ def test_normalize_combine_nearby_blocks():
     assert_structural_equal(after_mod["main"], expected)
 
 
+def test_normalize_nested_seq():
+    x = relax.Var("x", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    z = relax.Var("z", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    seq = relax.SeqExpr(
+        [
+            relax.BindingBlock(
+                [
+                    relax.VarBinding(x, relax.const(1)),
+                    relax.VarBinding(
+                        y,
+                        relax.SeqExpr(
+                            [relax.BindingBlock([relax.VarBinding(z, relax.const(2))])],
+                            z,
+                        ),
+                    ),
+                ]
+            )
+        ],
+        y,
+    )
+
+    f = relax.Function(
+        [],
+        seq,
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+
+    @R.function
+    def expected():
+        x = relax.const(1)
+        z = relax.const(2)
+        y = z
+        return y
+
+    assert_structural_equal(after_mod["main"], expected)
+
+
+def test_normalize_nested_seq_dataflow():
+    x = relax.Var("x", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    z = relax.Var("z", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    q = relax.Var("u", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    w = relax.DataflowVar("w", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    u = relax.Var("u", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    seq = relax.SeqExpr(
+        [
+            relax.BindingBlock(
+                [
+                    relax.VarBinding(x, relax.const(1)),
+                    relax.VarBinding(
+                        y,
+                        relax.SeqExpr(
+                            [
+                                relax.BindingBlock([relax.VarBinding(q, relax.const(2))]),
+                                relax.DataflowBlock(
+                                    [
+                                        relax.VarBinding(w, q),
+                                        relax.VarBinding(u, w),
+                                    ]
+                                ),
+                                relax.BindingBlock([relax.VarBinding(z, u)]),
+                            ],
+                            z,
+                        ),
+                    ),
+                ]
+            )
+        ],
+        y,
+    )
+
+    f = relax.Function(
+        [],
+        seq,
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+
+    @R.function
+    def expected():
+        x = relax.const(1)
+        q = relax.const(2)
+        with R.dataflow():
+            w = q
+            u = w
+            R.output(u)
+        z = u
+        y = z
+        return y
+
+    assert_structural_equal(after_mod["main"], expected)
+
+
+def test_normalize_deeply_nested_seq():
+    x = relax.Var("x", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    z = relax.Var("z", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    u = relax.Var("u", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    v = relax.Var("v", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    w = relax.Var("w", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    seq = relax.SeqExpr(
+        [
+            relax.BindingBlock(
+                [
+                    relax.VarBinding(x, relax.const(1)),
+                    relax.VarBinding(
+                        y,
+                        relax.SeqExpr(
+                            [
+                                relax.BindingBlock(
+                                    [
+                                        relax.VarBinding(
+                                            z,
+                                            relax.SeqExpr(
+                                                [
+                                                    relax.BindingBlock(
+                                                        [
+                                                            relax.VarBinding(u, relax.const(2)),
+                                                            relax.MatchShape(u, [], None),
+                                                            relax.VarBinding(v, u),
+                                                            relax.MatchShape(v, [], w),
+                                                        ]
+                                                    )
+                                                ],
+                                                w,
+                                            ),
+                                        )
+                                    ]
+                                )
+                            ],
+                            z,
+                        ),
+                    ),
+                ]
+            )
+        ],
+        y,
+    )
+
+    f = relax.Function(
+        [],
+        seq,
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+
+    @R.function
+    def expected():
+        x = relax.const(1)
+        u = relax.const(2)
+        R.match_shape(u, ())
+        v = u
+        w = R.match_shape(v, ())
+        z = w
+        y = z
+        return y
+
+    assert_structural_equal(after_mod["main"], expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

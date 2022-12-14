@@ -1008,10 +1008,55 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return seq;
   }
 
+  Array<BindingBlock> FlattenBlocks(const Array<BindingBlock>& blocks) {
+    // If there is a binding that is a seq expr, split the current block,
+    // add the nested blocks prior to the seq expr, and bind the seq expr body
+    // to the var
+    Array<BindingBlock> ret;
+    bool changed = false;
+    for (const BindingBlock& block : blocks) {
+      bool is_dataflow = block.as<DataflowBlockNode>();
+      Array<Binding> current;
+      for (const Binding& binding : block->bindings) {
+        auto match_shape = binding.as<MatchShapeNode>();
+        auto var_binding = binding.as<VarBindingNode>();
+        const Expr& value =
+            match_shape ? binding.as<MatchShapeNode>()->value : binding.as<VarBindingNode>()->value;
+        // if we encounter a nested seq, we have to flatten it:
+        //   1. Append the binding block we've accumulated so far
+        //   2. Reset the current block
+        //   3. Flatten (recursively) the inner blocks and append those
+        //   4. Add a binding of the current var to the seq expr's body to the current block
+        // then continue
+        if (auto seq = value.as<SeqExprNode>()) {
+          changed = true;
+          ret.push_back(is_dataflow ? DataflowBlock(current) : BindingBlock(current));
+          current = {};
+          auto flattened_blocks = FlattenBlocks(seq->blocks);
+          for (const BindingBlock& block : flattened_blocks) {
+            ret.push_back(block);
+          }
+          current.push_back(
+              match_shape
+                  ? Downcast<Binding>(MatchShape(seq->body, match_shape->pattern, match_shape->var))
+                  : Downcast<Binding>(VarBinding(var_binding->var, seq->body)));
+        } else {
+          current.push_back(binding);
+        }
+      }
+      ret.push_back(is_dataflow ? DataflowBlock(current) : BindingBlock(current));
+    }
+    return changed ? ret : blocks;
+  }
+
   Array<BindingBlock> NormalizeBlocks(const Array<BindingBlock>& blocks) {
     bool changed = false;
     Array<BindingBlock> ret;
-    for (const BindingBlock& block : blocks) {
+    auto flattened = FlattenBlocks(blocks);
+    if (!flattened.same_as(blocks)) {
+      changed = true;
+    }
+    for (const BindingBlock& block : flattened) {
       if (block->bindings.empty()) {
         // Case 1. Skip empty blocks
         changed = true;
@@ -1033,10 +1078,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         ret.pop_back();
         ret.push_back(merged);
         changed = true;
-      } else if (false) {
-        // Case 3. TODO(@Hzfengsy): normalize nested SeqExprs and BindingBlocks
       } else {
-        // Case 4. Add to the result
+        // Case 3. Add to the result
         ret.push_back(block);
       }
     }
