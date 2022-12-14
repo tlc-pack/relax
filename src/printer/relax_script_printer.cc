@@ -53,7 +53,7 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   }
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::TupleNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::TupleNode* op) {
   size_t num_fields = op->fields.size();
 
   if (num_fields == 0) {
@@ -79,7 +79,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relay::GlobalVarNode* op) {
   return Doc::Text(op->name_hint);
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::CallNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   // TODO(@altanh): how to support when func cannot be printed as Python expr?
   //                e.g. Function or If
   Doc doc;
@@ -158,7 +158,7 @@ Doc RelaxScriptPrinter::VisitNode_(const OpNode* op) {
   return Doc::Text(name);
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relay::TupleGetItemNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::TupleGetItemNode* op) {
   Doc doc;
   doc << Print(op->tuple) << "[" << op->index << "]";
   return doc;
@@ -280,8 +280,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
 
 Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
   // TODO(@altanh): think deeper about normal form (need to be strict about block exprs)
-  if (const relay::IfNode* ite = op->value.as<relay::IfNode>()) {
-    return PrintIfStmt(op->var, GetRef<relay::If>(ite));
+  if (const relax::IfNode* ite = op->value.as<relax::IfNode>()) {
+    return PrintIfStmt(op->var, GetRef<relax::If>(ite));
   } else if (const relax::FunctionNode* func = op->value.as<relax::FunctionNode>()) {
     return PrintFunctionDef(Print(op->var), GetRef<relax::Function>(func), /*is_global=*/false);
   } else if (const tir::PrimFuncNode* prim_func = op->value.as<tir::PrimFuncNode>()) {
@@ -551,7 +551,7 @@ Doc RelaxScriptPrinter::PrintPrimFunc(const String& name, const tir::PrimFunc& f
   return tir::AsTVMScriptDoc(mod, "T", false, func);
 }
 
-Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relay::If& ite) {
+Doc RelaxScriptPrinter::PrintIfStmt(const relax::Var& var, const relax::If& ite) {
   const relax::SeqExprNode* true_branch = ite->true_branch.as<relax::SeqExprNode>();
   const relax::SeqExprNode* false_branch = ite->false_branch.as<relax::SeqExprNode>();
   // TODO(@altanh): this invariant must be maintained by the normal form

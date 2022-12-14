@@ -34,8 +34,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::Call;
-
 /*!
  * \brief Infer the output shape for operators. This function will
  * be invoked to fill the \p shape_ field of expressions.
