@@ -1020,8 +1020,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       for (const Binding& binding : block->bindings) {
         auto match_shape = binding.as<MatchShapeNode>();
         auto var_binding = binding.as<VarBindingNode>();
-        const Expr& value =
-            match_shape ? binding.as<MatchShapeNode>()->value : binding.as<VarBindingNode>()->value;
+        const Expr& value = match_shape ? match_shape->value : var_binding->value;
         // if we encounter a nested seq, we have to flatten it:
         //   1. Append the binding block we've accumulated so far
         //   2. Reset the current block
