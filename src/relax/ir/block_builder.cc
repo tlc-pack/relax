@@ -613,23 +613,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return seq_expr;
   }
 
-
-  Expr VisitExpr_(const ConstantNode* op) final {
-    Constant constant = GetRef<Constant>(op);
-
-    if (!constant->struct_info_.defined()) {
-      auto shape_tuple = op->data.Shape();
-      Array<PrimExpr> values;
-      for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
-        values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
-      }
-      UpdateStructInfo(constant,
-                       TensorStructInfo(ShapeExpr(values), op->data.DataType(), op->span));
-    }
-
-    return constant;
-  }
-
   Expr VisitExpr_(const IfNode* op) final {
     Expr new_cond = this->NormalizeArgument(op->cond);
     Expr new_true = this->VisitWithNewScope(op->true_branch);
@@ -772,8 +755,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
 
     SeqExpr seq(bindings, post);
-    UpdateShape(seq, post->shape_);
-    UpdateType(seq, post->checked_type_);
+    UpdateStructInfo(seq, EraseToWellDefined(GetStructInfo(seq->body)));
+
     return seq;
   }
 
