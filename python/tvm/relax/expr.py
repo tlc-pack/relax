@@ -131,9 +131,6 @@ class Tuple(Expr):
     def __len__(self):
         return len(self.fields)
 
-    def astype(self, _):
-        raise TypeError("astype cannot be used on tuple")
-
 
 @tvm._ffi.register_object("relax.expr.TupleGetItem")
 class TupleGetItem(Expr):
@@ -168,7 +165,7 @@ class ShapeExpr(Expr):
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
 
     def __getitem__(self, index):
-        if index >= len(self):
+        if index >= len(self) or index < -len(self):
             raise IndexError("Tuple index out of range")
         return self.values[index]
 
@@ -428,7 +425,9 @@ def extern(name: str, span: Span = None):
     return ExternFunc(name, span)
 
 
-def const(value, dtype=None):
+def const(
+    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray], dtype: Optional[str] = None
+) -> Constant:
     """Create a constant value.
 
     Parameters
@@ -436,7 +435,7 @@ def const(value, dtype=None):
     value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
         The constant value.
 
-    dtype: str, optional
+    dtype: Optional[str]
         The data type of the resulting constant.
 
     Note
