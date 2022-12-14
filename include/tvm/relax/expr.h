@@ -41,8 +41,6 @@ using relay::Id;
  * \brief Call corresponds to callable invocation.
  *  Corresponds to operation in computational graph terminology.
  */
-class Call;
-/*! \brief Call container. */
 class CallNode : public ExprNode {
  public:
   /*!
@@ -108,9 +106,6 @@ class CallNode : public ExprNode {
 
   static constexpr const char* _type_key = "relax.expr.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
-  template <typename>
-  friend class runtime::ObjAllocatorBase;
-  friend class Call;
 };
 
 class Call : public Expr {
@@ -152,8 +147,6 @@ Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
  *
  * \note This is similar to C's ternary operator.
  */
-class If;
-/*! \brief container of If */
 class IfNode : public ExprNode {
  public:
   /*! \brief The condition. */
@@ -213,8 +206,6 @@ If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
               Optional<Expr> opt_false_branch = Optional<Expr>(),
               Optional<Span> opt_span = Optional<Span>());
 
-/*! \brief Tuple of multiple Exprs */
-class Tuple;
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -256,7 +247,7 @@ class Tuple : public Expr {
    * \param fields The fields of a tuple.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
+  TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
@@ -271,7 +262,6 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<
                  Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
-class TupleGetItem;
 class TupleGetItemNode : public ExprNode {
  public:
   /*! \brief The tuple Expression */
@@ -491,10 +481,6 @@ class DataflowVar : public Var {
  * \brief Constant tensor.
  *
  * \note Scalar constants are represented by ndim-0 constant tensors.
- */
-class Constant;
-/*!
- * \brief Constant tensor type.
  */
 class ConstantNode : public ExprNode {
  public:

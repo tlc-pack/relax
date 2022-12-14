@@ -67,11 +67,8 @@ class IRFunctor<R(const ObjectRef& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
 
-  // IR nodes inherited from Relay
   virtual R VisitNode_(const relay::GlobalVarNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const OpNode* op, Args... args) IR_FUNCTOR_DEFAULT;
-
-  // IR nodes introduced by Relax
   virtual R VisitNode_(const relax::TupleGetItemNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::TupleNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::CallNode* op, Args... args) IR_FUNCTOR_DEFAULT;
