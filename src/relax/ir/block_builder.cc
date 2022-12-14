@@ -1031,8 +1031,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
           changed = true;
           ret.push_back(is_dataflow ? DataflowBlock(current) : BindingBlock(current));
           current = {};
-          auto flattened_blocks = FlattenBlocks(seq->blocks);
-          for (const BindingBlock& block : flattened_blocks) {
+            if (is_dataflow && !block->IsInstance<DataflowBlockNode>()) {
+              LOG(WARNING) << "Malformed AST: Seq expr nested inside a dataflow block contains a "
+                              "non-dataflow block! "
+                           << seq;
+            }
             ret.push_back(block);
           }
           current.push_back(
