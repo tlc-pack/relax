@@ -68,9 +68,9 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call->span) << "EwiseFMA op should have 3 arguments");
   }
 
-  auto* t0 = call->args[0]->struct_info_.as<TensorStructInfoNode>();
-  auto* t1 = call->args[1]->struct_info_.as<TensorStructInfoNode>();
-  auto* t2 = call->args[2]->struct_info_.as<TensorStructInfoNode>();
+  auto* t0 = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  auto* t1 = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  auto* t2 = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
 
   if (!t0 || !t1 || !t2) {
     ctx->ReportFatal(Diagnostic::Error(call->span) << "EwiseFMA expects three tensor inputs");

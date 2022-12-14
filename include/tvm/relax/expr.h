@@ -38,6 +38,59 @@ using ExprNode = RelayExprNode;
 using relay::Id;
 
 /*!
+ * \brief Base type of all structure information.
+ *
+ * StructInfo stores possible structure information
+ * deduced during compile-time. It encapsulates
+ * both static type and runtime information such
+ * as shape.
+ *
+ * StructInfo of each non-primitive Expr can be
+ * deduced during compilation in a "best-effort" manner.
+ *
+ * When struct_info appears in function parameter and return
+ * signatures. They will imply a runtime check that matches
+ * the structure information with the value.
+ *
+ * When it appears in normal expressions, they follow "assume-semantics",
+ * which means the compiler will take the deduced information as it is
+ * and do not attempt to do extra proofs.
+ *
+ * Each struct info can be uniquely erased to a static-type.
+ * The compiler will still compile the code(with less information)
+ * when we erase to the static type.
+ *
+ * If an StructInfo contains an Expr field, then that field
+ * must be normalized already through NormalizeArg.
+ * This invariance will be checked in constructors
+ * and help us to simplify our assumption
+ * during struct info deduction.
+ */
+class StructInfoNode : public Object {
+ public:
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
+  static constexpr const char* _type_key = "StructInfo";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 5;
+  TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
+};
+
+/*!
+ * \brief Managed reference to StructInfoNode.
+ * \sa StructInfoNode
+ */
+class StructInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(StructInfo, ObjectRef, StructInfoNode);
+};
+
+/*!
  * \brief Call corresponds to callable invocation.
  *  Corresponds to operation in computational graph terminology.
  */
@@ -435,7 +488,6 @@ class Var : public Expr {
 
   TVM_DLL explicit Var(Id vid, runtime::Optional<Expr> shape_annotation,
                        runtime::Optional<Type> type_annotation, Span span = Span());
-
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };

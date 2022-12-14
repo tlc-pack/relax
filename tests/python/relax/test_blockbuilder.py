@@ -238,19 +238,19 @@ def test_binary_shape_type_deduction():
             assert lv1.checked_type.dtype == "float16"
 
             lv2 = bb.emit(rx.op.multiply(z, w))
-            assert isinstance(lv2.shape, rx.Call)
+            assert isinstance(lv2.shape, rx.Var)
             assert isinstance(lv2.checked_type, rx.DynTensorType)
             assert lv2.checked_type.ndim == 1
             assert lv2.checked_type.dtype == "float16"
 
             lv3 = bb.emit(rx.op.multiply(y, w))
-            assert isinstance(lv3.shape, rx.Call)
-            assert isinstance(lv3.checked_type, rx.DynTensorType)
+            assert isinstance(lv3.struct_info, rx.TensorStructInfo)
+            assert isinstance(lv3.struct_info.shape, rx.Var)
             assert lv3.checked_type.ndim == 1
             assert lv3.checked_type.dtype == "float16"
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
-        assert isinstance(gv0.shape, rx.Call)
+        assert isinstance(gv0.shape, rx.Var)
         assert isinstance(gv0.checked_type, rx.DynTensorType)
         assert gv0.checked_type.ndim == 1
         assert gv0.checked_type.dtype == "float16"
@@ -278,7 +278,7 @@ def test_emit_match_shape():
 
             # lv1: Shape = match_shape(shape, [m, n])
             lv1 = bb.match_shape(y, [m, n])
-            assert lv1.checked_type == rx.ShapeType()
+            assert lv1.checked_type == rx.ShapeType(2)
             gv0 = bb.emit_output(lv1)
 
         bb.emit_func_output(gv0)
@@ -349,10 +349,12 @@ def test_normalize():
     assert isinstance(tuple_1.struct_info, rx.TupleStructInfo)
     assert isinstance(tuple_1.struct_info.fields[0], rx.TensorStructInfo)
     assert isinstance(tuple_1.struct_info.fields[1], rx.TensorStructInfo)
+
+
     # Note sure if it's needed
-    # assert_structural_equal(
-    #     tuple_1.shape.checked_type, rx.TupleType([rx.ShapeType(), rx.ShapeType()])
-    # )
+    assert_structural_equal(
+        tuple_1.shape.struct_info, rx.TupleStructInfo([rx.ShapeStructInfo([m,n]), rx.ShapeStructInfo([n])])
+    )
 
     # Nested Tuple
     tuple_2 = rx.Tuple([x, rx.Tuple([x, y])])

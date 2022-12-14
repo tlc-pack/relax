@@ -429,6 +429,15 @@ class ExprMutator : public ExprMutatorBase {
    */
   Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
 
+  /*!
+   * \brief Create a new var with specified struct_info if the original var's shape or type does
+   * not match with the specified ones.
+   * \param var The var to be updated.
+   * \param struct_info The struct info to be updated.
+   * \return The var filled with struct_info
+   */
+  Var WithStructInfo(Var var, StructInfo struct_info);
+
   /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;
 

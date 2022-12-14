@@ -47,7 +47,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   }
   auto unique_attrs = call->attrs.as<UniqueAttrs>();
 
-  auto input_sinfo = MatchStructInfo<TensorStructInfo>(call->args[0]);
+  auto input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
 
   if (!input_sinfo) {
     ctx->ReportFatal(Diagnostic::Error(call->span) << "Input should be Tensor, but got "
@@ -60,7 +60,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
                      << "support for return_inverse, return_counts, and dim is not implemented");
   }
 
-  return TensorStructInfo(input_sinfo.value()->dtype, /*ndim=*/1);
+  return TensorStructInfo(input_sinfo->dtype, /*ndim=*/1);
 }
 
 RELAY_REGISTER_OP("relax.unique")

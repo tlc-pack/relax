@@ -582,7 +582,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     return;
   }
 
-  Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
+  Var temp = WithStructInfo(new_var, GetStructInfo(new_value));
   if (!temp.same_as(new_var)) {
     new_var = temp;
     this->var_remap_[binding->var->vid] = new_var;
@@ -597,18 +597,14 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
 
   Var new_var;
   if (binding->var.defined()) {
-    // in the case of `x = R.match_shape(val, pattern)`, we want `x` to directly get `pattern` as
-    // the shape when `val` is a tensor.
-    Optional<Expr> new_shape;
-    Type new_type = new_value->checked_type_;
-    if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
-      new_shape = new_pattern;
-      ICHECK(new_shape->IsInstance<ShapeExprNode>());
-      int ndim = Downcast<ShapeExpr>(new_shape.value())->values.size();
-      new_type = DynTensorType(ndim, new_value->checked_type_.as<DynTensorTypeNode>()->dtype);
+    StructInfo new_sinfo = GetStructInfo(new_value);
+
+    if (auto* ptr = new_sinfo.as<TensorStructInfoNode>()) {
+      new_sinfo = TensorStructInfo(new_pattern, ptr->dtype);
     }
     new_var = this->VisitVarDef(binding->var);
-    Var temp = WithShapeAndType(new_var, new_shape, new_type);
+
+    Var temp = WithStructInfo(new_var, new_sinfo);
     if (!temp.same_as(new_var)) {
       new_var = temp;
       this->var_remap_[binding->var->vid] = new_var;
@@ -733,6 +729,28 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
 }
 
 Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
+
+Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
+  ICHECK(struct_info.defined());
+  bool struct_info_changed;
+
+  // TODO(relax-team) add StructInfoEqual check
+  if (var->struct_info_.defined()) {
+    // use same-as as a quick path
+    if (var->struct_info_.same_as(struct_info) ||
+        StructuralEqual()(var->struct_info_, struct_info)) {
+      return var;
+    } else {
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
+                                              : Var(var->vid, NullOpt, NullOpt, var->span);
+      UpdateStructInfo(new_var, struct_info);
+      return new_var;
+    }
+  } else {
+    UpdateStructInfo(var, struct_info);
+    return var;
+  }
+}
 
 Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type) {
   // shape/type changes if it goes from defined -> undefined or the other way, hence xor

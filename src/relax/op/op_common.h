@@ -56,7 +56,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs);
       .set_num_inputs(2)                                                          \
       .add_argument("lhs", "Tensor", "The left hand side tensor.")                \
       .add_argument("rhs", "Tensor", "The right hand side tensor.")               \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcast)   \
+      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcast)
 
 }  // namespace relax
 }  // namespace tvm

@@ -29,7 +29,8 @@ RelayExpr RelayExprNode::shape() const {
     return Downcast<RelayExpr>(this->shape_);
   }
   if (this->struct_info_.defined()) {
-    Optional<RelayExpr> shape = relax::GetLegacyShapeHint(Downcast<relax::StructInfo>(this->struct_info_.value()));
+    Optional<RelayExpr> shape =
+        relax::GetLegacyShapeHint(Downcast<relax::StructInfo>(this->struct_info_.value()));
     if (shape.defined()) {
       return shape.value();
     }
@@ -253,7 +254,7 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
   n->values = std::move(new_values);
   n->span = span;
   n->shape_ = NullOpt;
-  n->checked_type_ = ShapeType();
+  n->checked_type_ = ShapeType(values.size());
   n->struct_info_ = ShapeStructInfo(values, span);
   data_ = std::move(n);
 }
@@ -267,6 +268,7 @@ TVM_REGISTER_NODE_TYPE(RuntimeDepShapeNode);
 RuntimeDepShape::RuntimeDepShape(Span span) {
   ObjectPtr<RuntimeDepShapeNode> n = make_object<RuntimeDepShapeNode>();
   n->span = span;
+  n->struct_info_ = ShapeStructInfo(kUnknownDim);
   n->checked_type_ = ShapeType();
   data_ = std::move(n);
 }
@@ -345,7 +347,8 @@ Constant::Constant(runtime::NDArray data, Span span) {
 
   // set struct info.
   Array<PrimExpr> values;
-  for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
+  auto shape_tuple = n->data.Shape();
+  for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
     values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
   }
   TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), span);
@@ -443,30 +446,23 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
-  Array<Type> param_types;
+  Array<StructInfo> param_sinfo;
+
   for (const Var& param : params) {
-    CHECK(param->checked_type_.defined())
+    CHECK(param->struct_info_.defined())
         << "relax.Function requires params to contain checked_type_";
-    param_types.push_back(param->checked_type_);
+    param_sinfo.push_back(GetStructInfo(param));
   }
 
-  if (!ret_type.defined()) {
-    CHECK(body->checked_type_.defined())
-        << "relax.Function requires body to contain deduced checked_type_"
-        << " or ret_type to be supplied";
-    ret_type = body->checked_type_;
+  StructInfo ret_info;
+
+  if (ret_type.defined()) {
+    ret_info = StructInfoFromTypeLegacyShapeHint(ret_type, ret_shape);
   } else {
-    if (body->checked_type_.defined()) {
-      CHECK(IsBaseOf(ret_type, body->checked_type_))
-          << "relax.Function requires the deduced body->checked_type_ to be a subtype of the "
-             "annotated ret_type but meet body->checked_type_: "
-          << body->checked_type_ << ", ret_type: " << ret_type;
-
-      // Use the more refined body->checked_type_ as the return type.
-      ret_type = body->checked_type_;
-    }
+    ret_info = GetStructInfo(body);
   }
-  auto func_type = FuncType(param_types, ret_type, {}, {});
+
+  FuncStructInfo func_sinfo(param_sinfo, ret_info);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
@@ -474,7 +470,8 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->ret_shape = std::move(ret_shape);
-  n->checked_type_ = std::move(func_type);
+  n->struct_info_ = func_sinfo;
+  n->checked_type_ = GetStaticType(func_sinfo);
   n->attrs = std::move(attrs);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -510,14 +507,42 @@ TVM_REGISTER_GLOBAL("relax.Function_CreateUnchecked")
       return Function::CreateUnchecked(params, body, ret_type, ret_shape, attrs, span);
     });
 
+// Special opaque derivation function for ExternFunc
+// Take look at type_args to figure out the return StructInfo.
+// TODO(relax-team): revisit type_args related deduction.
+TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_extern_func_ret")
+    .set_body_typed([](const Call& call, const BlockBuilder& ctx) -> StructInfo {
+      if (call->type_args.defined()) {
+        if (call->type_args.size() == 0) {
+          return ObjectStructInfo();
+        } else if (call->type_args.size() == 1) {
+          return StructInfoFromType(call->type_args[0]);
+        } else {
+          return StructInfoFromType(TupleType(call->type_args));
+        }
+      } else {
+        return ObjectStructInfo();
+      }
+    });
+
+// Get the derive function.
+FuncStructInfo GetExternFuncStructInfo() {
+  EnvFunc fn = EnvFunc::Get("tvm.relax.struct_info.infer_extern_func_ret");
+  StructInfoDeriveFunc derive;
+  derive = fn;
+  return FuncStructInfo::OpaqueFunc(derive);
+  ;
+}
+
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
 ExternFunc::ExternFunc(String global_symbol, Span span) {
   ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
   n->span = span;
-  n->checked_type_ = PackedFuncType();
-  n->struct_info_ = FuncStructInfo::OpaqueFunc();
+  static auto sinfo = GetExternFuncStructInfo();
+  n->struct_info_ = sinfo;
+  n->checked_type_ = GetStaticType(sinfo);
   data_ = std::move(n);
 }
 

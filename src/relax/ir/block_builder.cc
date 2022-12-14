@@ -130,9 +130,19 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
       GlobalVar gvar = GlobalVar(func_name);
 
-      ICHECK(func->checked_type_.defined())
-          << "The function to be added does not have checked_type_.";
-      gvar->checked_type_ = func->checked_type_;
+      StructInfo finfo;
+      if (func->struct_info_.defined()) {
+        finfo = GetStructInfo(func);
+      } else if (auto* prim_func = func.as<tir::PrimFuncNode>()) {
+        // NOTE: use a slightly different struct info than checked type
+        // in PrimFunc so handle can turn into Tensor.
+        // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
+        finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
+      } else {
+        finfo = StructInfoFromType(func->checked_type_);
+      }
+      UpdateStructInfo(gvar, finfo);
+
       context_mod_->Add(gvar, func);
 
       ctx_func_dedup_map_->emplace(func, gvar);
@@ -435,7 +445,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr NormalizeArgument(const Expr& arg) final {
     // Temp patch to ensure we handle inline PrimFunc case.
     // TODO(relax-team) remove such cases from parser and testcases.
-    if (arg->IsInstance<tir::PrimFuncNode>()) return arg;
+    if (auto* prim_func = arg.as<tir::PrimFuncNode>()) {
+      return NormalizePrimFunc(GetRef<tir::PrimFunc>(prim_func));
+    }
 
     if (!block_stack_.empty()) {
       // cache lookup
@@ -480,10 +492,22 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 
+  // Temp patch to ensure we handle inline PrimFunc case.
+  // TODO(relax-team) remove such cases from parser and testcases.
+  Expr NormalizePrimFunc(tir::PrimFunc prim_func) {
+    if (!prim_func->struct_info_.defined()) {
+      auto finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
+      UpdateStructInfo(prim_func, finfo);
+    }
+    return prim_func;
+  }
+
   Expr VisitExpr(const Expr& expr) final {
     // Temp patch to ensure we handle inline PrimFunc case.
     // TODO(relax-team) remove such cases from parser and testcases.
-    if (expr->IsInstance<tir::PrimFuncNode>()) return expr;
+    if (auto* prim_func = expr.as<tir::PrimFuncNode>()) {
+      return NormalizePrimFunc(GetRef<tir::PrimFunc>(prim_func));
+    }
 
     // lookup normalize map
     if (!block_stack_.empty()) {

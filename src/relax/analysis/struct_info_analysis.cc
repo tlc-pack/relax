@@ -42,7 +42,9 @@ class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
     return PrimType(op->dtype, op->span);
   }
 
-  Type VisitStructInfo_(const ShapeStructInfoNode* op) final { return ShapeType(op->span); }
+  Type VisitStructInfo_(const ShapeStructInfoNode* op) final {
+    return ShapeType(op->ndim, op->span);
+  }
 
   Type VisitStructInfo_(const TensorStructInfoNode* op) final {
     return DynTensorType(op->ndim, op->dtype);
@@ -81,7 +83,13 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
 
   Optional<Expr> VisitStructInfo_(const ShapeStructInfoNode* op) final { return NullOpt; }
 
-  Optional<Expr> VisitStructInfo_(const TensorStructInfoNode* op) final { return op->shape; }
+  Optional<Expr> VisitStructInfo_(const TensorStructInfoNode* op) final {
+    if (op->shape.defined()) {
+      return op->shape;
+    } else {
+      return RuntimeDepShape();
+    }
+  }
 
   Optional<Expr> VisitStructInfo_(const TupleStructInfoNode* op) final {
     bool valid = true;
@@ -90,7 +98,20 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
       valid &= shape.defined();
       return shape.value_or(Expr(nullptr));
     });
-    return valid ? Optional<Expr>(Tuple(fields, op->span)) : NullOpt;
+
+    // recursively collect structinfo to make sure legacy shape is also well formed.
+    if (valid) {
+      Tuple tuple(Tuple(fields, op->span));
+
+      Array<StructInfo> tuple_sinfo;
+      for (Expr field : tuple->fields) {
+        tuple_sinfo.push_back(GetStructInfo(field));
+      }
+      UpdateStructInfo(tuple, TupleStructInfo(tuple_sinfo));
+      return tuple;
+    } else {
+      return NullOpt;
+    }
   }
 
   Optional<Expr> VisitStructInfo_(const FuncStructInfoNode* op) final { return NullOpt; }
@@ -111,13 +132,13 @@ StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> sh
     return ObjectStructInfo(type->span);
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
     return PrimStructInfo(prim_type->dtype, prim_type->span);
-  } else if (type.as<ShapeTypeNode>()) {
-    return ShapeStructInfo(kUnknownDim, type->span);
+  } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
+    return ShapeStructInfo(shape_type->ndim, type->span);
   } else if (const DynTensorTypeNode* tensor_type = type.as<DynTensorTypeNode>()) {
-    if (shape_hint.defined()) {
-      return TensorStructInfo(shape_hint.value(), tensor_type->dtype);
-    } else {
+    if (!shape_hint.defined() || shape_hint->IsInstance<RuntimeDepShapeNode>()) {
       return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
+    } else {
+      return TensorStructInfo(shape_hint.value(), tensor_type->dtype);
     }
     return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
@@ -142,6 +163,7 @@ StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> sh
     return FuncStructInfo(params, ret, func_type->span);
   } else {
     LOG(FATAL) << "Unsupported type: " << type;
+    return StructInfo();
   }
 }
 //--------------------------

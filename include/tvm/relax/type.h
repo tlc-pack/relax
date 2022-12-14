@@ -42,11 +42,19 @@ static constexpr int kUnknownDim = -1;
 
 class ShapeTypeNode : public TypeNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+  /*! \brief size of the shape. */
+  int ndim;
 
-  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const { return true; }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("ndim", &ndim);
+    v->Visit("span", &span);
+  }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
+  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
+    return equal(ndim, other->ndim);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(ndim); }
 
   static constexpr const char* _type_key = "relax.ShapeType";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeTypeNode, TypeNode);
@@ -54,7 +62,7 @@ class ShapeTypeNode : public TypeNode {
 
 class ShapeType : public Type {
  public:
-  TVM_DLL ShapeType(Span span = Span());
+  TVM_DLL ShapeType(int ndim = kUnknownDim, Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeType, Type, ShapeTypeNode);
 };

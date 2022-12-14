@@ -40,9 +40,9 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call->span)
                      << "Binary broadcast op should have 2 arguments");
   }
-  auto _lhs_sinfo = MatchStructInfo<TensorStructInfo>(call->args[0]);
-  auto _rhs_sinfo = MatchStructInfo<TensorStructInfo>(call->args[1]);
-  if (!_lhs_sinfo || !_rhs_sinfo) {
+  auto* lhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  auto* rhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  if (!lhs_sinfo || !rhs_sinfo) {
     ctx->ReportFatal(Diagnostic::Error(call->span)
                      << "Both lhs and rhs should be Tensor for broadcasting, but got "
                      << call->args[0]->struct_info_->GetTypeKey() << " and "
@@ -51,8 +51,6 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
 
   // DateType
   DataType output_dtype;
-  TensorStructInfo lhs_sinfo = _lhs_sinfo.value();
-  TensorStructInfo rhs_sinfo = _rhs_sinfo.value();
   if (lhs_sinfo->IsUnknownDtype() || rhs_sinfo->IsUnknownDtype()) {
     output_dtype = DataType::Void();
   } else if (lhs_sinfo->dtype != rhs_sinfo->dtype) {
@@ -89,6 +87,8 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
     const ShapeExprNode* rhs_shape = check_shape_expr(rhs_sinfo->shape.value());
     size_t lhs_ndim = lhs_sinfo->ndim;
     size_t rhs_ndim = rhs_sinfo->ndim;
+    size_t max_ndim = std::max(lhs_ndim, rhs_ndim);
+
     size_t i = 1;
     for (; i <= std::min(lhs_ndim, rhs_ndim); ++i) {
       const PrimExpr& dim0 = lhs_shape->values[lhs_ndim - i];
@@ -100,17 +100,13 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
       } else if (EqualCheck(dim0, dim1)) {
         output_shape.push_back(dim0);
       } else {
-        // TODO(Siyuan): use "binary_broadcast_shape_infer"
-        return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
         // defer the computation of output shapes to runtime
         // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        // Call call_infer(ExternFunc(String("vm.binary_broadcast_shape_infer")),
-        //                 {call->args[0], call->args[1]}, {}, {});
-        // call_infer->checked_type_ = ShapeType();
-        // return call_infer;
+        Call call_infer(ExternFunc(String("vm.binary_broadcast_shape_infer")),
+                        {call->args[0], call->args[1]}, Attrs(), {ShapeType(max_ndim)});
+        return TensorStructInfo(ctx->NormalizeArgument(call_infer), output_dtype);
       }
     }
-    size_t max_ndim = std::max(lhs_ndim, rhs_ndim);
     auto& longer_shape = (lhs_ndim > rhs_ndim) ? lhs_shape : rhs_shape;
     for (; i <= max_ndim; ++i) {
       output_shape.push_back(longer_shape->values[max_ndim - i]);

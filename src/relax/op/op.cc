@@ -231,10 +231,10 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<AllocTensorAttrs>();
   ICHECK(attrs != nullptr) << "must be AllocTensorAttrs, but got " << call->attrs->GetTypeKey();
-  ICHECK(call->args[0].as<ShapeExprNode>()) << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
+  ICHECK(call->args[0].as<ShapeExprNode>())
+      << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
   return TensorStructInfo(call->args[0], attrs->dtype);
 }
-
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_attrs_type<AllocTensorAttrs>()
@@ -277,17 +277,17 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocSto
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<MemAllocTensorAttrs>();
   ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs, but got " << call->attrs->GetTypeKey();
-  ICHECK(call->args[0].as<ShapeExprNode>()) << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
+  ICHECK(call->args[0].as<ShapeExprNode>())
+      << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
   return TensorStructInfo(call->args[0], attrs->dtype);
 }
-
 
 RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .set_attrs_type<MemAllocTensorAttrs>()
     .set_num_inputs(2)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .set_attr<FInferStructInfo>("InferStructInfo", InferStructInfoMemAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor);
 
 Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
   auto attrs = make_object<MemAllocTensorAttrs>();

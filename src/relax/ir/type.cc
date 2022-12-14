@@ -29,13 +29,16 @@ namespace relax {
 
 TVM_REGISTER_NODE_TYPE(ShapeTypeNode);
 
-ShapeType::ShapeType(Span span) {
+ShapeType::ShapeType(int ndim, Span span) {
   ObjectPtr<ShapeTypeNode> n = make_object<ShapeTypeNode>();
+  n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.ShapeType").set_body_typed([](Span span) { return ShapeType(span); });
+TVM_REGISTER_GLOBAL("relax.ShapeType").set_body_typed([](int ndim, Span span) {
+  return ShapeType(ndim, span);
+});
 
 ObjectType::ObjectType(Span span) {
   ObjectPtr<ObjectTypeNode> n = make_object<ObjectTypeNode>();
