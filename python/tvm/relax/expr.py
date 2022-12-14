@@ -101,7 +101,7 @@ class If(Expr):
         The expression evaluated when condition is false.
     """
 
-    def __init__(self, cond, true_branch, false_branch, span: Span = None):
+    def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span = None):
         self.__init_handle_by_constructor__(
             _ffi_api.If, cond, true_branch, false_branch, span  # type: ignore
         )
@@ -123,12 +123,12 @@ class Tuple(Expr):
     def __init__(self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Span = None):
         self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> Expr:
         if index >= len(self):
             raise IndexError("Tuple index out of range")
         return self.fields[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.fields)
 
 
