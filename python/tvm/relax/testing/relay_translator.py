@@ -156,7 +156,7 @@ def from_relay(
             var_map[node] = var
         elif isinstance(node, relay.Constant):
             # fill the shape and checked_type fields of the Constant
-            new_constant = relay.Constant(node.data)
+            new_constant = relax.Constant(node.data)
             var_map[node] = new_constant
         elif isinstance(node, relay.Tuple):
             new_fields = []

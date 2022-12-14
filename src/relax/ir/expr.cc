@@ -28,7 +28,7 @@ RelayExpr RelayExprNode::shape() const {
   }
   static const Op& op = Op::Get("relax.shape_of");
   RelayExpr self = GetRef<RelayExpr>(this);
-  relay::Call call_shape_of(op, {self}, {}, {});
+  relax::Call call_shape_of(op, {self}, {}, {});
   call_shape_of->checked_type_ = relax::ShapeType();
   return call_shape_of;
 }
@@ -38,6 +38,194 @@ TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNo
 namespace relax {
 using tvm::ReprPrinter;
 using tvm::runtime::Optional;
+
+Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+  ObjectPtr<CallNode> n = make_object<CallNode>();
+  n->op = std::move(op);
+  n->args = std::move(args);
+  n->attrs = std::move(attrs);
+  n->type_args = std::move(type_args);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
+                Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
+                Optional<Span> opt_span) {
+  // Collect new values for fields.
+  Expr op = opt_op.value_or(call->op);
+  Array<Expr> args = opt_args.value_or(call->args);
+  Attrs attrs = opt_attrs.value_or(call->attrs);
+  Array<Type> type_args = opt_type_args.value_or(call->type_args);
+  Span span = opt_span.value_or(call->span);
+
+  // Check if anything changed.
+  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
+  if (unchanged) {
+    if (args.size() == call->args.size()) {
+      for (size_t i = 0; i < args.size(); i++) {
+        unchanged &= args[i].same_as(call->args[i]);
+      }
+    } else {
+      unchanged = false;
+    }
+  }
+  if (unchanged) {
+    if (type_args.size() == call->type_args.size()) {
+      for (size_t i = 0; i < type_args.size(); i++) {
+        unchanged &= type_args[i].same_as(call->type_args[i]);
+      }
+    } else {
+      unchanged = false;
+    }
+  }
+
+  if (!unchanged) {
+    // If call is only references, update it in place. Otherwise copy and update.
+    CallNode* cow_call_node = call.CopyOnWrite();
+    cow_call_node->op = op;
+    cow_call_node->args = args;
+    cow_call_node->attrs = attrs;
+    cow_call_node->type_args = type_args;
+    cow_call_node->span = span;
+  }
+  return call;
+}
+
+TVM_REGISTER_NODE_TYPE(CallNode);
+
+TVM_REGISTER_GLOBAL("relax.Call")
+    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+      return Call(op, args, attrs, type_args, span);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<CallNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const CallNode*>(ref.get());
+      p->stream << "CallNode(" << node->op << ", " << node->args << ", " << node->attrs << ", "
+                << node->type_args << ")";
+    });
+
+If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
+  ObjectPtr<IfNode> n = make_object<IfNode>();
+  n->cond = std::move(cond);
+  n->true_branch = std::move(true_branch);
+  n->false_branch = std::move(false_branch);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branch,
+              Optional<Expr> opt_false_branch, Optional<Span> opt_span) {
+  Expr cond = opt_cond.value_or(if_expr->cond);
+  Expr true_branch = opt_true_branch.value_or(if_expr->true_branch);
+  Expr false_branch = opt_false_branch.value_or(if_expr->false_branch);
+  Span span = opt_span.value_or(if_expr->span);
+
+  bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
+                   false_branch.same_as(if_expr->false_branch) && span.same_as(if_expr->span);
+
+  if (!unchanged) {
+    IfNode* cow_if_node = if_expr.CopyOnWrite();
+    cow_if_node->cond = cond;
+    cow_if_node->true_branch = true_branch;
+    cow_if_node->false_branch = false_branch;
+    cow_if_node->span = span;
+  }
+  return if_expr;
+}
+
+TVM_REGISTER_NODE_TYPE(IfNode);
+
+TVM_REGISTER_GLOBAL("relax.If")
+    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch, Span span) {
+      return If(cond, true_branch, false_branch, span);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<IfNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const IfNode*>(ref.get());
+      p->stream << "IfNode(" << node->cond << ", " << node->true_branch << ", "
+                << node->false_branch << ")";
+    });
+
+Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
+  ObjectPtr<TupleNode> n = make_object<TupleNode>();
+  n->fields = std::move(fields);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(TupleNode);
+
+TVM_REGISTER_GLOBAL("relax.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
+  return Tuple(fields, span);
+});
+
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> opt_span) {
+  Array<Expr> fields = opt_fields.value_or(tuple->fields);
+  Span span = opt_span.value_or(tuple->span);
+
+  bool all_fields_unchanged = true;
+  if (fields.size() == tuple->fields.size()) {
+    for (size_t i = 0; i < fields.size(); i++) {
+      all_fields_unchanged &= fields[i].same_as(tuple->fields[i]);
+    }
+  } else {
+    all_fields_unchanged = false;
+  }
+
+  all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
+  if (!all_fields_unchanged) {
+    TupleNode* cow_tuple_node = tuple.CopyOnWrite();
+    cow_tuple_node->fields = fields;
+    cow_tuple_node->span = span;
+  }
+  return tuple;
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TupleNode*>(ref.get());
+      p->stream << "Tuple(" << node->fields << ")";
+    });
+
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+  ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
+  n->tuple = std::move(tuple);
+  n->index = index;
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
+                        Optional<Integer> opt_index, Optional<Span> opt_span) {
+  Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
+  Integer index = opt_index.value_or(tuple_get_item->index);
+  Span span = opt_span.value_or(tuple_get_item->span);
+
+  bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
+                   span.same_as(tuple_get_item->span);
+  if (!unchanged) {
+    TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
+    cow_tuple_get_item_node->tuple = tuple;
+    cow_tuple_get_item_node->index = index.IntValue();
+    cow_tuple_get_item_node->span = span;
+  }
+  return tuple_get_item;
+}
+
+TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
+
+TVM_REGISTER_GLOBAL("relax.TupleGetItem").set_body_typed([](Expr tuple, int index) {
+  return TupleGetItem(tuple, index);
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TupleGetItemNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TupleGetItemNode*>(ref.get());
+      p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
@@ -139,6 +327,28 @@ TVM_REGISTER_GLOBAL("relax.DataflowVarFromId")
                        Span span) {
       return DataflowVar(vid, shape_annotation, type_annotation, span);
     });
+
+Constant::Constant(runtime::NDArray data, Span span) {
+  ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
+  n->data = std::move(data);
+  n->span = std::move(span);
+  DataType dtype = n->data.DataType();
+  ShapeTuple shape_tuple = n->data.Shape();
+  Type type = DynTensorType(shape_tuple.size(), dtype);
+  n->checked_type_ = type;
+  Array<PrimExpr> values;
+  for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
+    values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
+  }
+  n->shape_ = ShapeExpr(values);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(ConstantNode);
+
+TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, Span span = Span()) {
+  return Constant(data, span);
+});
 
 TVM_REGISTER_NODE_TYPE(BindingNode);
 

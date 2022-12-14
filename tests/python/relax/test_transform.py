@@ -302,7 +302,7 @@ def test_call_tir_rewrite():
     # before rewrite
     v0 = mod["foo"].body.blocks[0].bindings[0].var
     s0 = mod["foo"].body.blocks[0].bindings[0].value
-    assert isinstance(s0, tvm.relay.Call)
+    assert isinstance(s0, relax.Call)
     assert s0.op.name == "relax.call_tir"
 
     # after rewrite
@@ -313,7 +313,7 @@ def test_call_tir_rewrite():
     assert not isinstance(block, relax.DataflowBlock)
 
     s1 = block.bindings[0].value
-    assert isinstance(s1, tvm.relay.Call)
+    assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
     assert structural_equal(s1.args[0], s0.args[2])
@@ -345,12 +345,12 @@ def test_vm_memory_lower():
 
     block = func.body.blocks[0]
     s1 = block.bindings[0].value
-    assert isinstance(s1, tvm.relay.Call)
+    assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.vm.builtin.alloc_storage"
     s2 = block.bindings[1].value
-    assert isinstance(s2, tvm.relay.Call)
+    assert isinstance(s2, relax.Call)
     s4 = block.bindings[3].value
-    assert isinstance(s4, tvm.relay.Call)
+    assert isinstance(s4, relax.Call)
     assert isinstance(s4.op, relax.ExternFunc)
     assert s4.op.global_symbol == "test.op.identity"
 
@@ -382,13 +382,13 @@ def test_vm_shape_lowering():
     assert isinstance(s2.op, relax.ExternFunc)
     assert s2.op.global_symbol == "vm.builtin.shape_of"
     s3 = func.body.blocks[0].bindings[2].value
-    assert isinstance(s3, tvm.relay.Call)
+    assert isinstance(s3, relax.Call)
     assert s3.op.name == "relax.vm.builtin.store_shape"
     s4 = func.body.blocks[0].bindings[3].value
     assert isinstance(s4.op, relax.GlobalVar)
     assert s4.op.name_hint == "shape_func"
     s5 = func.body.blocks[0].bindings[4].value
-    assert isinstance(s5, tvm.relay.Call)
+    assert isinstance(s5, relax.Call)
     assert s5.op.name == "relax.vm.builtin.load_shape"
 
 
@@ -460,7 +460,7 @@ def test_vm_shape_lowering_func_param_with_shape():
     assert s2.op.global_symbol == "vm.builtin.shape_of"
     assert s2.args[0] == x
     s3 = func.body.blocks[0].bindings[2].value
-    assert isinstance(s3, tvm.relay.Call)
+    assert isinstance(s3, relax.Call)
     assert s3.op.name == "relax.vm.builtin.store_shape"
 
     s4 = func.body.blocks[0].bindings[3].value
@@ -468,7 +468,7 @@ def test_vm_shape_lowering_func_param_with_shape():
     assert s4.op.global_symbol == "vm.builtin.shape_of"
     assert s4.args[0] == w
     s5 = func.body.blocks[0].bindings[2].value
-    assert isinstance(s5, tvm.relay.Call)
+    assert isinstance(s5, relax.Call)
     assert s5.op.name == "relax.vm.builtin.store_shape"
 
 

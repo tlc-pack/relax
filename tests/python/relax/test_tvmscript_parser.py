@@ -754,10 +754,10 @@ def test_meta():
             "root": 1,
             "nodes": [
                 {"type_key": ""},
-                {"type_key": "Map", "keys": ["relay.Constant"], "data": [2]},
+                {"type_key": "Map", "keys": ["relax.expr.Constant"], "data": [2]},
                 {"type_key": "Array", "data": [3, 12]},
                 {
-                    "type_key": "relay.Constant",
+                    "type_key": "relax.expr.Constant",
                     "attrs": {
                         "_checked_type_": "6",
                         "data": "0",
@@ -789,7 +789,7 @@ def test_meta():
                 {"type_key": "IntImm", "attrs": {"dtype": "int64", "span": "0", "value": "3"}},
                 {"type_key": "relax.ShapeType", "attrs": {"span": "0"}},
                 {
-                    "type_key": "relay.Constant",
+                    "type_key": "relax.expr.Constant",
                     "attrs": {
                         "_checked_type_": "13",
                         "data": "1",
@@ -821,9 +821,9 @@ def test_meta():
     @R.function
     def my_const(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor(None, dtype="float32", ndim=2):
         # block 0
-        y1: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][0]
+        y1: R.Tensor((2, 3), dtype="float32") = metadata["relax.expr.Constant"][0]
         y2: R.Tensor((), dtype="float32") = 2.1
-        y3: R.Tensor((2, 3), dtype="float32") = metadata["relay.Constant"][1]
+        y3: R.Tensor((2, 3), dtype="float32") = metadata["relax.expr.Constant"][1]
         z: R.Tensor((2, 3), dtype="float32") = R.add(x, y1)
         r: R.Tensor((2, 3), dtype="float32") = R.add(z, y2)
         w: R.Tensor((2, 3), dtype="float32") = R.add(r, y3)
