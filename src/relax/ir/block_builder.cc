@@ -457,6 +457,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
+  RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
 
   template <typename T>
@@ -655,31 +656,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       UpdateType(seq_expr, seq_expr->body->checked_type_);
     }
     return seq_expr;
-  }
-
-  Expr VisitExpr_(const ConstantNode* op) final {
-    Constant constant = GetRef<Constant>(op);
-
-    // only do shape/type inference if the Constant does not have shape/type
-    if (constant->shape_ && constant->checked_type_.defined()) {
-      return constant;
-    }
-
-    auto shape_tuple = constant->data.Shape();
-    if (!constant->shape_) {
-      Array<PrimExpr> values;
-      for (size_t dim = 0; dim < shape_tuple.size(); dim++) {
-        values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
-      }
-      UpdateShape(constant, relax::ShapeExpr(values));
-    }
-
-    if (!constant->checked_type_.defined()) {
-      DataType dtype = constant->data.DataType();
-      Type type = relax::DynTensorType(shape_tuple.size(), dtype);
-      UpdateType(constant, type);
-    }
-    return constant;
   }
 
   Expr VisitExpr_(const IfNode* op) final {

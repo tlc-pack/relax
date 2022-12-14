@@ -22,10 +22,13 @@ import typing
 
 import tvm
 import tvm._ffi
+import numpy as _np  # type: ignore
+from tvm.runtime import ndarray as _nd
 
+from tvm._ffi import base as _base
 from .. import relay
 from ..ir import BaseFunc, Node, SourceName, Span
-from ..relay import Id, Tuple, TupleGetItem
+from ..relay import Id
 from ..runtime import String
 from ..tir import PrimExpr
 from . import _ffi_api, ty
@@ -36,10 +39,116 @@ from . import _ffi_api, ty
 Expr = Union[relay.Expr]
 Type = Union[relay.Type]
 GlobalVar = Union[relay.GlobalVar]
-Call = Union[relay.Call]
-If = Union[relay.If]
-const = Union[relay.const]
-Constant = Union[relay.Constant]
+
+# will be registered afterwards
+_op_make = None
+
+
+@tvm._ffi.register_object("relax.expr.Call")
+class Call(Expr):
+    """Function call node in Relax.
+
+    Call node corresponds the operator application node
+    in computational graph terminology.
+
+    Parameters
+    ----------
+    op: tvm.ir.Op or any tvm.relax.Expr with function type.
+        The operation to be called.
+
+    args: Union[List[Expr], typing.Tuple[Expr, ...]]
+        The arguments to the call.
+
+    attrs: Optional[tvm.ir.Attrs]
+        Attributes to the call, can be None
+
+    type_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]]
+        The additional type arguments, this is only
+        used in advanced usecase of template functions.
+
+    span: Optional[Span]
+        Span that points to original source code
+    """
+
+    def __init__(
+        self,
+        op: Union[Expr, tvm.ir.Op],
+        args: Union[List[Expr], typing.Tuple[Expr, ...]],
+        attrs: Optional[tvm.ir.Attrs] = None,
+        type_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]] = None,
+        span: Optional[Span] = None,
+    ):
+        if not type_args:
+            type_args = []
+        self.__init_handle_by_constructor__(
+            _ffi_api.Call, op, args, attrs, type_args, span  # type: ignore
+        )
+
+
+@tvm._ffi.register_object("relax.expr.If")
+class If(Expr):
+    """A conditional expression in Relax.
+
+    Parameters
+    ----------
+    cond: Expr
+        The condition.
+
+    true_branch: Expr
+        The expression evaluated when condition is true.
+
+    false_branch: Expr
+        The expression evaluated when condition is false.
+    """
+
+    def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span = None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.If, cond, true_branch, false_branch, span  # type: ignore
+        )
+
+
+@tvm._ffi.register_object("relax.expr.Tuple")
+class Tuple(Expr):
+    """Tuple expression that groups several fields together.
+
+    Parameters
+    ----------
+    fields : Union[List[Expr], typing.Tuple[Expr, ...]]
+        The fields in the tuple.
+
+    span: Optional[Span]
+        Span that points to original source code
+    """
+
+    def __init__(self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Span = None):
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
+
+    def __getitem__(self, index: int) -> Expr:
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return self.fields[index]
+
+    def __len__(self) -> int:
+        return len(self.fields)
+
+
+@tvm._ffi.register_object("relax.expr.TupleGetItem")
+class TupleGetItem(Expr):
+    """Get index-th item from a tuple.
+
+    Parameters
+    ----------
+    tuple_value: Expr
+        The input tuple expression.
+
+    index: int
+        The index.
+    """
+
+    def __init__(self, tuple_value: Expr, index: int):
+        self.__init_handle_by_constructor__(
+            _ffi_api.TupleGetItem, tuple_value, index  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
@@ -56,7 +165,7 @@ class ShapeExpr(Expr):
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
 
     def __getitem__(self, index):
-        if index >= len(self):
+        if index >= len(self) or index < 0:
             raise IndexError("Tuple index out of range")
         return self.values[index]
 
@@ -76,6 +185,12 @@ class RuntimeDepShape(Expr):
 
     def __init__(self, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)  # type: ignore
+
+
+@tvm._ffi.register_object("relax.expr.Constant")
+class Constant(Expr):
+    def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Var")
@@ -308,6 +423,48 @@ class ExternFunc(BaseFunc):
 def extern(name: str, span: Span = None):
     """Create extern function."""
     return ExternFunc(name, span)
+
+
+def const(
+    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray], dtype: Optional[str] = None
+) -> Constant:
+    """Create a constant value.
+
+    Parameters
+    ----------
+    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+        The constant value.
+
+    dtype: Optional[str]
+        The data type of the resulting constant.
+
+    Note
+    ----
+    When dtype is None, we use the following rule:
+
+    - int maps to "int32"
+    - float maps to "float32"
+    - bool maps to "bool"
+    - other using the same default rule as numpy.
+    """
+    if isinstance(value, (_base.numeric_types, (bool, list))):
+        value = _np.array(value, dtype=dtype)
+
+    if not dtype:
+        # when dtype is None: int maps to "int32", float maps to "float32"
+        dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
+            value.dtype, None
+        )
+
+    if isinstance(value, (_np.ndarray, _np.generic)):
+        if dtype is not None:
+            value = value.astype(dtype)
+        value = _nd.array(value)
+
+    if not isinstance(value, _nd.NDArray):
+        raise ValueError("value has to be scalar or NDArray")
+
+    return Constant(value)
 
 
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
