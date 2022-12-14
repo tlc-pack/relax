@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import pytest
 
 import tvm
 import tvm.testing
@@ -529,6 +529,38 @@ def test_normalize_deeply_nested_seq():
         return y
 
     assert_structural_equal(after_mod["main"], expected)
+
+
+@pytest.mark.xfail()
+def test_nesting_non_dataflow_in_dataflow_error():
+    x = relax.DataflowVar("x", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    y = relax.Var("y", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    z = relax.Var("z", [], relax.DynTensorType(ndim=0, dtype="int32"))
+    seq = relax.SeqExpr(
+        [
+            relax.DataflowBlock(
+                [
+                    relax.VarBinding(x, relax.const(1)),
+                    relax.VarBinding(
+                        y,
+                        relax.SeqExpr(
+                            [relax.BindingBlock([relax.VarBinding(z, relax.const(2))])],
+                            z,
+                        ),
+                    ),
+                ]
+            )
+        ],
+        y,
+    )
+    f = relax.Function(
+        [],
+        seq,
+        ret_type=relax.DynTensorType(ndim=0, dtype="int32"),
+        ret_shape=relax.RuntimeDepShape(),
+    )
+    relax.transform.Normalize()(tvm.IRModule.from_expr(f))
+    # should fail due to a normal binding block being inside a dataflowblock
 
 
 if __name__ == "__main__":
