@@ -1015,7 +1015,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Array<BindingBlock> ret;
     bool changed = false;
     for (const BindingBlock& block : blocks) {
-      bool is_dataflow = block.as<DataflowBlockNode>();
+      bool is_dataflow = block->IsInstance<DataflowBlockNode>();
       Array<Binding> current;
       for (const Binding& binding : block->bindings) {
         auto match_shape = binding.as<MatchShapeNode>();
