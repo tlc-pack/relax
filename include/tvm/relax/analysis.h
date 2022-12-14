@@ -91,8 +91,7 @@ TVM_DLL StructInfo StructInfoFromType(const Type& type);
  * \param shape_hint The shape hint
  * \return the corresponding struct info.
  */
-TVM_DLL StructInfo StructInfoFromTypeLegacyShapeHint(
-    const Type& type, Optional<Expr> shape_hint);
+TVM_DLL StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> shape_hint);
 
 /*!
  * \brief Get the corresponding legacy shape hint from struct info

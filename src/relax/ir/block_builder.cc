@@ -211,17 +211,14 @@ class BlockBuilderImpl : public BlockBuilderNode {
     BlockFrame* cur_frame = CurrentFrame();
     Var var = CreateVar(cur_frame->is_dataflow, name_hint);
 
-    if (value->checked_type().as<ShapeTypeNode>()) {
-      UpdateType(var, ShapeType());
-    } else if (const DynTensorTypeNode* tty = value->checked_type().as<DynTensorTypeNode>()) {
-      ShapeExpr shape = ShapeExpr(pattern);
-      UpdateShape(var, shape);
-      DataType dtype = tty->dtype;
-      UpdateType(var, DynTensorType(pattern.size(), dtype));
+    if (value->struct_info_.as<ShapeStructInfoNode>()) {
+      UpdateStructInfo(var, ShapeStructInfo(pattern.size()));
+    } else if (const auto* tensor_sinfo = value->struct_info_.as<TensorStructInfoNode>()) {
+      UpdateStructInfo(var, TensorStructInfo(ShapeExpr(pattern), tensor_sinfo->dtype));
     } else {
       this->diag_ctx_.EmitFatal(
           Diagnostic::Error(value->span)
-          << "The value passed to EmitMatchShape must be of DynTensorType or ShapeType.");
+          << "The value passed to EmitMatchShape must be of TensorStructInfo or ShapeStructInfo.");
     }
 
     MatchShape match_shape = MatchShape(value, pattern, var);
@@ -348,8 +345,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     Var var = CreateVar(is_dataflow, name_hint);
 
     // set the values
-    UpdateType(var, expr->checked_type_);
-    UpdateShape(var, expr->shape_);
+    UpdateStructInfo(var, Downcast<StructInfo>(expr->struct_info_.value()));
 
     CurrentFrame()->bindings.push_back(VarBinding(var, expr));
 
@@ -475,7 +471,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with struct info
     // Other vars must have already been normalized through binding
-    ICHECK(var->struct_info_.defined()) << "Var" << var << "does not have struct info";
+    ICHECK(var->struct_info_.defined())
+        << "Var " << var->name_hint() << " does not have struct info.";
     return GetRef<Var>(var);
   }
 
@@ -647,7 +644,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
     // TODO(relax-team): provide additional context to EraseToWellDefined
     // such as variables defined by the parameters.
-    if (if_node->struct_info_.defined()) {
+    if (!if_node->struct_info_.defined()) {
       auto true_info = EraseToWellDefined(GetStructInfo(new_true));
       auto false_info = EraseToWellDefined(GetStructInfo(new_false));
       UpdateStructInfo(if_node, StructInfoLCA(true_info, false_info));
@@ -695,8 +692,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = MatchShape(new_value, binding->pattern, binding->var, binding->span);
     }
-    ICHECK(binding->var.defined());
-    if (!binding->var->struct_info_.defined()) {
+    if (binding->var.defined() && !binding->var->struct_info_.defined()) {
       UpdateStructInfo(binding->var, GetStructInfo(new_value));
     }
     return binding;

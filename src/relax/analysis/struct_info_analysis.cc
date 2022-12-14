@@ -97,6 +97,53 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
 };
 
 Optional<Expr> GetLegacyShapeHint(const StructInfo& info) { return LegacyShapeDeriver()(info); }
+
+//--------------------------
+// StructInfoFromType
+//--------------------------
+
+StructInfo StructInfoFromType(const Type& type) {
+  return StructInfoFromTypeLegacyShapeHint(type, NullOpt);
+}
+
+StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> shape_hint) {
+  if (type.as<ObjectTypeNode>()) {
+    return ObjectStructInfo(type->span);
+  } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
+    return PrimStructInfo(prim_type->dtype, prim_type->span);
+  } else if (type.as<ShapeTypeNode>()) {
+    return ShapeStructInfo(kUnknownDim, type->span);
+  } else if (const DynTensorTypeNode* tensor_type = type.as<DynTensorTypeNode>()) {
+    if (shape_hint.defined()) {
+      return TensorStructInfo(shape_hint.value(), tensor_type->dtype);
+    } else {
+      return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
+    }
+    return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
+  } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
+    Array<StructInfo> fields;
+    if (shape_hint && shape_hint.value()->IsInstance<TupleNode>()) {
+      Array<Expr> shape_hint_fields = Downcast<Tuple>(shape_hint.value())->fields;
+      ICHECK_EQ(shape_hint_fields.size(), tuple_type->fields.size());
+      for (size_t i = 0; i < tuple_type->fields.size(); ++i) {
+        fields.push_back(
+            StructInfoFromTypeLegacyShapeHint(tuple_type->fields[i], shape_hint_fields[i]));
+      }
+    } else {
+      for (const Type& field : tuple_type->fields) {
+        fields.push_back(StructInfoFromType(field));
+      }
+    }
+    return TupleStructInfo(fields, type->span);
+  } else if (const FuncTypeNode* func_type = type.as<FuncTypeNode>()) {
+    Array<StructInfo> params =
+        func_type->arg_types.Map([](const Type& param) { return StructInfoFromType(param); });
+    StructInfo ret = StructInfoFromType(func_type->ret_type);
+    return FuncStructInfo(params, ret, func_type->span);
+  } else {
+    LOG(FATAL) << "Unsupported type: " << type;
+  }
+}
 //--------------------------
 // EraseToWellDefined
 //--------------------------

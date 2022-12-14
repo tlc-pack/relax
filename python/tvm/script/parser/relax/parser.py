@@ -141,20 +141,20 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 @dispatch.register(token="relax", type_name="tvm_declare_function")
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
     if node.returns is None:
-        ret_type, ret_shape = None, None
+        ret_sinfo, ret_type, ret_shape = relax.ObjectStructInfo(), None, None
     else:
         ret_sinfo = eval_type_annotation(self, node.returns)
         ret_type = relax.analysis.get_static_type(ret_sinfo)
         ret_shape = relax.analysis.get_shape(ret_sinfo)
     params = []
-    arg_types = []
+    params_sinfo = []
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_sinfo = self.visit_tvm_annotation(arg.annotation)
         param_type = relax.analysis.get_static_type(param_sinfo)
         param_shape = relax.analysis.get_shape(param_sinfo)
-        arg_types.append(param_type)
+        params_sinfo.append(param_sinfo)
         params.append(relax.Var(arg.arg, param_shape, param_type))
 
     # TODO(relax-team): remove the following line when fixing ret_shape issue in block builder
@@ -162,7 +162,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
 
     func_signature = relax.Function.create_unchecked(params, None, ret_type, ret_shape)
     global_var = I.decl_function(node.name, func_signature)
-    relax.expr._update_type(global_var, relax.FuncType(arg_types, ret_type))
+    relax.expr._update_struct_info(global_var, relax.FuncStructInfo(params_sinfo, ret_sinfo))
     self.var_table.add(node.name, global_var)
 
 

@@ -228,22 +228,19 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 
 // alloc_tensor
 
-Expr InferShapeAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[0]; }
-
-Type InferTypeAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  auto attrs = call->attrs.as<AllocTensorAttrs>();
+StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
+  const auto* attrs = call->attrs.as<AllocTensorAttrs>();
   ICHECK(attrs != nullptr) << "must be AllocTensorAttrs, but got " << call->attrs->GetTypeKey();
-  auto output_shape = call->args[0].as<ShapeExprNode>();
-  ICHECK(output_shape != nullptr) << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
-  return DynTensorType(output_shape->values.size(), attrs->dtype);
+  ICHECK(call->args[0].as<ShapeExprNode>()) << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
+  return TensorStructInfo(call->args[0], attrs->dtype);
 }
+
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_attrs_type<AllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .set_attr<FInferShape>("FInferShape", InferShapeAllocTensor)
-    .set_attr<FInferType>("FInferType", InferTypeAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
 
 Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
   auto attrs = make_object<AllocTensorAttrs>();
@@ -277,26 +274,20 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocSto
 
 // memory planning alloc_tensor
 
-Expr InferShapeMemAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  return call->args[1];
+StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
+  const auto* attrs = call->attrs.as<MemAllocTensorAttrs>();
+  ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs, but got " << call->attrs->GetTypeKey();
+  ICHECK(call->args[0].as<ShapeExprNode>()) << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
+  return TensorStructInfo(call->args[0], attrs->dtype);
 }
 
-Type InferTypeMemAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  auto attrs = call->attrs.as<MemAllocTensorAttrs>();
-  ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs , but got " << call->attrs->GetTypeKey();
-  if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
-    return DynTensorType(output_shape->values.size(), attrs->dtype);
-  }
-  return DynTensorType::CreateUnknownNDim(attrs->dtype, Span());
-}
 
 RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .set_attrs_type<MemAllocTensorAttrs>()
     .set_num_inputs(2)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .set_attr<FInferShape>("FInferShape", InferShapeMemAllocTensor)
-    .set_attr<FInferType>("FInferType", InferTypeMemAllocTensor);
+    .set_attr<FInferStructInfo>("InferStructInfo", InferStructInfoMemAllocTensor);
 
 Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
   auto attrs = make_object<MemAllocTensorAttrs>();

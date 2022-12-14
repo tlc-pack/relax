@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
@@ -26,6 +27,12 @@ namespace tvm {
 RelayExpr RelayExprNode::shape() const {
   if (this->shape_.defined()) {
     return Downcast<RelayExpr>(this->shape_);
+  }
+  if (this->struct_info_.defined()) {
+    Optional<RelayExpr> shape = relax::GetLegacyShapeHint(Downcast<relax::StructInfo>(this->struct_info_.value()));
+    if (shape.defined()) {
+      return shape.value();
+    }
   }
   static const Op& op = Op::Get("relax.shape_of");
   RelayExpr self = GetRef<RelayExpr>(this);
@@ -286,10 +293,11 @@ TVM_REGISTER_NODE_TYPE(VarNode);
 Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
-  n->shape_ = std::move(shape_annotation);
   if (type_annotation) {
+    n->struct_info_ = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
     n->checked_type_ = std::move(type_annotation.value());
   }
+  n->shape_ = std::move(shape_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -506,6 +514,7 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
   n->global_symbol = std::move(global_symbol);
   n->span = span;
   n->checked_type_ = PackedFuncType();
+  n->struct_info_ = FuncStructInfo::OpaqueFunc();
   data_ = std::move(n);
 }
 

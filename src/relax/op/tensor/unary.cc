@@ -41,7 +41,7 @@ Expr MakeUnique(Expr data, bool sorted, bool return_inverse, bool return_counts,
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(MakeUnique);
 
-StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder ctx) {
+StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
   }

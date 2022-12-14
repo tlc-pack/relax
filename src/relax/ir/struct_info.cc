@@ -41,6 +41,11 @@ TVM_REGISTER_GLOBAL("relax.ObjectStructInfo").set_body_typed([](Span span) {
   return ObjectStructInfo(span);
 });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ObjectStructInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      p->stream << "ObjectStructInfo()";
+    });
+
 // Prim
 PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
@@ -54,6 +59,12 @@ TVM_REGISTER_NODE_TYPE(PrimStructInfoNode);
 TVM_REGISTER_GLOBAL("relax.PrimStructInfo").set_body_typed([](DataType dtype, Span span) {
   return PrimStructInfo(dtype, span);
 });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<PrimStructInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = static_cast<const PrimStructInfoNode*>(ref.get());
+      p->stream << "PrimStructInfo(" << node->dtype << ")";
+    });
 
 // Shape
 ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
@@ -81,6 +92,16 @@ TVM_REGISTER_GLOBAL("relax.ShapeStructInfo")
         return ShapeStructInfo(values.value(), span);
       } else {
         return ShapeStructInfo(ndim, span);
+      }
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ShapeStructInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = static_cast<const ShapeStructInfoNode*>(ref.get());
+      if (node->values.defined()) {
+        p->stream << "ShapeStructInfo(" << node->values.value() << ")";
+      } else {
+        p->stream << "ShapeStructInfo(ndim=" << node->ndim << ")";
       }
     });
 
@@ -121,6 +142,16 @@ TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
       }
     });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TensorStructInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = static_cast<const TensorStructInfoNode*>(ref.get());
+      if (node->shape.defined()) {
+        p->stream << "TensorStructInfo(" << node->shape.value() << ", " << node->dtype << ")";
+      } else {
+        p->stream << "TensorStructInfo(" << node->dtype << ", ndim=" << node->ndim << ")";
+      }
+    });
+
 // Tuple
 TupleStructInfo::TupleStructInfo(Array<StructInfo> fields, Span span) {
   ObjectPtr<TupleStructInfoNode> n = make_object<TupleStructInfoNode>();
@@ -134,6 +165,12 @@ TVM_REGISTER_NODE_TYPE(TupleStructInfoNode);
 TVM_REGISTER_GLOBAL("relax.TupleStructInfo")
     .set_body_typed([](Array<StructInfo> fields, Span span) {
       return TupleStructInfo(fields, span);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TupleStructInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = static_cast<const TupleStructInfoNode*>(ref.get());
+      p->stream << "TupleStructInfo(" << node->fields << ")";
     });
 
 // Func
@@ -178,10 +215,16 @@ TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
       }
     });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<FuncStructInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = static_cast<const FuncStructInfoNode*>(ref.get());
+      p->stream << "FuncStructInfo(" << node->params << ", " << node->ret << ")";
+    });
+
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
   ICHECK(!expr->struct_info_.defined())
-      << "the struct+info_ of the Expr to be updated must be nullptr for idempotency";
+      << "the struct_info_ of the Expr to be updated must be nullptr for idempotency";
   expr->struct_info_ = struct_info;
   // also set checked type
   expr->checked_type_ = GetStaticType(struct_info);

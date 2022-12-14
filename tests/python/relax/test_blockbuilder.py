@@ -346,9 +346,13 @@ def test_normalize():
     bb.normalize(tuple_1)
     assert_structural_equal(tuple_1.checked_type, rx.TupleType([type_anno0, type_anno1]))
     assert_structural_equal(tuple_1.shape, rx.Tuple([x.shape, y.shape]))
-    assert_structural_equal(
-        tuple_1.shape.checked_type, rx.TupleType([rx.ShapeType(), rx.ShapeType()])
-    )
+    assert isinstance(tuple_1.struct_info, rx.TupleStructInfo)
+    assert isinstance(tuple_1.struct_info.fields[0], rx.TensorStructInfo)
+    assert isinstance(tuple_1.struct_info.fields[1], rx.TensorStructInfo)
+    # Note sure if it's needed
+    # assert_structural_equal(
+    #     tuple_1.shape.checked_type, rx.TupleType([rx.ShapeType(), rx.ShapeType()])
+    # )
 
     # Nested Tuple
     tuple_2 = rx.Tuple([x, rx.Tuple([x, y])])
@@ -357,10 +361,15 @@ def test_normalize():
         tuple_2.checked_type, rx.TupleType([type_anno0, rx.TupleType([type_anno0, type_anno1])])
     )
     assert_structural_equal(tuple_2.shape, rx.Tuple([x.shape, rx.Tuple([x.shape, y.shape])]))
-    assert_structural_equal(
-        tuple_2.shape.checked_type,
-        rx.TupleType([rx.ShapeType(), rx.TupleType([rx.ShapeType(), rx.ShapeType()])]),
-    )
+    assert isinstance(tuple_2.struct_info, rx.TupleStructInfo)
+    assert isinstance(tuple_2.struct_info.fields[0], rx.TensorStructInfo)
+    assert isinstance(tuple_2.struct_info.fields[1], rx.TupleStructInfo)
+    assert isinstance(tuple_2.struct_info.fields[1].fields[0], rx.TensorStructInfo)
+    assert isinstance(tuple_2.struct_info.fields[1].fields[1], rx.TensorStructInfo)
+    # assert_structural_equal(
+    #     tuple_2.shape.checked_type,
+    #     rx.TupleType([rx.ShapeType(), rx.TupleType([rx.ShapeType(), rx.ShapeType()])]),
+    # )
 
 
 def test_call_te():
