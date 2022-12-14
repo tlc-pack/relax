@@ -86,6 +86,15 @@ TVM_DLL Type GetStaticType(const StructInfo& info);
 TVM_DLL StructInfo StructInfoFromType(const Type& type);
 
 /*!
+ * \brief Get the corresponding struct info from static type.
+ * \param type The input type
+ * \param shape_hint The shape hint
+ * \return the corresponding struct info.
+ */
+TVM_DLL StructInfo StructInfoFromTypeLegacyShapeHint(
+    const Type& type, Optional<Expr> shape_hint);
+
+/*!
  * \brief Get the corresponding legacy shape hint from struct info
  * \param info The struct info.
  * \return the corresponding legacy shape hint.

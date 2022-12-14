@@ -435,6 +435,7 @@ class Var : public Expr {
 
   TVM_DLL explicit Var(Id vid, runtime::Optional<Expr> shape_annotation,
                        runtime::Optional<Type> type_annotation, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
