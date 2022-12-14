@@ -1024,13 +1024,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         // if we encounter a nested seq, we have to flatten it:
         //   1. Append the binding block we've accumulated so far
         //   2. Reset the current block
-        //   3. Flatten (recursively) the inner blocks and append those
+        //   3. Append the inner blocks
         //   4. Add a binding of the current var to the seq expr's body to the current block
         // then continue
         if (auto seq = value.as<SeqExprNode>()) {
           changed = true;
           ret.push_back(is_dataflow ? DataflowBlock(current) : BindingBlock(current));
           current = {};
+          // We do not need to flatten recursively because the normalizer will have normalized
+          // and thus flattened the inner SeqExprs already
+          for (const BindingBlock& block : seq->blocks) {
             if (is_dataflow && !block->IsInstance<DataflowBlockNode>()) {
               LOG(WARNING) << "Malformed AST: Seq expr nested inside a dataflow block contains a "
                               "non-dataflow block! "
