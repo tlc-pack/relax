@@ -407,7 +407,7 @@ def test_call_tir():
         {
             "op": 'Op(name="relax.call_tir")',
             "args": """[
-                ExternFunc(global_symbol="test.op.identity"), 
+                ExternFunc(global_symbol="test.op.identity"),
                 Tuple(fields=[
                     Var(name_hint="x")]),
                     ShapeExpr(values=[PrimExpr(value=`m: int64`),
