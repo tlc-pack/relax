@@ -55,7 +55,7 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
 }
 
 StructInfo ReturnVoidStructInfo(const Call& call, const BlockBuilder& ctx) {
-  return TensorStructInfo({});
+  return TupleStructInfo(Array<StructInfo>());
 }
 
 StructInfo ReturnObjectStructInfo(const Call& call, const BlockBuilder& ctx) {
@@ -142,21 +142,21 @@ TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
 
 // can't actually name it assert or else Python will consider it a syntax error
 
-Type InferAssertType(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   // Ensure that the condition argument is a boolean scalar.
   // Also permitted is a tensor with unknown shape and unknown dtype
   // (checked dynamically in that case). Returns void.
   if (call->args.size() < 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Assert must have at least one argument (the condition).");
+    ctx->ReportFatal(Diagnostic::Error(call->span)
+                     << "Assert must have at least one argument (the condition).");
   }
   Type arg_type = call->args[0]->checked_type();
   if (!IsBoolScalarType(arg_type)) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "The argument to assert must be a boolean scalar type, but received "
-                       << arg_type);
+    ctx->ReportFatal(Diagnostic::Error(call->span)
+                     << "The argument to assert must be a boolean scalar type, but received "
+                     << arg_type);
   }
-  return VoidType();
+  return ReturnVoidStructInfo(call, ctx);
 }
 
 TVM_REGISTER_NODE_TYPE(AssertOpAttrs);
@@ -167,7 +167,7 @@ RELAY_REGISTER_OP("relax.assert_op")
     .add_argument("vals", "Array<Expr>",
                   "The first value is used as the assertion condition. The others are used as "
                   "format arguments if there is an error.")
-    .set_attr<FInferType>("FInferType", InferAssertType)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
 
 Expr MakeAssertOp(Expr condition, Array<Expr> vals, std::string format) {
@@ -277,9 +277,9 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocSto
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<MemAllocTensorAttrs>();
   ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs, but got " << call->attrs->GetTypeKey();
-  ICHECK(call->args[0].as<ShapeExprNode>())
-      << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
-  return TensorStructInfo(call->args[0], attrs->dtype);
+  ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[1]))
+      << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
+  return TensorStructInfo(call->args[1], attrs->dtype);
 }
 
 RELAY_REGISTER_OP("relax.memory.alloc_tensor")

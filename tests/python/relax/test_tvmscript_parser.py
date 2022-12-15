@@ -201,8 +201,8 @@ def test_match_shape():
         y1 = R.match_shape(y, (n,))
         return (m, n * 2)
 
-    x = relax.Var("x", None, DynTensorType(-1, "float32"))
-    y = relax.Var("y", None, DynTensorType(-1, "float32"))
+    x = relax.Var("x", RuntimeDepShape(), DynTensorType(-1, "float32"))
+    y = relax.Var("y", RuntimeDepShape(), DynTensorType(-1, "float32"))
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()
@@ -237,7 +237,7 @@ def test_tuple_return_2():
         x0 = R.match_shape(x, (n, m))
         return (x0, (n + 1, m, 1))
 
-    x = relax.Var("x", None, DynTensorType(2, "float32"))
+    x = relax.Var("x", RuntimeDepShape(), DynTensorType(2, "float32"))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -256,7 +256,7 @@ def test_tuple_binding():
         t1 = (x, (n, m), t0)
         return t1
 
-    x = relax.Var("x", None, DynTensorType(2, "float32"))
+    x = relax.Var("x", RuntimeDepShape(), DynTensorType(2, "float32"))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -493,9 +493,9 @@ def test_annotation():
         relax.DynTensorType(ndim=2, dtype="float32"),
         relax.ShapeExpr([tvm.tir.IntImm("int64", 32), m]),
     )
-    _check_type_shape(bindings[1], relax.DynTensorType(dtype=""), None)
-    _check_type_shape(bindings[2], relax.DynTensorType(ndim=2, dtype=""), None)
-    _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), None)
+    _check_type_shape(bindings[1], relax.DynTensorType(dtype=""), RuntimeDepShape())
+    _check_type_shape(bindings[2], relax.DynTensorType(ndim=2, dtype=""), RuntimeDepShape())
+    _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), RuntimeDepShape())
     _check_type_shape(bindings[4], relax.ShapeType(), None)
     _check_type_shape(
         bindings[5],

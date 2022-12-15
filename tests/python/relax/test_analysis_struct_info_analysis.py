@@ -16,11 +16,11 @@
 # under the License.
 
 """Tests analysis functions of struct info"""
-import pytest
 
 import tvm
+import tvm.testing
+from tvm import relax as rx
 from tvm import tir
-from tvm import relax as rx, TVMError
 
 
 def test_get_static_type_basic():
@@ -40,9 +40,9 @@ def test_get_static_type_shape():
     s2 = rx.ShapeStructInfo([1, n + 1, m])
     s3 = rx.ShapeStructInfo(ndim=2)
 
-    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s2), rx.ShapeType())
+    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s2), rx.ShapeType(ndim=3))
 
-    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s3), rx.ShapeType())
+    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s3), rx.ShapeType(ndim=2))
 
 
 def test_get_static_type_tensor():
@@ -68,7 +68,7 @@ def test_get_static_type_tuple():
         rx.TupleType(
             [
                 rx.TupleType([rx.DynTensorType(ndim=3, dtype="int64"), rx.ObjectType()]),
-                rx.ShapeType(),
+                rx.ShapeType(ndim=3),
             ]
         ),
     )
@@ -123,8 +123,7 @@ def test_erase_to_well_defined_shape():
 
 def test_erase_to_well_defined_tensor():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-    rshape = rx.Var("shape", type_annotation=rx.ShapeType())
-    rx.expr._update_struct_info(rshape, rx.ShapeStructInfo(ndim=2))
+    rshape = rx.Var("shape", type_annotation=rx.ShapeType(ndim=2))
     s0 = rx.TensorStructInfo(rshape, dtype="int32")
 
     # undefined
@@ -382,3 +381,7 @@ def test_struct_info_lca():
     _check_lca(fopaque0(), fopaque1(), fopaque0())
     _check_lca(fopaque0(), fn_info_shape(1), fopaque0())
     _check_lca(fopaque2(), fn_info_shape(1), fopaque2())
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

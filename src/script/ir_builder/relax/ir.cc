@@ -120,8 +120,6 @@ void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
   frame->ret_sinfo = ret_sinfo;
   frame->ret_type = GetStaticType(ret_sinfo);
   frame->ret_shape = GetLegacyShapeHint(ret_sinfo);
-  // TODO(@Hzfengsy): remove it
-  frame->ret_shape = tvm::relax::RuntimeDepShape();
 }
 
 void FuncRetValue(const tvm::relax::Expr& value) {

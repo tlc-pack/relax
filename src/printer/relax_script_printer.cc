@@ -581,7 +581,6 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     param << Print(var) << PrintVarAnnotation(var);
     params.push_back(param);
   }
-  print_symbolic_shape_as_str_ = false;
 
   if (is_global) {
     ICHECK(symbolic_vars_.empty());
@@ -591,9 +590,18 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   doc << "@R.function" << Doc::NewLine();
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
   if (func->ret_type.defined()) {
-    doc << " -> " << Print(func->ret_type);
+    doc << " -> ";
+    if (const relax::DynTensorTypeNode* tty = func->ret_type.as<relax::DynTensorTypeNode>()) {
+      doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), func->ret_shape);
+    } else if (const TupleTypeNode* tty = func->ret_type.as<TupleTypeNode>()) {
+      doc << PrintTupleAnnotation(GetRef<TupleType>(tty), func->ret_shape);
+    } else {
+      doc << Print(func->ret_type);
+    }
   }
   doc << ":" << Doc::NewLine(4);
+  print_symbolic_shape_as_str_ = false;
+
 
   // Step 3: print function attr
   Doc header_attr;

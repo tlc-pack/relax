@@ -157,12 +157,8 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
         params_sinfo.append(param_sinfo)
         params.append(relax.Var(arg.arg, param_shape, param_type))
 
-    # TODO(relax-team): remove the following line when fixing ret_shape issue in block builder
-    ret_shape = relax.RuntimeDepShape()
-
     func_signature = relax.Function.create_unchecked(params, None, ret_type, ret_shape)
     global_var = I.decl_function(node.name, func_signature)
-    relax.expr._update_struct_info(global_var, relax.FuncStructInfo(params_sinfo, ret_sinfo))
     self.var_table.add(node.name, global_var)
 
 

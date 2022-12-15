@@ -428,7 +428,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!normalized->IsInstance<OpNode>()) {
       ICHECK(normalized->struct_info_.defined())
           << "The struct_info_ of an Expr except OpNode after "
-             "normalization must not be nullptr. However, this Expr does not have checked_type_: "
+             "normalization must not be nullptr. However, this Expr does not have struct_info_: "
           << normalized;
     }
 
