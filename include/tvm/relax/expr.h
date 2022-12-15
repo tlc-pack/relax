@@ -161,6 +161,7 @@ class IfNode : public ExprNode {
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
     v->Visit("span", &span);
+    v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -273,6 +274,7 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
     v->Visit("span", &span);
+    v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
   }
 
