@@ -447,8 +447,9 @@ class FunctionCreator : public ExprMutator {
     attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
     function_ = Function(/*params=*/params_,  //
                          /*body=*/body,       //
-                         /*ret_type=*/body->checked_type_,
-                         /*ret_shape=*/RuntimeDepShape(),
+                         Type(), Expr(),
+                         ///*ret_type=*/body->checked_type_,
+                         ///*ret_shape=*/RuntimeDepShape(),
                          /*attrs=*/DictAttrs(attrs));
   }
 

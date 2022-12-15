@@ -92,11 +92,6 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
   }
 
   Optional<Expr> VisitStructInfo_(const TupleStructInfoNode* op) final {
-    if (op->fields.empty()) {
-      // Corner case to prevent infinite recursion.
-      return Tuple(Array<Expr>());
-    }
-
     bool valid = true;
     Array<Expr> fields = op->fields.Map([this, &valid](const StructInfo& sinfo) {
       Optional<Expr> shape = this->VisitStructInfo(sinfo);
@@ -105,9 +100,8 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
     });
 
     // recursively collect structinfo to make sure legacy shape is also well formed.
-    if (valid) {
-      Tuple tuple(Tuple(fields, op->span));
-
+    if (valid && fields.size() != 0) {
+      Tuple tuple(fields, op->span);
       Array<StructInfo> tuple_sinfo;
       for (Expr field : tuple->fields) {
         tuple_sinfo.push_back(GetStructInfo(field));

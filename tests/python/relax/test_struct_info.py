@@ -140,8 +140,7 @@ def test_tensor_struct_info():
     assert s0 != s2
 
     # take in opaque var
-    rshape = rx.Var("shape", type_annotation=rx.ShapeType())
-    rx.expr._update_struct_info(rshape, rx.ShapeStructInfo(ndim=2))
+    rshape = rx.Var("shape", type_annotation=rx.ShapeType(ndim=2))
 
     s3 = rx.TensorStructInfo(rshape, dtype="int32")
     assert s3.dtype == "int32"

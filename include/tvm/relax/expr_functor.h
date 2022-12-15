@@ -420,16 +420,6 @@ class ExprMutator : public ExprMutatorBase {
   }
 
   /*!
-   * \brief Create a new var with specified shape and type if the original var's shape or type does
-   * not match with the specified ones.
-   * \param var The var to be updated.
-   * \param shape The specified shape.
-   * \param type The specified type.
-   * \return The var filled with \p shape and \p type.
-   */
-  Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
-
-  /*!
    * \brief Create a new var with specified struct_info if the original var's shape or type does
    * not match with the specified ones.
    * \param var The var to be updated.
@@ -810,7 +800,7 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   using ExprMutator::LookupBinding;
   using ExprMutator::var_remap_;
   using ExprMutator::VisitWithNewScope;
-  using ExprMutator::WithShapeAndType;
+  using ExprMutator::WithStructInfo;
 
   void VisitAttrs(AttrVisitor* v) { v->Visit("builder_", &builder_); }
   static constexpr const char* _type_key = "expr_functor.PyExprMutator";

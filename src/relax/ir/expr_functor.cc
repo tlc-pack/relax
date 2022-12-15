@@ -732,7 +732,6 @@ Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->Loo
 
 Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
   ICHECK(struct_info.defined());
-  bool struct_info_changed;
 
   // TODO(relax-team) add StructInfoEqual check
   if (var->struct_info_.defined()) {
@@ -750,36 +749,6 @@ Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
     UpdateStructInfo(var, struct_info);
     return var;
   }
-}
-
-Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type) {
-  // shape/type changes if it goes from defined -> undefined or the other way, hence xor
-  bool shape_changed = var->shape_.operator bool() ^ shape.operator bool();
-  shape_changed |= var->shape_ && shape &&
-                   !builder_->CanProveShapeEqual(Downcast<Expr>(var->shape_.value()),
-                                                 Downcast<Expr>(shape.value()));
-
-  bool type_changed = var->checked_type_.defined() ^ type.defined();
-  type_changed |= var->checked_type_.defined() && type.defined() &&
-                  !StructuralEqual()(var->checked_type_, type);
-
-  if (shape_changed || type_changed) {
-    Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
-                                            : Var(var->vid, NullOpt, NullOpt, var->span);
-    UpdateShape(new_var, var->shape_);
-    UpdateType(new_var, var->checked_type_);
-    var = new_var;
-  }
-
-  if (shape_changed) {
-    var->shape_ = shape;
-  }
-
-  if (type_changed) {
-    var->checked_type_ = type;
-  }
-
-  return var;
 }
 
 TVM_REGISTER_GLOBAL("relax.MakePyExprVisitor").set_body_typed(PyExprVisitor::MakePyExprVisitor);
@@ -892,9 +861,9 @@ TVM_REGISTER_GLOBAL("relax.PyExprMutatorLookupBinding")
       return mutator->LookupBinding(var);
     });
 
-TVM_REGISTER_GLOBAL("relax.PyExprMutatorWithShapeAndType")
-    .set_body_typed([](PyExprMutator mutator, Var var, Optional<ObjectRef> shape, Type type) {
-      return mutator->WithShapeAndType(var, shape, type);
+TVM_REGISTER_GLOBAL("relax.PyExprMutatorWithStructInfo")
+    .set_body_typed([](PyExprMutator mutator, Var var, StructInfo sinfo) {
+      return mutator->WithStructInfo(var, sinfo);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorSetVarRemap")

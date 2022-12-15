@@ -144,6 +144,7 @@ def test_func():
     x = rx.Var("foo", type_annotation=type_anno)
     bindings = [rx.VarBinding(x, rx.const(1))]
     blocks = [rx.BindingBlock(bindings)]
+
     seqe = rx.SeqExpr(blocks, x)
     ret_type = rx.DynTensorType(-1, "float32")
     ret_shape = rx.RuntimeDepShape()
@@ -152,7 +153,7 @@ def test_func():
     assert func.params[0] == x
     assert func.body == seqe
     assert func.ret_type == ret_type
-    assert func.ret_shape == ret_shape
+    assert isinstance(func.ret_shape, rx.RuntimeDepShape)
     assert func.attrs["global_symbol"] == "func"
 
 
@@ -173,13 +174,13 @@ def test_shape_expr():
     shape_expr = rx.ShapeExpr([10, 20])
     assert shape_expr.values[0] == 10
     assert shape_expr.values[1] == 20
-    assert shape_expr.checked_type == rx.ShapeType()
+    assert shape_expr.checked_type == rx.ShapeType(ndim=2)
     assert shape_expr.shape_ is None
 
     x = rx.Var("v0", (10, 20), rx.DynTensorType(2, "float32"))
     assert x.shape_.values[0] == 10
     assert x.shape_.values[1] == 20
-    assert x.shape_.checked_type == rx.ShapeType()
+    assert x.shape_.checked_type == rx.ShapeType(ndim=2)
     assert x.shape_.shape_ is None
 
     m = tir.Var("m", "int32")

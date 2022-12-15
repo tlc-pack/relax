@@ -69,22 +69,13 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
     output_ndim = std::max(lhs_sinfo->ndim, rhs_sinfo->ndim);
   }
 
+  auto* lhs_shape = lhs_sinfo->shape.as<ShapeExprNode>();
+  auto* rhs_shape = rhs_sinfo->shape.as<ShapeExprNode>();
   // Shapes and ndims
-  if (lhs_sinfo->shape && rhs_sinfo->shape) {
+  if (lhs_shape && rhs_shape) {
     // If all inputs have shapes, directly infer shapes
     std::vector<PrimExpr> output_shape;
 
-    auto check_shape_expr = [&](const Expr& shape) -> const ShapeExprNode* {
-      if (const auto* shape_expr = shape.as<ShapeExprNode>()) {
-        return shape_expr;
-      } else {
-        ctx->ReportFatal(Diagnostic::Error(call->span)
-                         << "Shapes are expected to be ShapeExpr, but got: " << shape << ".");
-        return nullptr;
-      }
-    };
-    const ShapeExprNode* lhs_shape = check_shape_expr(lhs_sinfo->shape.value());
-    const ShapeExprNode* rhs_shape = check_shape_expr(rhs_sinfo->shape.value());
     size_t lhs_ndim = lhs_sinfo->ndim;
     size_t rhs_ndim = rhs_sinfo->ndim;
     size_t max_ndim = std::max(lhs_ndim, rhs_ndim);
@@ -100,11 +91,8 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
       } else if (EqualCheck(dim0, dim1)) {
         output_shape.push_back(dim0);
       } else {
-        // defer the computation of output shapes to runtime
-        // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        Call call_infer(ExternFunc(String("vm.binary_broadcast_shape_infer")),
-                        {call->args[0], call->args[1]}, Attrs(), {ShapeType(max_ndim)});
-        return TensorStructInfo(ctx->NormalizeArgument(call_infer), output_dtype);
+        // Use simple fallback when shape mismatch.
+        return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
       }
     }
     auto& longer_shape = (lhs_ndim > rhs_ndim) ? lhs_shape : rhs_shape;

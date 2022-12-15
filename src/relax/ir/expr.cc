@@ -454,24 +454,35 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
     param_sinfo.push_back(GetStructInfo(param));
   }
 
-  StructInfo ret_info = GetStructInfo(body);
+  Optional<StructInfo> ret_sinfo;
+  Optional<StructInfo> body_sinfo;
 
-  if (ret_type.defined()) {
-    StructInfo given_info = StructInfoFromTypeLegacyShapeHint(ret_type, ret_shape);
-    CHECK(IsBaseOf(given_info, ret_info))
-        << "relax.Function requires the deduced body->struct_info to be a subtype of the "
-           "annotated struct_info but meet body->struct_info: "
-        << ret_info << ", ret_info: " << given_info;
+  if (body->struct_info_.defined()) {
+    body_sinfo = GetStructInfo(body);
   }
 
-  FuncStructInfo func_sinfo(param_sinfo, ret_info);
+  if (ret_type.defined()) {
+    ret_sinfo = StructInfoFromTypeLegacyShapeHint(ret_type, ret_shape);
+    // allow body to override ret if body is more fine-grained.
+    if (body_sinfo.defined()) {
+      if (IsBaseOf(ret_sinfo.value(), body_sinfo.value())) {
+        ret_sinfo = body_sinfo;
+      }
+    }
+  } else {
+    CHECK(body_sinfo.defined())
+        << "Function do not have a return signature and body is not normalized";
+    ret_sinfo = body_sinfo;
+  }
+
+  FuncStructInfo func_sinfo(param_sinfo, ret_sinfo.value());
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
-  n->ret_type = GetStaticType(ret_info);
-  n->ret_shape = GetLegacyShapeHint(ret_info).value_or(ret_shape);
+  n->ret_type = GetStaticType(ret_sinfo.value());
+  n->ret_shape = GetLegacyShapeHint(ret_sinfo.value()).value_or(ret_shape);
   n->struct_info_ = func_sinfo;
   n->checked_type_ = GetStaticType(func_sinfo);
   n->attrs = std::move(attrs);
@@ -526,7 +537,7 @@ TVM_REGISTER_GLOBAL("relax.Function_CreateUnchecked")
 // Special opaque derivation function for ExternFunc
 // Take look at type_args to figure out the return StructInfo.
 // TODO(relax-team): revisit type_args related deduction.
-TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_extern_func_ret")
+TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_by_ty_args")
     .set_body_typed([](const Call& call, const BlockBuilder& ctx) -> StructInfo {
       if (call->type_args.defined()) {
         if (call->type_args.size() == 0) {
@@ -543,11 +554,10 @@ TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_extern_func_ret")
 
 // Get the derive function.
 FuncStructInfo GetExternFuncStructInfo() {
-  EnvFunc fn = EnvFunc::Get("tvm.relax.struct_info.infer_extern_func_ret");
+  EnvFunc fn = EnvFunc::Get("tvm.relax.struct_info.infer_by_ty_args");
   StructInfoDeriveFunc derive;
   derive = fn;
   return FuncStructInfo::OpaqueFunc(derive);
-  ;
 }
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);

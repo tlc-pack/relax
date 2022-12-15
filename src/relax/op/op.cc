@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
@@ -68,14 +69,14 @@ StructInfo ReturnShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
 
 // call_tir
 
-StructInfo StructInfoFromShapeType(Expr shape, Type type) {
+StructInfo CallTIRStructInfoFromShapeType(Expr shape, Type type) {
   if (auto* tuple = shape.as<TupleNode>()) {
     auto* ptr_type = type.as<TupleTypeNode>();
     ICHECK(ptr_type != nullptr) << "Expect tuple type and shape to be consistent.";
     ICHECK_EQ(ptr_type->fields.size(), tuple->fields.size());
     Array<StructInfo> arr;
     for (size_t i = 0; i < ptr_type->fields.size(); ++i) {
-      arr.push_back(StructInfoFromShapeType(tuple->fields[i], ptr_type->fields[i]));
+      arr.push_back(CallTIRStructInfoFromShapeType(tuple->fields[i], ptr_type->fields[i]));
     }
     return TupleStructInfo(arr);
   } else {
@@ -91,7 +92,7 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call->span) << "type_args should have exact 1 output type.");
   }
   Type output_type = call->type_args[0];
-  return StructInfoFromShapeType(output_shape, output_type);
+  return CallTIRStructInfoFromShapeType(output_shape, output_type);
 }
 
 RELAY_REGISTER_OP("relax.call_tir")
@@ -199,11 +200,22 @@ Expr MakeClosure(Expr func, Tuple args) {
 TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
 
 // invoke_closure
-// TODO(relax-team): Make closure work by calling StructInfoFromType(call->ty_args[0])
+
+StructInfo InferStructInfoInvokeClosure(const Call& call, const BlockBuilder& ctx) {
+  if (call->type_args.empty()) {
+    return ObjectStructInfo();
+  } else if (call->type_args.size() == 1) {
+    return StructInfoFromType(call->type_args[0]);
+  } else {
+    return StructInfoFromType(TupleType(call->type_args));
+  }
+}
+
 RELAY_REGISTER_OP("relax.invoke_closure")
     .set_num_inputs(2)
     .add_argument("closure", "Expr", "The VMClosure.")
-    .add_argument("args", "Tuple", "The captured variables.");
+    .add_argument("args", "Tuple", "The captured variables.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure);
 
 Expr InvokeClosure(Expr closure, Tuple args, Array<Type> type_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
