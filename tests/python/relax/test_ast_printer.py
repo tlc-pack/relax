@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Dict
 import pytest
 import re
 
@@ -49,6 +50,19 @@ def normalize(func: rx.Function) -> rx.Function:
     mut = DefaultMutator(mod)
     mod["main"] = mut.visit_expr(func)
     return mod["main"]
+
+
+def assert_fields(nodename: str, fields: Dict[str, str], target: str) -> None:
+    """
+    Given a target string, ensure that the string defines the specified node
+    and that the given mappings of fields to values are present in the string.
+    Strips all whitespace in the target and fields.
+    Does not assume any particular ordering for the fields.
+    """
+    stripped_target = strip_whitespace(target)
+    assert stripped_target.startswith(f"{nodename}(")
+    for field, value in fields.items():
+        assert f"{field}={strip_whitespace(value)}" in stripped_target
 
 
 # test cases are mostly adapted from text_expr, only testing very basic properties
@@ -276,24 +290,15 @@ def test_types():
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
     tuple_type = rx.TupleType([shape_type, object_type])
-    assert strip_whitespace(printer.visit_type_(tuple_type)) == strip_whitespace(
-        """
-        TupleType(
-            fields=[
-                ShapeType(),
-                ObjectType()
-            ]
-        )
-        """
+    assert_fields(
+        "TupleType", {"fields": "[ShapeType(), ObjectType()]"}, printer.visit_type_(tuple_type)
     )
+
     func_type = rx.FuncType([tensor_type], unit_type)
-    assert strip_whitespace(printer.visit_type_(func_type)) == strip_whitespace(
-        """
-        FuncType(
-            arg_types=[DynTensorType(ndim=2,dtype=int32)],
-            ret_type=TupleType(fields=[])
-        )
-        """
+    assert_fields(
+        "FuncType",
+        {"arg_types": "[DynTensorType(ndim=2, dtype=int32)]", "ret_type": "TupleType(fields=[])"},
+        printer.visit_type_(func_type),
     )
 
 
@@ -325,35 +330,47 @@ def test_call_packed():
             include_call_attrs=True,
         )
     )
-    extern_call = strip_whitespace(
-        """
-        Call(
-            op=ExternFunc(global_symbol="contrib.tensor_array_stack"),
-            args=[
-                Var(name_hint="x"),
-                Var(name_hint="y")
-            ],
-            type_args=[ObjectType()],
-            attrs={"test_attr":1}
-        )
-        """
-    )
-    assert extern_call in f_str
-    # check that the op call is there too
-    op_call = strip_whitespace(
-        """
-        Call(
-            op=Op(name="relax.multiply"),
-            args=[
-                Var(name_hint="x"),
-                Var(name_hint="y")
-            ]
-        )
-        """
-    )
-    assert op_call in f_str
+
     # the function has an annotated return type
     assert "ret_type=ObjectType()" in f_str
+
+    assert isinstance(f.body, rx.SeqExpr)
+    extern_call = f.body.blocks[0].bindings[-1].value
+    extern_call_text = dump_ast(
+        extern_call,
+        include_type_annotations=False,
+        include_shape_annotations=False,
+        include_call_attrs=True,
+    )
+    assert strip_whitespace(extern_call_text) in f_str
+    assert_fields(
+        "Call",
+        {
+            "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
+            "args": '[Var(name_hint="x"), Var(name_hint="y")]',
+            "type_args": "[ObjectType()]",
+            "attrs": '{"test_attr": 1}',
+        },
+        extern_call_text,
+    )
+
+    # check that the op call is there too
+    op_call = f.body.blocks[0].bindings[0].value
+    op_call_text = dump_ast(
+        op_call,
+        include_type_annotations=False,
+        include_shape_annotations=False,
+        include_call_attrs=True,
+    )
+    assert strip_whitespace(op_call_text) in f_str
+    assert_fields(
+        "Call",
+        {
+            "op": 'Op(name="relax.multiply")',
+            "args": '[Var(name_hint="x"), Var(name_hint="y")]',
+        },
+        op_call_text,
+    )
 
     # TODO: add testcase for op attrs
 
@@ -374,25 +391,34 @@ def test_call_tir():
             include_call_attrs=False,
         )
     )
+    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+
     # call_tir is an op in Relax and it takes an extern func as an argument
-    call_tir_text = strip_whitespace(
-        """
-        Call(
-            op=Op(name="relax.call_tir"),
-            args=[
-                ExternFunc(global_symbol="test.op.identity"),
-                Tuple(fields=[Var(name_hint="x")]),
-                ShapeExpr(values=[
-                    PrimExpr(value=`m: int64`),
+    assert isinstance(foo.body, rx.SeqExpr)
+    tir_call = foo.body.blocks[0].bindings[0].value
+    tir_call_text = dump_ast(
+        tir_call,
+        include_type_annotations=False,
+        include_shape_annotations=False,
+        include_call_attrs=False,
+    )
+    assert_fields(
+        "Call",
+        {
+            "op": 'Op(name="relax.call_tir")',
+            "args": """[
+                ExternFunc(global_symbol="test.op.identity"), 
+                Tuple(fields=[
+                    Var(name_hint="x")]),
+                    ShapeExpr(values=[PrimExpr(value=`m: int64`),
                     PrimExpr(value=`n: int64`)
                 ])
-            ],
-            type_args=[DynTensorType(ndim=2, dtype=float32)]
-        )
-        """
+            ]""",
+            "type_args": "[DynTensorType(ndim=2, dtype=float32)]",
+        },
+        tir_call_text,
     )
-    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
-    assert call_tir_text in foo_str
+    assert strip_whitespace(tir_call_text) in foo_str
 
 
 def test_operators():
