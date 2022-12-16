@@ -129,28 +129,37 @@ TVM_DLL Optional<Expr> GetLegacyShapeHint(const StructInfo& info);
  * However, at the level of function signature, only n, m are defined,
  * k is un-defined here.
  *
- * When we call EraseToWellDefined(R.Tensor[(n + 1, k + 2)], fshape_var_defined={n, m}),
+ * When we call EraseToWellDefined(R.Tensor[(n + 1, k + 2)], fshape_var_map={n: n, m: m}),
  * we will obntain R.Tensor(ndim=2), which is an erased info that does not depend
  * on k(which is un-defined from parameter signature).
  *
- * However, if we call EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_defined={n, m}),
+ * However, if we call EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_map={n: n, m: m}),
  * Then the return value will be R.Tensor[(n + 1, m)], because both n and m are defined.
+ *
+ * We can also make these var map to return a different expression.
+ * For example, EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_map={n: 2, m: m})
+ * will give us R.Tensor[(3, m)], where n get replaced by 2.
  *
  * Use this function in the following scenario:
  * - Decide the struct_info of expr with sub-scopes, such as If, SeqExpr
  * - Decide the deduced return struct_info of a function that can be fully decided by params.
  *
  * \param info The struct info.
- * \param f_shape_var_defined callback function to specify
- *        whether a symbolic shape var is in the target scope.
+ * \param f_shape_var_map callback function to specify
+ *        whether a symbolic shape var is defined and value to map to,
+ *        return nullopt if var is undefined.
  * \param f_var_defined callback function to specify
- *        whether a var is in the target scope.
+ *        whether a var is in the target scope and value to map to,
+ *        return nullopt if var is undefined.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
  *
  * \return the corresponding erased struct info.
  */
-TVM_DLL StructInfo EraseToWellDefined(
-    const StructInfo& info, std::function<bool(const tir::Var& var)> f_shape_var_defined = nullptr,
-    std::function<bool(const Var& var)> f_var_defined = nullptr);
+TVM_DLL StructInfo
+EraseToWellDefined(const StructInfo& info,
+                   std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr,
+                   std::function<Optional<Expr>(const Var& var)> f_var_map = nullptr,
+                   arith::Analyzer* ana = nullptr);
 
 /*!
  * \brief Check the relation of two struct info to see if one subsumes another one.

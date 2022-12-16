@@ -47,7 +47,7 @@ def get_static_type(sinfo: StructInfo) -> Type:
     return _ffi_api.GetStaticType(sinfo)  # type: ignore
 
 
-def get_shape(sinfo: StructInfo) -> Optional[Expr]:
+def get_legacy_shape_hint(sinfo: StructInfo) -> Optional[Expr]:
     """Get the corresponding shape from a StructInfo.
 
     Parameters
@@ -60,13 +60,13 @@ def get_shape(sinfo: StructInfo) -> Optional[Expr]:
     ret : Type
         The corresponding shape.
     """
-
+    return _ffi_api.GetLegacyShapeHint(sinfo)
 
 
 def erase_to_well_defined(
     sinfo: StructInfo,
-    defined_shape_vars: Optional[List[tir.Var]] = None,
-    defined_vars: Optional[List[Var]] = None,
+    shape_var_map: Dict[tir.Var, tir.PrimExpr] = None,
+    var_map: Dict[Var, Expr] = None,
 ) -> StructInfo:
     """Erase sinfo into a well defined form.
 
@@ -78,10 +78,10 @@ def erase_to_well_defined(
     sinfo : StructInfo
         The input struct info.
 
-    defined_shape_vars : Optional[List[tir.Var]]
+    shape_var_map : Dict[tir.Var, tir.PrimExpr]
         List of shape vars defined in the scope.
 
-    defined_vars : Optional[List[Var]]
+    var_map : Dict[Var, Expr]
         List of vars defined in the scope.
 
     Returns
@@ -89,10 +89,10 @@ def erase_to_well_defined(
     ret : StructInfo
         The corresponding erased struct info.
     """
-    defined_shape_vars = [] if defined_shape_vars is None else defined_shape_vars
-    defined_vars = [] if defined_vars is None else defined_vars
+    shape_var_map = {} if shape_var_map is None else shape_var_map
+    var_map = {} if var_map is None else var_map
 
-    return _ffi_api.EraseToWellDefined(sinfo, defined_shape_vars, defined_vars)  # type: ignore
+    return _ffi_api.EraseToWellDefined(sinfo, shape_var_map, var_map)  # type: ignore
 
 
 def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:

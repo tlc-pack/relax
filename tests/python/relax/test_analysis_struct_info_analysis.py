@@ -113,11 +113,16 @@ def test_erase_to_well_defined_shape():
         rx.analysis.erase_to_well_defined(s2), rx.ShapeStructInfo(ndim=3)
     )
     # all defined
-    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2, [n, m]), s2)
+    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2, {n: n, m: m}), s2)
+
+    # replacement
+    tvm.ir.assert_structural_equal(
+        rx.analysis.erase_to_well_defined(s2, {n: 2, m: m + 1}), rx.ShapeStructInfo([1, 3, m + 1])
+    )
 
     # partial defined
     tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(s2, [n]), rx.ShapeStructInfo(ndim=3)
+        rx.analysis.erase_to_well_defined(s2, {n: n}), rx.ShapeStructInfo(ndim=3)
     )
 
 
@@ -128,24 +133,37 @@ def test_erase_to_well_defined_tensor():
 
     # undefined
     tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(s0, [], []), rx.TensorStructInfo(ndim=2, dtype="int32")
+        rx.analysis.erase_to_well_defined(s0, None, None),
+        rx.TensorStructInfo(ndim=2, dtype="int32"),
     )
 
     # defined
-    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s0, [], [rshape]), s0)
+    tvm.ir.assert_structural_equal(
+        rx.analysis.erase_to_well_defined(s0, None, {rshape: rshape}), s0
+    )
+
+    tvm.ir.assert_structural_equal(
+        rx.analysis.erase_to_well_defined(s0, None, {rshape: rx.ShapeExpr([1, 2])}),
+        rx.TensorStructInfo([1, 2], dtype="int32"),
+    )
 
     s1 = rx.TensorStructInfo([m + 1, n], dtype="float32")
 
-    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s1, [n, m], [rshape]), s1)
+    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s1, {n: n, m: m}), s1)
 
     tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(s1, [m], [rshape]),
+        rx.analysis.erase_to_well_defined(s1, {n: 2, m: 3}),
+        rx.TensorStructInfo([4, 2], dtype="float32"),
+    )
+
+    tvm.ir.assert_structural_equal(
+        rx.analysis.erase_to_well_defined(s1, {m: m}, {rshape: rshape}),
         rx.TensorStructInfo(ndim=2, dtype="float32"),
     )
 
     s2 = rx.TensorStructInfo([1, 2], dtype="float32")
 
-    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2, [], []), s2)
+    tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s2), s2)
 
 
 def test_erase_to_well_defined_tuple():
@@ -157,13 +175,13 @@ def test_erase_to_well_defined_tuple():
     t1 = rx.TupleStructInfo([t0, s2])
 
     tvm.ir.assert_structural_equal(
-        rx.analysis.erase_to_well_defined(t1, [m]),
+        rx.analysis.erase_to_well_defined(t1, {m: m + 1}),
         rx.TupleStructInfo(
             [
                 rx.TupleStructInfo(
                     [rx.TensorStructInfo(ndim=3, dtype="int64"), rx.ObjectStructInfo()]
                 ),
-                rx.ShapeStructInfo([1, m]),
+                rx.ShapeStructInfo([1, m + 1]),
             ]
         ),
     )

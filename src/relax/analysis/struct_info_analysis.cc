@@ -118,6 +118,10 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
 
 Optional<Expr> GetLegacyShapeHint(const StructInfo& info) { return LegacyShapeDeriver()(info); }
 
+TVM_REGISTER_GLOBAL("relax.analysis.GetLegacyShapeHint").set_body_typed([](const StructInfo& info) {
+  return GetLegacyShapeHint(info);
+});
+
 //--------------------------
 // StructInfoFromType
 //--------------------------
@@ -168,25 +172,30 @@ StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> sh
 //--------------------------
 // EraseToWellDefined
 //--------------------------
-class WellDefinedEraser : public StructInfoMutator, public ExprVisitor, public tir::ExprVisitor {
+class WellDefinedEraser : public StructInfoMutator,
+                          public ExprMutatorBase,
+                          public tir::ExprMutator {
  public:
-  WellDefinedEraser(std::function<bool(const tir::Var& var)> f_shape_var_defined,
-                    std::function<bool(const Var& var)> f_var_defined)
-      : f_shape_var_defined_(f_shape_var_defined), f_var_defined_(f_var_defined) {}
+  WellDefinedEraser(std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map,
+                    std::function<Optional<Expr>(const Var& var)> f_var_map, arith::Analyzer* ana)
+      : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
 
   StructInfo VisitStructInfo_(const ShapeStructInfoNode* op) final {
     bool has_undefined = false;
+    Optional<Array<PrimExpr>> values;
 
     if (op->values.defined()) {
       std::swap(has_undefined_, has_undefined);
-      for (PrimExpr val : op->values.value()) {
-        tir::ExprVisitor::VisitExpr(val);
-      }
+      values = op->values.value().Map([&](PrimExpr val) { return this->VisitPrimExpr(val); });
       std::swap(has_undefined_, has_undefined);
     }
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
-      return GetRef<StructInfo>(op);
+      if (values.same_as(op->values)) {
+        return GetRef<StructInfo>(op);
+      } else {
+        return ShapeStructInfo(values.value(), op->span);
+      }
     } else {
       return ShapeStructInfo(op->ndim, op->span);
     }
@@ -194,15 +203,25 @@ class WellDefinedEraser : public StructInfoMutator, public ExprVisitor, public t
 
   StructInfo VisitStructInfo_(const TensorStructInfoNode* op) final {
     bool has_undefined = false;
+    Optional<Expr> shape;
+
     if (op->shape.defined()) {
       std::swap(has_undefined_, has_undefined);
-      relax::ExprVisitor::VisitExpr(op->shape.value());
+      shape = relax::ExprMutatorBase::VisitExpr(op->shape.value());
       std::swap(has_undefined_, has_undefined);
     }
 
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
-      return GetRef<StructInfo>(op);
+      if (shape.same_as(op->shape)) {
+        return GetRef<StructInfo>(op);
+      } else {
+        if (shape.defined()) {
+          return TensorStructInfo(shape.value(), op->dtype, op->span);
+        } else {
+          return TensorStructInfo(op->dtype, op->ndim, op->span);
+        }
+      }
     } else {
       return TensorStructInfo(op->dtype, op->ndim, op->span);
     }
@@ -214,60 +233,97 @@ class WellDefinedEraser : public StructInfoMutator, public ExprVisitor, public t
     return GetRef<StructInfo>(op);
   }
 
-  using relax::ExprVisitor::VisitExpr_;
-  using tir::ExprVisitor::VisitExpr_;
+  using relax::ExprMutatorBase::VisitExpr_;
+  using tir::ExprMutator::VisitExpr_;
 
   // connect things up
-  void VisitPrimExpr(const PrimExpr& expr) final { tir::ExprVisitor::VisitExpr(expr); }
-
-  void VisitExpr_(const DataflowVarNode* var) final {
-    bool defined = f_var_defined_ != nullptr && f_var_defined_(GetRef<Var>(var));
-    has_undefined_ = has_undefined_ || !defined;
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) {
+    // apply eager simplification
+    PrimExpr val = tir::ExprMutator::VisitExpr(expr);
+    if (!val.same_as(expr)) {
+      return ana_->Simplify(val);
+    } else {
+      return val;
+    }
   }
 
-  void VisitExpr_(const VarNode* var) final {
-    bool defined = f_var_defined_ != nullptr && f_var_defined_(GetRef<Var>(var));
-    has_undefined_ = has_undefined_ || !defined;
+  Expr VisitExpr_(const DataflowVarNode* var) final {
+    return VisitExpr_(static_cast<const VarNode*>(var));
   }
 
-  void VisitExpr_(const tir::VarNode* var) final {
-    bool defined = f_shape_var_defined_ != nullptr && f_shape_var_defined_(GetRef<tir::Var>(var));
-    has_undefined_ = has_undefined_ || !defined;
+  Expr VisitExpr_(const VarNode* var) final {
+    Optional<Expr> ret;
+    if (f_var_map_ != nullptr) {
+      ret = f_var_map_(GetRef<Var>(var));
+    }
+    has_undefined_ = has_undefined_ || !ret.defined();
+    if (ret.defined()) {
+      ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
+          << "Only allow Expr in StructInfo to be Shape or Var";
+    }
+    return ret.value_or(GetRef<Expr>(var));
+  }
+
+  PrimExpr VisitExpr_(const tir::VarNode* var) final {
+    Optional<PrimExpr> ret;
+    if (f_shape_var_map_ != nullptr) {
+      ret = f_shape_var_map_(GetRef<tir::Var>(var));
+    }
+    has_undefined_ = has_undefined_ || !ret.defined();
+
+    if (ret.defined()) {
+      PrimExpr value = ret.value();
+      if (value->IsInstance<IntImmNode>()) {
+        return tvm::cast(DataType::Int(64), value);
+      }
+      ICHECK(value.dtype() == DataType::Int(64)) << "Can only provide i64 expressions in shape";
+      return value;
+    } else {
+      return GetRef<PrimExpr>(var);
+    }
   }
 
  private:
   bool has_undefined_ = false;
-  std::function<bool(const tir::Var& var)> f_shape_var_defined_;
-  std::function<bool(const Var& var)> f_var_defined_;
+  std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map_;
+  std::function<Optional<Expr>(const Var& var)> f_var_map_;
+  arith::Analyzer* ana_;
 };
 
-StructInfo EraseToWellDefined(const StructInfo& info,
-                              std::function<bool(const tir::Var& var)> f_shape_var_defined,
-                              std::function<bool(const Var& var)> f_var_defined) {
-  return WellDefinedEraser(f_shape_var_defined, f_var_defined).VisitStructInfo(info);
+StructInfo EraseToWellDefined(
+    const StructInfo& info, std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map,
+    std::function<Optional<Expr>(const Var& var)> f_var_map, arith::Analyzer* ana) {
+  if (ana == nullptr) {
+    arith::Analyzer inst;
+    return WellDefinedEraser(f_shape_var_map, f_var_map, &inst).VisitStructInfo(info);
+  } else {
+    return WellDefinedEraser(f_shape_var_map, f_var_map, ana).VisitStructInfo(info);
+  }
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.EraseToWellDefined")
-    .set_body_typed([](const StructInfo& info, Array<tir::Var> defined_shape_vars,
-                       Array<Var> defined_vars) {
-      std::function<bool(const tir::Var& var)> f_shape_var_defined = nullptr;
-      std::function<bool(const Var& var)> f_var_defined = nullptr;
+    .set_body_typed([](const StructInfo& info, Map<tir::Var, PrimExpr> shape_var_map,
+                       Map<Var, Expr> var_map) {
+      std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr;
+      std::function<Optional<Expr>(const Var& var)> f_var_map = nullptr;
 
-      if (!defined_shape_vars.empty()) {
-        f_shape_var_defined = [&](const tir::Var& var) {
-          return std::any_of(defined_shape_vars.begin(), defined_shape_vars.end(),
-                             [&](const tir::Var& lhs) { return lhs.same_as(var); });
+      if (!shape_var_map.empty()) {
+        f_shape_var_map = [&](const tir::Var& var) -> Optional<PrimExpr> {
+          auto it = shape_var_map.find(var);
+          if (it != shape_var_map.end()) return (*it).second;
+          return NullOpt;
         };
       }
 
-      if (!defined_vars.empty()) {
-        f_var_defined = [&](const Var& var) {
-          return std::any_of(defined_vars.begin(), defined_vars.end(),
-                             [&](const Var& lhs) { return lhs.same_as(var); });
+      if (!var_map.empty()) {
+        f_var_map = [&](const Var& var) -> Optional<Expr> {
+          auto it = var_map.find(var);
+          if (it != var_map.end()) return (*it).second;
+          return NullOpt;
         };
       }
 
-      return EraseToWellDefined(info, f_shape_var_defined, f_var_defined);
+      return EraseToWellDefined(info, f_shape_var_map, f_var_map);
     });
 
 //--------------------------

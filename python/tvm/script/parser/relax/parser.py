@@ -145,7 +145,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
     else:
         ret_sinfo = eval_type_annotation(self, node.returns)
         ret_type = relax.analysis.get_static_type(ret_sinfo)
-        ret_shape = relax.analysis.get_shape(ret_sinfo)
+        ret_shape = relax.analysis.get_legacy_shape_hint(ret_sinfo)
     params = []
     params_sinfo = []
     for arg in node.args.args:
@@ -153,7 +153,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_sinfo = self.visit_tvm_annotation(arg.annotation)
         param_type = relax.analysis.get_static_type(param_sinfo)
-        param_shape = relax.analysis.get_shape(param_sinfo)
+        param_shape = relax.analysis.get_legacy_shape_hint(param_sinfo)
         params_sinfo.append(param_sinfo)
         params.append(relax.Var(arg.arg, param_shape, param_type))
 

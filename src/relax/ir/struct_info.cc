@@ -69,9 +69,16 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Shape
 ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
   ObjectPtr<ShapeStructInfoNode> n = make_object<ShapeStructInfoNode>();
-  // assign ndim first before move;
+  // assign ndim first before moves
   n->ndim = static_cast<int>(values.size());
-  n->values = std::move(values);
+  n->values = values.Map([](PrimExpr value) {
+    if (value->IsInstance<IntImmNode>()) {
+      return tvm::cast(DataType::Int(64), value);
+    }
+    ICHECK(value.dtype() == DataType::Int(64))
+        << "the value in ShapeStructInfo can only have dtype of int64";
+    return value;
+  });
   n->span = span;
   data_ = std::move(n);
 }
