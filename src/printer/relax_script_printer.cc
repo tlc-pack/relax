@@ -412,7 +412,7 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::MaxNode* op) {
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) {
-  return Doc::Text("R.Shape");
+  return Doc::Text("R.Shape(ndim=") << node->ndim << ")";
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ObjectTypeNode* node) {

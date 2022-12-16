@@ -113,7 +113,7 @@ def eval_type_annotation(
 ) -> Tuple[Type, Optional[Expr], StructInfo]:
     annotation = self.eval_expr(node)
     if callable(annotation):
-        annotation = Tensor()
+        annotation = annotation()
     if isinstance(annotation, StructInfo):
         var_table = {k: v for k, v in self.var_table.get().items() if isinstance(v, tir.Var)}
         annotation, undefined_vars = R.RewriteSymbolicShape(annotation, var_table)

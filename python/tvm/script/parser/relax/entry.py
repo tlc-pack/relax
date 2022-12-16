@@ -151,6 +151,34 @@ class TupleProxy:
 
 Tuple = TupleProxy()
 
+############################### R.Shape ################################
+
+
+class ShapeProxy:
+    """The type of shape values.
+
+    Parameters
+    ----------
+    values : Optional[List[PrimExpr]]
+       The symbolic shape values if known.
+
+    ndim : Optional[int]
+       The size of the shape.
+    """
+
+    def __call__(
+        self,
+        values: Optional[List[PrimExpr]] = None,
+        ndim: int = -1,
+    ) -> StructInfo:
+        return relax.ShapeStructInfo(values, ndim)
+
+    def __getitem__(self, keys) -> Var:
+        return self(*keys)  # pylint: disable=no-member # type: ignore
+
+
+Shape = ShapeProxy()
+
 ############################ R.match_shape #############################
 class MatchShapePair:
     value: Expr

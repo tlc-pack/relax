@@ -85,7 +85,6 @@ def tensor(
 ############################## Other Types ##############################
 
 Object = tvm.relax.ObjectStructInfo()  # pylint: disable=invalid-name
-Shape = tvm.relax.ShapeStructInfo()  # pylint: disable=invalid-name
 Void = TupleType([])  # pylint: disable=invalid-name
 
 ############################### Function ################################
@@ -382,7 +381,6 @@ __all__ = [
     "If",
     "Object",
     "RewriteSymbolicShape",
-    "Shape",
     "Then",
     "TupleGetItem",
     "Void",
