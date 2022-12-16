@@ -158,6 +158,7 @@ class BlockBuilder(Object):
         self._func_name = name
         self._func_params = params
         self._func_attrs = attrs
+        self.begin_scope(params)
         self._begin_binding_block()
 
     def _exit_function_scope(self, exc_type, exc_val, exc_tb):
@@ -581,12 +582,11 @@ class BlockBuilder(Object):
 
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
-        self._func_ret = self.normalize(output)
 
         block = self._end_block()
         if len(block.bindings) > 0:
             self._blocks.append(block)
-        seqe = self.normalize(rx.SeqExpr(self._blocks, self._func_ret))
+        seqe = self.normalize(rx.SeqExpr(self._blocks, output))
 
         # The function's checked_type_ relies on the function body(seqe) to have deduced type
         # TODO(@yuchen): handle the case where the body's checked_type_ is null
@@ -594,6 +594,7 @@ class BlockBuilder(Object):
         func = rx.Function(self._func_params, seqe, None, rx.RuntimeDepShape())
         for key, value in self._func_attrs.items():
             func = func.with_attr(key, value)
+        self.end_scope()
         self.add_func(func, self._func_name)
 
     def normalize(self, expr: Expr) -> Expr:
@@ -754,3 +755,26 @@ class BlockBuilder(Object):
             The Expr bound to the input var.
         """
         return _ffi_api.BlockBuilderLookupBinding(self, var)  # type: ignore
+
+    def begin_scope(self, params: Optional[List[Var]] = None) -> None:
+        """Begin a new scope, with optional parameters that
+        are visible within the scope.
+
+        Parameters
+        ----------
+        params: Optional[List[Var]]
+            Parameters that are visible within the scope.
+
+        Note
+        ----
+        This function should be called when new scope is introduced
+        (function, seq) to properly track the variable availability
+        and help the best effort deduction.
+        """
+
+        return _ffi_api.BlockBuilderBeginScope(self, params)  # type: ignore
+
+    def end_scope(self) -> None:
+        """End the current scope. Please see `begin_scope` for details"""
+
+        return _ffi_api.BlockBuilderEndScope(self)  # type: ignore

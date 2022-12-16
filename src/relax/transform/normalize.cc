@@ -42,7 +42,7 @@ class NormalizeMutator : public ExprMutatorBase {
   }
 
   Expr VisitExpr_(const FunctionNode* op) {
-    Expr body = this->VisitWithNewScope(op->body);
+    Expr body = this->VisitWithNewScope(op->body, op->params);
 
     if (body.same_as(op->body)) {
       return GetRef<Expr>(op);
@@ -63,13 +63,15 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr) {
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
     builder_->BeginBindingBlock();
+    builder_->BeginScope(params);
     Expr ret = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
     if (!prologue->bindings.empty()) {
       ret = SeqExpr({prologue}, ret);
     }
+    builder_->EndScope();
     return ret;
   }
 

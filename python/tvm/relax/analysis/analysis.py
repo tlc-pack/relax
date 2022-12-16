@@ -96,7 +96,7 @@ def erase_to_well_defined(
 
 
 def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
-    """Unify the two struct info their least common acenstor.
+    """Unify the two struct info their least common accentor.
 
     Parameters
     ----------

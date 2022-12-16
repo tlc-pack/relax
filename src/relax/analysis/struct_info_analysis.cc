@@ -639,5 +639,6 @@ TVM_REGISTER_GLOBAL("relax.analysis.StructInfoLCA")
     .set_body_typed([](const StructInfo& lhs, const StructInfo& rhs) {
       return StructInfoLCA(lhs, rhs);
     });
+
 }  // namespace relax
 }  // namespace tvm

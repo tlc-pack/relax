@@ -26,6 +26,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_analysis.h>
 #include <tvm/relax/utils.h>
@@ -190,8 +191,25 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void BeginBindingBlock() final { block_stack_.emplace_back(BlockFrame{{}, false}); }
 
   void BeginScope(Optional<Array<Var>> params) final {
-    scope_stack_.emplace_back(ScopeFrame());
-    // TODO(tqchen, siyuan) populate var_map based on params by using a collector visitor.
+    Map<tir::Var, PrimExpr> shape_var_map;
+    for (const Var& var : params.value_or(Array<Var>())) {
+      const Map<tir::Var, PrimExpr>& var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
+      for (const auto& kv : var_map) {
+        const tir::Var& shape_var = kv.first;
+        const PrimExpr& shape_expr = kv.second;
+        auto it = shape_var_map.find(shape_var);
+        if (it == shape_var_map.end()) {
+          shape_var_map.Set(shape_var, shape_expr);
+        } else {
+          const PrimExpr& old_shape_expr = (*it).second;
+          CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+              << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
+              << shape_expr;
+        }
+        shape_var_map.Set(kv.first, kv.second);
+      }
+    }
+    scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));
   }
 
   void EndScope() final { scope_stack_.pop_back(); }
@@ -434,6 +452,39 @@ class BlockBuilderImpl : public BlockBuilderNode {
       ctx_func_dedup_map_->emplace(func, gv);
     }
   }
+
+  class StructInfoVarCollector : public StructInfoVisitor {
+   public:
+    static Map<tir::Var, PrimExpr> Collect(const StructInfo& struct_info) {
+      StructInfoVarCollector collector;
+      collector(struct_info);
+      return collector.shape_var_map_;
+    }
+
+   private:
+    void VisitStructInfo_(const TensorStructInfoNode* op) final {
+      if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
+        for (const PrimExpr& s : shape_expr->values) {
+          // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
+          if (const auto* var = s.as<tir::VarNode>()) {
+            shape_var_map_.Set(GetRef<tir::Var>(var), s);
+          }
+        }
+      }
+    }
+
+    void VisitStructInfo_(const ShapeStructInfoNode* op) final {
+      for (const PrimExpr& s : op->values.value_or(Array<PrimExpr>())) {
+        // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
+        if (const auto* var = s.as<tir::VarNode>()) {
+          shape_var_map_.Set(GetRef<tir::Var>(var), s);
+        }
+      }
+    }
+
+   private:
+    Map<tir::Var, PrimExpr> shape_var_map_;
+  };
 };
 
 //---------------------------------------
@@ -999,5 +1050,11 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderCurrentBlockIsDataFlow")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderLookupBinding")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::LookupBinding);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginScope")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginScope);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEndScope")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::EndScope);
 }  // namespace relax
 }  // namespace tvm

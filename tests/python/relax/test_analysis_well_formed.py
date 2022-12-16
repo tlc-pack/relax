@@ -129,7 +129,7 @@ def test_symbolic_var():
 
 
 def test_symbolic_var_invalid_type():
-    with pytest.raises(tvm.TVMError, match="the value in ShapeExpr can only have dtype of int64"):
+    with pytest.raises(tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"):
         dim = tir.Var("dim", "float32")
         type_anno = rx.DynTensorType(ndim=1, dtype="float32")
         y = rx.Var("y", [dim], type_anno)

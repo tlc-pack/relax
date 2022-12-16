@@ -16,8 +16,8 @@
 # under the License.
 
 
-import pytest
 import tvm
+import tvm.testing
 
 from tvm import relax
 from tvm import tir
@@ -434,4 +434,4 @@ def test_func_type():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

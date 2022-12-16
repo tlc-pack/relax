@@ -138,6 +138,7 @@ class CallNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -216,6 +217,7 @@ class IfNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
@@ -271,6 +273,7 @@ class TupleNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
@@ -328,6 +331,7 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("index", &index);
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -557,6 +561,7 @@ class ConstantNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {

@@ -447,7 +447,7 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
 
   for (const Var& param : params) {
     CHECK(param->struct_info_.defined())
-        << "relax.Function requires params to contain checked_type_";
+        << "relax.Function requires params to contain struct_info_";
     param_sinfo.push_back(GetStructInfo(param));
   }
 
