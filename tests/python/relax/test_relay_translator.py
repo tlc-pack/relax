@@ -277,9 +277,8 @@ def test_translate_op_with_tir():
 def test_translate_tuple_arg():
     x = relay.var("x", shape=(10, 16))
     y = relay.var("y", shape=(10, 16))
-    t = relay.Tuple((x, y))
-    relay_mod = tvm.IRModule.from_expr(relay.Function([x, y], relay.concatenate(t, axis=-1)))
-    relay_vm, relax_vm, relax_mod = translate_and_build_vms(relay_mod)
+    relay_mod = tvm.IRModule.from_expr(relay.Function([x, y], relay.concatenate((x, y), axis=-1)))
+    relax_mod = relay_translator.from_relay(relay_mod["main"], target="llvm")
 
     # Construct the expected module
     bb = relax.BlockBuilder()
@@ -295,9 +294,9 @@ def test_translate_tuple_arg():
     )
     with bb.function("main", [x_relax, y_relax]):
         with bb.dataflow():
-            lv = bb.emit(relax.Tuple((x_relax, y_relax)))
-            lv1 = bb.emit(relax.TupleGetItem(lv, 0))
-            lv2 = bb.emit(relax.TupleGetItem(lv, 1))
+            _ = bb.emit(relax.Tuple((x_relax, y_relax)))
+            lv1 = bb.emit(x_relax)
+            lv2 = bb.emit(y_relax)
             lv3 = bb.emit_te(topi.x86.concatenate, (lv1, lv2), axis=-1)
             gv = bb.emit_output(lv3)
         bb.emit_func_output(gv)

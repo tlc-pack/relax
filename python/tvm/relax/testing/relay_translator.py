@@ -122,17 +122,28 @@ def from_relay(
             for arg in args:
                 if arg in var_map:
                     arg_expr = var_map[arg]
-                    if not isinstance(arg_expr.shape, relax.Tuple):
+                    if isinstance(arg_expr.checked_type, relax.DynTensorType):
                         new_args.append(arg_expr)
                         te_inputs.append(tvm.relax.expr.te_tensor(arg_expr))
-                    else:
-                        n_tensor = len(arg_expr.checked_type.fields)
-                        assert isinstance(arg_expr.checked_type, relax.TupleType)
-                        assert len(arg_expr.shape.fields) == n_tensor
+                    elif isinstance(arg_expr.checked_type, relax.TupleType):
+                        assert isinstance(arg_expr.shape, relax.Tuple)
+                        assert len(arg_expr.shape.fields) == len(arg_expr.checked_type.fields)
+                        n_tensor = len(arg_expr.shape.fields)
+                        bound_tuple = bb.lookup_binding(arg_expr)
+                        if isinstance(bound_tuple, relax.Tuple):
+                            assert len(bound_tuple) == n_tensor
                         for i in range(n_tensor):
-                            item = bb.emit(relax.TupleGetItem(arg_expr, i))
+                            if isinstance(bound_tuple, relax.Tuple):
+                                item = bb.emit(bound_tuple[i])
+                            else:
+                                item = bb.emit(relax.TupleGetItem(arg_expr, i))
                             new_args.append(item)
                             te_inputs.append(tvm.relax.expr.te_tensor(item))
+                    else:
+                        raise TypeError(
+                            f"CallTIR argument type being {type(arg_expr.checked_type)} is not "
+                            "supported."
+                        )
 
             op_name = node.op.name
             attrs = node.attrs
@@ -217,6 +228,4 @@ def from_relay(
             bb._begin_dataflow_block()
             relay.analysis.post_order_visit(mod["main"], visit_func)
 
-    relax_mod = bb.get()
-    relax_mod["main"] = relax_mod["main"].with_attr("global_symbol", "main")
     return bb.get()
