@@ -829,22 +829,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       auto opt = MatchStructInfo<FuncStructInfo>(call->op);
       ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
-
-      if (finfo->IsOpaque()) {
-        if (finfo->derive_func.defined()) {
-          // derive using custom derivation function.
-          return finfo->derive_func.value()(call, GetRef<BlockBuilder>(this));
-        } else {
-          // directly return the normal value.
-          return finfo->ret;
-        }
-      }
-      // TODO(relax-team): add analysis: Derive Func Return based on
-      // match and replacement, only resort to EraseToWellDefined if
-      // we cannot find the defined values.
-      //
-      // Right now this is sufficient to return static shape.
-      return EraseToWellDefined(finfo->ret);
+      return DeriveCallRetStructInfo(finfo, call, GetRef<BlockBuilder>(this), &analyzer_);
     }
   }
 

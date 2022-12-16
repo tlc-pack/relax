@@ -168,6 +168,7 @@ StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> sh
     return StructInfo();
   }
 }
+
 //--------------------------
 // EraseToWellDefined
 //--------------------------
@@ -300,114 +301,150 @@ StructInfo EraseToWellDefined(
   }
 }
 
+StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> shape_var_map,
+                              Map<Var, Expr> var_map, arith::Analyzer* ana) {
+  std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr;
+  std::function<Optional<Expr>(const Var& var)> f_var_map = nullptr;
+
+  if (!shape_var_map.empty()) {
+    f_shape_var_map = [&](const tir::Var& var) -> Optional<PrimExpr> {
+      auto it = shape_var_map.find(var);
+      if (it != shape_var_map.end()) return (*it).second;
+      return NullOpt;
+    };
+  }
+
+  if (!var_map.empty()) {
+    f_var_map = [&](const Var& var) -> Optional<Expr> {
+      auto it = var_map.find(var);
+      if (it != var_map.end()) return (*it).second;
+      return NullOpt;
+    };
+  }
+
+  return EraseToWellDefined(info, f_shape_var_map, f_var_map, ana);
+}
+
 TVM_REGISTER_GLOBAL("relax.analysis.EraseToWellDefined")
     .set_body_typed([](const StructInfo& info, Map<tir::Var, PrimExpr> shape_var_map,
                        Map<Var, Expr> var_map) {
-      std::function<Optional<PrimExpr>(const tir::Var& var)> f_shape_var_map = nullptr;
-      std::function<Optional<Expr>(const Var& var)> f_var_map = nullptr;
-
-      if (!shape_var_map.empty()) {
-        f_shape_var_map = [&](const tir::Var& var) -> Optional<PrimExpr> {
-          auto it = shape_var_map.find(var);
-          if (it != shape_var_map.end()) return (*it).second;
-          return NullOpt;
-        };
-      }
-
-      if (!var_map.empty()) {
-        f_var_map = [&](const Var& var) -> Optional<Expr> {
-          auto it = var_map.find(var);
-          if (it != var_map.end()) return (*it).second;
-          return NullOpt;
-        };
-      }
-
-      return EraseToWellDefined(info, f_shape_var_map, f_var_map);
+      return EraseToWellDefined(info, shape_var_map, var_map);
     });
 
 //--------------------------
 // IsBaseOf
 //--------------------------
-class StructInfoBaseChecker : public StructInfoFunctor<bool(const StructInfo&, const StructInfo&)> {
+class StructInfoBaseChecker
+    : public StructInfoFunctor<BaseCheckResult(const StructInfo&, const StructInfo&)> {
  public:
   explicit StructInfoBaseChecker(arith::Analyzer* ana) : analyzer_(ana) {}
 
-  bool VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
+  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
     // quick path
-    if (lhs.same_as(other)) return true;
+    // Note: subclass may disable this quick path if we need to go over all struct info.
+    if (lhs.same_as(other)) return BaseCheckResult::kPass;
     return StructInfoFunctor::VisitStructInfo(lhs, other);
   }
 
-  // Object is based of everything
-  bool VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
-    return true;
+  // Object is base of everything
+  BaseCheckResult VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+    return BaseCheckResult::kPass;
   }
 
-  bool VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
-    if (rhs == nullptr) return false;
-    return lhs->dtype == rhs->dtype;
+    if (rhs == nullptr) {
+      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+    return lhs->dtype == rhs->dtype ? BaseCheckResult::kPass : BaseCheckResult::kFailL0;
   }
 
-  bool VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<ShapeStructInfoNode>();
-    if (rhs == nullptr) return false;
+    if (rhs == nullptr) {
+      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
     // lhs have unknown ndim
-    if (lhs->IsUnknownNdim()) return true;
+    if (lhs->IsUnknownNdim()) return BaseCheckResult::kPass;
 
     // ndim must match
-    if (lhs->ndim != rhs->ndim) return false;
+    if (lhs->ndim != rhs->ndim) {
+      if (rhs->IsUnknownNdim()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
 
     // lhs does not have symbolic value
-    if (!lhs->values.defined()) return true;
-
+    if (!lhs->values.defined()) return BaseCheckResult::kPass;
     // rhs does not have symbolic value but lhs do.
-    if (!rhs->values.defined()) return false;
-    if (!CanProveShapeEqual(lhs->values.value(), rhs->values.value(), analyzer_)) return false;
-    return true;
-  }
+    if (!rhs->values.defined()) return BaseCheckResult::kFailL2;
 
-  bool VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
-    auto* rhs = other.as<TensorStructInfoNode>();
-    if (rhs == nullptr) return false;
-    // dtype mismatch
-    if (!lhs->IsUnknownDtype() && lhs->dtype != rhs->dtype) return false;
-    // ndim mismatch
-    if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) return false;
-    // lhs does not have defined shape and everything else matches
-    if (!lhs->shape.defined()) return true;
-    // rhs does not have symbolic value but lhs doesn't
-    if (!rhs->shape.defined()) return false;
     // shape match check
-    if (!CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(), analyzer_)) return false;
-    return true;
+    return ShapeMatchCheck(lhs->values.value(), rhs->values.value());
   }
 
-  bool VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<TensorStructInfoNode>();
+    if (rhs == nullptr) {
+      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+    // dtype mismatch
+    if (!lhs->IsUnknownDtype() && lhs->dtype != rhs->dtype) {
+      if (rhs->IsUnknownDtype()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+
+    // ndim msiamtch
+    if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) {
+      if (rhs->IsUnknownNdim()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+    // lhs does not have defined shape and everything else matches
+    if (!lhs->shape.defined()) return BaseCheckResult::kPass;
+    // rhs does not have symbolic value but lhs don't
+    if (!rhs->shape.defined()) return BaseCheckResult::kFailL2;
+
+    // shape match check
+    return ShapeMatchCheck(lhs->shape.value(), rhs->shape.value());
+  }
+
+  BaseCheckResult VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TupleStructInfoNode>();
-    if (rhs == nullptr) return false;
-    return BaseCheckArray(lhs->fields, rhs->fields);
+    if (rhs == nullptr) {
+      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+    return ArrayCheck(lhs->fields, rhs->fields);
   }
 
-  bool VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) final {
+  BaseCheckResult VisitStructInfo_(const FuncStructInfoNode* lhs,
+                                   const StructInfo& other) override {
     auto* rhs = other.as<FuncStructInfoNode>();
-    if (rhs == nullptr) return false;
+    if (rhs == nullptr) {
+      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
 
     // lhs opaque handling
     if (lhs->IsOpaque()) {
       if (lhs->derive_func.defined()) {
-        return lhs->derive_func.same_as(rhs->derive_func);
+        // function proving is best effort.
+        return lhs->derive_func.same_as(rhs->derive_func) ? BaseCheckResult::kPass
+                                                          : BaseCheckResult::kFailL2;
       }
       // no derivation function, only depends on ret
       return this->VisitStructInfo(lhs->ret, rhs->ret);
     }
 
+    // Function check is best effort.
     // rhs is opaque but lhs is not
-    if (rhs->IsOpaque()) return false;
+    if (rhs->IsOpaque()) return BaseCheckResult::kFailL2;
 
     // NOTE: lhs->params, rhs->params may contain different symbolic
     // vars that needs to be re-mapped to each other.
-    // This can only be done through structural equality check and not BaseCheckArray.
+    // This can only be done through structural equality check and not ArrayCheck.
     //
     // So we check structural equality here and if two are structurally
     // equal return true.
@@ -419,36 +456,127 @@ class StructInfoBaseChecker : public StructInfoFunctor<bool(const StructInfo&, c
     //
     // Given we only do best effort checking in these cases, and such cases
     // are likely not a primary concern atm, we take this approach here.
-    if (struct_equal_(GetRef<StructInfo>(lhs), other)) return true;
+    if (struct_equal_(GetRef<StructInfo>(lhs), other)) return BaseCheckResult::kPass;
 
-    // general function
-    if (!BaseCheckArray(lhs->params.value(), rhs->params.value())) {
-      return false;
-    }
-    if (!this->VisitStructInfo(lhs->ret, rhs->ret)) {
-      return false;
-    }
-    return true;
+    auto param_check = FuncParamsCheck(lhs->params.value(), rhs->params.value());
+    auto ret_check = this->VisitStructInfo(lhs->ret, rhs->ret);
+    return CombineCheck(param_check, ret_check);
   }
 
- private:
+ protected:
   // analyzer
   arith::Analyzer* analyzer_;
   // struct equal checker
   StructuralEqual struct_equal_;
 
-  // check arrays
-  bool BaseCheckArray(const Array<StructInfo>& lhs, const Array<StructInfo>& rhs) {
-    if (lhs.same_as(rhs)) return true;
-    if (lhs.size() != rhs.size()) return false;
-    for (size_t i = 0; i < lhs.size(); ++i) {
-      if (!this->VisitStructInfo(lhs[i], rhs[i])) return false;
+  // customizable functions.
+  /*!
+   * \brief Check symbolic shape value equivalence.
+   * \param lhs The left hand shape.
+   * \param rhs The right hand shape.
+   * \return CheckResult.
+   */
+  virtual BaseCheckResult PrimValueMatchCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
+    // get static shape checking right.
+    auto* int_lhs = lhs.as<IntImmNode>();
+    auto* int_rhs = rhs.as<IntImmNode>();
+    if (int_lhs && int_rhs) {
+      if (int_lhs->value == int_rhs->value) {
+        return BaseCheckResult::kPass;
+      } else {
+        return BaseCheckResult::kFailL0;
+      }
     }
-    return true;
+    return analyzer_->CanProveEqual(lhs, rhs) ? BaseCheckResult::kPass : BaseCheckResult::kFailL2;
+  }
+  /*!
+   * \brief CheckShape value.
+   * \param lhs The left hand shape.
+   * \param rhs The right hand shape.
+   * \return CheckResult.
+   */
+  virtual BaseCheckResult ShapeMatchCheck(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+    if (lhs.size() != rhs.size()) return BaseCheckResult::kFailL0;
+
+    BaseCheckResult ret = BaseCheckResult::kPass;
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      auto cmp_ret = PrimValueMatchCheck(lhs[i], rhs[i]);
+      if (ret == BaseCheckResult::kFailL0) return ret;
+      ret = CombineCheck(cmp_ret, ret);
+    }
+    return ret;
+  }
+
+  /*!
+   * \brief CheckShape value.
+   * \param lhs The left hand shape.
+   * \param rhs The right hand shape.
+   * \return Check result.
+   */
+  virtual BaseCheckResult ShapeMatchCheck(const Expr& lhs, const Expr& rhs) {
+    if (lhs.same_as(rhs)) return BaseCheckResult::kPass;
+    auto* lhs_shape = lhs.as<ShapeExprNode>();
+    auto* rhs_shape = rhs.as<ShapeExprNode>();
+    if (lhs_shape && rhs_shape) {
+      return ShapeMatchCheck(lhs_shape->values, rhs_shape->values);
+    } else {
+      return BaseCheckResult::kFailL2;
+    }
+  }
+
+  /*!
+   * \brief CheckShape function parameters.
+   * \param lhs The left hand params.
+   * \param rhs The right hand params.
+   * \return Check result.
+   */
+  virtual BaseCheckResult FuncParamsCheck(const Array<StructInfo>& lhs,
+                                          const Array<StructInfo>& rhs) {
+    auto res = ArrayCheck(lhs, rhs);
+    // treat L1 failures in params checking as L2.
+    if (res == BaseCheckResult::kFailL1) res = BaseCheckResult::kFailL2;
+    return res;
+  }
+  // helper functions
+  /*!
+   * \brief Combine check results.
+   * \param lhs The left operand.
+   * \param rhs The righr operand.
+   * \return The check result.
+   */
+  static BaseCheckResult CombineCheck(BaseCheckResult lhs, BaseCheckResult rhs) {
+    if (lhs == BaseCheckResult::kFailL0 || rhs == BaseCheckResult::kFailL0) {
+      return BaseCheckResult::kFailL0;
+    }
+    if (lhs == BaseCheckResult::kFailL1 || rhs == BaseCheckResult::kFailL1) {
+      return BaseCheckResult::kFailL1;
+    }
+    if (lhs == BaseCheckResult::kFailL2 || rhs == BaseCheckResult::kFailL2) {
+      return BaseCheckResult::kFailL2;
+    }
+    return BaseCheckResult::kPass;
+  }
+
+  /*!
+   * \brief Generic helper function to check arrays.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   */
+  BaseCheckResult ArrayCheck(const Array<StructInfo>& lhs, const Array<StructInfo>& rhs) {
+    if (lhs.size() != rhs.size()) return BaseCheckResult::kFailL0;
+    BaseCheckResult ret = BaseCheckResult::kPass;
+
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      auto cmp_ret = this->VisitStructInfo(lhs[i], rhs[i]);
+      if (ret == BaseCheckResult::kFailL0) return ret;
+      ret = CombineCheck(cmp_ret, ret);
+    }
+    return ret;
   }
 };
 
-bool IsBaseOf(const StructInfo& base, const StructInfo& derived, arith::Analyzer* ana) {
+BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived,
+                                    arith::Analyzer* ana) {
   if (ana == nullptr) {
     arith::Analyzer inst;
     return StructInfoBaseChecker(&inst)(base, derived);
@@ -457,9 +585,167 @@ bool IsBaseOf(const StructInfo& base, const StructInfo& derived, arith::Analyzer
   }
 }
 
+TVM_REGISTER_GLOBAL("relax.analysis.StructInfoBaseCheck")
+    .set_body_typed([](const StructInfo& base, const StructInfo& derived) -> int {
+      return static_cast<int>(StructInfoBaseCheck(base, derived));
+    });
+
+bool IsBaseOf(const StructInfo& base, const StructInfo& derived, arith::Analyzer* ana) {
+  return StructInfoBaseCheck(base, derived, ana) == BaseCheckResult::kPass;
+}
+
 TVM_REGISTER_GLOBAL("relax.StructInfoIsBaseOf")
     .set_body_typed([](const StructInfo& base, const StructInfo& derived) {
       return IsBaseOf(base, derived);
+    });
+
+//--------------------------
+// DeriveStructInfo
+//--------------------------
+
+// NOTE: we are reusing StructInfoBaseChecker here to populate a mapping
+// from the expressions in arg(rhs) to var in param.
+class CallRetStructInfoDeriver : public StructInfoBaseChecker {
+ public:
+  explicit CallRetStructInfoDeriver(arith::Analyzer* ana) : StructInfoBaseChecker(ana) {}
+
+  // No short cut, so we can recursively populate all pairs.
+  BaseCheckResult VisitStructInfo(const StructInfo& lhs, const StructInfo& other) final {
+    return StructInfoFunctor::VisitStructInfo(lhs, other);
+  }
+
+  StructInfo Derive(const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
+    // opaque derivation
+    if (finfo->IsOpaque()) {
+      if (finfo->derive_func.defined()) {
+        // derive using custom derivation function.
+        return finfo->derive_func.value()(call, ctx);
+      } else {
+        // directly return the normal value.
+        return finfo->ret;
+      }
+    }
+
+    // Normal function signature derivation.
+    auto params = finfo->params.value();
+    if (params.size() != call->args.size()) {
+      ctx->ReportFatal(Diagnostic::Error(call->span)
+                       << "number of arguments and parameters mismatch:"
+                       << " expected " << params.size() << ", given " << call->args.size());
+    }
+    // Visit each param arg pair, check and populate the var map
+    for (size_t i = 0; i < params.size(); ++i) {
+      auto arg_sinfo = GetStructInfo(call->args[i]);
+      BaseCheckResult res = this->VisitStructInfo(params[i], arg_sinfo);
+      // Report error if we find L1 level failure
+      // L2 level is best effort so we don't report.
+      // The behavior of L2 can be customized later.
+      if (res == BaseCheckResult::kFailL0 || res == BaseCheckResult::kFailL1) {
+        ctx->ReportFatal(Diagnostic::Error(call->span)
+                         << "Argument " << i << " type mismatch:"
+                         << " expected " << params[i] << ", given " << arg_sinfo);
+      }
+    }
+    // map the ret using the populated var map.
+    return EraseToWellDefined(finfo->ret, shape_var_map_, var_map_);
+  }
+
+ protected:
+  // Whether to populate map in params.
+  bool populate_mapping_{true};
+  // for simplicity, we make these fields public so the user can access them.
+  Map<tir::Var, PrimExpr> shape_var_map_;
+  Map<Var, Expr> var_map_;
+
+  using StructInfoBaseChecker::ShapeMatchCheck;
+
+  // Match shape values in between param(lhs) and arg(rhs)
+  BaseCheckResult PrimValueMatchCheck(const PrimExpr& param, const PrimExpr& arg) final {
+    if (!populate_mapping_) {
+      return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
+    }
+
+    if (auto* ptr = param.as<tir::VarNode>()) {
+      auto var = GetRef<tir::Var>(ptr);
+      auto it = shape_var_map_.find(var);
+      // not populated
+      if (it == shape_var_map_.end()) {
+        shape_var_map_.Set(var, arg);
+        return BaseCheckResult::kPass;
+      } else {
+        // Best effort prove.
+        PrimExpr mapped_value = (*it).second;
+        if (analyzer_->CanProveEqual(mapped_value, arg)) return BaseCheckResult::kPass;
+        return BaseCheckResult::kFailL2;
+      }
+    } else {
+      // Best effort
+      // Do not attempt to do prove when param contains a symbolic expr.
+      // such expression might depends on a later defined var in params created by dyn fusion.
+      // example: f(a: Tensor[(n+1)], s: Shape[(n,)]), the (n+1) case here.
+      return StructInfoBaseChecker::PrimValueMatchCheck(param, arg);
+    }
+  }
+
+  BaseCheckResult ShapeMatchCheck(const Expr& lhs, const Expr& rhs) final {
+    if (!populate_mapping_) {
+      return StructInfoBaseChecker::ShapeMatchCheck(lhs, rhs);
+    }
+
+    if (auto* ptr = lhs.as<VarNode>()) {
+      auto var = GetRef<Var>(ptr);
+      auto it = var_map_.find(var);
+      // not populated
+      if (it == var_map_.end()) {
+        var_map_.Set(var, rhs);
+        return BaseCheckResult::kPass;
+      } else {
+        // Best effort prove.
+        Expr mapped_value = (*it).second;
+        if (CanProveShapeEqual(mapped_value, rhs, analyzer_)) return BaseCheckResult::kPass;
+        return BaseCheckResult::kFailL2;
+      }
+    }
+    auto lhs_shape = lhs.as<ShapeExprNode>();
+    auto rhs_shape = rhs.as<ShapeExprNode>();
+    ICHECK(lhs_shape) << "lhs must have a shape";
+    if (!rhs_shape) return BaseCheckResult::kFailL2;
+    return ShapeMatchCheck(lhs_shape->values, rhs_shape->values);
+  }
+
+  BaseCheckResult FuncParamsCheck(const Array<StructInfo>& lhs,
+                                  const Array<StructInfo>& rhs) final {
+    // Set populate mapping to false
+    // so we do not pick up symbolic vars in params with function type.
+    //
+    // @R.function
+    // def f(g: R.Func([R.Tensor[(n,)]], R.Tensor[(n+1,)]),
+    //       x: R.Tensor[(m,)]) -> R.Tensor[(m,)]:
+    //     ...
+    //
+    // For example, in the above function f, we should avoid
+    // pick up n in g's signature.
+    bool populate_mapping = false;
+    std::swap(populate_mapping_, populate_mapping);
+    auto ret = StructInfoBaseChecker::FuncParamsCheck(lhs, rhs);
+    std::swap(populate_mapping_, populate_mapping);
+    return ret;
+  }
+};
+
+StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
+                                   const BlockBuilder& ctx, arith::Analyzer* ana) {
+  if (ana == nullptr) {
+    arith::Analyzer inst;
+    return CallRetStructInfoDeriver(&inst).Derive(finfo, call, ctx);
+  } else {
+    return CallRetStructInfoDeriver(ana).Derive(finfo, call, ctx);
+  }
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.DeriveCallRetStructInfo")
+    .set_body_typed([](const FuncStructInfo& finfo, const Call& call, const BlockBuilder& ctx) {
+      return DeriveCallRetStructInfo(finfo, call, ctx);
     });
 
 //--------------------------

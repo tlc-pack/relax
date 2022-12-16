@@ -78,6 +78,31 @@ class DataflowScope(object):
         self._bb._begin_binding_block()
 
 
+class TestingScope(object):
+    """Auxiliary scope for testing purposes"""
+
+    def __init__(self, block_builder, def_vars):
+        self._bb = block_builder
+        shape_vars = []
+        for var in def_vars:
+            if isinstance(var, tvm.tir.Var):
+                shape_vars.append(var)
+            else:
+                raise ValueError("def_vars only can take tir.Var")
+        # setup a dummy var so shape is in scope.
+        sparam = tvm.relax.Var("sparam")
+        tvm.relax.expr._update_struct_info(sparam, tvm.relax.ShapeStructInfo(shape_vars))
+        self._scope_params = [sparam]
+
+    def __enter__(self):
+        self._bb.begin_scope(self._scope_params)
+        self._bb._begin_dataflow_block()
+
+    def __exit__(self, ptype, value, trace):
+        self._bb._end_block()
+        self._bb.end_scope()
+
+
 @tvm._ffi.register_object("relax.BlockBuilder")
 class BlockBuilder(Object):
     """A builder to build Relax IR for testing and dev.
@@ -282,6 +307,21 @@ class BlockBuilder(Object):
         if attrs is None:
             attrs = {}
         return FunctionScope(self, name, params, attrs)
+
+    def testing_scope(self, def_vars: List[tir.Var]) -> TestingScope:
+        """Start a scope for unit-testing purposes.
+
+        Parameters
+        ----------
+        def_vars: List[tir.Var]
+            List of symbolic variables that are marked as defined in scope.
+
+        Returns
+        -------
+        ret: TestingScope
+            A TestingScope to setup builder for emit and other purposes.
+        """
+        return TestingScope(self, def_vars)
 
     def dataflow(self) -> DataflowScope:
         """Annotate a Relax dataflow block.

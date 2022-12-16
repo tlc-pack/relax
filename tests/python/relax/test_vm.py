@@ -915,7 +915,7 @@ def test_sub_func_call():
         @R.function
         def relax_matmul_tir(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
-        ) -> R.Tensor:
+        ) -> R.Tensor((32, 32), dtype="float32"):
             with R.dataflow():
                 gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 R.output(gv0)

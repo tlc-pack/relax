@@ -22,12 +22,13 @@ configuring the passes and scripting them in Python.
 """
 
 from typing import Dict, List, Optional
+from enum import IntEnum
 
 import tvm
 from tvm import tir
 from tvm.relax.ty import Type
-from tvm.relax.struct_info import StructInfo
-from tvm.relax.expr import DataflowBlock, GlobalVar, Var, Expr, Function, Binding
+from tvm.relax.struct_info import StructInfo, FuncStructInfo
+from tvm.relax.expr import DataflowBlock, GlobalVar, Var, Expr, Function, Binding, Call
 from . import _ffi_api
 
 
@@ -93,6 +94,72 @@ def erase_to_well_defined(
     var_map = {} if var_map is None else var_map
 
     return _ffi_api.EraseToWellDefined(sinfo, shape_var_map, var_map)  # type: ignore
+
+
+class BaseCheckResult(IntEnum):
+    """Return result of fine-grained base check.
+
+    Note
+    ----
+    Base check comes with fine-grained fail levels.
+
+    - FAIL_L0: The lhs and rhs have no intersection at all.
+    - FAIL_L1: We get the failure by looking at static information.
+    - FAIL_L2: We get the failure due to unknown symbolic variable relations.
+    """
+
+    FAIL_L0 = 0
+    FAIL_L1 = 1
+    FAIL_L2 = 2
+    PASS = 3
+
+
+def struct_info_base_check(base: StructInfo, derived: StructInfo) -> BaseCheckResult:
+    """Run a base check to see if base subsumes derived.
+
+    Parameters
+    ----------
+    base: StructInfo
+        The base struct info.
+
+    derived: StructInfo
+        The derived struct info.
+
+    Returns
+    -------
+    ret : StructInfo
+        The derived return value struct info.
+    """
+    return _ffi_api.StructInfoBaseCheck(base, derived)  # type: ignore
+
+
+def derive_call_ret_struct_info(
+    func_sinfo: FuncStructInfo, call: Call, ctx: "tvm.relax.BlockBuilder"
+) -> StructInfo:
+    """Derive the call's ret value struct info from inputs.
+
+    Parameters
+    ----------
+    func_sinfo: FuncStructInfo
+        The call's function signature.
+
+    call: Call
+        The call expression
+
+    ctx: tvm.relax.BlockBuilder
+        The context block builder.
+
+    Returns
+    -------
+    ret : StructInfo
+        The derived return value struct info.
+
+    Note
+    ----
+    This is an internal derivation function, call.op field is
+    ignored in this case and the derivation only depends on func_sinfo.
+    """
+    return _ffi_api.DeriveCallRetStructInfo(func_sinfo, call, ctx)  # type: ignore
 
 
 def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:

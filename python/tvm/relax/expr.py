@@ -457,8 +457,8 @@ def const(
             _np.dtype("int64"): _np.int32,  # type: ignore
             _np.dtype("float64"): _np.float32,  # type: ignore
         }.get(
-            value.dtype, None
-        )  # type: ignore
+            value.dtype, None  # type: ignore
+        )
 
     if isinstance(value, (_np.ndarray, _np.generic)):
         if dtype is not None:

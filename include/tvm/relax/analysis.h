@@ -102,6 +102,19 @@ TVM_DLL StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<
 TVM_DLL Optional<Expr> GetLegacyShapeHint(const StructInfo& info);
 
 /*!
+ * \return Derive the call's ret value struct info from inputs.
+ * \param func_info The function struct info.
+ * \param call The call expression to be derived.
+ * \param ctx The builder context.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return The derived struct info of the call.
+ * \note  call->op field is ignored during derivation and we only rely on information
+ *        presented by func_sinfo.
+ */
+TVM_DLL StructInfo DeriveCallRetStructInfo(const FuncStructInfo& finfo, const Call& call,
+                                           const BlockBuilder& ctx, arith::Analyzer* ana = nullptr);
+
+/*!
  * \brief Erase the info to a corresponding more coarse grained
  *        struct info that is still well-defined(with all the vars in scope).
  *
@@ -164,7 +177,86 @@ EraseToWellDefined(const StructInfo& info,
                    arith::Analyzer* ana = nullptr);
 
 /*!
+ * \brief EraseToWellDefined variant with map.
+ * \param info The struct info.
+ * \param f_shape_var_map callback function to specify
+ *        whether a symbolic shape var is defined and the value it maps to,
+ *        return nullopt if var is undefined.
+ * \param f_var_defined callback function to specify
+ *        whether a var is defined in the target scope and the value it maps to,
+ *        return nullopt if var is undefined.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
+ *
+ * \return the corresponding erased struct info.
+ */
+TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> shape_var_map,
+                                      Map<Var, Expr> var_map, arith::Analyzer* ana = nullptr);
+
+/*!
+ * \brief Fine grained result of base check.
+ *
+ * This analysis comes with different levels of checking failures
+ * that can help to customize the compilation decisions.
+ *
+ * For a given pair of lhs_struct_info, rhs_struct_info. We adopt
+ * the following terminology:
+ * - LSet = {value | value mactches lhs_struct_info}
+ * - RSet = {value | value mactches rhs_struct_info}
+ *
+ * See the definition of each level below.
+ */
+enum class BaseCheckResult {
+  /*!
+   * \brief The two value sets have no intersection at all: Interset(LSet, RSet) = empty
+   */
+  kFailL0 = 0,
+  /*!
+   * \brief LSet is not superset of RSet by only looking at static information.
+   *
+   * \note This level will trigger static type checking error when lhs is param and rhs is arg.
+   */
+  kFailL1 = 1,
+  /*!
+   * \brief WLSet is not superset of RSet because of mismatch in value information.
+   *
+   * L1-level mismatches in params of FuncStructInfo is categorized as
+   * If lhs is FuncStructInfo, then L1-level mismatch in its params
+   * is categorized as L2-level mismatch for lhs.
+   *
+   * Design considerations for functions:
+   * - (a) We want to be able to erase type/value in function signature
+   *       when we unify function struct info and preserve simpler representations.
+   * - (b) We automatically insert match_cast at function boundary, so
+   *       we can erase (int)->int argument as (object)->int.
+   *       The input shape/type mismatch will be detected by runtime checks at function boundary.
+   *       This behavior is also consistent with the PackedFunc behavior.
+   *
+   * \note This level means there is no problem about static known information.
+   *       It is OK for the checker to do best effort and return this value.
+   */
+  kFailL2 = 2,
+  /*! \brief LSet is superset of RSet. */
+  kPass = 3
+};
+
+/*!
+ * \brief Run a base check to see if base subsumes derived.
+ *
+ * This function returns fine-grained base-check result on reasons of failure.
+ *
+ * \param base The base struct info.
+ * \param derived The derived struct info.
+ * \param ana Optional context analyzer to prove symbolic expression equality.
+ * \return Whether the relation holds.
+ *
+ * \sa BaseCheckResult
+ */
+TVM_DLL BaseCheckResult StructInfoBaseCheck(const StructInfo& base, const StructInfo& derived,
+                                            arith::Analyzer* ana = nullptr);
+
+/*!
  * \brief Check the relation of two struct info to see if one subsumes another one.
+ *
  * \param base The base struct info.
  * \param derived The derived struct info.
  * \param ana Optional context analyzer to prove symbolic expression equality.
