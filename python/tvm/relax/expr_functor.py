@@ -31,6 +31,7 @@ from .expr import GlobalVar, SeqExpr, Tuple
 from .expr import Call, If, TupleGetItem
 from .expr import Binding, MatchShape, VarBinding
 from .expr import BindingBlock, DataflowBlock
+from .struct_info import StructInfo
 from ..relay import Id
 from ..ir.module import IRModule
 from .block_builder import BlockBuilder
@@ -1444,7 +1445,7 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.PyExprMutatorLookupBinding(self._outer(), var)  # type: ignore
 
-    def with_struct_info(self, var: Var, struct_info: "StructInfo") -> Var:
+    def with_struct_info(self, var: Var, struct_info: StructInfo) -> Var:
         """Create a new var with specified shape and type if the original var's shape or type does
         not match with the specified ones.
 
@@ -1461,4 +1462,4 @@ class PyExprMutator:
             The var filled with shape and type.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorWithStructInfo(self._outer(), var, sinfo)  # type: ignore
+        return _ffi_api.PyExprMutatorWithStructInfo(self._outer(), var, struct_info)  # type: ignore

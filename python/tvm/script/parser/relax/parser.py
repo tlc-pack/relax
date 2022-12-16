@@ -29,7 +29,7 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair, Tensor
+from .entry import MatchShapePair
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -108,6 +108,7 @@ def eval_shape_annotation(
         return None
 
 
+# pylint: disable=inconsistent-return-statements
 def eval_type_annotation(
     self: Parser, node: Union[doc.Expression, doc.expr]
 ) -> Tuple[Type, Optional[Expr], StructInfo]:

@@ -19,11 +19,12 @@
 """The expression nodes of Relax."""
 from typing import Any, List, Optional, Union
 import typing
+import numpy as _np  # type: ignore
 
 import tvm
 import tvm._ffi
-import numpy as _np  # type: ignore
 from tvm.runtime import ndarray as _nd
+import tvm.relax
 
 from tvm._ffi import base as _base
 from .. import relay
@@ -452,9 +453,12 @@ def const(
 
     if not dtype:
         # when dtype is None: int maps to "int32", float maps to "float32"
-        dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
+        dtype = {  # type: ignore
+            _np.dtype("int64"): _np.int32,  # type: ignore
+            _np.dtype("float64"): _np.float32,  # type: ignore
+        }.get(
             value.dtype, None
-        )
+        )  # type: ignore
 
     if isinstance(value, (_np.ndarray, _np.generic)):
         if dtype is not None:
@@ -472,13 +476,5 @@ def te_tensor(value: Expr, name: str = "rxplaceholder"):
     return _ffi_api.TETensor(value, name)  # type: ignore
 
 
-def _update_type(expr: Expr, type: Type) -> None:
-    _ffi_api.UpdateType(expr, type)  # type: ignore
-
-
-def _update_shape(expr: Expr, shape: Optional[tvm.runtime.Object]) -> None:
-    _ffi_api.UpdateShape(expr, shape)  # type: ignore
-
-
-def _update_struct_info(expr: Expr, struct_info: Optional["StructInfo"]) -> None:
+def _update_struct_info(expr: Expr, struct_info: Optional["tvm.relax.StructInfo"]) -> None:
     _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore

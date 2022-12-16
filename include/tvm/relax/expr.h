@@ -62,7 +62,7 @@ using relay::Id;
  *
  * If an StructInfo contains an Expr field, then that field
  * must be normalized already through NormalizeArg.
- * This invariance will be checked in constructors
+ * This invariant will be checked in constructors
  * and help us to simplify our assumption
  * during struct info deduction.
  */
@@ -894,23 +894,6 @@ class ExternFunc : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
-
-/*!
- * \brief Update the type of an Expr.
- * \param expr The Expr whose type to be updated.
- * \param type The type assigned to the checked_type_ of \p expr.
- * \note We ensure idempotence, that is we can only update the checked_type_ of an Expr if it's
- * nullptr.
- */
-void UpdateType(Expr expr, Type type);
-
-/*!
- * \brief Update the shape of an Expr.
- * \param expr The Expr whose shape to be updated.
- * \param shape The shape assigned to the shape_ of \p expr.
- * \note We ensure idempotence, that is we can only update the shape_ of an Expr if it's nullptr.
- */
-void UpdateShape(Expr expr, Optional<ObjectRef> shape);
 
 }  // namespace relax
 }  // namespace tvm

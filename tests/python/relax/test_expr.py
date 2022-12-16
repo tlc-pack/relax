@@ -164,7 +164,7 @@ def test_shape_of():
     assert s0.op.name == "relax.shape_of"
 
     shape_anno = [96, 54]
-    v1 = rx.Var("v1", shape_anno)
+    v1 = rx.Var("v1", shape_anno, rx.DynTensorType(ndim=2))
     s1 = v1.shape
     for x, y in zip(shape_anno, s1):
         assert x == y
@@ -184,7 +184,9 @@ def test_shape_expr():
     assert x.shape_.shape_ is None
 
     m = tir.Var("m", "int32")
-    with pytest.raises(tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"):
+    with pytest.raises(
+        tvm.TVMError, match="the value in ShapeStructInfo can only have dtype of int64"
+    ):
         rx.ShapeExpr([m, 3])
 
 

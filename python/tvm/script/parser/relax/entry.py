@@ -137,9 +137,9 @@ class TupleProxy:
             return RxTuple(fields)
         else:
             fields = list(fields)
-            for i in range(len(fields)):
-                if callable(fields[i]):
-                    fields[i] = fields[i]()
+            for i, x in enumerate(fields):
+                if callable(x):
+                    fields[i] = x()
             if all([isinstance(f, StructInfo) for f in fields]):
                 return relax.TupleStructInfo(fields)
             else:

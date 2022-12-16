@@ -602,7 +602,6 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   doc << ":" << Doc::NewLine(4);
   print_symbolic_shape_as_str_ = false;
 
-
   // Step 3: print function attr
   Doc header_attr;
   if (func->attrs.defined()) {

@@ -44,7 +44,7 @@ class ObjectStructInfoNode : public StructInfoNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjectStructInfoNode, StructInfoNode);
 };
 
-/*
+/*!
  * \brief Managed reference to ObjectStructInfoNode.
  * \sa ObjectStructInfoNode
  */
@@ -78,7 +78,7 @@ class PrimStructInfoNode : public StructInfoNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimStructInfoNode, StructInfoNode);
 };
 
-/*
+/*!
  * \brief Managed reference to PrimStructInfoNode.
  * \sa PrimStructInfoNode
  */
@@ -90,7 +90,7 @@ class PrimStructInfo : public StructInfo {
 };
 
 /*!
- * \brief StructInfo of ShapeTuple.
+ * \brief StructInfo of shape value.
  */
 class ShapeStructInfoNode : public StructInfoNode {
  public:
@@ -124,7 +124,7 @@ class ShapeStructInfoNode : public StructInfoNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeStructInfoNode, StructInfoNode);
 };
 
-/*
+/*!
  * \brief Managed reference to ShapeStructInfoNode.
  * \sa ShapeStructInfoNode
  */
@@ -191,7 +191,7 @@ class TensorStructInfoNode : public StructInfoNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorStructInfoNode, StructInfoNode);
 };
 
-/*
+/*!
  * \brief Managed reference to TensorStructInfoNode.
  * \sa TensorStructInfoNode
  */
@@ -241,7 +241,7 @@ class TupleStructInfoNode : public StructInfoNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleStructInfoNode, StructInfoNode);
 };
 
-/*
+/*!
  * \brief Managed reference to TupleStructInfoNode.
  * \sa TupleStructInfoNode
  */
@@ -274,16 +274,17 @@ using StructInfoDeriveFunc = TypedEnvFunc<StructInfo(const Call& call, const Blo
 class FuncStructInfoNode : public StructInfoNode {
  public:
   /*!
-   * \brief The parameters of the function.
-   * \note When params is NullOpt, the function can take arbitrary number of arguments.
+   * \brief The parameter struct info of the function.
+   * \note When params is NullOpt means the function can take arbitrary number of arguments.
+   *       We define such functions as Opaque function.
    */
   Optional<Array<StructInfo>> params;
   /*!
-   * \brief The return struct info of the function.
+   * \brief The struct info of the function's return value.
    */
   StructInfo ret;
   /*!
-   * \brief Derive function of opaque functions that can take any number of parameters.
+   * \brief Derivation function of opaque functions that may take any number of parameters.
    * \note When derive_func is not empty, then params should be NullOpt,
    *       ret should be ObjectStructInfo()
    */
@@ -317,20 +318,20 @@ class FuncStructInfoNode : public StructInfoNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncStructInfoNode, StructInfoNode);
 };
 
-/*
+/*!
  * \brief Managed reference to FuncStructInfoNode.
  * \sa FuncStructInfoNode
  */
 class FuncStructInfo : public StructInfo {
  public:
   /*!
-   * \brief Constructor from params
-   * \param params The parameter fields.
-   * \param ret The return struct info.
+   * \brief Constructor from parameter struct info and return value struct info.
+   * \param params The struct info of function parameters.
+   * \param ret The return value struct info.
    * \param span The span of the AST.
    *
-   * \note If the ret contains variables, they must be deductable from params.
-   *       If you are unsure, you can always erase ret to static.
+   * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
+   * params. If you are unsure, you can always erase ret to static.
    */
   TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, Span span = Span());
 
@@ -346,9 +347,9 @@ class FuncStructInfo : public StructInfo {
   TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func, Span span = Span());
 
   /*!
-   * \brief Construct an opaque function using ret.
+   * \brief Construct an opaque function using from return struct info.
    *
-   * \param ret The return value.
+   * \param ret The struct info of the return value.
    * \param span The span of the AST.
    *
    * \return The FuncStructInfo for opaque packedfunc.
@@ -377,7 +378,7 @@ inline Optional<T> MatchStructInfo(const Expr& expr) {
 }
 
 /*!
- * \brief Get the expr's structure info of expr and try to cast it as const T*.
+ * \brief Get the structure info of a given expr and try to cast it as const T*.
  *
  * \param expr The input expression.
  * \return The pointer. Returns nullptr if the type does not match
@@ -404,10 +405,10 @@ inline StructInfo GetStructInfo(const Expr& expr) {
 
 /*!
  * \brief Update the struct info of an Expr.
- * \param expr The Expr whose shape to be updated.
+ * \param expr The Expr whose struct info to be updated.
  * \param shape The struct_info assigned.
- * \note We ensure idempotence, that is we can only update the struct_info of an Expr if it's
- * nullptr.
+ * \note We ensure idempotence, that is we can only update the struct_info of an Expr only
+ *  if the original one is nullptr.
  */
 TVM_DLL void UpdateStructInfo(Expr expr, StructInfo struct_info);
 

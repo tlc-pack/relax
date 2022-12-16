@@ -60,7 +60,7 @@ def get_legacy_shape_hint(sinfo: StructInfo) -> Optional[Expr]:
     ret : Type
         The corresponding shape.
     """
-    return _ffi_api.GetLegacyShapeHint(sinfo)
+    return _ffi_api.GetLegacyShapeHint(sinfo)  # type: ignore
 
 
 def erase_to_well_defined(

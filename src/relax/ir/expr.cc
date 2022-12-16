@@ -158,6 +158,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->false_branch << ")";
     });
 
+// Eager composition
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
@@ -292,11 +293,16 @@ TVM_REGISTER_NODE_TYPE(VarNode);
 Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
-  if (type_annotation) {
-    n->struct_info_ = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
-    n->checked_type_ = std::move(type_annotation.value());
+  // invariance for transition, alwasy require type ann if shape is provided.
+  if (shape_annotation) {
+    ICHECK(type_annotation) << "Var requires type annoation if we provide shape ann";
   }
-  n->shape_ = std::move(shape_annotation);
+  if (type_annotation) {
+    StructInfo sinfo = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
+    n->struct_info_ = sinfo;
+    n->checked_type_ = std::move(type_annotation.value());
+    n->shape_ = GetLegacyShapeHint(sinfo);
+  }
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -571,26 +577,6 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
   return ExternFunc(global_symbol, span);
-});
-
-void UpdateType(Expr expr, Type type) {
-  ICHECK(!expr->checked_type_.defined() || tvm::StructuralEqual()(expr->checked_type_, type))
-      << "the checked_type_ of the Expr to be updated must be nullptr for idempotency";
-  expr->checked_type_ = type;
-}
-
-TVM_REGISTER_GLOBAL("relax.UpdateType").set_body_typed([](Expr expr, Type type) {
-  UpdateType(expr, type);
-});
-
-void UpdateShape(Expr expr, Optional<ObjectRef> shape) {
-  ICHECK(!expr->shape_.defined())
-      << "the shape_ of the Expr to be updated must be nullptr for idempotency";
-  expr->shape_ = shape;
-}
-
-TVM_REGISTER_GLOBAL("relax.UpdateShape").set_body_typed([](Expr expr, Optional<ObjectRef> shape) {
-  UpdateShape(expr, shape);
 });
 
 }  // namespace relax

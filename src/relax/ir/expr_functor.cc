@@ -642,43 +642,9 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
   return builder_->EndBlock();
 }
 
-Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
-  bool shape_unchanged = true;
-  Expr new_shape;
-  if (var->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-    shape_unchanged &= new_shape.same_as(var->shape_);
-  }
+Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) { return GetRef<Var>(var); }
 
-  if (shape_unchanged) {
-    return GetRef<Var>(var);
-  } else {
-    Var new_var = DataflowVar(var->vid, NullOpt, var->checked_type_, var->span);
-    UpdateShape(new_var, new_shape);
-
-    this->var_remap_[var->vid] = new_var;
-    return new_var;
-  }
-}
-
-Var ExprMutator::VisitVarDef_(const VarNode* var) {
-  bool shape_unchanged = true;
-  Expr new_shape;
-  if (var->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-    shape_unchanged &= new_shape.same_as(var->shape_);
-  }
-
-  if (shape_unchanged) {
-    return GetRef<Var>(var);
-  } else {
-    Var new_var = Var(var->vid, NullOpt, var->checked_type_, var->span);
-    UpdateShape(new_var, new_shape);
-
-    this->var_remap_[var->vid] = new_var;
-    return new_var;
-  }
-}
+Var ExprMutator::VisitVarDef_(const VarNode* var) { return GetRef<Var>(var); }
 
 void ExprMutator::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {

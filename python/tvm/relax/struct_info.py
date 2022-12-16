@@ -101,17 +101,12 @@ class ShapeStructInfo(StructInfo):
         self, values: Optional[List[PrimExpr]] = None, ndim: int = -1, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ShapeStructInfo, values, ndim, span
-        )  # type: ignore
+            _ffi_api.ShapeStructInfo, values, ndim, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.TensorStructInfo")
 class TensorStructInfo(StructInfo):
-    shape: Optional[Expr]
-    dtype: tvm.DataType
-    ndim: int
-    span: Span
-
     """StructInfo of a Tensor value.
 
     Parameters
@@ -126,6 +121,11 @@ class TensorStructInfo(StructInfo):
        The number of dimensions of the tensor.
     """
 
+    shape: Optional[Expr]
+    dtype: tvm.DataType
+    ndim: int
+    span: Span
+
     def __init__(
         self,
         shape: Union[Optional[Expr], List[PrimExpr]] = None,
@@ -137,8 +137,8 @@ class TensorStructInfo(StructInfo):
             shape = ShapeExpr(shape)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorStructInfo, shape, dtype, ndim, span
-        )  # type: ignore
+            _ffi_api.TensorStructInfo, shape, dtype, ndim, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.TupleStructInfo")
@@ -170,8 +170,8 @@ class FuncStructInfo(StructInfo):
 
     def __init__(self, params: List[StructInfo], ret: StructInfo, span: Span = None) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncStructInfo, params, ret, span
-        )  # type: ignore
+            _ffi_api.FuncStructInfo, params, ret, span  # type: ignore
+        )
 
     @staticmethod
     def opaque_func(
@@ -198,4 +198,4 @@ class FuncStructInfo(StructInfo):
         -------
         info: FuncStructInfo
         """
-        return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, span)
+        return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, span)  # type: ignore

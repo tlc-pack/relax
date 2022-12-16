@@ -27,7 +27,6 @@
 namespace tvm {
 namespace relax {
 
-
 Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 3) {
     diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "EwiseFMA op should have 3 arguments");
