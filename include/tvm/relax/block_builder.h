@@ -122,6 +122,23 @@ class BlockBuilderNode : public Object {
    */
   virtual Optional<Expr> LookupBinding(const Var& var) = 0;
 
+  /*!
+   * \brief Begin a new scope, with optional parameters that
+   *        are visible within the scope.
+   *
+   * \param params Parameters that are visible within the scope.
+   *
+   * \note This function should be called when new scope is introduced
+   *       (function, seq) to properly track the variable availability
+   *       and help the best effort deduction.
+   *
+   * \sa EndScope
+   */
+  virtual void BeginScope(Optional<Array<Var>> params) = 0;
+
+  /*! \brief End the previously defined scope. */
+  virtual void EndScope() = 0;
+
   /*! \brief Begin to build a DataflowBlock. */
   virtual void BeginDataflowBlock() = 0;
 

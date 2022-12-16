@@ -495,7 +495,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
 
   Type ret_type = this->VisitType(op->ret_type);
   Expr ret_shape = this->VisitExpr(op->ret_shape);
-  Expr body = this->VisitWithNewScope(op->body);
+  Expr body = this->VisitWithNewScope(op->body, params);
 
   if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body) &&
       ret_shape.same_as(op->ret_shape)) {
@@ -714,18 +714,13 @@ Var ExprMutator::VisitVarDef(const Var& var) {
   return ret;
 }
 
-Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
-  if (expr->IsInstance<SeqExprNode>()) {
-    return this->VisitExpr(expr);
-  } else {
-    builder_->BeginBindingBlock();
-    Expr ret = this->VisitExpr(expr);
-    BindingBlock prologue = builder_->EndBlock();
-    if (!prologue->bindings.empty()) {
-      ret = SeqExpr({prologue}, ret);
-    }
-    return ret;
-  }
+Expr ExprMutator::VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params) {
+  ICHECK(expr->IsInstance<SeqExprNode>())
+      << "Normal form requires all new scope is stored as SeqExpr";
+  builder_->BeginScope(params);
+  Expr ret = this->VisitExpr(expr);
+  builder_->EndScope();
+  return ret;
 }
 
 Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }

@@ -189,22 +189,29 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   void BeginBindingBlock() final { block_stack_.emplace_back(BlockFrame{{}, false}); }
 
+  void BeginScope(Optional<Array<Var>> params) final {
+    scope_stack_.emplace_back(ScopeFrame());
+    // TODO(tqchen, siyuan) populate var_map based on params by using a collector visitor.
+  }
+
+  void EndScope() final { scope_stack_.pop_back(); }
+
   BindingBlock EndBlock() final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     BindingBlock ret = cur_frame->is_dataflow ? DataflowBlock(cur_frame->bindings)
                                               : BindingBlock(cur_frame->bindings);
     block_stack_.pop_back();
     return ret;
   }
 
-  bool CurrentBlockIsDataFlow() final { return CurrentFrame()->is_dataflow; }
+  bool CurrentBlockIsDataFlow() final { return CurrentBlockFrame()->is_dataflow; }
 
   Var Emit(Expr expr, String name_hint) final {
-    return this->Emit(expr, CurrentFrame()->is_dataflow, name_hint);
+    return this->Emit(expr, CurrentBlockFrame()->is_dataflow, name_hint);
   }
 
   Var Emit(VarBinding binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     if (cur_frame->is_dataflow) {
       ICHECK(binding->var.as<DataflowVarNode>())
           << "Emit can only be used for local bindings in a dataflow block, use EmitOutput for "
@@ -218,7 +225,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Var EmitMatchShape(Expr value, Array<PrimExpr> pattern, String name_hint) final {
     value = this->Normalize(value);
 
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     Var var = CreateVar(cur_frame->is_dataflow, name_hint);
 
     if (value->struct_info_.as<ShapeStructInfoNode>()) {
@@ -239,7 +246,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitMatchShape(MatchShape binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     // NOTE match shape do not follow simple binding rule
     // as a result should not appear in binding table.
     cur_frame->bindings.push_back(binding);
@@ -247,7 +254,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitOutput(Expr output, String name_hint) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
 
@@ -255,7 +262,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitOutput(VarBinding binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
     ICHECK(!binding->var.as<DataflowVarNode>()) << "EmitOutput can only emit Var bindings.";
@@ -266,7 +273,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   void EmitNormalized(Binding binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
 
     if (auto* var_binding = binding.as<VarBindingNode>()) {
       if (!cur_frame->is_dataflow) {
@@ -305,14 +312,32 @@ class BlockBuilderImpl : public BlockBuilderNode {
     /*!
      * \brief Binding map used by normalizer.
      *
-     * \note The normalizer only caches reuse in the current scope
+     * \note The normalizer only caches reuse in the current block scope
      *       and will not cache bindings from parent scope.
      */
     std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> normalize_binding_map;
   };
+  /*!
+   * \brief A representation of a scope frame.
+   *
+   * A scope frame records tracks the context of current scope.
+   */
+  struct ScopeFrame {
+    // NOTE: for simplicity, only tracks symbolic var for now
+    // the scope is only used for erasure, so less information means
+    // more conservative analysis.
+    // Consider impl alternative: merge with block frame if we have more frame kinds.
+    //
+    // TODO(relax-team) tracks the var defined also through match-cast.
+    /*! \brief set of defined symbolic vars, value as themself. */
+    Map<tir::Var, PrimExpr> shape_var_map;
+  };
 
   /*! \brief A stack to store block frames. */
   std::vector<BlockFrame> block_stack_;
+
+  /*! \brief A stack to store scope frames. */
+  std::vector<ScopeFrame> scope_stack_;
 
   /*! \brief A diagnostic context for reporting errors. */
   DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
@@ -335,9 +360,18 @@ class BlockBuilderImpl : public BlockBuilderNode {
    *       or other scope calls this value can change if the block stack get updated,
    *       then the block frame is no longer valid.
    */
-  BlockFrame* CurrentFrame() {
+  BlockFrame* CurrentBlockFrame() {
     ICHECK(!block_stack_.empty()) << "no block is being built";
     return &block_stack_.back();
+  }
+
+  /*!
+   * \return The current scope frame.
+   * \note only use this value
+   */
+  ScopeFrame* CurrentScopeFrame() {
+    ICHECK(!scope_stack_.empty()) << "no scope is being opened";
+    return &scope_stack_.back();
   }
 
   /*!
@@ -357,7 +391,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // set the values
     UpdateStructInfo(var, Downcast<StructInfo>(expr->struct_info_.value()));
 
-    CurrentFrame()->bindings.push_back(VarBinding(var, expr));
+    CurrentBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
     binding_table_[var->vid] = expr;
@@ -451,7 +485,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     if (!block_stack_.empty()) {
       // cache lookup
-      BlockFrame* cur_frame = CurrentFrame();
+      BlockFrame* cur_frame = CurrentBlockFrame();
       auto it = cur_frame->normalize_binding_map.find(arg);
       if (it != cur_frame->normalize_binding_map.end()) {
         return it->second;
@@ -465,7 +499,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Var var = this->Emit(post, "");
       // NOTE: current frame addr can change due to underlying vector
       // re-allocation, redo lookup
-      CurrentFrame()->normalize_binding_map[arg] = var;
+      CurrentBlockFrame()->normalize_binding_map[arg] = var;
       return var;
     } else {
       return post;
@@ -511,7 +545,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     // lookup normalize map
     if (!block_stack_.empty()) {
-      BlockFrame* cur_frame = CurrentFrame();
+      BlockFrame* cur_frame = CurrentBlockFrame();
       auto it = cur_frame->normalize_binding_map.find(expr);
       if (it != cur_frame->normalize_binding_map.end()) {
         return it->second;
@@ -559,15 +593,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {
-    Expr new_body = this->VisitWithNewScope(op->body);
-    Function func;
-    // TODO(tqchen) reviist function deduciton after new construtor.
+    Expr new_body = this->VisitWithNewScope(op->body, op->params);
+
     if (new_body.same_as(op->body)) {
-      func = GetRef<Function>(op);
+      return GetRef<Function>(op);
     } else {
-      func = Function(op->params, new_body, op->ret_type, op->ret_shape, op->attrs);
+      return Function(op->params, new_body, op->ret_type, op->ret_shape, op->attrs);
     }
-    return func;
   }
 
   Expr VisitExpr_(const CallNode* op) final {
@@ -630,9 +662,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     // only do shape/type inference if the SeqExpr does not have shape/type
     if (!seq_expr->struct_info_.defined()) {
-      // TODO(relax-team): Possible enhancement:
-      // Add context variable tracking in the block builder
-      UpdateStructInfo(seq_expr, EraseToWellDefined(GetStructInfo(seq_expr->body)));
+      UpdateStructInfo(seq_expr, EraseToWellDefinedInScope(GetStructInfo(seq_expr->body)));
     }
     return seq_expr;
   }
@@ -649,11 +679,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     } else {
       if_node = If(new_cond, new_true, new_false, op->span);
     }
-    // TODO(relax-team): provide additional context to EraseToWellDefined
-    // such as variables defined by the parameters.
     if (!if_node->struct_info_.defined()) {
-      auto true_info = EraseToWellDefined(GetStructInfo(new_true));
-      auto false_info = EraseToWellDefined(GetStructInfo(new_false));
+      auto true_info = EraseToWellDefinedInScope(GetStructInfo(new_true));
+      auto false_info = EraseToWellDefinedInScope(GetStructInfo(new_false));
       UpdateStructInfo(if_node, StructInfoLCA(true_info, false_info));
     }
     return if_node;
@@ -761,27 +789,49 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr) {
+  // erase to well defined within current scope.
+  StructInfo EraseToWellDefinedInScope(StructInfo info) {
+    if (scope_stack_.empty()) {
+      return EraseToWellDefined(info);
+    }
+    auto* curr_scope = CurrentScopeFrame();
+    auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
+      auto it = curr_scope->shape_var_map.find(var);
+      if (it != curr_scope->shape_var_map.end()) return (*it).second;
+      return NullOpt;
+    };
+    return EraseToWellDefined(info, f_shape_var_map);
+  }
+
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
     // SeqExpr do not need to prepare for normalization.
-    if (expr.as<SeqExprNode>()) return this->VisitExpr(expr);
+    if (expr.as<SeqExprNode>()) {
+      this->BeginScope(params);
+      Expr ret = this->VisitExpr(expr);
+      this->EndScope();
+      return ret;
+    } else {
+      this->BeginScope(params);
 
-    this->BeginBindingBlock();
-    Expr post = this->NormalizeArgument(expr);
-    BindingBlock prologue = this->EndBlock();
-    // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
-    // Don't wrap if it's already a seq and there are no bindings to add
-    if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
-      return post;
+      this->BeginBindingBlock();
+      Expr post = this->NormalizeArgument(expr);
+      BindingBlock prologue = this->EndBlock();
+      // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
+      // Don't wrap if it's already a seq and there are no bindings to add
+      if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
+        return post;
+      }
+      Array<BindingBlock> bindings;
+      if (!prologue->bindings.empty()) {
+        bindings.push_back(prologue);
+      }
+
+      SeqExpr seq(bindings, post);
+      UpdateStructInfo(seq, EraseToWellDefinedInScope(GetStructInfo(seq->body)));
+
+      this->EndScope();
+      return seq;
     }
-    Array<BindingBlock> bindings;
-    if (!prologue->bindings.empty()) {
-      bindings.push_back(prologue);
-    }
-
-    SeqExpr seq(bindings, post);
-    UpdateStructInfo(seq, EraseToWellDefined(GetStructInfo(seq->body)));
-
-    return seq;
   }
 
   Array<BindingBlock> FlattenBlocks(const Array<BindingBlock>& blocks) {

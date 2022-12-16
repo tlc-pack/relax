@@ -395,10 +395,14 @@ class ExprMutator : public ExprMutatorBase {
 
   /*!
    * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
-   * \param expr The expr to be visited.
+   *
+   * \param body_expr The body to be visited.
+   * \param params Optional parameters that are visible within the scope.
    * \return The expr after visiting.
+   *
+   * \note The body_expr must be an SeqExpr in the normal form.
    */
-  Expr VisitWithNewScope(const Expr& expr);
+  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = NullOpt);
 
   /*!
    * \brief Look up the value bound to a variable.
