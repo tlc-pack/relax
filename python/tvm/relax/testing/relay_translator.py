@@ -121,8 +121,18 @@ def from_relay(
             te_inputs = []
             for arg in args:
                 if arg in var_map:
-                    new_args.append(var_map[arg])
-                    te_inputs.append(tvm.relax.expr.te_tensor(new_args[-1]))
+                    arg_expr = var_map[arg]
+                    if not isinstance(arg_expr.shape, relax.Tuple):
+                        new_args.append(arg_expr)
+                        te_inputs.append(tvm.relax.expr.te_tensor(arg_expr))
+                    else:
+                        n_tensor = len(arg_expr.checked_type.fields)
+                        assert isinstance(arg_expr.checked_type, relax.TupleType)
+                        assert len(arg_expr.shape.fields) == n_tensor
+                        for i in range(n_tensor):
+                            item = bb.emit(relax.TupleGetItem(arg_expr, i))
+                            new_args.append(item)
+                            te_inputs.append(tvm.relax.expr.te_tensor(item))
 
             op_name = node.op.name
             attrs = node.attrs
