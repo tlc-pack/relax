@@ -22,7 +22,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
-from tvm import relax, relay
+from tvm import relax, relay, tir, topi
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.testing import relay_translator
 from tvm.relay import testing
@@ -272,6 +272,37 @@ def test_translate_op_with_tir():
         relay_mod, translate_op_with_tir={"multiply": tir_matmul}
     )
     assert_structural_equal(relax_mod["multiply"], tir_matmul)
+
+
+def test_translate_tuple_arg():
+    x = relay.var("x", shape=(10, 16))
+    y = relay.var("y", shape=(10, 16))
+    t = relay.Tuple((x, y))
+    relay_mod = tvm.IRModule.from_expr(relay.Function([x, y], relay.concatenate(t, axis=-1)))
+    relay_vm, relax_vm, relax_mod = translate_and_build_vms(relay_mod)
+
+    # Construct the expected module
+    bb = relax.BlockBuilder()
+    x_relax = relax.Var(
+        "x",
+        relax.ShapeExpr((tir.IntImm("int64", 10), tir.IntImm("int64", 16))),
+        relax.DynTensorType(2, "float32"),
+    )
+    y_relax = relax.Var(
+        "y",
+        relax.ShapeExpr((tir.IntImm("int64", 10), tir.IntImm("int64", 16))),
+        relax.DynTensorType(2, "float32"),
+    )
+    with bb.function("main", [x_relax, y_relax]):
+        with bb.dataflow():
+            lv = bb.emit(relax.Tuple((x_relax, y_relax)))
+            lv1 = bb.emit(relax.TupleGetItem(lv, 0))
+            lv2 = bb.emit(relax.TupleGetItem(lv, 1))
+            lv3 = bb.emit_te(topi.x86.concatenate, (lv1, lv2), axis=-1)
+            gv = bb.emit_output(lv3)
+        bb.emit_func_output(gv)
+
+    assert_structural_equal(relax_mod, bb.get())
 
 
 if __name__ == "__main__":
