@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+import tvm
 import tvm._ffi
 
 from .base import Node
@@ -63,7 +64,7 @@ class RelayExpr(BaseExpr):
         return _ffi_api.RelayExprShape(self)
 
     @property
-    def struct_info(self):
+    def struct_info(self) -> "tvm.relax.StructInfo":
         """Get the struct info field
 
         Returns

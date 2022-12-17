@@ -253,7 +253,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     )
     var = self.var_table.get().get(lhs.id)
     assert isinstance(var, relax.Var)
-    R.ir.annotate_type_shape(var, ann_sinfo)
+    R.ir.annotate_struct_info(var, ann_sinfo)
 
 
 @dispatch.register(token="relax", type_name="Return")

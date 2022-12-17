@@ -158,7 +158,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->false_branch << ")";
     });
 
-// Eager composition
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
@@ -293,9 +292,9 @@ TVM_REGISTER_NODE_TYPE(VarNode);
 Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
-  // invariance for transition, alwasy require type ann if shape is provided.
+  // invariant for transition, always require type ann if shape is provided.
   if (shape_annotation) {
-    ICHECK(type_annotation) << "Var requires type annoation if we provide shape ann";
+    ICHECK(type_annotation) << "Var requires type annotation if we provide shape ann";
   }
   if (type_annotation) {
     StructInfo sinfo = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
@@ -323,9 +322,15 @@ DataflowVar::DataflowVar(Id vid, Optional<Expr> shape_annotation, Optional<Type>
                          Span span) {
   ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
   n->vid = std::move(vid);
-  n->shape_ = std::move(shape_annotation);
+  // invariant for transition, always require type ann if shape is provided.
+  if (shape_annotation) {
+    ICHECK(type_annotation) << "Var requires type annotation if we provide shape ann";
+  }
   if (type_annotation) {
+    StructInfo sinfo = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
+    n->struct_info_ = sinfo;
     n->checked_type_ = std::move(type_annotation.value());
+    n->shape_ = GetLegacyShapeHint(sinfo);
   }
   n->span = std::move(span);
   data_ = std::move(n);
@@ -486,8 +491,8 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
   n->body = std::move(body);
   n->ret_type = GetStaticType(ret_sinfo.value());
   n->ret_shape = GetLegacyShapeHint(ret_sinfo.value()).value_or(ret_shape);
-  n->struct_info_ = func_sinfo;
   n->checked_type_ = GetStaticType(func_sinfo);
+  n->struct_info_ = std::move(func_sinfo);
   n->attrs = std::move(attrs);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -518,12 +523,14 @@ Function Function::CreateUnchecked(Array<Var> params, Expr body, Type ret_type, 
   } else {
     ret_info = FuncStructInfo::OpaqueFunc();
   }
+  FuncStructInfo finfo(param_sinfo, ret_info);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
-  n->struct_info_ = FuncStructInfo(param_sinfo, ret_info);
+  n->checked_type_ = GetStaticType(finfo);
+  n->struct_info_ = std::move(finfo);
   n->ret_type = std::move(ret_type);
   n->ret_shape = std::move(ret_shape);
   n->attrs = std::move(attrs);

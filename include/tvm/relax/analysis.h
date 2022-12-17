@@ -41,8 +41,8 @@ namespace relax {
 // Shape expression analysis
 //----------------------------------
 /*!
- * \brief Can prove the two symbolic shape arrays equals
- *        to each other during runtime after compilation.
+ * \brief Can prove the two symbolic shape arrays equals to each other.
+ *
  * \param lhs The left operand.
  * \param rhs The right operand.
  * \param ana The analyzer used for integer analysis.
@@ -56,8 +56,8 @@ TVM_DLL bool CanProveShapeEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr
                                 arith::Analyzer* ana);
 
 /*!
- * \brief Can prove the two symbolic shape expressions equals
- *        to each other during runtime after compilation.
+ * \brief Can prove the two symbolic shape expressions equals to each other.
+ *
  * \param lhs The left operand.
  * \param rhs The right operand.
  * \param ana The analyzer used for integer analysis.
@@ -69,7 +69,7 @@ TVM_DLL bool CanProveShapeEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr
 TVM_DLL bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs, arith::Analyzer* ana);
 
 //-----------------------------------
-// Foundation StructInfo analysis
+// Foundational StructInfo analysis
 //-----------------------------------
 /*!
  * \brief Get the corresponding static type from a given struct info.
@@ -85,6 +85,7 @@ TVM_DLL Type GetStaticType(const StructInfo& info);
  */
 TVM_DLL StructInfo StructInfoFromType(const Type& type);
 
+// TODO(relax-team): Remove legacy shape related functionalities after phasing out shape_
 /*!
  * \brief Get the corresponding struct info from static type.
  * \param type The input type
@@ -116,22 +117,23 @@ TVM_DLL Optional<Expr> GetLegacyShapeHint(const StructInfo& info);
  *
  * \code
  *
+ * @R.function
  * def f(x: R.Tensor[(n, m)]):
  *     k = tir.Var("k", "int64")
  *     v0 = opaque_fn(x)
  *     v1 = match_cast(v0, R.Tensor[(n, k)])
- *     v2 : R.Tensor[(n+1, k+2)] = pad(v1)
+ *     v2 : R.Tensor[(n + 1, k + 2)] = pad(v1)
  *     return v2
  *
  * \endcode
  *
- * In the above code, the return value y have shape `(n + 1, k + 1)`,
+ * In the above code, the return value y have shape `(n + 1, k + 2)`,
  * However, at the level of function signature, only n, m are defined,
- * k is un-defined here.
+ * k is undefined here.
  *
  * When we call EraseToWellDefined(R.Tensor[(n + 1, k + 2)], fshape_var_map={n: n, m: m}),
- * we will obntain R.Tensor(ndim=2), which is an erased info that does not depend
- * on k(which is un-defined from parameter signature).
+ * we will obtain R.Tensor(ndim=2), which is an erased info that does not depend
+ * on k(which is undefined from parameter signature).
  *
  * However, if we call EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_map={n: n, m: m}),
  * Then the return value will be R.Tensor[(n + 1, m)], because both n and m are defined.
@@ -140,16 +142,16 @@ TVM_DLL Optional<Expr> GetLegacyShapeHint(const StructInfo& info);
  * For example, EraseToWellDefined(R.Tensor[(n + 1, m)], fshape_var_map={n: 2, m: m})
  * will give us R.Tensor[(3, m)], where n get replaced by 2.
  *
- * Use this function in the following scenario:
+ * Use this function in the following scenarios:
  * - Decide the struct_info of expr with sub-scopes, such as If, SeqExpr
  * - Decide the deduced return struct_info of a function that can be fully decided by params.
  *
  * \param info The struct info.
  * \param f_shape_var_map callback function to specify
- *        whether a symbolic shape var is defined and value to map to,
+ *        whether a symbolic shape var is defined and the value it maps to,
  *        return nullopt if var is undefined.
  * \param f_var_defined callback function to specify
- *        whether a var is in the target scope and value to map to,
+ *        whether a var is defined in the target scope and the value it maps to,
  *        return nullopt if var is undefined.
  * \param ana Optional context analyzer to prove symbolic expression equality.
  *
@@ -166,7 +168,7 @@ EraseToWellDefined(const StructInfo& info,
  * \param base The base struct info.
  * \param derived The derived struct info.
  * \param ana Optional context analyzer to prove symbolic expression equality.
- * \return Whether the base of relation holds.
+ * \return Whether the relation holds.
  */
 TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
                       arith::Analyzer* ana = nullptr);

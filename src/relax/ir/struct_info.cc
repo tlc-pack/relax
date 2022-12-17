@@ -69,7 +69,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Shape
 ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
   ObjectPtr<ShapeStructInfoNode> n = make_object<ShapeStructInfoNode>();
-  // assign ndim first before moves
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
@@ -243,8 +242,7 @@ TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, Struc
 });
 
 TVM_REGISTER_GLOBAL("ir.ExprStructInfo").set_body_typed([](Expr expr) {
-  ICHECK(expr->struct_info_.defined()) << "struct info is not populated";
-  return expr->struct_info_;
+  return GetStructInfo(expr);
 });
 
 }  // namespace relax

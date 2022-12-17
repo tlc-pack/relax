@@ -240,12 +240,14 @@ void AnnotateStructInfo(const tvm::relax::Var& var,
   Type type = GetStaticType(anno_struct_info);
   Optional<tvm::relax::Expr> shape = GetLegacyShapeHint(anno_struct_info);
 
+  // TODO(siyuan, ruihang): Revisit the checks aftr we fully migrate to struct info.
+  // consider simplify assumption to require var not contain struct info at all.
   if (var->struct_info_.defined()) {
     // Case 1. The var already has struct info.
     const StructInfo& var_struct_info = Downcast<StructInfo>(var->struct_info_.value());
     CHECK(IsBaseOf(var_struct_info, anno_struct_info) ||
           IsBaseOf(anno_struct_info, var_struct_info))
-        << "ValueError: The annotation struct info is not a subtype of the existing struct info.";
+        << "ValueError: The annotation struct info is not a base of the existing struct info.";
   } else {
     // Case 2. The var doesn't have struct info.
     // This path may be removed later
@@ -332,6 +334,7 @@ class SymbolicShapeRewriter : public tvm::relax::StructInfoMutator {
             new_shape.push_back(s);
           }
         } else {
+          // TODO(siyuan, ruihang): confirm and use VisitPrimExpr to recursive rewrite.
           new_shape.push_back(s);
         }
       }

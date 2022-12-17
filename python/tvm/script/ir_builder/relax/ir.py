@@ -365,10 +365,23 @@ def RewriteSymbolicShape(
     var_table: Dict[str, tvm.tir.Var],
 ) -> Tuple[StructInfo, List[tvm.tir.Var]]:
     """Helper function to rewrite symbolic shape
+
+    This function remaps the symbolic shape by
+    mapping certain vars to new variables.
+
+    struct_info: StructInfo
+        The input struct info
+
+    var_table: Dict[str, tvm.tir.Var]
+        Dictionary to map name of var to a new var.
+
     Returns
     -------
-    res : frame.ElseFrame
-        The result ElseFrame.
+    rewritten_info : StructInfo
+        The rewritten StructInfo
+
+    undefined_vars: List[tvm.tir.Var]
+        List of undefined vars.
     """
     return _ffi_api.RewriteSymbolicShape(
         struct_info, var_table

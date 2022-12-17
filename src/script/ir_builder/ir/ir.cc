@@ -51,7 +51,7 @@ GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func_s
       gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc(
           tvm::relax::StructInfoFromType(prim_func->ret_type));
     } else {
-      LOG(FATAL) << "Unsupported function: " << func;
+      LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
     }
   } else {
     gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc();

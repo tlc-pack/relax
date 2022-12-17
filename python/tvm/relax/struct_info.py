@@ -37,7 +37,7 @@ class StructInfo(Node):
 
     def __eq__(self, other):
         """Compare two struct info for structural equivalence."""
-        return bool(tvm.ir.structural_equal(self, other))
+        return tvm.ir.structural_equal(self, other)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -72,13 +72,15 @@ class ObjectStructInfo(StructInfo):
 
 @tvm._ffi.register_object("relax.PrimStructInfo")
 class PrimStructInfo(StructInfo):
-    """StructInfo of a primtive POD value.
+    """StructInfo of a primitive POD value.
 
     Parameters
     ----------
     dtype : str
        The data type of the prim value.
     """
+
+    dtype: str
 
     def __init__(self, dtype: str, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.PrimStructInfo, dtype, span)  # type: ignore
@@ -95,7 +97,15 @@ class ShapeStructInfo(StructInfo):
 
     ndim : Optional[int]
        The size of the shape.
+
+    Note
+    ----
+    Do not specify values and ndim at the same time.
     """
+
+    values: Optional[List[PrimExpr]]
+    ndim: int
+    span: Span
 
     def __init__(
         self, values: Optional[List[PrimExpr]] = None, ndim: int = -1, span: Span = None
@@ -119,10 +129,14 @@ class TensorStructInfo(StructInfo):
 
     ndim : Optional[int]
        The number of dimensions of the tensor.
+
+    Note
+    ----
+    Do not specify shape and ndim at the same time.
     """
 
     shape: Optional[Expr]
-    dtype: tvm.DataType
+    dtype: str
     ndim: int
     span: Span
 
@@ -151,6 +165,9 @@ class TupleStructInfo(StructInfo):
         The struct info of the fields.
     """
 
+    fields: List[StructInfo]
+    span: Span
+
     def __init__(self, fields: List[StructInfo], span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TupleStructInfo, fields, span)  # type: ignore
 
@@ -165,8 +182,13 @@ class FuncStructInfo(StructInfo):
         The struct info of the fields.
 
     ret: StructInfo
-        The struct info of return valeu
+        The struct info of return value
     """
+
+    params: Optional[List[StructInfo]]
+    ret: StructInfo
+    derive_func: Optional[EnvFunc]
+    span: Span
 
     def __init__(self, params: List[StructInfo], ret: StructInfo, span: Span = None) -> None:
         self.__init_handle_by_constructor__(
@@ -181,12 +203,16 @@ class FuncStructInfo(StructInfo):
         span: Span = None,
     ) -> "FuncStructInfo":
         """
-        Create an opaque FuncStructInfo
+        Create an opaque FuncStructInfo.
+
+        The opaque function takes either a ret
+        that specificies the struct info of the return value
+        or a derive_func that provides a customized derivation rule.
 
         Parameters
         ----------
         ret: Optional[StructInfo]
-           The return value of the function.
+           The struct info of the the function return value.
 
         derive_func: Optional[EnvFunc]
            The environment function used for derivation
@@ -197,5 +223,9 @@ class FuncStructInfo(StructInfo):
         Returns
         -------
         info: FuncStructInfo
+
+        Note
+        ----
+        We cannot specify ret and derive_func simultaneously.
         """
         return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, span)  # type: ignore

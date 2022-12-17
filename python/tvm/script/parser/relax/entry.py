@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring, invalid-name
 import inspect
 from typing import Callable as _Callable
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from typing import TypeVar as _TypeVar
 from typing import Union
 
@@ -86,9 +86,6 @@ class CallableProxy:
     a set of type constraints which we omit for the time being,
     a sequence of argument types, and a return type.
 
-    We can informally write them as:
-    `forall (type_params), (arg_types) -> ret_type where type_constraints`
-
     Parameters
     ----------
     params : List[StructInfo]
@@ -101,7 +98,7 @@ class CallableProxy:
 
     def __call__(
         self,
-        params: List[StructInfo],
+        params: Union[StructInfo, List[StructInfo], Tuple[StructInfo]],
         ret: StructInfo,
     ) -> relax.FuncStructInfo:
         if not isinstance(params, (list, tuple)):
@@ -122,7 +119,7 @@ class TupleProxy:
 
     Parameters
     ----------
-    fields : List[Type]
+    fields : List[Union[Expr, Type, StructInfo]]
         The fields in the tuple
     """
 
@@ -133,6 +130,7 @@ class TupleProxy:
         if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
             fields = fields[0]
 
+        # TODO(siyuan): Revisit this part
         if all([isinstance(f, Expr) for f in fields]):
             return RxTuple(fields)
         else:

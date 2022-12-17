@@ -111,7 +111,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
 #undef TVM_STRUCT_INFO_FUNCTOR_DISPATCH
 
 /*!
- * \brief A type visitor that recursively visit types.
+ * \brief A struct info visitor.
  */
 class TVM_DLL StructInfoVisitor : public StructInfoFunctor<void(const StructInfo& n)> {
  public:
@@ -129,7 +129,7 @@ class TVM_DLL StructInfoVisitor : public StructInfoFunctor<void(const StructInfo
 };
 
 /*!
- * \brief StructInfoMutator that mutates expressions.
+ * \brief StructInfoMutator that mutates struct info.
  */
 class TVM_DLL StructInfoMutator : public StructInfoFunctor<StructInfo(const StructInfo& n)> {
  public:

@@ -99,7 +99,7 @@ class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructI
       return shape.value_or(Expr(nullptr));
     });
 
-    // recursively collect structinfo to make sure legacy shape is also well formed.
+    // recursively collect structinfo to make sure legacy shape is also well defined.
     if (valid && fields.size() != 0) {
       Tuple tuple(fields, op->span);
       Array<StructInfo> tuple_sinfo;
@@ -143,10 +143,9 @@ StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> sh
     } else {
       return TensorStructInfo(shape_hint.value(), tensor_type->dtype);
     }
-    return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
     Array<StructInfo> fields;
-    if (shape_hint && shape_hint.value()->IsInstance<TupleNode>()) {
+    if (shape_hint.defined() && shape_hint.value()->IsInstance<TupleNode>()) {
       Array<Expr> shape_hint_fields = Downcast<Tuple>(shape_hint.value())->fields;
       ICHECK_EQ(shape_hint_fields.size(), tuple_type->fields.size());
       for (size_t i = 0; i < tuple_type->fields.size(); ++i) {
@@ -229,7 +228,7 @@ class WellDefinedEraser : public StructInfoMutator,
 
   StructInfo VisitStructInfo_(const FuncStructInfoNode* op) final {
     // NOTE: we always require func struct info to be well formed.
-    // and need to avoid recurse into it as the vars are defined in params.
+    // and need to avoid recursing into it as the vars are defined in params.
     return GetRef<StructInfo>(op);
   }
 
@@ -259,7 +258,7 @@ class WellDefinedEraser : public StructInfoMutator,
     has_undefined_ = has_undefined_ || !ret.defined();
     if (ret.defined()) {
       ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
-          << "Only allow Expr in StructInfo to be Shape or Var";
+          << "Only allow Expr in StructInfo to be ShapeExpr or Var";
     }
     return ret.value_or(GetRef<Expr>(var));
   }
@@ -359,10 +358,10 @@ class StructInfoBaseChecker : public StructInfoFunctor<bool(const StructInfo&, c
     // ndim must match
     if (lhs->ndim != rhs->ndim) return false;
 
-    // lhs do not have symbolic value
+    // lhs does not have symbolic value
     if (!lhs->values.defined()) return true;
 
-    // rhs do not have symbolic value but lhs do.
+    // rhs does not have symbolic value but lhs do.
     if (!rhs->values.defined()) return false;
     if (!CanProveShapeEqual(lhs->values.value(), rhs->values.value(), analyzer_)) return false;
     return true;
@@ -373,11 +372,11 @@ class StructInfoBaseChecker : public StructInfoFunctor<bool(const StructInfo&, c
     if (rhs == nullptr) return false;
     // dtype mismatch
     if (!lhs->IsUnknownDtype() && lhs->dtype != rhs->dtype) return false;
-    // ndim msiamtch
+    // ndim mismatch
     if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) return false;
-    // lhs do not have defined shape and everything else matches
+    // lhs does not have defined shape and everything else matches
     if (!lhs->shape.defined()) return true;
-    // rhs do not have symbolic value but lhs don't
+    // rhs does not have symbolic value but lhs doesn't
     if (!rhs->shape.defined()) return false;
     // shape match check
     if (!CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(), analyzer_)) return false;
@@ -408,14 +407,14 @@ class StructInfoBaseChecker : public StructInfoFunctor<bool(const StructInfo&, c
 
     // NOTE: lhs->params, rhs->params may contain different symbolic
     // vars that needs to be re-mapped to each other.
-    // This can only done through structural equality check and not BaseCheckArray.
+    // This can only be done through structural equality check and not BaseCheckArray.
     //
     // So we check structural equality here and if two are structurally
     // equal return true.
     //
     // otherwise we do best effort BaseArrayCheck.
     //
-    // This still do not handle cases where some arguments are sub of another
+    // This still does not handle cases where some arguments are sub of another
     // while other parameters needs to get remapped.
     //
     // Given we only do best effort checking in these cases, and such cases
@@ -496,7 +495,7 @@ class StructInfoLCAFinder
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.defined() || !rhs->values.defined() ||
         !CanProveShapeEqual(lhs->values.value(), rhs->values.value(), analyzer_)) {
-      // refers return same when possible
+      // prefers return same when possible
       if (!lhs->values.defined() && lhs->ndim == ndim) {
         return GetRef<StructInfo>(lhs);
       } else {
@@ -579,14 +578,14 @@ class StructInfoLCAFinder
     // Both lhs and rhs are not opaque
     // NOTE: lhs->params, rhs->params may contain different symbolic
     // vars that needs to be re-mapped to each other.
-    // This can only done through structural equality check.
+    // This can only be done through structural equality check.
     //
     // So we check structural equality here and if two are structurally
     // equal return true.
     //
     // otherwise we do best effort of unify types without considering var remap.
     //
-    // This still do not handle cases where some arguments are sub of another
+    // This still does not handle cases where some arguments are sub of another
     // while other parameters needs to get remapped.
     //
     // Given we only do best effort checking in these cases, and such cases

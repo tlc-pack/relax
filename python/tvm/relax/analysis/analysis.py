@@ -71,7 +71,7 @@ def erase_to_well_defined(
     """Erase sinfo into a well defined form.
 
     This function removes the StructInfo's dependencies on shape and vars that
-    are not being defined.
+    are not defined in given maps.
 
     Parameters
     ----------
@@ -79,10 +79,10 @@ def erase_to_well_defined(
         The input struct info.
 
     shape_var_map : Dict[tir.Var, tir.PrimExpr]
-        List of shape vars defined in the scope.
+        Specifies the defined shape vars and the values they should map to.
 
     var_map : Dict[Var, Expr]
-        List of vars defined in the scope.
+        Specifies the defined vars and the values they should map to.
 
     Returns
     -------
@@ -96,7 +96,7 @@ def erase_to_well_defined(
 
 
 def struct_info_lca(lhs: StructInfo, rhs: StructInfo) -> StructInfo:
-    """Unify the two struct info their least common accentor.
+    """Unify the two struct info their least common ancestor.
 
     Parameters
     ----------

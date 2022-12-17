@@ -140,7 +140,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
         finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
       } else {
-        finfo = StructInfoFromType(func->checked_type_);
+        finfo = StructInfoFromType(func->checked_type());
       }
       UpdateStructInfo(gvar, finfo);
 
@@ -206,7 +206,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
               << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
               << shape_expr;
         }
-        shape_var_map.Set(kv.first, kv.second);
+        shape_var_map.Set(shape_var, shape_expr);
       }
     }
     scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));
@@ -251,7 +251,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     } else if (const auto* tensor_sinfo = value->struct_info_.as<TensorStructInfoNode>()) {
       UpdateStructInfo(var, TensorStructInfo(ShapeExpr(pattern), tensor_sinfo->dtype));
     } else {
-      this->diag_ctx_.EmitFatal(
+      this->ReportFatal(
           Diagnostic::Error(value->span)
           << "The value passed to EmitMatchShape must be of TensorStructInfo or ShapeStructInfo.");
     }
@@ -453,6 +453,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
+  // Collect all the variables that a parameter var can define.
+  // The collector is used to making sure that we record the
+  // shape vars as defined when calling BeginScope(params)
   class StructInfoVarCollector : public StructInfoVisitor {
    public:
     static Map<tir::Var, PrimExpr> Collect(const StructInfo& struct_info) {
@@ -497,7 +500,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
 // Normalizer on struct info:
 //
-// We take benefit of the following invariances(that are checked in constructor):
+// We take benefit of the following invariants(that are checked in constructor):
 // - If an expr appears in StructInfo, then it is already normalized.
 //   As a result, we do not need to peek into StructInfo in Normalization.
 // - Constant, ShapeExpr, already have their StructInfo populated in constructing time.
