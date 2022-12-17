@@ -303,8 +303,9 @@ def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool) -> Op
 ############################# Type Deduce ##############################
 
 
-def annotate_type_shape(var: Var, anno_struct_info: StructInfo) -> None:
-    """Annotate and check the type of relax var.
+def annotate_struct_info(var: Var, anno_struct_info: StructInfo) -> None:
+    """Annotate the struct info of relax var.
+
     Parameters
     ----------
     var: Var
@@ -315,7 +316,7 @@ def annotate_type_shape(var: Var, anno_struct_info: StructInfo) -> None:
         The annotated struct info
 
     """
-    _ffi_api.AnnotateTypeShape(var, anno_struct_info)
+    _ffi_api.AnnotateStructInfo(var, anno_struct_info)
 
 
 ############################# If Then Else #############################

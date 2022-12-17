@@ -232,7 +232,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 
 ///////////////////////////// Type Deduce //////////////////////////////
 
-void AnnotateTypeShape(const tvm::relax::Var& var, const tvm::relax::StructInfo& anno_struct_info) {
+void AnnotateStructInfo(const tvm::relax::Var& var,
+                        const tvm::relax::StructInfo& anno_struct_info) {
   using tvm::relax::IsBaseOf;
   using tvm::relax::StructInfo;
 
@@ -277,7 +278,8 @@ void AnnotateTypeShape(const tvm::relax::Var& var, const tvm::relax::StructInfo&
   var->struct_info_ = anno_struct_info;
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateStructInfo")
+    .set_body_typed(AnnotateStructInfo);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

@@ -124,14 +124,14 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
 ///////////////////////////// Type Deduce //////////////////////////////
 
 /*!
- * \brief Annotate and check the type and shape of relax var.
+ * \brief Annotate the struct info of a var.
  * \param var The input var to be annotated.
  * \param anno_struct_info The annotated struct info, which can be undefined.
  * \note This function will check if the type of var is compatible with the annotated type.
  * And we annotate to the var with more detailed type.
  */
-TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var,
-                               const tvm::relax::StructInfo& anno_struct_info);
+TVM_DLL void AnnotateStructInfo(const tvm::relax::Var& var,
+                                const tvm::relax::StructInfo& anno_struct_info);
 
 ///////////////////////////// If Then Else /////////////////////////////
 
