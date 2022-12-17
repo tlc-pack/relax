@@ -102,7 +102,6 @@ class FunctionFrameNode : public SeqExprFrameNode {
   Optional<tvm::relax::Expr> ret_shape;
   /*!
    * \brief The function return struct info.
-   * \sa ret_type
    */
   Optional<tvm::relax::StructInfo> ret_sinfo;
   /*! \brief The function attributes. */
