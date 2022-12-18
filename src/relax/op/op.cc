@@ -89,7 +89,7 @@ StructInfo CallTIRStructInfoFromShapeType(Expr shape, Type type) {
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   Expr output_shape = call->args[2];
   if (call->type_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call->span) << "type_args should have exact 1 output type.");
+    ctx->ReportFatal(Diagnostic::Error(call) << "type_args should have exact 1 output type.");
   }
   Type output_type = call->type_args[0];
   return CallTIRStructInfoFromShapeType(output_shape, output_type);
@@ -148,12 +148,12 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   // Also permitted is a tensor with unknown shape and unknown dtype
   // (checked dynamically in that case). Returns void.
   if (call->args.size() < 1) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "Assert must have at least one argument (the condition).");
   }
   Type arg_type = call->args[0]->checked_type();
   if (!IsBoolScalarType(arg_type)) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "The argument to assert must be a boolean scalar type, but received "
                      << arg_type);
   }

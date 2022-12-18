@@ -91,8 +91,7 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void VisitExpr(const Expr& expr) override {
     if (!expr.as<OpNode>() && !expr->checked_type_.defined()) {
-      Malformed(Diagnostic::Error(expr->span)
-                << "The checked_type_ of Expr " << expr << " is nullptr.");
+      Malformed(Diagnostic::Error(expr) << "The checked_type_ of Expr " << expr << " is nullptr.");
     }
     ExprVisitor::VisitExpr(expr);
   }
@@ -103,15 +102,14 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitExpr_(const GlobalVarNode* op) {
     GlobalVar var = GetRef<GlobalVar>(op);
     if (global_var_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var->span)
-                << "GlobalVar " << op->name_hint << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "GlobalVar " << op->name_hint << " is not defined.");
     }
 
     if (op->checked_type_.defined()) {
       if ((!op->checked_type_->IsInstance<FuncTypeNode>()) &&
           (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
-        Malformed(Diagnostic::Error(var->span) << "The checked_type_ of GlobalVar " << op->name_hint
-                                               << " must be either FuncType or PackedFuncType.");
+        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << op->name_hint
+                                         << " must be either FuncType or PackedFuncType.");
       }
     }
   }
@@ -122,7 +120,7 @@ class WellFormedChecker : public relax::ExprVisitor {
       if (IsLeafExpr(expr)) {
         this->VisitExpr(expr);
       } else {
-        Malformed(Diagnostic::Error(expr->span)
+        Malformed(Diagnostic::Error(expr)
                   << "Tuple is not in ANF form, field " << i << " gets " << expr->GetTypeKey());
       }
     }
@@ -136,7 +134,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     if (IsLeafExpr(op->tuple)) {
       this->VisitExpr(op->tuple);
     } else {
-      Malformed(Diagnostic::Error(op->span)
+      Malformed(Diagnostic::Error(op)
                 << "The tuple value in a TupleGetItem node must be a leaf expression.");
     }
   }
@@ -144,19 +142,18 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitExpr_(const VarNode* op) {
     Var var = GetRef<Var>(op);
     if (var_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var->span) << "Var " << op->name_hint() << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "Var " << op->name_hint() << " is not defined.");
     }
   }
 
   void VisitExpr_(const DataflowVarNode* op) {
     DataflowVar var = GetRef<DataflowVar>(op);
     if (!is_dataflow_) {
-      Malformed(Diagnostic::Error(var->span)
+      Malformed(Diagnostic::Error(var)
                 << "DataflowVar " << op->name_hint() << " is used outside DataflowBlock.");
     }
     if (dataflow_var_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var->span)
-                << "DataflowVar " << op->name_hint() << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "DataflowVar " << op->name_hint() << " is not defined.");
     }
   }
 
@@ -185,7 +182,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     if (auto seq = op->body.as<SeqExprNode>()) {
       this->VisitSeqExpr(seq);
     } else {
-      Malformed(Diagnostic::Error(op->span) << "Function bodies must be sequence expressions");
+      Malformed(Diagnostic::Error(op) << "Function bodies must be sequence expressions");
     }
     var_set_ = previous_var_set_;
     prim_expr_visitor_.symbolic_var_set_.clear();
@@ -195,7 +192,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     if (IsLeafExpr(op->op)) {
       this->VisitExpr(op->op);
     } else {
-      Malformed(Diagnostic::Error(op->span) << "The called expression must be a leaf expression");
+      Malformed(Diagnostic::Error(op) << "The called expression must be a leaf expression");
     }
     for (size_t i = 0; i < op->args.size(); i++) {
       Expr arg = op->args[i];
@@ -216,8 +213,7 @@ class WellFormedChecker : public relax::ExprVisitor {
     if (IsLeafExpr(op->cond)) {
       this->VisitExpr(op->cond);
     } else {
-      Malformed(Diagnostic::Error(op->span)
-                << "The condition for an if node must be a leaf expression.");
+      Malformed(Diagnostic::Error(op) << "The condition for an if node must be a leaf expression.");
     }
     auto true_seq = op->true_branch.as<SeqExprNode>();
     auto false_seq = op->false_branch.as<SeqExprNode>();
@@ -232,7 +228,7 @@ class WellFormedChecker : public relax::ExprVisitor {
       var_set_ = previous_var_set_;
       prim_expr_visitor_.symbolic_var_set_ = previous_symbolic_var_set_;
     } else {
-      Malformed(Diagnostic::Error(op->span) << "If node branches must be seq exprs");
+      Malformed(Diagnostic::Error(op) << "If node branches must be seq exprs");
     }
   }
 
@@ -241,16 +237,15 @@ class WellFormedChecker : public relax::ExprVisitor {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
       prim_expr_visitor_(expr);
       if (!expr.dtype().is_int()) {
-        Malformed(Diagnostic::Error(expr->span)
+        Malformed(Diagnostic::Error(expr)
                   << "Shape expressions must be of integer type, but got " << expr.dtype());
       }
     }
   }
 
   void VisitExpr_(const SeqExprNode* op) {
-    Malformed(Diagnostic::Error(op->span)
-              << "SeqExpr only serves as the function body in FunctionNode, "
-                 "or the true/false branch body in IfNode.");
+    Malformed(Diagnostic::Error(op) << "SeqExpr only serves as the function body in FunctionNode, "
+                                       "or the true/false branch body in IfNode.");
   }
 
   void VisitSeqExpr(const SeqExprNode* op) {
@@ -260,7 +255,7 @@ class WellFormedChecker : public relax::ExprVisitor {
       this->VisitBindingBlock(block);
     }
     if (!IsLeafExpr(op->body)) {
-      Malformed(Diagnostic::Error(op->span) << "SeqExpr bodies must be leaf expressions.");
+      Malformed(Diagnostic::Error(op) << "SeqExpr bodies must be leaf expressions.");
     }
     this->VisitExpr(op->body);
   }
@@ -298,12 +293,12 @@ class WellFormedChecker : public relax::ExprVisitor {
 
   void VisitVarDef_(const DataflowVarNode* var) {
     if (!is_dataflow_) {
-      Malformed(Diagnostic::Error(var->span)
+      Malformed(Diagnostic::Error(var)
                 << "DataflowVar " << var->name_hint() << " is defined outside DataflowBlock.");
     }
     DataflowVar lv = GetRef<DataflowVar>(var);
     if (dataflow_var_set_.count(lv) == 1) {
-      Malformed(Diagnostic::Error(var->span)
+      Malformed(Diagnostic::Error(var)
                 << "DataflowVar " << lv->name_hint() << " is defined more than once.");
     }
     // register DataflowVar
@@ -313,7 +308,7 @@ class WellFormedChecker : public relax::ExprVisitor {
   void VisitVarDef_(const VarNode* var) {
     Var gv = GetRef<Var>(var);
     if (var_set_.count(gv) == 1) {
-      Malformed(Diagnostic::Error(var->span)
+      Malformed(Diagnostic::Error(var)
                 << "Var " << gv->name_hint() << " is defined more than once.");
     }
     // register Var
@@ -344,7 +339,7 @@ class WellFormedChecker : public relax::ExprVisitor {
 void PrimExprVisitor::VisitExpr_(const tir::VarNode* op) {
   tir::Var var = GetRef<tir::Var>(op);
   if (symbolic_var_set_.count(var) == 0) {
-    checker_->Malformed(Diagnostic::Error(var->span)
+    checker_->Malformed(Diagnostic::Error(var)
                         << "Symbolic Var " << var->name_hint << " is not defined.");
   }
 }

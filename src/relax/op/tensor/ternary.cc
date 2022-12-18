@@ -29,7 +29,7 @@ namespace relax {
 
 Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
   if (call->args.size() != 3) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "EwiseFMA op should have 3 arguments");
+    diag_ctx.EmitFatal(Diagnostic::Error(call) << "EwiseFMA op should have 3 arguments");
   }
   Type type0 = call->args[0]->checked_type();
   Type type1 = call->args[1]->checked_type();
@@ -38,7 +38,7 @@ Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
   auto* t1 = type1.as<DynTensorTypeNode>();
   auto* t2 = type2.as<DynTensorTypeNode>();
   if (!t0 || !t1 || !t2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+    diag_ctx.EmitFatal(Diagnostic::Error(call)
                        << "The 3 arguments of EwiseFMA should be DynTensor");
   }
 
@@ -46,7 +46,7 @@ Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
   if (t0->IsUnknownDtype() || t1->IsUnknownDtype() || t2->IsUnknownDtype()) {
     output_dtype = DataType::Void();
   } else if (t0->dtype != t1->dtype || t1->dtype != t2->dtype) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
+    diag_ctx.EmitFatal(Diagnostic::Error(call)
                        << "Data types " << t0->dtype << ", " << t1->dtype << ", and " << t2->dtype
                        << " must be equal for EwiseFMA");
   } else {
@@ -64,7 +64,7 @@ Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
 
 StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call->span) << "EwiseFMA op should have 3 arguments");
+    ctx->ReportFatal(Diagnostic::Error(call) << "EwiseFMA op should have 3 arguments");
   }
 
   auto* t0 = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -72,14 +72,14 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   auto* t2 = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
 
   if (!t0 || !t1 || !t2) {
-    ctx->ReportFatal(Diagnostic::Error(call->span) << "EwiseFMA expects three tensor inputs");
+    ctx->ReportFatal(Diagnostic::Error(call) << "EwiseFMA expects three tensor inputs");
   }
 
   DataType output_dtype;
   if (t0->IsUnknownDtype() || t1->IsUnknownDtype() || t2->IsUnknownDtype()) {
     output_dtype = DataType::Void();
   } else if (t0->dtype != t1->dtype || t1->dtype != t2->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "Data types " << t0->dtype << ", " << t1->dtype << ", and " << t2->dtype
                      << " must be equal for EwiseFMA");
   } else {
@@ -95,7 +95,7 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
     size_t ndim1 = s1->values.size();
     size_t ndim2 = s2->values.size();
     if (ndim0 != ndim1 || ndim1 != ndim2) {
-      ctx->ReportFatal(Diagnostic::Error(call->span)
+      ctx->ReportFatal(Diagnostic::Error(call)
                        << "The 3 arguments of EwiseFMA must have the same number of dimensions");
     }
     for (size_t i = 0; i < ndim0; ++i) {
@@ -105,7 +105,7 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
       if (EqualCheck(dim0, dim1) && EqualCheck(dim1, dim2)) {
         output_shape.push_back(dim0);
       } else {
-        ctx->ReportFatal(Diagnostic::Error(call->span)
+        ctx->ReportFatal(Diagnostic::Error(call)
                          << "The 3 arguments of EwiseFMA must have the same shape");
       }
     }

@@ -175,7 +175,15 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  void ReportFatal(const Diagnostic& diagnostic) final { diag_ctx_.EmitFatal(diagnostic); }
+  void ReportFatal(const Diagnostic& diagnostic) final {
+    // TODO(relax-team): Print more context information by looking
+    // into the diagnostic->loc and surrounding IRModule.
+    // We do not materialzie DiagnosticContext to avoid double referencing to
+    // the change IRModule in COW. Additionally, we need to be able to
+    // continue use the builder after an error is thrown to avoid state building up.
+    // in an interactive environment.
+    LOG(FATAL) << diagnostic->message;
+  }
 
   //-------------------------------
   // Scope management
@@ -252,7 +260,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       UpdateStructInfo(var, TensorStructInfo(ShapeExpr(pattern), tensor_sinfo->dtype));
     } else {
       this->ReportFatal(
-          Diagnostic::Error(value->span)
+          Diagnostic::Error(value)
           << "The value passed to EmitMatchShape must be of TensorStructInfo or ShapeStructInfo.");
     }
 
@@ -356,9 +364,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   /*! \brief A stack to store scope frames. */
   std::vector<ScopeFrame> scope_stack_;
-
-  /*! \brief A diagnostic context for reporting errors. */
-  DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
 
   /*! \brief A binding table that maps var to value. */
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;

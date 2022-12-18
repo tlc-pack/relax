@@ -37,13 +37,12 @@ RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
 
 StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
-                     << "Binary broadcast op should have 2 arguments");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Binary broadcast op should have 2 arguments");
   }
   auto* lhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   auto* rhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
   if (!lhs_sinfo || !rhs_sinfo) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "Both lhs and rhs should be Tensor for broadcasting, but got "
                      << call->args[0]->struct_info_->GetTypeKey() << " and "
                      << call->args[0]->struct_info_->GetTypeKey());
@@ -54,7 +53,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
   if (lhs_sinfo->IsUnknownDtype() || rhs_sinfo->IsUnknownDtype()) {
     output_dtype = DataType::Void();
   } else if (lhs_sinfo->dtype != rhs_sinfo->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "Data types " << lhs_sinfo->dtype << " and " << rhs_sinfo->dtype
                      << " must be equal for broadcasting operators");
   } else {

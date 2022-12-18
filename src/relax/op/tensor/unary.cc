@@ -43,20 +43,20 @@ TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(MakeUnique);
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Unique op should have 1 argument");
   }
   auto unique_attrs = call->attrs.as<UniqueAttrs>();
 
   auto input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
 
   if (!input_sinfo) {
-    ctx->ReportFatal(Diagnostic::Error(call->span) << "Input should be Tensor, but got "
-                                                   << call->args[0]->struct_info_->GetTypeKey());
+    ctx->ReportFatal(Diagnostic::Error(call) << "Input should be Tensor, but got "
+                                             << call->args[0]->struct_info_->GetTypeKey());
   }
 
   // Only default values of these attributes are supported right now.
   if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1) {
-    ctx->ReportFatal(Diagnostic::Error(call->span)
+    ctx->ReportFatal(Diagnostic::Error(call)
                      << "support for return_inverse, return_counts, and dim is not implemented");
   }
 
