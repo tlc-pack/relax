@@ -322,6 +322,40 @@ class MatchShape(Binding):
         )
 
 
+@tvm._ffi.register_object("relax.expr.MatchCast")
+class MatchCast(Binding):
+    """Runtime-match the value to the struct info.
+
+    This operation does runtime check, populates the un-defined symbolic shape vars
+    and vars in struct_info in the first occurrence, and insert equality assertions in
+    other cases.
+
+    Parameters
+    ----------
+    var: Var
+        The return variable that the match cast bind to.
+
+    struct_info: tvm.relax.StructInfo
+        The struct info to match cast to.
+
+    value: Expr
+        The input value expression.
+    """
+
+    var: Var
+    struct_info: "tvm.relax.StructInfo"
+    value: Expr
+
+    def __init__(self,
+                 var: Var,
+                 struct_info: "tvm.relax.StructInfo",
+                 value: Expr,
+                 span: Span = None) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.MatchCast, var, struct_info, value, span  # type: ignore
+        )
+
+
 @tvm._ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Binding):
     """Variable binding, bind he variable of the lhs with the rhs."""

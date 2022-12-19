@@ -316,6 +316,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
   }
 
+
   void VisitBindingBlock_(const DataflowBlockNode* block) final {
     is_dataflow_ = true;
     for (Binding binding : block->bindings) {
@@ -323,6 +324,15 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
     is_dataflow_ = false;
     dataflow_var_set_.clear();
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) final {
+    this->VisitExpr(binding->value);
+    // define the vars
+    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitStructInfo(binding->struct_info); });
+
+    this->VisitStructInfo(binding->struct_info);
+    this->VisitVarDef(binding->var);
   }
 
   void VisitVarDef_(const DataflowVarNode* var) final {

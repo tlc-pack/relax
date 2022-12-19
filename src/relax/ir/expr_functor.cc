@@ -187,6 +187,11 @@ void ExprVisitor::VisitBinding_(const MatchShapeNode* binding) {
   }
 }
 
+void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
+  this->VisitExpr(binding->value);
+  this->VisitVarDef(binding->var);
+}
+
 void ExprVisitor::VisitBindingBlock_(const BindingBlockNode* block) {
   for (Binding binding : block->bindings) {
     this->VisitBinding(binding);
@@ -205,6 +210,8 @@ void ExprVisitor::VisitVarDef_(const VarNode* var) { this->VisitSpan(var->span);
 
 void ExprVisitor::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchCastNode>()) {
     VisitBinding_(node);
   } else if (const auto* node = binding.as<MatchShapeNode>()) {
     VisitBinding_(node);
@@ -384,6 +391,9 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
       if (auto var_binding = binding.as<VarBindingNode>()) {
         Expr new_value = this->VisitExpr(var_binding->value);
         bindings.push_back(VarBinding(var_binding->var, new_value));
+      } else if (auto match_cast = binding.as<MatchCastNode>()) {
+        Expr new_value = this->VisitExpr(match_cast->value);
+        bindings.push_back(MatchCast(match_cast->var, new_value, match_cast->struct_info));
       } else if (auto match_shape_binding = binding.as<MatchShapeNode>()) {
         Expr new_value = this->VisitExpr(match_shape_binding->value);
         bindings.push_back(
@@ -574,6 +584,18 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
 
+void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
+  Expr new_value = this->VisitExpr(binding->value);
+  // re-emit old binding if nothing changes
+  if (new_value.same_as(binding->value)) {
+    builder_->EmitNormalized(GetRef<MatchCast>(binding));
+  } else {
+    new_value = builder_->NormalizeArgument(new_value);
+    builder_->EmitNormalized(
+        MatchCast(binding->var, new_value, binding->struct_info, binding->span));
+  }
+}
+
 BindingBlock ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) {
   builder_->BeginBindingBlock();
   for (Binding binding : block->bindings) {
@@ -602,6 +624,8 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) { return GetRef<Var>(var); }
 
 void ExprMutator::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
+    VisitBinding_(node);
+  } else if (const auto* node = binding.as<MatchCastNode>()) {
     VisitBinding_(node);
   } else if (const auto* node = binding.as<MatchShapeNode>()) {
     VisitBinding_(node);

@@ -35,6 +35,7 @@ from .expr import (
     BaseFunc,
     Binding,
 )
+from .struct_info import StructInfo
 from .op.base import call_tir
 from . import _ffi_api
 
@@ -557,6 +558,24 @@ class BlockBuilder(Object):
             A newly created variable that gets bound to the call code.
         """
         return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)  # type: ignore
+
+    def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
+        """Emit a MatchCast.
+
+        Parameters
+        ----------
+        value : tvm.relax.Expr
+            The value of the MatchShape to be emitted.
+
+        struct_info : StructInfo
+            The struct info to be matched.
+
+        Returns
+        -------
+        ret : tvm.relax.Var
+            A newly created variable that get bounds to be the casted result.
+        """
+        return _ffi_api.BlockBuilderEmitMatchCast(self, value, struct_info)  # type: ignore
 
     def emit_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
         """Emit output for the current dataflow block or function.

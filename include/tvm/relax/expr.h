@@ -556,7 +556,6 @@ class Binding : public ObjectRef {
 };
 
 /*! \brief Symbolic shape match, binds the variable of the lhs with the rhs. */
-class MatchShape;
 class MatchShapeNode : public BindingNode {
  public:
   Expr value;
@@ -596,7 +595,60 @@ class MatchShape : public Binding {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchShapeNode);
 };
 
-class VarBinding;
+/*!
+ * \brief Runtime-match the value to the struct info.
+ *
+ * This operation does runtime check, populates the un-defined symbolic shape vars
+ * and vars in struct_info in first occurance, and insert equality assertions in
+ * other cases.
+ */
+class MatchCastNode : public BindingNode {
+ public:
+  /*! \brief The return variable to bound to. */
+  Var var;
+  /*! \brief The input value. */
+  Expr value;
+  /*! \brief The struct info pattern to match to. */
+  StructInfo struct_info;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("var", &var);
+    v->Visit("value", &value);
+    v->Visit("struct_info", &struct_info);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const {
+    // NOTE: pattern can contain ShapeExpr which defines the vars
+    return equal.DefEqual(var, other->var) && equal.DefEqual(struct_info, other->struct_info) &&
+           equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    // NOTE: pattern can contain ShapeExpr which defines the vars
+    hash_reduce.DefHash(var);
+    hash_reduce.DefHash(struct_info);
+    hash_reduce(value);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.MatchCast";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(MatchCastNode, BindingNode);
+};
+
+/*!
+ * \brief Managed reference to MatchCastNode.
+ * \sa MatchCastNode
+ */
+class MatchCast : public Binding {
+ public:
+  TVM_DLL explicit MatchCast(Var var, Expr value, StructInfo struct_info, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(MatchCast, Binding, MatchCastNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
+};
+
 class VarBindingNode : public BindingNode {
  public:
   Var var;
@@ -628,7 +680,6 @@ class VarBinding : public Binding {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
 
-class BindingBlock;
 
 class BindingBlockNode : public Object {
  public:

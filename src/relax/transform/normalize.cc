@@ -167,6 +167,17 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
+  void VisitBinding_(const MatchCastNode* binding) {
+    Expr new_value = this->VisitExpr(binding->value);
+
+    if (new_value.same_as(binding->value)) {
+      builder_->EmitNormalized(GetRef<MatchCast>(binding));
+    } else {
+      builder_->EmitNormalized(
+          MatchCast(binding->var, builder_->NormalizeArgument(new_value), binding->struct_info));
+    }
+  }
+
  private:
   /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;

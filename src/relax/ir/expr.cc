@@ -340,6 +340,23 @@ TVM_REGISTER_GLOBAL("relax.MatchShape")
       return MatchShape(value, pattern, var, span);
     });
 
+TVM_REGISTER_NODE_TYPE(MatchCastNode);
+
+MatchCast::MatchCast(Var var, Expr value, StructInfo struct_info, Span span) {
+  ObjectPtr<MatchCastNode> n = make_object<MatchCastNode>();
+  ICHECK(var.defined()) << "MatchCast requires var to be defined";
+  n->var = std::move(var);
+  n->value = std::move(value);
+  n->struct_info = std::move(struct_info);
+  n->span = span;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relax.MatchCast")
+    .set_body_typed([](Var var, Expr value, StructInfo struct_info, Span span) {
+      return MatchCast(var, value, struct_info, span);
+    });
+
 TVM_REGISTER_NODE_TYPE(VarBindingNode);
 
 VarBinding::VarBinding(Var var, Expr value, Span span) {

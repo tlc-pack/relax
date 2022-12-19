@@ -257,6 +257,11 @@ class JSONSerializer
     return {};
   }
 
+  std::vector<JSONGraphNodeEntry> VisitBinding_(const MatchCastNode* binding) {
+    LOG(FATAL) << "JSON runtime currently doesn't match cast\n";
+    return {};
+  }
+
   std::vector<JSONGraphNodeEntry> VisitBinding(const Binding& binding) {
     std::vector<JSONGraphNodeEntry> nodes;
     if (const auto* node = binding.as<VarBindingNode>()) {

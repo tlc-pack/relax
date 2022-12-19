@@ -278,6 +278,19 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
   return doc;
 }
 
+Doc RelaxScriptPrinter::VisitNode_(const relax::MatchCastNode* op) {
+  Doc doc;
+  doc << Print(op->var);
+  if (const auto& sinfo = MatchStructInfo<StructInfo>(op->var)) {
+    doc << ": " << Print(sinfo);
+  }
+  doc << " = ";
+  doc << "R.match_cast(";
+  doc << Print(op->value) << ", " << Print(op->struct_info);
+  doc << ")";
+  return doc;
+}
+
 Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
   // TODO(@altanh): think deeper about normal form (need to be strict about block exprs)
   if (const relax::IfNode* ite = op->value.as<relax::IfNode>()) {
