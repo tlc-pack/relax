@@ -49,6 +49,7 @@ Function = expr.Function
 ExternFunc = expr.ExternFunc
 Call = expr.Call
 If = expr.If
+shape_of = expr.shape_of
 
 # helper functions
 const = expr.const

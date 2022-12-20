@@ -509,5 +509,27 @@ def te_tensor(value: Expr, name: str = "rxplaceholder"):
     return _ffi_api.TETensor(value, name)  # type: ignore
 
 
+def shape_of(expr: Expr) -> Expr:
+    """Construct an Expr to get shape of expr.
+
+    Parameters
+    ----------
+    expr: Expr
+        The input expr.
+
+    Returns
+    -------
+    shape: Expr
+        The shape expression
+
+    Note
+    ----
+    This function may return a Call node with shape of op.
+    This function will throw an error if expr's struct_info is not
+    TensorStructInfo.
+    """
+    return _ffi_api.ShapeOf(expr)
+
+
 def _update_struct_info(expr: Expr, struct_info: Optional[StructInfo]) -> None:
     _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore

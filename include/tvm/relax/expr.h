@@ -890,6 +890,16 @@ class ExternFunc : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
 
+/*!
+ * \brief Get the shape of Expr.
+ * \param expr The input expr.
+ * \return The corresonding shape.
+ * \note This function requires expr to be normalized.
+ *       The function will report an error if expr's StructInfo is not TensorStructInfo.
+ *       The function may choose to return a Call node that contains shape_of(expr).
+ */
+TVM_DLL Expr ShapeOf(const Expr& expr);
+
 }  // namespace relax
 }  // namespace tvm
 

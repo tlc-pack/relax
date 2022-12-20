@@ -102,22 +102,17 @@ def test_fma_fuse():
     assert len(After.get_global_vars()) == 2
     main = After["main"]
     ewise_fma_fused = After["ewise_fma_fused"]
-
-    # check sub function call type inference
-    assert_structural_equal(ewise_fma_fused.body.checked_type, relax.DynTensorType(2, "float32"))
     sub_func_call = main.body.blocks[0].bindings[1].value
     sub_func_call_var = main.body.blocks[0].bindings[1].var
-    assert_structural_equal(sub_func_call.checked_type, relax.DynTensorType(2, "float32"))
-    assert_structural_equal(sub_func_call_var.checked_type, relax.DynTensorType(2, "float32"))
 
-    # check sub function call shape inference
-    assert isinstance(ewise_fma_fused.body.shape, relax.ShapeExpr)
-    assert ewise_fma_fused.body.shape.values[0] == 3
-    assert ewise_fma_fused.body.shape.values[1] == 4
-    assert sub_func_call.shape.values[0] == 3
-    assert sub_func_call.shape.values[1] == 4
-    assert sub_func_call_var.shape.values[0] == 3
-    assert sub_func_call_var.shape.values[1] == 4
+    # check sub function struct_info inference
+    assert_structural_equal(
+        ewise_fma_fused.body.struct_info, relax.TensorStructInfo([3, 4], "float32")
+    )
+    assert_structural_equal(sub_func_call.struct_info, relax.TensorStructInfo([3, 4], "float32"))
+    assert_structural_equal(
+        sub_func_call_var.struct_info, relax.TensorStructInfo([3, 4], "float32")
+    )
 
 
 def test_fma_fuse_python():
@@ -137,22 +132,17 @@ def test_fma_fuse_python():
     assert len(After.get_global_vars()) == 2
     main = After["main"]
     ewise_fma_fused = After["ewise_fma_fused"]
-
-    # check sub function call type inference
-    assert_structural_equal(ewise_fma_fused.body.checked_type, relax.DynTensorType(2, "float32"))
     sub_func_call = main.body.blocks[0].bindings[1].value
     sub_func_call_var = main.body.blocks[0].bindings[1].var
-    assert_structural_equal(sub_func_call.checked_type, relax.DynTensorType(2, "float32"))
-    assert_structural_equal(sub_func_call_var.checked_type, relax.DynTensorType(2, "float32"))
 
-    # check sub function call shape inference
-    assert isinstance(ewise_fma_fused.body.shape, relax.ShapeExpr)
-    assert ewise_fma_fused.body.shape.values[0] == 3
-    assert ewise_fma_fused.body.shape.values[1] == 4
-    assert sub_func_call.shape.values[0] == 3
-    assert sub_func_call.shape.values[1] == 4
-    assert sub_func_call_var.shape.values[0] == 3
-    assert sub_func_call_var.shape.values[1] == 4
+    # check sub function call type inference
+    assert_structural_equal(
+        ewise_fma_fused.body.struct_info, relax.TensorStructInfo([3, 4], "float32")
+    )
+    assert_structural_equal(sub_func_call.struct_info, relax.TensorStructInfo([3, 4], "float32"))
+    assert_structural_equal(
+        sub_func_call_var.struct_info, relax.TensorStructInfo([3, 4], "float32")
+    )
 
 
 def test_dataflowpass_fail():
@@ -214,33 +204,6 @@ def test_dataflowpass_fail():
                 return gv0
 
         relax.transform.FailTestRewrite()(TestRemoveSymbolicVar)
-
-
-def test_visit_shape():
-    @tvm.script.ir_module
-    class TestVisitShape:
-        @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
-            gv0 = R.add(x, x)
-            return gv0
-
-    mod = TestVisitShape
-
-    shape_expr = []
-
-    def fvisit(e):
-        if isinstance(e, relax.ShapeExpr):
-            nonlocal shape_expr
-            shape_expr.append(e)
-
-    relax.analysis.post_order_visit(mod["foo"], fvisit)
-
-    # should have visited ShapeExpr 3 times
-    # the first time being visited is x.shape
-    # the last two times are the call node's shape and gv0's shape
-    assert len(shape_expr) == 3
-    assert shape_expr[0] == mod["foo"].params[0].shape
-    assert shape_expr[1] == shape_expr[2]
 
 
 def test_to_non_dataflow():

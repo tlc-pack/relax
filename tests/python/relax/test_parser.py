@@ -27,43 +27,6 @@ from tvm.script import tir as T, relax as R
 #       c.f. tests/python/unittest/test_tvmscript_error_report.py
 
 
-def check_shape(e, s):
-    if isinstance(e, relax.ShapeExpr):
-        pass
-    elif isinstance(e, relax.Call):
-        e = e.shape
-    elif isinstance(e, relax.Expr):
-        e = e.shape_
-
-    if s is None:
-        assert e is None
-        return
-
-    if isinstance(s, relax.RuntimeDepShape):
-        assert isinstance(e, relax.RuntimeDepShape)
-        return
-
-    assert len(e) == len(s)
-
-    for edim, sdim in zip(e, s):
-        if isinstance(sdim, str):
-            assert isinstance(edim, tir.Var)
-            assert edim.name == sdim
-        else:
-            assert isinstance(edim, tir.IntImm)
-            assert edim.value == sdim
-
-
-def check_tensor_var(v, s, d, ndim=None):
-    assert isinstance(v._checked_type_, relax.ty.DynTensorType)
-    assert v._checked_type_.dtype == d
-    if isinstance(s, (list, tuple)):
-        assert v._checked_type_.ndim == len(s)
-    if ndim is not None:
-        assert v._checked_type_.ndim == ndim
-    check_shape(v, s)
-
-
 def check_call(call, op, args):
     assert isinstance(call, relax.Call)
     if isinstance(op, str):
@@ -97,14 +60,22 @@ def test_annotations():
     sh, shape_of = sh_bind.var, sh_bind.value
     o, o_call_packed = o_bind.var, o_bind.value
 
-    check_tensor_var(x, (32, "m"), "float32")
-    check_tensor_var(y, ("m",), "float32")
-    check_tensor_var(r, relax.RuntimeDepShape(), "int64")
-    check_tensor_var(z, (32, "m"), "float32")
-    check_tensor_var(w, relax.RuntimeDepShape(), "")
-    check_tensor_var(q, relax.RuntimeDepShape(), "", ndim=2)
-    assert isinstance(t._checked_type_, relax.ty.DynTensorType)
-    assert isinstance(sh._checked_type_, relax.ty.ShapeType)
+    m = tvm.tir.Var("m", dtype="int64")
+    assert_structural_equal(
+        x.struct_info, relax.TensorStructInfo([32, m], "float32"), map_free_vars=True
+    )
+    assert_structural_equal(
+        y.struct_info, relax.TensorStructInfo([m], "float32"), map_free_vars=True
+    )
+    assert_structural_equal(
+        r.struct_info, relax.TensorStructInfo(dtype="int64", ndim=-1), map_free_vars=True
+    )
+    assert_structural_equal(
+        z.struct_info, relax.TensorStructInfo([32, m], "float32"), map_free_vars=True
+    )
+    assert_structural_equal(
+        w.struct_info, relax.TensorStructInfo(ndim=-1, dtype=""), map_free_vars=True
+    )
 
     check_call(mm, "relax.multiply", [x, y])
     check_call(mul, "relax.multiply", [z, z])
@@ -199,8 +170,6 @@ def test_match_shape():
 
     match_sh = f.body.blocks[0].bindings[0]
     pattern, value = match_sh.pattern, match_sh.value
-
-    check_shape(pattern, ("n", "m"))
     check_call(value, "relax.shape_of", [f.params[0]])
 
 
@@ -219,17 +188,22 @@ def test_if():
     y_bind = f.body.blocks[0].bindings[0]
     y, ite = y_bind.var, y_bind.value
 
-    check_tensor_var(cond, tuple(), "bool")
-    check_tensor_var(x, (1,), "float32")
+    assert_structural_equal(
+        cond.struct_info, relax.TensorStructInfo([], "bool"), map_free_vars=True
+    )
+    assert_structural_equal(
+        x.struct_info, relax.TensorStructInfo([1], "float32"), map_free_vars=True
+    )
 
     assert isinstance(y, relax.Var)
     assert y.name_hint == "y"
 
     assert isinstance(ite, relax.If)
     assert ite.checked_type == relax.DynTensorType(1, "float32")
-    check_shape(ite.shape, (1,))
+    assert_structural_equal(ite.struct_info, relax.TensorStructInfo([1], "float32"))
+
     assert y.checked_type == relax.DynTensorType(1, "float32")
-    check_shape(y.shape, (1,))
+    assert_structural_equal(y.struct_info, relax.TensorStructInfo([1], "float32"))
 
     assert isinstance(ite.true_branch, relax.SeqExpr)
     assert isinstance(ite.false_branch, relax.SeqExpr)
@@ -315,13 +289,14 @@ def test_tuple():
         isinstance(annot.fields[1], relax.ty.DynTensorType) and annot.fields[1].dtype == "float32"
     )
 
-    assert isinstance(t.shape_, relax.Tuple)
     assert isinstance(tup, relax.Tuple)
     assert_structural_equal(tup.fields, [x, y])
-
-    assert isinstance(tup.shape_, relax.Tuple)
-    check_shape(tup.fields[0], relax.RuntimeDepShape())
-    check_shape(tup.fields[1], (32,))
+    assert_structural_equal(
+        tup.struct_info,
+        relax.TupleStructInfo(
+            [relax.TensorStructInfo(ndim=-1, dtype=""), relax.TensorStructInfo([32], "float32")]
+        ),
+    )
 
 
 def test_tuplegetitem():
@@ -425,12 +400,13 @@ def test_dataflow_match_shape():
     q_bind = f.body.blocks[1].bindings[1]
 
     assert x2_bind.var.name_hint == "x2"
-    check_tensor_var(x2_bind.var, ("n", "m"), "")
-    check_shape(x2_bind.pattern, ("n", "m"))
+    m = tvm.tir.Var("m", dtype="int64")
+    n = tvm.tir.Var("n", dtype="int64")
+
+    assert_structural_equal(
+        x2_bind.var.struct_info, relax.TensorStructInfo([n, m], ""), map_free_vars=True
+    )
     assert x2_bind.value == x
-
-    check_shape(z_shape_bind.pattern, ("n", "m"))
-
     assert q_bind.value.args[1] == x2_bind.var
 
 
@@ -572,7 +548,6 @@ def test_call_packed():
     (z_bind, w_bind, o_bind, k_bind) = f.body.blocks[0].bindings
 
     z_var, z_value = z_bind.var, z_bind.value
-    check_tensor_var(z_var, ("n", "m"), "float32")
 
     assert isinstance(z_value.op, relax.ExternFunc)
     assert z_value.op.global_symbol == "contrib.my_matmul"
@@ -780,12 +755,13 @@ def test_class_irmodule():
     assert func_g.body.body == g_call_var
 
     gv_bind = func_j.body.blocks[0].bindings[0]
-    assert gv_bind.value.checked_type.ndim == 2
-    assert gv_bind.value.checked_type.dtype == "float32"
-    assert gv_bind.var.checked_type.ndim == 2
-    assert gv_bind.var.checked_type.dtype == "float32"
-    check_shape(gv_bind.value, ("n", "n"))
-    check_shape(gv_bind.var, ("n", "n"))
+    n = tvm.tir.Var("n", "int64")
+    assert_structural_equal(
+        gv_bind.value.struct_info, relax.TensorStructInfo([n, n], "float32"), map_free_vars=True
+    )
+    assert_structural_equal(
+        gv_bind.var.struct_info, relax.TensorStructInfo([n, n], "float32"), map_free_vars=True
+    )
 
     # check call_packed checked_type_
     gv0_bind = func_k.body.blocks[0].bindings[0]
@@ -806,9 +782,10 @@ def test_class_irmodule():
 
     # check SeqExpr type/shape
     assert isinstance(func_j.body, relax.SeqExpr)
-    assert func_j.body.checked_type.dtype == "float32"
-    assert func_j.body.checked_type.ndim == 2
-    check_shape(func_j.body, ("n", "n"))
+
+    assert_structural_equal(
+        func_j.body.struct_info, relax.TensorStructInfo([n, n], "float32"), map_free_vars=True
+    )
 
     # check tuple type/shape
     gv1_bind = func_j.body.blocks[0].bindings[1]
@@ -817,22 +794,22 @@ def test_class_irmodule():
     isinstance(gv1_bind.var.checked_type, relax.TupleType)
     assert gv1_bind.var.checked_type.fields[0].ndim == 2
     assert gv1_bind.var.checked_type.fields[0].dtype == "float32"
-    isinstance(gv1_bind.var.shape, relax.Tuple)
-    isinstance(gv1_bind.value.shape, relax.Tuple)
-    check_shape(gv1_bind.value.shape.fields[0], ("n", "n"))
-    check_shape(gv1_bind.value.shape.fields[1], ("n", "n"))
-    check_shape(gv1_bind.var.shape.fields[0], ("n", "n"))
-    check_shape(gv1_bind.var.shape.fields[1], ("n", "n"))
+
+    assert_structural_equal(
+        gv1_bind.var.struct_info,
+        relax.TupleStructInfo(
+            [relax.TensorStructInfo([n, n], "float32"), relax.TensorStructInfo([n, n], "float32")]
+        ),
+        map_free_vars=True,
+    )
 
     # check TupleGetItem type/shape
     gv2_bind = func_j.body.blocks[0].bindings[2]
     isinstance(gv2_bind.value, relax.TupleGetItem)
-    assert gv2_bind.value.checked_type.ndim == 2
-    assert gv2_bind.value.checked_type.dtype == "float32"
-    assert gv2_bind.var.checked_type.ndim == 2
-    assert gv2_bind.var.checked_type.dtype == "float32"
-    check_shape(gv2_bind.value.shape, ("n", "n"))
-    check_shape(gv2_bind.var, ("n", "n"))
+
+    assert_structural_equal(
+        gv2_bind.var.struct_info, relax.TensorStructInfo([n, n], "float32"), map_free_vars=True
+    )
 
 
 def test_function_attrs():
@@ -899,7 +876,6 @@ def test_memory_op():
     b0, b1, b2, b3 = memory.body.blocks[0].bindings
     assert b0.value.op.name == "relax.memory.alloc_storage"
     assert isinstance(b0.value.args[0], relax.ShapeExpr)
-    check_shape(b0.value.args[0], (1024,))
     assert isinstance(b0.value.attrs, relax.op.MemAllocStorageAttrs)
 
     assert b1.value.op.name == "relax.memory.alloc_tensor"

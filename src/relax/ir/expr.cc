@@ -23,27 +23,6 @@
 #include <tvm/relax/type_analysis.h>
 
 namespace tvm {
-
-RelayExpr RelayExprNode::shape() const {
-  if (this->shape_.defined()) {
-    return Downcast<RelayExpr>(this->shape_);
-  }
-  if (this->struct_info_.defined()) {
-    Optional<RelayExpr> shape =
-        relax::GetLegacyShapeHint(Downcast<relax::StructInfo>(this->struct_info_.value()));
-    if (shape.defined()) {
-      return shape.value();
-    }
-  }
-  static const Op& op = Op::Get("relax.shape_of");
-  RelayExpr self = GetRef<RelayExpr>(this);
-  relax::Call call_shape_of(op, {self}, {}, {});
-  call_shape_of->checked_type_ = relax::ShapeType();
-  return call_shape_of;
-}
-
-TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNode::shape);
-
 namespace relax {
 using tvm::ReprPrinter;
 using tvm::runtime::Optional;
@@ -555,6 +534,27 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
   return ExternFunc(global_symbol, span);
+});
+
+
+Expr ShapeOf(const Expr& expr) {
+  // default case, to be normalized.
+  ICHECK(expr->struct_info_.defined())
+    << "ShapeOf can only be applied to normalized expr";
+  auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
+
+  ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with known StructInfo";
+  if (tinfo->shape.defined()) return tinfo->shape.value();
+
+  static const Op& op = Op::Get("relax.shape_of");
+  // default case, call shape of, eagerly normalize the expr.
+  relax::Call call_shape_of(op, {expr}, {}, {});
+  UpdateStructInfo(call_shape_of, ShapeStructInfo(tinfo->ndim));
+  return call_shape_of;
+}
+
+TVM_REGISTER_GLOBAL("relax.ShapeOf").set_body_typed([](const Expr& expr) {
+  return ShapeOf(expr);
 });
 
 }  // namespace relax

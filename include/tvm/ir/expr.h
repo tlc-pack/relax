@@ -389,13 +389,6 @@ class RelayExprNode : public BaseExprNode {
   inline const Type& checked_type() const;
 
   /*!
-   * \return An expression which corresponds to the shape of the expression.
-   *
-   * Only valid when the expression's type is a Tensor.
-   */
-  RelayExpr shape() const;
-
-  /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.
    *

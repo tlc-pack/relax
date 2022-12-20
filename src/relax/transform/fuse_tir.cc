@@ -18,6 +18,7 @@
  */
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../relay/analysis/graph_partitioner.h"
@@ -242,8 +243,7 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     // Step 1. Create buffers for function params
     for (const Var& relax_param : func->params) {
-      auto ret = CreateParamsAndBuffers(relax_param->checked_type(),  //
-                                        relax_param->shape(),         //
+      auto ret = CreateParamsAndBuffers(GetStructInfo(relax_param),  //
                                         relax_param->name_hint());
       const Array<tir::Var>& params = ret.first;
       const Array<tir::Buffer>& buffers = ret.second;
@@ -468,22 +468,23 @@ class FusedTIRConstructor : public ExprVisitor {
 
   /*!
    * \brief Create an TIR func params and buffers with specified relax type and shape
-   * \param type The specified relax type, which can be DynTensorType or Tuple
-   * \param shape The specified shape, which can be ShapeExpr or Tuple
+   * \param struct_info The struct info
    * \param name_hint The name hint for params and buffers
    * \param index The index used for unique name_hint if type is Tuple.
    *              -1 means no need to add postfix since the relax param is not a Tuple.
    * \return The created TIR func params and buffers
    */
   static std::pair<Array<tir::Var>, Array<tir::Buffer>> CreateParamsAndBuffers(
-      Type type, relax::Expr shape, const String& name_hint, int index = -1) {
+      StructInfo struct_info, const String& name_hint, int index = -1) {
     Array<tir::Var> params;
     Array<tir::Buffer> buffers;
-    if (const auto* shape_expr = shape.as<ShapeExprNode>()) {
+    if (const auto* tensor = struct_info.as<TensorStructInfoNode>()) {
       // Case 1. the relax param is a DynTensor, we directly create a tir var and buffer
-      ICHECK(type->IsInstance<DynTensorTypeNode>());
+      const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
+      ICHECK(shape_expr) << "FuseTIR expects all parameters are Tensors with symbolic shape.";
+
       String name = index == -1 ? name_hint : name_hint + "_" + std::to_string(index);
-      DataType dtype = Downcast<DynTensorType>(type)->dtype;
+      DataType dtype = tensor->dtype;
       tir::Buffer buffer = tir::decl_buffer(shape_expr->values, dtype, name);
       // Differentiate buffer name and param name by adding prefix `v_` to param
       // Every symbol should be unique in TVMScript, and Buffer is used more than param
@@ -491,15 +492,13 @@ class FusedTIRConstructor : public ExprVisitor {
       tir::Var param = tir::Var("p_" + name, PrimType(DataType::Handle()));
       params.push_back(std::move(param));
       buffers.push_back(std::move(buffer));
-    } else if (const auto* shape_tuple = shape.as<TupleNode>()) {
+    } else if (const auto* tuple = struct_info.as<TupleStructInfoNode>()) {
       // Case 2. the relax param is a Tuple, we recursively visit each field until it's a DynTensor
-      ICHECK(type->IsInstance<TupleTypeNode>());
-      TupleType tuple_type = Downcast<TupleType>(type);
       // Enable postfix
       if (index == -1) index = 0;
-      for (size_t i = 0; i < shape_tuple->fields.size(); ++i) {
+      for (size_t i = 0; i < tuple->fields.size(); ++i) {
         auto ret =
-            CreateParamsAndBuffers(tuple_type->fields[i], shape_tuple->fields[i], name_hint, index);
+            CreateParamsAndBuffers(tuple->fields[i], name_hint, index);
         const Array<tir::Var>& ret_params = ret.first;
         const Array<tir::Buffer>& ret_buffers = ret.second;
         ICHECK_EQ(ret_params.size(), ret_buffers.size());
@@ -631,9 +630,26 @@ class TIRFuseMutator : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
 
+  // Gte shape from call tir
+  static Expr GetCallTIRShape(StructInfo sinfo) {
+    if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
+      Array<Expr> fields = tuple->fields.Map([&](StructInfo x){
+        return GetCallTIRShape(x);
+      });
+      return Tuple(fields);
+    } else {
+      auto* tensor = sinfo.as<TensorStructInfoNode>();
+      ICHECK(tensor) << "FuseTIR can only take tensor or tuple type";
+      auto* shape_expr = tensor->shape.as<ShapeExprNode>();
+      ICHECK(shape_expr) << "FuseTIR requires all intermediate values have shape";
+      return GetRef<ShapeExpr>(shape_expr);
+    }
+  }
+
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    Call call = Downcast<Call>(builder_->Normalize(ExprMutator::VisitExpr_(op)));
+
     if (call->op->IsInstance<GlobalVarNode>()) {
       // Case 1. It is a relax cross function call
       GlobalVar old_gv = Downcast<GlobalVar>(call->op);
@@ -649,7 +665,7 @@ class TIRFuseMutator : public ExprMutator {
           arg_list.insert(arg_list.end(), flattened.begin(), flattened.end());
         }
         // Step b. Create call_tir
-        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list), call->shape()};
+        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list), GetCallTIRShape(GetStructInfo(call))};
         return Call(call_tir_op_, call_args, call->attrs, {call->checked_type()});
       } else {
         // Case 1.2. The callee function is not primitive, nothing to do.
@@ -672,9 +688,9 @@ class TIRFuseMutator : public ExprMutator {
 
   /*! \brief Flatten the call args if it's Tuple by emitting `TupleGetItem`. */
   Array<Expr> FlattenArg(const Expr& arg) {
-    if (const auto* tuple_shape = arg->shape().as<TupleNode>()) {
+    if (const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(arg)) {
       Array<Expr> arg_list;
-      for (size_t i = 0; i < tuple_shape->fields.size(); ++i) {
+      for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
         Expr new_arg = builder_->Emit(TupleGetItem(arg, i));
         Array<Expr> flattened = FlattenArg(new_arg);
         arg_list.insert(arg_list.end(), flattened.begin(), flattened.end());

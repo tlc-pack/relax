@@ -80,10 +80,7 @@ def test_function_single_block():
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
-    assert gv0.shape[0] == m
-    assert gv0.shape[1] == n
-    assert gv0.checked_type.ndim == 2
-    assert gv0.checked_type.dtype == "float16"
+    assert_structural_equal(gv0.struct_info, rx.TensorStructInfo([m, n], "float16"))
     assert len(func.body.blocks) == 1
     assert len(func.body.blocks[0].bindings) == 3
 
@@ -110,10 +107,8 @@ def test_function_multi_blocks():
         bb.emit_func_output(gv2)
 
     func = bb.get()["func"]
-    assert gv2.shape[0] == m
-    assert gv2.shape[1] == n
-    assert gv2.checked_type.ndim == 2
-    assert gv2.checked_type.dtype == "float16"
+
+    assert_structural_equal(gv2.struct_info, rx.TensorStructInfo([m, n], "float16"))
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv2
@@ -214,28 +209,21 @@ def test_binary_shape_type_deduction():
     with bb.function("func", [x, y, z, w]):
         with bb.dataflow():
             lv0 = bb.emit(rx.op.add(x, y))
-            assert lv0.shape[0] == m
-            assert lv0.shape[1] == n
-            assert isinstance(lv0.checked_type, rx.DynTensorType)
-            assert lv0.checked_type.ndim == 2
-            assert lv0.checked_type.dtype == "float16"
+            assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float16"))
 
             lv1 = bb.emit(rx.op.multiply(x, z))
-            assert lv1.shape[0] == m
-            assert lv1.shape[1] == 5
-            assert isinstance(lv1.checked_type, rx.DynTensorType)
-            assert lv1.checked_type.ndim == 2
-            assert lv1.checked_type.dtype == "float16"
+            assert_structural_equal(lv1.struct_info, rx.TensorStructInfo([m, 5], "float16"))
 
             lv2 = bb.emit(rx.op.multiply(z, w))
-            assert isinstance(lv2.checked_type, rx.DynTensorType)
-            assert lv2.checked_type.ndim == 1
-            assert lv2.checked_type.dtype == "float16"
+            assert isinstance(lv2.struct_info, rx.TensorStructInfo)
+            assert lv2.struct_info.ndim == 1
+            assert lv2.struct_info.dtype == "float16"
 
             lv3 = bb.emit(rx.op.multiply(y, w))
             assert isinstance(lv3.struct_info, rx.TensorStructInfo)
-            assert lv3.checked_type.ndim == 1
-            assert lv3.checked_type.dtype == "float16"
+            assert lv3.struct_info.ndim == 1
+            assert lv3.struct_info.dtype == "float16"
+
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
 
@@ -257,14 +245,11 @@ def test_emit_match_shape():
             #   match_shape(x: Tensor(_, "float32"], [m, n))
             lv0 = bb.match_shape(x, [m, n])
             assert isinstance(lv0, rx.DataflowVar)
-            assert lv0.shape[0] == m
-            assert lv0.shape[1] == n
-            assert lv0.checked_type.ndim == 2
-            assert lv0.checked_type.dtype == "float32"
+            assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float32"))
 
             # lv1: Shape = match_shape(shape, [m, n])
             lv1 = bb.match_shape(y, [m, n])
-            assert lv1.checked_type == rx.ShapeType(2)
+            assert lv1.struct_info == rx.ShapeStructInfo(ndim=2)
             gv0 = bb.emit_output(lv1)
 
         bb.emit_func_output(gv0)
@@ -312,8 +297,6 @@ def test_emit_match_shape_binding_in_dataflow_block():
 def test_normalize():
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
-    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
 
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
@@ -321,44 +304,34 @@ def test_normalize():
 
     # Call node
     add_call = rx.op.multiply(x, y)
-    assert isinstance(add_call.shape, rx.Call)
 
     bb.normalize(add_call)
-    assert isinstance(add_call.shape, rx.ShapeExpr)
-    assert add_call.shape[0] == m
-    assert add_call.shape[1] == n
+    shape = rx.shape_of(add_call)
+
+    assert isinstance(shape, rx.ShapeExpr)
+    assert shape[0] == m
+    assert shape[1] == n
 
     # Tuple node
     tuple_1 = rx.Tuple([x, y])
     bb.normalize(tuple_1)
-    assert_structural_equal(tuple_1.checked_type, rx.TupleType([type_anno0, type_anno1]))
-    assert_structural_equal(tuple_1.shape, rx.Tuple([x.shape, y.shape]))
     assert isinstance(tuple_1.struct_info, rx.TupleStructInfo)
     assert isinstance(tuple_1.struct_info.fields[0], rx.TensorStructInfo)
     assert isinstance(tuple_1.struct_info.fields[1], rx.TensorStructInfo)
 
-    # Note sure if it's needed
-    assert_structural_equal(
-        tuple_1.shape.struct_info,
-        rx.TupleStructInfo([rx.ShapeStructInfo([m, n]), rx.ShapeStructInfo([n])]),
-    )
-
     # Nested Tuple
     tuple_2 = rx.Tuple([x, rx.Tuple([x, y])])
     bb.normalize(tuple_2)
+    type_anno0 = x.checked_type
+    type_anno1 = y.checked_type
     assert_structural_equal(
         tuple_2.checked_type, rx.TupleType([type_anno0, rx.TupleType([type_anno0, type_anno1])])
     )
-    assert_structural_equal(tuple_2.shape, rx.Tuple([x.shape, rx.Tuple([x.shape, y.shape])]))
     assert isinstance(tuple_2.struct_info, rx.TupleStructInfo)
     assert isinstance(tuple_2.struct_info.fields[0], rx.TensorStructInfo)
     assert isinstance(tuple_2.struct_info.fields[1], rx.TupleStructInfo)
     assert isinstance(tuple_2.struct_info.fields[1].fields[0], rx.TensorStructInfo)
     assert isinstance(tuple_2.struct_info.fields[1].fields[1], rx.TensorStructInfo)
-    # assert_structural_equal(
-    #     tuple_2.shape.checked_type,
-    #     rx.TupleType([rx.ShapeType(), rx.TupleType([rx.ShapeType(), rx.ShapeType()])]),
-    # )
 
 
 def test_call_te():
@@ -540,20 +513,16 @@ def test_emit_tuple_get_item():
         y = bb.emit_te(topi.nn.batch_norm, data, gamma, beta, moving_mean, moving_var)
 
         z = bb.emit(rx.TupleGetItem(y, 0))
-        assert z.shape[0] == n
-        assert z.shape[1] == m
-        assert z.shape[2] == 224
-        assert z.shape[3] == 224
-        assert z.checked_type.ndim == 4
-        assert z.checked_type.dtype == "float32"
+        assert_structural_equal(
+            z.struct_info, rx.TensorStructInfo([n, m, 224, 224], dtype="float32")
+        )
 
         w = bb.emit(rx.TupleGetItem(y, 1))
-        assert w.shape[0] == m
-        assert w.checked_type.dtype == "float32"
+        assert_structural_equal(w.struct_info, rx.TensorStructInfo([m], dtype="float32"))
 
         o = bb.emit(rx.TupleGetItem(y, 2))
-        assert o.shape[0] == m
-        assert o.checked_type.dtype == "float32"
+        assert_structural_equal(o.struct_info, rx.TensorStructInfo([m], dtype="float32"))
+
         bb.emit_func_output([y, w], params=[data, gamma, beta, moving_mean, moving_var])
 
     func = bb.get()["rx_func"]

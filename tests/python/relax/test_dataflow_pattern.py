@@ -241,7 +241,7 @@ def test_prim_arr_pattern():
     assert pattern[0] == 32
     assert pattern[1] == 32
     assert isinstance(pattern, PrimArrPattern)
-    assert pattern.match(bindings[0].var.shape)
+    assert pattern.match(rx.shape_of(bindings[0].var))
     n, m = tir.Var("n", dtype="int64"), tir.Var("m", dtype="int64")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     assert is_shape([n, m, n + m]).match(symbolic_shape)

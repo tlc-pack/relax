@@ -22,7 +22,7 @@
  */
 #include "./emit_te.h"
 
-#include <tvm/relax/type.h>
+#include <tvm/relax/struct_info.h>
 
 namespace tvm {
 namespace relax {
@@ -57,19 +57,17 @@ te::Tensor TETensor(Expr value, std::string name) {
     n->shape = std::move(shape);
     return te::PlaceholderOp(n).output(0);
   }
-
-  Expr shape_expr = value->shape();
-  CHECK(shape_expr->IsInstance<ShapeExprNode>())
+  ICHECK(value->struct_info_.defined())
+    << "value must be normalized and contain StructInfo";
+  auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(value);
+  ICHECK(tensor_sinfo) << "Value must be a tensor";
+  auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();
+  CHECK(shape_expr)
       << "ValueError: Expression does not have an known symbolic shape, please consider use "
          "match_shape "
       << "to constrain the shape before passing into te_tensor";
-  Array<PrimExpr> shape = Downcast<ShapeExpr>(shape_expr)->values;
-  n->shape = shape;
-  Type type = value->checked_type();
-  ICHECK(type->IsInstance<DynTensorTypeNode>())
-      << "ValueError: Expression should have a inferred DynTensorType: " << type->GetTypeKey();
-  DataType dtype = Downcast<DynTensorType>(type)->dtype;
-  n->dtype = dtype;
+  n->shape = shape_expr->values;
+  n->dtype = tensor_sinfo->dtype;
   return te::PlaceholderOp(n).output(0);
 }
 
