@@ -23,43 +23,9 @@ import tvm
 
 from tvm.ir import Span, Node, EnvFunc, Array, Type
 from tvm.tir import PrimExpr
-from .expr import Var, Expr, ShapeExpr
+from .expr import StructInfo, Var, Expr, ShapeExpr
 
 from . import _ffi_api, ty, expr
-
-
-class StructInfo(Node):
-    """The base class of all StructInfo.
-
-    StructInfo contains both the static type
-    and runtime structural information.
-    """
-
-    def __eq__(self, other):
-        """Compare two struct info for structural equivalence."""
-        return tvm.ir.structural_equal(self, other)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def same_as(self, other):
-        """Overload with structural equality."""
-        return super().__eq__(other)
-
-    def is_base_of(self, derived: "StructInfo") -> bool:
-        """Check if self is base of another derived struct info.
-
-        Parameters
-        ----------
-        derived : StructInfo
-            The derived struct info to be checked.
-
-        Returns
-        -------
-        result : bool
-            The check result.
-        """
-        return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.ObjectStructInfo")

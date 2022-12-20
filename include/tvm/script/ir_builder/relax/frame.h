@@ -88,22 +88,15 @@ class FunctionFrameNode : public SeqExprFrameNode {
   /*! \brief The function params. */
   Array<tvm::relax::Var> params;
   /*!
-   * \brief The function return type.
+   * \brief The function return struct info.
    * \note Usually the function return type can be deduced by the function body.
    *       But we can use this field to specify a more "accurate" return type.
-   *       i.e. If the `ret_type` is None, try to use the deduced type from body
-   *       If the `ret_type` is not None, check the deduced type is a base type of the given one.
+   *       i.e. If the `ret_struct_info` is None, try to use the deduced type from body
+   *       If the `ret_struct_info` is not None, check the deduced type is a base type
+   *       of the given one.
    */
-  Optional<Type> ret_type;
-  /*!
-   * \brief The function return shape.
-   * \sa ret_type
-   */
-  Optional<tvm::relax::Expr> ret_shape;
-  /*!
-   * \brief The function return struct info.
-   */
-  Optional<tvm::relax::StructInfo> ret_sinfo;
+  Optional<tvm::relax::StructInfo> ret_struct_info;
+
   /*! \brief The function attributes. */
   Map<String, ObjectRef> attrs;
   /*! \brief The block builder to create Relax function. */
@@ -113,7 +106,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
     SeqExprFrameNode::VisitAttrs(v);
     v->Visit("name", &name);
     v->Visit("params", &params);
-    v->Visit("ret_type", &ret_type);
+    v->Visit("ret_struct_info", &ret_struct_info);
     v->Visit("attrs", &attrs);
     v->Visit("binding_blocks", &binding_blocks);
     v->Visit("output", &output);

@@ -289,63 +289,51 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
-Var::Var(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation, Span span) {
+Var::Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
-  // invariant for transition, always require type ann if shape is provided.
-  if (shape_annotation) {
-    ICHECK(type_annotation) << "Var requires type annotation if we provide shape ann";
+  if (struct_info_annotation) {
+    n->checked_type_ = GetStaticType(struct_info_annotation.value());
+    n->shape_ = GetLegacyShapeHint(struct_info_annotation.value());
   }
-  if (type_annotation) {
-    StructInfo sinfo = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
-    n->struct_info_ = sinfo;
-    n->checked_type_ = std::move(type_annotation.value());
-    n->shape_ = GetLegacyShapeHint(sinfo);
-  }
+  n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relax.Var")
-    .set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
-                       Optional<Type> type_annotation, Span span) {
-      return Var(name_hint, shape_annotation, type_annotation, span);
+    .set_body_typed([](String name_hint, Optional<StructInfo> struct_info_annotation, Span span) {
+      return Var(name_hint, struct_info_annotation, span);
     });
 
 TVM_REGISTER_GLOBAL("relax.VarFromId")
-    .set_body_typed([](Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
-                       Span span) { return Var(vid, shape_annotation, type_annotation, span); });
+    .set_body_typed([](Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
+      return Var(vid, struct_info_annotation, span);
+    });
 
 TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
-DataflowVar::DataflowVar(Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
-                         Span span) {
+DataflowVar::DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
   n->vid = std::move(vid);
-  // invariant for transition, always require type ann if shape is provided.
-  if (shape_annotation) {
-    ICHECK(type_annotation) << "Var requires type annotation if we provide shape ann";
+  if (struct_info_annotation) {
+    n->checked_type_ = GetStaticType(struct_info_annotation.value());
+    n->shape_ = GetLegacyShapeHint(struct_info_annotation.value());
   }
-  if (type_annotation) {
-    StructInfo sinfo = StructInfoFromTypeLegacyShapeHint(type_annotation.value(), shape_annotation);
-    n->struct_info_ = sinfo;
-    n->checked_type_ = std::move(type_annotation.value());
-    n->shape_ = GetLegacyShapeHint(sinfo);
-  }
+  n->struct_info_ = std::move(struct_info_annotation);
+  n->span = std::move(span);
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relax.DataflowVar")
-    .set_body_typed([](String name_hint, Optional<Expr> shape_annotation,
-                       Optional<Type> type_annotation, Span span) {
-      return DataflowVar(name_hint, shape_annotation, type_annotation, span);
+    .set_body_typed([](String name_hint, Optional<StructInfo> struct_info_annotation, Span span) {
+      return DataflowVar(name_hint, struct_info_annotation, span);
     });
 
 TVM_REGISTER_GLOBAL("relax.DataflowVarFromId")
-    .set_body_typed([](Id vid, Optional<Expr> shape_annotation, Optional<Type> type_annotation,
-                       Span span) {
-      return DataflowVar(vid, shape_annotation, type_annotation, span);
+    .set_body_typed([](Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
+      return DataflowVar(vid, struct_info_annotation, span);
     });
 
 Constant::Constant(runtime::NDArray data, Span span) {
@@ -449,8 +437,8 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, DictAttrs attrs,
-                   Span span) {
+Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
+                   DictAttrs attrs, Span span) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
@@ -462,35 +450,32 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
     param_sinfo.push_back(GetStructInfo(param));
   }
 
-  Optional<StructInfo> ret_sinfo;
   Optional<StructInfo> body_sinfo;
 
   if (body->struct_info_.defined()) {
     body_sinfo = GetStructInfo(body);
   }
 
-  if (ret_type.defined()) {
-    ret_sinfo = StructInfoFromTypeLegacyShapeHint(ret_type, ret_shape);
+  if (ret_struct_info.defined()) {
     // allow body to override ret if body is more fine-grained.
     if (body_sinfo.defined()) {
-      if (IsBaseOf(ret_sinfo.value(), body_sinfo.value())) {
-        ret_sinfo = body_sinfo;
+      if (IsBaseOf(ret_struct_info.value(), body_sinfo.value())) {
+        ret_struct_info = body_sinfo;
       }
     }
   } else {
     CHECK(body_sinfo.defined())
         << "Function do not have a return signature and body is not normalized";
-    ret_sinfo = body_sinfo;
+    ret_struct_info = body_sinfo;
   }
 
-  FuncStructInfo func_sinfo(param_sinfo, ret_sinfo.value());
+  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value());
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
-  n->ret_type = GetStaticType(ret_sinfo.value());
-  n->ret_shape = GetLegacyShapeHint(ret_sinfo.value()).value_or(ret_shape);
+  n->ret_struct_info = std::move(ret_struct_info.value());
   n->checked_type_ = GetStaticType(func_sinfo);
   n->struct_info_ = std::move(func_sinfo);
   n->attrs = std::move(attrs);
@@ -499,49 +484,35 @@ Function::Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape, 
 }
 
 TVM_REGISTER_GLOBAL("relax.Function")
-    .set_body_typed([](Array<Var> params, Expr body, Type ret_type, Expr ret_shape, DictAttrs attrs,
-                       Span span) {
-      return Function(params, body, ret_type, ret_shape, attrs, span);
-    });
+    .set_body_typed([](Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
+                       DictAttrs attrs,
+                       Span span) { return Function(params, body, ret_struct_info, attrs, span); });
 
-Function Function::CreateUnchecked(Array<Var> params, Expr body, Type ret_type, Expr ret_shape,
-                                   DictAttrs attrs, Span span) {
-  // TODO(@Hzfengsy): revisit `CreateUnchecked` after the parser_v1 removed
-
+Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs,
+                               Span span) {
   Array<StructInfo> param_sinfo;
-
-  for (Var param : params) {
+  for (const Var& param : params) {
     ICHECK(param->checked_type_.defined())
         << "relax.Function requires params to contain checked_type_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
-
-  StructInfo ret_info;
-
-  if (ret_type.defined()) {
-    ret_info = StructInfoFromTypeLegacyShapeHint(ret_type, ret_shape);
-  } else {
-    ret_info = FuncStructInfo::OpaqueFunc();
-  }
-  FuncStructInfo finfo(param_sinfo, ret_info);
+  FuncStructInfo finfo(param_sinfo, ret_struct_info);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
-  n->body = std::move(body);
+  n->body = Expr();
   n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
-  n->ret_type = std::move(ret_type);
-  n->ret_shape = std::move(ret_shape);
+  n->ret_struct_info = std::move(ret_struct_info);
   n->attrs = std::move(attrs);
   n->span = std::move(span);
   return Function(std::move(n));
 }
 
-TVM_REGISTER_GLOBAL("relax.Function_CreateUnchecked")
-    .set_body_typed([](Array<Var> params, Expr body, Type ret_type, Expr ret_shape, DictAttrs attrs,
-                       Span span) {
-      return Function::CreateUnchecked(params, body, ret_type, ret_shape, attrs, span);
+TVM_REGISTER_GLOBAL("relax.Function_CreateEmpty")
+    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs, Span span) {
+      return Function::CreateEmpty(params, ret_struct_info, attrs, span);
     });
 
 // Special opaque derivation function for ExternFunc

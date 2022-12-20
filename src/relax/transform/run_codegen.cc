@@ -23,6 +23,7 @@
  * \brief Run codegen for annotated relax functions.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 
 #include <iostream>
@@ -76,7 +77,6 @@ class CodeGenRunner : ExprMutator {
         new_args.push_back(Tuple(tmp_args));
         new_args.push_back(func->body->shape());
 
-        // TODO(@tvm-team): This is not used only for tir function anymore. Can we rename it?
         static const Op& call_op = Op::Get("relax.call_tir");
 
         // Remove global symbol and codegen from the function so that it can be removed.
@@ -87,7 +87,7 @@ class CodeGenRunner : ExprMutator {
         func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
         builder_->UpdateFunction(gvar, func);
 
-        return Call(call_op, new_args, tvm::Attrs(), {func->ret_type});
+        return Call(call_op, new_args, tvm::Attrs(), {GetStaticType(func->ret_struct_info)});
       }
     }
     Array<Expr> new_args;

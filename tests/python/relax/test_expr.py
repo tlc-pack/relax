@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import pytest
 import tvm
-from tvm import tir
 from tvm import relax as rx
-import numpy as np
+from tvm import tir
+from tvm.script import relax as R
 
 
 def test_var() -> None:
@@ -26,13 +27,14 @@ def test_var() -> None:
     assert v0.name_hint == "v0"
     assert v0.shape_ is None
     assert v0._checked_type_ is None
-    shape_anno = [54, 96]
-    type_anno = rx.DynTensorType(2, "float32")
-    v1 = rx.Var("v1", shape_anno, type_anno)
+    assert v0.struct_info_ is None
+    shape = [54, 96]
+    v1 = rx.Var("v1", R.Tensor(shape, "float32"))
     assert v1.name_hint == "v1"
-    for s0, s1 in zip(v1.shape_, shape_anno):
+    for s0, s1 in zip(v1.shape_, shape):
         assert s0 == s1
-    assert v1._checked_type_ == type_anno
+    assert v1.checked_type == rx.DynTensorType(2, "float32")
+    tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float32"))
 
 
 def test_dataflow_var() -> None:
@@ -40,14 +42,16 @@ def test_dataflow_var() -> None:
     assert v0.name_hint == "v0"
     assert v0.shape_ is None
     assert v0._checked_type_ is None
-    shape_anno = [54, 96]
-    type_anno = rx.DynTensorType(2, "float16")
-    v1 = rx.DataflowVar("v1", shape_anno, type_anno)
+    assert v0.struct_info_ is None
+
+    shape = [54, 96]
+    v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
     assert v1.name_hint == "v1"
-    for s0, s1 in zip(v1.shape_, shape_anno):
+    for s0, s1 in zip(v1.shape_, shape):
         assert s0 == s1
-    assert v1._checked_type_ == type_anno
+    assert v1._checked_type_ == rx.DynTensorType(2, "float16")
     assert isinstance(v1, rx.DataflowVar)
+    tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float16"))
 
 
 def test_match_shape() -> None:
@@ -55,7 +59,7 @@ def test_match_shape() -> None:
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
-    var = rx.Var("v0", type_annotation=rx.ShapeType())
+    var = rx.Var("v0", R.Shape())
     b0 = rx.MatchShape(shape, [m, n], var)
     assert b0.value == shape
     assert b0.pattern[0] == m
@@ -63,14 +67,11 @@ def test_match_shape() -> None:
     assert b0.var is not None
     assert b0.var.checked_type == rx.ShapeType()
 
-    # var1: Tensor((m, n), "float32") =
-    #   match_shape(var0: Tensor(_, "float32"), [m, n])
-    type_anno0 = rx.DynTensorType(-1, "float32")
-    value = rx.Var("value", type_annotation=type_anno0)
+    # var1: R.Tensor((m, n), "float32") =
+    #   match_shape(var0: R.Tensor("float32", ndim=-1), [m, n])
+    value = rx.Var("value", R.Tensor("float32", ndim=-1))
 
-    shape_anno = [m, n]
-    type_anno = rx.DynTensorType(2, "float32")
-    var = rx.Var("v1", shape_anno, type_anno)
+    var = rx.Var("v1", R.Tensor([m, n], "float32"))
     b1 = rx.MatchShape(value, [m, n], var)
     assert b1.value == value
     assert b1.pattern[0] == m
@@ -129,31 +130,18 @@ def test_seq_expr() -> None:
     assert seqe.body == x
 
 
-def test_shape_expr() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
-    s = rx.ShapeExpr([m, n])
-    assert s.values[0] == m
-    assert s.values[1] == n
-
-    assert isinstance(s.struct_info, rx.ShapeStructInfo)
-
-
 def test_func():
-    type_anno = rx.DynTensorType(2, "float32")
-    x = rx.Var("foo", type_annotation=type_anno)
+    x = rx.Var("foo", R.Tensor("float32", ndim=2))
     bindings = [rx.VarBinding(x, rx.const(1))]
     blocks = [rx.BindingBlock(bindings)]
 
     seqe = rx.SeqExpr(blocks, x)
-    ret_type = rx.DynTensorType(-1, "float32")
-    ret_shape = rx.RuntimeDepShape()
-    func = rx.Function([x], seqe, ret_type, ret_shape)
+    ret_struct_info = R.Tensor("float32", ndim=-1)
+    func = rx.Function([x], seqe, ret_struct_info)
     func = func.with_attr("global_symbol", "func")
     assert func.params[0] == x
     assert func.body == seqe
-    assert func.ret_type == ret_type
-    assert isinstance(func.ret_shape, rx.RuntimeDepShape)
+    assert func.ret_struct_info == ret_struct_info
     assert func.attrs["global_symbol"] == "func"
 
 
@@ -163,21 +151,28 @@ def test_shape_of():
     assert isinstance(s0, rx.Call)
     assert s0.op.name == "relax.shape_of"
 
-    shape_anno = [96, 54]
-    v1 = rx.Var("v1", shape_anno, rx.DynTensorType(ndim=2))
+    shape = [96, 54]
+    v1 = rx.Var("v1", R.Tensor(shape))
     s1 = v1.shape
-    for x, y in zip(shape_anno, s1):
+    for x, y in zip(shape, s1):
         assert x == y
 
 
 def test_shape_expr():
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
+    s = rx.ShapeExpr([m, n])
+    assert s.values[0] == m
+    assert s.values[1] == n
+    assert isinstance(s.struct_info, rx.ShapeStructInfo)
+
     shape_expr = rx.ShapeExpr([10, 20])
     assert shape_expr.values[0] == 10
     assert shape_expr.values[1] == 20
     assert shape_expr.checked_type == rx.ShapeType(ndim=2)
     assert shape_expr.shape_ is None
 
-    x = rx.Var("v0", (10, 20), rx.DynTensorType(2, "float32"))
+    x = rx.Var("v0", R.Tensor((10, 20), "float32"))
     assert x.shape_.values[0] == 10
     assert x.shape_.values[1] == 20
     assert x.shape_.checked_type == rx.ShapeType(ndim=2)

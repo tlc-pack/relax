@@ -19,7 +19,6 @@
 
 
 import tvm
-from tvm.relay import Call
 from tvm import relax, tir, topi
 import numpy as np
 
@@ -40,8 +39,8 @@ if __name__ == "__main__":
     # symbolic dimensions
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     # create data and weight variables
-    data = relax.Var("data", [n, m], relax.DynTensorType(2, "float32"))
-    weight = relax.Var("weight", [m, n], relax.DynTensorType(2, "float32"))
+    data = relax.Var("data", relax.TensorStructInfo([n, m], "float32"))
+    weight = relax.Var("weight", relax.TensorStructInfo([m, n], "float32"))
 
     # construct a mlp model
     mod = build_mlp(data, weight)

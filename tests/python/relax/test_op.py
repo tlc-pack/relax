@@ -16,8 +16,8 @@
 # under the License.
 import pytest
 import tvm
-from tvm import tir
 from tvm import relax as rx
+from tvm.script import relax as R
 from tvm.script import tir as T
 
 
@@ -38,9 +38,7 @@ def identity_tir(a: T.handle, b: T.handle) -> None:
 
 
 def test_call_tir() -> None:
-    shape_anno = [54, 96]
-    type_anno = rx.DynTensorType(2, "float32")
-    v0 = rx.Var("v0", shape_anno, type_anno)
+    v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
     v1 = rx.call_tir(rx.extern("test.op.identity"), [v0], [54, 96], "float32")
     v1 = rx.call_tir(identity_tir, [v0], [54, 96], "float32")
 

@@ -129,7 +129,7 @@ def test_erase_to_well_defined_shape():
 
 def test_erase_to_well_defined_tensor():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-    rshape = rx.Var("shape", type_annotation=rx.ShapeType(ndim=2))
+    rshape = rx.Var("shape", rx.ShapeStructInfo(ndim=2))
     s0 = rx.TensorStructInfo(rshape, dtype="int32")
 
     # undefined
@@ -324,8 +324,7 @@ def _check_derive(ctx, finfo, args_sinfo, ret):
     rx.expr._update_struct_info(gv, finfo)
     args = []
     for i, sinfo in enumerate(args_sinfo):
-        arg = rx.Var("arg%i" % i)
-        rx.expr._update_struct_info(arg, sinfo)
+        arg = rx.Var("arg%i" % i, sinfo)
         args.append(arg)
     call = rx.Call(gv, args)
     derived_ret = rx.analysis.derive_call_ret_struct_info(finfo, call, ctx)

@@ -24,7 +24,7 @@
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/type.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -45,8 +45,7 @@ class VMShapeLowerMutator : public ExprMutator {
         // prepare mapping and heap var
         expr2slot_ = PrepareExpr2Slot(Downcast<Function>(func));
         heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
-        DynTensorType heap_type(1, ShapeDType());
-        shape_heap_ = Var("shape_heap", ShapeExpr({heap_size_}), heap_type);
+        shape_heap_ = Var("shape_heap", TensorStructInfo(ShapeExpr({heap_size_}), ShapeDType()));
 
         // mutate
         Function updated_func = Downcast<Function>(VisitExpr(func));
@@ -120,18 +119,16 @@ class VMShapeLowerMutator : public ExprMutator {
     // builder_->Emit(Call(ExternFunc("vm.builtin.free_shape_heap"), {shape_heap_}), "gv");
     new_body = builder_->Normalize(SeqExpr(blocks, new_body));
 
-    Type ret_type = this->VisitType(node->ret_type);
-    // should not be necessary to do anything with it
-    Expr ret_shape = node->ret_shape;
+    StructInfo ret_struct_info = node->ret_struct_info;
 
     // Because this pass is the last stage of build, ndim info is no longer needed for tensors.
     // The ret_type is weakened to unknown-dimensional DynTensorType.
     // TODO(@yuchen): change all tensor types in the function to unknown ndim
-    if (const DynTensorTypeNode* temp = ret_type.as<DynTensorTypeNode>()) {
-      ret_type = DynTensorType::CreateUnknownNDim(temp->dtype, Span());
+    if (const auto* tensor_sinfo = ret_struct_info.as<TensorStructInfoNode>()) {
+      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/-1);
     }
 
-    return builder_->Normalize(Function(node->params, new_body, ret_type, ret_shape, node->attrs));
+    return builder_->Normalize(Function(node->params, new_body, ret_struct_info, node->attrs));
   }
 
   tir::PrimFunc CalculateShape(ShapeExpr s) {

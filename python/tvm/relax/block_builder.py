@@ -90,8 +90,7 @@ class TestingScope(object):
             else:
                 raise ValueError("def_vars only can take tir.Var")
         # setup a dummy var so shape is in scope.
-        sparam = tvm.relax.Var("sparam")
-        tvm.relax.expr._update_struct_info(sparam, tvm.relax.ShapeStructInfo(shape_vars))
+        sparam = rx.Var("sparam", rx.ShapeStructInfo(shape_vars))
         self._scope_params = [sparam]
 
     def __enter__(self):
@@ -113,10 +112,8 @@ class BlockBuilder(Object):
 
         m = tir.Var("m", "int32")
         n = tir.Var("n", "int32")
-        type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
-        type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
-        x = rx.Var("x", [m, n], type_anno0)
-        y = rx.Var("y", [n], type_anno1)
+        x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
+        y = rx.Var("y", rx.TensorStructInfo([n], "float16")
         bb = rx.BlockBuilder()
         with bb.function([x, y], "func"):
             with bb.dataflow() as df:
@@ -126,7 +123,7 @@ class BlockBuilder(Object):
             bb.emit_func_output(gv0)
         mod = bb.get()
 
-    BlockBuilder can also be used to contruct neural networks with nn.Module API
+    BlockBuilder can also be used to construct neural networks with nn.Module API
 
     .. code-block:: python
 
@@ -454,9 +451,8 @@ class BlockBuilder(Object):
 
             bb = rx.BlockBuilder()
             n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-            type_anno = rx.DynTensorType(2, "float32")
-            x = rx.Var("x", [n, m], type_anno)
-            y = rx.Var("y", [n, m], type_anno)
+            x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
+            y = rx.Var("y", rx.TensorStructInfo([n, m], "float32"))
 
             def te_func(args, args_dict, msg):
                 A = args[0]
@@ -505,9 +501,8 @@ class BlockBuilder(Object):
 
             bb = relax.BlockBuilder()
             n = tir.Var("n", "int64")
-            type_anno = relax.DynTensorType(1, "float32")
-            x = relax.Var("x", [n], type_anno)
-            y = relax.Var("y", [n + 1], type_anno)
+            x = relax.Var("x", relax.TensorStructInfo([n], "float32"))
+            y = relax.Var("y", relax.TensorStructInfo([n + 1], "float32"))
 
             def te_func(A):
                 C = te.compute((n + 1), lambda i: A[i])
@@ -629,9 +624,7 @@ class BlockBuilder(Object):
         seqe = self.normalize(rx.SeqExpr(self._blocks, output))
 
         # The function's checked_type_ relies on the function body(seqe) to have deduced type
-        # TODO(@yuchen): handle the case where the body's checked_type_ is null
-        # TODO: Deduce the ret shape too
-        func = rx.Function(self._func_params, seqe, None, rx.RuntimeDepShape())
+        func = rx.Function(self._func_params, seqe, None)
         for key, value in self._func_attrs.items():
             func = func.with_attr(key, value)
         self.end_scope()

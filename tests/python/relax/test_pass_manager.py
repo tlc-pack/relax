@@ -141,8 +141,7 @@ def test_dataflowblock_class_pass():
 
         def __init__(self):
             # create a new VarBinding
-            type_anno = relax.DynTensorType(2, "float32")
-            lv0 = relax.Var("lv1", (2, 2), type_anno)
+            lv0 = relax.Var("lv1", R.Tensor((2, 2), "float32"))
             val = relax.const(np.random.rand(24, 56))
             self.new_binding = relax.VarBinding(lv0, val)
 
