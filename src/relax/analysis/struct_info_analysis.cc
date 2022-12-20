@@ -228,8 +228,10 @@ class WellDefinedEraser : public StructInfoMutator,
   }
 
   StructInfo VisitStructInfo_(const FuncStructInfoNode* op) final {
-    // NOTE: we always require func struct info to be well formed.
-    // and need to avoid recursing into it as the vars are defined in params.
+    // NOTE: we always require func struct info to be well-defined.
+    //
+    // All the occuring symbolic variables are defined in parameters'
+    // struct info annotations. So there is no needed to erase.
     return GetRef<StructInfo>(op);
   }
 
@@ -771,6 +773,8 @@ class StructInfoLCAFinder
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
     if (lhs->dtype == rhs->dtype) return GetRef<StructInfo>(lhs);
+    // PrimType will be treated as their boxed(object) values
+    // as a result we can unify to object.
     return ObjectStructInfo(lhs->span);
   }
 

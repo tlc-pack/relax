@@ -199,6 +199,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void BeginBindingBlock() final { block_stack_.emplace_back(BlockFrame{{}, false}); }
 
   void BeginScope(Optional<Array<Var>> params) final {
+    // The current implementation handles the collection of shape var
+    // defined in parameter struct info annotations. The implementation
+    // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
+    // but can be further improved.
+    //
+    // TODO(relax-team): Add support for relax Var in struct info annotations.
     Map<tir::Var, PrimExpr> shape_var_map;
     for (const Var& var : params.value_or(Array<Var>())) {
       const Map<tir::Var, PrimExpr>& var_map = StructInfoVarCollector::Collect(GetStructInfo(var));

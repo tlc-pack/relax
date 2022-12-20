@@ -642,7 +642,13 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
   return builder_->EndBlock();
 }
 
-Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) { return GetRef<Var>(var); }
+Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
+  // If an Expr have struct info, they must already be normalized,
+  // This invariant is checked at the constructor location.
+  // to simplify our overall development complexity and keep var def
+  // stable by default.
+  return GetRef<Var>(var);
+}
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) { return GetRef<Var>(var); }
 

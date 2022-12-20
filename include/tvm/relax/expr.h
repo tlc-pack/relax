@@ -52,9 +52,9 @@ using relay::Id;
  * signatures. They will imply a runtime check that matches
  * the structure information with the value.
  *
- * When it appears in normal expressions, they follow "assume-semantics",
+ * When it appears in Expr, they follow "assume-semantics",
  * which means the compiler will take the deduced information as it is
- * and do not attempt to do extra proofs.
+ * and only do best effort prove and checks.
  *
  * Each struct info can be uniquely erased to a static-type.
  * The compiler will still compile the code(with less information)
