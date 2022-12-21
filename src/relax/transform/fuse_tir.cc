@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/transform.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../relay/analysis/graph_partitioner.h"
@@ -497,8 +497,7 @@ class FusedTIRConstructor : public ExprVisitor {
       // Enable postfix
       if (index == -1) index = 0;
       for (size_t i = 0; i < tuple->fields.size(); ++i) {
-        auto ret =
-            CreateParamsAndBuffers(tuple->fields[i], name_hint, index);
+        auto ret = CreateParamsAndBuffers(tuple->fields[i], name_hint, index);
         const Array<tir::Var>& ret_params = ret.first;
         const Array<tir::Buffer>& ret_buffers = ret.second;
         ICHECK_EQ(ret_params.size(), ret_buffers.size());
@@ -633,9 +632,7 @@ class TIRFuseMutator : public ExprMutator {
   // Gte shape from call tir
   static Expr GetCallTIRShape(StructInfo sinfo) {
     if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-      Array<Expr> fields = tuple->fields.Map([&](StructInfo x){
-        return GetCallTIRShape(x);
-      });
+      Array<Expr> fields = tuple->fields.Map([&](StructInfo x) { return GetCallTIRShape(x); });
       return Tuple(fields);
     } else {
       auto* tensor = sinfo.as<TensorStructInfoNode>();
@@ -665,7 +662,8 @@ class TIRFuseMutator : public ExprMutator {
           arg_list.insert(arg_list.end(), flattened.begin(), flattened.end());
         }
         // Step b. Create call_tir
-        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list), GetCallTIRShape(GetStructInfo(call))};
+        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list),
+                                 GetCallTIRShape(GetStructInfo(call))};
         return Call(call_tir_op_, call_args, call->attrs, {call->checked_type()});
       } else {
         // Case 1.2. The callee function is not primitive, nothing to do.

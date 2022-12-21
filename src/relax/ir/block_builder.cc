@@ -620,22 +620,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return ExprFunctor::VisitExpr(expr);
   }
 
-  // Helper function to get the shape of a Tuple based on its fields
-  Optional<Expr> GetTupleShape(const Tuple& tuple) {
-    Array<Expr> tuple_shape;
-    for (Expr field : tuple->fields) {
-      if (field->shape_.defined()) {
-        tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
-      } else {
-        break;
-      }
-    }
-    if (tuple_shape.size() == tuple->fields.size()) {
-      return Tuple(tuple_shape);
-    }
-    return NullOpt;
-  }
-
   Expr VisitExpr_(const TupleNode* op) final {
     bool unchanged = true;
     Array<Expr> new_fields;

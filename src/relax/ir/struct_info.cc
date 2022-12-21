@@ -234,7 +234,6 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
   expr->struct_info_ = struct_info;
   // also set checked type
   expr->checked_type_ = GetStaticType(struct_info);
-  expr->shape_ = GetLegacyShapeHint(struct_info);
 }
 
 TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, StructInfo struct_info) {

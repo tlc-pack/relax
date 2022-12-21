@@ -87,10 +87,6 @@ void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
 void ExprVisitor::VisitExpr_(const ConstantNode* op) {
   this->VisitSpan(op->span);
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-  }
 }
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) { this->VisitSpan(op->span); }
@@ -99,10 +95,6 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
   this->VisitSpan(op->span);
   for (Expr field : op->fields) {
     this->VisitExpr(field);
-  }
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
   }
 }
 
@@ -131,10 +123,6 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
 
   for (Expr arg : op->args) {
     this->VisitExpr(arg);
-  }
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
   }
 }
 
@@ -217,18 +205,10 @@ void ExprVisitor::VisitBindingBlock_(const DataflowBlockNode* block) {
 
 void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
   this->VisitSpan(var->span);
-
-  if (var->shape_) {
-    this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-  }
 }
 
 void ExprVisitor::VisitVarDef_(const VarNode* var) {
   this->VisitSpan(var->span);
-
-  if (var->shape_) {
-    this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-  }
 }
 
 void ExprVisitor::VisitBinding(const Binding& binding) {

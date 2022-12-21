@@ -229,7 +229,6 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
     return value;
   });
   n->span = span;
-  n->shape_ = NullOpt;
   n->checked_type_ = ShapeType(values.size());
   n->struct_info_ = ShapeStructInfo(values, span);
   data_ = std::move(n);
@@ -273,7 +272,6 @@ Var::Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   n->vid = std::move(vid);
   if (struct_info_annotation) {
     n->checked_type_ = GetStaticType(struct_info_annotation.value());
-    n->shape_ = GetLegacyShapeHint(struct_info_annotation.value());
   }
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
@@ -297,7 +295,6 @@ DataflowVar::DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation, Sp
   n->vid = std::move(vid);
   if (struct_info_annotation) {
     n->checked_type_ = GetStaticType(struct_info_annotation.value());
-    n->shape_ = GetLegacyShapeHint(struct_info_annotation.value());
   }
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
@@ -330,8 +327,6 @@ Constant::Constant(runtime::NDArray data, Span span) {
 
   n->struct_info_ = tinfo;
   n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
-  n->shape_ = tinfo->shape;
-
   data_ = std::move(n);
 }
 
@@ -536,11 +531,9 @@ TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, 
   return ExternFunc(global_symbol, span);
 });
 
-
 Expr ShapeOf(const Expr& expr) {
   // default case, to be normalized.
-  ICHECK(expr->struct_info_.defined())
-    << "ShapeOf can only be applied to normalized expr";
+  ICHECK(expr->struct_info_.defined()) << "ShapeOf can only be applied to normalized expr";
   auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
 
   ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with known StructInfo";
@@ -553,9 +546,7 @@ Expr ShapeOf(const Expr& expr) {
   return call_shape_of;
 }
 
-TVM_REGISTER_GLOBAL("relax.ShapeOf").set_body_typed([](const Expr& expr) {
-  return ShapeOf(expr);
-});
+TVM_REGISTER_GLOBAL("relax.ShapeOf").set_body_typed([](const Expr& expr) { return ShapeOf(expr); });
 
 }  // namespace relax
 }  // namespace tvm

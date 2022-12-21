@@ -26,8 +26,8 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/tir/op.h>
 
 #include <array>
@@ -436,7 +436,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   if (const auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
       return ShapeEqual(&analyzer_, op->shape, shape_expr->values) &&
-           VisitDFPattern(op->pattern, expr);
+             VisitDFPattern(op->pattern, expr);
     }
   }
   return false;

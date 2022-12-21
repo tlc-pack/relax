@@ -135,10 +135,9 @@ class CallNode : public ExprNode {
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -214,10 +213,9 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
-    v->Visit("span", &span);
-    v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
@@ -270,10 +268,9 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
-    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
@@ -329,10 +326,9 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
-    v->Visit("span", &span);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
@@ -380,21 +376,18 @@ class ShapeExprNode : public ExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) && equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
+    return equal(values, other->values) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(values);
-    hash_reduce(checked_type_);
-    hash_reduce(shape_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.ShapeExpr";
@@ -419,19 +412,18 @@ class ShapeExpr : public Expr {
 class RuntimeDepShapeNode : public ExprNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const RuntimeDepShapeNode* other, SEqualReducer equal) const {
-    return equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+    return equal(checked_type_, other->checked_type_) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(checked_type_);
-    hash_reduce(shape_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.RuntimeDepShape";
@@ -459,7 +451,6 @@ class VarNode : public ExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
@@ -467,14 +458,12 @@ class VarNode : public ExprNode {
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
+    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(vid);
-    hash_reduce(shape_);
-    hash_reduce(checked_type_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Var";
@@ -502,7 +491,6 @@ class DataflowVarNode : public VarNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
@@ -510,14 +498,12 @@ class DataflowVarNode : public VarNode {
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(shape_, other->shape_) &&
-           equal(checked_type_, other->checked_type_);
+    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(vid);
-    hash_reduce(shape_);
-    hash_reduce(checked_type_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.DataflowVar";
@@ -557,10 +543,9 @@ class ConstantNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
@@ -751,22 +736,18 @@ class SeqExprNode : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("blocks", &blocks);
     v->Visit("body", &body);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
-    return equal(blocks, other->blocks) && equal(body, other->body) &&
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+    return equal(blocks, other->blocks) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(blocks);
     hash_reduce(body);
-    hash_reduce(shape_);
-    hash_reduce(checked_type_);
   }
 
   static constexpr const char* _type_key = "relax.expr.SeqExpr";
@@ -796,19 +777,17 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_struct_info", &ret_struct_info);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
-    v->Visit("struct_info_", &struct_info_);
     v->Visit("attrs", &attrs);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_struct_info, other->ret_struct_info) &&
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_) &&
-           equal(attrs, other->attrs);
+           equal(ret_struct_info, other->ret_struct_info) && equal(attrs, other->attrs) &&
+           equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -816,9 +795,8 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce.DefHash(params);
     hash_reduce(body);
     hash_reduce(ret_struct_info);
-    hash_reduce(checked_type_);
-    hash_reduce(shape_);
     hash_reduce(attrs);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Function";
@@ -868,14 +846,18 @@ class ExternFuncNode : public BaseFuncNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
-    return equal(global_symbol, other->global_symbol);
+    return equal(global_symbol, other->global_symbol) && equal(struct_info_, other->struct_info_);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(global_symbol); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(global_symbol);
+    hash_reduce(struct_info_);
+  }
 
   static constexpr const char* _type_key = "relax.expr.ExternFunc";
   static constexpr const bool _type_has_method_sequal_reduce = true;

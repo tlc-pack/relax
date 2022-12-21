@@ -57,8 +57,7 @@ te::Tensor TETensor(Expr value, std::string name) {
     n->shape = std::move(shape);
     return te::PlaceholderOp(n).output(0);
   }
-  ICHECK(value->struct_info_.defined())
-    << "value must be normalized and contain StructInfo";
+  ICHECK(value->struct_info_.defined()) << "value must be normalized and contain StructInfo";
   auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(value);
   ICHECK(tensor_sinfo) << "Value must be a tensor";
   auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();

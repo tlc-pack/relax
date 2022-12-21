@@ -26,7 +26,6 @@ from tvm.relax.analysis import (
     remove_all_unused,
     name_to_binding,
     shape_vars,
-    derive_func_ret_shape,
     all_vars,
     free_vars,
     bound_vars,
@@ -255,33 +254,6 @@ def test_shape_var_nested():
 
     assert len(vars) == 1
     assert sv1 in vars
-
-
-def test_derive_func_ret_shape_no_free():
-    sv1 = tir.Var("sv1", "int64")
-    sv2 = tir.Var("sv2", "int64")
-    sv3 = tir.Var("sv3", "int64")
-    a1 = rx.Var("a1", R.Tensor([sv1, sv2]))
-    a2 = rx.Var("a2", R.Tensor([sv2, sv3]))
-    body = a2
-    shape_expr = derive_func_ret_shape([a1, a2], body)
-
-    assert isinstance(shape_expr, rx.ShapeExpr)
-    assert shape_expr[0] == sv2
-    assert shape_expr[1] == sv3
-
-
-def test_derive_func_ret_shape_free():
-    sv1 = tir.Var("sv1", "int64")
-    sv2 = tir.Var("sv2", "int64")
-    sv3 = tir.Var("sv3", "int64")
-    a1 = rx.Var("a1", R.Tensor([sv1, sv2]))
-    a2 = rx.Var("a2", R.Tensor([sv2, sv1]))
-    # Artifically introducing a free shape variable.
-    # This would not be a valid program, but this is being done to test the logic
-    body = rx.Var("a3", R.Tensor([sv1, sv3]))
-    shape_expr = derive_func_ret_shape([a1, a2], body)
-    assert isinstance(shape_expr, rx.RuntimeDepShape)
 
 
 @tvm.script.ir_module

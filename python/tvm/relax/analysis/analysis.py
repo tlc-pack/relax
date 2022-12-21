@@ -298,29 +298,6 @@ def shape_vars(expr: Expr) -> List[tir.Var]:
     return _ffi_api.shape_vars(expr)  # type: ignore
 
 
-def derive_func_ret_shape(args: List[Var], body: Expr) -> Expr:
-    """
-    Given the argument vars and body, derives a return shape for
-    a function with those args and that body.
-    If the body's shape contains free shape vars (those not used in the args), the
-    return shape is relaxed to RuntimeDepShape; otherwise, the body's shape is used.
-
-    Parameters
-    ----------
-    args: List[Var]
-        The argument variables, ideally with the shape_ field filled in
-
-    body: Expr
-        The functino body, ideally with the shape_ field filled in
-
-    Returns
-    -------
-    ret: Expr
-        An expression that can serve as the return shape for the function
-    """
-    return _ffi_api.derive_func_ret_shape(args, body)  # type: ignore
-
-
 def bound_vars(expr: Expr) -> List[Var]:
     """
     Return all bound variables from expression expr.

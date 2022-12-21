@@ -230,49 +230,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 
 void AnnotateStructInfo(const tvm::relax::Var& var,
                         const tvm::relax::StructInfo& anno_struct_info) {
-  using tvm::relax::IsBaseOf;
-  using tvm::relax::StructInfo;
-
-  Type type = GetStaticType(anno_struct_info);
-  Optional<tvm::relax::Expr> shape = GetLegacyShapeHint(anno_struct_info);
-
-  // TODO(siyuan, ruihang): Revisit the checks aftr we fully migrate to struct info.
-  // consider simplify assumption to require var not contain struct info at all.
-  if (var->struct_info_.defined()) {
-    // Case 1. The var already has struct info.
-    const StructInfo& var_struct_info = Downcast<StructInfo>(var->struct_info_.value());
-    CHECK(IsBaseOf(var_struct_info, anno_struct_info) ||
-          IsBaseOf(anno_struct_info, var_struct_info))
-        << "ValueError: The annotation struct info is not a base of the existing struct info.";
-  } else {
-    // Case 2. The var doesn't have struct info.
-    // This path may be removed later
-
-    if (var->checked_type_.defined()) {
-      const Type& var_type = var->checked_type();
-      CHECK(IsBaseOf(type, var_type) || IsBaseOf(var_type, type))
-          << "TypeError: The annotated type and value type are not compatible. "
-          << "The Type is expected to be " << var_type << " but got annotation: " << type;
-    }
-    if (var->shape_.defined() && shape.defined()) {
-      tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
-      auto check_shape = [](const tvm::relax::Expr& lhs, const tvm::relax::Expr& rhs) {
-        if (lhs->IsInstance<tvm::relax::RuntimeDepShapeNode>() ||
-            rhs->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
-          return true;
-        } else {
-          const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-          return block_builder->CanProveShapeEqual(lhs, rhs);
-        }
-      };
-      CHECK(check_shape(var_shape, shape.value()))
-          << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
-          << " but got annotation: " << shape.value();
-    }
-  }
-
-  var->checked_type_ = type;
-  var->shape_ = shape;
+  var->checked_type_ = GetStaticType(anno_struct_info);
+  ;
   var->struct_info_ = anno_struct_info;
 }
 
