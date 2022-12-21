@@ -125,7 +125,7 @@ class VMShapeLowerMutator : public ExprMutator {
     // The ret_type is weakened to unknown-dimensional DynTensorType.
     // TODO(@yuchen): change all tensor types in the function to unknown ndim
     if (const auto* tensor_sinfo = ret_struct_info.as<TensorStructInfoNode>()) {
-      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/-1);
+      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/kUnknownDim);
     }
 
     return builder_->Normalize(Function(node->params, new_body, ret_struct_info, node->attrs));
