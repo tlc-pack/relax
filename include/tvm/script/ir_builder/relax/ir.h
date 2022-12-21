@@ -20,6 +20,7 @@
 #define TVM_SCRIPT_IR_BUILDER_RELAX_IR_H_
 
 #include <tvm/relax/expr.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/relax/frame.h>
 
@@ -28,45 +29,17 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-////////////////////////////// Shaped Type //////////////////////////////
+//////////////////////////////// Tensor /////////////////////////////////
 
 /*!
- * \brief A temporary data structure for unified type and shape in ir_builder.
- * \note Used for `R.Tensor` and `R.Tuple`
- */
-class ShapedTypeNode : public runtime::Object {
- public:
-  /*! \brief The type, usually is DynTensorType or TupleType */
-  Type type;
-  /*! \brief The shape, which is optional. */
-  Optional<tvm::relax::Expr> shape;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("type", &type);
-    v->Visit("shape", &shape);
-  }
-
-  static constexpr const char* _type_key = "script.ir_builder.relax.ShapedType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapedTypeNode, runtime::Object);
-};
-
-class ShapedType : public runtime::ObjectRef {
- public:
-  TVM_DLL explicit ShapedType(Type type, Optional<tvm::relax::Expr> shape);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapedType, ObjectRef, ShapedTypeNode);
-};
-
-/*!
- * \brief Create a ShapedType for a DynTensor.
+ * \brief Create a TensorStructInfo.
  * \param shape The shape of the tensor. It's runtime dependent if `shape` is None.
  * \param dtype The element data type of the tensor. It's runtime dependent if `dtype` is None.
  * \param ndim The number of dimensions of the tensor. It's runtime dependent if `ndim` is -1.
- * \return The ShapedType that is only used in ir_builder.
+ * \return The TensorStructInfo.
  */
-TVM_DLL ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim = -1);
-
-TVM_DLL ShapedType CreateShapedTuple(Array<Type> types, Array<Optional<tvm::relax::Expr>> shapes);
+TVM_DLL tvm::relax::TensorStructInfo Tensor(Optional<Array<PrimExpr>> shape, DataType dtype,
+                                            int ndim = -1);
 
 /////////////////////////////// Function ////////////////////////////////
 
@@ -79,11 +52,10 @@ TVM_DLL FunctionFrame Function();
 /*!
  * \brief Add a parameter to the last function frame.
  * \param name The name of the parameter.
- * \param type The type of the parameter.
- * \param shape The shape of the parameter.
+ * \param struct_info The struct_info of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape);
+TVM_DLL tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_info);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -98,16 +70,10 @@ TVM_DLL void FuncName(const String& name);
 TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
 
 /*!
- * \brief Specify the return type of the last function frame.
- * \param ret_type The return type. Note: it's a standard `tvm::Type` instead of ShapedType.
+ * \brief Specify the return struct info of the last function frame.
+ * \param ret_sinfo The return struct info.
  */
-TVM_DLL void FuncRetType(tvm::Type ret_type);
-
-/*!
- * \brief Specify the return shape of the last function frame.
- * \param ret_shape The return shape.
- */
-TVM_DLL void FuncRetShape(tvm::relax::Expr ret_shape);
+TVM_DLL void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo);
 
 /*!
  * \brief Specify the return value of the last function frame.
@@ -158,15 +124,14 @@ TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value, 
 ///////////////////////////// Type Deduce //////////////////////////////
 
 /*!
- * \brief Annotate and check the type and shape of relax var.
+ * \brief Annotate the struct info of a var.
  * \param var The input var to be annotated.
- * \param anno_type The annotated type.
- * \param anno_shape The annotated shape, which can be undefined.
+ * \param anno_struct_info The annotated struct info, which can be undefined.
  * \note This function will check if the type of var is compatible with the annotated type.
  * And we annotate to the var with more detailed type.
  */
-TVM_DLL void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                               const Optional<tvm::relax::Expr>& anno_shape);
+TVM_DLL void AnnotateStructInfo(const tvm::relax::Var& var,
+                                const tvm::relax::StructInfo& anno_struct_info);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

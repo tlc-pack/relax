@@ -41,8 +41,8 @@ class BaseTypeChecker : public TypeFunctor<bool(const Type& n)> {
   bool VisitType_(const ObjectTypeNode* base) final { return true; }
 
   bool VisitType_(const ShapeTypeNode* base) final {
-    if (derived_.as<ShapeTypeNode>()) {
-      return true;
+    if (auto* rhs = derived_.as<ShapeTypeNode>()) {
+      return base->ndim == kUnknownDim || base->ndim == rhs->ndim;
     }
     return false;
   }
@@ -122,7 +122,8 @@ class LCAVisitor : public TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const ObjectTypeNode* t) final { return ObjectType(); }
 
   Type VisitType_(const ShapeTypeNode* t) final {
-    if (u_.as<ShapeTypeNode>()) {
+    if (auto* rhs = u_.as<ShapeTypeNode>()) {
+      if (t->ndim == rhs->ndim) return GetRef<ShapeType>(t);
       return ShapeType();
     }
     return ObjectType();

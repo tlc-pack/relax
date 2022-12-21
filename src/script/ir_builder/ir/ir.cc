@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/module.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 
@@ -39,6 +40,22 @@ GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func_s
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
   GlobalVar gv = GlobalVar(func_name);
+  if (func_signature.defined()) {
+    const BaseFunc& func = func_signature.value();
+    if (func->struct_info_.defined()) {
+      gv->struct_info_ = tvm::relax::GetStructInfo(func);
+    } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
+      // NOTE: use a slightly different struct info than checked type
+      // in PrimFunc so handle can turn into Tensor.
+      // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
+      gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc(
+          tvm::relax::StructInfoFromType(prim_func->ret_type));
+    } else {
+      LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
+    }
+  } else {
+    gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc();
+  }
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);

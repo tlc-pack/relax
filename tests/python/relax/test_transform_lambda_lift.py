@@ -89,7 +89,9 @@ def test_closure():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
+        def main(
+            x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
+        ) -> R.Tensor((2, 3), "float32"):
             outer_func = lifted_func_0
             in_call = outer_func(x)
             res = R.invoke_closure(in_call, (y,), type_args=(R.Tensor(ndim=2, dtype="float32")))
@@ -192,6 +194,7 @@ def test_recursive():
     # Perform Lamda Lifting
     after = transform.LambdaLift()(before)
     assert len(after.functions) == 2
+
     assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 

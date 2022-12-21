@@ -152,7 +152,12 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitExpr(op->tuple);
 }
 
-void ExprVisitor::VisitExpr_(const ShapeExprNode* op) { this->VisitSpan(op->span); }
+void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
+  for (PrimExpr val : op->values) {
+    this->VisitPrimExpr(val);
+  }
+  this->VisitSpan(op->span);
+}
 
 void ExprVisitor::VisitExpr_(const RuntimeDepShapeNode* op) { this->VisitSpan(op->span); }
 
@@ -169,6 +174,8 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
 void ExprVisitor::VisitType(const Type& t) {}
 
 void ExprVisitor::VisitSpan(const Span& span) {}
+
+void ExprVisitor::VisitPrimExpr(const PrimExpr& expr) {}
 
 // implementations of binding visitor dispatch
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
@@ -367,7 +374,15 @@ Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* op) {
   }
 }
 
-Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) { return GetRef<Expr>(op); }
+Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
+  auto values = op->values.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+
+  if (values.same_as(op->values)) {
+    return GetRef<Expr>(op);
+  } else {
+    return ShapeExpr(values, op->span);
+  }
+}
 
 Expr ExprMutatorBase::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
 
@@ -420,6 +435,8 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
 }
 
 Type ExprMutatorBase::VisitType(const Type& t) { return t; }
+
+PrimExpr ExprMutatorBase::VisitPrimExpr(const PrimExpr& expr) { return expr; }
 
 // ==================
 // ExprMutator
@@ -478,7 +495,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
 
   Type ret_type = this->VisitType(op->ret_type);
   Expr ret_shape = this->VisitExpr(op->ret_shape);
-  Expr body = this->VisitWithNewScope(op->body);
+  Expr body = this->VisitWithNewScope(op->body, params);
 
   if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body) &&
       ret_shape.same_as(op->ret_shape)) {
@@ -565,7 +582,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     return;
   }
 
-  Var temp = WithShapeAndType(new_var, new_value->shape_, new_value->checked_type_);
+  Var temp = WithStructInfo(new_var, GetStructInfo(new_value));
   if (!temp.same_as(new_var)) {
     new_var = temp;
     this->var_remap_[binding->var->vid] = new_var;
@@ -580,18 +597,14 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
 
   Var new_var;
   if (binding->var.defined()) {
-    // in the case of `x = R.match_shape(val, pattern)`, we want `x` to directly get `pattern` as
-    // the shape when `val` is a tensor.
-    Optional<Expr> new_shape;
-    Type new_type = new_value->checked_type_;
-    if (new_value->checked_type_.defined() && new_value->checked_type_.as<DynTensorTypeNode>()) {
-      new_shape = new_pattern;
-      ICHECK(new_shape->IsInstance<ShapeExprNode>());
-      int ndim = Downcast<ShapeExpr>(new_shape.value())->values.size();
-      new_type = DynTensorType(ndim, new_value->checked_type_.as<DynTensorTypeNode>()->dtype);
+    StructInfo new_sinfo = GetStructInfo(new_value);
+
+    if (auto* ptr = new_sinfo.as<TensorStructInfoNode>()) {
+      new_sinfo = TensorStructInfo(new_pattern, ptr->dtype);
     }
     new_var = this->VisitVarDef(binding->var);
-    Var temp = WithShapeAndType(new_var, new_shape, new_type);
+
+    Var temp = WithStructInfo(new_var, new_sinfo);
     if (!temp.same_as(new_var)) {
       new_var = temp;
       this->var_remap_[binding->var->vid] = new_var;
@@ -630,42 +643,14 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
 }
 
 Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
-  bool shape_unchanged = true;
-  Expr new_shape;
-  if (var->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-    shape_unchanged &= new_shape.same_as(var->shape_);
-  }
-
-  if (shape_unchanged) {
-    return GetRef<Var>(var);
-  } else {
-    Var new_var = DataflowVar(var->vid, NullOpt, var->checked_type_, var->span);
-    UpdateShape(new_var, new_shape);
-
-    this->var_remap_[var->vid] = new_var;
-    return new_var;
-  }
+  // If an Expr have struct info, they must already be normalized,
+  // This invariant is checked at the constructor location.
+  // to simplify our overall development complexity and keep var def
+  // stable by default.
+  return GetRef<Var>(var);
 }
 
-Var ExprMutator::VisitVarDef_(const VarNode* var) {
-  bool shape_unchanged = true;
-  Expr new_shape;
-  if (var->shape_) {
-    new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-    shape_unchanged &= new_shape.same_as(var->shape_);
-  }
-
-  if (shape_unchanged) {
-    return GetRef<Var>(var);
-  } else {
-    Var new_var = Var(var->vid, NullOpt, var->checked_type_, var->span);
-    UpdateShape(new_var, new_shape);
-
-    this->var_remap_[var->vid] = new_var;
-    return new_var;
-  }
-}
+Var ExprMutator::VisitVarDef_(const VarNode* var) { return GetRef<Var>(var); }
 
 void ExprMutator::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
@@ -701,50 +686,36 @@ Var ExprMutator::VisitVarDef(const Var& var) {
   return ret;
 }
 
-Expr ExprMutator::VisitWithNewScope(const Expr& expr) {
-  if (expr->IsInstance<SeqExprNode>()) {
-    return this->VisitExpr(expr);
-  } else {
-    builder_->BeginBindingBlock();
-    Expr ret = this->VisitExpr(expr);
-    BindingBlock prologue = builder_->EndBlock();
-    if (!prologue->bindings.empty()) {
-      ret = SeqExpr({prologue}, ret);
-    }
-    return ret;
-  }
+Expr ExprMutator::VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params) {
+  ICHECK(expr->IsInstance<SeqExprNode>())
+      << "Normal form requires all new scope is stored as SeqExpr";
+  builder_->BeginScope(params);
+  Expr ret = this->VisitExpr(expr);
+  builder_->EndScope();
+  return ret;
 }
 
 Optional<Expr> ExprMutator::LookupBinding(const Var& var) { return builder_->LookupBinding(var); }
 
-Var ExprMutator::WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type) {
-  // shape/type changes if it goes from defined -> undefined or the other way, hence xor
-  bool shape_changed = var->shape_.operator bool() ^ shape.operator bool();
-  shape_changed |= var->shape_ && shape &&
-                   !builder_->CanProveShapeEqual(Downcast<Expr>(var->shape_.value()),
-                                                 Downcast<Expr>(shape.value()));
+Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
+  ICHECK(struct_info.defined());
 
-  bool type_changed = var->checked_type_.defined() ^ type.defined();
-  type_changed |= var->checked_type_.defined() && type.defined() &&
-                  !StructuralEqual()(var->checked_type_, type);
-
-  if (shape_changed || type_changed) {
-    Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
-                                            : Var(var->vid, NullOpt, NullOpt, var->span);
-    UpdateShape(new_var, var->shape_);
-    UpdateType(new_var, var->checked_type_);
-    var = new_var;
+  // TODO(relax-team) add StructInfoEqual check
+  if (var->struct_info_.defined()) {
+    // use same-as as a quick path
+    if (var->struct_info_.same_as(struct_info) ||
+        StructuralEqual()(var->struct_info_, struct_info)) {
+      return var;
+    } else {
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
+                                              : Var(var->vid, NullOpt, NullOpt, var->span);
+      UpdateStructInfo(new_var, struct_info);
+      return new_var;
+    }
+  } else {
+    UpdateStructInfo(var, struct_info);
+    return var;
   }
-
-  if (shape_changed) {
-    var->shape_ = shape;
-  }
-
-  if (type_changed) {
-    var->checked_type_ = type;
-  }
-
-  return var;
 }
 
 TVM_REGISTER_GLOBAL("relax.MakePyExprVisitor").set_body_typed(PyExprVisitor::MakePyExprVisitor);
@@ -857,9 +828,9 @@ TVM_REGISTER_GLOBAL("relax.PyExprMutatorLookupBinding")
       return mutator->LookupBinding(var);
     });
 
-TVM_REGISTER_GLOBAL("relax.PyExprMutatorWithShapeAndType")
-    .set_body_typed([](PyExprMutator mutator, Var var, Optional<ObjectRef> shape, Type type) {
-      return mutator->WithShapeAndType(var, shape, type);
+TVM_REGISTER_GLOBAL("relax.PyExprMutatorWithStructInfo")
+    .set_body_typed([](PyExprMutator mutator, Var var, StructInfo sinfo) {
+      return mutator->WithStructInfo(var, sinfo);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorSetVarRemap")

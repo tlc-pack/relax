@@ -34,7 +34,7 @@ def test_function_simple():
             R.func_name("foo")
             R.func_attr({"Primitive": 1})
             x = R.arg("x", R.tensor((128, 128), "float32"))
-            R.func_ret_type(R.tensor(dtype="float32", ndim=2))
+            R.func_ret_struct_info(R.tensor(dtype="float32", ndim=2))
             out = R.emit(R.call_tir("extern_func", x, (128, 128), dtype="float32"))
             IRBuilder.name("out", out)
             R.func_ret_value(out)

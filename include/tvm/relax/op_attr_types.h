@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_OP_ATTR_TYPES_H_
 #define TVM_RELAX_OP_ATTR_TYPES_H_
 
+#include <tvm/relax/struct_info.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/te/schedule.h>
@@ -43,6 +44,15 @@ namespace relax {
  */
 using FInferShape =
     runtime::TypedPackedFunc<RelayExpr(const Call& call, DiagnosticContext diag_ctx)>;
+
+/*!
+ * \brief Infer output struct info given the call
+ *
+ * \param call The call expression to be derived.
+ * \param ctx The builder context.
+ */
+using FInferStructInfo =
+    runtime::TypedPackedFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief Infer the output type for operators. This function will

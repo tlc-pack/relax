@@ -24,10 +24,17 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("relax.ShapeType")
 class ShapeType(Type):
-    """The type of shape in Relax."""
+    """The type of shape in Relax.
 
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeType, span)  # type: ignore
+    Parameters
+    ----------
+    ndim : Optional[int]
+        The size of the shape.
+    """
+
+    # TODO(relax-team): consider make ndim mandatory
+    def __init__(self, ndim: int = -1, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ShapeType, ndim, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.ObjectType")
