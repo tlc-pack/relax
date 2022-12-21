@@ -625,7 +625,7 @@ class BlockBuilder(Object):
 
         # do not specify ret_struct_info and let constructor deduce
         # from seqe.struct_info
-        func = rx.Function(self._func_params, seqe, None)
+        func = rx.Function(self._func_params, seqe)
         for key, value in self._func_attrs.items():
             func = func.with_attr(key, value)
         self.end_scope()

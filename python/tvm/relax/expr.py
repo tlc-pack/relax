@@ -384,7 +384,7 @@ class Function(BaseFunc):
         self,
         params: List[Var],
         body: Expr,
-        ret_struct_info: Optional[StructInfo],
+        ret_struct_info: Optional[StructInfo] = None,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
