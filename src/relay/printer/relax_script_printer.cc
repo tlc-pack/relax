@@ -48,6 +48,8 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
     return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node), "T", false);
   } else if (node->IsInstance<runtime::StringObj>()) {
     return Doc::StrLiteral(Downcast<runtime::String>(node));
+  } else if (node->IsInstance<StructInfoNode>()) {
+    return VisitStructInfo(Downcast<StructInfo>(node));
   } else {
     return VisitNode(node);
   }
@@ -269,7 +271,11 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::RuntimeDepShapeNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
   Doc doc;
   if (op->var.defined()) {
-    doc << Print(op->var) << PrintVarAnnotation(op->var) << " = ";
+    doc << Print(op->var);
+    if (const auto& sinfo = MatchStructInfo<StructInfo>(op->var)) {
+      doc << ": " << Print(sinfo);
+    }
+    doc << " = ";
   }
   doc << "R.match_shape(";
   // TODO(@altanh): maybe op->pattern should just be a ShapeExpr?
@@ -296,8 +302,8 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::VarBindingNode* op) {
       }
     }
     doc << Print(op->var);
-    if (print_annotation) {
-      doc << PrintVarAnnotation(op->var);
+    if (print_annotation && op->var->struct_info_.defined()) {
+      doc << ": " << Print(GetStructInfo(op->var));
     }
     doc << " = " << Print(op->value);
     return doc;
@@ -412,7 +418,7 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::MaxNode* op) {
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ShapeTypeNode* node) {
-  return Doc::Text("R.Shape");
+  return Doc::Text("R.Shape(ndim=") << node->ndim << ")";
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relax::ObjectTypeNode* node) {
@@ -420,24 +426,19 @@ Doc RelaxScriptPrinter::VisitType_(const relax::ObjectTypeNode* node) {
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
-  // NOTE: to print shape information, use PrintTensorAnnotation
-  return PrintTensorAnnotation(GetRef<DynTensorType>(node), NullOpt);
+  return Doc::Text("R.Tensor(ndim=") << node->ndim << ", dtype=" << PrintDType(node->dtype) << ")";
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relay::TupleTypeNode* node) {
   if (node->fields.empty()) {
-    return Doc::Text("R.Tuple()");
+    return Doc::Text("R.Tuple");
   }
-
-  Doc doc;
 
   std::vector<Doc> fields;
   for (Type ty : node->fields) {
     fields.push_back(Print(ty));
   }
-  doc << "R.Tuple(" << Doc::Concat(fields) << ")";
-
-  return doc;
+  return Doc::Text("R.Tuple(") << Doc::Concat(fields) << ")";
 }
 
 Doc RelaxScriptPrinter::VisitType_(const relay::FuncTypeNode* node) {
@@ -578,10 +579,9 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   for (size_t i = 0; i < func->params.size(); ++i) {
     const relax::Var& var = func->params[i];
     Doc param;
-    param << Print(var) << PrintVarAnnotation(var);
+    param << Print(var) << ": " << Print(GetStructInfo(var));
     params.push_back(param);
   }
-  print_symbolic_shape_as_str_ = false;
 
   if (is_global) {
     ICHECK(symbolic_vars_.empty());
@@ -590,10 +590,13 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   // Step 2: print the function signature
   doc << "@R.function" << Doc::NewLine();
   doc << "def " << name << "(" << Doc::Concat(params, Doc::Text(", ")) << ")";
-  if (func->ret_type.defined()) {
-    doc << " -> " << Print(func->ret_type);
+  if (const auto& func_sinfo = MatchStructInfo<FuncStructInfo>(func)) {
+    StructInfo ret_sinfo = func_sinfo.value()->ret;
+    doc << " -> " << Print(ret_sinfo);
   }
   doc << ":" << Doc::NewLine(4);
+  // TODO(siyuan): Add printing of composite expression
+  print_symbolic_shape_as_str_ = false;
 
   // Step 3: print function attr
   Doc header_attr;
@@ -643,67 +646,68 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
   return doc;
 }
 
-Doc RelaxScriptPrinter::PrintVarAnnotation(const relax::Var& var) {
-  // TODO(@altanh): we should consider moving annotation into binding
-  Doc doc;
-  Type annotation = var->checked_type_;
-  if (annotation.defined()) {
-    doc << ": ";
-    if (const relax::DynTensorTypeNode* tty = annotation.as<relax::DynTensorTypeNode>()) {
-      doc << PrintTensorAnnotation(GetRef<DynTensorType>(tty), var->shape_);
-    } else if (const TupleTypeNode* tty = annotation.as<TupleTypeNode>()) {
-      doc << PrintTupleAnnotation(GetRef<TupleType>(tty), var->shape_);
-    } else {
-      doc << Print(annotation);
-    }
-  }
-  return doc;
+Doc RelaxScriptPrinter::VisitStructInfo_(const ObjectStructInfoNode* op) {
+  return Doc::Text("R.Object");
 }
 
-Doc RelaxScriptPrinter::PrintTensorAnnotation(const relax::DynTensorType& ty,
-                                              const Optional<ObjectRef>& shape) {
-  Doc doc;
-  doc << "R.Tensor(";
-  // Print shape annotation
-  if (shape.defined()) {
-    doc << Print(Downcast<relay::Expr>(shape.value()));
+Doc RelaxScriptPrinter::VisitStructInfo_(const PrimStructInfoNode* op) {
+  // TODO(@relax-team): support PrimStructInfo printing and parsing
+  LOG(FATAL) << "Not allowed to print PrimStructInfo for now.";
+  return Doc::Text("");
+}
+
+Doc RelaxScriptPrinter::VisitStructInfo_(const ShapeStructInfoNode* op) {
+  if (op->values.defined()) {
+    std::vector<Doc> fields;
+    for (const PrimExpr& field : op->values.value()) {
+      fields.push_back(Print(field));
+    }
+    return Doc::Text("R.Shape([") << Doc::Concat(fields, Doc::Text(", ")) << "])";
   } else {
-    doc << "None";
+    return Doc::Text("R.Shape(ndim=") << op->ndim << ")";
   }
-  // Print dtype annotation
-  if (!ty->dtype.is_void()) {
-    doc << ", dtype=" << PrintDType(ty->dtype);
+}
+
+Doc RelaxScriptPrinter::VisitStructInfo_(const TensorStructInfoNode* op) {
+  Doc doc = Doc::Text("R.Tensor");
+  std::vector<Doc> fields;
+  if (op->shape.defined()) {
+    fields.push_back(Print(op->shape.value()));
   }
-  // Print ndim annotation only when it cannot be inferred from shape itself.
-  if (!shape.defined() || shape->IsInstance<relax::RuntimeDepShapeNode>()) {
-    doc << ", ndim=" << ty->ndim;
+  if (!op->IsUnknownDtype()) {
+    fields.push_back(Doc::Text("dtype=") << PrintDType(op->dtype));
   }
-  doc << ")";
+  if (!op->shape.defined() && !op->IsUnknownNdim()) {
+    fields.push_back(Doc::Text("ndim=") << op->ndim);
+  }
+  if (fields.size() > 0) {
+    doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")";
+  }
   return doc;
 }
 
-Doc RelaxScriptPrinter::PrintTupleAnnotation(const TupleType& ty,
-                                             const Optional<ObjectRef>& shape) {
-  Doc doc;
-  doc << "R.Tuple";
+Doc RelaxScriptPrinter::VisitStructInfo_(const TupleStructInfoNode* op) {
+  Doc doc = Doc::Text("R.Tuple");
   std::vector<Doc> fields;
-  if (!(shape.defined() && shape.value().as<TupleNode>())) {
-    return Print(ty);
-  }
-  const TupleNode* shape_tuple = shape.value().as<TupleNode>();
-  for (size_t i = 0; i < ty->fields.size(); i++) {
-    if (const auto* tensor_field = ty->fields[i].as<DynTensorTypeNode>()) {
-      fields.push_back(
-          PrintTensorAnnotation(GetRef<DynTensorType>(tensor_field), shape_tuple->fields[i]));
-    } else if (const auto* tuple_field = ty->fields[i].as<TupleTypeNode>()) {
-      fields.push_back(
-          PrintTupleAnnotation(GetRef<TupleType>(tuple_field), shape_tuple->fields[i]));
-    } else {
-      fields.push_back(Print(ty->fields[i]));
-    }
+  for (const StructInfo& field : op->fields) {
+    fields.push_back(Print(field));
   }
   doc << "(" << Doc::Concat(fields, Doc::Text(", ")) << ")";
   return doc;
+}
+
+Doc RelaxScriptPrinter::VisitStructInfo_(const FuncStructInfoNode* op) {
+  Doc doc = Doc::Text("R.Callable");
+  std::vector<Doc> params;
+  if (!op->IsOpaque()) {
+    for (const StructInfo& arg : op->params.value()) {
+      params.push_back(Print(arg));
+    }
+    // Do not print derive_func.
+    return doc << "((" << Doc::Concat(params) << "), " << Print(op->ret) << ")";
+  } else {
+    return doc;
+  }
 }
 
 Doc RelaxScriptPrinter::GetUniqueName(std::string prefix, std::string fallback = "x") {

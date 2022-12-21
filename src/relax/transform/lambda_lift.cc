@@ -96,8 +96,8 @@ class LambdaLifter : public ExprMutator {
     Array<Var> typed_captured_vars;
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name_hint(), NullOpt, free_var->checked_type_, free_var->span);
-      var->shape_ = free_var->shape_;
+      Var var = Var(free_var->name_hint(), NullOpt, NullOpt, free_var->span);
+      UpdateStructInfo(var, GetStructInfo(free_var));
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -180,8 +180,8 @@ class LambdaLifter : public ExprMutator {
     ICHECK(lifted_func.defined());
 
     // Add the lifted function to the module.
+    UpdateStructInfo(global, GetStructInfo(lifted_func));
     builder_->UpdateFunction(global, lifted_func);
-    UpdateType(global, lifted_func->checked_type());
 
     if (!is_closure) {
       return std::move(global);

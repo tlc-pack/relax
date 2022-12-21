@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
@@ -54,26 +55,44 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Type ReturnVoidType(const Call& call, DiagnosticContext diag_ctx) { return VoidType(); }
+StructInfo ReturnVoidStructInfo(const Call& call, const BlockBuilder& ctx) {
+  return TupleStructInfo(Array<StructInfo>());
+}
 
-Type ReturnObjectType(const Call& call, DiagnosticContext diag_ctx) { return ObjectType(); }
+StructInfo ReturnObjectStructInfo(const Call& call, const BlockBuilder& ctx) {
+  return ObjectStructInfo();
+}
 
-Type ReturnShapeType(const Call& call, DiagnosticContext diag_ctx) { return ShapeType(); }
+StructInfo ReturnShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
+  return ShapeStructInfo(kUnknownDim);
+}
 
 // call_tir
 
-Expr InferShapeCallTIR(const Call& call, DiagnosticContext diag_ctx) {
-  Expr output_shape = call->args[2];
-  return output_shape;
+StructInfo CallTIRStructInfoFromShapeType(Expr shape, Type type) {
+  if (auto* tuple = shape.as<TupleNode>()) {
+    auto* ptr_type = type.as<TupleTypeNode>();
+    ICHECK(ptr_type != nullptr) << "Expect tuple type and shape to be consistent.";
+    ICHECK_EQ(ptr_type->fields.size(), tuple->fields.size());
+    Array<StructInfo> arr;
+    for (size_t i = 0; i < ptr_type->fields.size(); ++i) {
+      arr.push_back(CallTIRStructInfoFromShapeType(tuple->fields[i], ptr_type->fields[i]));
+    }
+    return TupleStructInfo(arr);
+  } else {
+    auto* ptr_type = type.as<DynTensorTypeNode>();
+    ICHECK(ptr_type != nullptr) << "Expect singleton shape to correspond to DynTensorType.";
+    return TensorStructInfo(shape, ptr_type->dtype);
+  }
 }
 
-Type InferTypeArg(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
+  Expr output_shape = call->args[2];
   if (call->type_args.size() != 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "type_args should have exact 1 output type.");
+    ctx->ReportFatal(Diagnostic::Error(call) << "type_args should have exact 1 output type.");
   }
   Type output_type = call->type_args[0];
-  return output_type;
+  return CallTIRStructInfoFromShapeType(output_shape, output_type);
 }
 
 RELAY_REGISTER_OP("relax.call_tir")
@@ -84,8 +103,7 @@ RELAY_REGISTER_OP("relax.call_tir")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
-    .set_attr<FInferShape>("FInferShape", InferShapeCallTIR)
-    .set_attr<FInferType>("FInferType", InferTypeArg);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR);
 
 Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
                  Optional<Expr> packed_ints) {
@@ -109,7 +127,7 @@ RELAY_REGISTER_OP("relax.print")
     .set_attrs_type<PrintAttrs>()
     .set_num_inputs(-1)
     .add_argument("vals", "Array<Expr>", "Values to print.")
-    .set_attr<FInferType>("FInferType", ReturnVoidType)
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
 
 Expr MakePrint(Array<Expr> vals, std::string format) {
@@ -125,21 +143,21 @@ TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
 
 // can't actually name it assert or else Python will consider it a syntax error
 
-Type InferAssertType(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   // Ensure that the condition argument is a boolean scalar.
   // Also permitted is a tensor with unknown shape and unknown dtype
   // (checked dynamically in that case). Returns void.
   if (call->args.size() < 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Assert must have at least one argument (the condition).");
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Assert must have at least one argument (the condition).");
   }
   Type arg_type = call->args[0]->checked_type();
   if (!IsBoolScalarType(arg_type)) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "The argument to assert must be a boolean scalar type, but received "
-                       << arg_type);
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "The argument to assert must be a boolean scalar type, but received "
+                     << arg_type);
   }
-  return VoidType();
+  return ReturnVoidStructInfo(call, ctx);
 }
 
 TVM_REGISTER_NODE_TYPE(AssertOpAttrs);
@@ -150,7 +168,7 @@ RELAY_REGISTER_OP("relax.assert_op")
     .add_argument("vals", "Array<Expr>",
                   "The first value is used as the assertion condition. The others are used as "
                   "format arguments if there is an error.")
-    .set_attr<FInferType>("FInferType", InferAssertType)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
 
 Expr MakeAssertOp(Expr condition, Array<Expr> vals, std::string format) {
@@ -172,7 +190,7 @@ RELAY_REGISTER_OP("relax.make_closure")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The closure.")
     .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferType>("FInferType", ReturnObjectType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
 Expr MakeClosure(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.make_closure");
@@ -183,11 +201,21 @@ TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
 
 // invoke_closure
 
+StructInfo InferStructInfoInvokeClosure(const Call& call, const BlockBuilder& ctx) {
+  if (call->type_args.empty()) {
+    return ObjectStructInfo();
+  } else if (call->type_args.size() == 1) {
+    return StructInfoFromType(call->type_args[0]);
+  } else {
+    return StructInfoFromType(TupleType(call->type_args));
+  }
+}
+
 RELAY_REGISTER_OP("relax.invoke_closure")
     .set_num_inputs(2)
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferType>("FInferType", InferTypeArg);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure);
 
 Expr InvokeClosure(Expr closure, Tuple args, Array<Type> type_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
@@ -201,7 +229,7 @@ TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
 RELAY_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
-    .set_attr<FInferType>("FInferType", ReturnShapeType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeStructInfo);
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");
@@ -212,22 +240,19 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 
 // alloc_tensor
 
-Expr InferShapeAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[0]; }
-
-Type InferTypeAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  auto attrs = call->attrs.as<AllocTensorAttrs>();
+StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
+  const auto* attrs = call->attrs.as<AllocTensorAttrs>();
   ICHECK(attrs != nullptr) << "must be AllocTensorAttrs, but got " << call->attrs->GetTypeKey();
-  auto output_shape = call->args[0].as<ShapeExprNode>();
-  ICHECK(output_shape != nullptr) << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
-  return DynTensorType(output_shape->values.size(), attrs->dtype);
+  ICHECK(call->args[0].as<ShapeExprNode>())
+      << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
+  return TensorStructInfo(call->args[0], attrs->dtype);
 }
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_attrs_type<AllocTensorAttrs>()
     .set_num_inputs(1)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .set_attr<FInferShape>("FInferShape", InferShapeAllocTensor)
-    .set_attr<FInferType>("FInferType", InferTypeAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
 
 Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
   auto attrs = make_object<AllocTensorAttrs>();
@@ -245,7 +270,7 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
     .set_attrs_type<MemAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("total_space", "Expr", "The total space of the storage to allocate.")
-    .set_attr<FInferType>("FInferType", ReturnObjectType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
 Expr MakeAllocStorage(Expr size, int64_t virtual_device_index, std::string storage_scope,
                       DataType dtype) {
@@ -261,17 +286,12 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocSto
 
 // memory planning alloc_tensor
 
-Expr InferShapeMemAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  return call->args[1];
-}
-
-Type InferTypeMemAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
-  auto attrs = call->attrs.as<MemAllocTensorAttrs>();
-  ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs , but got " << call->attrs->GetTypeKey();
-  if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
-    return DynTensorType(output_shape->values.size(), attrs->dtype);
-  }
-  return DynTensorType::CreateUnknownNDim(attrs->dtype, Span());
+StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
+  const auto* attrs = call->attrs.as<MemAllocTensorAttrs>();
+  ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs, but got " << call->attrs->GetTypeKey();
+  ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[1]))
+      << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
+  return TensorStructInfo(call->args[1], attrs->dtype);
 }
 
 RELAY_REGISTER_OP("relax.memory.alloc_tensor")
@@ -279,8 +299,7 @@ RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .set_num_inputs(2)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .set_attr<FInferShape>("FInferShape", InferShapeMemAllocTensor)
-    .set_attr<FInferType>("FInferType", InferTypeMemAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor);
 
 Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
   auto attrs = make_object<MemAllocTensorAttrs>();
@@ -297,7 +316,7 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocT
 RELAY_REGISTER_OP("relax.memory.kill_storage")
     .set_num_inputs(1)
     .add_argument("storage", "Expr", "The storage to be killed.")
-    .set_attr<FInferType>("FInferType", ReturnVoidType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
@@ -311,7 +330,7 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillSt
 RELAY_REGISTER_OP("relax.memory.kill_tensor")
     .set_num_inputs(1)
     .add_argument("tensor", "Expr", "The tensor to be killed.")
-    .set_attr<FInferType>("FInferType", ReturnVoidType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
@@ -326,7 +345,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
     .set_attrs_type<VMAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
-    .set_attr<FInferType>("FInferType", ReturnObjectType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
 Expr MakeVMAllocStorage(Expr size, DataType dtype, int64_t runtime_device_index) {
   auto attrs = make_object<VMAllocStorageAttrs>();
@@ -342,13 +361,15 @@ TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAl
 
 Expr InferShapeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[1]; }
 
-Type InferTypeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
   auto attrs = call->attrs.as<VMAllocTensorAttrs>();
+
   ICHECK(attrs != nullptr) << "must be VMAllocTensorAttrs , but got " << call->attrs->GetTypeKey();
+
   if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
-    return DynTensorType(output_shape->values.size(), attrs->dtype);
+    return TensorStructInfo(GetRef<Expr>(output_shape), attrs->dtype);
   }
-  return DynTensorType::CreateUnknownNDim(attrs->dtype, Span());
+  return TensorStructInfo(attrs->dtype, kUnknownDim);
 }
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
@@ -356,8 +377,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
     .set_num_inputs(2)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .set_attr<FInferShape>("FInferShape", InferShapeVMAllocTensor)
-    .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor);
 
 Expr MakeVMAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
   auto attrs = make_object<VMAllocTensorAttrs>();
@@ -376,7 +396,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
     .set_num_inputs(2)
     .add_argument("shape", "Expr", "The shape to be stored.")
     .add_argument("heap", "Expr", "The heap to store the shape.")
-    .set_attr<FInferType>("FInferType", ReturnVoidType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
 Expr MakeStoreShape(Expr shape, Expr heap, Array<Integer> indices) {
   auto attrs = make_object<ShapeHeapAttrs>();
@@ -393,7 +413,7 @@ RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
     .set_attrs_type<ShapeHeapAttrs>()
     .set_num_inputs(1)
     .add_argument("heap", "Expr", "The heap to load the shape from.")
-    .set_attr<FInferType>("FInferType", ReturnShapeType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeStructInfo);
 
 Expr MakeLoadShape(Expr heap, Array<Integer> indices) {
   auto attrs = make_object<ShapeHeapAttrs>();
@@ -411,7 +431,7 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple",
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
-    .set_attr<FInferType>("FInferType", ReturnVoidType);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
 
 }  // namespace relax
 }  // namespace tvm

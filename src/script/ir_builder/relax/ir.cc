@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/type_analysis.h>
 #include <tvm/script/ir_builder/relax/ir.h>
 #include <tvm/tir/op.h>
@@ -49,16 +50,10 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 ////////////////////////////// Tensor Type //////////////////////////////
 
-ShapedType::ShapedType(Type type, Optional<tvm::relax::Expr> shape) {
-  auto n = make_object<ShapedTypeNode>();
-  n->type = std::move(type);
-  n->shape = std::move(shape);
-  data_ = std::move(n);
-}
+using tvm::relax::TensorStructInfo;
+using tvm::relax::TupleStructInfo;
 
-TVM_REGISTER_NODE_TYPE(ShapedTypeNode);
-
-ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
+TensorStructInfo Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   using namespace tvm::relax;
   ICHECK_GE(ndim, -1) << "ndim must be >= -1, but got " << ndim;
   if (shape.defined() && ndim >= 0) {
@@ -67,36 +62,15 @@ ShapedType Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
   } else if (shape.defined()) {
     ndim = shape.value().size();
   }
-  Expr shape_expr = RuntimeDepShape();
   if (shape.defined()) {
-    shape_expr = ShapeExpr(shape.value());
+    ShapeExpr shape_expr(shape.value());
+    return TensorStructInfo(shape_expr, dtype);
+  } else {
+    return TensorStructInfo(dtype, ndim);
   }
-  return ShapedType(DynTensorType(ndim, dtype), shape_expr);
-}
-
-ShapedType CreateShapedTuple(Array<Type> types, Array<Optional<tvm::relax::Expr>> shapes) {
-  CHECK_EQ(types.size(), shapes.size())
-      << "ValueError: The number of types and shapes mismatched, got " << types.size() << " vs "
-      << shapes.size();
-  Array<tvm::relax::Expr> _shapes;
-  bool has_none_shape = false;
-  for (const auto& shape : shapes) {
-    if (shape.defined()) {
-      _shapes.push_back(shape.value());
-    } else {
-      has_none_shape = true;
-      break;
-    }
-  }
-  Optional<tvm::relax::Expr> final_shape = NullOpt;
-  if (!has_none_shape) {
-    final_shape = tvm::relax::Tuple(_shapes);
-  }
-  return ShapedType(TupleType(types), final_shape);
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.CreateShapedTuple").set_body_typed(CreateShapedTuple);
 
 /////////////////////////////// Function ////////////////////////////////
 
@@ -111,9 +85,11 @@ FunctionFrame Function() {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const String& name, const Type& type, const tvm::relax::Expr& shape) {
+tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_info) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  tvm::relax::Var var(name, shape, type);
+  // TODO(relax-team): Update constructor to include struct info as argument.
+  tvm::relax::Var var(name, NullOpt, NullOpt);
+  UpdateStructInfo(var, struct_info);
   frame->params.push_back(var);
   return var;
 }
@@ -135,22 +111,15 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
   frame->attrs = attrs;
 }
 
-void FuncRetType(tvm::Type ret_type) {
-  FunctionFrame frame = FindFunctionFrame("R.ret_type");
-  if (frame->ret_type.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate function return type, previous one is:\n "
-               << frame->ret_type.value();
+void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
+  FunctionFrame frame = FindFunctionFrame("R.func_ret_struct_info");
+  if (frame->ret_sinfo.defined()) {
+    LOG(FATAL) << "ValueError: Duplicate function return struct info, previous one is:\n "
+               << frame->ret_sinfo.value();
   }
-  frame->ret_type = ret_type;
-}
-
-void FuncRetShape(tvm::relax::Expr ret_shape) {
-  FunctionFrame frame = FindFunctionFrame("R.ret_shape");
-  if (frame->ret_shape.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate function return type, previous one is:\n "
-               << frame->ret_type.value();
-  }
-  frame->ret_shape = ret_shape;
+  frame->ret_sinfo = ret_sinfo;
+  frame->ret_type = GetStaticType(ret_sinfo);
+  frame->ret_shape = GetLegacyShapeHint(ret_sinfo);
 }
 
 void FuncRetValue(const tvm::relax::Expr& value) {
@@ -180,8 +149,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function)
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetType").set_body_typed(FuncRetType);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetShape").set_body_typed(FuncRetShape);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetStructInfo").set_body_typed(FuncRetStructInfo);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
 
 ///////////////////////////// BindingBlock //////////////////////////////
@@ -264,37 +232,56 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 
 ///////////////////////////// Type Deduce //////////////////////////////
 
-void AnnotateTypeShape(const tvm::relax::Var& var, const Type& anno_type,
-                       const Optional<tvm::relax::Expr>& anno_shape) {
+void AnnotateStructInfo(const tvm::relax::Var& var,
+                        const tvm::relax::StructInfo& anno_struct_info) {
   using tvm::relax::IsBaseOf;
-  if (var->checked_type_.defined()) {
-    const Type& var_type = var->checked_type();
-    CHECK(IsBaseOf(anno_type, var_type) || IsBaseOf(var_type, anno_type))
-        << "TypeError: The annotated type and value type are not compatible. "
-        << "The Type is expected to be " << var_type << " but got annotation: " << anno_type;
+  using tvm::relax::StructInfo;
+
+  Type type = GetStaticType(anno_struct_info);
+  Optional<tvm::relax::Expr> shape = GetLegacyShapeHint(anno_struct_info);
+
+  // TODO(siyuan, ruihang): Revisit the checks aftr we fully migrate to struct info.
+  // consider simplify assumption to require var not contain struct info at all.
+  if (var->struct_info_.defined()) {
+    // Case 1. The var already has struct info.
+    const StructInfo& var_struct_info = Downcast<StructInfo>(var->struct_info_.value());
+    CHECK(IsBaseOf(var_struct_info, anno_struct_info) ||
+          IsBaseOf(anno_struct_info, var_struct_info))
+        << "ValueError: The annotation struct info is not a base of the existing struct info.";
+  } else {
+    // Case 2. The var doesn't have struct info.
+    // This path may be removed later
+
+    if (var->checked_type_.defined()) {
+      const Type& var_type = var->checked_type();
+      CHECK(IsBaseOf(type, var_type) || IsBaseOf(var_type, type))
+          << "TypeError: The annotated type and value type are not compatible. "
+          << "The Type is expected to be " << var_type << " but got annotation: " << type;
+    }
+    if (var->shape_.defined() && shape.defined()) {
+      tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
+      auto check_shape = [](const tvm::relax::Expr& lhs, const tvm::relax::Expr& rhs) {
+        if (lhs->IsInstance<tvm::relax::RuntimeDepShapeNode>() ||
+            rhs->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
+          return true;
+        } else {
+          const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+          return block_builder->CanProveShapeEqual(lhs, rhs);
+        }
+      };
+      CHECK(check_shape(var_shape, shape.value()))
+          << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
+          << " but got annotation: " << shape.value();
+    }
   }
 
-  if (var->shape_.defined() && anno_shape.defined()) {
-    tvm::relax::Expr var_shape = Downcast<tvm::relax::Expr>(var->shape_.value());
-    auto check_shape = [](const tvm::relax::Expr& lhs, const tvm::relax::Expr& rhs) {
-      if (lhs->IsInstance<tvm::relax::RuntimeDepShapeNode>() ||
-          rhs->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
-        return true;
-      } else {
-        const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-        return block_builder->CanProveShapeEqual(lhs, rhs);
-      }
-    };
-    CHECK(check_shape(var_shape, anno_shape.value()))
-        << " The shape of var " << var->name_hint() << " is expected to be " << var_shape
-        << " but got annotation: " << anno_shape.value();
-  }
-
-  var->checked_type_ = anno_type;
-  var->shape_ = anno_shape;
+  var->checked_type_ = type;
+  var->shape_ = shape;
+  var->struct_info_ = anno_struct_info;
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateTypeShape").set_body_typed(AnnotateTypeShape);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateStructInfo")
+    .set_body_typed(AnnotateStructInfo);
 
 ///////////////////////////// If Then Else /////////////////////////////
 
@@ -319,6 +306,55 @@ ElseFrame Else() {
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.If").set_body_typed(If);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Then").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Else").set_body_typed(Else);
+
+//////////////////////// Symbolic Shape Rewriter ////////////////////////
+
+using tvm::relax::Expr;
+class SymbolicShapeRewriter : public tvm::relax::StructInfoMutator {
+ public:
+  explicit SymbolicShapeRewriter(Map<String, tvm::tir::Var> var_table)
+      : var_table_(std::move(var_table)) {}
+
+  Array<tvm::tir::Var> undefined_vars_;
+
+ private:
+  Expr VisitStructInfoExprField(const Expr& expr) {
+    if (const auto* shape_expr = expr.as<tvm::relax::ShapeExprNode>()) {
+      Array<PrimExpr> new_shape;
+      bool changed = false;
+      for (const tvm::PrimExpr& s : shape_expr->values) {
+        if (const auto* var = s.as<tvm::tir::VarNode>()) {
+          auto it = var_table_.find(var->name_hint);
+          if (it != var_table_.end()) {
+            new_shape.push_back((*it).second);
+            changed = true;
+          } else {
+            undefined_vars_.push_back(GetRef<tvm::tir::Var>(var));
+            var_table_.Set(var->name_hint, GetRef<tvm::tir::Var>(var));
+            new_shape.push_back(s);
+          }
+        } else {
+          // TODO(siyuan, ruihang): confirm and use VisitPrimExpr to recursive rewrite.
+          new_shape.push_back(s);
+        }
+      }
+      if (changed) {
+        return tvm::relax::ShapeExpr(new_shape);
+      }
+    }
+    return expr;
+  }
+
+ private:
+  Map<String, tvm::tir::Var> var_table_;
+};
+
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.RewriteSymbolicShape")
+    .set_body_typed([](tvm::relax::StructInfo struct_info, Map<String, tvm::tir::Var> var_table) {
+      SymbolicShapeRewriter rewriter(var_table);
+      tvm::relax::StructInfo rewritten_info = rewriter(std::move(struct_info));
+      return Array<ObjectRef>{rewritten_info, rewriter.undefined_vars_};
+    });
 
 }  // namespace relax
 }  // namespace ir_builder

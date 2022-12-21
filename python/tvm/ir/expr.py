@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+import tvm
 import tvm._ffi
 
 from ..runtime import Scriptable, const, convert
@@ -61,6 +62,17 @@ class RelayExpr(BaseExpr):
             The expression that represents the shape.
         """
         return _ffi_api.RelayExprShape(self)
+
+    @property
+    def struct_info(self) -> "tvm.relax.StructInfo":
+        """Get the struct info field
+
+        Returns
+        -------
+        struct_info : tvm.relax.StructInfo
+            The struct info if available.
+        """
+        return _ffi_api.ExprStructInfo(self)
 
 
 @tvm._ffi.register_object("GlobalVar")

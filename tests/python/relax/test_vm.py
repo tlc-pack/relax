@@ -915,7 +915,7 @@ def test_sub_func_call():
         @R.function
         def relax_matmul_tir(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
-        ) -> R.Tensor:
+        ) -> R.Tensor((32, 32), dtype="float32"):
             with R.dataflow():
                 gv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
                 R.output(gv0)
@@ -924,12 +924,12 @@ def test_sub_func_call():
         @R.function
         def relax_matmul_packed(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
-        ) -> Object:
+        ) -> R.Object:
             gv0 = R.call_packed("test.vm.mul", x, w, type_args=(R.Tensor(ndim=2, dtype="float32")))
             return gv0
 
         @R.function
-        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> Object:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Object:
             gv0 = relax_matmul_tir(x, w)
             gv1 = relax_matmul_packed(gv0, gv0)
             return gv1

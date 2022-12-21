@@ -29,17 +29,6 @@ namespace relax {
 
 TVM_REGISTER_NODE_TYPE(UniqueAttrs);
 
-RELAY_REGISTER_OP("relax.unique")
-    .describe(
-        "This operation returns the unique elements and the new index of each item in a given "
-        "tensor.")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<UniqueAttrs>()
-    .set_attr<FInferShape>("FInferShape", InferShapeUnique)
-    .set_attr<FInferType>("FInferType", InferTypeUnique)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.unique");
-
 Expr MakeUnique(Expr data, bool sorted, bool return_inverse, bool return_counts, int dim) {
   auto attrs = make_object<UniqueAttrs>();
   attrs->sorted = sorted;
@@ -52,37 +41,37 @@ Expr MakeUnique(Expr data, bool sorted, bool return_inverse, bool return_counts,
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(MakeUnique);
 
-Type InferTypeUnique(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
-  }
-  auto* input_ty = call->args[0]->checked_type().as<DynTensorTypeNode>();
-  if (!input_ty) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Input should be DynTensor, but got "
-                       << call->args[0]->checked_type()->GetTypeKey());
-  }
-
-  // TODO(prakalp): Add support for return_inverse, return_counts and dim attributes. Only defaults
-  // are supported right now.
-  auto unique_attrs = call->attrs.as<UniqueAttrs>();
-  if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1)
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "support for return_inverse, return_counts, and dim is not implemented");
-  return DynTensorType(/*ndim=*/1, input_ty->dtype);
-}
-
-Expr InferShapeUnique(const Call& call, DiagnosticContext diag_ctx) {
-  if (call->args.size() != 1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span) << "Unique op should have 1 argument");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Unique op should have 1 argument");
   }
   auto unique_attrs = call->attrs.as<UniqueAttrs>();
+
+  auto input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+
+  if (!input_sinfo) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Input should be Tensor, but got "
+                                             << call->args[0]->struct_info_->GetTypeKey());
+  }
+
   // Only default values of these attributes are supported right now.
-  if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1)
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "support for return_inverse, return_counts, and dim is not implemented");
-  return RuntimeDepShape(call->span);
+  if (unique_attrs->return_counts || unique_attrs->return_inverse || unique_attrs->dim != -1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "support for return_inverse, return_counts, and dim is not implemented");
+  }
+
+  return TensorStructInfo(input_sinfo->dtype, /*ndim=*/1);
 }
+
+RELAY_REGISTER_OP("relax.unique")
+    .describe(
+        "This operation returns the unique elements and the new index of each item in a given "
+        "tensor.")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .set_attrs_type<UniqueAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.unique");
 
 }  // namespace relax
 }  // namespace tvm

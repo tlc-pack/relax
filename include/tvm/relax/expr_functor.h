@@ -253,6 +253,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
 
   virtual void VisitType(const Type& t);
   virtual void VisitSpan(const Span& span);
+  virtual void VisitPrimExpr(const PrimExpr& expr);
 
  private:
   using TSelf = ExprVisitor;
@@ -305,6 +306,13 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
+
+  /*!
+   * \brief Used to visit the PrimExpr inside of expressions.
+   *
+   * Can be overloaded to transform the shape expressions.
+   */
+  virtual PrimExpr VisitPrimExpr(const PrimExpr& expr);
 };
 
 /*!
@@ -387,10 +395,14 @@ class ExprMutator : public ExprMutatorBase {
 
   /*!
    * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
-   * \param expr The expr to be visited.
+   *
+   * \param body_expr The body to be visited.
+   * \param params Optional parameters that are visible within the scope.
    * \return The expr after visiting.
+   *
+   * \note The body_expr must be an SeqExpr in the normal form.
    */
-  Expr VisitWithNewScope(const Expr& expr);
+  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = NullOpt);
 
   /*!
    * \brief Look up the value bound to a variable.
@@ -412,14 +424,13 @@ class ExprMutator : public ExprMutatorBase {
   }
 
   /*!
-   * \brief Create a new var with specified shape and type if the original var's shape or type does
+   * \brief Create a new var with specified struct_info if the original var's shape or type does
    * not match with the specified ones.
    * \param var The var to be updated.
-   * \param shape The specified shape.
-   * \param type The specified type.
-   * \return The var filled with \p shape and \p type.
+   * \param struct_info The struct info to be updated.
+   * \return The var filled with struct_info
    */
-  Var WithShapeAndType(Var var, Optional<ObjectRef> shape, Type type);
+  Var WithStructInfo(Var var, StructInfo struct_info);
 
   /*! \brief Internal block builder to emit bindings during rewriting. */
   BlockBuilder builder_;
@@ -793,7 +804,7 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   using ExprMutator::LookupBinding;
   using ExprMutator::var_remap_;
   using ExprMutator::VisitWithNewScope;
-  using ExprMutator::WithShapeAndType;
+  using ExprMutator::WithStructInfo;
 
   void VisitAttrs(AttrVisitor* v) { v->Visit("builder_", &builder_); }
   static constexpr const char* _type_key = "expr_functor.PyExprMutator";
