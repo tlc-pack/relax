@@ -21,9 +21,12 @@
  * \file src/relax/block_builder.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/struct_info.h>
+#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_analysis.h>
 #include <tvm/relax/utils.h>
@@ -128,9 +131,19 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
       GlobalVar gvar = GlobalVar(func_name);
 
-      ICHECK(func->checked_type_.defined())
-          << "The function to be added does not have checked_type_.";
-      gvar->checked_type_ = func->checked_type_;
+      StructInfo finfo;
+      if (func->struct_info_.defined()) {
+        finfo = GetStructInfo(func);
+      } else if (auto* prim_func = func.as<tir::PrimFuncNode>()) {
+        // NOTE: use a slightly different struct info than checked type
+        // in PrimFunc so handle can turn into Tensor.
+        // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
+        finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
+      } else {
+        finfo = StructInfoFromType(func->checked_type());
+      }
+      UpdateStructInfo(gvar, finfo);
+
       context_mod_->Add(gvar, func);
 
       ctx_func_dedup_map_->emplace(func, gvar);
@@ -162,6 +175,16 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
+  void ReportFatal(const Diagnostic& diagnostic) final {
+    // TODO(relax-team): Print more context information by looking
+    // into the diagnostic->loc and surrounding IRModule.
+    // We do not materialzie DiagnosticContext to avoid double referencing to
+    // the change IRModule in COW. Additionally, we need to be able to
+    // continue use the builder after an error is thrown to avoid state building up.
+    // in an interactive environment.
+    LOG(FATAL) << diagnostic->message;
+  }
+
   //-------------------------------
   // Scope management
   //-------------------------------
@@ -175,22 +198,52 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   void BeginBindingBlock() final { block_stack_.emplace_back(BlockFrame{{}, false}); }
 
+  void BeginScope(Optional<Array<Var>> params) final {
+    // The current implementation handles the collection of shape var
+    // defined in parameter struct info annotations. The implementation
+    // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
+    // but can be further improved.
+    //
+    // TODO(relax-team): Add support for relax Var in struct info annotations.
+    Map<tir::Var, PrimExpr> shape_var_map;
+    for (const Var& var : params.value_or(Array<Var>())) {
+      const Map<tir::Var, PrimExpr>& var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
+      for (const auto& kv : var_map) {
+        const tir::Var& shape_var = kv.first;
+        const PrimExpr& shape_expr = kv.second;
+        auto it = shape_var_map.find(shape_var);
+        if (it == shape_var_map.end()) {
+          shape_var_map.Set(shape_var, shape_expr);
+        } else {
+          const PrimExpr& old_shape_expr = (*it).second;
+          CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+              << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
+              << shape_expr;
+        }
+        shape_var_map.Set(shape_var, shape_expr);
+      }
+    }
+    scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));
+  }
+
+  void EndScope() final { scope_stack_.pop_back(); }
+
   BindingBlock EndBlock() final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     BindingBlock ret = cur_frame->is_dataflow ? DataflowBlock(cur_frame->bindings)
                                               : BindingBlock(cur_frame->bindings);
     block_stack_.pop_back();
     return ret;
   }
 
-  bool CurrentBlockIsDataFlow() final { return CurrentFrame()->is_dataflow; }
+  bool CurrentBlockIsDataFlow() final { return CurrentBlockFrame()->is_dataflow; }
 
   Var Emit(Expr expr, String name_hint) final {
-    return this->Emit(expr, CurrentFrame()->is_dataflow, name_hint);
+    return this->Emit(expr, CurrentBlockFrame()->is_dataflow, name_hint);
   }
 
   Var Emit(VarBinding binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     if (cur_frame->is_dataflow) {
       ICHECK(binding->var.as<DataflowVarNode>())
           << "Emit can only be used for local bindings in a dataflow block, use EmitOutput for "
@@ -204,20 +257,17 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Var EmitMatchShape(Expr value, Array<PrimExpr> pattern, String name_hint) final {
     value = this->Normalize(value);
 
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     Var var = CreateVar(cur_frame->is_dataflow, name_hint);
 
-    if (value->checked_type().as<ShapeTypeNode>()) {
-      UpdateType(var, ShapeType());
-    } else if (const DynTensorTypeNode* tty = value->checked_type().as<DynTensorTypeNode>()) {
-      ShapeExpr shape = ShapeExpr(pattern);
-      UpdateShape(var, shape);
-      DataType dtype = tty->dtype;
-      UpdateType(var, DynTensorType(pattern.size(), dtype));
+    if (value->struct_info_.as<ShapeStructInfoNode>()) {
+      UpdateStructInfo(var, ShapeStructInfo(pattern.size()));
+    } else if (const auto* tensor_sinfo = value->struct_info_.as<TensorStructInfoNode>()) {
+      UpdateStructInfo(var, TensorStructInfo(ShapeExpr(pattern), tensor_sinfo->dtype));
     } else {
-      this->diag_ctx_.EmitFatal(
-          Diagnostic::Error(value->span)
-          << "The value passed to EmitMatchShape must be of DynTensorType or ShapeType.");
+      this->ReportFatal(
+          Diagnostic::Error(value)
+          << "The value passed to EmitMatchShape must be of TensorStructInfo or ShapeStructInfo.");
     }
 
     MatchShape match_shape = MatchShape(value, pattern, var);
@@ -228,7 +278,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitMatchShape(MatchShape binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
     // NOTE match shape do not follow simple binding rule
     // as a result should not appear in binding table.
     cur_frame->bindings.push_back(binding);
@@ -236,7 +286,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitOutput(Expr output, String name_hint) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
 
@@ -244,7 +294,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitOutput(VarBinding binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
     ICHECK(!binding->var.as<DataflowVarNode>()) << "EmitOutput can only emit Var bindings.";
@@ -255,7 +305,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   void EmitNormalized(Binding binding) final {
-    BlockFrame* cur_frame = CurrentFrame();
+    BlockFrame* cur_frame = CurrentBlockFrame();
 
     if (auto* var_binding = binding.as<VarBindingNode>()) {
       if (!cur_frame->is_dataflow) {
@@ -294,17 +344,32 @@ class BlockBuilderImpl : public BlockBuilderNode {
     /*!
      * \brief Binding map used by normalizer.
      *
-     * \note The normalizer only caches reuse in the current scope
+     * \note The normalizer only caches reuse in the current block scope
      *       and will not cache bindings from parent scope.
      */
     std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> normalize_binding_map;
+  };
+  /*!
+   * \brief A representation of a scope frame.
+   *
+   * A scope frame records tracks the context of current scope.
+   */
+  struct ScopeFrame {
+    // NOTE: for simplicity, only tracks symbolic var for now
+    // the scope is only used for erasure, so less information means
+    // more conservative analysis.
+    // Consider impl alternative: merge with block frame if we have more frame kinds.
+    //
+    // TODO(relax-team) tracks the var defined also through match-cast.
+    /*! \brief set of defined symbolic vars, value as themself. */
+    Map<tir::Var, PrimExpr> shape_var_map;
   };
 
   /*! \brief A stack to store block frames. */
   std::vector<BlockFrame> block_stack_;
 
-  /*! \brief A diagnostic context for reporting errors. */
-  DiagnosticContext diag_ctx_ = DiagnosticContext::Default(IRModule({}, {}));
+  /*! \brief A stack to store scope frames. */
+  std::vector<ScopeFrame> scope_stack_;
 
   /*! \brief A binding table that maps var to value. */
   std::unordered_map<Id, Expr, ObjectPtrHash, ObjectPtrEqual> binding_table_;
@@ -324,9 +389,18 @@ class BlockBuilderImpl : public BlockBuilderNode {
    *       or other scope calls this value can change if the block stack get updated,
    *       then the block frame is no longer valid.
    */
-  BlockFrame* CurrentFrame() {
+  BlockFrame* CurrentBlockFrame() {
     ICHECK(!block_stack_.empty()) << "no block is being built";
     return &block_stack_.back();
+  }
+
+  /*!
+   * \return The current scope frame.
+   * \note only use this value
+   */
+  ScopeFrame* CurrentScopeFrame() {
+    ICHECK(!scope_stack_.empty()) << "no scope is being opened";
+    return &scope_stack_.back();
   }
 
   /*!
@@ -344,10 +418,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     Var var = CreateVar(is_dataflow, name_hint);
 
     // set the values
-    UpdateType(var, expr->checked_type_);
-    UpdateShape(var, expr->shape_);
+    UpdateStructInfo(var, Downcast<StructInfo>(expr->struct_info_.value()));
 
-    CurrentFrame()->bindings.push_back(VarBinding(var, expr));
+    CurrentBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
     binding_table_[var->vid] = expr;
@@ -390,6 +463,42 @@ class BlockBuilderImpl : public BlockBuilderNode {
       ctx_func_dedup_map_->emplace(func, gv);
     }
   }
+
+  // Collect all the variables that a parameter var can define.
+  // The collector is used to making sure that we record the
+  // shape vars as defined when calling BeginScope(params)
+  class StructInfoVarCollector : public StructInfoVisitor {
+   public:
+    static Map<tir::Var, PrimExpr> Collect(const StructInfo& struct_info) {
+      StructInfoVarCollector collector;
+      collector(struct_info);
+      return collector.shape_var_map_;
+    }
+
+   private:
+    void VisitStructInfo_(const TensorStructInfoNode* op) final {
+      if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
+        for (const PrimExpr& s : shape_expr->values) {
+          // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
+          if (const auto* var = s.as<tir::VarNode>()) {
+            shape_var_map_.Set(GetRef<tir::Var>(var), s);
+          }
+        }
+      }
+    }
+
+    void VisitStructInfo_(const ShapeStructInfoNode* op) final {
+      for (const PrimExpr& s : op->values.value_or(Array<PrimExpr>())) {
+        // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
+        if (const auto* var = s.as<tir::VarNode>()) {
+          shape_var_map_.Set(GetRef<tir::Var>(var), s);
+        }
+      }
+    }
+
+   private:
+    Map<tir::Var, PrimExpr> shape_var_map_;
+  };
 };
 
 //---------------------------------------
@@ -399,6 +508,13 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Expr VisitExpr_(const OP* op) final { return GetRef<Expr>(op); }
 
 // TODO(relax-team): Check normalize logic after struct info.
+
+// Normalizer on struct info:
+//
+// We take benefit of the following invariants(that are checked in constructor):
+// - If an expr appears in StructInfo, then it is already normalized.
+//   As a result, we do not need to peek into StructInfo in Normalization.
+// - Constant, ShapeExpr, already have their StructInfo populated in constructing time.
 class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
   explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
@@ -407,11 +523,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr normalized = this->VisitExpr(expr);
     // Invariant:
     // After Normalize: an Expr always have
-    // checked_type (with the exception of Op).
+    // struct_info (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      ICHECK(normalized->checked_type_.defined())
-          << "The checked_type_ of an Expr except OpNode after "
-             "normalization must not be nullptr. However, this Expr does not have checked_type_: "
+      ICHECK(normalized->struct_info_.defined())
+          << "The struct_info_ of an Expr except OpNode after "
+             "normalization must not be nullptr. However, this Expr does not have struct_info_: "
           << normalized;
     }
 
@@ -425,14 +541,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
    *
    * \note This function create a new binding for non-leaf expressions except for tuple.
    */
-  Expr NormalizeArgument(Expr arg) {
+  Expr NormalizeArgument(const Expr& arg) final {
     // Temp patch to ensure we handle inline PrimFunc case.
     // TODO(relax-team) remove such cases from parser and testcases.
-    if (arg->IsInstance<tir::PrimFuncNode>()) return arg;
+    if (auto* prim_func = arg.as<tir::PrimFuncNode>()) {
+      return NormalizePrimFunc(GetRef<tir::PrimFunc>(prim_func));
+    }
 
     if (!block_stack_.empty()) {
       // cache lookup
-      BlockFrame* cur_frame = CurrentFrame();
+      BlockFrame* cur_frame = CurrentBlockFrame();
       auto it = cur_frame->normalize_binding_map.find(arg);
       if (it != cur_frame->normalize_binding_map.end()) {
         return it->second;
@@ -446,7 +564,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Var var = this->Emit(post, "");
       // NOTE: current frame addr can change due to underlying vector
       // re-allocation, redo lookup
-      CurrentFrame()->normalize_binding_map[arg] = var;
+      CurrentBlockFrame()->normalize_binding_map[arg] = var;
       return var;
     } else {
       return post;
@@ -462,34 +580,37 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   template <typename T>
   Expr VisitVar_(const typename T::ContainerType* var) {
-    bool shape_unchanged = true;
-    Expr new_shape;
-    if (var->shape_) {
-      new_shape = this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-      shape_unchanged &= new_shape.same_as(var->shape_);
-    }
-
-    if (shape_unchanged) {
-      return GetRef<Var>(var);
-    } else {
-      Var new_var = T(var->vid, NullOpt, var->checked_type_, var->span);
-      UpdateShape(new_var, new_shape);
-      return new_var;
-    }
+    // Parameters and free-vars must be present with struct info
+    // Other vars must have already been normalized through binding
+    ICHECK(var->struct_info_.defined())
+        << "Var " << var->name_hint() << " does not have struct info.";
+    return GetRef<Var>(var);
   }
 
   Expr VisitExpr_(const VarNode* var) final { return VisitVar_<Var>(var); }
 
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 
+  // Temp patch to ensure we handle inline PrimFunc case.
+  // TODO(relax-team) remove such cases from parser and testcases.
+  Expr NormalizePrimFunc(tir::PrimFunc prim_func) {
+    if (!prim_func->struct_info_.defined()) {
+      auto finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
+      UpdateStructInfo(prim_func, finfo);
+    }
+    return prim_func;
+  }
+
   Expr VisitExpr(const Expr& expr) final {
     // Temp patch to ensure we handle inline PrimFunc case.
     // TODO(relax-team) remove such cases from parser and testcases.
-    if (expr->IsInstance<tir::PrimFuncNode>()) return expr;
+    if (auto* prim_func = expr.as<tir::PrimFuncNode>()) {
+      return NormalizePrimFunc(GetRef<tir::PrimFunc>(prim_func));
+    }
 
     // lookup normalize map
     if (!block_stack_.empty()) {
-      BlockFrame* cur_frame = CurrentFrame();
+      BlockFrame* cur_frame = CurrentBlockFrame();
       auto it = cur_frame->normalize_binding_map.find(expr);
       if (it != cur_frame->normalize_binding_map.end()) {
         return it->second;
@@ -517,55 +638,33 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitExpr_(const TupleNode* op) final {
     bool unchanged = true;
     Array<Expr> new_fields;
+
     for (const Expr& field : op->fields) {
       Expr new_field = this->NormalizeArgument(field);
       new_fields.push_back(new_field);
       unchanged &= new_field.same_as(field);
     }
-    Tuple tuple = unchanged ? GetRef<Tuple>(op) : Tuple(new_fields);
 
-    // only do shape/type inference if the Tuple does not have shape/type
-    if (tuple->shape_ && tuple->checked_type_.defined()) {
-      return tuple;
-    }
-
-    // Tuple's checked_type must not be null
-    if (!tuple->checked_type_.defined()) {
-      Array<Type> tuple_type;
+    Tuple tuple = unchanged ? GetRef<Tuple>(op) : Tuple(new_fields, op->span);
+    // Update tuple fields.
+    if (!tuple->struct_info_.defined()) {
+      Array<StructInfo> tuple_sinfo;
       for (Expr field : tuple->fields) {
-        ICHECK(field->checked_type_.defined())
-            << "The checked_type_ of the field " << field << " of Tuple has not propagated.";
-        tuple_type.push_back(field->checked_type_);
+        tuple_sinfo.push_back(GetStructInfo(field));
       }
-      UpdateType(tuple, TupleType(tuple_type));
+      UpdateStructInfo(tuple, TupleStructInfo(tuple_sinfo, op->span));
     }
-
-    // NOTE: Tuple's shape can be null
-    // When a tuple consists of all DynTensorType elements or nested tuple of DynTensorTypes,
-    // it has a shape.
-    if (!tuple->shape_.defined()) {
-      UpdateShape(tuple, GetTupleShape(tuple));
-    }
-
-    // TODO(relax-team): revisit after struct info.
-    // recurse into its shape in case its shape also need to be normalized
-    if (tuple->shape_ && tuple->shape_.value()->IsInstance<TupleNode>()) {
-      this->VisitExpr(Downcast<Expr>(tuple->shape_.value()));
-    }
-
     return tuple;
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {
-    Expr new_body = this->VisitWithNewScope(op->body);
-    Function func;
+    Expr new_body = this->VisitWithNewScope(op->body, op->params);
+
     if (new_body.same_as(op->body)) {
-      func = GetRef<Function>(op);
+      return GetRef<Function>(op);
     } else {
-      func = Function(op->params, new_body, op->ret_type, op->ret_shape, op->attrs);
+      return Function(op->params, new_body, op->ret_type, op->ret_shape, op->attrs);
     }
-    // NOTE: the shape_ of Function is left as null for now
-    return func;
   }
 
   Expr VisitExpr_(const CallNode* op) final {
@@ -587,28 +686,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       call = Call(new_op, new_args, op->attrs, op->type_args);
     }
 
-    // only do shape/type inference if the Call does not have shape/type
-    if (call->shape_.defined() && call->checked_type_.defined()) {
-      return call;
+    if (!call->struct_info_.defined()) {
+      auto inferred_sinfo = InferStructInfo(call);
+      UpdateStructInfo(call, inferred_sinfo);
     }
 
-    // Update the type prior to updating the shape, since the shape inference may need the updated
-    // type in cases of Call for ExternFunc.
-    if (!call->checked_type_.defined()) {
-      // type inference
-      auto inferred_type = InferType(call, this->diag_ctx_, this->context_mod_);
-      UpdateType(call, inferred_type);
-    }
-
-    if (!call->shape_) {
-      // shape inference
-      auto inferred_shape = InferShape(call, this->diag_ctx_, this->context_mod_);
-      if (inferred_shape) {
-        UpdateShape(call, inferred_shape.value());
-      }
-    }
-
-    CheckShapeTypeConsistency(call->shape_, call->checked_type_);
     return call;
   }
 
@@ -640,20 +722,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (unchanged) {
       seq_expr = GetRef<SeqExpr>(op);
     } else {
-      seq_expr = SeqExpr(normalized_blocks, new_body);
+      seq_expr = SeqExpr(normalized_blocks, new_body, op->span);
     }
 
     // only do shape/type inference if the SeqExpr does not have shape/type
-    if (seq_expr->shape_ && seq_expr->checked_type_.defined()) {
-      return seq_expr;
-    }
-
-    if (!seq_expr->shape_ && seq_expr->body->shape_) {
-      UpdateShape(seq_expr, seq_expr->body->shape_);
-    }
-
-    if (!seq_expr->checked_type_.defined() && seq_expr->body->checked_type_.defined()) {
-      UpdateType(seq_expr, seq_expr->body->checked_type_);
+    if (!seq_expr->struct_info_.defined()) {
+      UpdateStructInfo(seq_expr, EraseToWellDefinedInScope(GetStructInfo(seq_expr->body)));
     }
     return seq_expr;
   }
@@ -668,25 +742,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         new_false.same_as(op->false_branch)) {
       if_node = GetRef<If>(op);
     } else {
-      if_node = If(new_cond, new_true, new_false);
+      if_node = If(new_cond, new_true, new_false, op->span);
     }
-
-    if (!op->checked_type_.defined()) {
-      ICHECK(new_true->checked_type_.defined() && new_false->checked_type_.defined())
-          << "The checked_type_ of true and false branches must not be nullptr.";
-      UpdateType(if_node, FindLCA(new_true->checked_type_, new_false->checked_type_));
+    if (!if_node->struct_info_.defined()) {
+      auto true_info = EraseToWellDefinedInScope(GetStructInfo(new_true));
+      auto false_info = EraseToWellDefinedInScope(GetStructInfo(new_false));
+      UpdateStructInfo(if_node, StructInfoLCA(true_info, false_info));
     }
-
-    if (!op->shape_.defined()) {
-      if (new_true->shape_ && new_false->shape_ &&
-          this->ShapeStructEqual(Downcast<Expr>(new_true->shape_.value()),
-                                 Downcast<Expr>(new_false->shape_.value()))) {
-        UpdateShape(if_node, new_true->shape_);
-      } else {
-        UpdateShape(if_node, RuntimeDepShape());
-      }
-    }
-
     return if_node;
   }
 
@@ -696,23 +758,10 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     TupleGetItem node = new_tuple.same_as(op->tuple) ? GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
-    // only do shape/type inference if the TupleGetItem does not have shape/type
-    if (node->shape_ && node->checked_type_.defined()) {
-      return node;
-    }
-
-    if (!node->checked_type_.defined()) {
-      const TupleTypeNode* tuple_type = node->tuple->checked_type_.as<TupleTypeNode>();
-      ICHECK(tuple_type) << "The checked_type_ of Tuple must be TupleTypeNode.";
-      UpdateType(node, tuple_type->fields[node->index]);
-    }
-
-    if (!node->shape_ && node->tuple->shape_) {
-      // TODO(@prakalp, @yuchen): assign the shape_ to RuntimeDepShape when we cannot obtain the
-      // field
-      if (const TupleNode* shape = node->tuple->shape_.as<TupleNode>()) {
-        UpdateShape(node, shape->fields[node->index]);
-      }
+    if (!node->struct_info_.defined()) {
+      auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
+      ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo.";
+      UpdateStructInfo(node, opt.value()->fields[node->index]);
     }
 
     return node;
@@ -727,21 +776,26 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
   }
 
-  VarBinding VisitVarBinding(const VarBinding& binding) {
+  VarBinding VisitVarBinding(VarBinding binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (new_value.same_as(binding->value) || new_value.same_as(binding->var)) {
-      // if new_value = binding->var, then we have found an ANF binding site, so just return it
-      return binding;
+    if (!new_value.same_as(binding->value)) {
+      binding = VarBinding(binding->var, new_value, binding->span);
     }
-    return VarBinding(binding->var, new_value);
+    if (!binding->var->struct_info_.defined()) {
+      UpdateStructInfo(binding->var, GetStructInfo(new_value));
+    }
+    return binding;
   }
 
-  MatchShape VisitMatchShape(const MatchShape& binding) {
+  MatchShape VisitMatchShape(MatchShape binding) {
     Expr new_value = this->VisitExpr(binding->value);
-    if (new_value.same_as(binding->value)) {
-      return binding;
+    if (!new_value.same_as(binding->value)) {
+      binding = MatchShape(new_value, binding->pattern, binding->var, binding->span);
     }
-    return MatchShape(new_value, binding->pattern, binding->var);
+    if (binding->var.defined() && !binding->var->struct_info_.defined()) {
+      UpdateStructInfo(binding->var, GetStructInfo(new_value));
+    }
+    return binding;
   }
 
   BindingBlock VisitBindingBlock(const BindingBlock& block) {
@@ -767,221 +821,67 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
  private:
-  bool ShapeStructEqual(const Expr& lhs, const Expr& rhs) { return CanProveShapeEqual(lhs, rhs); }
-
-  // Helper function to check if a ShapeExpr is constant shape or tuple of constant shape
-  bool IsConstantShapes(const Expr& shape) const {
-    if (const auto* shape_expr = shape.as<ShapeExprNode>()) {
-      return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
-                         [](const PrimExpr& e) { return e->IsInstance<IntImmNode>(); });
-    } else if (const auto* shape_tuple = shape.as<TupleNode>()) {
-      return std::all_of(shape_tuple->fields.begin(), shape_tuple->fields.end(),
-                         [&](const Expr& e) { return IsConstantShapes(e); });
-    } else {
-      return false;
-    }
-  }
-
-  // Helper function to infer the shape of a Call.
-  Optional<Expr> InferShape(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
-    if (call->op.as<ExternFuncNode>()) {
-      std::function<Expr(const Type&)> f_create_type = [&f_create_type](const Type& type) -> Expr {
-        if (!type.defined() || type->IsInstance<ShapeTypeNode>() ||
-            type->IsInstance<FuncTypeNode>() || type->IsInstance<ObjectTypeNode>()) {
-          return Expr();
-        }
-        if (const auto* tuple_type = type.as<TupleTypeNode>()) {
-          if (tuple_type->fields.size() == 0) {
-            // VoidType (i.e. empty TupleType) does not have shape
-            return Expr();
-          }
-          Array<Expr> fields;
-          fields.reserve(tuple_type->fields.size());
-          for (const Type& field_type : tuple_type->fields) {
-            fields.push_back(f_create_type(field_type));
-          }
-          return Tuple(fields);
-        } else if (type->IsInstance<DynTensorTypeNode>()) {
-          return RuntimeDepShape();
-        } else {
-          LOG(FATAL) << "Unsupported relax type: " << type->GetTypeKey();
-          throw;
-        }
-      };
-      return f_create_type(call->checked_type_);
-    } else if (call->op.as<OpNode>()) {
-      // primitive op: look up FInferShape attribute
-      Op op = Downcast<Op>(call->op);
-      if (op_map_infer_shape_.count(op)) {
-        return op_map_infer_shape_[op](call, diag_ctx);
-      }
-    } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
-      // global function: find the function's shape_
-      auto it_func = ctx_mod->functions.find(GetRef<GlobalVar>(gv));
-
-      if (it_func != ctx_mod->functions.end()) {
-        if (const auto* func = (*it_func).second.as<FunctionNode>()) {
-          if (!func->body.defined()) {
-            return func->ret_shape;
-          }
-          // TODO(relax-team): migrate shape deduction to `ret_shape`
-          Expr func_shape = Downcast<Expr>(func->body->shape_);
-          if (IsConstantShapes(func_shape)) {
-            // Case 1. Nested tuples of constant shapes
-            return func_shape;
-          } else {
-            // TODO(@yuchen): add deducer for other cases
-            return RuntimeDepShape();
-          }
-        }
-      }
-      // TODO(@yuchen): add this check after normalization in parser
-      // else {
-      //   LOG(FATAL) << "ValueError: Cannot find function " << gv->name_hint
-      //              << " in the context IRModule.";
-      // }
-    } else if (const auto* var = call->op.as<VarNode>()) {
-      if (var->shape_) {
-        return Downcast<Expr>(var->shape_.value());
-      }
-      Optional<Expr> val = this->LookupBinding(GetRef<Var>(var));
-      if (const auto* func_node = val.value().as<FunctionNode>()) {
-        Function func = GetRef<Function>(func_node);
-        if (func->ret_type.as<DynTensorTypeNode>()) {
-          Expr func_shape = Downcast<Expr>(func_node->body->shape_);
-          if (IsConstantShapes(func_shape)) {
-            return func_shape;
-          } else {
-            // TODO(@yuchen, @yongwww): add deducer for other cases
-            return RuntimeDepShape();
-          }
-        }
-      }
-    } else {
-      LOG(FATAL) << "ValueError: Failed to do shape inference for " << call->op->GetTypeKey();
-    }
-
-    return NullOpt;
-  }
-
   // Helper function to infer the type of a Call.
-  Type InferType(const Call& call, DiagnosticContext diag_ctx, IRModule ctx_mod) {
-    if (call->op.as<OpNode>()) {
-      // Case 1: the op field is a primitive op, look up FInferType attribute
-      Op op = Downcast<Op>(call->op);
-      if (op_map_infer_type_.count(op)) {
-        return op_map_infer_type_[op](call, diag_ctx);
-      } else {
-        LOG(FATAL) << "ValueError: Cannot find the FInferType attribute registered to op: "
-                   << op->name;
-      }
+  StructInfo InferStructInfo(const Call& call) {
+    if (auto* op_ptr = call->op.as<OpNode>()) {
+      // Case 1: the op field is a primitive op, look up FInferStructInfo attribute
+      Op op = GetRef<Op>(op_ptr);
+      ICHECK(op_map_infer_struct_info_.count(op))
+          << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
+      return op_map_infer_struct_info_[op](call, GetRef<BlockBuilder>(this));
     } else {
-      // Case 2: the op field is of callable type
-      ICHECK(call->op->checked_type_.defined())
-          << "When the op field is not an OpNode, the CallNode's op must have checked_type_.";
-      if (call->op->checked_type_.as<PackedFuncTypeNode>()) {
-        if (call->type_args.defined()) {
-          if (call->type_args.size() == 0) {
-            return ObjectType();
-          } else if (call->type_args.size() == 1) {
-            return call->type_args.front();
-          } else {
-            return TupleType(call->type_args);
-          }
-        } else {
-          LOG(FATAL) << "ExternFunc call must have type args.";
-        }
-      } else if (auto* func_node = call->op->checked_type_.as<FuncTypeNode>()) {
-        return func_node->ret_type;
-      }
-    }
-    LOG(FATAL) << "ValueError: the CallNode's op has to be either an OpNode, or has "
-               << " Callable (i.e., PackedFuncType or FuncType) as its checked_type_";
-    throw;
-  }
-
-  // Helper function to check if the provided shape and type is consistent.
-  // Throw internal exceptions if they are not consistent.
-  void CheckShapeTypeConsistency(const Optional<ObjectRef>& opt_shape, const Type& type) {
-    if (!type.defined() || type->IsInstance<ShapeTypeNode>() || type->IsInstance<FuncTypeNode>() ||
-        type->IsInstance<ObjectTypeNode>()) {
-      ICHECK(!opt_shape.defined())
-          << "When the type of an Expr is undefined/ShapeType/FuncType/ObjectType, the shape of "
-             "this Expr is expected to be undefined. However, the actual shape is defined and is "
-          << opt_shape.value();
-    } else if (const auto* dyn_tensor_type = type.as<DynTensorTypeNode>()) {
-      // `opt_shape` should either be a relax::Expr or undefined.
-      if (opt_shape.defined()) {
-        const auto* shape = opt_shape.as<ExprNode>();
-        ICHECK(shape != nullptr) << "The shape of an Expr, if defined, is expected to be a Relax "
-                                    "Expr. However, the actual shape is not a Relax Expr and is "
-                                 << opt_shape.value()->GetTypeKey();
-        ICHECK(shape->checked_type()->IsInstance<ShapeTypeNode>())
-            << "The shape of an Expr, if defined, is expected to be a Relax Expr which has type "
-               "ShapeType. However, the actual shape has type "
-            << shape->checked_type()->GetTypeKey();
-      }
-
-      const auto* shape_expr = opt_shape.as<ShapeExprNode>();
-      if (dyn_tensor_type->IsUnknownNdim()) {
-        ICHECK(shape_expr == nullptr)
-            << "When the type of an Expr is DynTensorType with unknown ndim, the shape of the Expr "
-               "is expected not to be a ShapeExpr. However, the actual shape is ShapeExpr "
-            << GetRef<ShapeExpr>(shape_expr);
-      } else if (shape_expr != nullptr) {
-        ICHECK(dyn_tensor_type->ndim == static_cast<int>(shape_expr->values.size()))
-            << "When the type of an Expr is DynTensorType with known ndim and the shape of that "
-               "Expr is a ShapeExpr, the ShapeExpr should have as many values as the ndim "
-               "indicates. However, the actual Expr type has ndim "
-            << dyn_tensor_type->ndim << " while the actual Expr shape is "
-            << GetRef<ShapeExpr>(shape_expr) << ", which has length " << shape_expr->values.size();
-      }
-    } else if (const auto* tuple_type = type.as<TupleTypeNode>()) {
-      const auto* tuple_shape = opt_shape.as<TupleNode>();
-      if (tuple_shape == nullptr) {
-        ICHECK(tuple_type->fields.size() == 0)
-            << "When the type of an Expr is TupleType and the shape of that Expr is not a Tuple, "
-               "it means that the type should be a VoidType, which is represented as an empty "
-               "TupleType. However, here the shape is not a tuple while the type has "
-            << tuple_type->fields.size() << " field(s).";
-      } else {
-        ICHECK_EQ(tuple_shape->fields.size(), tuple_type->fields.size())
-            << "When the type of an Expr is TupleType and the shape of that Expr is a Tuple, the "
-               "two should have the same number of fields. However, the type has "
-            << tuple_type->fields.size() << " field(s) while the shape has "
-            << tuple_shape->fields.size() << " field(s)";
-        int n_field = tuple_shape->fields.size();
-        // Recursively check the consistency.
-        for (int i = 0; i < n_field; ++i) {
-          CheckShapeTypeConsistency(tuple_shape->fields[i], tuple_type->fields[i]);
-        }
-      }
-    } else {
-      LOG(FATAL) << "Unsupported relax type: " << type->GetTypeKey();
+      // derive using function parameters
+      ICHECK(call->op->struct_info_.defined());
+      auto opt = MatchStructInfo<FuncStructInfo>(call->op);
+      ICHECK(opt) << "Call->op must contains a function struct info";
+      FuncStructInfo finfo = opt.value();
+      return DeriveCallRetStructInfo(finfo, call, GetRef<BlockBuilder>(this), &analyzer_);
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr) {
+  // erase to well defined within current scope.
+  StructInfo EraseToWellDefinedInScope(StructInfo info) {
+    if (scope_stack_.empty()) {
+      return EraseToWellDefined(info);
+    }
+    auto* curr_scope = CurrentScopeFrame();
+    auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
+      auto it = curr_scope->shape_var_map.find(var);
+      if (it != curr_scope->shape_var_map.end()) return (*it).second;
+      return NullOpt;
+    };
+    return EraseToWellDefined(info, f_shape_var_map);
+  }
+
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
     // SeqExpr do not need to prepare for normalization.
-    if (expr.as<SeqExprNode>()) return this->VisitExpr(expr);
+    if (expr.as<SeqExprNode>()) {
+      this->BeginScope(params);
+      Expr ret = this->VisitExpr(expr);
+      this->EndScope();
+      return ret;
+    } else {
+      this->BeginScope(params);
 
-    this->BeginBindingBlock();
-    Expr post = this->NormalizeArgument(expr);
-    BindingBlock prologue = this->EndBlock();
-    // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
-    // Don't wrap if it's already a seq and there are no bindings to add
-    if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
-      return post;
-    }
-    Array<BindingBlock> bindings;
-    if (!prologue->bindings.empty()) {
-      bindings.push_back(prologue);
-    }
+      this->BeginBindingBlock();
+      Expr post = this->NormalizeArgument(expr);
+      BindingBlock prologue = this->EndBlock();
+      // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
+      // Don't wrap if it's already a seq and there are no bindings to add
+      if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
+        return post;
+      }
+      Array<BindingBlock> bindings;
+      if (!prologue->bindings.empty()) {
+        bindings.push_back(prologue);
+      }
 
-    SeqExpr seq(bindings, post);
-    UpdateShape(seq, post->shape_);
-    UpdateType(seq, post->checked_type_);
-    return seq;
+      SeqExpr seq(bindings, post);
+      UpdateStructInfo(seq, EraseToWellDefinedInScope(GetStructInfo(seq->body)));
+
+      this->EndScope();
+      return seq;
+    }
   }
 
   Array<BindingBlock> FlattenBlocks(const Array<BindingBlock>& blocks) {
@@ -1067,11 +967,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return changed ? ret : blocks;
   }
 
-  /*! \brief Operator to shape inference map. */
-  tvm::OpAttrMap<FInferShape> op_map_infer_shape_ = Op::GetAttrMap<FInferShape>("FInferShape");
-
-  /*! \brief Operator to type inference map. */
-  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
+  /*! \brief Operator struct info inference map. */
+  tvm::OpAttrMap<FInferStructInfo> op_map_infer_struct_info_ =
+      Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
 };
 
 BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
@@ -1151,5 +1049,11 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderCurrentBlockIsDataFlow")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderLookupBinding")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::LookupBinding);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginScope")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginScope);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEndScope")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::EndScope);
 }  // namespace relax
 }  // namespace tvm

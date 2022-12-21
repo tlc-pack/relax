@@ -35,23 +35,54 @@ RELAX_REGISTER_BINARY_BROADCAST_OP("multiply")
     .describe("Elementwise multiply with broadcasting")
     .set_support_level(1);
 
-Expr InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
+StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Binary broadcast op should have 2 arguments");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Binary broadcast op should have 2 arguments");
   }
-  Expr lhs_shape = call->args[0]->shape();
-  Expr rhs_shape = call->args[1]->shape();
-  auto* s0 = lhs_shape.as<ShapeExprNode>();
-  auto* s1 = rhs_shape.as<ShapeExprNode>();
-  if (s0 && s1) {
+  auto* lhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  auto* rhs_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  if (!lhs_sinfo || !rhs_sinfo) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Both lhs and rhs should be Tensor for broadcasting, but got "
+                     << call->args[0]->struct_info_->GetTypeKey() << " and "
+                     << call->args[0]->struct_info_->GetTypeKey());
+  }
+
+  // DateType
+  DataType output_dtype;
+  if (lhs_sinfo->IsUnknownDtype() || rhs_sinfo->IsUnknownDtype()) {
+    output_dtype = DataType::Void();
+  } else if (lhs_sinfo->dtype != rhs_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Data types " << lhs_sinfo->dtype << " and " << rhs_sinfo->dtype
+                     << " must be equal for broadcasting operators");
+  } else {
+    output_dtype = lhs_sinfo->dtype;
+  }
+
+  // ndims
+  int output_ndim;
+  if (lhs_sinfo->IsUnknownNdim() || rhs_sinfo->IsUnknownNdim()) {
+    output_ndim = kUnknownDim;
+  } else {
+    output_ndim = std::max(lhs_sinfo->ndim, rhs_sinfo->ndim);
+  }
+
+  auto* lhs_shape = lhs_sinfo->shape.as<ShapeExprNode>();
+  auto* rhs_shape = rhs_sinfo->shape.as<ShapeExprNode>();
+  // Shapes and ndims
+  if (lhs_shape && rhs_shape) {
+    // If all inputs have shapes, directly infer shapes
     std::vector<PrimExpr> output_shape;
-    size_t ndim0 = s0->values.size();
-    size_t ndim1 = s1->values.size();
+
+    size_t lhs_ndim = lhs_sinfo->ndim;
+    size_t rhs_ndim = rhs_sinfo->ndim;
+    size_t max_ndim = std::max(lhs_ndim, rhs_ndim);
+
     size_t i = 1;
-    for (; i <= std::min(ndim0, ndim1); ++i) {
-      PrimExpr dim0 = s0->values[ndim0 - i];
-      PrimExpr dim1 = s1->values[ndim1 - i];
+    for (; i <= std::min(lhs_ndim, rhs_ndim); ++i) {
+      const PrimExpr& dim0 = lhs_shape->values[lhs_ndim - i];
+      const PrimExpr& dim1 = rhs_shape->values[rhs_ndim - i];
       if (EqualConstInt(dim0, 1)) {
         output_shape.push_back(dim1);
       } else if (EqualConstInt(dim1, 1)) {
@@ -59,57 +90,19 @@ Expr InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
       } else if (EqualCheck(dim0, dim1)) {
         output_shape.push_back(dim0);
       } else {
-        // defer the computation of output shapes to runtime
-        // e.g., broadcast Tensor([m, n]), Tensor([k]) -> defer to runtime
-        Call call_infer(ExternFunc(String("vm.binary_broadcast_shape_infer")),
-                        {call->args[0], call->args[1]}, {}, {});
-        call_infer->checked_type_ = ShapeType();
-        return call_infer;
+        // Use simple fallback when shape mismatch.
+        return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
       }
     }
-    size_t max_ndim = std::max(ndim0, ndim1);
-    auto& longer_shape = (ndim0 > ndim1) ? s0 : s1;
+    auto& longer_shape = (lhs_ndim > rhs_ndim) ? lhs_shape : rhs_shape;
     for (; i <= max_ndim; ++i) {
       output_shape.push_back(longer_shape->values[max_ndim - i]);
     }
-    return ShapeExpr(Array<PrimExpr>(output_shape.rbegin(), output_shape.rend()));
-  }
-  return RuntimeDepShape();
-}
-
-Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx) {
-  if (call->args.size() != 2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Binary broadcast op should have 2 arguments");
-  }
-  Type lhs_type = call->args[0]->checked_type();
-  Type rhs_type = call->args[1]->checked_type();
-  auto* t0 = lhs_type.as<DynTensorTypeNode>();
-  auto* t1 = rhs_type.as<DynTensorTypeNode>();
-  if (!t0 || !t1) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Both lhs and rhs should be DynTensor for broadcasting, but got "
-                       << lhs_type->GetTypeKey() << " and " << rhs_type->GetTypeKey());
-  }
-
-  DataType output_dtype;
-  if (t0->IsUnknownDtype() || t1->IsUnknownDtype()) {
-    output_dtype = DataType::Void();
-  } else if (t0->dtype != t1->dtype) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call->span)
-                       << "Data types " << t0->dtype << " and " << t1->dtype
-                       << " must be equal for broadcasting operators");
+    Expr shape = ShapeExpr(Array<PrimExpr>(output_shape.rbegin(), output_shape.rend()));
+    return TensorStructInfo(shape, output_dtype);
   } else {
-    output_dtype = t0->dtype;
+    return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
   }
-
-  int output_ndim;
-  if (t0->IsUnknownNdim() || t1->IsUnknownNdim()) {
-    output_ndim = -1;
-  } else {
-    output_ndim = std::max(t0->ndim, t1->ndim);
-  }
-  return DynTensorType(output_ndim, output_dtype);
 }
 
 }  // namespace relax

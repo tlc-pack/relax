@@ -54,7 +54,7 @@ void FunctionFrameNode::ExitWithScope() {
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
                              "`return` to return an Expr";
-
+  this->block_builder->BeginScope(params);
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   Expr func_shape = ret_shape.value_or(tvm::relax::RuntimeDepShape());
   if (func_shape->IsInstance<tvm::relax::RuntimeDepShapeNode>()) {
@@ -63,6 +63,7 @@ void FunctionFrameNode::ExitWithScope() {
     // func_shape = tvm::relax::DeriveFuncRetShape(params, body);
   }
   auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
+  this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_type=*/ret_type.value_or(Type()),
