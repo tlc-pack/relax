@@ -18,6 +18,7 @@ import pytest
 import tvm
 from tvm import tir
 from tvm import relax as rx
+import tvm.script
 from tvm.script import relax as R
 
 m = tir.Var("m", "int64")
@@ -358,6 +359,20 @@ def test_ANF():
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
     assert not rx.analysis.well_formed(mod)
+
+
+def test_global_var_vs_gsymbol():
+    # Error: gsymbol "main1" not equals to the name in global var "main"
+    @tvm.script.ir_module
+    class NameDiff:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3), "float32"),
+        ) -> R.Tensor:
+            R.func_attr({"global_symbol": "main1"})
+            return x
+
+    assert not rx.analysis.well_formed(NameDiff)
 
 
 if __name__ == "__main__":
