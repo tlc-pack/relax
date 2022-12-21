@@ -29,7 +29,7 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair
+from .entry import MatchShapePair, MatchCastPair
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -74,6 +74,10 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         var = R.emit_match_shape(value.value, value.pattern, emit_var=True)
         # It's an internal check, so directly use assert here.
         assert var is not None
+        IRBuilder.name(var_name, var)
+        return var
+    elif isinstance(value, MatchCastPair):
+        var = R.emit_match_cast(value.value, value.struct_info)
         IRBuilder.name(var_name, var)
         return var
     else:

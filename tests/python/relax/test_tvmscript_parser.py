@@ -209,6 +209,35 @@ def test_match_shape():
     _check(foo, bb.get()["foo"])
 
 
+def test_match_cast():
+    @R.function
+    def foo(x: R.Tensor("float32"), y: R.Tensor("float32")):
+        m = T.var("int64")
+        n = T.var("int64")
+        x0 = R.match_cast(x, R.Tensor([m], "float32"))
+        with R.dataflow():
+            y0 = R.match_cast(y, R.Tensor([n], "float32"))
+            gv = y0
+            R.output(gv)
+        return (x0, (m, n * 2))
+
+    # Need update after M1 merged
+    x = relax.Var("x", RuntimeDepShape(), DynTensorType(-1, "float32"))
+    y = relax.Var("y", RuntimeDepShape(), DynTensorType(-1, "float32"))
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
+    y2 = relax.Var("y", [n], DynTensorType(1, "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x, y)):
+        x0 = bb.match_cast(x, R.Tensor([m], "float32"))
+        with bb.dataflow():
+            y0 = bb.match_cast(y, R.Tensor([n], "float32"))
+            bb.emit_output(y0)
+        bb.emit_func_output(relax.Tuple([x0, relax.ShapeExpr([m, n * 2])]))
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_tuple_return():
     @R.function
     def foo(x: R.Tensor((4, 4), "float32")):

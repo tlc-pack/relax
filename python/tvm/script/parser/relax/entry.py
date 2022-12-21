@@ -193,3 +193,21 @@ def match_shape(value: Expr, pattern: List[PrimExpr]):
     if pattern is None:
         raise ValueError("pattern of match_shape cannot be None")
     return MatchShapePair(value, pattern)
+
+
+############################ R.match_cast #############################
+class MatchCastPair:
+    value: Expr
+    struct_info: StructInfo
+
+    def __init__(self, value: Expr, struct_info: StructInfo) -> None:
+        self.value = value
+        self.struct_info = struct_info
+
+
+def match_cast(value: Expr, struct_info: StructInfo):
+    if value is None:
+        raise ValueError("value of match_cast cannot be None")
+    if struct_info is None:
+        raise ValueError("struct_info of match_cast cannot be None")
+    return MatchCastPair(value, struct_info)

@@ -224,8 +224,19 @@ Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
   }
 }
 
+tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
+                              const tvm::relax::StructInfo& struct_info) {
+  BlockFrame block_frame = CheckBlockFrameExistAndUnended();
+  const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
+
+  tvm::relax::Var var = block_builder->EmitMatchCast(value, struct_info);
+  block_frame->emitted_vars.push_back(var);
+  return var;
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(EmitMatchShape);
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchCast").set_body_typed(EmitMatchCast);
 
 ///////////////////////////// Type Deduce //////////////////////////////
 

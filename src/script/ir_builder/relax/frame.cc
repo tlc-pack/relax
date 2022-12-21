@@ -169,6 +169,10 @@ void BlockFrameNode::ExitWithScope() {
             !match_shape->var->IsInstance<tvm::relax::DataflowVarNode>()) {
           new_global_vars.Set(match_shape->var->vid, match_shape->var);
         }
+      } else if (const auto* match_cast = binding.as<tvm::relax::MatchCastNode>()) {
+        if (!match_cast->var->IsInstance<tvm::relax::DataflowVarNode>()) {
+          new_global_vars.Set(match_cast->var->vid, match_cast->var);
+        }
       } else {
         LOG(FATAL) << "ValueError: Unsupported binding type: " << binding;
       }

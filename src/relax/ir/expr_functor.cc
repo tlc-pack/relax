@@ -585,14 +585,15 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
 }
 
 void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
+  Var new_var = this->VisitVarDef(binding->var);
   Expr new_value = this->VisitExpr(binding->value);
+
   // re-emit old binding if nothing changes
-  if (new_value.same_as(binding->value)) {
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
     builder_->EmitNormalized(GetRef<MatchCast>(binding));
   } else {
     new_value = builder_->NormalizeArgument(new_value);
-    builder_->EmitNormalized(
-        MatchCast(binding->var, new_value, binding->struct_info, binding->span));
+    builder_->EmitNormalized(MatchCast(new_var, new_value, binding->struct_info, binding->span));
   }
 }
 

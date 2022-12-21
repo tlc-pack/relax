@@ -332,10 +332,14 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
   for (const relax::Binding& binding : op->bindings) {
     body << Print(binding) << Doc::NewLine();
     Var var;
-    if (const relax::VarBindingNode* var_binding = binding.as<relax::VarBindingNode>()) {
+    if (const auto* var_binding = binding.as<VarBindingNode>()) {
       var = var_binding->var;
-    } else if (const relax::MatchShapeNode* shape_binding = binding.as<relax::MatchShapeNode>()) {
+    } else if (const auto* shape_binding = binding.as<MatchShapeNode>()) {
       var = shape_binding->var;
+    } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
+      var = match_cast->var;
+    } else {
+      LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
     }
     if (var.defined() && !var.as<relax::DataflowVarNode>()) {
       return_vars.push_back(Print(var));
