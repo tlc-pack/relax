@@ -339,37 +339,13 @@ class ASTPostPrinterMutator(PyExprMutator):
 
     def visit_var_def_(self, var: Var) -> None:
         """Identical with ExprMutator::VisitVarDef_(const VarNode* var) on the C++ side."""
-        shape_unchanged = True
-        new_shape = None
-        if var.shape_:
-            new_shape = self.visit_expr(var.shape_)
-            shape_unchanged &= var.shape_.same_as(new_shape)
-
         self.log.add("VarDef")
-        if shape_unchanged:
-            return var
-        else:
-            new_var = Var(var.vid, new_shape, var._checked_type_, var.span)
-
-            self.set_var_remap(var.vid, new_var)
-            return new_var
+        return var
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
         """Identical with ExprMutator::VisitVarDef_(const DataflowVarNode* var) on the C++ side."""
-        shape_unchanged = True
-        new_shape = None
-        if var.shape_:
-            new_shape = self.visit_expr(var.shape_)
-            shape_unchanged &= var.shape_.same_as(new_shape)
-
         self.log.add("DataflowVarDef")
-        if shape_unchanged:
-            return var
-        else:
-            new_var = DataflowVar(var.vid, new_shape, var._checked_type_, var.span)
-
-            self.set_var_remap(var.vid, new_var)
-            return new_var
+        return var
 
 
 def basic_check(expr, visitor_str, mutator_str):
@@ -443,20 +419,13 @@ def test_seq_expr():
                 "\tVar",
             ]
         ),
-        "\n".join(
-            ["Constant", "ShapeExpr", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]
-        ),
+        "\n".join(["Constant", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]),
     )
 
 
 def test_shape_expr():
     x = relax.ShapeExpr([m, n])
     basic_check(x, "ShapeExpr", "ShapeExpr")
-
-
-def test_runtime_dep_shape():
-    runtime_dep_shape = relax.RuntimeDepShape()
-    basic_check(runtime_dep_shape, "RuntimeDepShape", "RuntimeDepShape")
 
 
 def test_call():
@@ -591,10 +560,8 @@ def test_function():
         ),
         "\n".join(
             [
-                "ShapeExpr",
                 "VarDef",
                 "Constant",
-                "ShapeExpr",
                 "VarDef",
                 "VarBinding",
                 "BindingBlock",

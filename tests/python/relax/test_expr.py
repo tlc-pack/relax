@@ -30,7 +30,7 @@ def test_var() -> None:
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
     assert v1.name_hint == "v1"
-    for s0, s1 in zip(v1.shape_, shape):
+    for s0, s1 in zip(v1.struct_info.shape, shape):
         assert s0 == s1
     assert v1.checked_type == rx.DynTensorType(2, "float32")
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float32"))
@@ -165,13 +165,13 @@ def test_shape_expr():
     assert shape_expr.values[0] == 10
     assert shape_expr.values[1] == 20
     assert shape_expr.checked_type == rx.ShapeType(ndim=2)
-    assert shape_expr.shape_ is None
+    tvm.ir.assert_structural_equal(shape_expr.struct_info, R.Shape((10, 20)))
 
     x = rx.Var("v0", R.Tensor((10, 20), "float32"))
-    assert x.shape_.values[0] == 10
-    assert x.shape_.values[1] == 20
-    assert x.shape_.checked_type == rx.ShapeType(ndim=2)
-    assert x.shape_.shape_ is None
+    assert x.struct_info.shape[0] == 10
+    assert x.struct_info.shape[1] == 20
+    assert x.struct_info.shape.checked_type == rx.ShapeType(ndim=2)
+    tvm.ir.assert_structural_equal(x.struct_info.shape.struct_info, R.Shape((10, 20)))
 
     m = tir.Var("m", "int32")
     with pytest.raises(

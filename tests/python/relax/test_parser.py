@@ -501,7 +501,7 @@ def test_inline_tir():
         return z
 
     x, y = f.params
-    B = x.shape_[0]
+    B = x.struct_info.shape[0]
     mm_bind, z_bind = f.body.blocks[0].bindings
 
     assert mm_bind.var.name_hint == "my_matmul"
@@ -631,10 +631,10 @@ def test_primexpr_arithmetic():
         return z
 
     x = f.params[0]
-    n, m = x.shape_
+    n, m = x.struct_info.shape
     z_bind, sh_bind = f.body.blocks[0].bindings
 
-    assert_structural_equal(z_bind.var.shape_.values, [tir.Mul(n, m)])
+    assert_structural_equal(z_bind.var.struct_info.shape.values, [tir.Mul(n, m)])
     assert_structural_equal(sh_bind.value.values, [tir.Add(n, m), tir.FloorDiv(n, m)])
 
 

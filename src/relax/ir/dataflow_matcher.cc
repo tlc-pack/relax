@@ -498,10 +498,6 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
   return true;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const RuntimeDepShapePatternNode* op, const Expr& expr) {
-  return expr->shape_->IsInstance<RuntimeDepShapeNode>() && VisitDFPattern(op->pattern, expr);
-}
-
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val) {
   if (var2val.defined())  // autojump is enabled with var2val.
     return DFPatternMatcher(std::move(var2val.value())).Match(pattern, expr);

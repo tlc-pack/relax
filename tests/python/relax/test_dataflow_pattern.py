@@ -248,15 +248,6 @@ def test_prim_arr_pattern():
     assert not is_shape([n, m, n * m]).match(symbolic_shape)
 
 
-def test_rt_dep_shape_pattern():
-    # runtime-dep-shape var
-    rts_var = rx.Var("rts_var", R.Tensor("float32", ndim=4))
-    # static-shape var
-    ss_var = rx.Var("ss_var", R.Tensor([32, 32], "float32"))
-    assert wildcard().has_rt_dep_shape().match(rts_var)
-    assert not wildcard().has_rt_dep_shape().match(ss_var)
-
-
 def test_extern_fn_pattern():
     pattern = ExternFuncPattern("test.blockbuilder.nop")
     assert pattern.match(rx.ExternFunc("test.blockbuilder.nop"))

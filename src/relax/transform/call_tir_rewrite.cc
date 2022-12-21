@@ -22,6 +22,7 @@
  */
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
@@ -54,52 +55,43 @@ class CallTIRMutator : public ExprMutator {
 
     if (call->op == call_tir_op) {
       Array<Expr> outs;
-      if (call->shape_) {
-        if (call->shape_.value()->IsInstance<ShapeExprNode>()) {
-          // single output case
-          ShapeExpr output_shape = Downcast<ShapeExpr>(call->shape_.value());
-          auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
+      if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
+        // single output case
+        const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
+        ICHECK(tensor_sinfo->shape.defined())
+            << "the TensorStructInfo shape of call_tir has not populated";
+        auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
+        alloc_tensor_attr->dtype = tensor_sinfo->dtype;
+        alloc_tensor_attr->runtime_device_index = 0;
+        outs.push_back(builder_->Emit(Call(alloc_tensor_op,                                     //
+                                           {Downcast<ShapeExpr>(tensor_sinfo->shape.value())},  //
+                                           Attrs(alloc_tensor_attr)),
+                                      "alloc"));
+      } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
+        // multiple output case
+        const TupleStructInfo& tuple_sinfo = _tuple_sinfo.value();
+        for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
+          const auto& field = tuple_sinfo->fields[i];
 
-          if (call->checked_type_.defined()) {
-            auto output_type = Downcast<DynTensorType>(call->checked_type_);
-            alloc_tensor_attr->dtype = output_type->dtype;
-            alloc_tensor_attr->runtime_device_index = 0;
-            outs.push_back(builder_->Emit(
-                Call(alloc_tensor_op, {output_shape}, Attrs(alloc_tensor_attr)), "alloc"));
-          } else {
-            LOG(FATAL) << "ValueError: the checked_type_ of call_tir has not populated.";
-          }
-        } else {
-          // multiple output case
-          ICHECK(call->shape_.value()->IsInstance<TupleNode>())
-              << "call_tir expects ShapeExpr or Tuple as its shape, but got " << call->shape_;
-          ICHECK(call->checked_type_->IsInstance<TupleTypeNode>())
-              << "call_tir expects DynTensorType or TupleType as its checked type, but got "
-              << call->checked_type_;
-          Tuple output_shapes = Downcast<Tuple>(call->shape_);
-          TupleType output_types = Downcast<TupleType>(call->checked_type_);
-          ICHECK(output_shapes->fields.size() == output_types->fields.size())
-              << "The output of call_tir should have the same amount of fields in its shape_ and "
-                 "checked_type_";
-          for (size_t i = 0; i < output_shapes->fields.size(); ++i) {
-            ICHECK(output_shapes->fields[i]->IsInstance<ShapeExprNode>())
-                << "call_tir expects Tuple of ShapeExprs, but got " << output_shapes->fields[i]
-                << " as an element of tuple";
-            ICHECK(output_types->fields[i]->IsInstance<DynTensorTypeNode>())
-                << "call_tir expects TupleType of DynTensorType, but got "
-                << output_types->fields[i] << " as an element of TupleType";
-            auto output_type = Downcast<DynTensorType>(output_types->fields[i]);
-            auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
-            alloc_tensor_attr->dtype = output_type->dtype;
-            alloc_tensor_attr->runtime_device_index = 0;
-            outs.push_back(builder_->Emit(
-                Call(alloc_tensor_op, {Downcast<ShapeExpr>(output_shapes->fields[i])},
-                     Attrs(alloc_tensor_attr)),
-                "alloc"));
-          }
+          ICHECK(field->IsInstance<TensorStructInfoNode>())
+              << "call_tir expects Tuple of TensorStructInfo, but got " << field
+              << " as an element of TupleStructInfo";
+          const auto& field_tensor = Downcast<TensorStructInfo>(field);
+          ICHECK(field_tensor->shape.defined())
+              << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
+              << " as an element of TupleStructInfo";
+          auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
+          alloc_tensor_attr->dtype = field_tensor->dtype;
+          alloc_tensor_attr->runtime_device_index = 0;
+          outs.push_back(builder_->Emit(
+              Call(alloc_tensor_op, {Downcast<ShapeExpr>(field_tensor->shape.value())},
+                   Attrs(alloc_tensor_attr)),
+              "alloc"));
         }
       } else {
-        LOG(FATAL) << "ValueError: the shape of call_tir has not populated.";
+        LOG(FATAL) << "TypeError: The struct info of call_tir expects to be TensorStructInfo or "
+                      "TupleStructInfo, but got"
+                   << expr->struct_info_;
       }
 
       Array<Expr> args;
