@@ -336,7 +336,7 @@ class FuncStructInfo : public StructInfo {
   TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, Span span = Span());
 
   /*!
-   * \brief Constructing an opaque function using derive_func.
+   * \brief Constructing an opaque function struct info using derive_func.
    *
    * \param derive_func Derivation function.
    * \param span The span of the AST.
