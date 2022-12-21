@@ -26,6 +26,7 @@
 
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
@@ -41,7 +42,7 @@ class NormalizeMutator : public ExprMutatorBase {
   }
 
   Expr VisitExpr_(const FunctionNode* op) {
-    Expr body = this->VisitWithNewScope(op->body);
+    Expr body = this->VisitWithNewScope(op->body, op->params);
 
     if (body.same_as(op->body)) {
       return GetRef<Expr>(op);
@@ -62,13 +63,15 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr) {
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
     builder_->BeginBindingBlock();
+    builder_->BeginScope(params);
     Expr ret = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
     if (!prologue->bindings.empty()) {
       ret = SeqExpr({prologue}, ret);
     }
+    builder_->EndScope();
     return ret;
   }
 
@@ -146,12 +149,10 @@ class NormalizeMutator : public ExprMutatorBase {
     };
 
     Expr new_value = this->VisitExpr(binding->value);
-    if (!binding->var->checked_type_.defined()) {
-      UpdateType(binding->var, new_value->checked_type_);
+    if (!binding->var->struct_info_.defined()) {
+      UpdateStructInfo(binding->var, GetStructInfo(new_value));
     }
-    if (!binding->var->shape_.defined()) {
-      UpdateShape(binding->var, new_value->shape_);
-    }
+
     if (new_value.same_as(binding->value)) {
       emit(GetRef<VarBinding>(binding));
     } else {
@@ -163,11 +164,8 @@ class NormalizeMutator : public ExprMutatorBase {
     Expr new_value = this->VisitExpr(binding->value);
 
     if (binding->var.defined()) {
-      if (!binding->var->checked_type_.defined()) {
-        UpdateType(binding->var, new_value->checked_type_);
-      }
-      if (!binding->var->shape_.defined()) {
-        UpdateShape(binding->var, new_value->shape_);
+      if (!binding->var->struct_info_.defined()) {
+        UpdateStructInfo(binding->var, GetStructInfo(new_value));
       }
     }
     if (new_value.same_as(binding->value)) {

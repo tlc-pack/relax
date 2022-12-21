@@ -38,6 +38,59 @@ using ExprNode = RelayExprNode;
 using relay::Id;
 
 /*!
+ * \brief Base type of all structure information.
+ *
+ * StructInfo stores possible structure information
+ * deduced during compile-time. It encapsulates
+ * both static type and runtime information such
+ * as shape.
+ *
+ * StructInfo of each non-primitive Expr can be
+ * deduced during compilation in a "best-effort" manner.
+ *
+ * When struct_info appears in function parameter and return
+ * signatures. They will imply a runtime check that matches
+ * the structure information with the value.
+ *
+ * When it appears in Expr, they follow "assume-semantics",
+ * which means the compiler will take the deduced information as it is
+ * and only do best effort prove and checks.
+ *
+ * Each struct info can be uniquely erased to a static-type.
+ * The compiler will still compile the code(with less information)
+ * when we erase to the static type.
+ *
+ * If an StructInfo contains an Expr field, then that field
+ * must be normalized already through NormalizeArg.
+ * This invariant will be checked in constructors
+ * and help us to simplify our assumption
+ * during struct info deduction.
+ */
+class StructInfoNode : public Object {
+ public:
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
+  static constexpr const char* _type_key = "StructInfo";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 5;
+  TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
+};
+
+/*!
+ * \brief Managed reference to StructInfoNode.
+ * \sa StructInfoNode
+ */
+class StructInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(StructInfo, ObjectRef, StructInfoNode);
+};
+
+/*!
  * \brief Call corresponds to callable invocation.
  *  Corresponds to operation in computational graph terminology.
  */
@@ -85,6 +138,7 @@ class CallNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -163,6 +217,7 @@ class IfNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
@@ -218,6 +273,7 @@ class TupleNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
@@ -275,6 +331,7 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("index", &index);
     v->Visit("span", &span);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -324,6 +381,7 @@ class ShapeExprNode : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
@@ -362,6 +420,7 @@ class RuntimeDepShapeNode : public ExprNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
@@ -399,10 +458,11 @@ class VarNode : public ExprNode {
   const String& name_hint() const { return vid->name_hint; }
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("vid", &vid);
-    v->Visit("span", &span);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
@@ -443,9 +503,10 @@ class DataflowVarNode : public VarNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
-    v->Visit("span", &span);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
@@ -500,6 +561,7 @@ class ConstantNode : public ExprNode {
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
@@ -691,6 +753,7 @@ class SeqExprNode : public ExprNode {
     v->Visit("blocks", &blocks);
     v->Visit("body", &body);
     v->Visit("shape_", &shape_);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
@@ -739,8 +802,9 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("ret_shape", &ret_shape);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
-    v->Visit("span", &span);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("attrs", &attrs);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
@@ -808,6 +872,7 @@ class ExternFuncNode : public BaseFuncNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
+    v->Visit("struct_info_", &struct_info_);
     v->Visit("span", &span);
   }
 
@@ -829,23 +894,6 @@ class ExternFunc : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
-
-/*!
- * \brief Update the type of an Expr.
- * \param expr The Expr whose type to be updated.
- * \param type The type assigned to the checked_type_ of \p expr.
- * \note We ensure idempotence, that is we can only update the checked_type_ of an Expr if it's
- * nullptr.
- */
-void UpdateType(Expr expr, Type type);
-
-/*!
- * \brief Update the shape of an Expr.
- * \param expr The Expr whose shape to be updated.
- * \param shape The shape assigned to the shape_ of \p expr.
- * \note We ensure idempotence, that is we can only update the shape_ of an Expr if it's nullptr.
- */
-void UpdateShape(Expr expr, Optional<ObjectRef> shape);
 
 }  // namespace relax
 }  // namespace tvm

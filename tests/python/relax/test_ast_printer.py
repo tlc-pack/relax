@@ -259,7 +259,7 @@ def test_shape_of():
     assert 'Var(name_hint="v0")' in s0_str
 
     shape_anno = [96, 54]
-    v1 = rx.Var("v1", shape_anno)
+    v1 = rx.Var("v1", shape_anno, rx.DynTensorType(ndim=2))
     s1 = v1.shape
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str

@@ -36,8 +36,7 @@
 namespace tvm {
 namespace relax {
 
-Type InferTypeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx);
-Expr InferShapeBinaryBroadcast(const Call& call, DiagnosticContext diag_ctx);
+StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx);
 
 }  // namespace relax
 }  // namespace tvm

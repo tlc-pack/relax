@@ -37,7 +37,7 @@ namespace relax {
 
 /* relax.ewise_fma */
 Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx);
-Expr InferShapeEwiseFMA(const Call& call, DiagnosticContext diag_ctx);
+StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx);
 
 }  // namespace relax
 }  // namespace tvm

@@ -132,7 +132,7 @@ class PrimType : public Type {
    * \brief Constructor
    * \param dtype The corresponding dtype.
    */
-  TVM_DLL explicit PrimType(runtime::DataType dtype);
+  TVM_DLL explicit PrimType(runtime::DataType dtype, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimType, Type, PrimTypeNode);
 };

@@ -25,6 +25,7 @@ from . import op
 from . import analysis
 from . import transform
 from . import expr_functor
+from . import struct_info
 
 # Expr
 Expr = expr.Expr
@@ -80,3 +81,13 @@ BlockBuilder = block_builder.BlockBuilder
 ExprFunctor = expr_functor.ExprFunctor
 PyExprVisitor = expr_functor.PyExprVisitor
 PyExprMutator = expr_functor.PyExprMutator
+
+
+# StructInfo
+StructInfo = struct_info.StructInfo
+ObjectStructInfo = struct_info.ObjectStructInfo
+PrimStructInfo = struct_info.PrimStructInfo
+ShapeStructInfo = struct_info.ShapeStructInfo
+TensorStructInfo = struct_info.TensorStructInfo
+TupleStructInfo = struct_info.TupleStructInfo
+FuncStructInfo = struct_info.FuncStructInfo

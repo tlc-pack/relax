@@ -747,6 +747,19 @@ def test_other_cases():
         return R.print(x, format="{}")
 
 
+def test_erase_to_well_defined():
+    @R.function
+    def foo(x: R.Tensor):
+        q = x
+        m, n = T.var("int64"), T.var("int64")
+        z = R.match_shape(q, (m, n))
+        w = z
+        return w
+
+    assert isinstance(foo.ret_shape, RuntimeDepShape)
+    _check(foo, None)
+
+
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
 def test_meta():
     metadata = tvm.ir.load_json(

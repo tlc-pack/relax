@@ -29,6 +29,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/ir_functor.h>
+#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
@@ -239,7 +240,8 @@ namespace relax {
 class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
                            public tir::ExprFunctor<Doc(const PrimExpr&)>,
                            public TypeFunctor<Doc(const Type&)>,
-                           public AttrFunctor<Doc(const ObjectRef&)> {
+                           public AttrFunctor<Doc(const ObjectRef&)>,
+                           public relax::StructInfoFunctor<Doc(const StructInfo&)> {
  public:
   explicit RelaxScriptPrinter(bool show_meta_data, TextMetaDataContext* meta)
       : show_meta_data_(show_meta_data), meta_(meta) {}
@@ -300,10 +302,6 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc PrintIfStmt(const relax::Var& var, const relax::If& ite);
   Doc PrintFunctionDef(const Doc& name, const relax::Function& func, bool is_global);
 
-  Doc PrintVarAnnotation(const relax::Var& var);
-  Doc PrintTensorAnnotation(const relax::DynTensorType& ty, const Optional<ObjectRef>& shape);
-  Doc PrintTupleAnnotation(const TupleType& ty, const Optional<ObjectRef>& shape);
-
   Doc VisitType_(const relax::ShapeTypeNode* node) override;
   Doc VisitType_(const relax::ObjectTypeNode* node) override;
   Doc VisitType_(const relax::DynTensorTypeNode* node) override;
@@ -318,6 +316,16 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitAttr_(const ArrayNode* op) override;
   Doc VisitAttr_(const tir::IntImmNode* op) override;
   Doc VisitAttr_(const tir::FloatImmNode* op) override;
+
+  //------------------------------------
+  // Overload of StructInfo printing functions
+  //------------------------------------
+  Doc VisitStructInfo_(const ObjectStructInfoNode* op) override;
+  Doc VisitStructInfo_(const PrimStructInfoNode* op) override;
+  Doc VisitStructInfo_(const ShapeStructInfoNode* op) override;
+  Doc VisitStructInfo_(const TensorStructInfoNode* op) override;
+  Doc VisitStructInfo_(const TupleStructInfoNode* op) override;
+  Doc VisitStructInfo_(const FuncStructInfoNode* op) override;
 
   Doc GetUniqueName(std::string prefix, std::string fallback);
 
