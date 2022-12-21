@@ -623,7 +623,8 @@ class BlockBuilder(Object):
             self._blocks.append(block)
         seqe = self.normalize(rx.SeqExpr(self._blocks, output))
 
-        # The function's checked_type_ relies on the function body(seqe) to have deduced type
+        # do not specify ret_struct_info and let constructor deduce
+        # from seqe.struct_info
         func = rx.Function(self._func_params, seqe, None)
         for key, value in self._func_attrs.items():
             func = func.with_attr(key, value)

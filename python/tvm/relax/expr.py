@@ -400,7 +400,7 @@ class Function(BaseFunc):
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without body"""
-        return _ffi_api.Function_CreateEmpty(params, ret_struct_info, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, attrs, span)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.

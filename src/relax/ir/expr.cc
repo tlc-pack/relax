@@ -510,7 +510,7 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, Di
   return Function(std::move(n));
 }
 
-TVM_REGISTER_GLOBAL("relax.Function_CreateEmpty")
+TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
     .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs, Span span) {
       return Function::CreateEmpty(params, ret_struct_info, attrs, span);
     });

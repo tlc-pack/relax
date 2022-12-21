@@ -92,8 +92,9 @@ class FunctionFrameNode : public SeqExprFrameNode {
    * \note Usually the function return type can be deduced by the function body.
    *       But we can use this field to specify a more "accurate" return type.
    *       i.e. If the `ret_struct_info` is None, try to use the deduced type from body
-   *       If the `ret_struct_info` is not None, check the deduced type is a base type
-   *       of the given one.
+   *       If the `ret_struct_info` is not None, we can still take body.struct_info
+   *       if we ret_struct_info is base of body.struct_info. If not, we will
+   *       take the specified `ret_struct_info`.
    */
   Optional<tvm::relax::StructInfo> ret_struct_info;
 
