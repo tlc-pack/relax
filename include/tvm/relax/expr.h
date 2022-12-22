@@ -144,7 +144,8 @@ class CallNode : public ExprNode {
     // skip type_args check for primitive ops.
     equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
-           (IsPrimitiveOp(op) || equal(type_args, other->type_args));
+           (IsPrimitiveOp(op) || equal(type_args, other->type_args)) &&
+           equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -155,6 +156,7 @@ class CallNode : public ExprNode {
     if (!IsPrimitiveOp(op)) {
       hash_reduce(type_args);
     }
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Call";
@@ -221,7 +223,7 @@ class IfNode : public ExprNode {
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
-           equal(false_branch, other->false_branch);
+           equal(false_branch, other->false_branch) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -229,6 +231,7 @@ class IfNode : public ExprNode {
     hash_reduce(cond);
     hash_reduce(true_branch);
     hash_reduce(false_branch);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.If";
@@ -274,6 +277,7 @@ class TupleNode : public ExprNode {
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from fields.
     return equal(fields, other->fields);
   }
 
@@ -321,6 +325,7 @@ class TupleGetItemNode : public ExprNode {
   }
 
   bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically tuple and index.
     return equal(tuple, other->tuple) && equal(index, other->index);
   }
 
@@ -371,13 +376,11 @@ class ShapeExprNode : public ExprNode {
   }
 
   bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) && equal(struct_info_, other->struct_info_);
+    // struct info can be deterministically derived from values.
+    return equal(values, other->values);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(values);
-    hash_reduce(struct_info_);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(values); }
 
   static constexpr const char* _type_key = "relax.expr.ShapeExpr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -502,6 +505,7 @@ class ConstantNode : public ExprNode {
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from data.
     return equal(data, other->data);
   }
 
@@ -695,12 +699,14 @@ class SeqExprNode : public ExprNode {
   }
 
   bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
-    return equal(blocks, other->blocks) && equal(body, other->body);
+    return equal(blocks, other->blocks) && equal(body, other->body) &&
+           equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(blocks);
     hash_reduce(body);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.SeqExpr";

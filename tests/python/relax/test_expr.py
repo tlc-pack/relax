@@ -30,7 +30,7 @@ def test_var() -> None:
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
     assert v1.name_hint == "v1"
-    for s0, s1 in zip(v1.struct_info.shape, shape, strict=True):
+    for s0, s1 in zip(v1.struct_info.shape, shape):
         assert s0 == s1
     assert v1.checked_type == rx.DynTensorType(2, "float32")
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float32"))
