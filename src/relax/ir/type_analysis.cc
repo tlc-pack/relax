@@ -42,7 +42,7 @@ class BaseTypeChecker : public TypeFunctor<bool(const Type& n)> {
 
   bool VisitType_(const ShapeTypeNode* base) final {
     if (auto* rhs = derived_.as<ShapeTypeNode>()) {
-      return base->ndim == kUnknownDim || base->ndim == rhs->ndim;
+      return base->ndim == kUnknownNDim || base->ndim == rhs->ndim;
     }
     return false;
   }

@@ -85,7 +85,6 @@ TVM_DLL Type GetStaticType(const StructInfo& info);
  */
 TVM_DLL StructInfo StructInfoFromType(const Type& type);
 
-
 /*!
  * \return Derive the call's ret value struct info from inputs.
  * \param func_info The function struct info.

@@ -517,7 +517,7 @@ TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, 
   return ExternFunc(global_symbol, span);
 });
 
-Expr ShapeOf(const Expr& expr) {
+Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
   ICHECK(expr->struct_info_.defined()) << "ShapeOf can only be applied to normalized expr";
   auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
@@ -532,7 +532,9 @@ Expr ShapeOf(const Expr& expr) {
   return call_shape_of;
 }
 
-TVM_REGISTER_GLOBAL("relax.ShapeOf").set_body_typed([](const Expr& expr) { return ShapeOf(expr); });
+TVM_REGISTER_GLOBAL("relax.GetShapeOf").set_body_typed([](const Expr& expr) {
+  return GetShapeOf(expr);
+});
 
 }  // namespace relax
 }  // namespace tvm

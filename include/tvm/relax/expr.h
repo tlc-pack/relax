@@ -274,21 +274,10 @@ class TupleNode : public ExprNode {
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
-    // specially handle empty tuple as a constant is not a graph node.
-    if (fields.size() == other->fields.size() && fields.size() == 0) {
-      return true;
-    } else {
-      equal->MarkGraphNode();
-      return equal(fields, other->fields);
-    }
+    return equal(fields, other->fields);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    if (fields.size() != 0) {
-      hash_reduce->MarkGraphNode();
-      hash_reduce(fields);
-    }
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
   static constexpr const char* _type_key = "relax.expr.Tuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
@@ -840,11 +829,14 @@ class ExternFunc : public BaseFunc {
  * \brief Get the shape of Expr.
  * \param expr The input expr.
  * \return The corresonding shape.
+ *
  * \note This function requires expr to be normalized.
  *       The function will report an error if expr's StructInfo is not TensorStructInfo.
- *       The function may choose to return a Call node that contains shape_of(expr).
+ *       It will try to return symbolic function when possible. If the tensor do not
+ *       have a compile-time symbolic shape, the function will then choose to return
+ *       Call(relax.op.shape_of, [expr]).
  */
-TVM_DLL Expr ShapeOf(const Expr& expr);
+TVM_DLL Expr GetShapeOf(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm

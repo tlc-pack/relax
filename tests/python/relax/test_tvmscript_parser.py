@@ -481,7 +481,7 @@ def test_annotation():
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
     assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
-    m = relax.shape_of(foo.params[0])[1]
+    m = relax.get_shape_of(foo.params[0])[1]
     bindings = foo.body.blocks[0].bindings
 
     _check_struct_info(bindings[0], relax.TensorStructInfo([32, m], "float32"))

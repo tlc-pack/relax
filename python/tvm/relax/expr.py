@@ -501,8 +501,8 @@ def te_tensor(value: Expr, name: str = "rxplaceholder"):
     return _ffi_api.TETensor(value, name)  # type: ignore
 
 
-def shape_of(expr: Expr) -> Expr:
-    """Construct an Expr to get shape of expr.
+def get_shape_of(expr: Expr) -> Expr:
+    """Get shape of expr.
 
     Parameters
     ----------
@@ -516,11 +516,13 @@ def shape_of(expr: Expr) -> Expr:
 
     Note
     ----
-    This function may return a Call node with shape of op.
-    This function will throw an error if expr's struct_info is not
-    TensorStructInfo.
+    This function requires expr to be normalized.
+    The function will report an error if expr's StructInfo is not TensorStructInfo.
+    It will try to return symbolic function when possible. If the tensor do not
+    have a compile-time symbolic shape, the function will then choose to return
+    `Call(relax.op.shape_of, [expr])`.
     """
-    return _ffi_api.ShapeOf(expr)
+    return _ffi_api.GetShapeOf(expr)  # type: ignore
 
 
 def _update_struct_info(expr: Expr, struct_info: Optional[StructInfo]) -> None:

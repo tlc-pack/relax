@@ -306,7 +306,7 @@ def test_normalize():
     add_call = rx.op.multiply(x, y)
 
     bb.normalize(add_call)
-    shape = rx.shape_of(add_call)
+    shape = rx.get_shape_of(add_call)
 
     assert isinstance(shape, rx.ShapeExpr)
     assert shape[0] == m

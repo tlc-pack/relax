@@ -244,7 +244,9 @@ def default_evaluate(
             else:
                 # If build passes, set up runner input and measure the performance.
                 args_info = [
-                    TensorInfo(shape=[int(i) for i in p.shape], dtype=p.checked_type.dtype)
+                    TensorInfo(
+                        shape=[int(i) for i in p.struct_info.shape], dtype=p.struct_info.dtype
+                    )
                     for p in mod["main"].params
                 ]  # convert list[Var] to list[TensorInfo]
                 runner_input = RunnerInput(

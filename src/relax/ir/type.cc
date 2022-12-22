@@ -72,16 +72,6 @@ TVM_REGISTER_GLOBAL("relax.DynTensorType").set_body_typed([](int ndim, DataType 
   return DynTensorType(ndim, dtype, span);
 });
 
-DimType::DimType(Span span) {
-  ObjectPtr<DimTypeNode> n = make_object<DimTypeNode>();
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_NODE_TYPE(DimTypeNode);
-
-TVM_REGISTER_GLOBAL("relax.DimType").set_body_typed([](Span span) { return DimType(span); });
-
 PackedFuncType::PackedFuncType(Span span) {
   ObjectPtr<PackedFuncTypeNode> n = make_object<PackedFuncTypeNode>();
   n->span = span;

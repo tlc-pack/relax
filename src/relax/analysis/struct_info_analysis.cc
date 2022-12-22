@@ -714,7 +714,7 @@ class StructInfoLCAFinder
     auto* rhs = other.as<ShapeStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
-    int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownDim;
+    int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.defined() || !rhs->values.defined() ||
         !CanProveShapeEqual(lhs->values.value(), rhs->values.value(), analyzer_)) {
       // prefers return same when possible
@@ -734,7 +734,7 @@ class StructInfoLCAFinder
 
     // find the target dtype and ndim.
     DataType dtype = lhs->dtype == rhs->dtype ? lhs->dtype : DataType::Void();
-    int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownDim;
+    int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     // if ndim mismatch or one side of shape is missing
     // then we cannot keep in symbolic shape
     if (lhs->ndim != rhs->ndim || !lhs->shape.defined() || !rhs->shape.defined() ||

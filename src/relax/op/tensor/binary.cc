@@ -63,7 +63,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx) {
   // ndims
   int output_ndim;
   if (lhs_sinfo->IsUnknownNdim() || rhs_sinfo->IsUnknownNdim()) {
-    output_ndim = kUnknownDim;
+    output_ndim = kUnknownNDim;
   } else {
     output_ndim = std::max(lhs_sinfo->ndim, rhs_sinfo->ndim);
   }

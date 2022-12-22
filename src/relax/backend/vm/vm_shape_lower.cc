@@ -44,13 +44,16 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
       collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
+    // avoid create any slot for static shape.
+    if (!collector.dyn_shape_) collector.slot_map_.clear();
     return std::move(collector.slot_map_);
   }
 
  private:
   void VisitPrimExpr(const PrimExpr& expr) final {
-    // skip int imm node.
-    if (expr->IsInstance<IntImmNode>()) return;
+    if (!expr->IsInstance<IntImmNode>()) {
+      dyn_shape_ = true;
+    }
     if (slot_map_.count(expr) == 0) {
       slot_map_.Set(expr, slot_count_++);
     }
@@ -68,6 +71,7 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
 
   void VisitStructInfoExprField(const Expr& expr) final { ExprVisitor::VisitExpr(expr); }
 
+  bool dyn_shape_ = false;
   int slot_count_ = 0;
   Map<PrimExpr, Integer> slot_map_;
 };
@@ -165,7 +169,7 @@ class VMShapeLowerMutator : public ExprMutator {
     // The ret_type is weakened to unknown-dimensional DynTensorType.
     // TODO(@yuchen): change all tensor types in the function to unknown ndim
     if (const auto* tensor_sinfo = ret_struct_info.as<TensorStructInfoNode>()) {
-      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/kUnknownDim);
+      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/kUnknownNDim);
     }
 
     return builder_->Normalize(Function(node->params, new_body, ret_struct_info, node->attrs));

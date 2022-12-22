@@ -21,7 +21,7 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from enum import IntEnum
 
 import tvm

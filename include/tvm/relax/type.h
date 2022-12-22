@@ -38,7 +38,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
-static constexpr int kUnknownDim = -1;
+static constexpr int kUnknownNDim = -1;
 
 class ShapeTypeNode : public TypeNode {
  public:
@@ -63,7 +63,7 @@ class ShapeTypeNode : public TypeNode {
 class ShapeType : public Type {
  public:
   // TODO(relax-team): remove the default value later.
-  TVM_DLL ShapeType(int ndim = kUnknownDim, Span span = Span());
+  TVM_DLL ShapeType(int ndim = kUnknownNDim, Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeType, Type, ShapeTypeNode);
 };
@@ -112,7 +112,7 @@ class DynTensorTypeNode : public BaseTensorTypeNode {
     hash_reduce(dtype);
   }
 
-  inline bool IsUnknownNdim() const { return ndim == kUnknownDim; }
+  inline bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   inline bool IsUnknownDtype() const { return dtype.is_void(); }
 
@@ -139,25 +139,6 @@ class DynTensorType : public Type {
   TVM_DLL static DynTensorType CreateUnknownNDim(DataType dtype, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(DynTensorType, Type, DynTensorTypeNode);
-};
-
-class DimTypeNode : public TypeNode {
- public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
-
-  bool SEqualReduce(const DimTypeNode* other, SEqualReducer equal) const { return true; }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
-
-  static constexpr const char* _type_key = "relax.DimType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(DimTypeNode, TypeNode);
-};
-
-class DimType : public Type {
- public:
-  TVM_DLL DimType(Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DimType, Type, DimTypeNode);
 };
 
 class PackedFuncTypeNode : public TypeNode {

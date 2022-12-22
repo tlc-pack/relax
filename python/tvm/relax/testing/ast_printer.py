@@ -235,8 +235,6 @@ class ASTPrinter(ExprFunctor):
             if type_node.dtype != "":
                 fields["dtype"] = type_node.dtype
             return self.build_ast_node("DynTensorType", **fields)
-        if isinstance(type_node, relax.DimType):
-            return self.build_ast_node("DimType")
         if isinstance(type_node, relax.TupleType):
             return self.build_ast_node(
                 "TupleType", fields=self.build_list(map(self.visit_type_, type_node.fields))

@@ -142,13 +142,13 @@ def test_func():
 
 def test_shape_of():
     v0 = rx.Var("v0", R.Tensor("float32", ndim=2))
-    s0 = rx.shape_of(v0)
+    s0 = rx.get_shape_of(v0)
     assert isinstance(s0, rx.Call)
     assert s0.op.name == "relax.shape_of"
 
     shape = [96, 54]
     v1 = rx.Var("v1", R.Tensor(shape))
-    s1 = rx.shape_of(v1)
+    s1 = rx.get_shape_of(v1)
     for x, y in zip(shape, s1):
         assert x == y
 
