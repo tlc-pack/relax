@@ -63,21 +63,20 @@ def test_func_attr_setter():
     mod = InputModule
     assert isinstance(mod, tvm.IRModule)
 
-    mod = annotate(mod, "relax_add", {"Codegen": "test-codegen", "global_symbol": "test-symbol"})
+    mod = annotate(mod, "relax_add", {"Codegen": "test-codegen"})
     _check_save_roundtrip(mod)
     annot_func = mod["relax_add"]
 
     # Test annotation
     assert annot_func.attrs
     assert annot_func.attrs["Codegen"] == "test-codegen"
-    assert annot_func.attrs["global_symbol"] == "test-symbol"
 
 
 def test_func_attr_roundtrip_and_equality():
     mod = InputModule
     assert isinstance(mod, tvm.IRModule)
-    mod1 = annotate(mod, "relax_add", {"Codegen": "test-codegen", "global_symbol": "test-symbol"})
-    mod2 = annotate(mod, "relax_add", {"Codegen": "test-codegen", "global_symbol": "test-symbol"})
+    mod1 = annotate(mod, "relax_add", {"Codegen": "test-codegen"})
+    mod2 = annotate(mod, "relax_add", {"Codegen": "test-codegen"})
     _check_save_roundtrip(mod1)
     _check_save_roundtrip(mod2)
     _check_equal(mod1, mod2)
@@ -87,7 +86,7 @@ def test_func_attr_setter_with_passes():
     mod = InputModule
     assert isinstance(mod, tvm.IRModule)
     # Annotate
-    mod = annotate(mod, "relax_add", {"Codegen": "test-codegen", "global_symbol": "test-symbol"})
+    mod = annotate(mod, "relax_add", {"Codegen": "test-codegen"})
 
     # Test with passes
     # Annotation should stay the same unless the pass needs to modify it
@@ -101,13 +100,13 @@ def test_func_attr_setter_with_passes():
 
     # Apply passes
     new_mod = seq(mod)
+    print(mod.script())
     _check_save_roundtrip(new_mod)
 
     # Test annotation
     func = new_mod["relax_add"]
     assert func.attrs
     assert func.attrs["Codegen"] == "test-codegen"
-    assert func.attrs["global_symbol"] == "test-symbol"
 
 
 def test_irmodule_attr_setter_with_passes():
