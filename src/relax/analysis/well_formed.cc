@@ -86,7 +86,15 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void RegisterGlobalVar(GlobalVar var) { global_var_set_.insert(var); }
 
-  void SetCurrentGlobalVar(GlobalVar var) { cur_global_var_ = var; }
+  void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
+    // check name in global var and gsymbol
+    Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    if (gsymbol.defined() && gsymbol != var->name_hint) {
+      Malformed(Diagnostic::Error(func->span)
+                << "Name in GlobalVar is not equal to name in gsymbol: " << var->name_hint
+                << " != " << gsymbol.value());
+    }
+  }
 
  private:
   // Possible mode of visitor
@@ -164,13 +172,6 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const FunctionNode* op) {
-    // check name in global var and gsymbol
-    Optional<String> gsymbol = op->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    if (gsymbol && cur_global_var_ && gsymbol != cur_global_var_.value()->name_hint) {
-      Malformed(Diagnostic::Error(op->span)
-                << "Name in GlobalVar is not equal to name in gsymbol: "
-                << cur_global_var_.value()->name_hint << " != " << gsymbol.value());
-    }
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
     auto prev_symbolic_var_set = symbolic_var_set_;
@@ -405,7 +406,6 @@ class WellFormedChecker : public relax::ExprVisitor,
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
-  Optional<GlobalVar> cur_global_var_;
   std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> global_var_set_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
@@ -423,7 +423,7 @@ bool WellFormed(const IRModule& m, Optional<DiagnosticContext> diag_ctx) {
     // visit relax.Function
     if (auto* n = it.second.as<FunctionNode>()) {
       Function func = GetRef<Function>(n);
-      well_formed_checker.SetCurrentGlobalVar(it.first);
+      well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
       well_formed_checker.VisitExpr(func);
     }
   }
