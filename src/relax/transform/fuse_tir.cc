@@ -629,7 +629,7 @@ class TIRFuseMutator : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
 
-  // Gte shape from call tir
+  // Get shape from call tir
   static Expr GetCallTIRShape(StructInfo sinfo) {
     if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
       Array<Expr> fields = tuple->fields.Map([&](StructInfo x) { return GetCallTIRShape(x); });

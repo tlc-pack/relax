@@ -519,10 +519,10 @@ TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, 
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
-  ICHECK(expr->struct_info_.defined()) << "ShapeOf can only be applied to normalized expr";
+  ICHECK(expr->struct_info_.defined()) << "GetShapeOf can only be applied to normalized expr";
   auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
 
-  ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with known StructInfo";
+  ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
   if (tinfo->shape.defined()) return tinfo->shape.value();
 
   static const Op& op = Op::Get("relax.shape_of");

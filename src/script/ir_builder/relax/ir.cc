@@ -232,7 +232,6 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(Emi
 void AnnotateStructInfo(const tvm::relax::Var& var,
                         const tvm::relax::StructInfo& anno_struct_info) {
   var->checked_type_ = GetStaticType(anno_struct_info);
-  ;
   var->struct_info_ = anno_struct_info;
 }
 
