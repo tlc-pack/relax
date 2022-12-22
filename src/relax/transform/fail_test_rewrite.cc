@@ -33,10 +33,10 @@ class FailTestRewriter : public ExprMutator {
   // Rewrite/Remove specific global var
   Var VisitVarDef_(const VarNode* var) override {
     if (var->name_hint() == "gv_rewrite") {
-      Var new_var = Var("gv_rewrite", {}, {}, {});
+      Var new_var = Var("gv_rewrite", /*struct_info_annotation=*/NullOpt);
       return std::move(new_var);
     } else if (var->name_hint() == "gv_remove") {
-      Var new_var = Var("new_gv", {}, {}, {});
+      Var new_var = Var("new_gv", /*struct_info_annotation=*/NullOpt);
       return std::move(new_var);
     }
     return GetRef<Var>(var);

@@ -40,11 +40,7 @@ def test_function_simple():
             R.func_ret_value(out)
     func = ir_builder.get()
     # create with BlockBuilder
-    x = relax.Var(
-        "x",
-        [tvm.tir.IntImm("int64", 128), tvm.tir.IntImm("int64", 128)],
-        relax.DynTensorType(2, "float32"),
-    )
+    x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": 1}):
         out = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
@@ -82,8 +78,8 @@ def test_match_shape():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    x = relax.Var("x", relax.RuntimeDepShape(), relax.DynTensorType(-1, "float32"))
-    y = relax.Var("y", relax.RuntimeDepShape(), relax.DynTensorType(-1, "float32"))
+    x = relax.Var("x", relax.TensorStructInfo(dtype="float32", ndim=-1))
+    y = relax.Var("y", relax.TensorStructInfo(dtype="float32", ndim=-1))
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()
@@ -123,11 +119,7 @@ def test_dataflow_block():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    x = relax.Var(
-        "x",
-        [tvm.tir.IntImm("int64", 128), tvm.tir.IntImm("int64", 128)],
-        relax.DynTensorType(2, "float32"),
-    )
+    x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         with bb.dataflow():

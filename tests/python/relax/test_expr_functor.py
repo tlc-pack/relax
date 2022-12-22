@@ -15,28 +15,35 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-
-import tvm
 from tvm import relax, tir
-from tvm.relax import PyExprVisitor, PyExprMutator
-from tvm.ir.base import assert_structural_equal
 from tvm.ir import Op
-from tvm.relax.ty import DynTensorType
-from tvm.relax.expr import Type, Span, Expr
-from tvm.relax.expr import Function, ExternFunc
-from tvm.relax.expr import Constant, Var, DataflowVar
-from tvm.relax.expr import ShapeExpr, RuntimeDepShape
-from tvm.relax.expr import GlobalVar, SeqExpr, Tuple
-from tvm.relax.expr import Call, If, TupleGetItem
-from tvm.relax.expr import Binding, MatchShape, VarBinding
-from tvm.relax.expr import BindingBlock, DataflowBlock
-
+from tvm.ir.base import assert_structural_equal
+from tvm.relax import PyExprMutator, PyExprVisitor
+from tvm.relax.expr import (
+    BindingBlock,
+    Call,
+    Constant,
+    DataflowBlock,
+    DataflowVar,
+    Expr,
+    ExternFunc,
+    Function,
+    GlobalVar,
+    If,
+    MatchShape,
+    RuntimeDepShape,
+    SeqExpr,
+    ShapeExpr,
+    Tuple,
+    TupleGetItem,
+    Var,
+    VarBinding,
+)
+from tvm.script import relax as R
 
 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
-type_anno1 = relax.DynTensorType(1, "float32")
-type_anno2 = relax.DynTensorType(2, "float32")
-x = relax.Var("x", [n], type_anno1)
-y = relax.Var("y", [m, n], type_anno2)
+x = relax.Var("x", R.Tensor([n], "float32"))
+y = relax.Var("y", R.Tensor([m, n], "float32"))
 bb = relax.BlockBuilder()
 
 
@@ -406,7 +413,7 @@ def test_var():
 
 @pytest.mark.skip("Revisit PyMutator tests after struct info")
 def test_dataflow_var():
-    lv = relax.DataflowVar("lv", [n], type_anno1)
+    lv = relax.DataflowVar("lv", R.Tensor([n], "float32"))
     basic_check(lv, "DataflowVar", "DataflowVar")
 
 
@@ -567,9 +574,7 @@ def test_function():
     bindings = [relax.VarBinding(x, relax.const(1))]
     blocks = [relax.BindingBlock(bindings)]
     seq_expr = relax.SeqExpr(blocks, x)
-    ret_type = relax.DynTensorType(1, "float32")
-    ret_shape = relax.ShapeExpr([n])
-    func = relax.Function([x], seq_expr, ret_type, ret_shape)
+    func = relax.Function([x], seq_expr, R.Tensor([n], "float32"))
     basic_check(
         func,
         "\n".join(
@@ -588,7 +593,6 @@ def test_function():
             [
                 "ShapeExpr",
                 "VarDef",
-                "ShapeExpr",
                 "Constant",
                 "ShapeExpr",
                 "VarDef",

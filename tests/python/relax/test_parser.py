@@ -113,7 +113,7 @@ def test_annotations():
 
     assert f.body.body == o
 
-    assert isinstance(f.ret_type, relax.ty.ObjectType)
+    assert isinstance(f.ret_struct_info, relax.ObjectStructInfo)
 
     assert isinstance(o._checked_type_, relax.ty.ObjectType)
     assert len(o_call_packed.type_args) == 1

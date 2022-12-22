@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
 
-import pytest
 import tvm
+import tvm.testing
 from tvm import relax, topi
+from tvm.script import relax as R
 
 
 def _check(mod_actual, mod_expected):
@@ -33,7 +33,7 @@ def test_fuse_simple():
 
     def before():
         bb = relax.BlockBuilder()
-        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, relax.const(1, "float32"))
@@ -45,8 +45,8 @@ def test_fuse_simple():
 
     def expected():
         bb = relax.BlockBuilder()
-        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
-        p0 = relax.Var("p0", (), relax.DynTensorType(0, "float32"))
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
 
         with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
             with bb.dataflow():
@@ -56,7 +56,7 @@ def test_fuse_simple():
             bb.emit_func_output(gv)
         fused_add_exp_squeeze = bb.get().get_global_var("fused_add_exp_squeeze")
 
-        x = relax.Var("x", [10, 20], relax.DynTensorType(2, "float32"))
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(
@@ -74,11 +74,10 @@ def test_conv2d_fuse():
 
     def before(dtype):
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, dtype)
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w1 = relax.Var("w1", (16, 16, 3, 3), tensor_type)
-        w2 = relax.Var("w2", (16, 16, 1, 1), tensor_type)
-        w3 = relax.Var("w3", (16, 16, 3, 3), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), dtype))
+        w1 = relax.Var("w1", R.Tensor((16, 16, 3, 3), dtype))
+        w2 = relax.Var("w2", R.Tensor((16, 16, 1, 1), dtype))
+        w3 = relax.Var("w3", R.Tensor((16, 16, 3, 3), dtype))
         with bb.function("main", [x, w1, w2, w3]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, relax.const(1, dtype))
@@ -96,12 +95,11 @@ def test_conv2d_fuse():
 
     def expected(dtype):
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, dtype)
 
         # Grouped function 1
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w = relax.Var("w", (16, 16, 3, 3), tensor_type)
-        p0 = relax.Var("p0", (), relax.DynTensorType(0, dtype))
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), dtype))
+        w = relax.Var("w", R.Tensor((16, 16, 3, 3), dtype))
+        p0 = relax.Var("p0", R.Tensor((), dtype))
         with bb.function("fused_conv2d_add1_add2", [x, w, p0], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -118,9 +116,9 @@ def test_conv2d_fuse():
             bb.emit_func_output(gv)
 
         # Grouped function 2
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w = relax.Var("w", (16, 16, 1, 1), tensor_type)
-        y = relax.Var("y", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), dtype))
+        w = relax.Var("w", R.Tensor((16, 16, 1, 1), dtype))
+        y = relax.Var("y", R.Tensor((1, 16, 64, 64), dtype))
         with bb.function("fused_conv2d1_add2", [x, w, y], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -141,10 +139,10 @@ def test_conv2d_fuse():
         fused_conv2d1_add2 = mod.get_global_var("fused_conv2d1_add2")
 
         # Main function
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w1 = relax.Var("w1", (16, 16, 3, 3), tensor_type)
-        w2 = relax.Var("w2", (16, 16, 1, 1), tensor_type)
-        w3 = relax.Var("w3", (16, 16, 3, 3), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), dtype))
+        w1 = relax.Var("w1", R.Tensor((16, 16, 3, 3), dtype))
+        w2 = relax.Var("w2", R.Tensor((16, 16, 1, 1), dtype))
+        w3 = relax.Var("w3", R.Tensor((16, 16, 3, 3), dtype))
         with bb.function("main", [x, w1, w2, w3]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, relax.const(1, dtype))
@@ -172,8 +170,7 @@ def test_concatenate():
 
     def before():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -194,12 +191,11 @@ def test_concatenate():
 
     def expected():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
 
         # Grouped function
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w = relax.Var("w", (1, 16, 32, 32), tensor_type)
-        p0 = relax.Var("p0", (), relax.DynTensorType(0, "float32"))
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
+        w = relax.Var("w", R.Tensor((1, 16, 32, 32), "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
         with bb.function("fused_upsampling_concatenate_add", [w, x, p0], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.upsampling, w, scale_h=2.0, scale_w=2.0)
@@ -213,7 +209,7 @@ def test_concatenate():
         )
 
         # Main function
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -242,8 +238,7 @@ def test_tuple_root():
 
     def before():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -268,9 +263,8 @@ def test_tuple_root():
 def test_fuse_tuple_get_elemwise():
     def before(dim: int):
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(2, "float32")
-        x = relax.Var("x", (1, dim), tensor_type)
-        w = relax.Var("w", (3 * dim, dim), tensor_type)
+        x = relax.Var("x", R.Tensor((1, dim), "float32"))
+        w = relax.Var("w", R.Tensor((3 * dim, dim), "float32"))
         with bb.function("main", [x, w]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.dense, x, w)
@@ -289,10 +283,9 @@ def test_fuse_tuple_get_elemwise():
 
     def expected(dim: int):
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(2, "float32")
 
         # Grouped function
-        dense = relax.Var("dense", (1, 3 * dim), tensor_type)
+        dense = relax.Var("dense", R.Tensor((1, 3 * dim), "float32"))
         with bb.function(
             "fused_split_sigmoid_tanh_exp_multiply_add", [dense], attrs={"Primitive": 1}
         ):
@@ -314,8 +307,8 @@ def test_fuse_tuple_get_elemwise():
         )
 
         # Main function
-        x = relax.Var("x", (1, dim), tensor_type)
-        w = relax.Var("w", (3 * dim, dim), tensor_type)
+        x = relax.Var("x", R.Tensor((1, dim), "float32"))
+        w = relax.Var("w", R.Tensor((3 * dim, dim), "float32"))
         with bb.function("main", [x, w]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.dense, x, w)
@@ -331,9 +324,8 @@ def test_fuse_tuple_get_elemwise():
 def test_tuple_get_root():
     def before(dim: int):
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(2, "float32")
-        x = relax.Var("x", (1, 3 * dim), tensor_type)
-        w = relax.Var("w", (dim, dim), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 3 * dim), "float32"))
+        w = relax.Var("w", R.Tensor((dim, dim), "float32"))
         with bb.function("main", [x, w]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.split, x, indices_or_sections=3, axis=1)
@@ -345,10 +337,9 @@ def test_tuple_get_root():
 
     def expected(dim: int):
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(2, "float32")
 
         # Grouped function
-        x = relax.Var("x", (1, 3 * dim), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 3 * dim), "float32"))
         with bb.function("fused_split", [x], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.split, x, indices_or_sections=3, axis=1)
@@ -359,8 +350,8 @@ def test_tuple_get_root():
         fused_split = bb.get().get_global_var("fused_split")
 
         # Main function
-        x = relax.Var("x", (1, 3 * dim), tensor_type)
-        w = relax.Var("w", (dim, dim), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 3 * dim), "float32"))
+        w = relax.Var("w", R.Tensor((dim, dim), "float32"))
         with bb.function("main", [x, w]):
             with bb.dataflow():
                 lv0 = bb.emit(relax.Call(fused_split, (x,)))
@@ -376,9 +367,8 @@ def test_tuple_get_root():
 def test_tuple_intermediate():
     def before():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
 
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.squeeze, x)
@@ -396,16 +386,14 @@ def test_tuple_intermediate():
 
     def expected():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
-        constant_type = relax.DynTensorType(0, "float32")
 
         # Grouped function
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        p0 = relax.Var("p0", (), constant_type)
-        p1 = relax.Var("p1", (), constant_type)
-        p2 = relax.Var("p2", (), constant_type)
-        p3 = relax.Var("p3", (), constant_type)
-        p4 = relax.Var("p4", (), constant_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+        p1 = relax.Var("p1", R.Tensor((), "float32"))
+        p2 = relax.Var("p2", R.Tensor((), "float32"))
+        p3 = relax.Var("p3", R.Tensor((), "float32"))
+        p4 = relax.Var("p4", R.Tensor((), "float32"))
         with bb.function(
             "fused_squeeze_add_squeeze1_add_add_add_concatenate_squeeze2_add1",
             [x, p0, p1, p2, p3, p4],
@@ -429,7 +417,7 @@ def test_tuple_intermediate():
         )
 
         # Main func
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(
@@ -455,9 +443,8 @@ def test_tuple_intermediate():
 def test_tuple_consecutive():
     def before():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
 
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, relax.const(1, "float32"))
@@ -494,23 +481,21 @@ def test_tuple_consecutive():
 
     def expected():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
-        constant_type = relax.DynTensorType(0, "float32")
 
         # Grouped function 1
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        p0 = relax.Var("p0", (), constant_type)
-        p1 = relax.Var("p1", (), constant_type)
-        p2 = relax.Var("p2", (), constant_type)
-        p3 = relax.Var("p3", (), constant_type)
-        p4 = relax.Var("p4", (), constant_type)
-        p5 = relax.Var("p5", (), constant_type)
-        p6 = relax.Var("p6", (), constant_type)
-        p7 = relax.Var("p7", (), constant_type)
-        p8 = relax.Var("p8", (), constant_type)
-        p9 = relax.Var("p9", (), constant_type)
-        p10 = relax.Var("p10", (), constant_type)
-        p11 = relax.Var("p11", (), constant_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+        p1 = relax.Var("p1", R.Tensor((), "float32"))
+        p2 = relax.Var("p2", R.Tensor((), "float32"))
+        p3 = relax.Var("p3", R.Tensor((), "float32"))
+        p4 = relax.Var("p4", R.Tensor((), "float32"))
+        p5 = relax.Var("p5", R.Tensor((), "float32"))
+        p6 = relax.Var("p6", R.Tensor((), "float32"))
+        p7 = relax.Var("p7", R.Tensor((), "float32"))
+        p8 = relax.Var("p8", R.Tensor((), "float32"))
+        p9 = relax.Var("p9", R.Tensor((), "float32"))
+        p10 = relax.Var("p10", R.Tensor((), "float32"))
+        p11 = relax.Var("p11", R.Tensor((), "float32"))
         with bb.function(
             "fused_add_add_add_concatenate_add1_add_add_add_concatenate_add1_add_add_add_concatenate_add1_concatenate1",
             [x, p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11],
@@ -536,8 +521,8 @@ def test_tuple_consecutive():
             bb.emit_func_output(gv)
 
         # Grouped function 2
-        concat = relax.Var("concat", (1, 144, 64, 64), tensor_type)
-        p0 = relax.Var("p0", (), constant_type)
+        concat = relax.Var("concat", R.Tensor((1, 144, 64, 64), "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
         with bb.function("fused_pool2d_add2", [concat, p0], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -560,7 +545,7 @@ def test_tuple_consecutive():
         fused_func2 = mod.get_global_var("fused_pool2d_add2")
 
         # Main function
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit(
@@ -596,13 +581,12 @@ def test_tuple_consecutive():
 def test_inception_like():
     def before():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
 
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w0 = relax.Var("w0", (16, 16, 3, 3), tensor_type)
-        w1 = relax.Var("w1", (16, 16, 3, 3), tensor_type)
-        w2 = relax.Var("w2", (16, 32, 3, 3), tensor_type)
-        w3 = relax.Var("w3", (16, 32, 3, 3), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
+        w0 = relax.Var("w0", R.Tensor((16, 16, 3, 3), "float32"))
+        w1 = relax.Var("w1", R.Tensor((16, 16, 3, 3), "float32"))
+        w2 = relax.Var("w2", R.Tensor((16, 32, 3, 3), "float32"))
+        w3 = relax.Var("w3", R.Tensor((16, 32, 3, 3), "float32"))
         with bb.function("main", [x, w0, w1, w2, w3]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.conv2d, x, w0, strides=1, padding=1, dilation=1)
@@ -621,11 +605,10 @@ def test_inception_like():
 
     def expected():
         bb = relax.BlockBuilder()
-        tensor_type = relax.DynTensorType(4, "float32")
 
         # Grouped function 1
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w = relax.Var("w", (16, 16, 3, 3), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
+        w = relax.Var("w", R.Tensor((16, 16, 3, 3), "float32"))
         with bb.function("fused_conv2d_relu", [x, w], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -641,8 +624,8 @@ def test_inception_like():
             bb.emit_func_output(gv)
 
         # Grouped function 2
-        x = relax.Var("x", (1, 32, 64, 64), tensor_type)
-        w = relax.Var("w", (16, 32, 3, 3), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 32, 64, 64), "float32"))
+        w = relax.Var("w", R.Tensor((16, 32, 3, 3), "float32"))
         with bb.function("fused_conv2d1_relu", [x, w], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(
@@ -663,11 +646,11 @@ def test_inception_like():
         fused_conv2d_relu2 = mod.get_global_var("fused_conv2d1_relu")
 
         # Main function
-        x = relax.Var("x", (1, 16, 64, 64), tensor_type)
-        w0 = relax.Var("w0", (16, 16, 3, 3), tensor_type)
-        w1 = relax.Var("w1", (16, 16, 3, 3), tensor_type)
-        w2 = relax.Var("w2", (16, 32, 3, 3), tensor_type)
-        w3 = relax.Var("w3", (16, 32, 3, 3), tensor_type)
+        x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
+        w0 = relax.Var("w0", R.Tensor((16, 16, 3, 3), "float32"))
+        w1 = relax.Var("w1", R.Tensor((16, 16, 3, 3), "float32"))
+        w2 = relax.Var("w2", R.Tensor((16, 32, 3, 3), "float32"))
+        w3 = relax.Var("w3", R.Tensor((16, 32, 3, 3), "float32"))
         with bb.function("main", [x, w0, w1, w2, w3]):
             with bb.dataflow():
                 lv0 = bb.emit(relax.Call(fused_conv2d_relu1, (x, w0)))
@@ -687,7 +670,7 @@ def test_fuse_parallel_injective():
     def before():
         bb = relax.BlockBuilder()
 
-        x = relax.Var("x", (10, 20), relax.DynTensorType(2, "int32"))
+        x = relax.Var("x", R.Tensor((10, 20), "int32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, relax.const(1, "int32"))
@@ -703,8 +686,8 @@ def test_fuse_parallel_injective():
         bb = relax.BlockBuilder()
 
         # Grouped function
-        x = relax.Var("x", (10, 20), relax.DynTensorType(2, "int32"))
-        p0 = relax.Var("p0", (), relax.DynTensorType(0, "int32"))
+        x = relax.Var("x", R.Tensor((10, 20), "int32"))
+        p0 = relax.Var("p0", R.Tensor((), "int32"))
         with bb.function(
             "fused_add_squeeze_transpose_transpose1_left_shift", [x, p0], attrs={"Primitive": 1}
         ):
@@ -720,7 +703,7 @@ def test_fuse_parallel_injective():
         fused_func = bb.get().get_global_var("fused_add_squeeze_transpose_transpose1_left_shift")
 
         # Main function
-        x = relax.Var("x", (10, 20), relax.DynTensorType(2, "int32"))
+        x = relax.Var("x", R.Tensor((10, 20), "int32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(relax.Call(fused_func, (x, relax.const(1, "int32"))))
@@ -737,7 +720,7 @@ def test_softmax():
     def before():
         bb = relax.BlockBuilder()
 
-        x = relax.Var("x", (16, 16), relax.DynTensorType(2, "float32"))
+        x = relax.Var("x", R.Tensor((16, 16), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.softmax, x)
@@ -748,10 +731,9 @@ def test_softmax():
 
     def expected():
         bb = relax.BlockBuilder()
-        constant_type = relax.DynTensorType(2, "float32")
 
         # Grouped function
-        x = relax.Var("x", (16, 16), constant_type)
+        x = relax.Var("x", R.Tensor((16, 16), "float32"))
         with bb.function("fused_softmax_cast", [x], attrs={"Primitive": 1}):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.softmax, x)
@@ -762,7 +744,7 @@ def test_softmax():
         fused_func = bb.get().get_global_var("fused_softmax_cast")
 
         # Main function
-        x = relax.Var("x", (16, 16), constant_type)
+        x = relax.Var("x", R.Tensor((16, 16), "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
                 gv = bb.emit_output(relax.Call(fused_func, (x,)))
@@ -774,4 +756,4 @@ def test_softmax():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

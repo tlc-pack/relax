@@ -506,9 +506,8 @@ def test_vm_emit_te_extern():
         return
     bb = relax.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-    type_anno = relax.DynTensorType(2, "float32")
-    x = relax.Var("x", [n, m], type_anno)
-    y = relax.Var("y", [m, n], type_anno)
+    x = relax.Var("x", R.Tensor([n, m], "float32"))
+    y = relax.Var("y", R.Tensor([m, n], "float32"))
 
     with bb.function("rx_cblas_matmul", [x, y]):
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
@@ -531,9 +530,8 @@ def test_vm_emit_te_concat():
     # concatenate of two vectors of size (n,) and (m,)
     bb = relax.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-    type_anno = relax.DynTensorType(1, "float32")
-    x = relax.Var("x", [n], type_anno)
-    y = relax.Var("y", [m], type_anno)
+    x = relax.Var("x", R.Tensor([n], "float32"))
+    y = relax.Var("y", R.Tensor([m], "float32"))
 
     def te_func(A, B):
         C = te.compute((n + m), lambda i: tvm.tir.if_then_else(i < n, A[i], B[i - n]))
@@ -568,8 +566,7 @@ def test_vm_emit_te_concat():
 def test_vm_emit_te_dtype_change():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
-    type_anno = relax.DynTensorType(1, "float32")
-    x = relax.Var("x", [n], type_anno)
+    x = relax.Var("x", R.Tensor([n], "float32"))
 
     # convert a tensor with dtype of float32 to int16
     def te_func(A):
@@ -601,8 +598,7 @@ def test_vm_emit_te_dtype_change():
 def test_vm_emit_te_floor_symbolic_shape():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
-    type_anno = relax.DynTensorType(1, "float32")
-    x = relax.Var("x", [n], type_anno)
+    x = relax.Var("x", R.Tensor([n], "float32"))
 
     def te_func(A):
         C = te.compute((tir.floordiv(n, 2),), lambda i: A[i] + 1)
@@ -634,7 +630,7 @@ def test_vm_emit_te_constant_param_cpu():
     c_np = np.random.rand(2, 2).astype("float32")
 
     bb = relax.BlockBuilder()
-    x = relax.Var("x", (2, 2), relax.DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((2, 2), "float32"))
     c = relax.const(c_np, "float32")
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -657,7 +653,7 @@ def test_vm_emit_te_constant_param_gpu():
     c_np = np.random.rand(2, 2).astype("float32")
 
     bb = relax.BlockBuilder()
-    x = relax.Var("x", (2, 2), relax.DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((2, 2), "float32"))
     c = relax.const(c_np, "float32")
     with bb.function("main", [x]):
         with bb.dataflow():
@@ -681,9 +677,8 @@ def test_vm_emit_te_constant_param_gpu():
 def test_vm_relax_symbolic_shape():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
-    type_anno = relax.DynTensorType(1, "float32")
-    x = relax.Var("x", [n], type_anno)
-    y = relax.Var("y", [(n // 2) + 1], type_anno)
+    x = relax.Var("x", R.Tensor([n], "float32"))
+    y = relax.Var("y", R.Tensor([(n // 2) + 1], "float32"))
 
     def te_func(A, B):
         C = te.compute((n,), lambda i: A[i] + B[i // 2])
