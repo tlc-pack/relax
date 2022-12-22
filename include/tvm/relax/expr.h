@@ -486,12 +486,11 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
-  TVM_DLL explicit Var(String name_hint, runtime::Optional<Expr> shape_annotation,
-                       runtime::Optional<Type> type_annotation, Span span = Span())
-      : Var(Id(name_hint), shape_annotation, type_annotation, span) {}
+  TVM_DLL explicit Var(String name_hint, Optional<StructInfo> struct_info_annotation,
+                       Span span = Span())
+      : Var(Id(name_hint), struct_info_annotation, span) {}
 
-  TVM_DLL explicit Var(Id vid, runtime::Optional<Expr> shape_annotation,
-                       runtime::Optional<Type> type_annotation, Span span = Span());
+  TVM_DLL explicit Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
@@ -529,12 +528,12 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(String name_hint, runtime::Optional<Expr> shape_annotation,
-                               runtime::Optional<Type> type_annotation, Span span = Span())
-      : DataflowVar(Id(name_hint), shape_annotation, type_annotation, span) {}
+  TVM_DLL explicit DataflowVar(String name_hint, Optional<StructInfo> struct_info_annotation,
+                               Span span = Span())
+      : DataflowVar(Id(name_hint), struct_info_annotation, span) {}
 
-  TVM_DLL explicit DataflowVar(Id vid, runtime::Optional<Expr> shape_annotation,
-                               runtime::Optional<Type> type_annotation, Span span = Span());
+  TVM_DLL explicit DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation,
+                               Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowVar, Var, DataflowVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
@@ -791,15 +790,12 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The body of the function. */
   Expr body;
   /*! \brief The return type of the function. */
-  Type ret_type;
-  /*! \brief The return shape of the function. */
-  Expr ret_shape;
+  StructInfo ret_struct_info;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
-    v->Visit("ret_type", &ret_type);
-    v->Visit("ret_shape", &ret_shape);
+    v->Visit("ret_struct_info", &ret_struct_info);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
@@ -810,7 +806,7 @@ class FunctionNode : public BaseFuncNode {
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_type, other->ret_type) && equal(ret_shape, other->ret_shape) &&
+           equal(ret_struct_info, other->ret_struct_info) &&
            equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_) &&
            equal(attrs, other->attrs);
   }
@@ -819,8 +815,7 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce->MarkGraphNode();
     hash_reduce.DefHash(params);
     hash_reduce(body);
-    hash_reduce(ret_type);
-    hash_reduce(ret_shape);
+    hash_reduce(ret_struct_info);
     hash_reduce(checked_type_);
     hash_reduce(shape_);
     hash_reduce(attrs);
@@ -834,15 +829,15 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public BaseFunc {
  public:
-  TVM_DLL explicit Function(Array<Var> params, Expr body, Type ret_type, Expr ret_shape,
+  TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
                             DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   /*!
-   * \brief Mimics the constructor but without type checking.
+   * \brief Mimics the constructor but without body Expr.
+   * \note ret_struct_info is required, since it can not deduced by the body
    */
-  TVM_DLL static Function CreateUnchecked(Array<Var> params, Expr body, Type ret_type,
-                                          Expr ret_shape, DictAttrs attrs = NullValue<DictAttrs>(),
-                                          Span span = Span());
+  TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
+                                      DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);

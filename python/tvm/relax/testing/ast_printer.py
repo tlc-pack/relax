@@ -44,25 +44,14 @@ class ASTPrinter(ExprFunctor):
     def __init__(
         self,
         indent_str="    ",
-        include_type_annotations=True,
-        include_shape_annotations=True,
+        include_struct_info_annotations=True,
+        include_type_annotations=False,
         include_call_attrs=True,
     ):
         self.indent_str = indent_str
         self.include_type_annotations = include_type_annotations
-        self.include_shape_annotations = include_shape_annotations
+        self.include_struct_info_annotations = include_struct_info_annotations
         self.include_call_attrs = include_call_attrs
-
-        # for displaying shape_, we visit exprs just the same but don't include
-        # shapes within shapes to avoid infinite recursion
-        self.shape_visitor = None
-        # have to include this check or else the constructor does not terminate
-        if self.include_shape_annotations:
-            self.shape_visitor = ASTPrinter(
-                include_type_annotations=False,
-                include_shape_annotations=False,
-                include_call_attrs=include_call_attrs,
-            )
 
     def visit_expr(self, expr: relax.Expr) -> str:
         # extend so we also dispatch to bindings and binding blocks,
@@ -102,8 +91,8 @@ class ASTPrinter(ExprFunctor):
         Handles whether to include the checked_type_ and shape_ fields.
         """
         fields = kwargs.copy()
-        if node.shape_ and self.include_shape_annotations:
-            fields["shape_"] = self.visit_shape_(node.shape)
+        if node.struct_info_ and self.include_struct_info_annotations:
+            fields["struct_info"] = self.visit_struct_info_(node.struct_info)
         if node._checked_type_ and self.include_type_annotations:
             fields["checked_type_"] = self.visit_type_(node.checked_type)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
@@ -160,10 +149,8 @@ class ASTPrinter(ExprFunctor):
         fields = {
             "params": self.build_list(map(self.visit_expr, op.params)),
             "body": self.visit_expr(op.body),
-            "ret_shape": self.visit_expr(op.ret_shape),
+            "ret_struct_info": self.visit_struct_info_(op.ret_struct_info),
         }
-        if op.ret_type:
-            fields["ret_type"] = self.visit_type_(op.ret_type)
         if op.attrs:
             fields["attrs"] = self.build_list(
                 map(
@@ -266,11 +253,47 @@ class ASTPrinter(ExprFunctor):
             )
         raise ValueError(f"Invalid Relax Type {type_node} ({type(type_node)})")
 
-    def visit_shape_(self, expr: relax.Expr) -> str:
-        # used only for rendering the shape_ annotation, if it's intended to be included
-        if self.include_shape_annotations:
-            return self.shape_visitor.visit_expr(expr)
-        return ""
+    def visit_struct_info_(self, struct_info_node: relax.StructInfo) -> str:
+        """
+        Recurse down struct info and print their ASTs too
+        """
+        if isinstance(struct_info_node, relax.ShapeStructInfo):
+            fields = {}
+            fields["ndim"] = str(struct_info_node.ndim)
+            if struct_info_node.values is not None:
+                fields["values"] = self.build_list(
+                    map(self.visit_prim_expr_, struct_info_node.values)
+                )
+            return self.build_ast_node("ShapeStructInfo", **fields)
+        elif isinstance(struct_info_node, relax.ObjectStructInfo):
+            return self.build_ast_node("ObjectStructInfo")
+        elif isinstance(struct_info_node, relax.PrimStructInfo):
+            return self.build_ast_node("PrimStructInfo", dtype=struct_info_node.dtype)
+        elif isinstance(struct_info_node, relax.TensorStructInfo):
+            fields = {}
+            fields["dtype"] = struct_info_node.dtype
+            if struct_info_node.shape:
+                fields["shape"] = self.visit_expr(struct_info_node.shape)
+            else:
+                fields["ndim"] = str(struct_info_node.ndim)
+            return self.build_ast_node("TensorStructInfo", **fields)
+        elif isinstance(struct_info_node, relax.TupleStructInfo):
+            return self.build_ast_node(
+                "TupleType",
+                fields=self.build_list(map(self.visit_struct_info_, struct_info_node.fields)),
+            )
+        elif isinstance(struct_info_node, relax.FuncStructInfo):
+            fields = {}
+            if struct_info_node.params:
+                fields["params"] = self.build_list(
+                    map(self.visit_struct_info_, struct_info_node.params)
+                )
+            fields["ret"] = self.visit_struct_info_(struct_info_node.ret)
+            return self.build_ast_node("FuncStructInfo", **fields)
+        else:
+            raise ValueError(
+                f"Invalid Relax StructInfo {struct_info_node} ({type(struct_info_node)})"
+            )
 
     def visit_binding_block_(self, block: relax.BindingBlock) -> str:
         """
@@ -327,8 +350,8 @@ class ASTPrinter(ExprFunctor):
 def dump_ast(
     exp: relax.Expr,
     indent_str="    ",
-    include_type_annotations=True,
-    include_shape_annotations=True,
+    include_struct_info_annotations=True,
+    include_type_annotations=False,
     include_call_attrs=True,
 ) -> str:
     """
@@ -338,8 +361,8 @@ def dump_ast(
     """
     printer = ASTPrinter(
         indent_str=indent_str,
+        include_struct_info_annotations=include_struct_info_annotations,
         include_type_annotations=include_type_annotations,
-        include_shape_annotations=include_shape_annotations,
         include_call_attrs=include_call_attrs,
     )
     return printer.visit_expr(exp)

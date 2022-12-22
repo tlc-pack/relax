@@ -41,8 +41,40 @@ Expr = Union[relay.Expr]
 Type = Union[relay.Type]
 GlobalVar = Union[relay.GlobalVar]
 
-# will be registered afterwards
-_op_make = None
+# NOTE: place base struct info in expr to avoid cyclic dep
+# from expr to struct info.
+class StructInfo(Node):
+    """The base class of all StructInfo.
+
+    StructInfo contains both the static type
+    and runtime structural information.
+    """
+
+    def __eq__(self, other):
+        """Compare two struct info for structural equivalence."""
+        return tvm.ir.structural_equal(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def same_as(self, other):
+        """Overload with structural equality."""
+        return super().__eq__(other)
+
+    def is_base_of(self, derived: "StructInfo") -> bool:
+        """Check if self is base of another derived struct info.
+
+        Parameters
+        ----------
+        derived : StructInfo
+            The derived struct info to be checked.
+
+        Returns
+        -------
+        result : bool
+            The check result.
+        """
+        return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Call")
@@ -199,22 +231,24 @@ class Var(Expr):
     """The variable class for all Relax bindings."""
 
     vid: Id
-    type_annotation: Optional[Type]
+    struct_info: Optional[StructInfo]
 
     def __init__(
         self,
         name_hint: str,
-        shape_annotation: Optional[Union[List[Any], typing.Tuple[Any, ...]]] = None,
-        type_annotation: Optional[Type] = None,
+        struct_info: Optional[StructInfo] = None,
         span: Span = None,
     ) -> None:
-        if isinstance(shape_annotation, (list, tuple)):
-            shape_annotation = make_shape(shape_annotation)
+        if struct_info is not None and not isinstance(struct_info, StructInfo):
+            raise TypeError(
+                "struct_info needs to be an instance of StructInfo. "
+                "If you attempt to pass in shape, "
+                "use relax.TensorStructInfo(shape, dtype)."
+            )
         self.__init_handle_by_constructor__(
             _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,  # type: ignore
             name_hint,
-            shape_annotation,
-            type_annotation,
+            struct_info,
             span,
         )
 
@@ -249,23 +283,28 @@ class DataflowVar(Var):
     """A sub-type of the variable node used to mark dataflow variables from
     normal visible "function local" bindings."""
 
+    vid: Id
+    struct_info: Optional[StructInfo]
+
     def __init__(
         self,
         name_hint: Union[str, Id],
-        shape_annotation: Optional[Union[List[Any], typing.Tuple[Any, ...]]] = None,
-        type_annotation: Optional[Type] = None,
+        struct_info: Optional[StructInfo] = None,
         span: Span = None,
     ) -> None:
-        if isinstance(shape_annotation, (list, tuple)):
-            shape_annotation = make_shape(shape_annotation)
+        if struct_info is not None and not isinstance(struct_info, StructInfo):
+            raise TypeError(
+                "struct_info needs to be an instance of StructInfo. "
+                "If you attempt to pass in shape, "
+                "use relax.TensorStructInfo(shape, dtype)."
+            )
 
         self.__init_handle_by_constructor__(
             _ffi_api.DataflowVar  # type: ignore
             if isinstance(name_hint, str)
             else _ffi_api.DataflowVarFromId,  # type: ignore
             name_hint,
-            shape_annotation,
-            type_annotation,
+            struct_info,
             span,
         )
 
@@ -338,36 +377,30 @@ class Function(BaseFunc):
 
     params: List[Var]
     body: Expr
-    ret_type: Type
-    ret_shape: Expr
+    ret_struct_info: StructInfo
     attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
         self,
         params: List[Var],
         body: Expr,
-        ret_type: Type,
-        ret_shape: Expr,
+        ret_struct_info: Optional[StructInfo] = None,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Function, params, body, ret_type, ret_shape, attrs, span  # type: ignore
+            _ffi_api.Function, params, body, ret_struct_info, attrs, span  # type: ignore
         )
 
     @staticmethod
-    def create_unchecked(
+    def create_empty(
         params: List[Var],
-        body: Expr,
-        ret_type: Type,
-        ret_shape: Expr,
+        ret_struct_info: StructInfo,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ):
-        """Construct a relax.Function but without type checking."""
-        return _ffi_api.Function_CreateUnchecked(  # type: ignore
-            params, body, ret_type, ret_shape, attrs, span
-        )
+        """Construct a relax.Function but without body"""
+        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, attrs, span)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -476,5 +509,5 @@ def te_tensor(value: Expr, name: str = "rxplaceholder"):
     return _ffi_api.TETensor(value, name)  # type: ignore
 
 
-def _update_struct_info(expr: Expr, struct_info: Optional["tvm.relax.StructInfo"]) -> None:
+def _update_struct_info(expr: Expr, struct_info: Optional[StructInfo]) -> None:
     _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore

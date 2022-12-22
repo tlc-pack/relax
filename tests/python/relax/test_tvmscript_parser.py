@@ -38,10 +38,6 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
-def _create_shape(*shape: List[int]) -> relax.ShapeExpr:
-    return relax.ShapeExpr([tvm.tir.IntImm("int64", x) for x in shape])
-
-
 def test_simple_func():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
@@ -49,7 +45,7 @@ def test_simple_func():
         gv0 = R.call_tir("extern_func", x, (128, 128), dtype="float32")
         return gv0
 
-    x = relax.Var("x", _create_shape(128, 128), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": 1}):
         out = bb.emit(relax.call_tir("extern_func", x, (128, 128), dtype="float32"))
@@ -87,7 +83,7 @@ def test_simple_module():
             gv0 = R.call_tir(tir_func, x, (128, 128), dtype="float32")
             return gv0
 
-    x = relax.Var("x", _create_shape(128, 128), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
@@ -103,7 +99,7 @@ def test_relax_tensor_op():
         z = R.multiply(x, y)
         return z
 
-    x = relax.Var("x", _create_shape(4, 4), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((4, 4), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         y = bb.emit(relax.op.add(x, x))
@@ -120,7 +116,7 @@ def test_relax_base_op():
         shape = R.shape_of(alloc)
         return shape
 
-    x = relax.Var("x", _create_shape(4, 4), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((4, 4), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         alloc = bb.emit(relax.op.builtin.alloc_tensor(relax.ShapeExpr((4, 4)), "float32", 0))
@@ -156,7 +152,7 @@ def test_symbolic_shape():
 
     def _expected(name: str):
         n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
-        x = relax.Var("x", [m, n], DynTensorType(2, "float32"))
+        x = relax.Var("x", R.Tensor([m, n], "float32"))
         bb = relax.BlockBuilder()
         with bb.function(name, (x,)):
             out = bb.emit(relax.call_tir("extern_func", x, (m, n), dtype="float32"))
@@ -178,7 +174,7 @@ def test_shadowing():
         z = y
         return z
 
-    x = relax.Var("x", _create_shape(4, 4), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((4, 4), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         y = bb.emit(relax.op.add(x, x))
@@ -201,8 +197,8 @@ def test_match_shape():
         y1 = R.match_shape(y, (n,))
         return (m, n * 2)
 
-    x = relax.Var("x", RuntimeDepShape(), DynTensorType(-1, "float32"))
-    y = relax.Var("y", RuntimeDepShape(), DynTensorType(-1, "float32"))
+    x = relax.Var("x", R.Tensor("float32", ndim=-1))
+    y = relax.Var("y", R.Tensor("float32", ndim=-1))
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()
@@ -220,7 +216,7 @@ def test_tuple_return():
         gv1 = R.call_tir("extern_func_1", x, (4, 4), dtype="float32")
         return (gv0, gv1)
 
-    x = relax.Var("x", _create_shape(4, 4), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((4, 4), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         gv0 = bb.emit(relax.call_tir("extern_func_0", x, (4, 4), dtype="float32"))
@@ -237,7 +233,7 @@ def test_tuple_return_2():
         x0 = R.match_shape(x, (n, m))
         return (x0, (n + 1, m, 1))
 
-    x = relax.Var("x", RuntimeDepShape(), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor("float32", ndim=2))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -256,7 +252,7 @@ def test_tuple_binding():
         t1 = (x, (n, m), t0)
         return t1
 
-    x = relax.Var("x", RuntimeDepShape(), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor("float32", ndim=2))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
@@ -278,7 +274,7 @@ def test_dataflow_block():
             R.output(gv)
         return gv
 
-    x = relax.Var("x", _create_shape(128, 128), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         with bb.dataflow():
@@ -311,7 +307,7 @@ def test_dataflow_block_advanced():
         gv7 = R.call_tir("extern_func", gv6, (128, 128), dtype="float32")
         return gv7
 
-    x = relax.Var("x", _create_shape(128, 128), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
@@ -385,7 +381,7 @@ def test_return_without_binding():
     def foo(x: R.Tensor((128, 128), "float32")):
         return x
 
-    x = relax.Var("x", _create_shape(128, 128), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         bb.emit_func_output(x)
@@ -416,7 +412,7 @@ def test_tensor_type_without_args():
         v = R.call_tir("tir_relu", x, (32, 32), dtype="float32")
         return v
 
-    x = relax.Var("x", _create_shape(32, 32), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((32, 32), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x)):
         v = bb.emit(relax.call_tir("tir_relu", x, (32, 32), dtype="float32"))
@@ -430,7 +426,7 @@ def test_direct_return():
     def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
         return x
 
-    x = relax.Var("x", _create_shape(32, 32), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((32, 32), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x)):
         bb.emit_func_output(x)
@@ -444,7 +440,7 @@ def test_call_packed():
         z = R.call_packed("vm.builtin.copy", x, type_args=R.Tensor((32, 32), "float32"))
         return z
 
-    x = relax.Var("x", _create_shape(32, 32), DynTensorType(2, "float32"))
+    x = relax.Var("x", R.Tensor((32, 32), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x)):
         z = bb.emit(
@@ -485,7 +481,7 @@ def test_annotation():
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
-    assert isinstance(foo.ret_type, relax.ObjectType)
+    assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
     m = foo.params[0].shape[1]
     bindings = foo.body.blocks[0].bindings
     _check_type_shape(
@@ -513,7 +509,7 @@ def test_annotate_override():
         z: R.Object = y
         return z
 
-    assert isinstance(foo.ret_type, relax.ObjectType)
+    assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
     y_bind, z_bind = foo.body.blocks[0].bindings
     assert isinstance(y_bind.var.checked_type, relax.DynTensorType)
     assert isinstance(z_bind.var.checked_type, relax.ObjectType)
@@ -756,7 +752,7 @@ def test_erase_to_well_defined():
         w = z
         return w
 
-    assert isinstance(foo.ret_shape, RuntimeDepShape)
+    tvm.ir.assert_structural_equal(foo.ret_struct_info, R.Tensor(ndim=2))
     _check(foo, None)
 
 

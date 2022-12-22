@@ -129,14 +129,11 @@ def test_function_pattern():
     assert isinstance(f.body, CallPattern)
     assert isinstance(f.body.args[0], WildcardPattern)
     assert isinstance(f.body.args[1], WildcardPattern)
-    ttype = rx.DynTensorType(-1, "float32")
-    x = rx.Var("x", type_annotation=ttype)
-    y = rx.Var("y", type_annotation=ttype)
-    assert f.match(
-        rx.Function([x, y], rx.op.add(x, y), ret_type=ttype, ret_shape=rx.RuntimeDepShape())
-    )
+    x = rx.Var("x", R.Tensor("float32"))
+    y = rx.Var("y", R.Tensor("float32"))
+    assert f.match(rx.Function([x, y], rx.op.add(x, y), ret_struct_info=R.Tensor("float32")))
     assert not f.match(
-        rx.Function([x, y], rx.op.multiply(x, y), ret_type=ttype, ret_shape=rx.RuntimeDepShape())
+        rx.Function([x, y], rx.op.multiply(x, y), ret_struct_info=R.Tensor("float32"))
     )
 
 
@@ -195,16 +192,16 @@ def test_and_pattern():
     # float[2, 3, 3]
     f32_233 = wildcard().has_shape((2, 3, 3)) & has_dtype("float32")
     assert isinstance(f32_233, AndPattern)
-    assert f32_233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
-    assert not f32_233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
-    assert not f32_233.match(rx.Var("x", rx.RuntimeDepShape(), rx.DynTensorType(3, "float32")))
+    assert f32_233.match(rx.Var("x", R.Tensor((2, 3, 3), "float32")))
+    assert not f32_233.match(rx.Var("x", R.Tensor((3, 3, 3), "float32")))
+    assert not f32_233.match(rx.Var("x", R.Tensor("float32", ndim=3)))
 
 
 def test_not_pattern():
     no_shape233 = ~wildcard().has_shape((2, 3, 3))
     assert isinstance(no_shape233, NotPattern)
-    assert no_shape233.match(rx.Var("x", (3, 3, 3), rx.DynTensorType(3, "float32")))
-    assert not no_shape233.match(rx.Var("x", (2, 3, 3), rx.DynTensorType(3, "float32")))
+    assert no_shape233.match(rx.Var("x", R.Tensor((3, 3, 3), "float32")))
+    assert not no_shape233.match(rx.Var("x", R.Tensor((2, 3, 3), "float32")))
 
 
 def test_type_pattern():
@@ -227,8 +224,7 @@ def test_shape_pattern():
     assert pattern.match(bindings[0].var)
     assert wildcard().has_shape([32, 32]).match(bindings[0].var)
     n, m = tir.Var("n", dtype="int64"), tir.Var("m", dtype="int64")
-    symbolic_shape = rx.ShapeExpr([n, m, n + m])
-    symsh_var = rx.Var("x", symbolic_shape, rx.DynTensorType(3, "float32"))
+    symsh_var = rx.Var("x", R.Tensor([n, m, n + m], "float32"))
     assert wildcard().has_shape([n, m, n + m]).match(symsh_var)
     assert wildcard().has_shape([n, m, m + n]).match(symsh_var)  # + is commutative.
     assert not wildcard().has_shape([1, 2, 3]).match(symsh_var)
@@ -254,9 +250,9 @@ def test_prim_arr_pattern():
 
 def test_rt_dep_shape_pattern():
     # runtime-dep-shape var
-    rts_var = rx.Var("rts_var", rx.RuntimeDepShape(), rx.DynTensorType(4, "float32"))
+    rts_var = rx.Var("rts_var", R.Tensor("float32", ndim=4))
     # static-shape var
-    ss_var = rx.Var("ss_var", rx.ShapeExpr([32, 32]), rx.DynTensorType(4, "float32"))
+    ss_var = rx.Var("ss_var", R.Tensor([32, 32], "float32"))
     assert wildcard().has_rt_dep_shape().match(rts_var)
     assert not wildcard().has_rt_dep_shape().match(ss_var)
 
@@ -267,9 +263,8 @@ def test_extern_fn_pattern():
 
 
 def test_op_attr():
-    ttype = rx.DynTensorType(-1, "float32")
-    x = rx.Var("x", type_annotation=ttype)
-    y = rx.Var("y", type_annotation=ttype)
+    x = rx.Var("x", R.Tensor("float32"))
+    y = rx.Var("y", R.Tensor("float32"))
     conv2d = relay.nn.conv2d(x, y, kernel_size=(3, 3))
     xp = is_var("x")
     yp = is_var("y")
@@ -280,10 +275,9 @@ def test_op_attr():
 
 
 def test_match_call_attr():
-    ttype = rx.DynTensorType(-1, "float32")
-    x = rx.Var("x", type_annotation=ttype)
-    y = rx.Var("y", type_annotation=ttype)
-    fn = rx.Function([x, y], rx.op.add(x, y), ret_type=ttype, ret_shape=rx.RuntimeDepShape())
+    x = rx.Var("x", R.Tensor("float32"))
+    y = rx.Var("y", R.Tensor("float32"))
+    fn = rx.Function([x, y], rx.op.add(x, y), ret_struct_info=R.Tensor("float32"))
     annotated_fn = fn.with_attr({"Codegen": "test-codegen", "global_symbol": "test-symbol"})
     xp = is_var("x")
     yp = is_var("y")

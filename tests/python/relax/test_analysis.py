@@ -43,10 +43,8 @@ def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
 def test_dispatch_var():
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
-    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
-    v0 = rx.Var("v0", [m, n], type_anno0)
-    v1 = rx.DataflowVar("v1", [n], type_anno1)
+    v0 = rx.Var("v0", R.Tensor([m, n], "float16"))
+    v1 = rx.DataflowVar("v1", R.Tensor([n], "float16"))
     t = None
 
     def fvisit(e):
@@ -62,13 +60,11 @@ def test_dispatch_var():
 def test_post_order_visit():
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
-    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
-    x = rx.Var("x", [m, n], type_anno0)
-    y = rx.Var("y", [n], type_anno1)
+    x = rx.Var("x", R.Tensor([m, n], "float16"))
+    y = rx.Var("y", R.Tensor([n], "float16"))
     ib = rx.BlockBuilder()
     with ib.function("func", [x, y]):
-        with ib.dataflow() as df:
+        with ib.dataflow():
             lv0 = ib.emit(rx.op.add(x, y))
             lv1 = ib.emit(rx.op.multiply(lv0, y))
             gv0 = ib.emit_output(lv1)
@@ -89,10 +85,8 @@ def test_post_order_visit():
 def test_use_def():
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
-    type_anno0 = rx.DynTensorType(ndim=2, dtype="float16")
-    type_anno1 = rx.DynTensorType(ndim=1, dtype="float16")
-    x = rx.Var("x", [m, n], type_anno0)
-    y = rx.Var("y", [n], type_anno1)
+    x = rx.Var("x", R.Tensor([m, n], "float16"))
+    y = rx.Var("y", R.Tensor([n], "float16"))
     ib = rx.BlockBuilder()
     with ib.function("func", [x, y]):
         with ib.dataflow():
@@ -253,10 +247,10 @@ def test_shape_var_nested():
     assert len(vars) == 1
     assert sv1 in vars
 
-    x = rx.Var("x", type_annotation=rx.DynTensorType(ndim=-1, dtype="int64"))
-    y = rx.Var("y", type_annotation=rx.DynTensorType(ndim=-1, dtype="int64"))
+    x = rx.Var("x", R.Tensor(ndim=-1, dtype="int64"))
+    y = rx.Var("y", R.Tensor(ndim=-1, dtype="int64"))
 
-    func = rx.Function([x, y], shape_expr, rx.ShapeType(), rx.RuntimeDepShape())
+    func = rx.Function([x, y], shape_expr, R.Shape())
     vars = shape_vars(func)
 
     assert len(vars) == 1
@@ -267,12 +261,8 @@ def test_derive_func_ret_shape_no_free():
     sv1 = tir.Var("sv1", "int64")
     sv2 = tir.Var("sv2", "int64")
     sv3 = tir.Var("sv3", "int64")
-    a1 = rx.Var(
-        "a1", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv1, sv2])
-    )
-    a2 = rx.Var(
-        "a2", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv2, sv3])
-    )
+    a1 = rx.Var("a1", R.Tensor([sv1, sv2]))
+    a2 = rx.Var("a2", R.Tensor([sv2, sv3]))
     body = a2
     shape_expr = derive_func_ret_shape([a1, a2], body)
 
@@ -285,17 +275,11 @@ def test_derive_func_ret_shape_free():
     sv1 = tir.Var("sv1", "int64")
     sv2 = tir.Var("sv2", "int64")
     sv3 = tir.Var("sv3", "int64")
-    a1 = rx.Var(
-        "a1", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv1, sv2])
-    )
-    a2 = rx.Var(
-        "a2", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv2, sv1])
-    )
+    a1 = rx.Var("a1", R.Tensor([sv1, sv2]))
+    a2 = rx.Var("a2", R.Tensor([sv2, sv1]))
     # Artifically introducing a free shape variable.
     # This would not be a valid program, but this is being done to test the logic
-    body = rx.Var(
-        "a3", type_annotation=rx.DynTensorType(ndim=2), shape_annotation=rx.ShapeExpr([sv1, sv3])
-    )
+    body = rx.Var("a3", R.Tensor([sv1, sv3]))
     shape_expr = derive_func_ret_shape([a1, a2], body)
     assert isinstance(shape_expr, rx.RuntimeDepShape)
 
@@ -367,20 +351,18 @@ def test_free_vars():
     assert main_free == {"x", "y"}
 
     # function that captures vars
-    x = rx.Var("x", type_annotation=rx.DynTensorType(ndim=-1))
-    y = rx.Var("y", type_annotation=rx.DynTensorType(ndim=-1))
-    z = rx.Var("z", type_annotation=rx.DynTensorType(ndim=-1))
+    x = rx.Var("x", R.Tensor(ndim=-1))
+    y = rx.Var("y", R.Tensor(ndim=-1))
+    z = rx.Var("z", R.Tensor(ndim=-1))
     inner = rx.Function(
         [z],
         rx.op.add(x, rx.op.add(y, z)),
-        ret_type=rx.DynTensorType(ndim=-1),
-        ret_shape=rx.RuntimeDepShape(),
+        ret_struct_info=R.Tensor(ndim=-1),
     )
     outer = rx.Function(
         [x, y],
         rx.Call(inner, [y]),
-        ret_type=rx.DynTensorType(ndim=-1),
-        ret_shape=rx.RuntimeDepShape(),
+        ret_struct_info=R.Tensor(ndim=-1),
     )
     assert len(free_vars(outer)) == 0
     assert var_name_set(free_vars(inner)) == {"x", "y"}

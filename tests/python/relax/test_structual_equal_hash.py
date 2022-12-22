@@ -38,9 +38,8 @@ def _check_save_roundtrip(x):
 
 
 def test_var_binding():
-    dtype = rx.DynTensorType(1)
-    x = rx.Var("x", [10], dtype)
-    y = rx.Var("y", [10], dtype)
+    x = rx.Var("x", R.Tensor([10]))
+    y = rx.Var("y", R.Tensor([10]))
 
     def generator(x, y):
         bb = rx.BlockBuilder()
@@ -55,8 +54,7 @@ def test_var_binding():
 
 
 def test_match_shape():
-    dtype = rx.DynTensorType(1)
-    x = rx.Var("x", [10], dtype)
+    x = rx.Var("x", R.Tensor([10]))
     m = tir.Var("m", dtype="int64")
 
     def generator(x):
@@ -73,9 +71,8 @@ def test_match_shape():
 
 def test_function():
     def generator():
-        dtype = rx.DynTensorType(1, "float32")
-        x = rx.Var("x", [10], dtype)
-        y = rx.Var("y", [10], dtype)
+        x = rx.Var("x", R.Tensor([10], "float32"))
+        y = rx.Var("y", R.Tensor([10], "float32"))
         bb = rx.BlockBuilder()
         with bb.function("name", [x, y]):
             gv = bb.emit(rx.op.add(x, y))
@@ -89,10 +86,9 @@ def test_function():
 
 def test_ir_module():
     def generator():
-        dtype = rx.DynTensorType(1, "float32")
         bb = rx.BlockBuilder()
-        x = rx.Var("x", [10], dtype)
-        y = rx.Var("y", [10], dtype)
+        x = rx.Var("x", R.Tensor([10], "float32"))
+        y = rx.Var("y", R.Tensor([10], "float32"))
         with bb.function("test", [x, y]):
             gv = bb.emit(rx.op.add(x, y))
             bb.emit_func_output(gv)
@@ -100,8 +96,8 @@ def test_ir_module():
         # get global var
         func_gv = bb.get().get_global_var("test")
 
-        x = rx.Var("x", [10], dtype)
-        y = rx.Var("y", [10], dtype)
+        x = rx.Var("x", R.Tensor([10], "float32"))
+        y = rx.Var("y", R.Tensor([10], "float32"))
         with bb.function("main", [x, y]):
             gv = bb.emit(rx.Call(func_gv, [x, y]))
             bb.emit_func_output(gv)

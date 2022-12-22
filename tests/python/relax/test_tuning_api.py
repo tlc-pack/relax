@@ -76,7 +76,7 @@ def gen_mod(mod, name, binding):
             if k.name_hint == name:
                 # rename to main.
                 gv = tvm.ir.GlobalVar("main")
-                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_type, v.ret_shape).with_attr(
+                funcs[gv] = tvm.relax.Function(v.params, v.body, v.ret_struct_info).with_attr(
                     "global_symbol", "main"
                 )
         else:
@@ -754,11 +754,9 @@ def test_passes_with_mixed_granularities():
     ) -> DataflowBlock:
         # TODO(sunggg): figure out how to create IRModule from DataflowBlock
         # Provide random binding for now
-        x = relax.Var("x", [tvm.tir.Var("n", "int64")], relax.DynTensorType(1, "float32"))
+        x = relax.Var("x", R.Tensor([tvm.tir.Var("n", "int64")], "float32"))
         seq_expr = relax.SeqExpr([block], x)
-        ret_type = relax.DynTensorType(-1, "float32")
-        ret_shape = relax.RuntimeDepShape()
-        func = relax.Function([x], seq_expr, ret_type, ret_shape)
+        func = relax.Function([x], seq_expr, R.Tensor("float32", ndim=-1))
         ctx.push_trace(Trace(IRModule.from_expr(func)))
         # Do something
         pass_func(mod, ctx)

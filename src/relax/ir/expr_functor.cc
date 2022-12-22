@@ -316,12 +316,11 @@ Expr ExprMutatorBase::VisitExpr_(const DataflowVarNode* op) { return GetRef<Expr
 
 Expr ExprMutatorBase::VisitExpr_(const FunctionNode* op) {
   Expr body = this->VisitExpr(op->body);
-  Expr ret_shape = this->VisitExpr(op->ret_shape);
 
   if (body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(op->params, body, op->ret_type, op->ret_shape, op->attrs);
+    return Function(op->params, body, op->ret_struct_info, op->attrs);
   }
 }
 
@@ -493,15 +492,12 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
     all_params_unchanged &= param.same_as(new_param);
   }
 
-  Type ret_type = this->VisitType(op->ret_type);
-  Expr ret_shape = this->VisitExpr(op->ret_shape);
   Expr body = this->VisitWithNewScope(op->body, params);
 
-  if (all_params_unchanged && ret_type.same_as(op->ret_type) && body.same_as(op->body) &&
-      ret_shape.same_as(op->ret_shape)) {
+  if (all_params_unchanged && body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(params, body, ret_type, ret_shape, op->attrs);
+    return Function(params, body, op->ret_struct_info, op->attrs);
   }
 }
 
@@ -707,9 +703,8 @@ Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
         StructuralEqual()(var->struct_info_, struct_info)) {
       return var;
     } else {
-      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, NullOpt, NullOpt, var->span)
-                                              : Var(var->vid, NullOpt, NullOpt, var->span);
-      UpdateStructInfo(new_var, struct_info);
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, struct_info, var->span)
+                                              : Var(var->vid, struct_info, var->span);
       return new_var;
     }
   } else {

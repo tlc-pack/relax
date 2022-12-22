@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+import tvm.testing
 import pytest
 
 from tvm import relax as rx, TVMError, tir
@@ -140,7 +141,7 @@ def test_tensor_struct_info():
     assert s0 != s2
 
     # take in opaque var
-    rshape = rx.Var("shape", type_annotation=rx.ShapeType(ndim=2))
+    rshape = rx.Var("shape", rx.ShapeStructInfo(ndim=2))
 
     s3 = rx.TensorStructInfo(rshape, dtype="int32")
     assert s3.dtype == "int32"
@@ -220,3 +221,7 @@ def test_func_struct_info():
 
     # can turn into str
     str(f3)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

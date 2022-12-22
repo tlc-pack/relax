@@ -122,13 +122,11 @@ def from_relay(
             for arg in args:
                 if arg in var_map:
                     arg_expr = var_map[arg]
-                    if isinstance(arg_expr.checked_type, relax.DynTensorType):
+                    if isinstance(arg_expr.struct_info, relax.TensorStructInfo):
                         new_args.append(arg_expr)
                         te_inputs.append(tvm.relax.expr.te_tensor(arg_expr))
-                    elif isinstance(arg_expr.checked_type, relax.TupleType):
-                        assert isinstance(arg_expr.shape, relax.Tuple)
-                        assert len(arg_expr.shape.fields) == len(arg_expr.checked_type.fields)
-                        n_tensor = len(arg_expr.shape.fields)
+                    elif isinstance(arg_expr.struct_info, relax.TupleStructInfo):
+                        n_tensor = len(arg_expr.struct_info.fields)
                         bound_tuple = bb.lookup_binding(arg_expr)
                         if isinstance(bound_tuple, relax.Tuple):
                             assert len(bound_tuple) == n_tensor

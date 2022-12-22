@@ -14,18 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Dict
-import pytest
 import re
-
-import tvm
-from tvm import tir
-from tvm import relax as rx
-from tvm.relax.testing import dump_ast
-from tvm.relax.testing.ast_printer import ASTPrinter
-from tvm.script import tir as T, relax as R
+from functools import partial
+from typing import Dict
 
 import numpy as np
+import tvm
+import tvm.testing
+from tvm import relax as rx
+from tvm import tir
+from tvm.relax.testing import dump_ast
+from tvm.relax.testing.ast_printer import ASTPrinter
+from tvm.script import relax as R
+from tvm.script import tir as T
+
+# Overload dump_ast to test both struct info and type annotations
+dump_ast = partial(dump_ast, include_struct_info_annotations=True, include_type_annotations=True)
 
 
 def strip_whitespace(text: str) -> str:
@@ -73,15 +77,15 @@ def test_var() -> None:
     v0_str = dump_ast(v0)
     assert v0_str == 'Var(name_hint="v0")'
 
-    shape_anno = [54, 96]
-    type_anno = rx.DynTensorType(2, "float32")
-    v1 = rx.Var("v1", shape_anno, type_anno)
-    v1_no_annos = dump_ast(v1, include_shape_annotations=False, include_type_annotations=False)
+    v1 = rx.Var("v1", R.Tensor([54, 96], "float32"))
+    v1_no_annos = dump_ast(
+        v1, include_struct_info_annotations=False, include_type_annotations=False
+    )
     assert v1_no_annos == 'Var(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
-    assert "shape_" in v1_annos
+    assert "struct_info" in v1_annos
     assert "checked_type_" in v1_annos
 
 
@@ -90,15 +94,15 @@ def test_dataflow_var() -> None:
     v0_str = dump_ast(v0)
     assert v0_str == 'DataflowVar(name_hint="v0")'
 
-    shape_anno = [54, 96]
-    type_anno = rx.DynTensorType(2, "float16")
-    v1 = rx.DataflowVar("v1", shape_anno, type_anno)
-    v1_no_annos = dump_ast(v1, include_shape_annotations=False, include_type_annotations=False)
+    v1 = rx.DataflowVar("v1", R.Tensor([54, 96], "float16"))
+    v1_no_annos = dump_ast(
+        v1, include_struct_info_annotations=False, include_type_annotations=False
+    )
     assert v1_no_annos == 'DataflowVar(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
-    assert "shape_" in v1_annos
+    assert "struct_info" in v1_annos
     assert "checked_type_" in v1_annos
 
 
@@ -107,7 +111,7 @@ def test_match_shape() -> None:
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
-    var = rx.Var("v0", type_annotation=rx.ShapeType())
+    var = rx.Var("v0", R.Shape())
     b0 = rx.MatchShape(shape, [m, n], var)
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchShape(")
@@ -119,19 +123,17 @@ def test_match_shape() -> None:
     assert b0_str != dump_ast(b0, include_type_annotations=False)
 
     # var1: Tensor((m, n), "float32") =
-    #   match_shape(var0: Tensor(_, "float32"), [m, n])
-    type_anno0 = rx.DynTensorType(-1, "float32")
-    value = rx.Var("value", type_annotation=type_anno0)
-
-    shape_anno = [m, n]
-    type_anno = rx.DynTensorType(2, "float32")
-    var = rx.Var("v1", shape_anno, type_anno)
+    #   match_shape(var0: R.Tensor("float32"), [m, n])
+    value = rx.Var("value", R.Tensor("float32"))
+    var = rx.Var("v1", R.Tensor([m, n], "float32"))
     b1 = rx.MatchShape(value, [m, n], var)
     b1_str = dump_ast(b1)
     assert b1_str.startswith("MatchShape(")
     assert "PrimExpr(value=`m: int64`)" in b1_str
     assert "PrimExpr(value=`n: int64`)" in b1_str
-    assert b1_str != dump_ast(b1, include_type_annotations=False, include_shape_annotations=False)
+    assert b1_str != dump_ast(
+        b1, include_type_annotations=False, include_struct_info_annotations=False
+    )
 
 
 def test_match_shape_unbound() -> None:
@@ -152,7 +154,7 @@ def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    b0_str = dump_ast(b0, include_type_annotations=False, include_shape_annotations=False)
+    b0_str = dump_ast(b0, include_type_annotations=False, include_struct_info_annotations=False)
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name_hint="v0")' in b0_str
     assert "value=" in b0_str
@@ -225,22 +227,18 @@ def test_shape_expr() -> None:
 
 
 def test_func():
-    type_anno = rx.DynTensorType(2, "float32")
-    x = rx.Var("foo", type_annotation=type_anno)
+    x = rx.Var("foo", R.Tensor("float32", ndim=2))
     bindings = [rx.VarBinding(x, rx.const(1))]
     blocks = [rx.BindingBlock(bindings)]
     seqe = rx.SeqExpr(blocks, x)
-    ret_type = rx.DynTensorType(-1, "float32")
-    ret_shape = rx.RuntimeDepShape()
-    func = rx.Function([x], seqe, ret_type, ret_shape)
+    func = rx.Function([x], seqe, R.Tensor("float32"))
     func = func.with_attr("global_symbol", "func")
 
     func_str = dump_ast(func)
     assert func_str.startswith("Function(")
     assert "params=" in func_str
     assert "body=" in func_str
-    assert "ret_type=" in func_str
-    assert "ret_shape=" in func_str
+    assert "ret_struct_info=" in func_str
     assert "attrs=" in func_str
     assert '"global_symbol": "func"' in func_str
     assert "SeqExpr(" in func_str
@@ -258,8 +256,7 @@ def test_shape_of():
     assert "args=" in s0_str
     assert 'Var(name_hint="v0")' in s0_str
 
-    shape_anno = [96, 54]
-    v1 = rx.Var("v1", shape_anno, rx.DynTensorType(ndim=2))
+    v1 = rx.Var("v1", R.Tensor([96, 54]))
     s1 = v1.shape
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
@@ -326,20 +323,20 @@ def test_call_packed():
         dump_ast(
             f,
             include_type_annotations=False,
-            include_shape_annotations=False,
+            include_struct_info_annotations=False,
             include_call_attrs=True,
         )
     )
 
     # the function has an annotated return type
-    assert "ret_type=ObjectType()" in f_str
+    assert "ret_struct_info=ObjectStructInfo()" in f_str
 
     assert isinstance(f.body, rx.SeqExpr)
     extern_call = f.body.blocks[0].bindings[-1].value
     extern_call_text = dump_ast(
         extern_call,
         include_type_annotations=False,
-        include_shape_annotations=False,
+        include_struct_info_annotations=False,
         include_call_attrs=True,
     )
     assert strip_whitespace(extern_call_text) in f_str
@@ -359,7 +356,7 @@ def test_call_packed():
     op_call_text = dump_ast(
         op_call,
         include_type_annotations=False,
-        include_shape_annotations=False,
+        include_struct_info_annotations=False,
         include_call_attrs=True,
     )
     assert strip_whitespace(op_call_text) in f_str
@@ -387,7 +384,7 @@ def test_call_tir():
         dump_ast(
             foo,
             include_type_annotations=False,
-            include_shape_annotations=False,
+            include_struct_info_annotations=False,
             include_call_attrs=False,
         )
     )
@@ -399,7 +396,7 @@ def test_call_tir():
     tir_call_text = dump_ast(
         tir_call,
         include_type_annotations=False,
-        include_shape_annotations=False,
+        include_struct_info_annotations=False,
         include_call_attrs=False,
     )
     assert_fields(
@@ -432,7 +429,7 @@ def test_operators():
         dump_ast(
             foo,
             include_type_annotations=False,
-            include_shape_annotations=False,
+            include_struct_info_annotations=False,
         )
     )
     # checking that the attributes are present
@@ -449,7 +446,7 @@ def test_operators():
         dump_ast(
             bar,
             include_type_annotations=False,
-            include_shape_annotations=False,
+            include_struct_info_annotations=False,
         )
     )
     print_attrs_str = strip_whitespace('{"format": "{}"}')
@@ -464,16 +461,22 @@ def test_print_shape_annotation_non_var():
     body = normalize(f).body
     body_str = strip_whitespace(dump_ast(body))
     # the constant has a shape of (2,)
-    shape_str = strip_whitespace(
+    struct_info = strip_whitespace(
         """
-        shape_ = ShapeExpr(
-            values = [
-                PrimExpr(value=`2i64`)
-            ]
+        struct_info=TensorStructInfo(
+            dtype=int32,
+            shape=ShapeExpr(
+                values=[PrimExpr(value=`2i64`)],
+                struct_info=ShapeStructInfo(
+                    ndim=1,
+                    values=[PrimExpr(value=`2i64`)]
+                ),
+                checked_type_=ShapeType()
+            )
         )
         """
     )
-    assert shape_str in body_str
+    assert struct_info in body_str
 
 
 def test_print_type_annotation_non_var():
@@ -529,4 +532,4 @@ def test_tuple_get_item():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
