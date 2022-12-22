@@ -212,14 +212,6 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
     raise ValueError("Wrong type")
 
 
-@tvm._ffi.register_object("relax.expr.RuntimeDepShape")
-class RuntimeDepShape(Expr):
-    """A shape expression which allows users to construct a runtime dependent shape."""
-
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)  # type: ignore
-
-
 @tvm._ffi.register_object("relax.expr.Constant")
 class Constant(Expr):
     def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:

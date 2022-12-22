@@ -134,9 +134,6 @@ class ASTPrinter(ExprFunctor):
             op, "ShapeExpr", values=self.build_list(map(self.visit_prim_expr_, op.values))
         )
 
-    def visit_runtime_dep_shape_(self, op: relax.RuntimeDepShape) -> str:
-        return self.build_expr(op, "RuntimeDepShape")
-
     def visit_extern_func_(self, op: relax.ExternFunc) -> str:
         # ExternFunc does not inherit from relax.Expr either,
         # so it doesn't have checked_type_ or shape_ fields and we don't use build_expr

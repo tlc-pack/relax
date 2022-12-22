@@ -195,7 +195,6 @@ def is_relax_expr(expr: RelayExpr) -> bool:
             relax.Var,
             relax.DataflowVar,
             relax.ShapeExpr,
-            relax.RuntimeDepShape,
             relax.SeqExpr,
             relax.Function,
             relax.ExternFunc,

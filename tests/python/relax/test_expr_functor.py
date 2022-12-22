@@ -31,7 +31,6 @@ from tvm.relax.expr import (
     GlobalVar,
     If,
     MatchShape,
-    RuntimeDepShape,
     SeqExpr,
     ShapeExpr,
     Tuple,
@@ -137,9 +136,6 @@ class ASTPrinter(PyExprVisitor):
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         self.log.add("ShapeExpr")
-
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
-        self.log.add("RuntimeDepShape")
 
     def visit_extern_func_(self, op: ExternFunc) -> None:
         self.log.add("ExternFunc")
@@ -255,11 +251,6 @@ class ASTPostPrinterMutator(PyExprMutator):
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
         op = self.visit_expr_post_order(op)
         self.log.add("ShapeExpr")
-        return op
-
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
-        op = self.visit_expr_post_order(op)
-        self.log.add("RuntimeDepShape")
         return op
 
     def visit_extern_func_(self, op: ExternFunc) -> Expr:

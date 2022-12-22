@@ -72,65 +72,10 @@ TVM_REGISTER_GLOBAL("relax.analysis.GetStaticType").set_body_typed([](const Stru
 });
 
 //--------------------------
-// GetLegacyShapeHint
-//--------------------------
-// TODO(relax-team) remove this function after phasing out shape.
-class LegacyShapeDeriver : public StructInfoFunctor<Optional<Expr>(const StructInfo&)> {
- public:
-  Optional<Expr> VisitStructInfo_(const ObjectStructInfoNode* op) final { return NullOpt; }
-
-  Optional<Expr> VisitStructInfo_(const PrimStructInfoNode* op) final { return NullOpt; }
-
-  Optional<Expr> VisitStructInfo_(const ShapeStructInfoNode* op) final { return NullOpt; }
-
-  Optional<Expr> VisitStructInfo_(const TensorStructInfoNode* op) final {
-    if (op->shape.defined()) {
-      return op->shape;
-    } else {
-      return RuntimeDepShape();
-    }
-  }
-
-  Optional<Expr> VisitStructInfo_(const TupleStructInfoNode* op) final {
-    bool valid = true;
-    Array<Expr> fields = op->fields.Map([this, &valid](const StructInfo& sinfo) {
-      Optional<Expr> shape = this->VisitStructInfo(sinfo);
-      valid &= shape.defined();
-      return shape.value_or(Expr(nullptr));
-    });
-
-    // recursively collect structinfo to make sure legacy shape is also well defined.
-    if (valid && fields.size() != 0) {
-      Tuple tuple(fields, op->span);
-      Array<StructInfo> tuple_sinfo;
-      for (Expr field : tuple->fields) {
-        tuple_sinfo.push_back(GetStructInfo(field));
-      }
-      UpdateStructInfo(tuple, TupleStructInfo(tuple_sinfo));
-      return tuple;
-    } else {
-      return NullOpt;
-    }
-  }
-
-  Optional<Expr> VisitStructInfo_(const FuncStructInfoNode* op) final { return NullOpt; }
-};
-
-Optional<Expr> GetLegacyShapeHint(const StructInfo& info) { return LegacyShapeDeriver()(info); }
-
-TVM_REGISTER_GLOBAL("relax.analysis.GetLegacyShapeHint").set_body_typed([](const StructInfo& info) {
-  return GetLegacyShapeHint(info);
-});
-
-//--------------------------
 // StructInfoFromType
 //--------------------------
 
 StructInfo StructInfoFromType(const Type& type) {
-  return StructInfoFromTypeLegacyShapeHint(type, NullOpt);
-}
-
-StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> shape_hint) {
   if (type.as<ObjectTypeNode>()) {
     return ObjectStructInfo(type->span);
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
@@ -138,24 +83,11 @@ StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> sh
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
     return ShapeStructInfo(shape_type->ndim, type->span);
   } else if (const DynTensorTypeNode* tensor_type = type.as<DynTensorTypeNode>()) {
-    if (!shape_hint.defined() || shape_hint->IsInstance<RuntimeDepShapeNode>()) {
-      return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
-    } else {
-      return TensorStructInfo(shape_hint.value(), tensor_type->dtype);
-    }
+    return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
     Array<StructInfo> fields;
-    if (shape_hint.defined() && shape_hint.value()->IsInstance<TupleNode>()) {
-      Array<Expr> shape_hint_fields = Downcast<Tuple>(shape_hint.value())->fields;
-      ICHECK_EQ(shape_hint_fields.size(), tuple_type->fields.size());
-      for (size_t i = 0; i < tuple_type->fields.size(); ++i) {
-        fields.push_back(
-            StructInfoFromTypeLegacyShapeHint(tuple_type->fields[i], shape_hint_fields[i]));
-      }
-    } else {
-      for (const Type& field : tuple_type->fields) {
-        fields.push_back(StructInfoFromType(field));
-      }
+    for (const Type& field : tuple_type->fields) {
+      fields.push_back(StructInfoFromType(field));
     }
     return TupleStructInfo(fields, type->span);
   } else if (const FuncTypeNode* func_type = type.as<FuncTypeNode>()) {

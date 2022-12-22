@@ -74,11 +74,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
       return true;
     }
 
-    // TODO(relax-team): revisit this logic after struct info.
-    if (lhs->IsInstance<RuntimeDepShapeNode>() && rhs->IsInstance<RuntimeDepShapeNode>()) {
-      return true;
-    }
-
     // try run symbolic shape proves that two shape equals each other.
     if (lhs->IsInstance<ShapeExprNode>() && rhs->IsInstance<ShapeExprNode>()) {
       const auto* lhs_shape = lhs.as<ShapeExprNode>();
@@ -572,7 +567,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
   }
 
-  RELAX_EXPR_NORMALIZER_LEAF(RuntimeDepShapeNode);
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);

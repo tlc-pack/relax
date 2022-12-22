@@ -381,9 +381,6 @@ def test_shape_expr():
     assert x.__str__() == "(10, 5)"
 
 
-def test_runtime_dep_shape():
-    x = relax.RuntimeDepShape()
-    assert x.__str__() == "None"
 
 
 def test_func_type():

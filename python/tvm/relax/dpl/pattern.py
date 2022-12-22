@@ -204,17 +204,6 @@ class DFPattern(Node):
         """
         return ffi.match_expr(self, expr, var2val)  # type: ignore
 
-    def has_rt_dep_shape(self) -> "AndPattern":
-        """
-        Syntax sugar for assuming current node has a runtime-dependent shape
-
-        Returns
-        -------
-        result: AndPattern
-            The resulting AndPattern
-        """
-        return RuntimeDepShapePattern(self)
-
     def used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
         """
         The current pattern being used by another pattern (sequence)
@@ -274,14 +263,6 @@ class DFPattern(Node):
         """Fork the current pattern to multiple pattern branches"""
         for v in args:
             self ^ v
-
-
-@register_df_node
-class RuntimeDepShapePattern(DFPattern):
-    """A pattern matching a Relax RuntimeDepShape."""
-
-    def __init__(self, pattern: DFPattern):
-        self.__init_handle_by_constructor__(ffi.RuntimeDepShapePattern, pattern)  # type: ignore
 
 
 @register_df_node

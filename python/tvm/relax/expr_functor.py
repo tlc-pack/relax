@@ -26,7 +26,7 @@ from tvm.meta_schedule.utils import derived_object
 from .expr import Type, Span, Expr
 from .expr import Function, ExternFunc
 from .expr import Constant, Var, DataflowVar
-from .expr import ShapeExpr, RuntimeDepShape
+from .expr import ShapeExpr
 from .expr import GlobalVar, SeqExpr, Tuple
 from .expr import Call, If, TupleGetItem
 from .expr import Binding, MatchShape, VarBinding
@@ -127,8 +127,6 @@ class ExprFunctor:
             ret = self.visit_var_(expr)
         elif isinstance(expr, ShapeExpr):
             ret = self.visit_shape_expr_(expr)
-        elif isinstance(expr, RuntimeDepShape):
-            ret = self.visit_runtime_dep_shape_(expr)
         elif isinstance(expr, ExternFunc):
             ret = self.visit_extern_func_(expr)
         elif isinstance(expr, GlobalVar):  # type: ignore
@@ -163,9 +161,6 @@ class ExprFunctor:
         raise NotImplementedError()
 
     def visit_shape_expr_(self, op: ShapeExpr):
-        raise NotImplementedError()
-
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape):
         raise NotImplementedError()
 
     def visit_extern_func_(self, op: ExternFunc):
@@ -254,7 +249,6 @@ class _PyExprVisitor(Object):
         f_visit_var_: Callable = None,
         f_visit_dataflow_var_: Callable = None,
         f_visit_shape_expr_: Callable = None,
-        f_visit_runtime_dep_shape_: Callable = None,
         f_visit_extern_func_: Callable = None,
         f_visit_global_var_: Callable = None,
         f_visit_function_: Callable = None,
@@ -285,7 +279,6 @@ class _PyExprVisitor(Object):
             f_visit_var_,
             f_visit_dataflow_var_,
             f_visit_shape_expr_,
-            f_visit_runtime_dep_shape_,
             f_visit_extern_func_,
             f_visit_global_var_,
             f_visit_function_,
@@ -375,7 +368,6 @@ class PyExprVisitor:
             "visit_var_",
             "visit_dataflow_var_",
             "visit_shape_expr_",
-            "visit_runtime_dep_shape_",
             "visit_extern_func_",
             "visit_global_var_",
             "visit_function_",
@@ -510,19 +502,6 @@ class PyExprVisitor:
         ----------
         op : ShapeExpr
             The ShapeExpr to be visited.
-        """
-        # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
-        """Visit RuntimeDepShape.
-        Users can customized this function to overwrite VisitExpr_(const RuntimeDepShapeNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : RuntimeDepShape
-            The RuntimeDepShape to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
@@ -754,7 +733,6 @@ class _PyExprMutator(Object):
         f_visit_var_: Callable = None,
         f_visit_dataflow_var_: Callable = None,
         f_visit_shape_expr_: Callable = None,
-        f_visit_runtime_dep_shape_: Callable = None,
         f_visit_extern_func_: Callable = None,
         f_visit_global_var_: Callable = None,
         f_visit_function_: Callable = None,
@@ -786,7 +764,6 @@ class _PyExprMutator(Object):
             f_visit_var_,
             f_visit_dataflow_var_,
             f_visit_shape_expr_,
-            f_visit_runtime_dep_shape_,
             f_visit_extern_func_,
             f_visit_global_var_,
             f_visit_function_,
@@ -892,7 +869,6 @@ class PyExprMutator:
             "visit_var_",
             "visit_dataflow_var_",
             "visit_shape_expr_",
-            "visit_runtime_dep_shape_",
             "visit_extern_func_",
             "visit_global_var_",
             "visit_function_",
@@ -1066,24 +1042,6 @@ class PyExprMutator:
         ----------
         op : ShapeExpr
             The ShapeExpr to be visited.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after transformation
-        """
-        # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
-        """Visit RuntimeDepShape.
-        Users can customized this function to overwrite VisitExpr_(const RuntimeDepShapeNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : RuntimeDepShape
-            The RuntimeDepShape to be visited.
 
         Returns
         -------

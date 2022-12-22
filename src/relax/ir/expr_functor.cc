@@ -85,9 +85,7 @@ namespace relax {
 
 void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) {
-  this->VisitSpan(op->span);
-}
+void ExprVisitor::VisitExpr_(const ConstantNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) { this->VisitSpan(op->span); }
 
@@ -147,8 +145,6 @@ void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
   this->VisitSpan(op->span);
 }
 
-void ExprVisitor::VisitExpr_(const RuntimeDepShapeNode* op) { this->VisitSpan(op->span); }
-
 void ExprVisitor::VisitExpr_(const ExternFuncNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
@@ -203,13 +199,9 @@ void ExprVisitor::VisitBindingBlock_(const DataflowBlockNode* block) {
   }
 }
 
-void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
-  this->VisitSpan(var->span);
-}
+void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) { this->VisitSpan(var->span); }
 
-void ExprVisitor::VisitVarDef_(const VarNode* var) {
-  this->VisitSpan(var->span);
-}
+void ExprVisitor::VisitVarDef_(const VarNode* var) { this->VisitSpan(var->span); }
 
 void ExprVisitor::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
@@ -362,8 +354,6 @@ Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
     return ShapeExpr(values, op->span);
   }
 }
-
-Expr ExprMutatorBase::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
 

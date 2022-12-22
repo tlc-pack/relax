@@ -85,21 +85,6 @@ TVM_DLL Type GetStaticType(const StructInfo& info);
  */
 TVM_DLL StructInfo StructInfoFromType(const Type& type);
 
-// TODO(relax-team): Remove legacy shape related functionalities after phasing out shape_
-/*!
- * \brief Get the corresponding struct info from static type.
- * \param type The input type
- * \param shape_hint The shape hint
- * \return the corresponding struct info.
- */
-TVM_DLL StructInfo StructInfoFromTypeLegacyShapeHint(const Type& type, Optional<Expr> shape_hint);
-
-/*!
- * \brief Get the corresponding legacy shape hint from struct info
- * \param info The struct info.
- * \return the corresponding legacy shape hint.
- */
-TVM_DLL Optional<Expr> GetLegacyShapeHint(const StructInfo& info);
 
 /*!
  * \return Derive the call's ret value struct info from inputs.
@@ -424,17 +409,6 @@ std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
  * \return The function that contains no unused statements in DataflowBlock.
  */
 TVM_DLL Function RemoveAllUnused(const Function fn);
-
-/*!
- * \brief Given the argument vars and body, derives a return shape for a function with those args
- * and that body. If the body's shape contains free shape vars (those not used in the args), the
- * return shape is relaxed to RuntimeDepShape; otherwise, the body's shape is used.
- *
- * \param args The argument variables, ideally with the shape_ field filled in
- * \param body The functino body, ideally with the shape_ field filled in
- * \return An expression that can serve as the return shape for the function
- */
-TVM_DLL Expr DeriveFuncRetShape(Array<Var> args, Expr body);
 
 }  // namespace relax
 }  // namespace tvm

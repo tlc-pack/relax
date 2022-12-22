@@ -238,20 +238,6 @@ TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values,
   return ShapeExpr(values, span);
 });
 
-TVM_REGISTER_NODE_TYPE(RuntimeDepShapeNode);
-
-RuntimeDepShape::RuntimeDepShape(Span span) {
-  ObjectPtr<RuntimeDepShapeNode> n = make_object<RuntimeDepShapeNode>();
-  n->span = span;
-  n->struct_info_ = ShapeStructInfo(kUnknownDim);
-  n->checked_type_ = ShapeType();
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("relax.RuntimeDepShape").set_body_typed([](Span span) {
-  return RuntimeDepShape(span);
-});
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ShapeExprNode>([](const ObjectRef& ref, ReprPrinter* p) {
       const ShapeExprNode* node = static_cast<const ShapeExprNode*>(ref.get());

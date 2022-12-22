@@ -15,16 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union, List
+from typing import Optional, Union
 
 import pytest
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tir
+from tvm.relax import DynTensorType
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
-from tvm.relax import RuntimeDepShape, DynTensorType
 
 
 def _check(
@@ -604,10 +604,6 @@ def test_cross_function_call():
         def foo(x: R.Tensor((10, 5), "float32")) -> R.Tensor((10, 5), "float32"):
             s = R.add(x, x)
             return s
-
-    # TODO(relax-team): enable it after fix block builder
-    # Current error: `gv2.shape` is different: (10, 5) vs RuntimeDepShape()
-    # tvm.ir.assert_structural_equal(Mod0, Mod1)
 
     with pytest.raises(OSError):
 
