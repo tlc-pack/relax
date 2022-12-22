@@ -129,9 +129,9 @@ class VMShapeLowerMutator : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* node) override {
     if (heap_size_->value > 0) {
       builder_->BeginBindingBlock();
-      builder_->Emit(VarBinding(
-          shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
-
+      auto alloc_shape_heap = builder_->Normalize(
+          Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})}));
+      builder_->EmitNormalized(VarBinding(shape_heap_, alloc_shape_heap));
       for (Var param : node->params) {
         // TODO(relax-team): handle generalized case with tuple of Tensors
         if (auto* tensor_info = GetStructInfoAs<TensorStructInfoNode>(param)) {

@@ -268,15 +268,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         new_value = self.visit_expr(binding.value)
         new_var = self.visit_var_def(binding.var)
 
-        def emit(b: VarBinding):
-            if self.builder_.current_block_is_dataflow() and not isinstance(b.var, DataflowVar):
-                self.builder_.emit_output_var_binding(b)
-            else:
-                self.builder_.emit_var_binding(b)
-
         self.log.add("VarBinding")
         if binding.var.same_as(new_var) and binding.value.same_as(new_value):
-            emit(binding)
+            self.builder_.emit_normalized(binding)
             return
 
         temp = self.with_struct_info(new_var, new_value.struct_info)
@@ -284,7 +278,7 @@ class ASTPostPrinterMutator(PyExprMutator):
             new_var = temp
             self.set_var_remap(binding.var.vid, new_var)
 
-        emit(VarBinding(new_var, new_value))
+        self.builder_.emit_normalized(VarBinding(new_var, new_value))
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Identical with ExprMutator::VisitBinding_(const MatchShapeNode* binding) on the C++ side."""
@@ -307,10 +301,10 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("MatchShape")
         if binding.value.same_as(new_value) and binding.pattern.same_as(new_pattern):
             if not binding.var or (binding.var and binding.var.same_as(new_var)):
-                self.builder_.match_shape_binding(binding)
+                self.builder_.emit_normalized(binding)
                 return
 
-        self.builder_.match_shape_binding(MatchShape(new_value, new_pattern.values, new_var))
+        self.builder_.emit_normalized(MatchShape(new_value, new_pattern.values, new_var))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""

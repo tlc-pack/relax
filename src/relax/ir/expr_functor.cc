@@ -527,24 +527,9 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);
 
-  auto emit = [this](VarBinding b) {
-    if (this->builder_->CurrentBlockIsDataFlow() && !b->var.as<DataflowVarNode>()) {
-      this->builder_->EmitOutput(b);
-    } else {
-      this->builder_->Emit(b);
-    }
-  };
-
-  // FIXME(@altanh): try to clean up all the fast paths and ty/shape infer, it's getting unwieldy
-  // if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-  //   // no-op if there is no change
-  //   emit(GetRef<VarBinding>(binding));
-  //   return;
-  // }
-
   // fast path: reemit binding if nothing changes
   if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-    emit(GetRef<VarBinding>(binding));
+    builder_->EmitNormalized(GetRef<VarBinding>(binding));
     return;
   }
 
@@ -554,7 +539,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     this->var_remap_[binding->var->vid] = new_var;
   }
 
-  emit(VarBinding(new_var, new_value));
+  builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
 
 void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
@@ -580,15 +565,12 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
   // reemit old binding if nothing changes
   if (new_value.same_as(binding->value) && new_pattern.same_as(binding->pattern)) {
     if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
-      builder_->EmitMatchShape(GetRef<MatchShape>(binding));
+      builder_->EmitNormalized(GetRef<MatchShape>(binding));
       return;
     }
   }
 
-  // TODO(@altanh, @yuchen): shape and type inference here too...
-  // TODO(@yuchen): when value's shape/type changed, create new var
-  // TODO(@yuchen): group the can prove shape/type logic and replace var into a function
-  builder_->EmitMatchShape(
+  builder_->EmitNormalized(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
 

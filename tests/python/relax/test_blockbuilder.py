@@ -280,7 +280,7 @@ def test_emit_match_shape_binding_in_dataflow_block():
 
     with bb.function("main", [x]):
         with bb.dataflow():
-            bb.match_shape_binding(match_shape)
+            bb.emit_normalized(match_shape)
             bb.emit_output(gv)
         bb.emit_func_output(x)
 

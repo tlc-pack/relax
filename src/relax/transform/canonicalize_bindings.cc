@@ -60,20 +60,12 @@ class BindingCanonicalizer : public ExprMutator {
     Expr new_value = this->VisitExpr(binding->value);
     Var new_var = this->VisitVarDef(binding->var);
 
-    auto emit = [this](VarBinding b) {
-      if (this->builder_->CurrentBlockIsDataFlow() && !b->var.as<DataflowVarNode>()) {
-        this->builder_->EmitOutput(b);
-      } else {
-        this->builder_->Emit(b);
-      }
-    };
-
     if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-      emit(GetRef<VarBinding>(binding));
+      this->builder_->EmitNormalized(GetRef<VarBinding>(binding));
       return;
     }
 
-    emit(VarBinding(new_var, new_value));
+    this->builder_->EmitNormalized(VarBinding(new_var, new_value));
   }
 
   void VisitBinding_(const MatchShapeNode* binding) override {
@@ -91,19 +83,19 @@ class BindingCanonicalizer : public ExprMutator {
 
     // if the LHS and RHS have the same shape_, we canonicalize to a var binding instead
     if (new_var.defined() && StructuralEqual()(GetStructInfo(new_var), GetStructInfo(new_value))) {
-      builder_->Emit(VarBinding(new_var, new_value));
+      builder_->EmitNormalized(VarBinding(new_var, new_value));
       return;
     }
 
     // reemit old binding if nothing changes
     if (new_value.same_as(binding->value)) {
       if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
-        builder_->EmitMatchShape(GetRef<MatchShape>(binding));
+        builder_->EmitNormalized(GetRef<MatchShape>(binding));
         return;
       }
     }
 
-    builder_->EmitMatchShape(MatchShape(new_value, binding->pattern, new_var));
+    builder_->EmitNormalized(MatchShape(new_value, binding->pattern, new_var));
   }
 
  private:

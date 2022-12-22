@@ -73,14 +73,6 @@ class BlockBuilderNode : public Object {
   virtual NameTable* name_table() = 0;
 
   /*!
-   * \brief Check if two shape expressions can be proven equal at compile time.
-   * \param lhs The input lhs shape.
-   * \param rhs The input rhs shape.
-   * \return Whether we can prove lhs shape is the same as the rhs shape.
-   */
-  virtual bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs) = 0;
-
-  /*!
    * \brief Get the context IRModule in this builder.
    *
    * \note The context
@@ -168,15 +160,6 @@ class BlockBuilderNode : public Object {
   virtual Var Emit(Expr expr, String name_hint = "") = 0;
 
   /*!
-   * \brief Emits a variable binding, and returns the bound Var.
-   * \param binding The variable binding.
-   * \return The bound variable.
-   *
-   * \note This function requires binding to be pre-normalized.
-   */
-  virtual Var Emit(VarBinding binding) = 0;
-
-  /*!
    * \brief Emit a MatchShape.
    * \param value The value of the MatchShape to be emitted.
    * \param pattern The pattern of the MatchShape to be emitted.
@@ -186,30 +169,12 @@ class BlockBuilderNode : public Object {
   virtual Var EmitMatchShape(Expr value, Array<PrimExpr> pattern, String name_hint = "") = 0;
 
   /*!
-   * \brief Emit a MatchShape binding.
-   * \param binding The MatchShape binding to be emitted.
-   * \return The variable bound to the MatchShape.
-   *
-   * \note This function requires binding to be pre-normalized.
-   */
-  virtual Var EmitMatchShape(MatchShape binding) = 0;
-
-  /*!
    * \brief Generate an output for the current dataflow block.
    * \param output The output variable of the block.
    * \param name_hint Name hint for the bound variable.
    * \return The variable bound to \p output.
    */
   virtual Var EmitOutput(Expr output, String name_hint = "") = 0;
-
-  /*!
-   * \brief Generate an output for the current dataflow block.
-   * \param binding The output binding to output.
-   * \return The variable bound to \p output.
-   *
-   * \note This function requires binding to be pre-normalized.
-   */
-  virtual Var EmitOutput(VarBinding binding) = 0;
 
   /*!
    * \brief Emit a binding that is already normalized.

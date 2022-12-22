@@ -212,8 +212,9 @@ Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
 
   if (!emit_var) {
     // If we don't intend to emit a variable, just emit the binding and return.
-    tvm::relax::MatchShape match_shape(value, pattern, tvm::relax::Var{nullptr});
-    block_builder->EmitMatchShape(match_shape);
+    tvm::relax::MatchShape match_shape(block_builder->Normalize(value), pattern,
+                                       tvm::relax::Var{nullptr});
+    block_builder->EmitNormalized(match_shape);
     return NullOpt;
   } else {
     // Otherwise, we need to emit a variable and bind it to the match shape.

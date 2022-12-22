@@ -381,8 +381,6 @@ def test_shape_expr():
     assert x.__str__() == "(10, 5)"
 
 
-
-
 def test_func_type():
     # Since current all functions have "global_symbol" attribute, we can't
     # use the same name for different functions, even it's a local function.
