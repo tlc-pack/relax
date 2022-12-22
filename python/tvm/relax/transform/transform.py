@@ -577,8 +577,7 @@ def dataflowblock_pass(
             def __init__(self):
                 # create a new VarBinding
                 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
-                type_anno = relax.DynTensorType(2, "float32")
-                lv0 = relax.Var("lv1", [m, n], type_anno)
+                lv0 = relax.Var("lv1", relax.TensorStructInfo([m, n], "float32"))
                 val = relax.const(np.random.rand(24, 56))
                 self.new_binding = relax.VarBinding(lv0, val)
 

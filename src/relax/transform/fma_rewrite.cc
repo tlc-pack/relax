@@ -21,6 +21,7 @@
  * \brief Perform fused multiply-add rewriting.
  */
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
@@ -120,13 +121,13 @@ class EwiseFuseFMAMutator : public ExprMutator {
       const CallNode* mul = value.as<CallNode>();
       if (mul && mul->op == multiply_op) {
         // construct a subgraph
-        Var x = Var("x", Downcast<Expr>(mul->args[0]->shape_), mul->args[0]->checked_type_);
-        Var y = Var("y", Downcast<Expr>(mul->args[1]->shape_), mul->args[1]->checked_type_);
-        Var z = Var("z", Downcast<Expr>(call->args[1]->shape_), call->args[1]->checked_type_);
+        Var x = Var("x", GetStructInfo(mul->args[0]));
+        Var y = Var("y", GetStructInfo(mul->args[1]));
+        Var z = Var("z", GetStructInfo(call->args[1]));
         Expr body = Call(ewise_fma_op, {x, y, z});
 
         String func_name = "ewise_fma_fused";
-        Function func = Function({x, y, z}, body, call->args[1]->checked_type_, RuntimeDepShape());
+        Function func = Function({x, y, z}, body, GetStructInfo(call->args[1]));
         Expr normalized = builder_->Normalize(func);
         GlobalVar global_var1 =
             builder_->AddFunction(Downcast<BaseFunc>(normalized), "ewise_fma_fused");

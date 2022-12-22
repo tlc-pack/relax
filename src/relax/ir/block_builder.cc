@@ -439,7 +439,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       name_hint = is_dataflow ? "lv" : "gv";
     }
     Id vid = Id(name_table_->GetUniqueName(name_hint));
-    return is_dataflow ? DataflowVar(vid, NullOpt, NullOpt) : Var(vid, NullOpt, NullOpt);
+    return is_dataflow ? DataflowVar(vid, /*struct_info_annotation=*/NullOpt)
+                       : Var(vid, /*struct_info_annotation=*/NullOpt);
   }
 
  private:
@@ -663,7 +664,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_body.same_as(op->body)) {
       return GetRef<Function>(op);
     } else {
-      return Function(op->params, new_body, op->ret_type, op->ret_shape, op->attrs);
+      return Function(op->params, new_body, op->ret_struct_info, op->attrs);
     }
   }
 

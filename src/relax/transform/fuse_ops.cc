@@ -28,6 +28,7 @@
  */
 
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/function.h>
 
@@ -445,9 +446,9 @@ class FunctionCreator : public ExprMutator {
     body = builder_->Normalize(SeqExpr({new_block}, body));
     Map<String, ObjectRef> attrs;
     attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
-    function_ = Function(/*params=*/params_,  //
-                         /*body=*/body,       //
-                         Type(), Expr(),
+    function_ = Function(/*params=*/params_,           //
+                         /*body=*/body,                //
+                         /*ret_struct_info=*/NullOpt,  //
                          /*attrs=*/DictAttrs(attrs));
   }
 
@@ -486,10 +487,7 @@ class FunctionCreator : public ExprMutator {
         name = String("param_" + std::to_string(n_param_for_const_++));
       }
 
-      Var param(std::move(name),               //
-                /*shape_annotation=*/NullOpt,  //
-                /*type_annotation=*/expr->checked_type_);
-      param->shape_ = expr->shape_;
+      Var param(std::move(name), GetStructInfo(expr));
       arguments_.push_back(expr);
       params_.push_back(param);
     }
