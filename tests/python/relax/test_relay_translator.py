@@ -282,16 +282,8 @@ def test_translate_tuple_arg():
 
     # Construct the expected module
     bb = relax.BlockBuilder()
-    x_relax = relax.Var(
-        "x",
-        relax.ShapeExpr((tir.IntImm("int64", 10), tir.IntImm("int64", 16))),
-        relax.DynTensorType(2, "float32"),
-    )
-    y_relax = relax.Var(
-        "y",
-        relax.ShapeExpr((tir.IntImm("int64", 10), tir.IntImm("int64", 16))),
-        relax.DynTensorType(2, "float32"),
-    )
+    x_relax = relax.Var("x", relax.TensorStructInfo([10, 16], "float32"))
+    y_relax = relax.Var("y", relax.TensorStructInfo([10, 16], "float32"))
     with bb.function("main", [x_relax, y_relax]):
         with bb.dataflow():
             _ = bb.emit(relax.Tuple((x_relax, y_relax)))

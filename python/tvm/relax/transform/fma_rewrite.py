@@ -20,7 +20,7 @@ from tvm.ir import Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import module_pass
 from ..expr_functor import mutator, PyExprMutator
-from ..expr import Call, Function, Var, RuntimeDepShape
+from ..expr import Call, Function, Var
 from ..transform import dataflowblock_pass
 
 
@@ -107,14 +107,13 @@ class EwiseFuseFMAMutator(PyExprMutator):
             if isinstance(value, Call) and value.op == multiply_op:  # type: ignore
                 mul = value
                 # construct a subgraph
-                x = Var("x", mul.args[0].shape_, mul.args[0]._checked_type_)
-                y = Var("y", mul.args[1].shape_, mul.args[1]._checked_type_)
-                z = Var("z", call.args[1].shape_, call.args[1]._checked_type_)
+                x = Var("x", mul.args[0].struct_info)
+                y = Var("y", mul.args[1].struct_info)
+                z = Var("z", call.args[1].struct_info)
                 body = Call(ewise_fma_op, [x, y, z])
 
                 func_name = "ewise_fma_fused"
-                # TODO: Possibly fill in the return shape
-                func = Function([x, y, z], body, call.args[1]._checked_type_, RuntimeDepShape())
+                func = Function([x, y, z], body, call.args[1].struct_info)
                 ewise_fma_fused = func.with_attr("global_symbol", func_name)
                 normalized = self.builder_.normalize(ewise_fma_fused)
                 global_var = self.builder_.add_func(normalized, "ewise_fma_fused")
