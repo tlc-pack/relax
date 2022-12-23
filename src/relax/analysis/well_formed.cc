@@ -25,15 +25,18 @@
  * If it's malformed, messages will be logged as Warning.
  * This pass will check:
  *    1. GlobalVars are defined before use.
- *    2. Vars are defined before use.
- *    3. Vars are defined exactly once.
- *    4. Symbolic Vars are defined before use.
- *    5. DataflowVars cannot be defined inside BindingBlock.
- *    6. Vars defined in IfNode, except the return Var, are invisible
+ *    2. When a Function has a corresponding GlobalVar and a `global_symbol`
+ *       attribute, the name of the GlobalVar must equal the value of the
+ *       `global_symbol` attribute value.
+ *    3. Vars are defined before use.
+ *    4. Vars are defined exactly once.
+ *    5. Symbolic Vars are defined before use.
+ *    6. DataflowVars cannot be defined inside BindingBlock.
+ *    7. Vars defined in IfNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
- *    6. SeqExpr only serves as function body, or in the true and
+ *    8. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
- *    7. The IR is in ANF:
+ *    9. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr, RuntimeDepShape,
@@ -48,7 +51,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    8. Expr always has checked_type_ (with the exception of Op).
+ *    10. Expr always has checked_type_ (with the exception of Op).
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -85,6 +88,16 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void RegisterGlobalVar(GlobalVar var) { global_var_set_.insert(var); }
+
+  void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
+    // check name in global var and gsymbol
+    Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    if (gsymbol.defined() && gsymbol != var->name_hint) {
+      Malformed(Diagnostic::Error(func->span)
+                << "Name in GlobalVar is not equal to name in gsymbol: " << var->name_hint
+                << " != " << gsymbol.value());
+    }
+  }
 
  private:
   // Possible mode of visitor
@@ -413,6 +426,7 @@ bool WellFormed(const IRModule& m, Optional<DiagnosticContext> diag_ctx) {
     // visit relax.Function
     if (auto* n = it.second.as<FunctionNode>()) {
       Function func = GetRef<Function>(n);
+      well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
       well_formed_checker.VisitExpr(func);
     }
   }
