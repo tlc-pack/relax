@@ -98,6 +98,21 @@ class BindingCanonicalizer : public ExprMutator {
     builder_->EmitNormalized(MatchShape(new_value, binding->pattern, new_var));
   }
 
+  void VisitBinding_(const MatchCastNode* binding) override {
+    // If we have a trivial shape check (the shape_ of LHS and RHS is the same),
+    // we can canonicalize to a var binding
+    Expr new_value = this->VisitExpr(binding->value);
+
+    // if the LHS and RHS have the same struct info, we canonicalize to a var binding instead
+    if (StructuralEqual()(binding->struct_info, GetStructInfo(new_value))) {
+      builder_->EmitNormalized(VarBinding(binding->var, new_value));
+    } else if (new_value.same_as(binding->value)) {
+      builder_->EmitNormalized(GetRef<MatchCast>(binding));
+    } else {
+      builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->struct_info));
+    }
+  }
+
  private:
   bool AnnotationsDiffer(const ObjectRef& obj1, const ObjectRef& obj2,
                          std::function<bool(const ObjectRef&, const ObjectRef&)> check_eq) {

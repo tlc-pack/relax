@@ -141,6 +141,11 @@ class VarVisitor : protected ExprVisitor {
     ExprVisitor::VisitBinding_(binding);
   }
 
+  void VisitBinding_(const MatchCastNode* binding) final {
+    MarkBounded(binding->var);
+    ExprVisitor::VisitBinding_(binding);
+  }
+
  private:
   InsertionSet<Var> vars_;
   InsertionSet<Var> bound_vars_;

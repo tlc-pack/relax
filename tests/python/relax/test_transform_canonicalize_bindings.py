@@ -165,11 +165,11 @@ def test_same_shape():
     @tvm.script.ir_module
     class TestSameShape:
         @R.function
-        def main(x: R.Tensor(("m", "n"))):
+        def main(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.var("int64"), T.var("int64")
             y = x
             # trivial check
-            z = R.match_shape(x, (m, n))
+            z = R.match_cast(x, R.Tensor((m, n), "float32"))
             w = z
             q = R.add(w, y)
             return R.add(q, w)
@@ -177,7 +177,7 @@ def test_same_shape():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"))):
+        def main(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.var("int64"), T.var("int64")
             y = x
             # canonicalized into a var binding
@@ -198,7 +198,7 @@ def test_change_shape():
             y = x
             # not trivial: introduces new shape vars
             o, p = T.var("int64"), T.var("int64")
-            z = R.match_shape(x, (o, p))
+            z = R.match_cast(x, R.Tensor((o, p)))
             w = z
             q = R.add(w, y)
             return R.add(q, w)
@@ -209,41 +209,13 @@ def test_change_shape():
         def main(x: R.Tensor(("m", "n"))):
             y = x
             o, p = T.var("int64"), T.var("int64")
-            z = R.match_shape(x, (o, p))
+            z = R.match_cast(x, R.Tensor((o, p)))
             w = z
             # the shape_ field on q will need to be updated
             q = R.add(z, x)
             return R.add(q, z)
 
     new_mod = relax.transform.CanonicalizeBindings()(TestChangeShape)
-    assert_structural_equal(new_mod, Expected)
-
-
-def test_unbound_match_shape():
-    # ensure that match shapes that do not bind a var are handled correctly
-    @tvm.script.ir_module
-    class TestUnboundMatchShape:
-        @R.function
-        def main(x: R.Tensor):
-            y = x
-            z = y
-            m, n = T.var("int64"), T.var("int64")
-            R.match_shape(z, (m, n))
-            w = z
-            return w
-
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor):
-            y = x
-            z = x
-            m, n = T.var("int64"), T.var("int64")
-            R.match_shape(x, (m, n))
-            w = x
-            return x
-
-    new_mod = relax.transform.CanonicalizeBindings()(TestUnboundMatchShape)
     assert_structural_equal(new_mod, Expected)
 
 

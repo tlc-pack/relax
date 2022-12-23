@@ -134,6 +134,8 @@ class NormalizeMutator : public ExprMutatorBase {
       VisitBinding_(node);
     } else if (const auto* node = binding.as<MatchShapeNode>()) {
       VisitBinding_(node);
+    } else if (const auto* node = binding.as<MatchCastNode>()) {
+      VisitBinding_(node);
     } else {
       LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
     }
