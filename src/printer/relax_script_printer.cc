@@ -356,11 +356,10 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::SeqExprNode* op) {
 Doc RelaxScriptPrinter::VisitNode_(const relax::FunctionNode* op) {
   Optional<String> gsymbol = op->GetAttr<String>(tvm::attr::kGlobalSymbol);
   if (gsymbol) {
-    ICHECK_EQ(gsymbol.value(), relax_func_name_);
-    return PrintFunctionDef(Doc::Text(relax_func_name_), GetRef<relax::Function>(op),
+    return PrintFunctionDef(Doc::Text(gsymbol.value()), GetRef<relax::Function>(op),
                             /*is_global=*/true);
   } else {
-    return PrintFunctionDef(Doc::Text(relax_func_name_), GetRef<relax::Function>(op),
+    return PrintFunctionDef(Doc::Text(relax_default_func_name_), GetRef<relax::Function>(op),
                             /*is_global=*/true);
   }
 }
@@ -536,8 +535,13 @@ Doc RelaxScriptPrinter::PrintIRModule(const IRModule& mod) {
     if (pr.second.as<tir::PrimFuncNode>()) {
       func = PrintPrimFunc(pr.first->name_hint, Downcast<tir::PrimFunc>(pr.second));
     } else {
-      relax_func_name_ = pr.first->name_hint;
-      func = Print(pr.second);
+      Doc func_name;
+      Optional<String> gsymbol = pr.second->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      if (gsymbol.defined()) {
+        ICHECK_EQ(gsymbol.value(), pr.first->name_hint);
+      }
+      func_name << pr.first->name_hint;
+      func = PrintFunctionDef(func_name, Downcast<Function>(pr.second), true);
     }
     doc << Doc::Indent(4, Doc::NewLine() << func);
   }
