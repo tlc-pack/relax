@@ -402,7 +402,7 @@ def test_call():
     basic_check(
         call_node,
         "\n".join(["Call", "\tOp", "\tVar", "\tVar"]),
-        "\n".join(["Op", "Var", "Var", "Call"]),
+        "\n".join(["Op", "Var", "Var", "ShapeExpr", "Call"]),
     )
 
 

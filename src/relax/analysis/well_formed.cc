@@ -316,15 +316,6 @@ class WellFormedChecker : public relax::ExprVisitor,
     dataflow_var_set_.clear();
   }
 
-  void VisitBinding_(const MatchCastNode* binding) final {
-    this->VisitExpr(binding->value);
-    // define the vars
-    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitStructInfo(binding->struct_info); });
-
-    this->VisitStructInfo(binding->struct_info);
-    this->VisitVarDef(binding->var);
-  }
-
   void VisitVarDef_(const DataflowVarNode* var) final {
     if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var)

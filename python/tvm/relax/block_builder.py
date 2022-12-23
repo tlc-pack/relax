@@ -29,7 +29,6 @@ from .expr import (
     Var,
     ShapeExpr,
     GlobalVar,
-    PrimExpr,
     BindingBlock,
     Tuple,
     BaseFunc,
