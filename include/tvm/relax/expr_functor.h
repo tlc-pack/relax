@@ -213,7 +213,6 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitBinding(const Binding& binding);
   // specific leaf level visitor functions
   virtual void VisitBinding_(const VarBindingNode* binding);
-  virtual void VisitBinding_(const MatchShapeNode* binding);
   virtual void VisitBinding_(const MatchCastNode* binding);
   // second level dispatching based on binding value type.
   // these dispatching functions get called from first-level dispatch on VarBinding
@@ -339,7 +338,6 @@ class ExprMutator : public ExprMutatorBase {
   virtual void VisitBinding(const Binding& binding);
   // specific leaf level visitor functions
   virtual void VisitBinding_(const VarBindingNode* binding);
-  virtual void VisitBinding_(const MatchShapeNode* binding);
   virtual void VisitBinding_(const MatchCastNode* binding);
   // second level dispatching based on binding value type.
   // these dispatching functions get called from first-level dispatch on VarBinding
@@ -486,9 +484,9 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   /*! \brief The packed function to the `VisitBinding_(const VarBindingNode* binding)`
    * function. */
   PackedFunc f_visit_var_binding_{nullptr};
-  /*! \brief The packed function to the `VisitBinding_(const MatchShapeNode* binding)`
+  /*! \brief The packed function to the `VisitBinding_(const MatchCastNode* binding)`
    * function. */
-  PackedFunc f_visit_match_shape_{nullptr};
+  PackedFunc f_visit_match_cast_{nullptr};
   /*! \brief The packed function to the `VisitBindingBlock(const BindingBlock& block)`
    * function. */
   PackedFunc f_visit_binding_block{nullptr};
@@ -525,8 +523,8 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding)
       PY_EXPR_VISITOR_DEFAULT(GetRef<VarBinding>(binding), f_visit_var_binding_,
                               ExprVisitor::VisitBinding_(binding));
-  void VisitBinding_(const MatchShapeNode* binding)
-      PY_EXPR_VISITOR_DEFAULT(GetRef<MatchShape>(binding), f_visit_match_shape_,
+  void VisitBinding_(const MatchCastNode* binding)
+      PY_EXPR_VISITOR_DEFAULT(GetRef<MatchCast>(binding), f_visit_match_cast_,
                               ExprVisitor::VisitBinding_(binding));
 
   void VisitBindingBlock(const BindingBlock& block)
@@ -604,7 +602,7 @@ class PyExprVisitor : public ObjectRef {
    * \param f_visit_binding The packed function of `VisitBinding(const Binding& binding)`.
    * \param f_visit_var_binding_ The packed function of `VisitBinding_(const VarBindingNode*
    * binding)`.
-   * \param f_visit_match_shape_ The packed function of `VisitBinding_(const MatchShapeNode*
+   * \param f_visit_match_cast_ The packed function of `VisitBinding_(const MatchCastNode*
    * binding)`.
    * \param f_visit_binding_block The packed function of `VisitBindingBlock(const BindingBlock&
    * block)`.
@@ -626,7 +624,7 @@ class PyExprVisitor : public ObjectRef {
       PackedFunc f_visit_extern_func_, PackedFunc f_visit_global_var_, PackedFunc f_visit_function_,
       PackedFunc f_visit_call_, PackedFunc f_visit_seq_expr_, PackedFunc f_visit_if_,
       PackedFunc f_visit_op_, PackedFunc f_visit_tuple_getitem_, PackedFunc f_visit_binding,
-      PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_shape_,
+      PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_cast_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
       PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_type, PackedFunc f_visit_span) {
@@ -651,7 +649,7 @@ class PyExprVisitor : public ObjectRef {
     n->f_visit_op_ = f_visit_op_;
     n->f_visit_tuple_getitem_ = f_visit_tuple_getitem_;
     n->f_visit_var_binding_ = f_visit_var_binding_;
-    n->f_visit_match_shape_ = f_visit_match_shape_;
+    n->f_visit_match_cast_ = f_visit_match_cast_;
     n->f_visit_binding_block_ = f_visit_binding_block_;
     n->f_visit_dataflow_block_ = f_visit_dataflow_block_;
     n->f_visit_var_def_ = f_visit_var_def_;
@@ -704,9 +702,9 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   /*! \brief The packed function to the `VisitBinding_(const VarBindingNode* binding)`
    * function. */
   PackedFunc f_visit_var_binding_{nullptr};
-  /*! \brief The packed function to the `VisitBinding_(const MatchShapeNode* binding)`
+  /*! \brief The packed function to the `VisitBinding_(const MatchCastNode* binding)`
    * function. */
-  PackedFunc f_visit_match_shape_{nullptr};
+  PackedFunc f_visit_match_cast_{nullptr};
   /*! \brief The packed function to the `VisitBindingBlock(const BindingBlock& block)`
    * function. */
   PackedFunc f_visit_binding_block{nullptr};
@@ -750,9 +748,9 @@ class PyExprMutatorNode : public Object, public ExprMutator {
       ExprMutator::VisitBinding_(binding);
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) {
-    if (f_visit_match_shape_ != nullptr)
-      f_visit_match_shape_(GetRef<MatchShape>(binding));
+  void VisitBinding_(const MatchCastNode* binding) {
+    if (f_visit_match_cast_ != nullptr)
+      f_visit_match_cast_(GetRef<MatchCast>(binding));
     else
       ExprMutator::VisitBinding_(binding);
   }
@@ -868,7 +866,7 @@ class PyExprMutator : public ObjectRef {
    * \param f_visit_binding The packed function of `VisitBinding(const Binding& binding)`.
    * \param f_visit_var_binding_ The packed function of `VisitBinding_(const VarBindingNode*
    * binding)`.
-   * \param f_visit_match_shape_ The packed function of `VisitBinding_(const MatchShapeNode*
+   * \param f_visit_match_cast_ The packed function of `VisitBinding_(const MatchCastNode*
    * binding)`.
    * \param f_visit_binding_block The packed function of `VisitBindingBlock(const BindingBlock&
    * block)`.
@@ -891,7 +889,7 @@ class PyExprMutator : public ObjectRef {
       PackedFunc f_visit_global_var_, PackedFunc f_visit_function_, PackedFunc f_visit_call_,
       PackedFunc f_visit_seq_expr_, PackedFunc f_visit_if_, PackedFunc f_visit_op_,
       PackedFunc f_visit_tuple_getitem_, PackedFunc f_visit_binding,
-      PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_shape_,
+      PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_cast_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
       PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_type, PackedFunc f_visit_span) {
@@ -913,7 +911,7 @@ class PyExprMutator : public ObjectRef {
     n->f_visit_tuple_getitem_ = f_visit_tuple_getitem_;
     n->f_visit_binding = f_visit_binding;
     n->f_visit_var_binding_ = f_visit_var_binding_;
-    n->f_visit_match_shape_ = f_visit_match_shape_;
+    n->f_visit_match_cast_ = f_visit_match_cast_;
     n->f_visit_binding_block = f_visit_binding_block;
     n->f_visit_binding_block_ = f_visit_binding_block_;
     n->f_visit_dataflow_block_ = f_visit_dataflow_block_;

@@ -176,15 +176,16 @@ def test_dataflowpass_fail():
         relax.transform.FailTestRewrite()(TestRewriteGlobalScopeVar)
 
     # raise error on rewriting/removing existing Symbolic Vars inside the dataflow block
-    # check all Symbolic Vars defined in R.match_shape
+    # check all Symbolic Vars defined in R.match_cast
     with pytest.raises(tvm.TVMError):
 
         @tvm.script.ir_module
         class TestRewriteSymbolicVar:
             @R.function
             def main(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+                m, n = T.var("int64"), T.var("int64")
                 with R.dataflow():
-                    lv0 = R.match_shape(x, (m, n))
+                    lv0 = R.match_cast(x, R.Tensor((m, n), "float32"))
                     gv0 = R.add(lv0, y)
                     R.output(gv0)
                 return gv0
@@ -197,8 +198,9 @@ def test_dataflowpass_fail():
         class TestRemoveSymbolicVar:
             @R.function
             def main(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+                m, n, d = T.var("int64"), T.var("int64"), T.var("int64")
                 with R.dataflow():
-                    lv0 = R.match_shape(x, (m, n, d))
+                    lv0 = R.match_cast(x, R.Tensor((m, n, d), "float32"))
                     gv0 = R.add(lv0, y)
                     R.output(gv0)
                 return gv0
@@ -324,7 +326,7 @@ def test_vm_shape_lowering():
         @R.function
         def foo(x: R.Tensor(dtype="float32")):
             m, n = T.var("int64"), T.var("int64")
-            R.match_shape(x, (n, m))
+            _ = R.match_cast(x, R.Tensor((n, m), "float32"))
             return (n * 2, m * 3)
 
     mod = TestVMShapeLower

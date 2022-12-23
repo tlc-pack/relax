@@ -207,7 +207,7 @@ def test_fold_mixed_case():
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor("float32", ndim=2)):
             n, m = T.var("int64"), T.var("int64")
-            x0 = R.match_shape(x, (n, m))
+            x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
             # this line cannot be folded because n is unknown
             lv0 = relax.call_tir(addone, (c0,), (n, 16), dtype="float32")
             # this line can be folded
@@ -226,7 +226,7 @@ def test_fold_mixed_case():
             x: R.Tensor("float32", ndim=2),
         ) -> R.Tensor:
             n, m = T.var("int64"), T.var("int64")
-            x0 = R.match_shape(x, (n, m))
+            x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
             # this line cannot be folded because n is unknown
             lv0 = relax.call_tir(addone, (c0,), (n, 16), dtype="float32")
             # this line can be folded

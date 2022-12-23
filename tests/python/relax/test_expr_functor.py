@@ -30,7 +30,7 @@ from tvm.relax.expr import (
     Function,
     GlobalVar,
     If,
-    MatchShape,
+    MatchCast,
     SeqExpr,
     ShapeExpr,
     Tuple,
@@ -155,13 +155,11 @@ class ASTPrinter(PyExprVisitor):
         self.visit_var_def(binding.var)
         self.log.pop_scope()
 
-    def visit_match_shape_(self, binding: MatchShape) -> None:
-        self.log.add("MatchShape")
+    def visit_match_cast_(self, binding: MatchCast) -> None:
+        self.log.add("MatchCast")
         self.log.push_scope()
+        self.visit_var_def(binding.var)
         self.visit_expr(binding.value)
-        self.visit_expr(ShapeExpr(binding.pattern))
-        if binding.var:
-            self.visit_var_def(binding.var)
         self.log.pop_scope()
 
     def visit_binding_block_(self, block: BindingBlock) -> None:
@@ -280,31 +278,18 @@ class ASTPostPrinterMutator(PyExprMutator):
 
         self.builder_.emit_normalized(VarBinding(new_var, new_value))
 
-    def visit_match_shape_(self, binding: MatchShape) -> None:
-        """Identical with ExprMutator::VisitBinding_(const MatchShapeNode* binding) on the C++ side."""
+    def visit_match_cast_(self, binding: MatchCast) -> None:
+        """Identical with ExprMutator::VisitBinding_(const MatchCastNode* binding) on the C++ side."""
+        new_var = self.visit_var_def(binding.var)
         new_value = self.visit_expr(binding.value)
-        new_pattern = self.visit_expr(ShapeExpr(binding.pattern))
 
-        if binding.var:
-            new_sinfo = None
-            if isinstance(new_value.struct_info, TensorStructInfo):
-                new_sinfo = relax.TensorStructInfo(new_pattern, dtype=new_value.struct_info)
-            else:
-                new_sinfo = new_value.struct_info
+        temp = self.with_struct_info(new_var, binding.struct_info)
+        if not temp.same_as(new_var):
+            new_var = temp
+            self.set_var_remap(binding.var.vid, new_var)
 
-            new_var = self.visit_var_def(binding.var)
-            temp = self.with_struct_info(new_var, new_sinfo)
-            if not temp.same_as(new_var):
-                new_var = temp
-                self.set_var_remap(binding.var.vid, new_var)
-
-        self.log.add("MatchShape")
-        if binding.value.same_as(new_value) and binding.pattern.same_as(new_pattern):
-            if not binding.var or (binding.var and binding.var.same_as(new_var)):
-                self.builder_.emit_normalized(binding)
-                return
-
-        self.builder_.emit_normalized(MatchShape(new_value, new_pattern.values, new_var))
+        self.log.add("MatchCast")
+        self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.struct_info))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""
@@ -372,7 +357,6 @@ def test_var():
     basic_check(x, "Var", "Var")
 
 
-@pytest.mark.skip("Revisit PyMutator tests after struct info")
 def test_dataflow_var():
     lv = relax.DataflowVar("lv", R.Tensor([n], "float32"))
     basic_check(lv, "DataflowVar", "DataflowVar")
@@ -443,7 +427,7 @@ def test_tuple_getitem():
 def test_binding_block():
     bb._begin_binding_block()
     gv0 = bb.emit(relax.op.add(x, y))
-    gv1 = bb.match_shape(y, [m, n])
+    gv1 = bb.match_cast(y, R.Tensor([m, n], "float32"))
     b0 = bb._end_block()
     basic_check(
         b0,
@@ -456,10 +440,9 @@ def test_binding_block():
                 "\t\t\tVar",
                 "\t\t\tVar",
                 "\t\tVarDef",
-                "\tMatchShape",
-                "\t\tVar",
-                "\t\tShapeExpr",
+                "\tMatchCast",
                 "\t\tVarDef",
+                "\t\tVar",
             ]
         ),
         "\n".join(
@@ -475,7 +458,7 @@ def test_binding_block():
                 "ShapeExpr",
                 "ShapeExpr",
                 "VarDef",
-                "MatchShape",
+                "MatchCast",
                 "BindingBlock",
             ]
         ),
@@ -485,7 +468,7 @@ def test_binding_block():
 def test_dataflow_block():
     bb._begin_dataflow_block()
     lv0 = bb.emit(relax.op.add(x, y))
-    gv1 = bb.match_shape(y, [m, n])
+    gv1 = bb.match_cast(y, R.Tensor([m, n], "float32"))
     b0 = bb._end_block()
     basic_check(
         b0,
@@ -498,10 +481,9 @@ def test_dataflow_block():
                 "\t\t\tVar",
                 "\t\t\tVar",
                 "\t\tDataflowVarDef",
-                "\tMatchShape",
-                "\t\tVar",
-                "\t\tShapeExpr",
+                "\tMatchCast",
                 "\t\tDataflowVarDef",
+                "\t\tVar",
             ]
         ),
         "\n".join(
@@ -517,7 +499,7 @@ def test_dataflow_block():
                 "ShapeExpr",
                 "ShapeExpr",
                 "DataflowVarDef",
-                "MatchShape",
+                "MatchCast",
                 "DataflowBlock",
             ]
         ),

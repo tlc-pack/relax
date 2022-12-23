@@ -135,14 +135,14 @@ def test_casting():
     assert_structural_equal(new_mod, Expected)
 
 
-def test_match_shape():
+def test_match_cast():
     @tvm.script.ir_module
-    class TestMatchShape:
+    class TestMatchCast:
         @R.function
         def main(x: R.Tensor):
             q = x
             m, n = T.var("int64"), T.var("int64")
-            z = R.match_shape(q, (m, n))
+            z = R.match_cast(q, R.Tensor((m, n)))
             w = z
             return w
 
@@ -153,11 +153,11 @@ def test_match_shape():
             q = x
             # can't get rid of z because its shape_ is different from x's
             m, n = T.var("int64"), T.var("int64")
-            z = R.match_shape(x, (m, n))
+            z = R.match_cast(x, R.Tensor((m, n)))
             w = z
             return z
 
-    new_mod = relax.transform.CanonicalizeBindings()(TestMatchShape)
+    new_mod = relax.transform.CanonicalizeBindings()(TestMatchCast)
     assert_structural_equal(new_mod, Expected)
 
 

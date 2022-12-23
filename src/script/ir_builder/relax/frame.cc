@@ -160,21 +160,8 @@ void BlockFrameNode::ExitWithScope() {
     // Step 3.2. Collect global vars' reference in bindings
     Map<tvm::relax::Id, tvm::relax::Var> new_global_vars;
     for (const tvm::relax::Binding& binding : block->bindings) {
-      if (const auto* var_binding = binding.as<tvm::relax::VarBindingNode>()) {
-        if (!var_binding->var->IsInstance<tvm::relax::DataflowVarNode>()) {
-          new_global_vars.Set(var_binding->var->vid, var_binding->var);
-        }
-      } else if (const auto* match_shape = binding.as<tvm::relax::MatchShapeNode>()) {
-        if (match_shape->var.defined() &&
-            !match_shape->var->IsInstance<tvm::relax::DataflowVarNode>()) {
-          new_global_vars.Set(match_shape->var->vid, match_shape->var);
-        }
-      } else if (const auto* match_cast = binding.as<tvm::relax::MatchCastNode>()) {
-        if (!match_cast->var->IsInstance<tvm::relax::DataflowVarNode>()) {
-          new_global_vars.Set(match_cast->var->vid, match_cast->var);
-        }
-      } else {
-        LOG(FATAL) << "ValueError: Unsupported binding type: " << binding;
+      if (!binding->var->IsInstance<tvm::relax::DataflowVarNode>()) {
+        new_global_vars.Set(binding->var->vid, binding->var);
       }
     }
 

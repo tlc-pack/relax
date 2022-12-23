@@ -279,7 +279,6 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitNode_(const relax::VarNode* op) override;
   Doc VisitNode_(const relax::DataflowVarNode* op) override;
   Doc VisitNode_(const relax::ShapeExprNode* op) override;
-  Doc VisitNode_(const relax::MatchShapeNode* op) override;
   Doc VisitNode_(const relax::MatchCastNode* op) override;
   Doc VisitNode_(const relax::VarBindingNode* op) override;
   Doc VisitNode_(const relax::BindingBlockNode* op) override;

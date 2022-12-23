@@ -18,7 +18,7 @@
 from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
 from ...ir_builder.relax import ir as _relax
 from . import parser as _parser
-from .entry import Callable, Shape, Tensor, Tuple, function, match_cast, match_shape
+from .entry import Callable, Shape, Tensor, Tuple, function, match_cast
 
 __all__ = _relax.__all__ + [
     "Callable",
@@ -27,5 +27,4 @@ __all__ = _relax.__all__ + [
     "Tuple",
     "function",
     "match_cast",
-    "match_shape",
 ]

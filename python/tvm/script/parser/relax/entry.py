@@ -177,23 +177,6 @@ class ShapeProxy:
 
 Shape = ShapeProxy()
 
-############################ R.match_shape #############################
-class MatchShapePair:
-    value: Expr
-    pattern: List[PrimExpr]
-
-    def __init__(self, value: Expr, pattern: List[PrimExpr]) -> None:
-        self.value = value
-        self.pattern = pattern
-
-
-def match_shape(value: Expr, pattern: List[PrimExpr]):
-    if value is None:
-        raise ValueError("value of match_shape cannot be None")
-    if pattern is None:
-        raise ValueError("pattern of match_shape cannot be None")
-    return MatchShapePair(value, pattern)
-
 
 ############################ R.match_cast #############################
 class MatchCastPair:

@@ -132,8 +132,6 @@ class NormalizeMutator : public ExprMutatorBase {
   void VisitBinding(const Binding& binding) {
     if (const auto* node = binding.as<VarBindingNode>()) {
       VisitBinding_(node);
-    } else if (const auto* node = binding.as<MatchShapeNode>()) {
-      VisitBinding_(node);
     } else if (const auto* node = binding.as<MatchCastNode>()) {
       VisitBinding_(node);
     } else {
@@ -151,21 +149,6 @@ class NormalizeMutator : public ExprMutatorBase {
       builder_->EmitNormalized(GetRef<VarBinding>(binding));
     } else {
       builder_->EmitNormalized(VarBinding(binding->var, new_value));
-    }
-  }
-
-  void VisitBinding_(const MatchShapeNode* binding) {
-    Expr new_value = this->VisitExpr(binding->value);
-
-    if (binding->var.defined()) {
-      if (!binding->var->struct_info_.defined()) {
-        UpdateStructInfo(binding->var, GetStructInfo(new_value));
-      }
-    }
-    if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<MatchShape>(binding));
-    } else {
-      builder_->EmitNormalized(MatchShape(new_value, binding->pattern, binding->var));
     }
   }
 

@@ -188,27 +188,6 @@ def test_shadowing():
     _check(foo, bb.get()["foo"])
 
 
-def test_match_shape():
-    @R.function
-    def foo(x: R.Tensor(None, "float32"), y: R.Tensor(None, "float32")):
-        m = T.var("int64")
-        n = T.var("int64")
-        R.match_shape(x, (m,))
-        y1 = R.match_shape(y, (n,))
-        return (m, n * 2)
-
-    x = relax.Var("x", R.Tensor("float32", ndim=-1))
-    y = relax.Var("y", R.Tensor("float32", ndim=-1))
-    m = tir.Var("m", dtype="int64")
-    n = tir.Var("n", dtype="int64")
-    bb = relax.BlockBuilder()
-    with bb.function("foo", (x, y)):
-        bb.emit_normalized(relax.MatchShape(x, (m,), var=None))
-        y1 = bb.match_shape(y, (n,))
-        bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
-    _check(foo, bb.get()["foo"])
-
-
 def test_match_cast():
     @R.function
     def foo(x: R.Tensor("float32"), y: R.Tensor("float32")):
@@ -221,12 +200,11 @@ def test_match_cast():
             R.output(gv)
         return (x0, (m, n * 2))
 
-    # Need update after M1 merged
-    x = relax.Var("x", RuntimeDepShape(), DynTensorType(-1, "float32"))
-    y = relax.Var("y", RuntimeDepShape(), DynTensorType(-1, "float32"))
+    x = relax.Var("x", R.Tensor("float32"))
+    y = relax.Var("y", R.Tensor("float32"))
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
-    y2 = relax.Var("y", [n], DynTensorType(1, "float32"))
+    y2 = relax.Var("y", R.Tensor([n], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
         x0 = bb.match_cast(x, R.Tensor([m], "float32"))
@@ -259,14 +237,14 @@ def test_tuple_return_2():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
         n, m = T.var("int64"), T.var("int64")
-        x0 = R.match_shape(x, (n, m))
+        x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
         return (x0, (n + 1, m, 1))
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        x0 = bb.match_shape(x, (n, m))
+        x0 = bb.match_cast(x, R.Tensor((n, m), "float32"))
         bb.emit_func_output(relax.Tuple([x0, relax.ShapeExpr([n + 1, m, 1])]))
 
     _check(foo, bb.get()["foo"])
@@ -276,7 +254,7 @@ def test_tuple_binding():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
         n, m = T.var("int64"), T.var("int64")
-        x0 = R.match_shape(x, (n, m))
+        x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
         t0 = (x, x0)
         t1 = (x, (n, m), t0)
         return t1
@@ -285,7 +263,7 @@ def test_tuple_binding():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        x0 = bb.match_shape(x, (n, m))
+        x0 = bb.match_cast(x, R.Tensor((n, m), "float32"))
         t0 = bb.emit(relax.Tuple([x, x0]))
         t1 = bb.emit(relax.Tuple([x, relax.ShapeExpr([n, m]), t0]))
         bb.emit_func_output(t1)
@@ -324,11 +302,11 @@ def test_dataflow_block_advanced():
             m = T.var("int64")
             n = T.var("int64")
             lv0 = R.call_tir("extern_func", gv1, (128, 128), dtype="float32")
-            lv1 = R.match_shape(lv0, (m, n))
+            lv1 = R.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv2 = R.call_tir("extern_func", lv0, (128, 128), dtype="float32")
             gv2 = R.call_tir("extern_func", gv2, (128, 128), dtype="float32")
-            gv3 = R.match_shape(gv2, (m, n))
-            gv3 = R.match_shape(lv0, (m, n))
+            gv3 = R.match_cast(gv2, R.Tensor((m, n), "float32"))
+            gv3 = R.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv4 = gv3
             gv5 = gv2
             R.output(gv5, gv4)
@@ -345,11 +323,11 @@ def test_dataflow_block_advanced():
         gv1 = bb.emit(relax.call_tir("extern_func", gv0, (128, 128), dtype="float32"))
         with bb.dataflow():
             lv0 = bb.emit(relax.call_tir("extern_func", gv1, (128, 128), dtype="float32"))
-            lv1 = bb.match_shape(lv0, (m, n))
+            lv1 = bb.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv2 = bb.emit(relax.call_tir("extern_func", lv0, (128, 128), dtype="float32"))
             gv21 = bb.emit(relax.call_tir("extern_func", gv2, (128, 128), dtype="float32"))
-            gv3 = bb.match_shape(gv21, (m, n))
-            gv31 = bb.match_shape(lv0, (m, n))
+            gv3 = bb.match_cast(gv21, R.Tensor((m, n), "float32"))
+            gv31 = bb.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv32 = bb.emit_output(gv31)
             gv22 = bb.emit_output(gv21)
         gv4 = bb.emit(relax.call_tir("extern_func", gv22, (128, 128), dtype="float32"))
@@ -765,7 +743,7 @@ def test_erase_to_well_defined():
     def foo(x: R.Tensor):
         q = x
         m, n = T.var("int64"), T.var("int64")
-        z = R.match_shape(q, (m, n))
+        z = R.match_cast(q, R.Tensor((m, n)))
         w = z
         return w
 

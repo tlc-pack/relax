@@ -204,26 +204,6 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr) {
   return var;
 }
 
-Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
-                                         const Array<PrimExpr>& pattern,  //
-                                         bool emit_var) {
-  BlockFrame block_frame = CheckBlockFrameExistAndUnended();
-  tvm::relax::BlockBuilder block_builder = GetBlockBuilder();
-
-  if (!emit_var) {
-    // If we don't intend to emit a variable, just emit the binding and return.
-    tvm::relax::MatchShape match_shape(block_builder->Normalize(value), pattern,
-                                       tvm::relax::Var{nullptr});
-    block_builder->EmitNormalized(match_shape);
-    return NullOpt;
-  } else {
-    // Otherwise, we need to emit a variable and bind it to the match shape.
-    tvm::relax::Var var = block_builder->EmitMatchShape(value, pattern);
-    block_frame->emitted_vars.push_back(var);
-    return var;
-  }
-}
-
 tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
                               const tvm::relax::StructInfo& struct_info) {
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
@@ -235,7 +215,6 @@ tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchShape").set_body_typed(EmitMatchShape);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchCast").set_body_typed(EmitMatchCast);
 
 ///////////////////////////// Type Deduce //////////////////////////////

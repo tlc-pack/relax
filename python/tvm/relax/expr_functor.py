@@ -29,7 +29,7 @@ from .expr import Constant, Var, DataflowVar
 from .expr import ShapeExpr
 from .expr import GlobalVar, SeqExpr, Tuple
 from .expr import Call, If, TupleGetItem
-from .expr import Binding, MatchShape, VarBinding
+from .expr import Binding, MatchCast, VarBinding
 from .expr import BindingBlock, DataflowBlock
 from .struct_info import StructInfo
 from ..relay import Id
@@ -190,7 +190,7 @@ class ExprFunctor:
     def visit_var_binding_(self, binding: VarBinding):
         raise NotImplementedError()
 
-    def visit_match_shape_(self, binding: MatchShape):
+    def visit_match_cast_(self, binding: MatchCast):
         raise NotImplementedError()
 
     def visit_binding_block_(self, block: BindingBlock):
@@ -206,8 +206,8 @@ class ExprFunctor:
         raise NotImplementedError()
 
     def visit_binding(self, binding: Binding):
-        if isinstance(binding, MatchShape):
-            self.visit_match_shape_(binding)
+        if isinstance(binding, MatchCast):
+            self.visit_match_cast_(binding)
         elif isinstance(binding, VarBinding):
             self.visit_var_binding_(binding)
         else:
@@ -259,7 +259,7 @@ class _PyExprVisitor(Object):
         f_visit_tuple_getitem_: Callable = None,
         f_visit_binding: Callable = None,
         f_visit_var_binding_: Callable = None,
-        f_visit_match_shape_: Callable = None,
+        f_visit_match_cast_: Callable = None,
         f_visit_binding_block: Callable = None,
         f_visit_binding_block_: Callable = None,
         f_visit_dataflow_block_: Callable = None,
@@ -289,7 +289,7 @@ class _PyExprVisitor(Object):
             f_visit_tuple_getitem_,
             f_visit_binding,
             f_visit_var_binding_,
-            f_visit_match_shape_,
+            f_visit_match_cast_,
             f_visit_binding_block,
             f_visit_binding_block_,
             f_visit_dataflow_block_,
@@ -378,7 +378,7 @@ class PyExprVisitor:
             "visit_tuple_getitem_",
             "visit_binding",
             "visit_var_binding_",
-            "visit_match_shape_",
+            "visit_match_cast_",
             "visit_binding_block",
             "visit_binding_block_",
             "visit_dataflow_block_",
@@ -623,15 +623,15 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)  # type: ignore
 
-    def visit_match_shape_(self, binding: MatchShape) -> None:
-        """Visit MatchShape.
-        Users can customized this function to overwrite VisitBinding_(const MatchShapeNode* binding)
+    def visit_match_cast_(self, binding: MatchCast) -> None:
+        """Visit MatchCast.
+        Users can customized this function to overwrite VisitBinding_(const MatchCastNode* binding)
         on the C++ side.
 
         Parameters
         ----------
-        binding : MatchShape
-            The MatchShape to be visited.
+        binding : MatchCast
+            The MatchCast to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitBinding(self._outer(), binding)  # type: ignore
@@ -743,7 +743,7 @@ class _PyExprMutator(Object):
         f_visit_tuple_getitem_: Callable = None,
         f_visit_binding: Callable = None,
         f_visit_var_binding_: Callable = None,
-        f_visit_match_shape_: Callable = None,
+        f_visit_match_cast_: Callable = None,
         f_visit_binding_block: Callable = None,
         f_visit_binding_block_: Callable = None,
         f_visit_dataflow_block_: Callable = None,
@@ -774,7 +774,7 @@ class _PyExprMutator(Object):
             f_visit_tuple_getitem_,
             f_visit_binding,
             f_visit_var_binding_,
-            f_visit_match_shape_,
+            f_visit_match_cast_,
             f_visit_binding_block,
             f_visit_binding_block_,
             f_visit_dataflow_block_,
@@ -879,7 +879,7 @@ class PyExprMutator:
             "visit_tuple_getitem_",
             "visit_binding",
             "visit_var_binding_",
-            "visit_match_shape_",
+            "visit_match_cast_",
             "visit_binding_block",
             "visit_binding_block_",
             "visit_dataflow_block_",
@@ -1208,15 +1208,15 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)  # type: ignore
 
-    def visit_match_shape_(self, binding: MatchShape) -> None:
-        """Visit MatchShape.
-        Users can customized this function to overwrite VisitBinding_(const MatchShapeNode* binding)
+    def visit_match_cast_(self, binding: MatchCast) -> None:
+        """Visit MatchCast.
+        Users can customized this function to overwrite VisitBinding_(const MatchCastNode* binding)
         on the C++ side.
 
         Parameters
         ----------
-        binding : MatchShape
-            The MatchShape to be visited.
+        binding : MatchCast
+            The MatchCast to be visited.
         """
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitBinding(self._outer(), binding)  # type: ignore

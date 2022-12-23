@@ -262,22 +262,6 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
   return doc;
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
-  Doc doc;
-  if (op->var.defined()) {
-    doc << Print(op->var);
-    if (const auto& sinfo = MatchStructInfo<StructInfo>(op->var)) {
-      doc << ": " << Print(sinfo);
-    }
-    doc << " = ";
-  }
-  doc << "R.match_shape(";
-  // TODO(@altanh): maybe op->pattern should just be a ShapeExpr?
-  doc << Print(op->value) << ", " << Print(relax::ShapeExpr(op->pattern));
-  doc << ")";
-  return doc;
-}
-
 Doc RelaxScriptPrinter::VisitNode_(const relax::MatchCastNode* op) {
   Doc doc;
   doc << Print(op->var);
@@ -331,16 +315,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
   std::vector<Doc> return_vars;
   for (const relax::Binding& binding : op->bindings) {
     body << Print(binding) << Doc::NewLine();
-    Var var;
-    if (const auto* var_binding = binding.as<VarBindingNode>()) {
-      var = var_binding->var;
-    } else if (const auto* shape_binding = binding.as<MatchShapeNode>()) {
-      var = shape_binding->var;
-    } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
-      var = match_cast->var;
-    } else {
-      LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
-    }
+    Var var = binding->var;
     if (var.defined() && !var.as<relax::DataflowVarNode>()) {
       return_vars.push_back(Print(var));
     }

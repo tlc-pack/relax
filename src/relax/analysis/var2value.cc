@@ -70,11 +70,6 @@ class Name2BindingAnalysis : public relax::ExprVisitor {
     name2bindings_[vname].push_back(GetRef<VarBinding>(binding));
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) override {
-    const auto& vname = binding->var->name_hint();
-    name2bindings_[vname].push_back(GetRef<MatchShape>(binding));
-  }
-
   void VisitBinding_(const MatchCastNode* binding) override {
     const auto& vname = binding->var->name_hint();
     name2bindings_[vname].push_back(GetRef<MatchCast>(binding));

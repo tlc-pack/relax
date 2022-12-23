@@ -308,20 +308,6 @@ class Binding(Node):
     ...
 
 
-@tvm._ffi.register_object("relax.expr.MatchShape")
-class MatchShape(Binding):
-    """Symbolic shape match, binds the variable of the lhs with the rhs."""
-
-    value: Expr
-    pattern: List[PrimExpr]
-    var: Var
-
-    def __init__(self, value: Expr, pattern: List[PrimExpr], var: Var, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.MatchShape, value, pattern, var, span  # type: ignore
-        )
-
-
 @tvm._ffi.register_object("relax.expr.MatchCast")
 class MatchCast(Binding):
     """Runtime-match the value to the struct info.
@@ -335,24 +321,22 @@ class MatchCast(Binding):
     var: Var
         The return variable that the match cast bind to.
 
-    struct_info: tvm.relax.StructInfo
-        The struct info to match cast to.
-
     value: Expr
         The input value expression.
+
+    struct_info: tvm.relax.StructInfo
+        The struct info to match cast to.
     """
 
     var: Var
     struct_info: "tvm.relax.StructInfo"
     value: Expr
 
-    def __init__(self,
-                 var: Var,
-                 struct_info: "tvm.relax.StructInfo",
-                 value: Expr,
-                 span: Span = None) -> None:
+    def __init__(
+        self, var: Var, value: Expr, struct_info: "tvm.relax.StructInfo", span: Span = None
+    ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.MatchCast, var, struct_info, value, span  # type: ignore
+            _ffi_api.MatchCast, var, value, struct_info, span  # type: ignore
         )
 
 

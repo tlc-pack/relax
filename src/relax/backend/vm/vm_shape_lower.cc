@@ -105,14 +105,6 @@ class VMShapeLowerMutator : public ExprMutator {
     return builder_->GetContextIRModule();
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) override {
-    Expr value = ExprMutator::VisitExpr(binding->value);
-
-    // TODO(@yuchen): match_shape overloaded semantic: value is ShapeType
-    Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {value}), "sh");
-    StoreShape(shape, binding->pattern);
-  }
-
   void VisitBinding_(const MatchCastNode* binding) override {
     // TODO(@tqchen): match_cast support for general struct info
     Expr value = ExprMutator::VisitExpr(binding->value);

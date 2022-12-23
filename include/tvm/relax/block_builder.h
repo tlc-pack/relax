@@ -160,15 +160,6 @@ class BlockBuilderNode : public Object {
   virtual Var Emit(Expr expr, String name_hint = "") = 0;
 
   /*!
-   * \brief Emit a MatchShape.
-   * \param value The value of the MatchShape to be emitted.
-   * \param pattern The pattern of the MatchShape to be emitted.
-   * \param name_hint Name hint for the bound variable.
-   * \return The variable bound to the MatchShape.
-   */
-  virtual Var EmitMatchShape(Expr value, Array<PrimExpr> pattern, String name_hint = "") = 0;
-
-  /*!
    * \brief Emit a MatchCast.
    * \param value The input value.
    * \param struct_info The struct info to be matched.

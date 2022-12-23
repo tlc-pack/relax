@@ -38,7 +38,7 @@ from .expr import (
     Var,
     DataflowVar,
     Binding,
-    MatchShape,
+    MatchCast,
     VarBinding,
     BindingBlock,
     DataflowBlock,

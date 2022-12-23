@@ -67,13 +67,13 @@ def test_dataflow_var() -> None:
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float16"))
 
 
-def test_match_shape() -> None:
-    # match_shape([16, 8], [m, n])
+def test_match_cast() -> None:
+    # match_cast([16, 8], [m, n])
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
-    b0 = rx.MatchShape(shape, [m, n], var)
+    b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
     assert b0.value == shape
     assert b0.pattern[0] == m
     assert b0.pattern[1] == n
@@ -81,11 +81,11 @@ def test_match_shape() -> None:
     assert b0.var.checked_type == rx.ShapeType()
 
     # var1: R.Tensor((m, n), "float32") =
-    #   match_shape(var0: R.Tensor("float32", ndim=-1), [m, n])
+    #   match_cast(var0: R.Tensor("float32", ndim=-1), R.Tensor((m, n), "float32"))
     value = rx.Var("value", R.Tensor("float32", ndim=-1))
 
     var = rx.Var("v1", R.Tensor([m, n], "float32"))
-    b1 = rx.MatchShape(value, [m, n], var)
+    b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     assert b1.value == value
     assert b1.pattern[0] == m
     assert b1.pattern[1] == n
@@ -113,10 +113,10 @@ def test_var_binding() -> None:
 
 
 def test_binding_block() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
-    b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
+    b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
@@ -128,10 +128,10 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
-    b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
+    b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))

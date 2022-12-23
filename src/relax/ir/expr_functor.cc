@@ -177,16 +177,6 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(IfNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 
-void ExprVisitor::VisitBinding_(const MatchShapeNode* binding) {
-  this->VisitExpr(binding->value);
-  // TODO(ziheng): should we change pattern from
-  // Array<PrimExpr> to ShapeExpr?
-  this->VisitExpr(ShapeExpr(binding->pattern));
-  if (binding->var.defined()) {
-    this->VisitVarDef(binding->var);
-  }
-}
-
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
   this->VisitVarDef(binding->var);
@@ -212,8 +202,6 @@ void ExprVisitor::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
     VisitBinding_(node);
   } else if (const auto* node = binding.as<MatchCastNode>()) {
-    VisitBinding_(node);
-  } else if (const auto* node = binding.as<MatchShapeNode>()) {
     VisitBinding_(node);
   } else {
     LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
@@ -394,10 +382,6 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
         Expr new_value = this->VisitExpr(match_cast->value);
         bindings.push_back(MatchCast(match_cast->var, new_value, match_cast->struct_info));
-      } else if (auto match_shape_binding = binding.as<MatchShapeNode>()) {
-        Expr new_value = this->VisitExpr(match_shape_binding->value);
-        bindings.push_back(
-            MatchShape(new_value, match_shape_binding->pattern, match_shape_binding->var));
       } else {
         LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
       }
@@ -552,38 +536,6 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
 
-void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
-  Expr new_value = this->VisitExpr(binding->value);
-  Expr new_pattern = this->VisitExpr(ShapeExpr(binding->pattern));
-
-  Var new_var;
-  if (binding->var.defined()) {
-    StructInfo new_sinfo = GetStructInfo(new_value);
-
-    if (auto* ptr = new_sinfo.as<TensorStructInfoNode>()) {
-      new_sinfo = TensorStructInfo(new_pattern, ptr->dtype);
-    }
-    new_var = this->VisitVarDef(binding->var);
-
-    Var temp = WithStructInfo(new_var, new_sinfo);
-    if (!temp.same_as(new_var)) {
-      new_var = temp;
-      this->var_remap_[binding->var->vid] = new_var;
-    }
-  }
-
-  // reemit old binding if nothing changes
-  if (new_value.same_as(binding->value) && new_pattern.same_as(binding->pattern)) {
-    if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
-      builder_->EmitNormalized(GetRef<MatchShape>(binding));
-      return;
-    }
-  }
-
-  builder_->EmitNormalized(
-      MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
-}
-
 void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
   Var new_var = this->VisitVarDef(binding->var);
   Expr new_value = this->VisitExpr(binding->value);
@@ -627,8 +579,6 @@ void ExprMutator::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
     VisitBinding_(node);
   } else if (const auto* node = binding.as<MatchCastNode>()) {
-    VisitBinding_(node);
-  } else if (const auto* node = binding.as<MatchShapeNode>()) {
     VisitBinding_(node);
   } else {
     LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();

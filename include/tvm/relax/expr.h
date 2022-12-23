@@ -531,11 +531,9 @@ class Constant : public Expr {
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public Object {
  public:
+  /*! \brief The return variable to bound to. */
+  Var var;
   mutable Span span;
-
-  void VisitAttrs(AttrVisitor* v) { v->Visit("span", &span); }
-  bool SEqualReduce(const BindingNode* other, SEqualReducer equal) const { return true; }
-  void SHashReduce(SHashReducer hash_reduce) const {}
 
   static constexpr const char* _type_key = "relax.expr.Binding";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -555,46 +553,6 @@ class Binding : public ObjectRef {
   using ContainerType = BindingNode;
 };
 
-/*! \brief Symbolic shape match, binds the variable of the lhs with the rhs. */
-class MatchShapeNode : public BindingNode {
- public:
-  Expr value;
-  Array<PrimExpr> pattern;
-  Var var;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("pattern", &pattern);
-    v->Visit("var", &var);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const MatchShapeNode* other, SEqualReducer equal) const {
-    // NOTE: pattern can contain ShapeExpr which defines the vars
-    return equal(value, other->value) && equal.DefEqual(pattern, other->pattern) &&
-           equal.DefEqual(var, other->var);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // NOTE: pattern can contain ShapeExpr which defines the vars
-    hash_reduce(value);
-    hash_reduce.DefHash(pattern);
-    hash_reduce.DefHash(var);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.MatchShape";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(MatchShapeNode, BindingNode);
-};
-
-class MatchShape : public Binding {
- public:
-  TVM_DLL explicit MatchShape(Expr value, Array<PrimExpr> pattern, Var var, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(MatchShape, Binding, MatchShapeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchShapeNode);
-};
-
 /*!
  * \brief Runtime-match the value to the struct info.
  *
@@ -604,9 +562,7 @@ class MatchShape : public Binding {
  */
 class MatchCastNode : public BindingNode {
  public:
-  /*! \brief The return variable to bound to. */
-  Var var;
-  /*! \brief The input value. */
+  /*! \brief The input value to match cast. */
   Expr value;
   /*! \brief The struct info pattern to match to. */
   StructInfo struct_info;
@@ -651,7 +607,7 @@ class MatchCast : public Binding {
 
 class VarBindingNode : public BindingNode {
  public:
-  Var var;
+  /*! \brief The binding value. */
   Expr value;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -679,7 +635,6 @@ class VarBinding : public Binding {
   TVM_DEFINE_OBJECT_REF_METHODS(VarBinding, Binding, VarBindingNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
-
 
 class BindingBlockNode : public Object {
  public:

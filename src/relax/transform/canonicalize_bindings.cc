@@ -68,36 +68,6 @@ class BindingCanonicalizer : public ExprMutator {
     this->builder_->EmitNormalized(VarBinding(new_var, new_value));
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) override {
-    // If we have a trivial shape check (the shape_ of LHS and RHS is the same),
-    // we can canonicalize to a var binding
-    Expr new_value = this->VisitExpr(binding->value);
-
-    Var new_var;
-    // since we do not permit the checked_type to change and don't make any changes
-    // to the shape pattern, there is no reason to do any more checking like in the
-    // original mutator
-    if (binding->var.defined()) {
-      new_var = this->VisitVarDef(binding->var);
-    }
-
-    // if the LHS and RHS have the same shape_, we canonicalize to a var binding instead
-    if (new_var.defined() && StructuralEqual()(GetStructInfo(new_var), GetStructInfo(new_value))) {
-      builder_->EmitNormalized(VarBinding(new_var, new_value));
-      return;
-    }
-
-    // reemit old binding if nothing changes
-    if (new_value.same_as(binding->value)) {
-      if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
-        builder_->EmitNormalized(GetRef<MatchShape>(binding));
-        return;
-      }
-    }
-
-    builder_->EmitNormalized(MatchShape(new_value, binding->pattern, new_var));
-  }
-
   void VisitBinding_(const MatchCastNode* binding) override {
     // If we have a trivial shape check (the shape_ of LHS and RHS is the same),
     // we can canonicalize to a var binding
