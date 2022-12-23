@@ -255,8 +255,8 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   size_t local_func_counter_ = 0;
   /*! \brief meta data context. */
   TextMetaDataContext* meta_;
-  /*! \brief the current relax function name. */
-  String relax_func_name_ = "foo";
+  /*! \brief default relax function name in printer. */
+  constexpr const static char* relax_default_func_name_ = "main";
   /*!
    * \brief A bool flag to indicate if we print symbolic shape as str, usually for global
    * function.

@@ -360,5 +360,19 @@ def test_ANF():
     assert not rx.analysis.well_formed(mod)
 
 
+def test_global_var_vs_gsymbol():
+    # Error: gsymbol "main1" not equals to the name in global var "main"
+    gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
+    bindings = [rx.VarBinding(gv0, x)]
+    blocks = [rx.DataflowBlock(bindings)]
+    func = rx.Function(
+        [x],
+        rx.SeqExpr(blocks, gv0),
+        R.Tensor(ndim=2, dtype="float32"),
+    ).with_attr("global_symbol", "main1")
+    mod = tvm.IRModule({rx.GlobalVar("main"): func})
+    assert not rx.analysis.well_formed(mod)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
