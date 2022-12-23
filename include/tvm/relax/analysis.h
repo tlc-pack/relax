@@ -200,8 +200,8 @@ TVM_DLL StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, Prim
  *
  * For a given pair of lhs_struct_info, rhs_struct_info. We adopt
  * the following terminology:
- * - LSet = {value | value mactches lhs_struct_info}
- * - RSet = {value | value mactches rhs_struct_info}
+ * - LSet = {value | value matches lhs_struct_info}
+ * - RSet = {value | value matches rhs_struct_info}
  *
  * See the definition of each level below.
  */
@@ -283,11 +283,14 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
  * \brief Check if the IRModule is well formed.
  *
  * \param m the IRModule to check.
- * \param diag_ctx the diagnostic context.
+ * \param check_struct_info A boolean flag indicating if the property "every Expr
+ * must have defined structure info" will be checked.
  * \return true if the IRModule is well formed, false if not.
+ * \note By default the structure info is always checked. It is only in test cases
+ * where `check_struct_info` might be false, so that other well-formed requirements
+ * will be well tested and will not be blocked by not having structure info.
  */
-TVM_DLL bool WellFormed(const IRModule& m,
-                        Optional<DiagnosticContext> diag_ctx = Optional<DiagnosticContext>());
+TVM_DLL bool WellFormed(IRModule m, bool check_struct_info = true);
 
 /*!
  * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
@@ -346,7 +349,7 @@ TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
 TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 
 /*!
- * \brief Get all glabal variables used in calls in expression expr.
+ * \brief Get all global variables used in calls in expression expr.
  *
  * \param expr the expression.
  *
@@ -355,7 +358,7 @@ TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 TVM_DLL tvm::Array<GlobalVar> CalledGlobalVars(const Expr& expr);
 
 /*!
- * \brief Get all glabal variables from expression expr.
+ * \brief Get all global variables from expression expr.
  *
  * AllVars is a superset of BoundVars and FreeVars.
  * The union of BoundVars and FreeVars is Allvars.
@@ -402,7 +405,7 @@ TVM_DLL Map<String, Array<Binding>> NameToBinding(const Function& fn);
  * \brief Get the use-def chain of variables inside a dataflow block.
  *
  * \param dfb The dataflow block to be analyzed.
- * \return A map mapping variable definitoins to a set of uses.
+ * \return A map mapping variable definitions to a set of uses.
  */
 TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
 
@@ -410,7 +413,7 @@ TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
  * \brief Get the use-def chain of variables inside a function.
  *
  * \param fn The function to be analyzed.
- * \return A map from variable definitoins to a set of uses and variables needed by return value.
+ * \return A map from variable definitions to a set of uses and variables needed by return value.
  */
 std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
 
