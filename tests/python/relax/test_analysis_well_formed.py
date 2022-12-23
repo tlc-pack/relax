@@ -44,7 +44,7 @@ def test_var():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # Error: Var gv0 is defined more than once
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
@@ -54,7 +54,7 @@ def test_var():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_dataflow_var():
@@ -66,7 +66,7 @@ def test_dataflow_var():
     blocks = [rx.DataflowBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # Error: DataflowVar gv0 is defined more than once
     lv0 = rx.DataflowVar("lv0", R.Tensor([m, n], "float32"))
@@ -76,7 +76,7 @@ def test_dataflow_var():
     blocks = [rx.DataflowBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # Error: DataflowVar lv0 is defined outside DataflowBlock
     lv0 = rx.DataflowVar("lv0", R.Tensor([m, n], "float32"))
@@ -85,7 +85,7 @@ def test_dataflow_var():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # Error: DataflowVar lv0 is used outside DataflowBlock
     lv0 = rx.DataflowVar("lv0", R.Tensor([m, n], "float32"))
@@ -95,7 +95,7 @@ def test_dataflow_var():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_global_var():
@@ -110,7 +110,7 @@ def test_global_var():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_symbolic_var():
@@ -122,7 +122,7 @@ def test_symbolic_var():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_symbolic_var_invalid_type():
@@ -137,7 +137,7 @@ def test_symbolic_var_invalid_type():
         blocks = [rx.BindingBlock(bindings)]
         func = build_function(blocks, [y])
         mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-        assert not rx.analysis.well_formed(mod)
+        assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_seq_expr():
@@ -154,7 +154,7 @@ def test_seq_expr():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_if():
@@ -186,7 +186,7 @@ def test_if():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=True)
 
 
 def test_if_non_seq_body():
@@ -204,7 +204,7 @@ def test_if_non_seq_body():
     ]
     func = build_function(blocks)
     mod = tvm.IRModule.from_expr(func)
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # on the other hand, if they're wrapped in a seq node, it's fine
     seq = rx.SeqExpr([], x)
@@ -223,7 +223,7 @@ def test_if_non_seq_body():
     new_mod = tvm.IRModule.from_expr(new_func)
     # apply normalization to fill in checked_type_
     normalized = rx.transform.Normalize()(new_mod)
-    assert rx.analysis.well_formed(normalized)
+    assert rx.analysis.well_formed(normalized, check_struct_info=True)
 
 
 def test_if_complex_condition():
@@ -243,7 +243,7 @@ def test_if_complex_condition():
     ]
     func = build_function(blocks)
     mod = tvm.IRModule.from_expr(func)
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     cond_var = rx.Var("q", R.Tensor([], "bool"))
     new_if = rx.If(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
@@ -262,7 +262,7 @@ def test_if_complex_condition():
     mod = tvm.IRModule.from_expr(func)
     # apply normalization to fill in checked_type_
     normalized = rx.transform.Normalize()(mod)
-    assert rx.analysis.well_formed(normalized)
+    assert rx.analysis.well_formed(normalized, check_struct_info=True)
 
 
 def test_tuple_get_item_nested():
@@ -279,7 +279,7 @@ def test_tuple_get_item_nested():
     )
     f = f.with_attr("global_symbol", "f")
     mod = tvm.IRModule.from_expr(f)
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # okay with an intermediate binding
     first_idx = rx.TupleGetItem(nested_tup, 0)
@@ -301,7 +301,7 @@ def test_tuple_get_item_nested():
     mod = tvm.IRModule.from_expr(new_f)
     # normalize in order to fill in checked type
     normalized = rx.transform.Normalize()(mod)
-    assert rx.analysis.well_formed(normalized)
+    assert rx.analysis.well_formed(normalized, check_struct_info=True)
 
 
 def test_complex_seq_body():
@@ -314,7 +314,7 @@ def test_complex_seq_body():
         R.Tensor(ndim=0, dtype="int32"),
     ).with_attr("global_symbol", "foo")
     mod = tvm.IRModule.from_expr(func)
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # but if the result is bound, then it's okay
     z = rx.Var("z", R.Tensor([], "int32"))
@@ -338,7 +338,7 @@ def test_complex_seq_body():
     new_mod = tvm.IRModule.from_expr(new_func)
     # normalize in order to fill in checked type
     normalized = rx.transform.Normalize()(new_mod)
-    assert rx.analysis.well_formed(normalized)
+    assert rx.analysis.well_formed(normalized, check_struct_info=True)
 
 
 def test_ANF():
@@ -349,7 +349,7 @@ def test_ANF():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
     # Error: Call Node in Tuple
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
@@ -357,7 +357,7 @@ def test_ANF():
     blocks = [rx.BindingBlock(bindings)]
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 def test_global_var_vs_gsymbol():
@@ -371,7 +371,7 @@ def test_global_var_vs_gsymbol():
         R.Tensor(ndim=2, dtype="float32"),
     ).with_attr("global_symbol", "main1")
     mod = tvm.IRModule({rx.GlobalVar("main"): func})
-    assert not rx.analysis.well_formed(mod)
+    assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
 if __name__ == "__main__":
