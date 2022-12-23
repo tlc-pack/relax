@@ -68,10 +68,11 @@ def call_tir(
         for x in shape:
             if isinstance(x, int):
                 shape_array.append(tvm.tir.IntImm("int64", x))
+            elif isinstance(x, tvm.tir.IntImm):
+                shape_array.append(x if x.dtype == "int64" else tvm.tir.IntImm("int64", x.value))
             elif isinstance(x, PrimExpr):
-                # TODO: enforce all shapes are i64
-                # if x.dtype != "int64":
-                #     raise TypeError("Expect int64 dtype for shape")
+                if x.dtype != "int64":
+                    raise TypeError("Expect int64 dtype for shape")
                 shape_array.append(x)
             else:
                 raise TypeError("Expect int or PrimExpr for shape")
