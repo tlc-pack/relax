@@ -327,7 +327,7 @@ def test_class_irmodule():
             return r
 
         @R.function
-        def g(y: R.Tensor(("n", "n"))) -> R.Tensor:
+        def g(y: R.Tensor(("n", "n"))) -> R.Tensor(("n", "n"), "float32"):
             n = T.var("int64")
             r = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
             return r
