@@ -24,19 +24,21 @@
  * This pass is supposed to be applied to normalized Relax AST.
  * If it's malformed, messages will be logged as Warning.
  * This pass will check:
- *    1. GlobalVars are defined before use.
- *    2. When a Function has a corresponding GlobalVar and a `global_symbol`
+ *    1. Each Expr should have `struct_info_` field already populated, when
+ *      `check_struct_info` is true.
+ *    2. GlobalVars are defined before use.
+ *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
  *       attribute, the name of the GlobalVar must equal the value of the
  *       `global_symbol` attribute value.
- *    3. Vars are defined before use.
- *    4. Vars are defined exactly once.
- *    5. Symbolic Vars are defined before use.
- *    6. DataflowVars cannot be defined inside BindingBlock.
- *    7. Vars defined in IfNode, except the return Var, are invisible
+ *    4. Vars are defined before use.
+ *    5. Vars are defined exactly once.
+ *    6. Symbolic Vars are defined before use.
+ *    7. DataflowVars cannot be defined inside BindingBlock.
+ *    8. Vars defined in IfNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
- *    8. SeqExpr only serves as function body, or in the true and
+ *    9. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
- *    9. The IR is in ANF:
+ *    10. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr, RuntimeDepShape,
@@ -51,7 +53,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    10. Expr always has checked_type_ (with the exception of Op).
+ *    11. Expr always has checked_type_ (with the exception of Op).
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -73,33 +75,24 @@ class WellFormedChecker : public relax::ExprVisitor,
                           public relax::StructInfoVisitor,
                           public tir::ExprVisitor {
  public:
-  bool well_formed = true;
+  static bool Check(IRModule mod, bool check_struct_info) {
+    WellFormedChecker well_formed_checker = WellFormedChecker(mod, check_struct_info);
 
-  void Malformed(Diagnostic diag) {
-    well_formed = false;
-    LOG(WARNING) << "This IR is not well formed: " << diag->message;
-  }
-
-  void VisitExpr(const Expr& expr) override {
-    if (!expr.as<OpNode>() && !expr->checked_type_.defined()) {
-      Malformed(Diagnostic::Error(expr) << "The checked_type_ of Expr " << expr << " is nullptr.");
+    for (const auto& it : mod->functions) {
+      // visit relax.Function
+      if (auto* n = it.second.as<FunctionNode>()) {
+        Function func = GetRef<Function>(n);
+        well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
+        well_formed_checker.VisitExpr(func);
+      }
     }
-    relax::ExprVisitor::VisitExpr(expr);
-  }
-
-  void RegisterGlobalVar(GlobalVar var) { global_var_set_.insert(var); }
-
-  void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
-    // check name in global var and gsymbol
-    Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    if (gsymbol.defined() && gsymbol != var->name_hint) {
-      Malformed(Diagnostic::Error(func->span)
-                << "Name in GlobalVar is not equal to name in gsymbol: " << var->name_hint
-                << " != " << gsymbol.value());
-    }
+    return well_formed_checker.well_formed_;
   }
 
  private:
+  explicit WellFormedChecker(IRModule mod, bool check_struct_info)
+      : mod_(std::move(mod)), check_struct_info_(check_struct_info) {}
+
   // Possible mode of visitor
   enum class VisitMode {
     /*!
@@ -113,9 +106,32 @@ class WellFormedChecker : public relax::ExprVisitor,
     kMatchVarDef
   };
 
-  void VisitExpr_(const GlobalVarNode* op) {
+  void Malformed(Diagnostic diag) {
+    well_formed_ = false;
+    LOG(WARNING) << "This IR is not well formed: " << diag->message;
+  }
+
+  void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
+    // check name in global var and gsymbol
+    Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    if (gsymbol.defined() && gsymbol != var->name_hint) {
+      Malformed(Diagnostic::Error(func->span)
+                << "Name in GlobalVar is not equal to name in gsymbol: " << var->name_hint
+                << " != " << gsymbol.value());
+    }
+  }
+
+  void VisitExpr(const Expr& expr) final {
+    if (!expr.as<OpNode>() && !expr->checked_type_.defined()) {
+      Malformed(Diagnostic::Error(expr) << "The checked_type_ of Expr " << expr << " is nullptr.");
+    }
+    relax::ExprVisitor::VisitExpr(expr);
+  }
+
+  void VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = GetRef<GlobalVar>(op);
-    if (global_var_set_.count(var) == 0) {
+    if (!(mod_->ContainGlobalVar(var->name_hint) &&
+          mod_->GetGlobalVar(var->name_hint).same_as(var))) {
       Malformed(Diagnostic::Error(var) << "GlobalVar " << op->name_hint << " is not defined.");
     }
 
@@ -130,7 +146,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const TupleNode* op) {
+  void VisitExpr_(const TupleNode* op) final {
     for (size_t i = 0; i < op->fields.size(); i++) {
       Expr expr = op->fields[i];
       if (IsLeafExpr(expr)) {
@@ -144,7 +160,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const TupleGetItemNode* op) {
+  void VisitExpr_(const TupleGetItemNode* op) final {
     if (IsLeafExpr(op->tuple)) {
       this->VisitExpr(op->tuple);
     } else {
@@ -154,7 +170,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const VarNode* op) {
+  void VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     if (var_set_.count(var) == 0) {
       Malformed(Diagnostic::Error(var) << "Var " << op->name_hint() << " is not defined.");
@@ -162,7 +178,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const DataflowVarNode* op) {
+  void VisitExpr_(const DataflowVarNode* op) final {
     DataflowVar var = GetRef<DataflowVar>(op);
     if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var)
@@ -174,7 +190,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const FunctionNode* op) {
+  void VisitExpr_(const FunctionNode* op) final {
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
     auto prev_symbolic_var_set = symbolic_var_set_;
@@ -204,7 +220,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     symbolic_var_set_ = prev_symbolic_var_set;
   }
 
-  void VisitExpr_(const CallNode* op) {
+  void VisitExpr_(const CallNode* op) final {
     if (IsLeafExpr(op->op)) {
       this->VisitExpr(op->op);
     } else {
@@ -223,7 +239,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const IfNode* op) {
+  void VisitExpr_(const IfNode* op) final {
     if (IsLeafExpr(op->cond)) {
       this->VisitExpr(op->cond);
     } else {
@@ -247,7 +263,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const ShapeExprNode* op) {
+  void VisitExpr_(const ShapeExprNode* op) final {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
       tir::ExprVisitor::VisitExpr(expr);
@@ -259,7 +275,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitExpr_(const SeqExprNode* op) {
+  void VisitExpr_(const SeqExprNode* op) final {
     Malformed(Diagnostic::Error(op) << "SeqExpr only serves as the function body in FunctionNode, "
                                        "or the true/false branch body in IfNode.");
   }
@@ -277,12 +293,12 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(op);
   }
 
-  void VisitBinding_(const VarBindingNode* binding) {
+  void VisitBinding_(const VarBindingNode* binding) final {
     this->VisitExpr(binding->value);
     this->VisitVarDef(binding->var);
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) {
+  void VisitBinding_(const MatchShapeNode* binding) final {
     this->VisitExpr(binding->value);
     // define the vars
     WithMode(VisitMode::kMatchVarDef, [&]() {
@@ -300,7 +316,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
   }
 
-  void VisitBindingBlock_(const DataflowBlockNode* block) {
+  void VisitBindingBlock_(const DataflowBlockNode* block) final {
     is_dataflow_ = true;
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
@@ -309,7 +325,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     dataflow_var_set_.clear();
   }
 
-  void VisitVarDef_(const DataflowVarNode* var) {
+  void VisitVarDef_(const DataflowVarNode* var) final {
     if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var)
                 << "DataflowVar " << var->name_hint() << " is defined outside DataflowBlock.");
@@ -324,7 +340,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(var);
   }
 
-  void VisitVarDef_(const VarNode* var) {
+  void VisitVarDef_(const VarNode* var) final {
     Var gv = GetRef<Var>(var);
     if (var_set_.count(gv) == 1) {
       Malformed(Diagnostic::Error(var)
@@ -335,7 +351,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(var);
   }
 
-  void VisitVarDef(const Var& var) {
+  void VisitVarDef(const Var& var) final {
     if (const DataflowVarNode* lv_node = var.as<DataflowVarNode>()) {
       VisitVarDef_(lv_node);
     } else if (const VarNode* gv_node = var.as<VarNode>()) {
@@ -356,7 +372,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitStructInfoExprField(const Expr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
-      // populate symbolic var in first occurance
+      // populate symbolic var in first occurrence
       if (auto* op = expr.as<relax::VarNode>()) {
         auto var = GetRef<relax::Var>(op);
         if (var_set_.count(var) == 0) {
@@ -375,7 +391,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitStructInfoExprField(const PrimExpr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
-      // populate symbolic var in first occurance
+      // populate symbolic var in first occurrence
       if (auto* op = expr.as<tir::VarNode>()) {
         auto var = GetRef<tir::Var>(op);
         if (symbolic_var_set_.count(var) == 0) {
@@ -388,6 +404,10 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void CheckStructInfo(const ExprNode* op) {
+    if (!check_struct_info_) {
+      return;
+    }
+
     auto* sinfo = op->struct_info_.as<StructInfoNode>();
     if (sinfo != nullptr) {
       this->VisitStructInfo(GetRef<StructInfo>(sinfo));
@@ -405,38 +425,26 @@ class WellFormedChecker : public relax::ExprVisitor,
     std::swap(mode_, mode);
   }
 
+  IRModule mod_;
+  const bool check_struct_info_;
+  bool well_formed_ = true;
   bool is_dataflow_ = false;
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> global_var_set_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
 };
 
-bool WellFormed(const IRModule& m, Optional<DiagnosticContext> diag_ctx) {
-  WellFormedChecker well_formed_checker = WellFormedChecker();
-  for (const auto& it : m->functions) {
-    // register GlobalVar in the IRModule first
-    well_formed_checker.RegisterGlobalVar(it.first);
-  }
-
-  for (const auto& it : m->functions) {
-    // visit relax.Function
-    if (auto* n = it.second.as<FunctionNode>()) {
-      Function func = GetRef<Function>(n);
-      well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
-      well_formed_checker.VisitExpr(func);
-    }
-  }
-
-  return well_formed_checker.well_formed;
+bool WellFormed(IRModule m, bool check_struct_info) {
+  return WellFormedChecker::Check(std::move(m), check_struct_info);
 }
 
-TVM_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed([](IRModule m) {
-  return WellFormed(m);
-});
+TVM_REGISTER_GLOBAL(("relax.analysis.well_formed"))
+    .set_body_typed([](IRModule m, bool check_struct_info) {
+      return WellFormed(m, check_struct_info);
+    });
 
 }  // namespace relax
 }  // namespace tvm
