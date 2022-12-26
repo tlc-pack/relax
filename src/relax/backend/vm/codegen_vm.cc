@@ -25,6 +25,7 @@
 #include "codegen_vm.h"
 
 #include <tvm/driver/driver_api.h>
+#include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr_functor.h>
@@ -63,14 +64,27 @@ FCallPacked GetPackedFuncName(const Call& call) {
  */
 class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
  public:
-  explicit CodeGenVM(ExecBuilderNode* builder) { builder_ = GetRef<ExecBuilder>(builder); }
+  explicit CodeGenVM(relax::ExecBuilder builder, IRModule ctx_mod)
+      : builder_(builder), ctx_mod_(ctx_mod) {}
 
  protected:
   size_t NewRegister() { return registers_num_++; }
+
+  // Convert Arg value to a register, trigger copy if needed
+  Instruction::Arg EnsureReg(Instruction::Arg arg) {
+    if (arg.kind() == Instruction::ArgKind::kRegister) {
+      return arg;
+    } else {
+      RegName dst_reg = NewRegister();
+      builder_->EmitCall("vm.builtin.copy", {arg}, dst_reg);
+      return Instruction::Arg::Register(dst_reg);
+    }
+  }
+
   Instruction::Arg VisitExpr_(const FunctionNode* func_node) {
     Optional<String> gsymbol = func_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(gsymbol.defined()) << "there should be no local functions in Relax VM codegen phase. "
-                                 "Did you forget to apply LambdaLift pass?";
+                                 "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
 
     Array<String> param_names;
     for (Var param : func_node->params) {
@@ -79,12 +93,13 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     builder_->EmitFunction(gsymbol.value(), func_node->params.size(), param_names);
 
-    for (Var param : func_node->params) {
-      Instruction::Arg reg = this->VisitExpr(param);
-      this->var_register_map_.insert({param, reg.data});
+    for (size_t i = 0; i < func_node->params.size(); ++i) {
+      RegName r = NewRegister();
+      ICHECK_EQ(r, static_cast<RegName>(i));
+      this->var_arg_map_.insert({func_node->params[i], Instruction::Arg::Register(r)});
     }
     Instruction::Arg ret = ExprFunctor::VisitExpr(func_node->body);
-    builder_->EmitRet(ret.data);
+    builder_->EmitRet(EnsureReg(ret));
     registers_num_ = 0;
     return ret;
   }
@@ -92,11 +107,15 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const SeqExprNode* op) {
     for (auto block : op->blocks) {
       for (Binding binding : block->bindings) {
-        ICHECK(binding->IsInstance<VarBindingNode>());
-        Expr value = Downcast<VarBinding>(binding)->value;
-        Var var = Downcast<VarBinding>(binding)->var;
-        Instruction::Arg reg = this->VisitExpr(value);
-        this->var_register_map_.insert({var, reg.data});
+        Instruction::Arg value;
+        if (auto* var_binding = binding.as<VarBindingNode>()) {
+          value = this->VisitExpr(var_binding->value);
+        } else if (auto* match_cast = binding.as<MatchCastNode>()) {
+          value = this->VisitExpr(match_cast->value);
+        } else {
+          LOG(FATAL) << "Unsupported binding " << binding->GetTypeKey();
+        }
+        this->var_arg_map_.insert({binding->var, value});
       }
     }
 
@@ -105,129 +124,117 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const CallNode* call_node) {
-    if (call_node->op.as<OpNode>()) {
+    Call call = GetRef<Call>(call_node);
+
+    if (call_node->op == null_value_op_) {
+      return Instruction::Arg::Register(Instruction::kVoidRegister);
+    }
+
+    // allocate dst register.
+    RegName dst_reg = HasVoidStructInfo(call) ? Instruction::kVoidRegister : NewRegister();
+    if (call->op.as<OpNode>()) {
       // special case generate for the intrinsics whose attribute fields
       // cannot be represented by args in the CallNode
-      const Call& call = GetRef<Call>(call_node);
       FCallPacked name = GetPackedFuncName(call);
       if (!name.empty()) {
         // If the operator has a registered packed function implementation, emit call to that packed
         // function.
-        return EmitPackedFuncCall(call, name);
+        EmitPackedFuncCall(call, name, dst_reg);
+      } else if (call_node->op == call_builtin_op_) {
+        // TODO(relax-team) migrate most handling of op to
+        // directly map to call_builtin before codegen and simplify vm codegen.
+        EmitCallBuiltin(call, dst_reg);
       } else if (call_node->op == alloc_storage_op_) {
-        return EmitAllocStorage(call);
+        EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
-        return EmitAllocTensor(call);
-      } else if (call_node->op == store_shape_op_ || call_node->op == load_shape_op_) {
-        return EmitShape(call);
+        EmitAllocTensor(call, dst_reg);
       } else if (call_node->op == call_tir_dyn_op_) {
-        return EmitTirDynOp(call);
+        EmitTirDynOp(call, dst_reg);
       } else if (call_node->op == make_closure_op_) {
-        return EmitAllocClosure(call);
+        EmitAllocClosure(call, dst_reg);
       } else if (call_node->op == invoke_closure_op_) {
-        return EmitInvokeClosure(call);
+        EmitInvokeClosure(call, dst_reg);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
         LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << call_node->op;
       }
-    }
-    String name;
-    if (auto* extern_func = call_node->op.as<ExternFuncNode>()) {
-      name = extern_func->global_symbol;
-    } else if (auto* gvar = call_node->op.as<GlobalVarNode>()) {
-      // GlobalVar can be reference to a Relax function or a TIR primfunc
-      name = gvar->name_hint;
     } else {
-      LOG(FATAL) << "CodeGenVM does not support calls to " << call_node->op->GetTypeKey();
+      EmitNormalCall(call, dst_reg);
     }
-    std::vector<Instruction::Arg> args;
-    // For extern function `vm.builtin.alloc_shape_heap` we must pass vm register as the first
-    // argument to find the device in which shape heap should be allocated.
-    if (name == "vm.builtin.alloc_shape_heap") {
-      args.push_back(Instruction::Arg(Instruction::kRegister, Instruction::kVMRegister));
-    }
-    std::vector<Instruction::Arg> converted_args = ConvertArgs(GetRef<Call>(call_node));
-    args.insert(args.end(), converted_args.begin(), converted_args.end());
-    size_t dst_register = NewRegister();
-    builder_->EmitCall(name, args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    return Instruction::Arg::Register(dst_reg);
   }
 
   Instruction::Arg VisitExpr_(const IfNode* op) {
     const If& ife = GetRef<If>(op);
-    // Get the executable from exec_builder
-    ObjectPtr<Executable> exec_ = builder_->Get();
 
     // Visit the condition expression
-    Instruction::Arg cond_reg = this->VisitExpr(ife->cond);
-    // Record the offset of If instruction
-    size_t if_offset = exec_->instr_offset.size();
+    // NOTE: must call ensure reg here so we won't have extra flags
+    Instruction::Arg cond_reg = EnsureReg(this->VisitExpr(ife->cond));
 
-    builder_->EmitIf(cond_reg.value(), 3);
-    size_t num_instr = exec_->instr_offset.size();
-    Instruction::Arg true_reg = this->VisitExpr(ife->true_branch);
+    // obtain the temp exec in progress.
+    vm::Executable* exec = builder_->exec();
+
+    // Record the offset of If instruction
+    size_t if_offset = exec->instr_offset.size();
+
+    builder_->EmitIf(cond_reg, 3);
+    size_t num_instr = exec->instr_offset.size();
+    Instruction::Arg true_value = this->VisitExpr(ife->true_branch);
     // Reserve a register for return
     size_t merge_register = NewRegister();
     // Copy the output from true branch to merge register
-    builder_->EmitCall("vm.builtin.copy", {true_reg}, merge_register);
+    builder_->EmitCall("vm.builtin.copy", {true_value}, merge_register);
 
     // Record the offset of Goto instruction
-    size_t goto_offset = exec_->instr_offset.size();
+    size_t goto_offset = exec->instr_offset.size();
 
     builder_->EmitGoto(1);
 
     // Calculate the false offset of If
-    size_t false_offset = exec_->instr_offset.size() - num_instr + 1;
+    size_t false_offset = exec->instr_offset.size() - num_instr + 1;
 
-    Instruction::Arg false_reg = this->VisitExpr(ife->false_branch);
+    Instruction::Arg false_falue = this->VisitExpr(ife->false_branch);
     // Copy the output data of false branch to merge register
-    builder_->EmitCall("vm.builtin.copy", {false_reg}, merge_register);
+    builder_->EmitCall("vm.builtin.copy", {false_falue}, merge_register);
 
     // Update the offsets of the If instruction emitted above
     // Jump to the behind of the next goto instruction
-    exec_->SetInstructionData(if_offset, 2, static_cast<ExecWord>(false_offset));
+    exec->SetInstructionData(if_offset, 2, static_cast<ExecWord>(false_offset));
     // Update the pc_offset of Goto instruction
     // Jump over the false branch
-    size_t pc_offset = exec_->instr_offset.size() - goto_offset;
-    exec_->SetInstructionData(goto_offset, 1, static_cast<ExecWord>(pc_offset));
-    return Instruction::Arg(Instruction::kRegister, merge_register);
+    size_t pc_offset = exec->instr_offset.size() - goto_offset;
+    exec->SetInstructionData(goto_offset, 1, static_cast<ExecWord>(pc_offset));
+    return Instruction::Arg::Register(merge_register);
   }
 
   Instruction::Arg VisitExpr_(const VarNode* op) {
-    auto it = this->var_register_map_.find(GetRef<Var>(op));
-    if (it != this->var_register_map_.end()) {
-      return Instruction::Arg(Instruction::kRegister, it->second);
-    } else {
-      return Instruction::Arg(Instruction::kRegister, NewRegister());
-    }
+    Var var = GetRef<Var>(op);
+    auto it = this->var_arg_map_.find(var);
+    ICHECK(it != this->var_arg_map_.end()) << "Var " << var << " is not defined";
+    return it->second;
+  }
+
+  Instruction::Arg VisitExpr_(const ExternFuncNode* op) {
+    // TODO(relax-team) turn into get function builtin.
+    LOG(FATAL) << "ExternFunc cannot appear directly in args, use call_builtin instead";
+    return Instruction::Arg::Register(Instruction::kVoidRegister);
   }
 
   Instruction::Arg VisitExpr_(const ConstantNode* op) {
-    TVMRetValue constant_data;
-    constant_data = op->data;
-    Index index = this->builder_->EmitConstant(constant_data);
-
-    size_t dst_register = NewRegister();
-    std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-    builder_->EmitCall("vm.builtin.copy", args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    return builder_->ConvertConstant(op->data);
   }
 
   Instruction::Arg VisitExpr_(const ShapeExprNode* op) {
-    ShapeExpr sh = GetRef<ShapeExpr>(op);
-    ICHECK(IsConstantShape(sh)) << "should only use constant shape after shape lowering: "
-                                << sh->values;
     std::vector<int64_t> shape;
-    for (PrimExpr e : sh->values) {
-      shape.push_back(Downcast<IntImm>(e)->value);
+    for (PrimExpr e : op->values) {
+      if (auto* int_value = e.as<IntImmNode>()) {
+        shape.push_back(int_value->value);
+      } else {
+        LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
+      }
     }
-    auto shape_tuple = ShapeTuple(shape);
-    TVMRetValue shape_tuple_value;
-    shape_tuple_value = shape_tuple;
-    Index index = builder_->EmitConstant(shape_tuple_value);
-    return Instruction::Arg(Instruction::kConstIdx, index);
+    return builder_->ConvertConstant(ShapeTuple(shape));
   }
 
   Instruction::Arg VisitExpr_(const TupleNode* op) {
@@ -239,104 +246,117 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     size_t dst_register = NewRegister();
     builder_->EmitCall("runtime.Tuple", args, dst_register);
 
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    return Instruction::Arg::Register(dst_register);
   }
 
   Instruction::Arg VisitExpr_(const TupleGetItemNode* op) {
     TupleGetItem expr = GetRef<TupleGetItem>(op);
     std::vector<Instruction::Arg> args = {this->VisitExpr(expr->tuple)};
 
-    std::vector<int64_t> tuple_index = {expr->index};
-    auto shape_tuple = ShapeTuple(tuple_index);
-    TVMRetValue shape_tuple_value;
-    shape_tuple_value = shape_tuple;
-    Index index = builder_->EmitConstant(shape_tuple_value);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    args.push_back(builder_->ConvertConstant(expr->index));
 
     size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.runtime.TupleGetItem", args, dst_register);
+    builder_->EmitCall("vm.builtin.tuple_getitem", args, dst_register);
 
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    return Instruction::Arg::Register(dst_register);
   }
 
-  Instruction::Arg EmitAllocStorage(const Call& call_node) {
+  String LookupFuncGlobalSymbol(Expr op) {
+    if (auto* extern_func = op.as<ExternFuncNode>()) {
+      return extern_func->global_symbol;
+    } else if (auto* gvar = op.as<GlobalVarNode>()) {
+      // Run a look up in the env to see if it maps to an extern func.
+      auto it = ctx_mod_->functions.find(GetRef<GlobalVar>(gvar));
+      if (it != ctx_mod_->functions.end()) {
+        BaseFunc func = (*it).second;
+        if (auto* efunc = func.as<ExternFuncNode>()) {
+          return efunc->global_symbol;
+        }
+      }
+      // GlobalVar can be reference to a Relax function or a TIR primfunc
+      // At this point: all global var must corresponds to the right symbol.
+      // TODO(relax-team): switch everything to extern before splitting TIR/relax
+      // so we do not have idle global var here.
+      return gvar->name_hint;
+    } else {
+      LOG(FATAL) << "CodeGenVM does not support calls to " << op->GetTypeKey();
+      return "";
+    }
+  }
+
+  void EmitAllocStorage(const Call& call_node, RegName dst_reg) {
     // Handle args of the call
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kVMRegister));
+    args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
     for (Expr arg : call_node->args) {
-      args.push_back(ConvertArg(arg));
+      args.push_back(this->VisitExpr(arg));
     }
 
     // Handle attrs of the call
     auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
     Index runtime_device_index = alloc_attrs->runtime_device_index;
-    args.push_back(Instruction::Arg(Instruction::kImmediate, runtime_device_index));
-    DataType dtype = alloc_attrs->dtype;
-    TVMRetValue data_type;
-    data_type = dtype;
-    Index index = this->builder_->EmitConstant(data_type);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    args.push_back(builder_->ConvertConstant(runtime_device_index));
+    args.push_back(builder_->ConvertConstant(alloc_attrs->dtype));
 
-    size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.builtin.alloc_storage", args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    builder_->EmitCall("vm.builtin.alloc_storage", args, dst_reg);
   }
 
-  Instruction::Arg EmitAllocTensor(const Call& call_node) {
+  void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
     ICHECK_EQ(call_node->args.size(), 2);
     std::vector<Instruction::Arg> args;
     args.reserve(4);
     // Handle `self`
-    args.push_back(ConvertArg(call_node->args[0]));
+    args.push_back(this->VisitExpr(call_node->args[0]));
     // Handle `offset`
     auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
     ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
     int offset = alloc_attrs->offset;
-    args.push_back(Instruction::Arg(Instruction::kImmediate, offset));
+    args.push_back(builder_->ConvertConstant(offset));
     // Handle `shape`
-    args.push_back(ConvertArg(call_node->args[1]));
+    args.push_back(this->VisitExpr(call_node->args[1]));
     // Handle `dtype`
-    DataType dtype = alloc_attrs->dtype;
-    TVMRetValue data_type;
-    data_type = dtype;
-    Index index = this->builder_->EmitConstant(data_type);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
-    size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    args.push_back(builder_->ConvertConstant(alloc_attrs->dtype));
+
+    builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
-  Instruction::Arg EmitShape(const Call& call_node) {
-    // Handle args of the call
+  void EmitCallBuiltin(const Call& call_node, RegName dst_reg) {
+    auto builtin_attrs = call_node->attrs.as<BuiltinFuncAttrs>();
+    ICHECK(builtin_attrs != nullptr);
     std::vector<Instruction::Arg> args;
-    for (Expr arg : call_node->args) {
-      args.push_back(ConvertArg(arg));
+    // if context is required, pass as first argument.
+    if (builtin_attrs->require_ctx) {
+      args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
     }
 
-    // Handle attrs of the call
-    auto shape_attrs = call_node->attrs.as<ShapeHeapAttrs>();
-    ICHECK(shape_attrs != nullptr) << "must be ShapeHeapAttrs";
-    std::vector<int64_t> indices_vec;
-    for (Integer ind : shape_attrs->indices) {
-      indices_vec.push_back(ind.IntValue());
-    }
-    ShapeTuple indices = ShapeTuple(indices_vec);
-    TVMRetValue indices_const;
-    indices_const = indices;
-    Index index = builder_->EmitConstant(indices_const);
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, index));
+    auto symbol = this->LookupFuncGlobalSymbol(call_node->args[0]);
+    auto tuple_arg = Downcast<Tuple>(call_node->args[1]);
 
-    size_t dst_register = NewRegister();
-    if (call_node->op == store_shape_op_) {
-      builder_->EmitCall("vm.builtin.store_shape", args, dst_register);
-    } else if (call_node->op == load_shape_op_) {
-      builder_->EmitCall("vm.builtin.load_shape", args, dst_register);
+    // Handle args of the call
+    for (Expr arg : tuple_arg->fields) {
+      args.push_back(this->VisitExpr(arg));
     }
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+
+    if (builtin_attrs->int_args.defined()) {
+      for (auto val : builtin_attrs->int_args) {
+        args.push_back(builder_->ConvertConstant(val->value));
+      }
+    }
+    if (builtin_attrs->dtype_arg != DataType::Void()) {
+      args.push_back(builder_->ConvertConstant(builtin_attrs->dtype_arg));
+    }
+
+    if (builtin_attrs->str_args.defined()) {
+      for (auto val : builtin_attrs->str_args) {
+        args.push_back(builder_->ConvertConstant(val));
+      }
+    }
+
+    builder_->EmitCall(symbol, args, dst_reg);
   }
 
-  Instruction::Arg EmitTirDynOp(const Call& call_node) {
+  void EmitTirDynOp(const Call& call_node, RegName dst_reg) {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
@@ -345,29 +365,20 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto tir_args = Downcast<Tuple>(call_node->args[1]);
     auto func_name = gv->name_hint;
 
-    TVMRetValue func_name_constant;
-    func_name_constant = func_name;
-    auto func_name_index = builder_->EmitConstant(func_name_constant);
-
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kVMRegister));
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
+    args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
+    args.push_back(builder_->ConvertConstant(func_name));
     for (Expr arg : tir_args->fields) {
-      args.push_back(ConvertArg(arg));
+      args.push_back(this->VisitExpr(arg));
     }
 
-    size_t dst_register = NewRegister();
-
-    builder_->EmitCall("vm.call_tir_dyn", args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    builder_->EmitCall("vm.call_tir_dyn", args, dst_reg);
   }
 
-  template <typename T>
-  Instruction::Arg EmitConstantFromValue(T value) {
-    TVMRetValue tvm_value;
-    tvm_value = value;
-    Index index = builder_->EmitConstant(tvm_value);
-    return Instruction::Arg(Instruction::kConstIdx, index);
+  void EmitNormalCall(const Call& call_node, RegName dst_reg) {
+    String name = LookupFuncGlobalSymbol(call_node->op);
+    std::vector<Instruction::Arg> args = VisitArray(call_node->args);
+    builder_->EmitCall(name, args, dst_reg);
   }
 
   // Emit the `call_node` attributes as constants and append these constants to `args` vector.
@@ -377,22 +388,22 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     if (call_node->op == unique_op_) {
       auto unique_attrs = call_node->attrs.as<UniqueAttrs>();
-      args.push_back(EmitConstantFromValue(unique_attrs->sorted));
-      args.push_back(EmitConstantFromValue(unique_attrs->return_inverse));
-      args.push_back(EmitConstantFromValue(unique_attrs->return_counts));
-      args.push_back(EmitConstantFromValue(unique_attrs->dim));
+      args.push_back(builder_->ConvertConstant(unique_attrs->sorted));
+      args.push_back(builder_->ConvertConstant(unique_attrs->return_inverse));
+      args.push_back(builder_->ConvertConstant(unique_attrs->return_counts));
+      args.push_back(builder_->ConvertConstant(unique_attrs->dim));
       return;
     }
     if (call_node->op == print_op_) {
       auto print_attrs = call_node->attrs.as<PrintAttrs>();
       // format string is the first argument
-      args.insert(args.begin(), EmitConstantFromValue(print_attrs->format));
+      args.insert(args.begin(), builder_->ConvertConstant(print_attrs->format));
       return;
     }
     if (call_node->op == assert_op_) {
       auto assert_attrs = call_node->attrs.as<AssertOpAttrs>();
       // format string comes before the format args
-      args.insert(args.begin() + 1, EmitConstantFromValue(assert_attrs->format));
+      args.insert(args.begin() + 1, builder_->ConvertConstant(assert_attrs->format));
       return;
     }
     LOG(FATAL) << "Support for attributes of Op " << call_node->op
@@ -402,16 +413,13 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   // Emits call to packed function `name` with arguments copied over from `call_node` args and
   // attributes.
-  Instruction::Arg EmitPackedFuncCall(const Call& call_node, const FCallPacked& name) {
-    std::vector<Instruction::Arg> args;
-    args = ConvertArgs(call_node);
+  void EmitPackedFuncCall(const Call& call_node, const FCallPacked& name, RegName dst_reg) {
+    std::vector<Instruction::Arg> args = VisitArray(call_node->args);
     AppendAttrsAsConstants(call_node, args);
-    size_t dst_register = NewRegister();
-    builder_->EmitCall(name, args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    builder_->EmitCall(name, args, dst_reg);
   }
 
-  Instruction::Arg EmitAllocClosure(const Call& call_node) {
+  void EmitAllocClosure(const Call& call_node, RegName dst_reg) {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
@@ -420,93 +428,39 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto closure_args = Downcast<Tuple>(call_node->args[1]);
     auto func_name = gv->name_hint;
 
-    TVMRetValue func_name_constant;
-    func_name_constant = func_name;
-    auto func_name_index = builder_->EmitConstant(func_name_constant);
-
     std::vector<Instruction::Arg> args;
-    args.push_back(Instruction::Arg(Instruction::kConstIdx, func_name_index));
+    args.push_back(builder_->ConvertConstant(func_name));
     for (Expr arg : closure_args->fields) {
-      args.push_back(ConvertArg(arg));
+      args.push_back(this->VisitExpr(arg));
     }
 
-    size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.builtin.alloc_closure", args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    builder_->EmitCall("vm.builtin.alloc_closure", args, dst_reg);
   }
 
-  Instruction::Arg EmitInvokeClosure(const Call& call_node) {
+  void EmitInvokeClosure(const Call& call_node, RegName dst_reg) {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<VarNode>());
     ICHECK(call_node->args[1]->IsInstance<TupleNode>());
 
     std::vector<Instruction::Arg> args;
     // VM is utilized to help get the Function in builtin packedfunc
-    args.push_back(Instruction::Arg(Instruction::kVMRegister));
+    args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
 
-    auto lv = Downcast<Var>(call_node->args[0]);
-    auto it = this->var_register_map_.find(lv);
-    if (it != this->var_register_map_.end()) {
-      args.push_back(Instruction::Arg(Instruction::kRegister, it->second));
-    } else {
-      args.push_back(Instruction::Arg(Instruction::kRegister, registers_num_));
-    }
+    args.push_back(this->VisitExpr(call_node->args[0]));
 
     // args for the invoke_closure
     auto invoke_closure_args = Downcast<Tuple>(call_node->args[1]);
     for (Expr arg : invoke_closure_args->fields) {
-      args.push_back(ConvertArg(arg));
+      args.push_back(this->VisitExpr(arg));
     }
 
-    size_t dst_register = NewRegister();
-    builder_->EmitCall("vm.builtin.invoke_closure", args, dst_register);
-    return Instruction::Arg(Instruction::kRegister, dst_register);
+    builder_->EmitCall("vm.builtin.invoke_closure", args, dst_reg);
   }
 
-  bool IsConstantShape(ShapeExpr shape) const {
-    for (PrimExpr e : shape->values) {
-      if (!e->IsInstance<IntImmNode>()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  Instruction::Arg ConvertArg(Expr arg) {
-    if (arg->IsInstance<VarNode>()) {
-      Var var = Downcast<Var>(arg);
-      auto reg = this->var_register_map_.find(Downcast<Var>(arg));
-      ICHECK(reg != this->var_register_map_.end()) << var->name_hint() << "(" << var << ")"
-                                                   << " not in the register map.";
-      return Instruction::Arg(Instruction::kRegister, reg->second);
-    } else if (arg->IsInstance<ShapeExprNode>()) {
-      ShapeExpr sh = Downcast<ShapeExpr>(arg);
-      ICHECK(IsConstantShape(sh)) << "should only use constant shape after shape lowering: "
-                                  << sh->values;
-      std::vector<int64_t> shape;
-      for (PrimExpr e : sh->values) {
-        shape.push_back(Downcast<IntImm>(e)->value);
-      }
-      auto shape_tuple = ShapeTuple(shape);
-      TVMRetValue shape_tuple_value;
-      shape_tuple_value = shape_tuple;
-      Index index = builder_->EmitConstant(shape_tuple_value);
-      return Instruction::Arg(Instruction::kConstIdx, index);
-    } else if (arg->IsInstance<ConstantNode>()) {
-      TVMRetValue constant_data;
-      constant_data = Downcast<Constant>(arg)->data;
-      Index index = builder_->EmitConstant(constant_data);
-      return Instruction::Arg(Instruction::kConstIdx, index);
-    } else {
-      LOG(FATAL) << "CodeGenVM does not support this argument type:\n" << arg->GetTypeKey();
-    }
-    return Instruction::Arg();
-  }
-
-  std::vector<Instruction::Arg> ConvertArgs(const Call& call) {
+  std::vector<Instruction::Arg> VisitArray(const Array<Expr>& arr) {
     std::vector<Instruction::Arg> ret;
-    for (size_t i = 0; i < call->args.size(); ++i) {
-      ret.push_back(ConvertArg(call->args[i]));
+    for (size_t i = 0; i < arr.size(); ++i) {
+      ret.push_back(this->VisitExpr(arr[i]));
     }
     return ret;
   }
@@ -515,16 +469,23 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   size_t local_func_counter_ = 0;
   /*! \brief Internal ExecBuilder. */
   relax::ExecBuilder builder_;
-  /*! \brief Total number of virtual registers allocated. */
+  /*!
+   * \brief Total number of virtual registers allocated.
+   * \note The first two registers are reserved for special registers.
+   */
   size_t registers_num_ = 0;
   /*! \brief Map from var to register number. */
-  std::unordered_map<Var, RegName, ObjectPtrHash, ObjectPtrEqual> var_register_map_;
+  std::unordered_map<Var, Instruction::Arg, ObjectPtrHash, ObjectPtrEqual> var_arg_map_;
+  /*! \brief the context module. */
+  IRModule ctx_mod_;
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.builtin.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
   const Op& store_shape_op_ = Op::Get("relax.vm.builtin.store_shape");
   const Op& load_shape_op_ = Op::Get("relax.vm.builtin.load_shape");
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
+  const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
+  const Op& null_value_op_ = Op::Get("relax.null_value");
   const Op& unique_op_ = Op::Get("relax.unique");
   const Op& print_op_ = Op::Get("relax.print");
   const Op& assert_op_ = Op::Get("relax.assert_op");
@@ -532,10 +493,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
 
-void VMCodeGen::CodeGen(IRModule rx_mod) {
+void VMCodeGen::CodeGen(IRModule mod) {
   builder_ = relax::ExecBuilderNode::Create();
-  CodeGenVM codegen(builder_.operator->());
-  for (auto& p : rx_mod->functions) {
+  CodeGenVM codegen(builder_, mod);
+  for (auto& p : mod->functions) {
     codegen.VisitExpr(p.second);
   }
 }
@@ -545,14 +506,13 @@ ObjectPtr<Executable> VMCodeGen::GetExec() { return builder_->Get(); }
 /*!
  * \brief Create the Relax VM executable from an IRModule of Relax function(s) and, possibly, a
  * kernel library.
- * \param mod The IRModule containing Relax function(s).
- * \param lib The kernel library.
- * \return The constructed Relax VM executable.
  */
-Module CodeGen(IRModule mod, Optional<Module> lib, Array<Module> ext_libs, Target target,
+Module CodeGen(IRModule mod, Target target, Optional<Module> lib, Array<Module> ext_libs,
                Map<String, runtime::NDArray> params) {
+  // TODO(relax-team) Revisit the param and ext_lib options.
   VMCodeGen codegen;
   codegen.CodeGen(mod);
+
   ObjectPtr<Executable> executable = codegen.GetExec();
   if (!lib.defined()) {
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});

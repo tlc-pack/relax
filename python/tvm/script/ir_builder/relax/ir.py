@@ -31,7 +31,9 @@ from tvm.relax.op import (
     add,
     assert_op,
     builtin,
+    null_value,
     call_tir,
+    call_builtin,
     ewise_fma,
     invoke_closure,
     make_closure,
@@ -262,6 +264,7 @@ def _tensor_type_wrapper(func):
 
 invoke_closure = _tensor_type_wrapper(invoke_closure)  # pylint: disable=invalid-name
 
+call_builtin = _tensor_type_wrapper(call_builtin)  # pylint: disable=invalid-name
 
 ############################### Bindings ###############################
 
@@ -402,6 +405,8 @@ __all__ = [
     "builtin",
     "call_packed",
     "call_tir",
+    "call_builtin",
+    "null_value",
     "const",
     "dataflow",
     "emit",

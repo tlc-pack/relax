@@ -144,7 +144,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The value of the register.
    */
-  inline RegType ReadRegister(VMFrame* frame, RegName reg) const;
+  inline RegType ReadRegister(VMFrame* frame, RegName reg);
   /*!
    * \brief Prepare function table so that func_table_[func_index] is populated.
    * \param func_index The function index.
@@ -162,7 +162,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The read scalar.
    */
-  int64_t LoadScalarInt(RegName reg) const;
+  int64_t LoadScalarInt(RegName reg);
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
   /*!

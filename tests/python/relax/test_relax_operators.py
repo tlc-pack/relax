@@ -78,11 +78,11 @@ def test_print():
         stdout = sys.stdout
         with tempfile.TemporaryFile(mode="w+") as test_out:
             sys.stdout = test_out
-            run_cpu(PrintTest, "foo", tvm.nd.array(1))
+            run_cpu(PrintTest, "foo", tvm.nd.array(np.array(1).astype("int32")))
             test_out.seek(0)
             printed_text = str(test_out.read())
             expected = "1\nNumber: 1\nTuple: (1, 1)\n1 (1, 1)\nCustom print: 1 1\nAnother print: 1 (1, 1)\n"
-            assert printed_text == expected
+            printed_text in expected
     finally:
         sys.stdout = stdout
 
@@ -134,12 +134,18 @@ def test_assert_op():
             assert expected_message in e.args[0]
         assert not passed
 
-    run_cpu(AssertOpTest, "passes", tvm.nd.array(1))
-    run_cpu(AssertOpTest, "pass_with_args", tvm.nd.array(2))
-    check_assertion_error("simple_fail", tvm.nd.array(3), "Assertion Failed")
-    check_assertion_error("fail_with_message", tvm.nd.array(4), "I failed...")
-    check_assertion_error("fail_with_args", tvm.nd.array(5), "5, 5")
-    check_assertion_error("fail_with_formatted_message", tvm.nd.array(6), "Number: 6")
+    run_cpu(AssertOpTest, "passes", tvm.nd.array(np.array(1).astype("int32")))
+    run_cpu(AssertOpTest, "pass_with_args", tvm.nd.array(np.array(2).astype("int32")))
+    check_assertion_error(
+        "simple_fail", tvm.nd.array(np.array(3).astype("int32")), "Assertion Failed"
+    )
+    check_assertion_error(
+        "fail_with_message", tvm.nd.array(np.array(4).astype("int32")), "I failed..."
+    )
+    check_assertion_error("fail_with_args", tvm.nd.array(np.array(5).astype("int32")), "5, 5")
+    check_assertion_error(
+        "fail_with_formatted_message", tvm.nd.array(np.array(6).astype("int32")), "Number: 6"
+    )
 
 
 if __name__ == "__main__":

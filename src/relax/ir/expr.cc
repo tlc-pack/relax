@@ -516,6 +516,12 @@ TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, 
   return ExternFunc(global_symbol, span);
 });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ExternFuncNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto* node = static_cast<const ExternFuncNode*>(ref.get());
+      p->stream << "ExternFunc(\"" << node->global_symbol << "\")";
+    });
+
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
   ICHECK(expr->struct_info_.defined()) << "GetShapeOf can only be applied to normalized expr";

@@ -15,323 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
-from typing import Any, Callable, List, Tuple
+from typing import Tuple, Callable
 
 import sys
 import tempfile
 import numpy as np
 import pytest
 import tvm
-from tvm.runtime.object import Object
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tir, topi, TVMError
 from tvm.contrib import utils
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
+from tvm.relax.testing.vm import check_saved_func
 
 
-@tvm.register_func("test.vm.move")
-def move(src):
-    return src
-
-
-@tvm.register_func("test.vm.add")
-def add(a, b):
-    ret = a.numpy() + b.numpy()
-    return tvm.nd.array(ret)
-
-
-@tvm.register_func("test.vm.mul")
-def mul(a, b):
-    ret = a.numpy() * b.numpy()
-    return tvm.nd.array(ret)
-
-
-@tvm.register_func("test.vm.equal_zero")
-def equal_zero(a):
-    ret = np.all((a.numpy() == 0))
-    return tvm.nd.array(ret)
-
-
-@tvm.register_func("test.vm.subtract_one")
-def subtract_one(a):
-    ret = np.subtract(a.numpy(), 1)
-    return tvm.nd.array(ret)
-
-
-@tvm.register_func("test.vm.identity")
-def identity_packed(a, b):
-    b[:] = tvm.nd.array(a.numpy())
-
-
-@tvm.register_func("test.vm.tile")
-def tile_packed(a, b):
-    b[:] = tvm.nd.array(np.tile(a.numpy(), (1, 2)))
-
-
-def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any]) -> Object:
-    # uses save_function to create a closure with the given inputs
-    # and ensure the result is the same
-    # (assumes the functions return tensors and that they're idempotent)
-    saved_name = f"{func_name}_saved"
-    vm.save_function(func_name, saved_name, *inputs)
-    res1 = vm[func_name](*inputs)
-    res2 = vm[saved_name]()
-    tvm.testing.assert_allclose(res1.numpy(), res2.numpy(), rtol=1e-7, atol=1e-7)
-    return res1
-
-
-def test_vm_execute():
-    ib = relax.ExecBuilder()
-    with ib.function("func0", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    b = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    add_res = check_saved_func(vm, "func0", a, b)
-    tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
-
-
-def test_vm_multiple_func():
-    ib = relax.ExecBuilder()
-    with ib.function("func0", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    with ib.function("func1", num_inputs=2):
-        ib.emit_call("test.vm.mul", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    b = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    mul_res = check_saved_func(vm, "func1", a, b)
-    add_res = check_saved_func(vm, "func0", a, b)
-    tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
-    tvm.testing.assert_allclose(mul_res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
-
-
-def test_vm_exec_serialize_export_library():
-    @tvm.script.ir_module
-    class TestVMMove:
-        @R.function
-        def foo(x: R.Tensor((3, 4), "float32")):
-            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(ndim=2, dtype="float32")))
-            return z
-
-    mod = TestVMMove
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-
-    from tvm.contrib import utils
-
-    temp_dir = utils.tempdir()
-    path_exec = temp_dir.relpath("exec.so")
-    ex.mod.export_library(path_exec)
-
-    loaded_exec = relax.vm.Executable(tvm.runtime.load_module(path_exec))
-    assert ex.as_text() == loaded_exec.as_text()
-
-
-def test_vm_checker():
-    ib = relax.ExecBuilder()
-    with pytest.raises(TVMError):
-        with ib.function("func0", num_inputs=2):
-            ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(2)], dst=ib.r(2))
-            ib.emit_ret(ib.r(2))
-        ib.get()
-
-
-def test_vm_formalize():
-    ib0 = relax.ExecBuilder()
-    ib1 = relax.ExecBuilder()
-    with ib0.function("func0", num_inputs=2):
-        ib0.emit_call("test.vm.add", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(100))
-        ib0.emit_call("test.vm.mul", args=[ib0.r(1), ib0.r(100)], dst=ib0.r(50))
-        ib0.emit_ret(ib0.r(50))
-    with ib1.function("func0", num_inputs=2):
-        ib1.emit_call("test.vm.add", args=[ib1.r(0), ib1.r(1)], dst=ib1.r(2))
-        ib1.emit_call("test.vm.mul", args=[ib1.r(1), ib1.r(2)], dst=ib1.r(3))
-        ib1.emit_ret(ib1.r(3))
-    exec0 = ib0.get()
-    exec1 = ib1.get()
-    assert exec0.as_text() == exec1.as_text()
-
-
-@tvm.register_func("test.vm.add_scalar")
-def add_scalar(a, b):
-    return a + b
-
-
-@tvm.register_func("test.vm.get_device_id")
-def get_device_id(device):
-    return device.device_id
-
-
-def test_vm_operand():
-    ib0 = relax.ExecBuilder()
-    with ib0.function("func0", num_inputs=2):
-        ib0.emit_call("test.vm.add_scalar", args=[ib0.r(0), ib0.r(1)], dst=ib0.r(2))
-        ib0.emit_ret(ib0.r(2))
-    exec0 = ib0.get()
-    vm = relax.VirtualMachine(exec0, tvm.cpu())
-    res = vm["func0"](2, 3)
-    assert res == 5
-
-    ib1 = relax.ExecBuilder()
-    with ib1.function("func1", num_inputs=1):
-        ib1.emit_call("test.vm.get_device_id", args=[ib1.r(0)], dst=ib1.r(1))
-        ib1.emit_ret(ib1.r(1))
-    exec1 = ib1.get()
-    vm = relax.VirtualMachine(exec1, tvm.cpu())
-    res = vm["func1"](tvm.cpu(3))
-    assert res == 3
-
-
-def test_vm_shapeof():
-    ib = relax.ExecBuilder()
-    shape = (32, 16)
-    arr = tvm.nd.array(np.random.rand(*shape))
-    with ib.function("main", num_inputs=0):
-        ib.emit_call("vm.builtin.shape_of", args=[arr], dst=ib.r(0))
-        ib.emit_ret(ib.r(0))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    res = vm["main"]()
-    for i, s in enumerate(res):
-        assert s == shape[i]
-
-
-def test_vm_storage():
-    dtype = tvm.DataType("float32")
-    shape = (4, 6)
-    ib = relax.ExecBuilder()
-    with ib.function("main", num_inputs=0):
-        ib.emit_call(
-            "vm.builtin.alloc_storage", args=[ib.vm_state(), (24,), ib.imm(0), dtype], dst=ib.r(1)
-        )
-        ib.emit_call(
-            "vm.builtin.alloc_tensor", args=[ib.r(1), ib.imm(0), shape, dtype], dst=ib.r(2)
-        )
-        ib.emit_ret(ib.r(2))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    res = vm["main"]()
-    assert res.device == tvm.cpu()
-    assert res.shape == shape
-
-
-def test_vm_copy():
-    @tvm.script.ir_module
-    class TestVMMove:
-        @R.function
-        def foo(x: R.Tensor((3, 4), "float32")):
-            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(ndim=2, dtype="float32")))
-            return z
-
-    mod = TestVMMove
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    res = check_saved_func(vm, "foo", inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
-
-
-def test_vm_goto():
-    ib = relax.ExecBuilder()
-    with ib.function("main", num_inputs=2):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_goto(2)
-        ib.emit_call("test.vm.mul", args=[ib.r(2), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    b = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    res = check_saved_func(vm, "main", a, b)
-    tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
-
-
-def test_vm_if():
-    ib = relax.ExecBuilder()
-    with ib.function("main", num_inputs=3):
-        ib.emit_if(ib.r(0), 3)
-        ib.emit_call("test.vm.add", args=[ib.r(1), ib.r(2)], dst=ib.r(3))
-        ib.emit_goto(2)
-        ib.emit_call("test.vm.mul", args=[ib.r(1), ib.r(2)], dst=ib.r(3))
-        ib.emit_ret(ib.r(3))
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    a = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    b = tvm.nd.array(
-        np.random.rand(
-            4,
-        )
-    )
-    res = vm["main"](tvm.nd.array(False), a, b)
-    tvm.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["main"](tvm.nd.array(1), a, b)
-    tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
-
-
-def test_vm_compile_if():
-    @tvm.script.ir_module
-    class TestVMCompileIf:
-        @R.function
-        def ife(cond: R.Tensor((), "bool"), x: R.Tensor((3, 4), "float32")) -> R.Tensor:
-            if cond:
-                w = R.call_packed("test.vm.add", x, x, type_args=(R.Tensor))
-            else:
-                w = R.call_packed("test.vm.mul", x, x, type_args=(R.Tensor))
-            return w
-
-    mod = TestVMCompileIf
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(3, 4))
-    res = vm["ife"](tvm.nd.array(1), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.nd.array(True), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() + inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.nd.array(0), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["ife"](tvm.nd.array(False), inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
-
-
-def test_vm_compile_stage0():
+def test_vm_compile_simple():
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
@@ -351,46 +51,29 @@ def test_vm_compile_stage0():
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_stage1():
+def test_match_check():
     @tvm.script.ir_module
-    class TestVMCompileStage1:
-        @T.prim_func
-        def shape_func0(heap: T.handle) -> None:
-            # function attr dict
-            T.func_attr({"global_symbol": "shape_func0"})
-            H = T.match_buffer(
-                heap,
-                [T.int64(4)],
-                dtype="int64",
-                elem_offset=T.int64(0),
-                align=128,
-                offset_factor=1,
-            )
-            # body
-            H[2] = H[0] * T.int64(2)
-            H[3] = H[1] * T.int64(3)
-
+    class TestMatchCheck:
         @R.function
-        def foo(x: R.Tensor(dtype="float32")):
-            shape_heap: R.Tensor((4,), "int64") = R.call_packed(
-                "vm.builtin.alloc_shape_heap", (4,), type_args=(R.Tensor(ndim=1, dtype="int64"))
-            )
-            gv0 = R.call_packed("vm.builtin.shape_of", x, type_args=R.Shape)
-            gv1 = R.call_packed("vm.builtin.store_shape", gv0, shape_heap, (0, 1), type_args=R.Void)
-            gv2 = shape_func0(shape_heap)
-            gv3 = R.call_packed("vm.builtin.load_shape", shape_heap, (2, 3), type_args=R.Shape)
-            return gv3
+        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Object) -> R.Tensor(["m", "n"], dtype=None):
+            return y
 
-    mod = TestVMCompileStage1
+    mod = TestMatchCheck
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
+    x0 = tvm.nd.array(np.zeros((1, 2)).astype("int32"))
+    y0 = tvm.nd.array(np.zeros((2, 1)).astype("float32"))
+    y1 = tvm.nd.array(np.zeros((1, 2)).astype("float32"))
+    y2 = tvm.nd.array(np.zeros((2, 1, 1)).astype("float32"))
 
-    shape = (32, 16)
-    arr = tvm.nd.array(np.random.rand(*shape))
-    res = vm["foo"](arr)
-    assert res[0] == shape[0] * 2
-    assert res[1] == shape[1] * 3
+    vm["foo"](x0, y0)
+
+    with pytest.raises(RuntimeError, match=".*return.*"):
+        vm["foo"](x0, y1)
+
+    with pytest.raises(ValueError, match=".*return.*"):
+        vm["foo"](x0, y2)
 
 
 def test_vm_compile_stage2():
@@ -408,10 +91,22 @@ def test_vm_compile_stage2():
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
-    arr = tvm.nd.array(np.random.rand(*shape))
+    arr = tvm.nd.array(np.random.rand(*shape).astype("float32"))
     res = vm["foo"](arr)
     assert res[0] == shape[0] * 2
     assert res[1] == shape[1] * 3
+
+    # dtype mismatch
+    with pytest.raises(ValueError, match=".*dtype.*"):
+        vm["foo"](tvm.nd.array(np.zeros((1, 2)).astype("int32")))
+
+    # ndim mismatch
+    with pytest.raises(ValueError, match=".*match_cast.*ndim.*"):
+        vm["foo"](tvm.nd.array(np.zeros((1,)).astype("float32")))
+
+    # type mismach
+    with pytest.raises(TypeError):
+        vm["foo"]([])
 
 
 def test_vm_compile_stage3():
@@ -758,7 +453,7 @@ def test_vm_tuple():
     ex = relax.vm.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    shape = (5, 5)
+    shape = (5,)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
     (res1, res2), res3 = vm["rx_func"](inp, inp2)
@@ -786,8 +481,8 @@ def test_vm_tuplegetitem():
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.nd.array(np.random.rand(2, 3))
-    y_inp = tvm.nd.array(np.random.rand(2, 3))
+    x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    y_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     res = check_saved_func(vm, "tuple_get_item", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -808,83 +503,16 @@ def test_vm_print_const():
             mod = PrintConst
             target = tvm.target.Target("llvm", host="llvm")
             ex = relax.vm.build(mod, target)
+            print(ex.as_text())
             vm = relax.VirtualMachine(ex, tvm.cpu())
             res = vm["main"]()
             test_out.seek(0)
             printed_text = str(test_out.read())
             expected = "[1 2]\n"
-            assert printed_text == expected
+            assert expected in printed_text
             tvm.testing.assert_allclose(res.numpy(), np.array([1, 2]))
     finally:
         sys.stdout = stdout
-
-
-def test_vm_return_const_tuple():
-    @tvm.script.ir_module
-    class ReturnConstTuple:
-        @R.function
-        def main(x: R.Tensor(ndim=2, dtype="float32")):
-            y = R.const([1, 2])
-            z = (y, R.const([3, 4]), x)
-            return z
-
-    mod = ReturnConstTuple
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(2, 3))
-    res0, res1, res2 = vm["main"](inp)
-    tvm.testing.assert_allclose(res0.numpy(), np.array([1, 2]))
-    tvm.testing.assert_allclose(res1.numpy(), np.array([3, 4]))
-    tvm.testing.assert_allclose(res2.numpy(), inp.numpy())
-
-
-def test_vm_const_as_call_arg():
-    @tvm.script.ir_module
-    class TestVMConstAsCallArg:
-        @R.function
-        def main(x: R.Tensor(ndim=2, dtype="float32")):
-            a = R.call_packed(
-                "test.vm.add",
-                relax.const([1, 2]),
-                relax.const([3, 4]),
-                type_args=(R.Tensor(ndim=2, dtype="float32")),
-            )
-            b = R.call_packed(
-                "test.vm.add",
-                a,
-                x,
-                type_args=(R.Tensor(ndim=2, dtype="float32")),
-            )
-            return b
-
-    mod = TestVMConstAsCallArg
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(1, 2))
-    res = vm["main"](inp)
-    tvm.testing.assert_allclose(res.numpy(), np.array([4, 6]) + inp.numpy())
-
-
-def test_vm_if_cond_const():
-    @tvm.script.ir_module
-    class TestVMIfCondConst:
-        @R.function
-        def main(x: R.Tensor(ndim=2, dtype="float32")) -> R.Tensor(ndim=2, dtype="float32"):
-            if relax.const(True, dtype="bool"):
-                ret = x
-            else:
-                ret = x
-            return ret
-
-    mod = TestVMIfCondConst
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    inp = tvm.nd.array(np.random.rand(3, 4))
-    res = vm["main"](inp)
-    tvm.testing.assert_allclose(res.numpy(), inp.numpy())
 
 
 def test_sub_func_call():
@@ -962,9 +590,10 @@ def test_recursion():
 
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(TestVMRecursion, target)
+    print(ex.as_text())
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    inp = np.empty(1)
+    inp = np.empty(1).astype("float32")
     recursion_runs = np.random.randint(1, 10)
     inp.fill(recursion_runs)
     inp = tvm.nd.array(inp)
@@ -992,35 +621,10 @@ def test_vm_closure():
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.nd.array(np.random.rand(2, 3))
-    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
+    x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    y_inp = tvm.nd.array(np.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]], dtype="float32"))
     res = check_saved_func(vm, "main", x_inp, y_inp)
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
-
-
-def test_vm_invoke_closure():
-    ib = relax.ExecBuilder()
-    with ib.function("lifted_func_1", num_inputs=4):
-        ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(1)], dst=ib.r(4))
-        ib.emit_call("test.vm.add", args=[ib.r(2), ib.r(4)], dst=ib.r(5))
-        ib.emit_call("test.vm.add", args=[ib.r(3), ib.r(5)], dst=ib.r(6))
-        ib.emit_ret(ib.r(6))
-    with ib.function("main", num_inputs=2):
-        x = ib.emit_constant("lifted_func_1")
-        ib.emit_call("vm.builtin.alloc_closure", args=[ib.c(x), ib.r(0), ib.r(1)], dst=ib.r(2))
-        ib.emit_ret(ib.r(2))
-
-    ex = ib.get()
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    w_inp = tvm.nd.array(np.random.rand(2, 3))
-    x_inp = tvm.nd.array(np.random.rand(2, 3))
-    y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
-    z_inp = tvm.nd.array(np.random.rand(2, 3))
-    clo = vm["main"](w_inp, x_inp)
-    res = vm.invoke_closure(clo, (y_inp, z_inp))
-    tvm.testing.assert_allclose(
-        res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
-    )
 
 
 def test_time_evaluator():
@@ -1033,8 +637,8 @@ def test_time_evaluator():
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(TestTimeEvaluator, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    x = tvm.nd.array(np.random.rand(1))
-    y = tvm.nd.array(np.random.rand(1))
+    x = tvm.nd.array(np.random.rand(1).astype("float32"))
+    y = tvm.nd.array(np.random.rand(1).astype("float32"))
 
     # ensure we can use time_evaluator with the stateful API
     vm.set_input("main", x, y)
@@ -1111,7 +715,7 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
 
     # bug! If you don't bind the NDArray to a var, the memory will get corrupted.
     # Possibly due to object lifecycles and other FFI issues
-    a = tvm.nd.array(2, device)
+    a = tvm.nd.array(np.array(2).astype("int32"), device)
     vm.set_input("test_vm_tuple", a)
     vm.invoke_stateful("test_vm_tuple")
     res2 = vm.get_outputs("test_vm_tuple")
@@ -1119,7 +723,7 @@ def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> Non
     # so we have to get the scalar out of the NDArray
     assert tuple(map(lambda a: int(a.numpy()), res2)) == (2, 2)
 
-    b = tvm.nd.array(1, device)
+    b = tvm.nd.array(np.array(1).astype("int32"), device)
     vm.set_input("test_vm_nested_tuple", b)
     vm.invoke_stateful("test_vm_nested_tuple")
     res3 = vm.get_outputs("test_vm_nested_tuple")
