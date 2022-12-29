@@ -370,15 +370,6 @@ class RelayExprNode : public BaseExprNode {
   mutable Type checked_type_ = Type(nullptr);
 
   /*!
-   * \brief Stores the result of static shape analysis. It must be a RelayExpr
-   * and ObjectRef is used here to avoid cyclic typing.
-   *
-   * \note The value will be optional if a static shape can not be inferred.
-   * use .shape() instead to acesss an always defined shape expression.
-   */
-  mutable Optional<ObjectRef> shape_ = Optional<ObjectRef>();
-
-  /*!
    * \brief Stores the result of structure information of the
    *        expression that encapsulate both static shape and
    *        runtime information such as shape.
@@ -389,13 +380,6 @@ class RelayExprNode : public BaseExprNode {
    * \return The checked_type
    */
   inline const Type& checked_type() const;
-
-  /*!
-   * \return An expression which corresponds to the shape of the expression.
-   *
-   * Only valid when the expression's type is a Tensor.
-   */
-  RelayExpr shape() const;
 
   /*!
    * \brief Check if the inferred(checked) type of the Expr

@@ -27,6 +27,7 @@
 #include <dmlc/any.h>
 #include <dmlc/json.h>
 #include <tvm/node/reflection.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/tir/op.h>
 
 #include <cstdint>
@@ -187,7 +188,7 @@ class JSONSerializer
    *         will flatten it.
    */
   std::vector<JSONGraphNodeEntry> AddNode(JSONGraphObjectPtr node, const Expr& expr) {
-    auto checked_type = expr->checked_type();
+    auto struct_info = GetStructInfo(expr);
     auto node_id = nodes_.size();
     nodes_.push_back(node);
     std::vector<JSONGraphNodeEntry> ret;
@@ -195,26 +196,27 @@ class JSONSerializer
     TypeVector dtype;
 
     // Flatten tuple node.
-    if (const auto* tuple_type = checked_type.as<TupleTypeNode>()) {
-      for (size_t i = 0; i < tuple_type->fields.size(); ++i) {
-        const auto* tensor_type = tuple_type->fields[i].as<DynTensorTypeNode>();
-        ICHECK(tensor_type) << "Expect DynTensorType, but received: ."
-                            << tuple_type->fields[i]->GetTypeKey();
-        ICHECK(expr->shape_.defined()) << "Expect shape to be defined. ";
-        ShapeExpr output_shape = Downcast<ShapeExpr>(expr->shape_.value());
+    if (const auto* tuple_sinfo = struct_info.as<TupleStructInfoNode>()) {
+      for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
+        const auto* tensor_sinfo = tuple_sinfo->fields[i].as<TensorStructInfoNode>();
+        ICHECK(tensor_sinfo) << "Expect TensorStructInfo, but received: ."
+                             << tuple_sinfo->fields[i]->GetTypeKey();
+        ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
+        ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
-        dtype.emplace_back(DType2String(tensor_type->dtype));
+        dtype.emplace_back(DType2String(tensor_sinfo->dtype));
       }
-      node->SetNumOutput(tuple_type->fields.size());
+      node->SetNumOutput(tuple_sinfo->fields.size());
     } else {
-      const auto* tensor_type = checked_type.as<DynTensorTypeNode>();
-      ICHECK(tensor_type) << "Expect DynTensorType, but received: " << checked_type->GetTypeKey();
-      ICHECK(expr->shape_.defined()) << "Expect shape to be defined. ";
-      ShapeExpr output_shape = Downcast<ShapeExpr>(expr->shape_.value());
+      const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
+      ICHECK(tensor_sinfo) << "Expect TensorStructInfo, but received: "
+                           << struct_info->GetTypeKey();
+      ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
+      ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
 
       shape.emplace_back(GetIntShape(output_shape->values));
-      dtype.emplace_back(DType2String(tensor_type->dtype));
+      dtype.emplace_back(DType2String(tensor_sinfo->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
     std::vector<dmlc::any> shape_attrs;

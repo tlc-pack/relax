@@ -31,7 +31,6 @@ from tvm.relax.expr import (
     GlobalVar,
     If,
     MatchShape,
-    RuntimeDepShape,
     SeqExpr,
     ShapeExpr,
     Tuple,
@@ -137,9 +136,6 @@ class ASTPrinter(PyExprVisitor):
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         self.log.add("ShapeExpr")
-
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> None:
-        self.log.add("RuntimeDepShape")
 
     def visit_extern_func_(self, op: ExternFunc) -> None:
         self.log.add("ExternFunc")
@@ -257,11 +253,6 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("ShapeExpr")
         return op
 
-    def visit_runtime_dep_shape_(self, op: RuntimeDepShape) -> Expr:
-        op = self.visit_expr_post_order(op)
-        self.log.add("RuntimeDepShape")
-        return op
-
     def visit_extern_func_(self, op: ExternFunc) -> Expr:
         op = self.visit_expr_post_order(op)
         self.log.add("ExternFunc")
@@ -277,15 +268,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         new_value = self.visit_expr(binding.value)
         new_var = self.visit_var_def(binding.var)
 
-        def emit(b: VarBinding):
-            if self.builder_.current_block_is_dataflow() and not isinstance(b.var, DataflowVar):
-                self.builder_.emit_output_var_binding(b)
-            else:
-                self.builder_.emit_var_binding(b)
-
         self.log.add("VarBinding")
         if binding.var.same_as(new_var) and binding.value.same_as(new_value):
-            emit(binding)
+            self.builder_.emit_normalized(binding)
             return
 
         temp = self.with_struct_info(new_var, new_value.struct_info)
@@ -293,7 +278,7 @@ class ASTPostPrinterMutator(PyExprMutator):
             new_var = temp
             self.set_var_remap(binding.var.vid, new_var)
 
-        emit(VarBinding(new_var, new_value))
+        self.builder_.emit_normalized(VarBinding(new_var, new_value))
 
     def visit_match_shape_(self, binding: MatchShape) -> None:
         """Identical with ExprMutator::VisitBinding_(const MatchShapeNode* binding) on the C++ side."""
@@ -316,10 +301,10 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("MatchShape")
         if binding.value.same_as(new_value) and binding.pattern.same_as(new_pattern):
             if not binding.var or (binding.var and binding.var.same_as(new_var)):
-                self.builder_.match_shape_binding(binding)
+                self.builder_.emit_normalized(binding)
                 return
 
-        self.builder_.match_shape_binding(MatchShape(new_value, new_pattern.values, new_var))
+        self.builder_.emit_normalized(MatchShape(new_value, new_pattern.values, new_var))
 
     def visit_binding_block_(self, block: BindingBlock) -> BindingBlock:
         """Identical with ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) on the C++ side."""
@@ -339,37 +324,13 @@ class ASTPostPrinterMutator(PyExprMutator):
 
     def visit_var_def_(self, var: Var) -> None:
         """Identical with ExprMutator::VisitVarDef_(const VarNode* var) on the C++ side."""
-        shape_unchanged = True
-        new_shape = None
-        if var.shape_:
-            new_shape = self.visit_expr(var.shape_)
-            shape_unchanged &= var.shape_.same_as(new_shape)
-
         self.log.add("VarDef")
-        if shape_unchanged:
-            return var
-        else:
-            new_var = Var(var.vid, new_shape, var._checked_type_, var.span)
-
-            self.set_var_remap(var.vid, new_var)
-            return new_var
+        return var
 
     def visit_dataflow_var_def_(self, var: DataflowVar) -> None:
         """Identical with ExprMutator::VisitVarDef_(const DataflowVarNode* var) on the C++ side."""
-        shape_unchanged = True
-        new_shape = None
-        if var.shape_:
-            new_shape = self.visit_expr(var.shape_)
-            shape_unchanged &= var.shape_.same_as(new_shape)
-
         self.log.add("DataflowVarDef")
-        if shape_unchanged:
-            return var
-        else:
-            new_var = DataflowVar(var.vid, new_shape, var._checked_type_, var.span)
-
-            self.set_var_remap(var.vid, new_var)
-            return new_var
+        return var
 
 
 def basic_check(expr, visitor_str, mutator_str):
@@ -443,20 +404,13 @@ def test_seq_expr():
                 "\tVar",
             ]
         ),
-        "\n".join(
-            ["Constant", "ShapeExpr", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]
-        ),
+        "\n".join(["Constant", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]),
     )
 
 
 def test_shape_expr():
     x = relax.ShapeExpr([m, n])
     basic_check(x, "ShapeExpr", "ShapeExpr")
-
-
-def test_runtime_dep_shape():
-    runtime_dep_shape = relax.RuntimeDepShape()
-    basic_check(runtime_dep_shape, "RuntimeDepShape", "RuntimeDepShape")
 
 
 def test_call():
@@ -591,10 +545,8 @@ def test_function():
         ),
         "\n".join(
             [
-                "ShapeExpr",
                 "VarDef",
                 "Constant",
-                "ShapeExpr",
                 "VarDef",
                 "VarBinding",
                 "BindingBlock",

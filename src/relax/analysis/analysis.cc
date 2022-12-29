@@ -123,10 +123,6 @@ class VarVisitor : protected ExprVisitor {
       VisitExpr(arg);
     }
 
-    if (call_node->shape_) {
-      VisitExpr(Downcast<Expr>(call_node->shape_.value()));
-    }
-
     if (const GlobalVarNode* global_var_node = call_node->op.as<GlobalVarNode>()) {
       called_global_vars_.Insert(GetRef<GlobalVar>(global_var_node));
     }

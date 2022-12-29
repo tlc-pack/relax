@@ -84,7 +84,7 @@ def test_match_shape():
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
-        bb.match_shape_binding(relax.MatchShape(x, (m,), var=None))
+        bb.emit_normalized(relax.MatchShape(x, (m,), var=None))
         y1 = bb.match_shape(y, (n,))
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     mod = bb.get()

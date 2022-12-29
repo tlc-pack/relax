@@ -46,7 +46,6 @@ class OrPattern;
 class AndPattern;
 class NotPattern;
 class ShapePattern;
-class RuntimeDepShapePattern;
 class TypePattern;
 class DataTypePattern;
 class AttrPattern;
@@ -112,8 +111,6 @@ class DFPattern : public ObjectRef {
   TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   TVM_DLL ShapePattern HasShape(const Array<PrimExpr>& shape) const;
-  /*! \brief Syntatic Sugar for creating a RuntimeDepShapePattern */
-  TVM_DLL RuntimeDepShapePattern HasRuntimeDepShape() const;
   /*! \brief Syntatic Sugar for duplicating the current pattern */
   TVM_DLL DFPattern dup() const;
 
@@ -776,30 +773,6 @@ class ExternFuncPattern : public DFPattern {
  public:
   TVM_DLL ExternFuncPattern(String global_symbol);
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFuncPattern, DFPattern, ExternFuncPatternNode);
-};
-
-/*!
- * \brief A pattern that asserting a root pattern has a runtime-dependent shape.
- * \sa RuntimeDepShape
- * \sa RuntimeDepShapePattern
- */
-class RuntimeDepShapePatternNode : public DFPatternNode {
- public:
-  DFPattern pattern; /*!< The root pattern to match */
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-
-  static constexpr const char* _type_key = "relax.dpl.RuntimeDepShapePattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeDepShapePatternNode, DFPatternNode);
-};
-
-/*!
- * \brief Managed reference to RuntimeDepShapePatternNode.
- * \sa RuntimeDepShapePatternNode
- */
-class RuntimeDepShapePattern : public DFPattern {
- public:
-  TVM_DLL explicit RuntimeDepShapePattern(DFPattern pattern);
-  TVM_DEFINE_OBJECT_REF_METHODS(RuntimeDepShapePattern, DFPattern, RuntimeDepShapePatternNode);
 };
 
 /*! \brief Syntatic Sugar for creating a VarPattern with a name */

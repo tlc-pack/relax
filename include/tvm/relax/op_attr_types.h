@@ -24,9 +24,8 @@
 #ifndef TVM_RELAX_OP_ATTR_TYPES_H_
 #define TVM_RELAX_OP_ATTR_TYPES_H_
 
+#include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/type.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/tensor.h>
 
@@ -36,16 +35,6 @@ namespace tvm {
 namespace relax {
 
 /*!
- * \brief Infer the output shape for operators. This function will
- * be invoked to fill the \p shape_ field of expressions.
- * \param call The call node.
- * \param diag_ctx The diagnostic context for reporting errors.
- * \return The inferred output shape expression.
- */
-using FInferShape =
-    runtime::TypedPackedFunc<RelayExpr(const Call& call, DiagnosticContext diag_ctx)>;
-
-/*!
  * \brief Infer output struct info given the call
  *
  * \param call The call expression to be derived.
@@ -53,15 +42,6 @@ using FInferShape =
  */
 using FInferStructInfo =
     runtime::TypedPackedFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
-
-/*!
- * \brief Infer the output type for operators. This function will
- * be invoked to fill the \p checked_type_ field of expressions.
- * \param call The call node.
- * \param diag_ctx The diagnostic context for reporting errors.
- * \return The inferred output type.
- */
-using FInferType = runtime::TypedPackedFunc<Type(const Call& call, DiagnosticContext diag_ctx)>;
 
 /*!
  * \brief Packed function implementation for operators. The relax operator will be lowered to

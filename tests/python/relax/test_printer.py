@@ -327,7 +327,7 @@ def test_class_irmodule():
             return r
 
         @R.function
-        def g(y: R.Tensor(("n", "n"))) -> R.Tensor:
+        def g(y: R.Tensor(("n", "n"))) -> R.Tensor(("n", "n"), "float32"):
             n = T.var("int64")
             r = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
             return r
@@ -379,11 +379,6 @@ def test_object_type():
 def test_shape_expr():
     x = relax.ShapeExpr([tir.IntImm("int64", 10), tir.IntImm("int64", 5)])
     assert x.__str__() == "(10, 5)"
-
-
-def test_runtime_dep_shape():
-    x = relax.RuntimeDepShape()
-    assert x.__str__() == "None"
 
 
 def test_func_type():

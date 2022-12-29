@@ -145,7 +145,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const DataflowVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ShapeExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const RuntimeDepShapeNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ExternFuncNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const GlobalVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -169,7 +168,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(VarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(DataflowVarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(ShapeExprNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(RuntimeDepShapeNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(ExternFuncNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(GlobalVarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(FunctionNode);
@@ -199,7 +197,6 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const DataflowVarNode* op) override;
   void VisitExpr_(const ShapeExprNode* op) override;
-  void VisitExpr_(const RuntimeDepShapeNode* op) override;
   void VisitExpr_(const ExternFuncNode* op) override;
   void VisitExpr_(const GlobalVarNode* op) override;
   void VisitExpr_(const FunctionNode* op) override;
@@ -281,7 +278,6 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
   Expr VisitExpr_(const ShapeExprNode* op) override;
-  Expr VisitExpr_(const RuntimeDepShapeNode* op) override;
   Expr VisitExpr_(const ExternFuncNode* op) override;
   Expr VisitExpr_(const GlobalVarNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;
@@ -467,8 +463,6 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   PackedFunc f_visit_dataflow_var_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const ShapeExprNode* op)` function. */
   PackedFunc f_visit_shape_expr_{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const RuntimeDepShapeNode* op)` function. */
-  PackedFunc f_visit_runtime_dep_shape_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const ExternFuncNode* op)` function. */
   PackedFunc f_visit_extern_func_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const GlobalVarNode* op)` function. */
@@ -569,7 +563,6 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
     PY_EXPR_VISITOR_DISPATCH(VarNode, f_visit_var_);
     PY_EXPR_VISITOR_DISPATCH(DataflowVarNode, f_visit_dataflow_var_);
     PY_EXPR_VISITOR_DISPATCH(ShapeExprNode, f_visit_shape_expr_);
-    PY_EXPR_VISITOR_DISPATCH(RuntimeDepShapeNode, f_visit_runtime_dep_shape_);
     PY_EXPR_VISITOR_DISPATCH(ExternFuncNode, f_visit_extern_func_);
     PY_EXPR_VISITOR_DISPATCH(GlobalVarNode, f_visit_global_var_);
     PY_EXPR_VISITOR_DISPATCH(FunctionNode, f_visit_function_);
@@ -598,8 +591,6 @@ class PyExprVisitor : public ObjectRef {
    * \param f_visit_var_ The packed function of `VisitExpr_(const VarNode* op)`.
    * \param f_visit_dataflow_var_ The packed function of `VisitExpr_(const DataflowVarNode* op)`.
    * \param f_visit_shape_expr_ The packed function of `VisitExpr_(const ShapeExprNode* op)`.
-   * \param f_visit_runtime_dep_shape_ The packed function of `VisitExpr_(const RuntimeDepShapeNode*
-   * op)`.
    * \param f_visit_extern_func_ The packed function of `VisitExpr_(const ExternFuncNode* op)`.
    * \param f_visit_global_var_ The packed function of `VisitExpr_(const GlobalVarNode* op)`.
    * \param f_visit_function_ The packed function of `VisitExpr_(const FunctionNode* op)`.
@@ -630,10 +621,9 @@ class PyExprVisitor : public ObjectRef {
   TVM_DLL static PyExprVisitor MakePyExprVisitor(
       PackedFunc f_visit_expr, PackedFunc f_visit_constant_, PackedFunc f_visit_tuple_,
       PackedFunc f_visit_var_, PackedFunc f_visit_dataflow_var_, PackedFunc f_visit_shape_expr_,
-      PackedFunc f_visit_runtime_dep_shape_, PackedFunc f_visit_extern_func_,
-      PackedFunc f_visit_global_var_, PackedFunc f_visit_function_, PackedFunc f_visit_call_,
-      PackedFunc f_visit_seq_expr_, PackedFunc f_visit_if_, PackedFunc f_visit_op_,
-      PackedFunc f_visit_tuple_getitem_, PackedFunc f_visit_binding,
+      PackedFunc f_visit_extern_func_, PackedFunc f_visit_global_var_, PackedFunc f_visit_function_,
+      PackedFunc f_visit_call_, PackedFunc f_visit_seq_expr_, PackedFunc f_visit_if_,
+      PackedFunc f_visit_op_, PackedFunc f_visit_tuple_getitem_, PackedFunc f_visit_binding,
       PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_shape_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
@@ -650,7 +640,6 @@ class PyExprVisitor : public ObjectRef {
     n->f_visit_var_ = f_visit_var_;
     n->f_visit_dataflow_var_ = f_visit_dataflow_var_;
     n->f_visit_shape_expr_ = f_visit_shape_expr_;
-    n->f_visit_runtime_dep_shape_ = f_visit_runtime_dep_shape_;
     n->f_visit_extern_func_ = f_visit_extern_func_;
     n->f_visit_global_var_ = f_visit_global_var_;
     n->f_visit_function_ = f_visit_function_;
@@ -692,8 +681,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   PackedFunc f_visit_dataflow_var_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const ShapeExprNode* op)` function. */
   PackedFunc f_visit_shape_expr_{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const RuntimeDepShapeNode* op)` function. */
-  PackedFunc f_visit_runtime_dep_shape_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const ExternFuncNode* op)` function. */
   PackedFunc f_visit_extern_func_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const GlobalVarNode* op)` function. */
@@ -820,7 +807,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
     PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var_);
     PY_EXPR_MUTATOR_DISPATCH(DataflowVarNode, f_visit_dataflow_var_);
     PY_EXPR_MUTATOR_DISPATCH(ShapeExprNode, f_visit_shape_expr_);
-    PY_EXPR_MUTATOR_DISPATCH(RuntimeDepShapeNode, f_visit_runtime_dep_shape_);
     PY_EXPR_MUTATOR_DISPATCH(ExternFuncNode, f_visit_extern_func_);
     PY_EXPR_MUTATOR_DISPATCH(GlobalVarNode, f_visit_global_var_);
     PY_EXPR_MUTATOR_DISPATCH(FunctionNode, f_visit_function_);
@@ -841,7 +827,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(VarNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(DataflowVarNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(ShapeExprNode);
-    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(RuntimeDepShapeNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(ExternFuncNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(GlobalVarNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(FunctionNode);
@@ -870,8 +855,6 @@ class PyExprMutator : public ObjectRef {
    * \param f_visit_var_ The packed function of `VisitExpr_(const VarNode* op)`.
    * \param f_visit_dataflow_var_ The packed function of `VisitExpr_(const DataflowVarNode* op)`.
    * \param f_visit_shape_expr_ The packed function of `VisitExpr_(const ShapeExprNode* op)`.
-   * \param f_visit_runtime_dep_shape_ The packed function of `VisitExpr_(const RuntimeDepShapeNode*
-   * op)`.
    * \param f_visit_extern_func_ The packed function of `VisitExpr_(const ExternFuncNode* op)`.
    * \param f_visit_global_var_ The packed function of `VisitExpr_(const GlobalVarNode* op)`.
    * \param f_visit_function_ The packed function of `VisitExpr_(const FunctionNode* op)`.
@@ -902,10 +885,10 @@ class PyExprMutator : public ObjectRef {
   TVM_DLL static PyExprMutator MakePyExprMutator(
       BlockBuilder builder_, PackedFunc f_visit_expr, PackedFunc f_visit_constant_,
       PackedFunc f_visit_tuple_, PackedFunc f_visit_var_, PackedFunc f_visit_dataflow_var_,
-      PackedFunc f_visit_shape_expr_, PackedFunc f_visit_runtime_dep_shape_,
-      PackedFunc f_visit_extern_func_, PackedFunc f_visit_global_var_, PackedFunc f_visit_function_,
-      PackedFunc f_visit_call_, PackedFunc f_visit_seq_expr_, PackedFunc f_visit_if_,
-      PackedFunc f_visit_op_, PackedFunc f_visit_tuple_getitem_, PackedFunc f_visit_binding,
+      PackedFunc f_visit_shape_expr_, PackedFunc f_visit_extern_func_,
+      PackedFunc f_visit_global_var_, PackedFunc f_visit_function_, PackedFunc f_visit_call_,
+      PackedFunc f_visit_seq_expr_, PackedFunc f_visit_if_, PackedFunc f_visit_op_,
+      PackedFunc f_visit_tuple_getitem_, PackedFunc f_visit_binding,
       PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_shape_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
@@ -918,7 +901,6 @@ class PyExprMutator : public ObjectRef {
     n->f_visit_var_ = f_visit_var_;
     n->f_visit_dataflow_var_ = f_visit_dataflow_var_;
     n->f_visit_shape_expr_ = f_visit_shape_expr_;
-    n->f_visit_runtime_dep_shape_ = f_visit_runtime_dep_shape_;
     n->f_visit_extern_func_ = f_visit_extern_func_;
     n->f_visit_global_var_ = f_visit_global_var_;
     n->f_visit_function_ = f_visit_function_;

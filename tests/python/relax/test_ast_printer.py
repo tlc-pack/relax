@@ -248,16 +248,16 @@ def test_func():
 
 
 def test_shape_of():
-    v0 = rx.Var("v0")
-    s0 = v0.shape
+    v0 = rx.Var("v0", R.Tensor(ndim=2))
+    s0 = rx.get_shape_of(v0)
     s0_str = dump_ast(s0)
     assert s0_str.startswith("Call(")
     assert 'op=Op(name="relax.shape_of")' in s0_str
     assert "args=" in s0_str
-    assert 'Var(name_hint="v0")' in s0_str
+    assert 'name_hint="v0"' in s0_str
 
     v1 = rx.Var("v1", R.Tensor([96, 54]))
-    s1 = v1.shape
+    s1 = rx.get_shape_of(v1)
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
     assert "values=" in s1_str
