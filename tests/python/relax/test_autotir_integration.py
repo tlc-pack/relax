@@ -66,9 +66,9 @@ class InputModule:
     def main(x:R.Tensor((m,n), "float32"), w:R.Tensor((n,k), "float32")) -> R.Tensor:
         with R.dataflow():
             sh = R.call_packed("vm.builtin.shape_of", x)
-            x0 = R.match_shape(sh, (m, n))
+            x0 = R.match_cast(sh, R.Tensor((m, n), "float32"))
             sh1 = R.call_packed("vm.builtin.shape_of", w)
-            x1 = R.match_shape(sh1, (n, k))
+            x1 = R.match_cast(sh1, R.Tensor((n, k), "float32"))
             lv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
             lv1 = R.call_tir(tir_relu, (lv0), (m, k), dtype="float32)
             R.output(lv1)

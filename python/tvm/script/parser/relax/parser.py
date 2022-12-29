@@ -29,7 +29,7 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchShapePair
+from .entry import MatchCastPair
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -70,10 +70,8 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         assert var is not None
         IRBuilder.name(var_name, var)
         return var
-    elif isinstance(value, MatchShapePair):
-        var = R.emit_match_shape(value.value, value.pattern, emit_var=True)
-        # It's an internal check, so directly use assert here.
-        assert var is not None
+    elif isinstance(value, MatchCastPair):
+        var = R.emit_match_cast(value.value, value.struct_info)
         IRBuilder.name(var_name, var)
         return var
     else:
@@ -150,9 +148,7 @@ def post_token_switch(self: Parser, node: doc.Expr) -> None:
 @dispatch.register(token="relax", type_name="Expr")
 def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     value = self.eval_expr(node.value)
-    if isinstance(value, MatchShapePair):
-        R.emit_match_shape(value.value, value.pattern, emit_var=False)
-    elif value is not None:
+    if value is not None:
         self.report_error(node, f"Unsupported Expr stmt type {value}.")
 
 

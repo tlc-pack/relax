@@ -267,11 +267,11 @@ class VarExample:
     def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
         z = R.add(x, y)
         # no binding here
-        R.match_shape(x, (5, 5))
+        _ = R.match_cast(x, R.Tensor((5, 5)))
         with R.dataflow():
             q = R.add(z, z)
             p = func(q)
-            r = R.match_shape(p, (5, 5))
+            r = R.match_cast(p, R.Tensor((5, 5)))
             s = r
             R.output(s)
         return s
@@ -285,7 +285,7 @@ def test_all_vars():
     assert vars[1] == VarExample["func"].body.body
 
     var_names = var_name_set(all_vars(VarExample["main"]))
-    assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
+    assert var_names == {"_", "x", "y", "z", "p", "q", "r", "s"}
 
 
 def test_bound_vars():
@@ -297,11 +297,11 @@ def test_bound_vars():
 
     # all the vars are bound
     var_names = var_name_set(bound_vars(VarExample["main"]))
-    assert var_names == {"x", "y", "z", "p", "q", "r", "s"}
+    assert var_names == {"_", "x", "y", "z", "p", "q", "r", "s"}
 
     # if we consider only the body, then the function arguments are not bound
     body_names = var_name_set(bound_vars(VarExample["main"].body))
-    assert body_names == {"z", "p", "q", "r", "s"}
+    assert body_names == {"_", "z", "p", "q", "r", "s"}
 
     # only binding is in the (normalized) body
     simple_body_vars = bound_vars(VarExample["func"].body)

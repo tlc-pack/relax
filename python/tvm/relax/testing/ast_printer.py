@@ -312,24 +312,22 @@ class ASTPrinter(ExprFunctor):
         """
         Distinguish between binding types
         """
-        if isinstance(binding, relax.MatchShape):
-            return self.visit_match_shape_(binding)
+        if isinstance(binding, relax.MatchCast):
+            return self.visit_match_cast_(binding)
         if isinstance(binding, relax.VarBinding):
             return self.visit_var_binding_(binding)
         raise ValueError(f"Invalid binding type in {binding}: {type(binding)}")
 
-    def visit_match_shape_(self, match_shape: relax.MatchShape) -> str:
+    def visit_match_cast_(self, match_cast: relax.MatchCast) -> str:
         """
         Handle match shape
         """
         fields = {
-            "value": self.visit_expr(match_shape.value),
-            "pattern": self.build_list(map(self.visit_prim_expr_, match_shape.pattern)),
+            "var": self.visit_expr(match_cast.var),
+            "value": self.visit_expr(match_cast.value),
+            "struct_info": self.visit_struct_info_(match_cast.struct_info),
         }
-        # not always defined
-        if match_shape.var:
-            fields["var"] = self.visit_expr(match_shape.var)
-        return self.build_ast_node("MatchShape", **fields)
+        return self.build_ast_node("MatchCast", **fields)
 
     def visit_var_binding_(self, var_binding: relax.VarBinding) -> str:
         """

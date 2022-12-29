@@ -90,7 +90,7 @@ def test_annotations():
     assert len(o_call_packed.type_args) == 1
 
 
-def test_mismatch_shape_dims_and_ndim():
+def test_mismatch_cast_dims_and_ndim():
     with pytest.raises(Exception):
         # TODO: replace with DiagnosticError once we have better error reporting.
         # with pytest.raises(tvm.error.DiagnosticError):
@@ -160,16 +160,16 @@ def test_unexpected_tir_max_args():
             return relax.call_tir("foo", (x,), (T.max(m),), dtype="float32")
 
 
-def test_match_shape():
+def test_match_cast():
     @R.function
     def f(x: R.Tensor(dtype="float32")):
         n, m = T.var("int64"), T.var("int64")
-        R.match_shape(R.shape_of(x), (n, m))
+        _ = R.match_cast(R.shape_of(x), R.Shape((n, m)))
         y: R.Tensor((n, m), "float32") = R.add(x, x)
         return x
 
     match_sh = f.body.blocks[0].bindings[0]
-    pattern, value = match_sh.pattern, match_sh.value
+    value = match_sh.value
     check_call(value, "relax.shape_of", [f.params[0]])
 
 
@@ -378,15 +378,15 @@ def test_dataflow():
     assert f.body.body == t
 
 
-def test_dataflow_match_shape():
+def test_dataflow_match_cast():
     @R.function
     def f(x: R.Tensor):
         n, m = T.var("int64"), T.var("int64")
         with R.dataflow():
-            x2: R.Tensor((n, m)) = R.match_shape(x, (n, m))
+            x2: R.Tensor((n, m)) = R.match_cast(x, R.Tensor((n, m)))
             y = R.add(x2, x2)
             z = R.multiply(y, x)
-            R.match_shape(R.shape_of(z), (n, m))
+            _ = R.match_cast(R.shape_of(z), R.Shape((n, m)))
             w: R.Tensor((n, m)) = R.add(z, x)
             R.output(y, w, x2)
         t: R.Tensor((n, m)) = R.multiply(y, w)
@@ -396,7 +396,6 @@ def test_dataflow_match_shape():
     x = f.params[0]
     df_block = f.body.blocks[0]
     x2_bind = df_block.bindings[0]
-    z_shape_bind = df_block.bindings[3]
     q_bind = f.body.blocks[1].bindings[1]
 
     assert x2_bind.var.name_hint == "x2"

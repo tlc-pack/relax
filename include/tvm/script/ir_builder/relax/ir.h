@@ -111,15 +111,13 @@ TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
 TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value);
 
 /*!
- * \brief Emit a match_shape binding to the last binding block frame.
- * \param value The value of the MatchShape to be emitted.
- * \param pattern The pattern of the MatchShape to be emitted.
- * \param emit_var A boolean indicating if the MatchShape contains the emitted variable.
- * \return The emitted var if `emit_var` is true. Otherwise, return `NullOpt`.
+ * \brief Emit a match_cast binding to the last binding block frame.
+ * \param value The value of the MatchCast to be emitted.
+ * \param struct_info The struct info of the MatchCast to be emitted.
+ * \return The left side var of the emitted binding.
  */
-TVM_DLL Optional<tvm::relax::Var> EmitMatchShape(const tvm::relax::Expr& value,   //
-                                                 const Array<PrimExpr>& pattern,  //
-                                                 bool emit_var);
+TVM_DLL tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
+                                      const tvm::relax::StructInfo& struct_info);
 
 ///////////////////////////// Type Deduce //////////////////////////////
 

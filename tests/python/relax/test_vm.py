@@ -399,7 +399,7 @@ def test_vm_compile_stage2():
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Shape:
             n, m = T.var("int64"), T.var("int64")
-            R.match_shape(x, (n, m))
+            _ = R.match_cast(x, R.Tensor((n, m), "float32"))
             return (n * 2, m * 3)
 
     mod = TestVMCompileStage2
@@ -442,7 +442,7 @@ def test_vm_compile_e2e():
         def foo(x: R.Tensor(dtype="float32")) -> R.Tensor:
             with R.dataflow():
                 n, m = T.var("int64"), T.var("int64")
-                R.match_shape(x, (n, m))
+                _ = R.match_cast(x, R.Tensor((n, m), "float32"))
                 y = R.call_tir("test.vm.tile", (x), (n, m * 2), dtype="float32")
                 R.output(y)
             return y

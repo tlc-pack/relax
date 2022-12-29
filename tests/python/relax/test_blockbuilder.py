@@ -232,7 +232,7 @@ def test_binary_shape_type_deduction():
         assert gv0.checked_type.dtype == "float16"
 
 
-def test_emit_match_shape():
+def test_emit_match_cast():
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     x = rx.Var("tensor_value", R.Tensor("float32", ndim=-1))
@@ -242,55 +242,54 @@ def test_emit_match_shape():
     with bb.function("func", [x, y]):
         with bb.dataflow():
             # lv0: Tensor((m, n), "float32") =
-            #   match_shape(x: Tensor(_, "float32"], [m, n))
-            lv0 = bb.match_shape(x, [m, n])
+            #   match_cast(x: Tensor(_, "float32"], [m, n))
+            lv0 = bb.match_cast(x, R.Tensor([m, n], "float32"))
             assert isinstance(lv0, rx.DataflowVar)
             assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float32"))
 
-            # lv1: Shape = match_shape(shape, [m, n])
-            lv1 = bb.match_shape(y, [m, n])
-            assert lv1.struct_info == rx.ShapeStructInfo(ndim=2)
+            # lv1: Shape = match_cast(shape, R.Shape([m, n]))
+            lv1 = bb.match_cast(y, R.Shape([m, n]))
+            assert lv1.struct_info == rx.ShapeStructInfo([m, n])
             gv0 = bb.emit_output(lv1)
 
         bb.emit_func_output(gv0)
     func = bb.get()["func"]
     block = func.body.blocks[0]
     b0, b1 = block.bindings[:2]
-    assert isinstance(b0, rx.MatchShape)
-    assert isinstance(b1, rx.MatchShape)
+    assert isinstance(b0, rx.MatchCast)
+    assert isinstance(b1, rx.MatchCast)
 
     assert b0.value == x
-    assert b0.pattern[0] == m
-    assert b0.pattern[1] == n
+    assert b0.struct_info == rx.TensorStructInfo([m, n], "float32")
     assert b0.var == lv0
 
     assert b1.value == y
-    assert b1.pattern[0] == m
-    assert b1.pattern[1] == n
+    assert b1.struct_info == rx.ShapeStructInfo([m, n])
     assert b1.var == lv1
 
 
-def test_emit_match_shape_binding_in_dataflow_block():
+def test_emit_match_cast_binding_in_dataflow_block():
     bb = rx.BlockBuilder()
 
     x = rx.Var("x", R.Tensor("float32", ndim=-1))
     m = tir.Var("m", dtype="int64")
     gv = rx.Var("gv", R.Tensor("float32", ndim=-1))
-    match_shape = rx.MatchShape(x, (m,), gv)
+    match_cast = rx.MatchCast(gv, x, R.Tensor((m,), "float32"))
 
     with bb.function("main", [x]):
         with bb.dataflow():
-            bb.emit_normalized(match_shape)
+            bb.emit_normalized(match_cast)
             bb.emit_output(gv)
         bb.emit_func_output(x)
 
     func = bb.get()["main"]
     block = func.body.blocks[0]
     b0 = block.bindings[0]
-    assert isinstance(b0, rx.MatchShape)
+    assert isinstance(b0, rx.MatchCast)
 
     assert b0.value == x
-    assert b0.pattern[0] == m
+    assert isinstance(b0.struct_info, rx.TensorStructInfo)
+    assert b0.struct_info.shape[0] == m
     assert b0.var == gv
 
 

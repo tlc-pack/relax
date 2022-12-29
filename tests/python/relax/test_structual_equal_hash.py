@@ -53,14 +53,14 @@ def test_var_binding():
     _check_equal(block0, block1)
 
 
-def test_match_shape():
+def test_match_cast():
     x = rx.Var("x", R.Tensor([10]))
     m = tir.Var("m", dtype="int64")
 
     def generator(x):
         bb = rx.BlockBuilder()
         bb._begin_binding_block()
-        bb.match_shape(x, [m * 2])
+        bb.match_cast(x, R.Tensor([m * 2]))
         return bb._end_block()
 
     block0 = generator(x)
@@ -108,13 +108,13 @@ def test_ir_module():
     _check_equal(mod0, mod1)
 
 
-def test_match_shape_symbolic():
+def test_match_cast_symbolic():
     @tvm.script.ir_module
     class InputModule:
         @R.function
         def f(x: R.Tensor("float32", ndim=2)):
             n, m = T.var("int64"), T.var("int64")
-            x0 = R.match_shape(x, (n, m))
+            x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
             return (x0, (n + 1, m))
 
     _check_save_roundtrip(InputModule)

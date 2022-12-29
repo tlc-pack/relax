@@ -25,6 +25,7 @@
 #include <tvm/node/repr_printer.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relay/function.h>
 #include <tvm/runtime/registry.h>
@@ -245,18 +246,12 @@ class DataflowBlockMutator : public ExprMutator {
     Map<String, Var> global_scope_vars;
     Map<String, tir::Var> symbolic_vars;
     for (const Binding& binding : n->bindings) {
-      Var var;
-      if (const auto* node = binding.as<VarBindingNode>()) {
-        var = node->var;
-      } else if (const auto* node = binding.as<MatchShapeNode>()) {
-        var = node->var;
-        for (PrimExpr expr : node->pattern) {
-          if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
-            symbolic_vars.Set(sym_var->name_hint, Downcast<tir::Var>(expr));
-          }
+      Var var = binding->var;
+      if (const auto* match_cast = binding.as<MatchCastNode>()) {
+        auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
+        for (const tir::VarNode* var : collected_vars) {
+          symbolic_vars.Set(var->name_hint, GetRef<tir::Var>(var));
         }
-      } else {
-        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
       }
       if (!var.as<DataflowVarNode>()) {
         global_scope_vars.Set(var->name_hint(), var);
@@ -269,23 +264,17 @@ class DataflowBlockMutator : public ExprMutator {
 
     // raise error if there are updates of recorded Global Scope Vars and Symbolic Vars
     for (const Binding& binding : updated_block->bindings) {
-      Var var;
-      if (const auto* node = binding.as<VarBindingNode>()) {
-        var = node->var;
-      } else if (const auto* node = binding.as<MatchShapeNode>()) {
-        var = node->var;
-        for (PrimExpr expr : node->pattern) {
-          if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
-            if (symbolic_vars.count(sym_var->name_hint) > 0) {
-              tir::Var old_var = symbolic_vars[sym_var->name_hint];
-              ICHECK(expr.same_as(old_var))
-                  << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
-              symbolic_vars.erase(sym_var->name_hint);
-            }
+      Var var = binding->var;
+      if (const auto* match_cast = binding.as<MatchCastNode>()) {
+        auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
+        for (const tir::VarNode* var : collected_vars) {
+          if (symbolic_vars.count(var->name_hint) > 0) {
+            tir::Var old_var = symbolic_vars[var->name_hint];
+            ICHECK(var == old_var.get())
+                << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
+            symbolic_vars.erase(var->name_hint);
           }
         }
-      } else {
-        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
       }
       if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint()) > 0) {
         ICHECK(var.same_as(global_scope_vars[var->name_hint()]))
@@ -300,6 +289,25 @@ class DataflowBlockMutator : public ExprMutator {
   }
 
  private:
+  class SymbolicVarCollector : public StructInfoVisitor {
+   public:
+    static std::unordered_set<const tir::VarNode*> Collect(const StructInfo& info) {
+      SymbolicVarCollector collector;
+      collector.VisitStructInfo(info);
+      return std::move(collector.symbolic_vars_);
+    }
+
+   private:
+    void VisitStructInfoExprField(const PrimExpr& expr) final {
+      if (const tir::VarNode* sym_var = expr.as<tir::VarNode>()) {
+        symbolic_vars_.insert(sym_var);
+      }
+    }
+
+   private:
+    std::unordered_set<const tir::VarNode*> symbolic_vars_;
+  };
+
   runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;
   IRModule mod_;
   PassContext pass_ctx_;

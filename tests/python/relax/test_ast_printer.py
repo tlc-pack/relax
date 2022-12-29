@@ -106,15 +106,15 @@ def test_dataflow_var() -> None:
     assert "checked_type_" in v1_annos
 
 
-def test_match_shape() -> None:
-    # match_shape([16, 8], [m, n])
+def test_match_cast() -> None:
+    # match_cast([16, 8], [m, n])
     m = tir.Var("m", dtype="int64")
     n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
-    b0 = rx.MatchShape(shape, [m, n], var)
+    b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
     b0_str = dump_ast(b0)
-    assert b0_str.startswith("MatchShape(")
+    assert b0_str.startswith("MatchCast(")
     assert "Constant" in b0_str
     assert "PrimExpr(value=`m: int64`)" in b0_str
     assert "PrimExpr(value=`n: int64`)" in b0_str
@@ -123,31 +123,17 @@ def test_match_shape() -> None:
     assert b0_str != dump_ast(b0, include_type_annotations=False)
 
     # var1: Tensor((m, n), "float32") =
-    #   match_shape(var0: R.Tensor("float32"), [m, n])
+    #   match_cast(var0: R.Tensor("float32"), [m, n])
     value = rx.Var("value", R.Tensor("float32"))
     var = rx.Var("v1", R.Tensor([m, n], "float32"))
-    b1 = rx.MatchShape(value, [m, n], var)
+    b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     b1_str = dump_ast(b1)
-    assert b1_str.startswith("MatchShape(")
+    assert b1_str.startswith("MatchCast(")
     assert "PrimExpr(value=`m: int64`)" in b1_str
     assert "PrimExpr(value=`n: int64`)" in b1_str
     assert b1_str != dump_ast(
         b1, include_type_annotations=False, include_struct_info_annotations=False
     )
-
-
-def test_match_shape_unbound() -> None:
-    @R.function
-    def func(x: R.Tensor) -> R.Tensor:
-        R.match_shape(x, (1, 1))
-        return x
-
-    # no var field on the match shape!
-    func_str = strip_whitespace(dump_ast(func))
-    assert "MatchShape" in func_str
-    assert "value=Var(" in func_str
-    assert "pattern=[PrimExpr(" in func_str
-    assert "var=" not in func_str
 
 
 def test_var_binding() -> None:
@@ -162,10 +148,10 @@ def test_var_binding() -> None:
 
 
 def test_binding_block() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
-    b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
+    b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
@@ -176,15 +162,15 @@ def test_binding_block() -> None:
     assert block0_str.startswith("BindingBlock(")
     assert "bindings=" in block0_str
     assert "VarBinding(" in block0_str
-    assert "MatchShape(" in block0_str
+    assert "MatchCast(" in block0_str
     assert '"v0"' in block0_str
 
 
 def test_dataflow_block() -> None:
-    m = tir.Var("m", dtype="int32")
-    n = tir.Var("n", dtype="int32")
+    m = tir.Var("m", dtype="int64")
+    n = tir.Var("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
-    b0 = rx.MatchShape(shape, [m, n], rx.Var("v0"))
+    b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
@@ -195,7 +181,7 @@ def test_dataflow_block() -> None:
     assert block0_str.startswith("DataflowBlock(")
     assert "bindings=" in block0_str
     assert "VarBinding(" in block0_str
-    assert "MatchShape(" in block0_str
+    assert "MatchCast(" in block0_str
     assert '"v0"' in block0_str
 
 
