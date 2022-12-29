@@ -64,7 +64,7 @@ StructInfo ReturnObjectStructInfo(const Call& call, const BlockBuilder& ctx) {
 }
 
 StructInfo ReturnShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
-  return ShapeStructInfo(kUnknownDim);
+  return ShapeStructInfo(kUnknownNDim);
 }
 
 // call_tir
@@ -369,7 +369,7 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
   if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
     return TensorStructInfo(GetRef<Expr>(output_shape), attrs->dtype);
   }
-  return TensorStructInfo(attrs->dtype, kUnknownDim);
+  return TensorStructInfo(attrs->dtype, kUnknownNDim);
 }
 
 RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")

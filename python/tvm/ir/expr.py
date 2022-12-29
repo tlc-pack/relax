@@ -53,17 +53,6 @@ class RelayExpr(BaseExpr):
         return ret
 
     @property
-    def shape(self):
-        """Get the shape of tvm.relay.Expr.
-
-        Returns
-        -------
-        shape : tvm.ir.RelayExpr
-            The expression that represents the shape.
-        """
-        return _ffi_api.RelayExprShape(self)
-
-    @property
     def struct_info(self) -> "tvm.relax.StructInfo":
         """Get the struct info field
 
@@ -206,7 +195,6 @@ def is_relax_expr(expr: RelayExpr) -> bool:
             relax.Var,
             relax.DataflowVar,
             relax.ShapeExpr,
-            relax.RuntimeDepShape,
             relax.SeqExpr,
             relax.Function,
             relax.ExternFunc,

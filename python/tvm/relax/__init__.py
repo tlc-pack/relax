@@ -28,66 +28,56 @@ from . import expr_functor
 from . import struct_info
 
 # Expr
-Expr = expr.Expr
-Span = expr.Span
-SourceName = expr.SourceName
-Id = expr.Id
-GlobalVar = expr.GlobalVar
-Var = expr.Var
-DataflowVar = expr.DataflowVar
-Binding = expr.Binding
-MatchShape = expr.MatchShape
-VarBinding = expr.VarBinding
-BindingBlock = expr.BindingBlock
-DataflowBlock = expr.DataflowBlock
-SeqExpr = expr.SeqExpr
-ShapeExpr = expr.ShapeExpr
-RuntimeDepShape = expr.RuntimeDepShape
-Tuple = expr.Tuple
-TupleGetItem = expr.TupleGetItem
-Function = expr.Function
-ExternFunc = expr.ExternFunc
-Call = expr.Call
-If = expr.If
+from .expr import (
+    Expr,
+    Span,
+    SourceName,
+    Id,
+    GlobalVar,
+    Var,
+    DataflowVar,
+    Binding,
+    MatchShape,
+    VarBinding,
+    BindingBlock,
+    DataflowBlock,
+    SeqExpr,
+    ShapeExpr,
+    Tuple,
+    TupleGetItem,
+    Function,
+    ExternFunc,
+    Call,
+    If,
+    Constant,
+)
 
-# helper functions
-const = expr.const
-Constant = expr.Constant
-extern = expr.extern
-te_tensor = expr.te_tensor
+from .expr import const, extern, get_shape_of
 
 # Type
-Type = ty.Type
-ShapeType = ty.ShapeType
-ObjectType = ty.ObjectType
-DynTensorType = ty.DynTensorType
-DimType = ty.DimType
-TupleType = ty.TupleType
-FuncType = ty.FuncType
-PackedFuncType = ty.PackedFuncType
+from .ty import Type, ObjectType, ShapeType, DynTensorType, TupleType, FuncType, PackedFuncType
 
 # VM
-ExecBuilder = exec_builder.ExecBuilder
-VirtualMachine = vm.VirtualMachine
+from .exec_builder import ExecBuilder
+from .vm import VirtualMachine
 
 # Operator
 from .op.base import call_tir, make_closure, invoke_closure
 from .op.op_attrs import VMAllocStorageAttrs, VMAllocTensorAttrs
 
 # IRBuilder
-BlockBuilder = block_builder.BlockBuilder
+from .block_builder import BlockBuilder
 
 # ExprFunctor
-ExprFunctor = expr_functor.ExprFunctor
-PyExprVisitor = expr_functor.PyExprVisitor
-PyExprMutator = expr_functor.PyExprMutator
-
+from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
 
 # StructInfo
-StructInfo = struct_info.StructInfo
-ObjectStructInfo = struct_info.ObjectStructInfo
-PrimStructInfo = struct_info.PrimStructInfo
-ShapeStructInfo = struct_info.ShapeStructInfo
-TensorStructInfo = struct_info.TensorStructInfo
-TupleStructInfo = struct_info.TupleStructInfo
-FuncStructInfo = struct_info.FuncStructInfo
+from .struct_info import (
+    StructInfo,
+    ObjectStructInfo,
+    PrimStructInfo,
+    ShapeStructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+    FuncStructInfo,
+)

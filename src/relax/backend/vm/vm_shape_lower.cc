@@ -25,12 +25,56 @@
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/struct_info_functor.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
+
+class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
+ public:
+  // collect the PrimExpr slot for a given function
+  static Map<PrimExpr, Integer> Collect(Function func) {
+    PrimExprSlotCollector collector;
+    // collect shape delcarations in func params
+    for (auto param : func->params) {
+      collector.VisitStructInfo(GetStructInfo(param));
+      collector.VisitExpr(param);
+    }
+    collector.VisitExpr(func->body);
+    // avoid create any slot for static shape.
+    if (!collector.dyn_shape_) collector.slot_map_.clear();
+    return std::move(collector.slot_map_);
+  }
+
+ private:
+  void VisitPrimExpr(const PrimExpr& expr) final {
+    if (!expr->IsInstance<IntImmNode>()) {
+      dyn_shape_ = true;
+    }
+    if (slot_map_.count(expr) == 0) {
+      slot_map_.Set(expr, slot_count_++);
+    }
+  }
+
+  void VisitExpr_(const FunctionNode* op) final {
+    // Do not recurse into function node as it is self-contained
+  }
+
+  void VisitStructInfo_(const FuncStructInfoNode* op) final {
+    // Do not recurse into function struct info as it is self-contained
+  }
+
+  void VisitStructInfoExprField(const PrimExpr& expr) final { VisitPrimExpr(expr); }
+
+  void VisitStructInfoExprField(const Expr& expr) final { ExprVisitor::VisitExpr(expr); }
+
+  bool dyn_shape_ = false;
+  int slot_count_ = 0;
+  Map<PrimExpr, Integer> slot_map_;
+};
 
 class VMShapeLowerMutator : public ExprMutator {
  public:
@@ -43,7 +87,7 @@ class VMShapeLowerMutator : public ExprMutator {
       Expr func = p.second;
       if (func->IsInstance<FunctionNode>()) {
         // prepare mapping and heap var
-        expr2slot_ = PrepareExpr2Slot(Downcast<Function>(func));
+        expr2slot_ = PrimExprSlotCollector::Collect(Downcast<Function>(func));
         heap_size_ = IntImm(ShapeDType(), expr2slot_.size());
         shape_heap_ = Var("shape_heap", TensorStructInfo(ShapeExpr({heap_size_}), ShapeDType()));
 
@@ -89,16 +133,16 @@ class VMShapeLowerMutator : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* node) override {
     if (heap_size_->value > 0) {
       builder_->BeginBindingBlock();
-      builder_->Emit(VarBinding(
-          shape_heap_, Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})})));
-
+      auto alloc_shape_heap = builder_->Normalize(
+          Call(ExternFunc("vm.builtin.alloc_shape_heap"), {ShapeExpr({heap_size_})}));
+      builder_->EmitNormalized(VarBinding(shape_heap_, alloc_shape_heap));
       for (Var param : node->params) {
-        if (param->shape_.operator bool() && param->shape_.value().as<ShapeExprNode>()) {
-          if (auto* param_type = param->checked_type_.as<DynTensorTypeNode>()) {
-            if (param_type->ndim != 0) {
-              Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
-              StoreShape(shape, Downcast<ShapeExpr>(param->shape_.value())->values);
-            }
+        // TODO(relax-team): handle generalized case with tuple of Tensors
+        if (auto* tensor_info = GetStructInfoAs<TensorStructInfoNode>(param)) {
+          auto* shape_expr = tensor_info->shape.as<ShapeExprNode>();
+          if (tensor_info->ndim != 0 && shape_expr) {
+            Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {param}), "sh");
+            StoreShape(shape, shape_expr->values);
           }
         }
       }
@@ -125,7 +169,7 @@ class VMShapeLowerMutator : public ExprMutator {
     // The ret_type is weakened to unknown-dimensional DynTensorType.
     // TODO(@yuchen): change all tensor types in the function to unknown ndim
     if (const auto* tensor_sinfo = ret_struct_info.as<TensorStructInfoNode>()) {
-      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/kUnknownDim);
+      ret_struct_info = TensorStructInfo(tensor_sinfo->dtype, /*ndim=*/kUnknownNDim);
     }
 
     return builder_->Normalize(Function(node->params, new_body, ret_struct_info, node->attrs));
@@ -168,32 +212,6 @@ class VMShapeLowerMutator : public ExprMutator {
     return ret;
   }
 
-  Map<PrimExpr, Integer> PrepareExpr2Slot(Function expr) const {
-    int cnt = 0;
-    bool is_dyn_shape = false;
-    Map<PrimExpr, Integer> ret;
-    auto func = [&](const Expr& e) {
-      if (e->IsInstance<ShapeExprNode>()) {
-        ShapeExpr shape = Downcast<ShapeExpr>(e);
-        for (auto prim_e : shape->values) {
-          if (!prim_e->IsInstance<IntImmNode>()) {
-            is_dyn_shape = true;
-          }
-          if (ret.count(prim_e) == 0) {
-            ret.Set(prim_e, cnt++);
-          }
-        }
-      }
-    };
-    PostOrderVisit(expr, func);
-
-    // Avoid allocating shape heap and do shape computation for static-shape program
-    if (!is_dyn_shape) {
-      ret.clear();
-    }
-    return ret;
-  }
-
   /*! \brief Store symbolic shape into indices of the VM shape heap. */
   void StoreShape(Expr shape, Array<PrimExpr> pattern) {
     static const Op& store_shape_op = Op::Get("relax.vm.builtin.store_shape");
@@ -201,8 +219,9 @@ class VMShapeLowerMutator : public ExprMutator {
 
     Array<Integer> indices;
     for (size_t i = 0; i < pattern.size(); ++i) {
-      Integer idx = expr2slot_.at(pattern[i]);
-      indices.push_back(idx);
+      auto it = expr2slot_.find(pattern[i]);
+      ICHECK(it != expr2slot_.end()) << "PrimExpr pattern " << pattern[i] << " is not in expr2slot";
+      indices.push_back((*it).second);
     }
     store_shape_attr->indices = indices;
     builder_->Emit(Call(store_shape_op, {shape, shape_heap_}, Attrs(store_shape_attr)), "gv");

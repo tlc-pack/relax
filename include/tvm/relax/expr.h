@@ -135,17 +135,17 @@ class CallNode : public ExprNode {
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip type_args check for primitive ops.
     equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
-           (IsPrimitiveOp(op) || equal(type_args, other->type_args));
+           (IsPrimitiveOp(op) || equal(type_args, other->type_args)) &&
+           equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -156,6 +156,7 @@ class CallNode : public ExprNode {
     if (!IsPrimitiveOp(op)) {
       hash_reduce(type_args);
     }
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Call";
@@ -214,16 +215,15 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
-    v->Visit("span", &span);
-    v->Visit("shape_", &shape_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
-           equal(false_branch, other->false_branch);
+           equal(false_branch, other->false_branch) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -231,6 +231,7 @@ class IfNode : public ExprNode {
     hash_reduce(cond);
     hash_reduce(true_branch);
     hash_reduce(false_branch);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.If";
@@ -270,28 +271,17 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
-    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
-    // specially handle empty tuple as a constant is not a graph node.
-    if (fields.size() == other->fields.size() && fields.size() == 0) {
-      return true;
-    } else {
-      equal->MarkGraphNode();
-      return equal(fields, other->fields);
-    }
+    // struct info can be deterministically derived from fields.
+    return equal(fields, other->fields);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    if (fields.size() != 0) {
-      hash_reduce->MarkGraphNode();
-      hash_reduce(fields);
-    }
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
   static constexpr const char* _type_key = "relax.expr.Tuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
@@ -329,13 +319,13 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
-    v->Visit("span", &span);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically tuple and index.
     return equal(tuple, other->tuple) && equal(index, other->index);
   }
 
@@ -380,22 +370,17 @@ class ShapeExprNode : public ExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) && equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
+    // struct info can be deterministically derived from values.
+    return equal(values, other->values);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(values);
-    hash_reduce(checked_type_);
-    hash_reduce(shape_);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(values); }
 
   static constexpr const char* _type_key = "relax.expr.ShapeExpr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -410,43 +395,6 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
-/*! \brief Runtime dependent shape expression.
- *
- * Sometimes shape of a tensor cannot be deduced statically either because the shape is truly data
- * dependent such as output of `unique` operator or cannot be deduced because of limited shape
- * inference capability.
- */
-class RuntimeDepShapeNode : public ExprNode {
- public:
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape_", &shape_);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const RuntimeDepShapeNode* other, SEqualReducer equal) const {
-    return equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(checked_type_);
-    hash_reduce(shape_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.RuntimeDepShape";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeDepShapeNode, ExprNode);
-};
-
-class RuntimeDepShape : public Expr {
- public:
-  TVM_DLL explicit RuntimeDepShape(Span span = Span());
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RuntimeDepShape, Expr, RuntimeDepShapeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(RuntimeDepShapeNode);
-};
-
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:
@@ -459,7 +407,6 @@ class VarNode : public ExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
@@ -467,14 +414,12 @@ class VarNode : public ExprNode {
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(checked_type_, other->checked_type_) &&
-           equal(shape_, other->shape_);
+    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(vid);
-    hash_reduce(shape_);
-    hash_reduce(checked_type_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Var";
@@ -502,7 +447,6 @@ class DataflowVarNode : public VarNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
@@ -510,14 +454,12 @@ class DataflowVarNode : public VarNode {
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(shape_, other->shape_) &&
-           equal(checked_type_, other->checked_type_);
+    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(vid);
-    hash_reduce(shape_);
-    hash_reduce(checked_type_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.DataflowVar";
@@ -557,13 +499,13 @@ class ConstantNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from data.
     return equal(data, other->data);
   }
 
@@ -751,7 +693,6 @@ class SeqExprNode : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("blocks", &blocks);
     v->Visit("body", &body);
-    v->Visit("shape_", &shape_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
@@ -759,14 +700,13 @@ class SeqExprNode : public ExprNode {
 
   bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
     return equal(blocks, other->blocks) && equal(body, other->body) &&
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_);
+           equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(blocks);
     hash_reduce(body);
-    hash_reduce(shape_);
-    hash_reduce(checked_type_);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.SeqExpr";
@@ -796,19 +736,17 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_struct_info", &ret_struct_info);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("shape_", &shape_);
-    v->Visit("struct_info_", &struct_info_);
     v->Visit("attrs", &attrs);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_struct_info, other->ret_struct_info) &&
-           equal(checked_type_, other->checked_type_) && equal(shape_, other->shape_) &&
-           equal(attrs, other->attrs);
+           equal(ret_struct_info, other->ret_struct_info) && equal(attrs, other->attrs) &&
+           equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -816,9 +754,8 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce.DefHash(params);
     hash_reduce(body);
     hash_reduce(ret_struct_info);
-    hash_reduce(checked_type_);
-    hash_reduce(shape_);
     hash_reduce(attrs);
+    hash_reduce(struct_info_);
   }
 
   static constexpr const char* _type_key = "relax.expr.Function";
@@ -868,14 +805,18 @@ class ExternFuncNode : public BaseFuncNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
     v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
-    return equal(global_symbol, other->global_symbol);
+    return equal(global_symbol, other->global_symbol) && equal(struct_info_, other->struct_info_);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(global_symbol); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(global_symbol);
+    hash_reduce(struct_info_);
+  }
 
   static constexpr const char* _type_key = "relax.expr.ExternFunc";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -889,6 +830,19 @@ class ExternFunc : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
+
+/*!
+ * \brief Get the shape of Expr.
+ * \param expr The input expr.
+ * \return The corresonding shape.
+ *
+ * \note This function requires expr to be normalized.
+ *       The function will report an error if expr's StructInfo is not TensorStructInfo.
+ *       It will try to return symbolic function when possible. If the tensor do not
+ *       have a compile-time symbolic shape, the function will then choose to return
+ *       Call(relax.op.shape_of, [expr]).
+ */
+TVM_DLL Expr GetShapeOf(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm

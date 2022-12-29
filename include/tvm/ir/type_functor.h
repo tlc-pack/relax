@@ -93,7 +93,6 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const relax::ShapeTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const relax::ObjectTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const relax::DynTensorTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const relax::DimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const relax::PackedFuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
@@ -121,7 +120,6 @@ class TypeFunctor<R(const Type& n, Args...)> {
     TVM_TYPE_FUNCTOR_DISPATCH(relax::ShapeTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(relax::ObjectTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(relax::DynTensorTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(relax::DimTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(relax::PackedFuncTypeNode);
     return vtable;
   }
