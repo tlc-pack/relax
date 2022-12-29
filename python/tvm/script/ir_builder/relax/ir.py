@@ -281,23 +281,21 @@ def emit(value: Expr) -> Var:
     return _ffi_api.Emit(value)  # pylint: disable=no-member # type: ignore
 
 
-def emit_match_shape(value: Expr, pattern: List[PrimExpr], emit_var: bool) -> Optional[Var]:
-    """Emit a match_shape binding to the last binding block frame.
+def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
+    """Emit a match_cast binding to the last binding block frame.
     Parameters
     ----------
     value: Expr
-        The value of the MatchShape to be emitted.
-    pattern: List[PrimExpr]
-        The pattern of the MatchShape to be emitted.
-    emit_var: bool
-        A boolean indicating if the MatchShape contains the emitted variable.
+        The value of the MatchCast to be emitted.
+    struct_info: StructInfo
+        The struct_info of the MatchCast to be emitted.
 
     Returns
     -------
-    var: Optional[Var]
-        The emitted var if `emit_var` is True. Otherwise, return `None`.
+    var: Var
+        The left side var of the emitted binding.
     """
-    return _ffi_api.EmitMatchShape(value, pattern, emit_var)  # type: ignore
+    return _ffi_api.EmitMatchCast(value, struct_info)  # type: ignore
 
 
 ############################# Type Deduce ##############################
@@ -407,7 +405,7 @@ __all__ = [
     "const",
     "dataflow",
     "emit",
-    "emit_match_shape",
+    "emit_match_cast",
     "ewise_fma",
     "func_attr",
     "func_name",

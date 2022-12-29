@@ -59,6 +59,12 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
     }
   }
 
+  void VisitBinding_(const MatchCastNode* op) final {
+    // Visit the match cast struct info so we can define
+    // the symbolic variables here.
+    this->VisitStructInfo(op->struct_info);
+  }
+
   void VisitExpr_(const FunctionNode* op) final {
     // Do not recurse into function node as it is self-contained
   }
@@ -99,12 +105,21 @@ class VMShapeLowerMutator : public ExprMutator {
     return builder_->GetContextIRModule();
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) override {
+  void VisitBinding_(const MatchCastNode* binding) override {
+    // TODO(@tqchen): match_cast support for general struct info
     Expr value = ExprMutator::VisitExpr(binding->value);
+    auto* tinfo = binding->struct_info.as<TensorStructInfoNode>();
+    ICHECK(tinfo != nullptr) << "Match cast only support TensorStructInfo for now";
+    auto* shape_expr = tinfo->shape.as<ShapeExprNode>();
 
-    // TODO(@yuchen): match_shape overloaded semantic: value is ShapeType
-    Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {value}), "sh");
-    StoreShape(shape, binding->pattern);
+    if (shape_expr) {
+      bool dyn_shape = std::any_of(shape_expr->values.begin(), shape_expr->values.end(),
+                                   [](const PrimExpr& e) { return !e->IsInstance<IntImmNode>(); });
+      if (dyn_shape) {
+        Var shape = builder_->Emit(Call(ExternFunc("vm.builtin.shape_of"), {value}), "sh");
+        StoreShape(shape, shape_expr->values);
+      }
+    }
   }
 
   using ExprMutator::VisitExpr_;

@@ -454,6 +454,7 @@ def test_normalize_deeply_nested_seq():
     u = relax.Var("u", R.Tensor([], "int32"))
     v = relax.Var("v", R.Tensor([], "int32"))
     w = relax.Var("w", R.Tensor([], "int32"))
+    _ = relax.Var("w", R.Tensor([], "int32"))
     seq = relax.SeqExpr(
         [
             relax.BindingBlock(
@@ -472,9 +473,13 @@ def test_normalize_deeply_nested_seq():
                                                     relax.BindingBlock(
                                                         [
                                                             relax.VarBinding(u, relax.const(2)),
-                                                            relax.MatchShape(u, [], None),
+                                                            relax.MatchCast(
+                                                                _, u, R.Tensor([], "int32")
+                                                            ),
                                                             relax.VarBinding(v, u),
-                                                            relax.MatchShape(v, [], w),
+                                                            relax.MatchCast(
+                                                                w, v, R.Tensor([], "int32")
+                                                            ),
                                                         ]
                                                     )
                                                 ],
@@ -504,9 +509,9 @@ def test_normalize_deeply_nested_seq():
     def expected():
         x = relax.const(1)
         u = relax.const(2)
-        R.match_shape(u, ())
+        _ = R.match_cast(u, R.Tensor((), "int32"))
         v = u
-        w = R.match_shape(v, ())
+        w = R.match_cast(v, R.Tensor((), "int32"))
         z = w
         y = z
         return y

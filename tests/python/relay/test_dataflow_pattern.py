@@ -422,13 +422,13 @@ def test_no_match_dtype():
     assert not ty_pat.match(x)
 
 
-def test_match_shape():
+def test_match_cast():
     x = relay.var("x", shape=(10, 10), dtype="float32")
     ty_pat = has_shape((10, 10))
     assert ty_pat.match(x)
 
 
-def test_no_match_shape():
+def test_no_match_cast():
     x = relay.var("x", shape=(10, 10), dtype="int32")
     ty_pat = has_shape((10, 5))
     assert not ty_pat.match(x)

@@ -262,18 +262,15 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ShapeExprNode* op) {
   return doc;
 }
 
-Doc RelaxScriptPrinter::VisitNode_(const relax::MatchShapeNode* op) {
+Doc RelaxScriptPrinter::VisitNode_(const relax::MatchCastNode* op) {
   Doc doc;
-  if (op->var.defined()) {
-    doc << Print(op->var);
-    if (const auto& sinfo = MatchStructInfo<StructInfo>(op->var)) {
-      doc << ": " << Print(sinfo);
-    }
-    doc << " = ";
+  doc << Print(op->var);
+  if (const auto& sinfo = MatchStructInfo<StructInfo>(op->var)) {
+    doc << ": " << Print(sinfo);
   }
-  doc << "R.match_shape(";
-  // TODO(@altanh): maybe op->pattern should just be a ShapeExpr?
-  doc << Print(op->value) << ", " << Print(relax::ShapeExpr(op->pattern));
+  doc << " = ";
+  doc << "R.match_cast(";
+  doc << Print(op->value) << ", " << Print(op->struct_info);
   doc << ")";
   return doc;
 }
@@ -318,12 +315,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::DataflowBlockNode* op) {
   std::vector<Doc> return_vars;
   for (const relax::Binding& binding : op->bindings) {
     body << Print(binding) << Doc::NewLine();
-    Var var;
-    if (const relax::VarBindingNode* var_binding = binding.as<relax::VarBindingNode>()) {
-      var = var_binding->var;
-    } else if (const relax::MatchShapeNode* shape_binding = binding.as<relax::MatchShapeNode>()) {
-      var = shape_binding->var;
-    }
+    Var var = binding->var;
     if (var.defined() && !var.as<relax::DataflowVarNode>()) {
       return_vars.push_back(Print(var));
     }

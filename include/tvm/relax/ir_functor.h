@@ -77,7 +77,7 @@ class IRFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitNode_(const relax::VarNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::DataflowVarNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::ShapeExprNode* op, Args... args) IR_FUNCTOR_DEFAULT;
-  virtual R VisitNode_(const relax::MatchShapeNode* op, Args... args) IR_FUNCTOR_DEFAULT;
+  virtual R VisitNode_(const relax::MatchCastNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::VarBindingNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::BindingBlockNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::DataflowBlockNode* op, Args... args) IR_FUNCTOR_DEFAULT;
@@ -103,7 +103,7 @@ class IRFunctor<R(const ObjectRef& n, Args...)> {
     RELAX_IR_FUNCTOR_DISPATCH(relax::VarNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::DataflowVarNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::ShapeExprNode);
-    RELAX_IR_FUNCTOR_DISPATCH(relax::MatchShapeNode);
+    RELAX_IR_FUNCTOR_DISPATCH(relax::MatchCastNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::VarBindingNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::BindingBlockNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::DataflowBlockNode);

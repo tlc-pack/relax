@@ -134,10 +134,8 @@ class VarVisitor : protected ExprVisitor {
     VisitVarDef(binding->var);
   }
 
-  void VisitBinding_(const MatchShapeNode* binding) final {
-    if (binding->var.defined()) {
-      MarkBounded(binding->var);
-    }
+  void VisitBinding_(const MatchCastNode* binding) final {
+    MarkBounded(binding->var);
     ExprVisitor::VisitBinding_(binding);
   }
 

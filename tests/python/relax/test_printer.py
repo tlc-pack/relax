@@ -64,11 +64,11 @@ def test_ndim_annotations():
     check_roundtrip(foo)
 
 
-def test_match_shape():
+def test_match_cast():
     @R.function
     def foo(x: R.Tensor(dtype="float32")):
         n, m = T.var("int64"), T.var("int64")
-        R.match_shape(R.shape_of(x), (n, m))
+        _ = R.match_cast(R.shape_of(x), R.Shape((n, m)))
         y: R.Tensor((n, m), "float32") = R.add(x, x)
         return x
 
@@ -141,15 +141,15 @@ def test_dataflow():
     check_roundtrip(foo)
 
 
-def test_dataflow_match_shape():
+def test_dataflow_match_cast():
     @R.function
     def foo(x: R.Tensor(ndim=2)):
         n, m = T.var("int64"), T.var("int64")
         with R.dataflow():
-            x2: R.Tensor((n, m)) = R.match_shape(x, (n, m))
+            x2: R.Tensor((n, m)) = R.match_cast(x, R.Tensor((n, m)))
             y = R.add(x2, x2)
             z = R.multiply(y, x)
-            R.match_shape(R.shape_of(z), (n, m))
+            _ = R.match_cast(R.shape_of(z), R.Shape((n, m)))
             w: R.Tensor((n, m)) = R.add(z, x)
             R.output(y, w, x2)
         t: R.Tensor((n, m)) = R.multiply(y, w)
