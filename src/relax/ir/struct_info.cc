@@ -94,7 +94,7 @@ TVM_REGISTER_NODE_TYPE(ShapeStructInfoNode);
 TVM_REGISTER_GLOBAL("relax.ShapeStructInfo")
     .set_body_typed([](Optional<Array<PrimExpr>> values, int ndim, Span span) {
       if (values.defined()) {
-        CHECK_EQ(ndim, kUnknownDim) << "ValueError: Cannot both specify values and ndim";
+        CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify values and ndim";
         return ShapeStructInfo(values.value(), span);
       } else {
         return ShapeStructInfo(ndim, span);
@@ -141,7 +141,7 @@ TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
 TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
     .set_body_typed([](Optional<Expr> shape, DataType dtype, int ndim, Span span) {
       if (shape.defined()) {
-        CHECK_EQ(ndim, kUnknownDim) << "ValueError: Cannot both specify shape and ndim";
+        CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
         return TensorStructInfo(shape.value(), dtype, span);
       } else {
         return TensorStructInfo(dtype, ndim, span);
@@ -234,7 +234,6 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
   expr->struct_info_ = struct_info;
   // also set checked type
   expr->checked_type_ = GetStaticType(struct_info);
-  expr->shape_ = GetLegacyShapeHint(struct_info);
 }
 
 TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, StructInfo struct_info) {

@@ -140,23 +140,15 @@ class NormalizeMutator : public ExprMutatorBase {
   }
 
   void VisitBinding_(const VarBindingNode* binding) {
-    auto emit = [this](VarBinding b) {
-      if (this->builder_->CurrentBlockIsDataFlow() && !b->var.as<DataflowVarNode>()) {
-        this->builder_->EmitOutput(b);
-      } else {
-        this->builder_->Emit(b);
-      }
-    };
-
     Expr new_value = this->VisitExpr(binding->value);
     if (!binding->var->struct_info_.defined()) {
       UpdateStructInfo(binding->var, GetStructInfo(new_value));
     }
 
     if (new_value.same_as(binding->value)) {
-      emit(GetRef<VarBinding>(binding));
+      builder_->EmitNormalized(GetRef<VarBinding>(binding));
     } else {
-      emit(VarBinding(binding->var, new_value));
+      builder_->EmitNormalized(VarBinding(binding->var, new_value));
     }
   }
 
@@ -169,9 +161,9 @@ class NormalizeMutator : public ExprMutatorBase {
       }
     }
     if (new_value.same_as(binding->value)) {
-      builder_->EmitMatchShape(GetRef<MatchShape>(binding));
+      builder_->EmitNormalized(GetRef<MatchShape>(binding));
     } else {
-      builder_->EmitMatchShape(MatchShape(new_value, binding->pattern, binding->var));
+      builder_->EmitNormalized(MatchShape(new_value, binding->pattern, binding->var));
     }
   }
 

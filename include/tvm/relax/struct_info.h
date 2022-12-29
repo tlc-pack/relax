@@ -98,12 +98,12 @@ class ShapeStructInfoNode : public StructInfoNode {
   Optional<Array<PrimExpr>> values;
   /*!
    * \brief The number of dimension of the shape, can be unknown.
-   * \sa kUnknownDim
+   * \sa kUnknownNDim
    */
   int ndim;
 
   /*! \return Whether the struct info contains unknown ndim. */
-  bool IsUnknownNdim() const { return ndim == kUnknownDim; }
+  bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
@@ -138,7 +138,7 @@ class ShapeStructInfo : public StructInfo {
   TVM_DLL ShapeStructInfo(Array<PrimExpr> values, Span span = Span());
   /*!
    * \brief Construction with known unknown symbolic shape patterns.
-   * \param ndim Number of dimensions -- can be kUnknownDim
+   * \param ndim Number of dimensions -- can be kUnknownNDim
    * \param span The span of the AST.
    */
   TVM_DLL ShapeStructInfo(int ndim, Span span = Span());
@@ -160,12 +160,12 @@ class TensorStructInfoNode : public StructInfoNode {
   DataType dtype;
   /*!
    * \brief The number of dimension of the tensor, can be unknown.
-   * \sa kUnknownDim
+   * \sa kUnknownNDim
    */
   int ndim;
 
   /*! \return Whether the struct info contains unknown ndim. */
-  bool IsUnknownNdim() const { return ndim == kUnknownDim; }
+  bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   /*! \return Whether the struct info contains unknown dtype. */
   bool IsUnknownDtype() const { return dtype.is_void(); }

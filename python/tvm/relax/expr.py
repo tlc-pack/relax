@@ -212,14 +212,6 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
     raise ValueError("Wrong type")
 
 
-@tvm._ffi.register_object("relax.expr.RuntimeDepShape")
-class RuntimeDepShape(Expr):
-    """A shape expression which allows users to construct a runtime dependent shape."""
-
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.RuntimeDepShape, span)  # type: ignore
-
-
 @tvm._ffi.register_object("relax.expr.Constant")
 class Constant(Expr):
     def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
@@ -507,6 +499,30 @@ def const(
 def te_tensor(value: Expr, name: str = "rxplaceholder"):
     """Create te tensor from relax expression."""
     return _ffi_api.TETensor(value, name)  # type: ignore
+
+
+def get_shape_of(expr: Expr) -> Expr:
+    """Get shape of expr.
+
+    Parameters
+    ----------
+    expr: Expr
+        The input expr.
+
+    Returns
+    -------
+    shape: Expr
+        The shape expression
+
+    Note
+    ----
+    This function requires expr to be normalized.
+    The function will report an error if expr's StructInfo is not TensorStructInfo.
+    It will try to return symbolic function when possible. If the tensor do not
+    have a compile-time symbolic shape, the function will then choose to return
+    `Call(relax.op.shape_of, [expr])`.
+    """
+    return _ffi_api.GetShapeOf(expr)  # type: ignore
 
 
 def _update_struct_info(expr: Expr, struct_info: Optional[StructInfo]) -> None:

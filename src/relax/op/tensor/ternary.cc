@@ -114,7 +114,7 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
 
   int output_ndim;
   if (t0->IsUnknownNdim() || t1->IsUnknownNdim() || t2->IsUnknownNdim()) {
-    output_ndim = kUnknownDim;
+    output_ndim = kUnknownNDim;
   } else {
     output_ndim = t0->ndim;
   }
