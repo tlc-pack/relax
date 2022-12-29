@@ -29,12 +29,12 @@ from .expr import (
     Var,
     ShapeExpr,
     GlobalVar,
-    PrimExpr,
     BindingBlock,
     Tuple,
     BaseFunc,
     Binding,
 )
+from .struct_info import StructInfo
 from .op.base import call_tir
 from . import _ffi_api
 
@@ -540,23 +540,23 @@ class BlockBuilder(Object):
         """
         return self.emit(self.call_te(func, *args, **kwargs))
 
-    def match_shape(self, value: Expr, pattern: List[PrimExpr]) -> Var:
-        """Emit a MatchShape.
+    def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
+        """Emit a MatchCast.
 
         Parameters
         ----------
         value : tvm.relax.Expr
-            The value of the MatchShape to be emitted.
+            The value of the MatchCast to be emitted.
 
-        pattern : List[PrimExpr]
-            The pattern of the MatchShape to be emitted.
+        struct_info : StructInfo
+            The struct info to be matched.
 
         Returns
         -------
         ret : tvm.relax.Var
-            A newly created variable that gets bound to the call code.
+            A newly created variable that get bounds to be the casted result.
         """
-        return _ffi_api.BlockBuilderEmitMatchShape(self, value, pattern)  # type: ignore
+        return _ffi_api.BlockBuilderEmitMatchCast(self, value, struct_info)  # type: ignore
 
     def emit_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
         """Emit output for the current dataflow block or function.

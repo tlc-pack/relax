@@ -90,12 +90,11 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
         << "A non-dataflow var is expected in the last binding of '" << method << "'.";
     body = var_binding->value;
     *var_name = var_binding->var->name_hint();
-  } else if (const auto* match_shape = last_binding.as<tvm::relax::MatchShapeNode>()) {
-    CHECK(match_shape->var.defined() &&
-          !match_shape->var->IsInstance<tvm::relax::DataflowVarNode>())
+  } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
+    CHECK(!match_cast->var->IsInstance<tvm::relax::DataflowVarNode>())
         << "A non-dataflow var is expected in the last binding of '" << method << "'.";
     body = var_binding->value;
-    *var_name = match_shape->var->name_hint();
+    *var_name = match_cast->var->name_hint();
   } else {
     ICHECK(false) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
   }

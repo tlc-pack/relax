@@ -129,13 +129,12 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
   auto p = [binding] {
     if (auto vb = binding.as<VarBindingNode>()) {
       return std::make_pair(vb->var, vb->value);
-    } else if (auto ms = binding.as<MatchShapeNode>()) {
-      return std::make_pair(ms->var, ms->value);
+    } else if (auto mc = binding.as<MatchCastNode>()) {
+      return std::make_pair(mc->var, mc->value);
     }
     LOG(FATAL) << "Unsupported binding type";
     return std::make_pair(Var{}, Expr{});
   }();
-
   Var var = p.first;
   Expr val = p.second;
 
@@ -156,11 +155,7 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
   size_t line_last_req_def = 0;
   for (size_t i = 0; i < dfb_.value()->bindings.size(); ++i) {
     auto line = dfb_.value()->bindings[i];
-    if (auto varbind = line.as<VarBindingNode>()) {
-      if (used_vars.find(varbind->var.get()) != used_vars.cend()) line_last_req_def = i;
-    } else if (auto mshape = line.as<MatchShapeNode>()) {
-      if (used_vars.find(mshape->var.get()) != used_vars.cend()) line_last_req_def = i;
-    }
+    if (used_vars.find(line->var.get()) != used_vars.cend()) line_last_req_def = i;
   }
 
   auto old_dfb = dfb_.value();
@@ -240,12 +235,8 @@ class RemoveUnusedVars : public ExprMutator {
     auto prev_dfb = GetRef<DataflowBlock>(block);
     builder_->BeginDataflowBlock();
     for (Binding binding : block->bindings) {
-      if (const auto* node = binding.as<VarBindingNode>()) {
-        if (!unused_vars.count(node->var)) VisitBinding_(node);
-      } else if (const auto* node = binding.as<MatchShapeNode>()) {
-        if (!unused_vars.count(node->var)) VisitBinding_(node);
-      } else {
-        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      if (!unused_vars.count(binding->var)) {
+        VisitBinding(binding);
       }
     }
     auto new_dfb = builder_->EndBlock();

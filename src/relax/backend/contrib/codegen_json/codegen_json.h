@@ -252,8 +252,8 @@ class JSONSerializer
     return VisitExpr(binding->value);
   }
 
-  std::vector<JSONGraphNodeEntry> VisitBinding_(const MatchShapeNode* binding) {
-    LOG(FATAL) << "JSON runtime currently doesn't shape expr\n";
+  std::vector<JSONGraphNodeEntry> VisitBinding_(const MatchCastNode* binding) {
+    LOG(FATAL) << "JSON runtime currently doesn't match cast\n";
     return {};
   }
 
@@ -262,7 +262,7 @@ class JSONSerializer
     if (const auto* node = binding.as<VarBindingNode>()) {
       auto from_b = VisitBinding_(node);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
-    } else if (const auto* node = binding.as<MatchShapeNode>()) {
+    } else if (const auto* node = binding.as<MatchCastNode>()) {
       auto from_b = VisitBinding_(node);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
     } else {
