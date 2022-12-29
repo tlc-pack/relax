@@ -23,27 +23,6 @@
 #include <tvm/relax/type_analysis.h>
 
 namespace tvm {
-
-RelayExpr RelayExprNode::shape() const {
-  if (this->shape_.defined()) {
-    return Downcast<RelayExpr>(this->shape_);
-  }
-  if (this->struct_info_.defined()) {
-    Optional<RelayExpr> shape =
-        relax::GetLegacyShapeHint(Downcast<relax::StructInfo>(this->struct_info_.value()));
-    if (shape.defined()) {
-      return shape.value();
-    }
-  }
-  static const Op& op = Op::Get("relax.shape_of");
-  RelayExpr self = GetRef<RelayExpr>(this);
-  relax::Call call_shape_of(op, {self}, {}, {});
-  call_shape_of->checked_type_ = relax::ShapeType();
-  return call_shape_of;
-}
-
-TVM_REGISTER_GLOBAL("ir.RelayExprShape").set_body_method<RelayExpr>(&RelayExprNode::shape);
-
 namespace relax {
 using tvm::ReprPrinter;
 using tvm::runtime::Optional;
@@ -250,7 +229,6 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
     return value;
   });
   n->span = span;
-  n->shape_ = NullOpt;
   n->checked_type_ = ShapeType(values.size());
   n->struct_info_ = ShapeStructInfo(values, span);
   data_ = std::move(n);
@@ -258,20 +236,6 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ShapeExpr").set_body_typed([](Array<PrimExpr> values, Span span) {
   return ShapeExpr(values, span);
-});
-
-TVM_REGISTER_NODE_TYPE(RuntimeDepShapeNode);
-
-RuntimeDepShape::RuntimeDepShape(Span span) {
-  ObjectPtr<RuntimeDepShapeNode> n = make_object<RuntimeDepShapeNode>();
-  n->span = span;
-  n->struct_info_ = ShapeStructInfo(kUnknownDim);
-  n->checked_type_ = ShapeType();
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("relax.RuntimeDepShape").set_body_typed([](Span span) {
-  return RuntimeDepShape(span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -294,7 +258,6 @@ Var::Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   n->vid = std::move(vid);
   if (struct_info_annotation) {
     n->checked_type_ = GetStaticType(struct_info_annotation.value());
-    n->shape_ = GetLegacyShapeHint(struct_info_annotation.value());
   }
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
@@ -318,7 +281,6 @@ DataflowVar::DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation, Sp
   n->vid = std::move(vid);
   if (struct_info_annotation) {
     n->checked_type_ = GetStaticType(struct_info_annotation.value());
-    n->shape_ = GetLegacyShapeHint(struct_info_annotation.value());
   }
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
@@ -351,8 +313,6 @@ Constant::Constant(runtime::NDArray data, Span span) {
 
   n->struct_info_ = tinfo;
   n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
-  n->shape_ = tinfo->shape;
-
   data_ = std::move(n);
 }
 
@@ -555,6 +515,25 @@ ExternFunc::ExternFunc(String global_symbol, Span span) {
 
 TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
   return ExternFunc(global_symbol, span);
+});
+
+Expr GetShapeOf(const Expr& expr) {
+  // default case, to be normalized.
+  ICHECK(expr->struct_info_.defined()) << "GetShapeOf can only be applied to normalized expr";
+  auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
+
+  ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
+  if (tinfo->shape.defined()) return tinfo->shape.value();
+
+  static const Op& op = Op::Get("relax.shape_of");
+  // default case, call shape of, eagerly normalize the expr.
+  relax::Call call_shape_of(op, {expr}, {}, {});
+  UpdateStructInfo(call_shape_of, ShapeStructInfo(tinfo->ndim));
+  return call_shape_of;
+}
+
+TVM_REGISTER_GLOBAL("relax.GetShapeOf").set_body_typed([](const Expr& expr) {
+  return GetShapeOf(expr);
 });
 
 }  // namespace relax

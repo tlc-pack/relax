@@ -85,13 +85,7 @@ namespace relax {
 
 void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) {
-  this->VisitSpan(op->span);
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-  }
-}
+void ExprVisitor::VisitExpr_(const ConstantNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) { this->VisitSpan(op->span); }
 
@@ -99,10 +93,6 @@ void ExprVisitor::VisitExpr_(const TupleNode* op) {
   this->VisitSpan(op->span);
   for (Expr field : op->fields) {
     this->VisitExpr(field);
-  }
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
   }
 }
 
@@ -132,10 +122,6 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
   for (Expr arg : op->args) {
     this->VisitExpr(arg);
   }
-
-  if (op->shape_) {
-    this->VisitExpr(Downcast<Expr>(op->shape_.value()));
-  }
 }
 
 void ExprVisitor::VisitExpr_(const IfNode* op) {
@@ -158,8 +144,6 @@ void ExprVisitor::VisitExpr_(const ShapeExprNode* op) {
   }
   this->VisitSpan(op->span);
 }
-
-void ExprVisitor::VisitExpr_(const RuntimeDepShapeNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const ExternFuncNode* op) { this->VisitSpan(op->span); }
 
@@ -215,21 +199,9 @@ void ExprVisitor::VisitBindingBlock_(const DataflowBlockNode* block) {
   }
 }
 
-void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
-  this->VisitSpan(var->span);
+void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) { this->VisitSpan(var->span); }
 
-  if (var->shape_) {
-    this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-  }
-}
-
-void ExprVisitor::VisitVarDef_(const VarNode* var) {
-  this->VisitSpan(var->span);
-
-  if (var->shape_) {
-    this->VisitExpr(Downcast<Expr>(var->shape_.value()));
-  }
-}
+void ExprVisitor::VisitVarDef_(const VarNode* var) { this->VisitSpan(var->span); }
 
 void ExprVisitor::VisitBinding(const Binding& binding) {
   if (const auto* node = binding.as<VarBindingNode>()) {
@@ -382,8 +354,6 @@ Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
     return ShapeExpr(values, op->span);
   }
 }
-
-Expr ExprMutatorBase::VisitExpr_(const RuntimeDepShapeNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const ExternFuncNode* op) { return GetRef<Expr>(op); }
 
@@ -557,24 +527,9 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);
 
-  auto emit = [this](VarBinding b) {
-    if (this->builder_->CurrentBlockIsDataFlow() && !b->var.as<DataflowVarNode>()) {
-      this->builder_->EmitOutput(b);
-    } else {
-      this->builder_->Emit(b);
-    }
-  };
-
-  // FIXME(@altanh): try to clean up all the fast paths and ty/shape infer, it's getting unwieldy
-  // if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-  //   // no-op if there is no change
-  //   emit(GetRef<VarBinding>(binding));
-  //   return;
-  // }
-
   // fast path: reemit binding if nothing changes
   if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-    emit(GetRef<VarBinding>(binding));
+    builder_->EmitNormalized(GetRef<VarBinding>(binding));
     return;
   }
 
@@ -584,7 +539,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     this->var_remap_[binding->var->vid] = new_var;
   }
 
-  emit(VarBinding(new_var, new_value));
+  builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
 
 void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
@@ -610,15 +565,12 @@ void ExprMutator::VisitBinding_(const MatchShapeNode* binding) {
   // reemit old binding if nothing changes
   if (new_value.same_as(binding->value) && new_pattern.same_as(binding->pattern)) {
     if (!binding->var.defined() || (binding->var.defined() && new_var.same_as(binding->var))) {
-      builder_->EmitMatchShape(GetRef<MatchShape>(binding));
+      builder_->EmitNormalized(GetRef<MatchShape>(binding));
       return;
     }
   }
 
-  // TODO(@altanh, @yuchen): shape and type inference here too...
-  // TODO(@yuchen): when value's shape/type changed, create new var
-  // TODO(@yuchen): group the can prove shape/type logic and replace var into a function
-  builder_->EmitMatchShape(
+  builder_->EmitNormalized(
       MatchShape(new_value, Downcast<ShapeExpr>(new_pattern)->values, new_var));
 }
 

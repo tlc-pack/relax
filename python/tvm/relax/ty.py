@@ -75,14 +75,6 @@ class PackedFuncType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PackedFuncType, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.DimType")
-class DimType(Type):
-    """The type of indices/shape dimensions in Relax."""
-
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DimType, span)  # type: ignore
-
-
 def is_base_of(base: Type, derived: Type) -> bool:
     """Check the subtype relationship between base and derived.
 

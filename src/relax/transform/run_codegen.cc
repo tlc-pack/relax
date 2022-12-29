@@ -75,7 +75,7 @@ class CodeGenRunner : ExprMutator {
           tmp_args.push_back(VisitExpr(arg));
         }
         new_args.push_back(Tuple(tmp_args));
-        new_args.push_back(func->body->shape());
+        new_args.push_back(GetShapeOf(func->body));
 
         static const Op& call_op = Op::Get("relax.call_tir");
 

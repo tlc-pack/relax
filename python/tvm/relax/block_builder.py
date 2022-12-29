@@ -33,8 +33,7 @@ from .expr import (
     BindingBlock,
     Tuple,
     BaseFunc,
-    VarBinding,
-    MatchShape,
+    Binding,
 )
 from .op.base import call_tir
 from . import _ffi_api
@@ -702,24 +701,6 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderUpdateFunction(self, gv, updated_func)  # type: ignore
 
-    def can_prove_shape_equal(self, lhs: Expr, rhs: Expr) -> bool:
-        """Check if two shape expressions can be proven equal at compile time.
-
-        Parameters
-        ----------
-        lhs : Expr
-            The input lhs shape.
-
-        rhs: Expr
-            The input rhs shape.
-
-        Returns
-        -------
-        ret : bool
-            Whether we can prove lhs shape is the same as the rhs shape.
-        """
-        return _ffi_api.BlockBuilderCanProveShapeEqual(self, lhs, rhs)  # type: ignore
-
     def current_block_is_dataflow(self) -> bool:
         """Check if the block being built is DataflowBlock or not.
 
@@ -730,50 +711,15 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderCurrentBlockIsDataFlow(self)  # type: ignore
 
-    def emit_var_binding(self, binding: VarBinding) -> Var:
-        """Emits a variable binding, and returns the bound Var.
+    def emit_normalized(self, binding: Binding) -> None:
+        """Emit an already normalized binding.
 
         Parameters
         ----------
-        binding: VarBinding
-            The variable binding.
-
-        Returns
-        -------
-        var: Var
-            The bound variable.
+        binding: Binding
+            The binding to be emitted.
         """
-        return _ffi_api.BlockBuilderEmitVarBinding(self, binding)  # type: ignore
-
-    def emit_output_var_binding(self, binding: VarBinding) -> Var:
-        """Generate an output for the current dataflow block.
-
-        Parameters
-        ----------
-        binding: VarBinding
-            The output binding to output.
-
-        Returns
-        -------
-        var: Var
-            The variable bound to output.
-        """
-        return _ffi_api.BlockBuilderEmitOutputVarBinding(self, binding)  # type: ignore
-
-    def match_shape_binding(self, binding: MatchShape) -> Var:
-        """Emit a MatchShape binding.
-
-        Parameters
-        ----------
-        binding: MatchShape
-            The MatchShape binding to be emitted.
-
-        Returns
-        -------
-        var: Var
-            The variable bound to the MatchShape.
-        """
-        return _ffi_api.BlockBuilderEmitMatchShapeBinding(self, binding)  # type: ignore
+        _ffi_api.BlockBuilderEmitNormalized(self, binding)  # type: ignore
 
     def lookup_binding(self, var: Var) -> Optional[Expr]:
         """Lookup a var in the binding table binding_table_.

@@ -80,8 +80,8 @@ bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank, bool permit_unkn
 bool IsLeafExpr(const Expr& expr) {
   // NB: tuples are treated as leaf nodes for ergonomics
   return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-         expr.as<ShapeExprNode>() || expr.as<RuntimeDepShapeNode>() || expr.as<ExternFuncNode>() ||
-         expr.as<OpNode>() || expr.as<TupleNode>();
+         expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
+         expr.as<TupleNode>();
 }
 
 }  // namespace relax

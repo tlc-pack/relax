@@ -69,54 +69,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
   //-------------------------------
   NameTable* name_table() final { return name_table_.get(); }
 
-  bool CanProveShapeEqual(const Expr& lhs, const Expr& rhs) final {
-    if (lhs.same_as(rhs)) {
-      return true;
-    }
-
-    // TODO(relax-team): revisit this logic after struct info.
-    if (lhs->IsInstance<RuntimeDepShapeNode>() && rhs->IsInstance<RuntimeDepShapeNode>()) {
-      return true;
-    }
-
-    // try run symbolic shape proves that two shape equals each other.
-    if (lhs->IsInstance<ShapeExprNode>() && rhs->IsInstance<ShapeExprNode>()) {
-      const auto* lhs_shape = lhs.as<ShapeExprNode>();
-      const auto* rhs_shape = rhs.as<ShapeExprNode>();
-      size_t lhs_ndim = lhs_shape->values.size();
-      size_t rhs_ndim = rhs_shape->values.size();
-      if (lhs_ndim != rhs_ndim) {
-        return false;
-      }
-      for (size_t i = 0; i < lhs_ndim; ++i) {
-        PrimExpr lhs_dim = lhs_shape->values[i];
-        PrimExpr rhs_dim = rhs_shape->values[i];
-        if (lhs_dim.dtype() != rhs_dim.dtype() || !analyzer_.CanProveEqual(lhs_dim, rhs_dim)) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    // tuple comparison
-    // TODO(relax-team): can be removed later after struct info.
-    if (lhs->IsInstance<TupleNode>() && rhs->IsInstance<TupleNode>()) {
-      const auto* lhs_tuple = lhs.as<TupleNode>();
-      const auto* rhs_tuple = rhs.as<TupleNode>();
-      if (lhs_tuple->fields.size() != rhs_tuple->fields.size()) {
-        return false;
-      }
-      for (size_t i = 0; i < lhs_tuple->fields.size(); ++i) {
-        if (!CanProveShapeEqual(lhs_tuple->fields[i], rhs_tuple->fields[i])) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    return false;
-  }
-
   IRModule GetContextIRModule() const final { return context_mod_; }
 
   GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) final {
@@ -242,18 +194,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return this->Emit(expr, CurrentBlockFrame()->is_dataflow, name_hint);
   }
 
-  Var Emit(VarBinding binding) final {
-    BlockFrame* cur_frame = CurrentBlockFrame();
-    if (cur_frame->is_dataflow) {
-      ICHECK(binding->var.as<DataflowVarNode>())
-          << "Emit can only be used for local bindings in a dataflow block, use EmitOutput for "
-             "output bindings instead";
-    }
-    cur_frame->bindings.push_back(binding);
-    binding_table_[binding->var->vid] = binding->value;
-    return binding->var;
-  }
-
   Var EmitMatchShape(Expr value, Array<PrimExpr> pattern, String name_hint) final {
     value = this->Normalize(value);
 
@@ -277,31 +217,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return var;
   }
 
-  Var EmitMatchShape(MatchShape binding) final {
-    BlockFrame* cur_frame = CurrentBlockFrame();
-    // NOTE match shape do not follow simple binding rule
-    // as a result should not appear in binding table.
-    cur_frame->bindings.push_back(binding);
-    return binding->var;
-  }
-
   Var EmitOutput(Expr output, String name_hint) final {
     BlockFrame* cur_frame = CurrentBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
 
     return Emit(output, false, name_hint);
-  }
-
-  Var EmitOutput(VarBinding binding) final {
-    BlockFrame* cur_frame = CurrentBlockFrame();
-
-    ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
-    ICHECK(!binding->var.as<DataflowVarNode>()) << "EmitOutput can only emit Var bindings.";
-
-    cur_frame->bindings.push_back(binding);
-    binding_table_[binding->var->vid] = binding->value;
-    return binding->var;
   }
 
   void EmitNormalized(Binding binding) final {
@@ -312,14 +233,23 @@ class BlockBuilderImpl : public BlockBuilderNode {
         ICHECK(!var_binding->var.as<DataflowVarNode>())
             << "Cannot emit dataflowvar in non-dataflow block";
       }
+      // normalized check
+      ICHECK(var_binding->var->struct_info_.defined());
+      ICHECK(var_binding->value->struct_info_.defined());
       cur_frame->bindings.push_back(binding);
       binding_table_[var_binding->var->vid] = var_binding->value;
     } else {
-      auto* ptr = binding.as<MatchShapeNode>();
-      ICHECK(ptr);
-      if (!cur_frame->is_dataflow) {
-        ICHECK(!ptr->var.as<DataflowVarNode>()) << "Cannot emit dataflowvar in non-dataflow block";
+      auto* match_shape = binding.as<MatchShapeNode>();
+      ICHECK(match_shape);
+      if (match_shape->var.defined()) {
+        if (!cur_frame->is_dataflow) {
+          ICHECK(!match_shape->var.as<DataflowVarNode>())
+              << "Cannot emit dataflowvar in non-dataflow block";
+        }
+        ICHECK(match_shape->var->struct_info_.defined());
       }
+      // normalized check
+      ICHECK(match_shape->value->struct_info_.defined());
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
@@ -572,7 +502,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
   }
 
-  RELAX_EXPR_NORMALIZER_LEAF(RuntimeDepShapeNode);
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
@@ -618,22 +547,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
     }
     return ExprFunctor::VisitExpr(expr);
-  }
-
-  // Helper function to get the shape of a Tuple based on its fields
-  Optional<Expr> GetTupleShape(const Tuple& tuple) {
-    Array<Expr> tuple_shape;
-    for (Expr field : tuple->fields) {
-      if (field->shape_.defined()) {
-        tuple_shape.push_back(Downcast<Expr>(field->shape_.value()));
-      } else {
-        break;
-      }
-    }
-    if (tuple_shape.size() == tuple->fields.size()) {
-      return Tuple(tuple_shape);
-    }
-    return NullOpt;
   }
 
   Expr VisitExpr_(const TupleNode* op) final {
@@ -1003,19 +916,9 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit").set_body_typed([](BlockBuilder bui
   return builder->Emit(expr);
 });
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitVarBinding")
-    .set_body_typed([](BlockBuilder builder, VarBinding binding) {
-      return builder->Emit(binding);
-    });
-
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShape")
     .set_body_typed([](BlockBuilder builder, Expr value, Array<PrimExpr> pattern) {
       return builder->EmitMatchShape(value, pattern);
-    });
-
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchShapeBinding")
-    .set_body_typed([](BlockBuilder builder, MatchShape binding) {
-      return builder->EmitMatchShape(binding);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
@@ -1023,9 +926,9 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")
       return builder->EmitOutput(output);
     });
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutputVarBinding")
-    .set_body_typed([](BlockBuilder builder, VarBinding binding) {
-      return builder->EmitOutput(binding);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitNormalized")
+    .set_body_typed([](BlockBuilder builder, Binding binding) {
+      return builder->EmitNormalized(binding);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
@@ -1041,9 +944,6 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderUpdateFunction")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
-
-TVM_REGISTER_GLOBAL("relax.BlockBuilderCanProveShapeEqual")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::CanProveShapeEqual);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCurrentBlockIsDataFlow")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::CurrentBlockIsDataFlow);

@@ -15,16 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union, List
+from typing import Optional, Union
 
 import pytest
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tir
+from tvm.relax import DynTensorType
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
-from tvm.relax import RuntimeDepShape, DynTensorType
 
 
 def _check(
@@ -203,7 +203,7 @@ def test_match_shape():
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
-        bb.match_shape_binding(relax.MatchShape(x, (m,), var=None))
+        bb.emit_normalized(relax.MatchShape(x, (m,), var=None))
         y1 = bb.match_shape(y, (n,))
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     _check(foo, bb.get()["foo"])
@@ -475,30 +475,22 @@ def test_annotation():
         o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, type_args=R.Object)
         return o
 
-    def _check_type_shape(binding, expected_type, expected_shape):
-        tvm.ir.assert_structural_equal(binding.var.checked_type, expected_type)
-        tvm.ir.assert_structural_equal(binding.var.shape_, expected_shape)
+    def _check_struct_info(binding, expected_sinfo):
+        tvm.ir.assert_structural_equal(binding.var.struct_info, expected_sinfo)
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
     assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
-    m = foo.params[0].shape[1]
+    m = relax.get_shape_of(foo.params[0])[1]
     bindings = foo.body.blocks[0].bindings
-    _check_type_shape(
-        bindings[0],
-        relax.DynTensorType(ndim=2, dtype="float32"),
-        relax.ShapeExpr([tvm.tir.IntImm("int64", 32), m]),
-    )
-    _check_type_shape(bindings[1], relax.DynTensorType(dtype=""), RuntimeDepShape())
-    _check_type_shape(bindings[2], relax.DynTensorType(ndim=2, dtype=""), RuntimeDepShape())
-    _check_type_shape(bindings[3], relax.DynTensorType(dtype=""), RuntimeDepShape())
-    _check_type_shape(bindings[4], relax.ShapeType(), None)
-    _check_type_shape(
-        bindings[5],
-        relax.DynTensorType(ndim=2, dtype="int8"),
-        relax.ShapeExpr([tvm.tir.IntImm("int64", 1), tvm.tir.IntImm("int64", 1)]),
-    )
-    _check_type_shape(bindings[6], relax.ObjectType(), None)
+
+    _check_struct_info(bindings[0], relax.TensorStructInfo([32, m], "float32"))
+    _check_struct_info(bindings[1], relax.TensorStructInfo(dtype="", ndim=-1))
+    _check_struct_info(bindings[2], relax.TensorStructInfo(dtype="", ndim=2))
+    _check_struct_info(bindings[3], relax.TensorStructInfo(dtype="", ndim=-1))
+    _check_struct_info(bindings[4], relax.ShapeStructInfo(ndim=-1))
+    _check_struct_info(bindings[5], relax.TensorStructInfo([1, 1], "int8"))
+    _check_struct_info(bindings[6], relax.ObjectStructInfo())
 
 
 def test_annotate_override():
@@ -612,10 +604,6 @@ def test_cross_function_call():
         def foo(x: R.Tensor((10, 5), "float32")) -> R.Tensor((10, 5), "float32"):
             s = R.add(x, x)
             return s
-
-    # TODO(relax-team): enable it after fix block builder
-    # Current error: `gv2.shape` is different: (10, 5) vs RuntimeDepShape()
-    # tvm.ir.assert_structural_equal(Mod0, Mod1)
 
     with pytest.raises(OSError):
 

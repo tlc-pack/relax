@@ -90,19 +90,6 @@ RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
   p->stream << "GlobalVarPattern(" << node->name_hint() << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(RuntimeDepShapePatternNode);
-RuntimeDepShapePattern::RuntimeDepShapePattern(DFPattern root) {
-  ObjectPtr<RuntimeDepShapePatternNode> n = make_object<RuntimeDepShapePatternNode>();
-  n->pattern = std::move(root);
-  data_ = std::move(n);
-}
-TVM_REGISTER_GLOBAL("relax.dpl.RuntimeDepShapePattern").set_body_typed([](DFPattern root) {
-  return RuntimeDepShapePattern(std::move(root));
-});
-RELAX_PATTERN_PRINTER_DEF(RuntimeDepShapePatternNode, [](auto p, auto node) {
-  p->stream << "RuntimeDepShapePattern(" << node->pattern << " has runtime-dep shape)";
-});
-
 TVM_REGISTER_NODE_TYPE(ExprPatternNode);
 ExprPattern::ExprPattern(Expr expr) {
   ObjectPtr<ExprPatternNode> n = make_object<ExprPatternNode>();
@@ -364,9 +351,6 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const TypePatternNode* op) override {
     return TypePattern(op->pattern, op->type);
   }
-  DFPattern VisitDFPattern_(const RuntimeDepShapePatternNode* op) override {
-    return RuntimeDepShapePattern(op->pattern);
-  }
   DFPattern VisitDFPattern_(const DataflowVarPatternNode* op) override {
     return DataflowVarPattern(op->name);
   }
@@ -400,9 +384,6 @@ DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
 }
 ShapePattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);
-}
-RuntimeDepShapePattern DFPattern::HasRuntimeDepShape() const {
-  return RuntimeDepShapePattern(*this);
 }
 
 DFPattern::operator PatternSeq() const { return PatternSeq{{*this}}; }

@@ -80,34 +80,6 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         raise TypeError(f"Unsupported type {type(value)} in assignment")
 
 
-def eval_shape_annotation(
-    self: Parser, node: Union[doc.Expression, doc.expr], shape: relax.Expr
-) -> Any:
-    if shape is None:
-        return None
-    if isinstance(shape, relax.RuntimeDepShape):
-        return shape
-    elif isinstance(shape, relax.ShapeExpr):
-        shape = list(shape.values)
-        for i, expr in enumerate(shape):
-            # Define the symbolic shape var
-            if isinstance(expr, tir.Var):
-                name = expr.name
-                if name in self.var_table.get():
-                    shape[i] = self.var_table.get()[name]
-                else:
-                    self.var_table.add(name, shape[i])
-        return relax.ShapeExpr(shape)
-    elif isinstance(shape, relax.Tuple):
-        shapes = [eval_shape_annotation(self, node, s) for s in shape.fields]
-        if any([s is None for s in shapes]):
-            return None
-        return relax.Tuple(shapes)
-    else:
-        self.report_error(node, f"Unsupported shape {type(shape)}")
-        return None
-
-
 # pylint: disable=inconsistent-return-statements
 def eval_type_annotation(
     self: Parser, node: Union[doc.Expression, doc.expr]
