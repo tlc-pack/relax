@@ -289,9 +289,8 @@ class FusedTIRConstructor : public ExprVisitor {
     }
   }
 
-  void VisitBinding_(const MatchShapeNode* match_shape) final {
-    // TODO(relax-team): support match shape in primitive functions;
-    LOG(FATAL) << "MatchShape is unsupported in primitive functions";
+  void VisitBinding_(const MatchCastNode* match_cast) final {
+    LOG(FATAL) << "MatchCast is unsupported in primitive functions";
   }
 
   void VisitExpr_(const CallNode* call) final {

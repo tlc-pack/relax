@@ -28,6 +28,7 @@ from . import expr_functor
 from . import struct_info
 
 # Expr
+
 from .expr import (
     Expr,
     Span,
@@ -37,7 +38,7 @@ from .expr import (
     Var,
     DataflowVar,
     Binding,
-    MatchShape,
+    MatchCast,
     VarBinding,
     BindingBlock,
     DataflowBlock,

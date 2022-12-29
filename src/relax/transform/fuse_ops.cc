@@ -136,7 +136,7 @@ class GraphCreator : public ExprVisitor {
     // We skip ordinary binding blocks since they might be impure (with side effect or control flow)
   }
 
-  // TODO(tvm-team): how to deal with MatchShape binding here
+  // TODO(tvm-team): how to deal with MatchCast binding here
 
   void VisitBinding_(const VarBindingNode* binding) final {
     IndexedForwardGraph::Node* node = CreateNode(binding->var.get());
@@ -394,7 +394,7 @@ class FunctionCreator : public ExprMutator {
         AppendOutput(var_binding->var);
       }
     } else {
-      // TODO(tvm-team): handle match_shape
+      // TODO(tvm-team): handle match_cast
     }
     bindings_.push_back(binding);
   }
@@ -416,14 +416,7 @@ class FunctionCreator : public ExprMutator {
     // Step 2. Visit each binding and collect outputs one by one.
     Array<Expr> outputs;
     for (const Binding& binding : bindings_) {
-      const VarNode* var = nullptr;
-      if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        var = var_binding->var.get();
-      } else if (const auto* match_shape = binding.as<MatchShapeNode>()) {
-        var = match_shape->var.get();
-      } else {
-        ICHECK(false);
-      }
+      const VarNode* var = binding->var.get();
       if (output_vars_.count(var)) {
         // Case 1. It is an output binding
         // We only allow VarBinding as output.
@@ -687,12 +680,13 @@ class OperatorFusor : public ExprMutator {
           }
         }
       };
+
       if (const auto* var_binding = binding.as<VarBindingNode>()) {
         PostOrderVisit(var_binding->value, update_boundary);
       } else {
-        const auto* match_shape = binding.as<MatchShapeNode>();
-        ICHECK_NOTNULL(match_shape);
-        PostOrderVisit(match_shape->value, update_boundary);
+        const auto* match_cast = binding.as<MatchCastNode>();
+        ICHECK_NOTNULL(match_cast);
+        PostOrderVisit(match_cast->value, update_boundary);
       }
     }
   }
@@ -703,14 +697,7 @@ class OperatorFusor : public ExprMutator {
    * \return The pointer to the group which the input binding is in
    */
   GraphPartitioner::Group* GetGroupFromBinding(const Binding& binding) {
-    Var var{nullptr};
-    if (const auto* var_binding = binding.as<VarBindingNode>()) {
-      var = var_binding->var;
-    } else {
-      const auto* match_shape = binding.as<MatchShapeNode>();
-      ICHECK(match_shape != nullptr);
-      var = match_shape->var;
-    }
+    Var var = binding->var;
     return GetGroupFromVar(var);
   }
 

@@ -63,7 +63,7 @@ te::Tensor TETensor(Expr value, std::string name) {
   auto* shape_expr = tensor_sinfo->shape.as<ShapeExprNode>();
   CHECK(shape_expr)
       << "ValueError: Expression does not have an known symbolic shape, please consider use "
-         "match_shape "
+         "match_cast "
       << "to constrain the shape before passing into te_tensor";
   n->shape = shape_expr->values;
   n->dtype = tensor_sinfo->dtype;
