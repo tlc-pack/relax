@@ -94,7 +94,7 @@ def test_func_attr_setter_with_passes():
     # List of passes
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
-    passes.append(relax.transform.VMMemoryLower())
+    passes.append(relax.transform.VMBuiltinLower())
     passes.append(relax.transform.VMShapeLower())
     seq = tvm.transform.Sequential(passes)
 
@@ -123,7 +123,7 @@ def test_irmodule_attr_setter_with_passes():
     # List of passes
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
-    passes.append(relax.transform.VMMemoryLower())
+    passes.append(relax.transform.VMBuiltinLower())
     passes.append(relax.transform.VMShapeLower())
     seq = tvm.transform.Sequential(passes)
 

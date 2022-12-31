@@ -590,7 +590,6 @@ def test_recursion():
 
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(TestVMRecursion, target)
-    print(ex.as_text())
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     inp = np.empty(1).astype("float32")

@@ -38,47 +38,37 @@ namespace runtime {
 namespace relax_vm {
 
 /*!
- * \brief An object representing a vm closure.
- */
-class VMClosureObj : public ClosureObj {
- public:
-  /*!
-   * \brief The function name. The function could be any
-   * function object that is compatible to the VM runtime.
-   */
-  String func_name;
-  /*! \brief The free variables of the closure. */
-  Array<ObjectRef> free_vars;
-
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.vm.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, ClosureObj);
-};
-
-/*! \brief reference to closure. */
-class VMClosure : public Closure {
- public:
-  VMClosure(String func_name, Array<ObjectRef> free_vars);
-  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, Closure, VMClosureObj);
-};
-
-/*!
- * \brief A representation of a Relax function in the VM.
+ * \brief Information entry in executable function table.
  *
  * Contains metadata about the compiled function, as
  * well as the compiled VM instructions.
  */
-struct VMFunction {
-  /*! \brief The function's name. */
+struct VMFuncInfo {
+  /*! \brief kind of the function. */
+  enum class FuncKind : int {
+    /*! \brief system level packed function */
+    kPackedFunc = 0,
+    /*! \brief VM function. */
+    kVMFunc = 1
+  };
+  /*! \brief The kind of function. */
+  FuncKind kind;
+  /*! \brief The function's name, global symbol */
   std::string name;
   /*! \brief The start instruction index of the function. */
-  Index start_instr;
+  Index start_instr = 0;
+  /*! \brief The end instruction index of the function. */
+  Index end_instr = 0;
   /*! \brief The number of arguments of the function. */
-  Index num_args;
+  Index num_args = 0;
   /*! \brief The register file size of the function. */
-  Index register_file_size;
+  Index register_file_size = 0;
   /*! \brief The function parameter names.*/
   std::vector<std::string> param_names;
+
+  // defined customized loader sa
+  void Save(dmlc::Stream* writer) const;
+  bool Load(dmlc::Stream* reader);
 };
 
 /*!
@@ -150,18 +140,11 @@ class Executable : public runtime::ModuleNode {
   static Module LoadFromFile(const std::string& file_name);
 
   /*! \brief The virtual machine's function table. */
-  std::vector<VMFunction> global_funcs;
+  std::vector<VMFuncInfo> func_table;
   /*! \brief A map from globals (as strings) to their index in the function map. */
-  std::unordered_map<std::string, Index> global_map;
+  std::unordered_map<std::string, Index> func_map;
   /*! \brief The global constant pool. */
   std::vector<TVMRetValue> constants;
-  /*! \brief The name of packed functions. */
-  std::vector<std::string> func_names;
-  /*!
-   * \brief A mapping from the packed function (as string) to the index that
-   * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
-   */
-  std::unordered_map<std::string, Index> func2idx;
   /*! \brief The offset of instruction. */
   std::vector<Index> instr_offset;
   /*! \brief The byte data of instruction. */
@@ -218,4 +201,7 @@ class Executable : public runtime::ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
+namespace dmlc {
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::relax_vm::VMFuncInfo, true);
+}  // namespace dmlc
 #endif  // TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
