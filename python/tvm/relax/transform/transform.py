@@ -111,15 +111,19 @@ def VMMemoryLower() -> tvm.ir.transform.Pass:
     return _ffi_api.VMMemoryLower()  # type: ignore
 
 
-def VMShapeLower() -> tvm.ir.transform.Pass:
-    """Lower the shape expressions in relax to VM shape heap manipulations and generate related
-    TIR functions to do shape calculations.
+def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
+    """Lower the symbolic shape and argument and match-cast structinfo matching.
+
+    Parameters
+    ----------
+    emit_err_ctx: Optional[bool]
+        Whether emit err context string, can be turned off for testing purposes.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.VMShapeLower()  # type: ignore
+    return _ffi_api.VMShapeLower(emit_err_ctx)  # type: ignore
 
 
 def AttachGlobalSymbol() -> tvm.ir.transform.Pass:

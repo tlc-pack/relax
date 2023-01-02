@@ -70,14 +70,26 @@ enum class Opcode {
  * is active.
  */
 struct Instruction {
-  /*! \brief Random magic number that represents void argument. */
-  static constexpr RegName kVoidArg = 0x00EC66FE0321975A;
-  /*! \brief Random magic number that represents the VM. */
-  static constexpr RegName kVMRegister = 0x008D14FA4379015C;
+  /*! \brief The number of bit for storing value. */
+  static constexpr ExecWord kKindBit = 8;
+  /*! \brief The number of bit for storing value. */
+  static constexpr ExecWord kValueBit = sizeof(ExecWord) * 8 - kKindBit;
+  /*! \brief The bit mask of the value part. */
+  static constexpr ExecWord kValueMask = (static_cast<ExecWord>(1) << kValueBit) - 1;
+  /*! \brief Maximum possible value, use 1 bit for sign. */
+  static constexpr ExecWord kValueMaxLimit = (static_cast<ExecWord>(1) << (kValueBit - 1)) - 1;
+  /*! \brief Minimum possible value, remove 1 slot to keep things symmetric. */
+  static constexpr ExecWord kValueMinLimit = -kValueMaxLimit;
+  /*! \brief Begining of special register section. */
+  static constexpr RegName kBeginSpecialReg = static_cast<ExecWord>(1) << 54;
+  /*! \brief Random magic number that represents void argument, indicate null value */
+  static constexpr RegName kVoidRegister = kBeginSpecialReg + 0;
+  /*! \brief Random magic number that represents the VM context */
+  static constexpr RegName kVMRegister = kBeginSpecialReg + 1;
   /*!
    * \brief The kind of instruction's argument.
    */
-  enum ArgKind {
+  enum class ArgKind : int {
     kRegister = 0,
     kImmediate = 1,
     kConstIdx = 2,
@@ -85,42 +97,71 @@ struct Instruction {
   /*!
    * \brief The auxiliary data structure for instruction argument.
    */
-  struct Arg {
-    /*! \brief The number of bit for storing value. */
-    static constexpr ExecWord kValueBit = sizeof(ExecWord) * 8 - 8;
-    /*! \brief The bit mask of the value part. */
-    static constexpr ExecWord kValueMask = (static_cast<ExecWord>(1) << kValueBit) - 1;
+  class Arg {
+   public:
     /*! \brief Construct a void argument. */
-    Arg() : data(Instruction::kVoidArg) {}
-    /*! \brief Construct from the data. */
-    explicit Arg(ExecWord data) : data(data) {}
-    /*! \brief Construct from the kind and value. */
-    Arg(ArgKind kind, Index value) {
-      // TODO(ziheng): check value?
-      this->data = (static_cast<ExecWord>(kind) << kValueBit) | (value & kValueMask);
-    }
+    Arg() : data_(Instruction::kVoidRegister) {}
+    /*!
+     * \brief construct Arg from data.
+     * \param data The data repr.
+     */
+    static Arg FromData(ExecWord data) { return Arg(data); }
+    /*!
+     * \brief construct a register Arg.
+     * \param reg The register number.
+     * \return The constructed arg.
+     */
+    static Arg Register(RegName reg) { return Arg(ArgKind::kRegister, reg); }
+    /*!
+     * \brief construct a ConstIdx arg.
+     * \param index The constant index.
+     * \return The constructed arg.
+     */
+    static Arg ConstIdx(Index index) { return Arg(ArgKind::kConstIdx, index); }
+    /*!
+     * \brief construct a immediate arg.
+     * \param index The constant index.
+     * \return The constructed arg.
+     */
+    static Arg Immediate(int64_t imm_value) { return Arg(ArgKind::kImmediate, imm_value); }
     /*!
      * \brief Get the kind of argument..
      * \return The kind of argument.
      */
     ArgKind kind() const {
-      uint8_t kind = (data >> kValueBit) & 0xFF;
+      uint8_t kind = (data_ >> kValueBit) & 0xFF;
       return Instruction::ArgKind(kind);
     }
     /*!
-     * \brief Get the value of argument..
+     * \brief Get the value of argument.
      * \return The value of argument.
+     * \note We store both positive and negative values by sign extension.
      */
-    ExecWord value() const { return data & ((static_cast<ExecWord>(1) << kValueBit) - 1); }
+    ExecWord value() const { return ((data_ & kValueMask) << kKindBit) >> kKindBit; }
+    /*!
+     * \brief Get the raw data repr of the arg.
+     * \return The raw data.
+     */
+    ExecWord data() const { return data_; }
+
+   private:
+    /*! \brief Construct from the data. */
+    explicit Arg(ExecWord data) : data_(data) {}
+    /*! \brief Construct from the kind and value. */
+    Arg(ArgKind kind, Index value) {
+      ICHECK_LE(value, kValueMaxLimit);
+      ICHECK_GE(value, kValueMinLimit);
+      data_ = (static_cast<ExecWord>(kind) << kValueBit) | (value & kValueMask);
+    }
     /*! \brief The underlying stored data. */
-    ExecWord data;
+    ExecWord data_;
   };
   /*! \brief The instruction opcode. */
   Opcode op;
-  /*! \brief The destination register. */
-  RegName dst;
   union {
     struct /* Call */ {
+      /*! \brief The destination register. */
+      RegName dst;
       /*! \brief The index into the packed function table. */
       Index func_idx;
       /*! \brief The number of arguments to the packed function. */

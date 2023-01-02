@@ -17,6 +17,7 @@
 """The base Relax operators."""
 from typing import Union, List, Optional
 
+
 import tvm
 from tvm.runtime.object import Object
 
@@ -25,7 +26,19 @@ from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
 from ..ty import DynTensorType, TupleType
 from ...ir import Array, Type, PrimExpr
 
+
 py_print = print  # pylint: disable=invalid-name
+
+
+def null_value() -> Call:
+    """Create a call node that represents a null value object.
+
+    Returns
+    -------
+    ret: Call
+        The created call node.
+    """
+    return _ffi_api.null_value()  # type: ignore
 
 
 def call_tir(
@@ -109,6 +122,57 @@ def call_tir(
         raise TypeError("Not supported dtype for call_tir: " + str(type(dtype)))
 
     return _ffi_api.call_tir(func, args, shape, output_type, tir_vars)  # type: ignore
+
+
+def call_builtin(
+    func: Union[str, Expr],
+    args: Union[Tuple, List[Expr]],
+    *,
+    type_args: Optional[List[Type]] = None,
+    int_args: Optional[List[int]] = None,
+    dtype_arg: Optional[str] = None,
+    str_args: Optional[List[str]] = None,
+    require_ctx: bool = False,
+) -> Call:
+    """Call a builtin function func.
+
+    Parameters
+    ----------
+    func : Expr
+        The builtin function to be called.
+
+    args : Union[Tuple, List[Expr]]
+        The input arguments.
+
+    type_args: Optional[List[Type]]
+        The type arguments to the call node.
+
+    int_args: Optional[List[int]]
+        List of additional int arguments passed to the builtin.
+
+    dtype_arg: str
+        Additional dtype argument passed to the builtin
+
+    str_args:  Optional[List[str]]
+        List of additional int arguments passed to the builtin.
+
+    require_ctx: bool
+        Whether we need to pass context as first argument.
+
+    Returns
+    -------
+    ret: Call
+        The created call node.
+    """
+    if isinstance(func, str):
+        func = ExternFunc(func)
+
+    if isinstance(args, (list, tuple)):
+        args = Tuple(args)
+
+    return _ffi_api.call_builtin(  # type: ignore
+        func, args, type_args, int_args, dtype_arg, str_args, require_ctx  # type: ignore
+    )
 
 
 def make_closure(
