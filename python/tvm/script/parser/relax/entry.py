@@ -130,7 +130,11 @@ class TupleProxy:
         if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
             fields = fields[0]
 
-        # TODO(siyuan): Revisit this part
+        if len(fields) == 0:
+            # Note: We cannot detect it's an expr or a struct info for empty tuple.
+            # So we return an expr by default, and use a spacial case in parser to fix it.
+            return RxTuple([])
+
         if all([isinstance(f, Expr) for f in fields]):
             return RxTuple(fields)
         else:

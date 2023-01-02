@@ -751,6 +751,21 @@ def test_erase_to_well_defined():
     _check(foo, None)
 
 
+def test_empty_tuple():
+    @R.function
+    def foo(x: R.Tuple()):
+        y: R.Tuple() = R.Tuple()
+        return y
+
+    x = relax.Var("x", relax.TupleStructInfo([]))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        y = bb.emit(relax.Tuple([]))
+        bb.emit_func_output(y)
+
+    _check(foo, bb.get()["foo"])
+
+
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
 def test_meta():
     metadata = tvm.ir.load_json(
