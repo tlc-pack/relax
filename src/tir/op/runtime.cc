@@ -37,5 +37,15 @@ TVM_REGISTER_OP("tir.TVMBackendFreeWorkspace")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TVM_REGISTER_OP("tir.TVMBackendAnyListSetPackedArg")
+    .set_num_inputs(5)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListSetPackedArg")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TVM_REGISTER_OP("tir.TVMBackendAnyListMoveFromPackedReturn")
+    .set_num_inputs(3)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListMoveFromPackedReturn")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
 }  // namespace tir
 }  // namespace tvm
