@@ -82,7 +82,7 @@ def test_print():
             test_out.seek(0)
             printed_text = str(test_out.read())
             expected = "1\nNumber: 1\nTuple: (1, 1)\n1 (1, 1)\nCustom print: 1 1\nAnother print: 1 (1, 1)\n"
-            printed_text in expected
+            assert printed_text in expected
     finally:
         sys.stdout = stdout
 

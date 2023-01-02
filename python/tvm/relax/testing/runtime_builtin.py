@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Testing utilities for runtime builtin functions.
-"""
+"""Testing utilities for runtime builtin functions."""
 from enum import IntEnum
 
 
