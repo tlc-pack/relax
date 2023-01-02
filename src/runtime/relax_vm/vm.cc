@@ -353,19 +353,15 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   for (Index i = 0; i < instr.num_args; ++i) {
     Instruction::Arg arg = instr.args[i];
     switch (arg.kind()) {
-      case Instruction::kRegister: {
-        if (arg.value() == Instruction::kVMRegister) {
-          setter(i, this);
-        } else {
-          setter(i, ReadRegister(curr_frame, arg.value()));
-        }
+      case Instruction::ArgKind::kRegister: {
+        setter(i, ReadRegister(curr_frame, arg.value()));
         break;
       }
-      case Instruction::kImmediate: {
+      case Instruction::ArgKind::kImmediate: {
         setter(i, arg.value());
         break;
       }
-      case Instruction::kConstIdx: {
+      case Instruction::ArgKind::kConstIdx: {
         setter(i, this->constants[arg.value()]);
         break;
       }
@@ -381,14 +377,15 @@ void VirtualMachine::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   func_table_[instr.func_idx].CallPacked(args, &ret);
 
   // save the return value to the register
-  if (instr.dst != Instruction::kVoidArg) {
+  // saving to special register is a NOP
+  if (instr.dst < Instruction::kBeginSpecialReg) {
     WriteRegister(curr_frame, instr.dst, ret);
   }
   // increment pc
   pc_++;
 }
 
-int64_t VirtualMachine::LoadScalarInt(RegName reg) const {
+int64_t VirtualMachine::LoadScalarInt(RegName reg) {
   int64_t result = 0;
   VMFrame* curr_frame = frames_.back().get();
   const RegType& obj = ReadRegister(curr_frame, reg);
@@ -479,11 +476,22 @@ void VirtualMachine::PopFrame() {
 }
 
 inline void VirtualMachine::WriteRegister(VMFrame* frame, Index r, const RegType& val) {
+  ICHECK_LT(r, frame->register_file.size());
   frame->register_file[r] = val;
 }
 
-inline RegType VirtualMachine::ReadRegister(VMFrame* frame, Index r) const {
-  return frame->register_file[r];
+inline RegType VirtualMachine::ReadRegister(VMFrame* frame, Index r) {
+  if (r < Instruction::kBeginSpecialReg) {
+    return frame->register_file[r];
+  }
+  RegType reg;
+  if (r == Instruction::kVoidRegister) {
+    reg = nullptr;
+  } else {
+    ICHECK_EQ(r, Instruction::kVMRegister);
+    reg = static_cast<void*>(this);
+  }
+  return reg;
 }
 
 void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {

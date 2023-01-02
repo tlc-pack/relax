@@ -16,12 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """A builder to build Relax VM executable."""
-from __future__ import annotations
-
 from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
-from tvm._ffi._ctypes.packed_func import TVMRetValueHandle
 from tvm.runtime import Object
 from tvm.runtime.container import ShapeTuple
 from .vm import Executable
@@ -31,14 +28,14 @@ from . import _ffi_api
 class SpecialReg(IntEnum):
     """Magic numbers that represent special registers in vm."""
 
-    VOID_ARG = 0x00EC66FE0321975A
-    VM_STATE = 0x008D14FA4379015C
+    VOID_ARG = (1 << 54) + 0
+    VM_STATE = (1 << 54) + 1
 
 
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
 
-    stack: List[VMFuncScope] = []
+    stack: List["VMFuncScope"] = []
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
@@ -84,8 +81,8 @@ class ExecBuilder(Object):
         if len(VMFuncScope.stack) == 0:
             raise ValueError("emit should happen in a function scope")
 
-    def emit_constant(self, const: TVMRetValueHandle) -> int:
-        return _ffi_api.ExecBuilderEmitConstant(self, const)  # type: ignore
+    def convert_constant(self, const: object) -> int:
+        return _ffi_api.ExecBuilderConvertConstant(self, const)  # type: ignore
 
     def emit_call(
         self,
@@ -102,10 +99,10 @@ class ExecBuilder(Object):
             for arg in args:
                 if isinstance(arg, tuple):
                     shape_tuple = ShapeTuple(arg)
-                    new_arg = self.emit_constant(shape_tuple)
+                    new_arg = self.convert_constant(shape_tuple)
                     args_.append(new_arg)
                 elif isinstance(arg, (tvm.nd.NDArray, tvm.DataType, ShapeTuple)):
-                    new_arg = self.emit_constant(arg)
+                    new_arg = self.convert_constant(arg)
                     args_.append(new_arg)
                 else:
                     args_.append(arg)

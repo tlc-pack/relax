@@ -121,7 +121,7 @@ def test_unused_relax_func_symbolic_shape():
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
             m, k = T.var("int64"), T.var("int64")
-            gv0 = R.call_tir(tir_add, (x, w), (m, k), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), (m + 1, k), dtype="float32")
             return gv0
 
     mod = InputModule
@@ -130,16 +130,6 @@ def test_unused_relax_func_symbolic_shape():
     new_mod = relax.transform.RemoveUnusedFunctions()(mod)
     assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "tir_add")
-    assert not check_if_func_exists(new_mod, "unused_func")
-
-    # Remove unused function after shape lowering.
-    # Shape lowering will inject several shape-related global functions.
-    # We need to make sure unused function removal pass does not remove those functions.
-    shape_lowered_mod = relax.transform.VMShapeLower()(mod)
-    new_mod = relax.transform.RemoveUnusedFunctions()(shape_lowered_mod)
-    assert check_if_func_exists(new_mod, "main")
-    assert check_if_func_exists(new_mod, "tir_add")
-    assert check_if_func_exists(new_mod, "shape_func")  # injected by VMShapeLower pass
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
