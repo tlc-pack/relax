@@ -404,6 +404,17 @@ inline StructInfo GetStructInfo(const Expr& expr) {
 }
 
 /*!
+ * \brief Whether the expr has void struct info.
+ *
+ * \param expr The input expression.
+ * \return Whether the expr has void struct info.
+ */
+inline bool HasVoidStructInfo(const Expr& expr) {
+  auto* ptr = expr->struct_info_.as<TupleStructInfoNode>();
+  return ptr != nullptr && ptr->fields.size() == 0;
+}
+
+/*!
  * \brief Update the struct info of an Expr.
  * \param expr The Expr whose struct info to be updated.
  * \param shape The struct_info assigned.

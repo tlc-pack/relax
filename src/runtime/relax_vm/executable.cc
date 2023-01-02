@@ -155,7 +155,9 @@ std::string Executable::Stats() const {
 }
 
 void Executable::SetInstructionData(Index i, Index j, ExecWord val) {
+  ICHECK_LT(i, instr_offset.size());
   Index instr_idx = instr_offset[i];
+  ICHECK_LT(instr_idx + j, instr_data.size());
   instr_data[instr_idx + j] = val;
 }
 
@@ -441,8 +443,8 @@ std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ",
 }
 
 std::string RegNameToStr(RegName reg) {
-  if (reg == Instruction::kVoidArg) {
-    return "void";
+  if (reg == Instruction::kVoidRegister) {
+    return "%void";
   }
   if (reg == Instruction::kVMRegister) {
     return "%vm";
@@ -453,31 +455,31 @@ std::string RegNameToStr(RegName reg) {
 std::string InstrArgToStr(Instruction::Arg arg) {
   // only for argument
   switch (arg.kind()) {
-    case Instruction::kRegister:
+    case Instruction::ArgKind::kRegister:
       return RegNameToStr(arg.value());
-    case Instruction::kImmediate:
+    case Instruction::ArgKind::kImmediate:
       return "i" + std::to_string(arg.value());
-    case Instruction::kConstIdx:
+    case Instruction::ArgKind::kConstIdx:
       return "c[" + std::to_string(arg.value()) + "]";
     default:
-      LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
+      LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
       return "";
   }
 }
 
 std::string InstrArgToPyStr(Instruction::Arg arg) {
   switch (arg.kind()) {
-    case Instruction::kRegister:
+    case Instruction::ArgKind::kRegister:
       if (arg.value() == Instruction::kVMRegister) {
         return "ib.r(vm)";
       }
       return "ib.r(" + std::to_string(arg.value()) + ")";
-    case Instruction::kImmediate:
+    case Instruction::ArgKind::kImmediate:
       return "ib.imm(" + std::to_string(arg.value()) + ")";
-    case Instruction::kConstIdx:
+    case Instruction::ArgKind::kConstIdx:
       return "ib.c(" + std::to_string(arg.value()) + ")";
     default:
-      LOG(FATAL) << "Wrong instruction kind: " << arg.kind();
+      LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
       return "";
   }
 }
@@ -498,6 +500,8 @@ String Executable::AsText() const {
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
+          ICHECK_LT(instr.func_idx, this->func_names.size());
+
           os << std::setw(6) << std::left << "call" << std::setw(16) << std::left
              << this->func_names[instr.func_idx] << " in: " << std::setw(12) << std::left
              << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
@@ -543,10 +547,11 @@ String Executable::AsPython() const {
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
+          ICHECK_LT(instr.func_idx, this->func_names.size());
           os << "    ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
              << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr)
              << "]";
-          if (instr.dst != Instruction::kVoidArg) os << ", dst=ib.r(" << instr.dst << ")";
+          if (instr.dst != Instruction::kVoidRegister) os << ", dst=ib.r(" << instr.dst << ")";
           os << ")\n";
           break;
         }

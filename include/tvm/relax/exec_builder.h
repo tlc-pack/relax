@@ -32,6 +32,7 @@
 #include <tvm/runtime/relax_vm/executable.h>
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -46,8 +47,6 @@ class ExecBuilder;
  */
 class ExecBuilderNode : public Object {
  public:
-  /*! \brief The mutable internal executable. */
-  ObjectPtr<vm::Executable> exec;  // mutable
   /*!
    * \brief To annotate the start of a vm function.
    * \param func The function name.
@@ -65,8 +64,9 @@ class ExecBuilderNode : public Object {
   /*!
    * \brief Emit a ret instruction.
    * \param result The return result.
+   * \note result must be a register.
    */
-  void EmitRet(vm::RegName result);
+  void EmitRet(vm::Instruction::Arg result);
   /*!
    * \brief Emit a goto instruction.
    * \param pc_offset The program counter offset as the jump offset.
@@ -76,17 +76,30 @@ class ExecBuilderNode : public Object {
    * \brief Emit an If instruction.
    * \param cond The register containing the cond value.
    * \param false_offset The program counter offset for the false branch.
+   * \note result must be a register.
    */
-  void EmitIf(vm::RegName cond, vm::Index false_offset);
+  void EmitIf(vm::Instruction::Arg cond, vm::Index false_offset);
   /*!
-   * \brief Emit a constant value to the constant pool.
-   * \param obj The constant value to be emitted
-   * \return The index that represents the constant.
+   * \brief Convert a constant value something that exec builder can understand.
+   *
+   * This function may update the constant pool to include the obj value.
+   *
+   * \param value The input constant value
+   * \return An Arg that represents the result of constant argument.
    */
-  vm::Index EmitConstant(TVMRetValue obj);
+  template <typename T>
+  vm::Instruction::Arg ConvertConstant(T value) {
+    TVMRetValue rv;
+    rv = value;
+    return ConvertConstant_(rv);
+  }
   /*!
-   * \brief Get the built executable.
-   * \return The built executable.
+   * \brief Raw access to underlying executable build in progress.
+   */
+  vm::Executable* exec() const;
+  /*!
+   * \brief Finalize the build, run formalize and get the final result.
+   * \note This function should not be called during construction.
    */
   ObjectPtr<vm::Executable> Get();
   /*!
@@ -103,6 +116,16 @@ class ExecBuilderNode : public Object {
 
  private:
   /*!
+   * \brief Convert a constant value something that exec builder can understand.
+   *
+   * This function may update the constant pool to include the obj value.
+   *
+   * \param obj The constant value to be emitted
+   * \return An Arg that represents the result of constant argument.
+   */
+  vm::Instruction::Arg ConvertConstant_(TVMRetValue obj);
+
+  /*!
    * \brief A helper function to check if an executable is legal by checking if registers are used
    * properly
    */
@@ -111,6 +134,11 @@ class ExecBuilderNode : public Object {
    * \brief Formalize the executable.
    */
   void Formalize();
+
+  /*! \brief The mutable internal executable. */
+  ObjectPtr<vm::Executable> exec_;  // mutable
+  /*! \brief internal dedup map when creating index for a new constant */
+  std::unordered_map<ObjectRef, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
 };
 
 class ExecBuilder : public ObjectRef {
