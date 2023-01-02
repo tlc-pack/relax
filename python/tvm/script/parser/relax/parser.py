@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=missing-docstring
 
+import functools
 import numbers
 from typing import Any, Optional, Tuple, Union
 
 from tvm import relax, tir
-from tvm.ir import Type
-from tvm.relax import StructInfo, Expr
+from tvm.ir import Type, structural_equal
+from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
 
@@ -32,7 +33,13 @@ from .._core import Parser, dispatch, doc
 from .entry import MatchCastPair
 
 
-def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
+def bind_assign_value(
+    self: Parser,
+    node: doc.expr,
+    var_name: str,
+    value: Any,
+    anno_sinfo: Optional[StructInfo] = None,
+) -> Any:
     var_table = self.var_table.get()
 
     if isinstance(value, tir.Var):
@@ -64,18 +71,20 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         value = convert_to_expr(value)
     if isinstance(value, numbers.Number):
         value = R.const(value)
+
     if isinstance(value, relax.Expr):
-        var = R.emit(value)
-        # It's an internal check, so directly use assert here.
-        assert var is not None
-        IRBuilder.name(var_name, var)
-        return var
+        var = R.emit(value, anno_sinfo)
     elif isinstance(value, MatchCastPair):
+        if anno_sinfo is not None and not structural_equal(anno_sinfo, value.struct_info):
+            self.report_error(
+                node, "Cannot specify inconsistent annotation for a match cast pair. "
+            )
         var = R.emit_match_cast(value.value, value.struct_info)
-        IRBuilder.name(var_name, var)
-        return var
     else:
         raise TypeError(f"Unsupported type {type(value)} in assignment")
+
+    IRBuilder.name(var_name, var)
+    return var
 
 
 # pylint: disable=inconsistent-return-statements
@@ -208,16 +217,13 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    ann_sinfo = self.visit_tvm_annotation(node.annotation)
+    anno_sinfo = self.visit_tvm_annotation(node.annotation)
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=bind_assign_value,
+        bind_value=functools.partial(bind_assign_value, anno_sinfo=anno_sinfo),
         allow_shadowing=True,
     )
-    var = self.var_table.get().get(lhs.id)
-    assert isinstance(var, relax.Var)
-    R.ir.annotate_struct_info(var, ann_sinfo)
 
 
 @dispatch.register(token="relax", type_name="Return")
