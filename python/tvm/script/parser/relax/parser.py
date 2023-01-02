@@ -85,6 +85,11 @@ def eval_type_annotation(
     annotation = self.eval_expr(node)
     if callable(annotation):
         annotation = annotation()
+
+    if isinstance(annotation, relax.Tuple) and len(annotation.fields) == 0:
+        # Case for empty tuple
+        annotation = relax.TupleStructInfo([])
+
     if isinstance(annotation, StructInfo):
         var_table = {k: v for k, v in self.var_table.get().items() if isinstance(v, tir.Var)}
         annotation, undefined_vars = R.RewriteSymbolicShape(annotation, var_table)
