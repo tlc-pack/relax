@@ -451,6 +451,51 @@ class VirtualMachine(object):
         )
 
 
+def _codegen(
+    mod: tvm.IRModule,
+    target: Union[str, tvm.target.Target],
+    lib: Optional[tvm.runtime.Module] = None,
+    ext_libs: List[tvm.runtime.Module] = None,
+    params: Optional[Dict[str, list]] = None,
+):
+    """
+    Internal codegen function to make executable.
+
+    This function is only used for unit-testing purpoes.
+
+    Use build instead.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The input IRModule to be built.
+
+    target : Union[str, tvm.target.Target]
+        A build target which can have optional host side compilation target.
+
+    lib: Optional[tvm.runtime.Module]
+        The compiled library modules.
+
+    ext_libs:  List[tvm.runtime.Module]
+        List of compiled external modules.
+
+    params: Optional[Dict[str, list]]
+        Extra parameter mappings.
+
+    Returns
+    -------
+    ex: tvm.relax.vm.Executable
+        An executable that can be loaded by virtual machine.
+    """
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
+    if params is None:
+        params = {}
+    if ext_libs is None:
+        ext_libs = []
+    return Executable(_ffi_api.VMCodeGen(mod, target, lib, ext_libs, params))  # type: ignore
+
+
 def build(
     mod: tvm.IRModule,
     target: Union[str, tvm.target.Target],
@@ -519,7 +564,7 @@ def build(
     if params is None:
         params = {}
 
-    return Executable(_ffi_api.VMCodeGen(rx_mod, lib, ext_libs, target, params))  # type: ignore
+    return _codegen(rx_mod, target, lib, ext_libs, params)
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:

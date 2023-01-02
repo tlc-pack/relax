@@ -45,16 +45,17 @@ GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func_s
     if (func->struct_info_.defined()) {
       gv->struct_info_ = tvm::relax::GetStructInfo(func);
     } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
-      // NOTE: use a slightly different struct info than checked type
-      // in PrimFunc so handle can turn into Tensor.
-      // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
       gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc(
           tvm::relax::StructInfoFromType(prim_func->ret_type));
     } else {
       LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
     }
   } else {
-    gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc();
+    // TODO(relax-team): eliminate declare without function signature.
+    // This code path is currently triggered by PrimFunc declare
+    // Shoule be updated to always pass in function signature.
+    gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc(
+        tvm::relax::TupleStructInfo(Array<tvm::relax::StructInfo>()));
   }
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";
