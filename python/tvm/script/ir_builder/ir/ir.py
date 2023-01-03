@@ -16,8 +16,6 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
-from typing import Optional
-
 from tvm.ir import BaseFunc, GlobalVar
 
 from . import _ffi_api

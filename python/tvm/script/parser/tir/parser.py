@@ -476,6 +476,17 @@ def visit_return(self: Parser, node: doc.Return) -> None:
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+    """The function declaration step for tir
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Return
+        The doc AST return node.
+    """
+
     ret_type = None
     if node.returns is not None:
         ret_type = self.eval_expr(node.returns)
