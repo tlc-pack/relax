@@ -34,10 +34,7 @@ def ir_module() -> IRModuleFrame:
     return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def decl_function(
-    func_name: str,
-    func_signature: Optional[BaseFunc] = None,
-) -> GlobalVar:
+def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
     """Declare a Function without given the specific function implementation.
     Parameters
     ----------

@@ -35,33 +35,24 @@ IRModuleFrame IRModule() {
   return IRModuleFrame(n);
 }
 
-GlobalVar DeclFunction(const String& func_name, const Optional<BaseFunc>& func_signature) {
+GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) {
   IRModuleFrame frame = FindModuleFrame("I.DeclFunction");
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
   GlobalVar gv = GlobalVar(func_name);
-  if (func_signature.defined()) {
-    const BaseFunc& func = func_signature.value();
-    if (func->struct_info_.defined()) {
-      gv->struct_info_ = tvm::relax::GetStructInfo(func);
-    } else if (const auto* prim_func = func.as<tvm::tir::PrimFuncNode>()) {
-      gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc(
-          tvm::relax::StructInfoFromType(prim_func->ret_type));
-    } else {
-      LOG(FATAL) << "Unsupported function type: " << func->GetTypeKey();
-    }
+  if (func_signature->struct_info_.defined()) {
+    gv->struct_info_ = tvm::relax::GetStructInfo(func_signature);
+  } else if (const auto* prim_func = func_signature.as<tvm::tir::PrimFuncNode>()) {
+    gv->struct_info_ =
+        tvm::relax::FuncStructInfo::OpaqueFunc(tvm::relax::StructInfoFromType(prim_func->ret_type));
   } else {
-    // TODO(relax-team): eliminate declare without function signature.
-    // This code path is currently triggered by PrimFunc declare
-    // Shoule be updated to always pass in function signature.
-    gv->struct_info_ = tvm::relax::FuncStructInfo::OpaqueFunc(
-        tvm::relax::TupleStructInfo(Array<tvm::relax::StructInfo>()));
+    LOG(FATAL) << "Unsupported function type: " << func_signature->GetTypeKey();
   }
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);
   if (func_signature.defined()) {
-    frame->functions.Set(gv, func_signature.value());
+    frame->functions.Set(gv, func_signature);
   }
   return gv;
 }
