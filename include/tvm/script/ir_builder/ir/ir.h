@@ -45,8 +45,7 @@ TVM_DLL IRModuleFrame IRModule();
  *                       (i.e. func params and func return type/shape).
  * \return The corresponding GlobalVar.
  */
-TVM_DLL GlobalVar DeclFunction(const String& func_name,
-                               const Optional<BaseFunc>& func_signature = NullOpt);
+TVM_DLL GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature);
 
 /*!
  * \brief Define the function which is declared before.
