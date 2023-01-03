@@ -41,7 +41,7 @@ def strip_whitespace(text: str) -> str:
 
 def normalize(func: rx.Function) -> rx.Function:
     """
-    Normalize the expr to fill in the checked_type_ and shape_ fields everywhere
+    Normalize the expr to fill in the checked_type_ and struct_info fields everywhere
     """
     # using a default mutator to use the BlockBuilder's normalizer,
     # which oddly differs from the Normalize pass
@@ -439,7 +439,7 @@ def test_operators():
     assert print_attrs_str in bar_str
 
 
-def test_print_shape_annotation_non_var():
+def test_print_struct_info_annotation_non_var():
     @R.function
     def f() -> R.Tensor:
         return R.const([1, 2])
