@@ -48,7 +48,7 @@ void PrimFuncFrameNode::ExitWithScope() {
     const String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
       // Case. First time visiting the function.
-      ir::DeclFunction(func_name);
+      ir::DeclFunction(func_name, func);
     }
     // Define the function.
     // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
