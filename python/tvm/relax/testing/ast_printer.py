@@ -279,7 +279,7 @@ class ASTPrinter(ExprFunctor):
             )
         elif isinstance(struct_info_node, relax.FuncStructInfo):
             fields = {}
-            if struct_info_node.params:
+            if struct_info_node.params is not None:
                 fields["params"] = self.build_list(
                     map(self.visit_struct_info_, struct_info_node.params)
                 )
