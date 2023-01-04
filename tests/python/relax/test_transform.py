@@ -288,7 +288,7 @@ def test_call_tir_rewrite():
 
 def test_vm_memory_lower():
     @tvm.script.ir_module
-    class TestVMMemoryLower:
+    class TestVMBuiltinLower:
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
             m, n = T.var("int64"), T.var("int64")
@@ -299,10 +299,10 @@ def test_vm_memory_lower():
             gv0 = alloc
             return gv0
 
-    mod = TestVMMemoryLower
+    mod = TestVMBuiltinLower
 
     # after vm memory lowering
-    new_mod = relax.transform.VMMemoryLower()(mod)
+    new_mod = relax.transform.VMBuiltinLower()(mod)
     func = new_mod["foo"]
 
     assert isinstance(new_mod, tvm.IRModule)
@@ -314,10 +314,10 @@ def test_vm_memory_lower():
     assert s1.op.name == "relax.vm.builtin.alloc_storage"
     s2 = block.bindings[1].value
     assert isinstance(s2, relax.Call)
-    s4 = block.bindings[3].value
-    assert isinstance(s4, relax.Call)
-    assert isinstance(s4.op, relax.ExternFunc)
-    assert s4.op.global_symbol == "test.op.identity"
+    s3 = block.bindings[2].value
+    assert isinstance(s3, relax.Call)
+    assert isinstance(s3.op, relax.ExternFunc)
+    assert s3.op.global_symbol == "test.op.identity"
 
 
 if __name__ == "__main__":

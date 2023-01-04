@@ -101,14 +101,14 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.CallTIRRewrite()  # type: ignore
 
 
-def VMMemoryLower() -> tvm.ir.transform.Pass:
-    """Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
+def VMBuiltinLower() -> tvm.ir.transform.Pass:
+    """Lowering generic intrinsic to VM intrinsics.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.VMMemoryLower()  # type: ignore
+    return _ffi_api.VMBuiltinLower()  # type: ignore
 
 
 def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
