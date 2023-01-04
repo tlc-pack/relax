@@ -274,7 +274,7 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("TensorStructInfo", **fields)
         elif isinstance(struct_info_node, relax.TupleStructInfo):
             return self.build_ast_node(
-                "TupleType",
+                "TupleStructInfo",
                 fields=self.build_list(map(self.visit_struct_info_, struct_info_node.fields)),
             )
         elif isinstance(struct_info_node, relax.FuncStructInfo):
