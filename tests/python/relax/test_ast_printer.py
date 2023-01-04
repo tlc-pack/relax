@@ -262,8 +262,8 @@ def test_shape_expr():
 
 def test_types():
     printer = ASTPrinter()
-    shape_type = rx.ShapeType()
-    assert strip_whitespace(printer.visit_type_(shape_type)) == "ShapeType()"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType())) == "ShapeType(ndim=-1)"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
     object_type = rx.ObjectType()
     assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
     packed_type = rx.PackedFuncType()
@@ -272,9 +272,11 @@ def test_types():
     assert strip_whitespace(printer.visit_type_(tensor_type)) == "DynTensorType(ndim=2,dtype=int32)"
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
-    tuple_type = rx.TupleType([shape_type, object_type])
+    tuple_type = rx.TupleType([rx.ShapeType(), object_type])
     assert_fields(
-        "TupleType", {"fields": "[ShapeType(), ObjectType()]"}, printer.visit_type_(tuple_type)
+        "TupleType",
+        {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
+        strip_whitespace(printer.visit_type_(tuple_type)),
     )
 
     func_type = rx.FuncType([tensor_type], unit_type)
@@ -457,7 +459,7 @@ def test_print_struct_info_annotation_non_var():
                     ndim=1,
                     values=[PrimExpr(value=`2i64`)]
                 ),
-                checked_type_=ShapeType()
+                checked_type_=ShapeType(ndim=1)
             )
         )
         """
@@ -481,7 +483,7 @@ def test_print_type_annotation_non_var():
 
     call_str = strip_whitespace(dump_ast(call))
     # we expect the shape_of call to have a checked_type_ of ShapeType
-    type_str = "checked_type_=ShapeType()"
+    type_str = "checked_type_=ShapeType(ndim=-1)"
     assert type_str in call_str
 
 
