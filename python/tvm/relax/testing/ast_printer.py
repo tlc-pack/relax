@@ -223,7 +223,7 @@ class ASTPrinter(ExprFunctor):
         Recurse down types and print their ASTs too
         """
         if isinstance(type_node, relax.ShapeType):
-            return self.build_ast_node("ShapeType")
+            return self.build_ast_node("ShapeType", ndim=str(type_node.ndim))
         if isinstance(type_node, relax.ObjectType):
             return self.build_ast_node("ObjectType")
         if isinstance(type_node, relax.PackedFuncType):
