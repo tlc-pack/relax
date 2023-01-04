@@ -77,39 +77,80 @@ vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(TVMRetValue cvalue) {
   }
 }
 
-void ExecBuilderNode::EmitFunction(std::string func_name, int64_t num_inputs,
-                                   Array<String> param_names) {
-  const auto& m = exec_->global_map;
-  ICHECK(m.find(func_name) == m.end());
-  VMFunction vmfunc;
-  vmfunc.name = func_name;
-  vmfunc.start_instr = exec_->instr_offset.size();
-  vmfunc.num_args = num_inputs;
-  std::vector<std::string> names;
-  for (size_t i = 0; i < param_names.size(); ++i) {
-    names.push_back(param_names[i]);
+void ExecBuilderNode::DeclareFunction(const std::string& func_name, VMFuncInfo::FuncKind kind) {
+  auto it = exec_->func_map.find(func_name);
+  if (it != exec_->func_map.end()) {
+    ICHECK(kind == exec_->func_table[it->second].kind)
+        << "Function " << func_name << "already declared in a different kind";
+    return;
   }
-  vmfunc.param_names = names;
-  exec_->global_map[func_name] = exec_->global_funcs.size();
-  exec_->global_funcs.push_back(vmfunc);
+  VMFuncInfo vmfunc;
+  vmfunc.kind = kind;
+  vmfunc.name = func_name;
+  // use num args to mark undefined.
+  vmfunc.start_instr = 0;
+  vmfunc.num_args = -2;
+  vmfunc.register_file_size = 0;
+  exec_->func_map[func_name] = exec_->func_table.size();
+  exec_->func_table.push_back(vmfunc);
 }
 
-void ExecBuilderNode::EmitCall(std::string func, std::vector<Instruction::Arg> args, RegName dst) {
-  // store function
-  if (exec_->func2idx.find(func) == exec_->func2idx.end()) {
-    exec_->func2idx[func] = exec_->func_names.size();
-    exec_->func_names.push_back(func);
+vm::Instruction::Arg ExecBuilderNode::GetFunction(const std::string& func_name) {
+  auto it = exec_->func_map.find(func_name);
+  ICHECK(it != exec_->func_map.end()) << "Cannot find function " << func_name;
+  return vm::Instruction::Arg::FuncIdx(it->second);
+}
+
+void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inputs,
+                                   Optional<Array<String>> param_names) {
+  auto it = exec_->func_map.find(func_name);
+  if (it == exec_->func_map.end()) {
+    this->DeclareFunction(func_name, VMFuncInfo::FuncKind::kVMFunc);
   }
-  Index func_idx = exec_->func2idx[func];
+  auto& vmfunc = exec_->func_table.at(exec_->func_map.at(func_name));
+  ICHECK_EQ(vmfunc.name, func_name);
+  ICHECK_EQ(vmfunc.num_args, -2) << "Function " << func_name << " already defined";
+  vmfunc.start_instr = exec_->instr_offset.size();
+  vmfunc.num_args = num_inputs;
+  if (param_names.defined()) {
+    std::vector<std::string> names;
+    for (auto name : param_names.value()) {
+      names.push_back(name);
+    }
+    vmfunc.param_names = names;
+  }
+}
+
+void ExecBuilderNode::EndFunction(const std::string& func_name) {
+  auto it = exec_->func_map.find(func_name);
+  ICHECK(it != exec_->func_map.end());
+  VMFuncInfo& vmfunc = exec_->func_table.at(it->second);
+  ICHECK_EQ(vmfunc.end_instr, 0) << "EndFuncton can only be called once";
+  vmfunc.end_instr = exec_->instr_offset.size();
+}
+
+void ExecBuilderNode::EmitCall(vm::Instruction::Arg func, std::vector<vm::Instruction::Arg> args,
+                               vm::RegName dst) {
+  ICHECK(func.kind() == vm::Instruction::ArgKind::kFuncIdx);
   // store instruction
   exec_->instr_offset.push_back(exec_->instr_data.size());
   exec_->instr_data.push_back(static_cast<ExecWord>(Opcode::Call));
   exec_->instr_data.push_back(dst);
-  exec_->instr_data.push_back(func_idx);
+  exec_->instr_data.push_back(func.value());
   exec_->instr_data.push_back(args.size());
   for (Instruction::Arg arg : args) {
     exec_->instr_data.push_back(arg.data());
   }
+}
+
+void ExecBuilderNode::EmitCall(const std::string& func, std::vector<Instruction::Arg> args,
+                               RegName dst) {
+  auto it = exec_->func_map.find(func);
+  if (it == exec_->func_map.end()) {
+    this->DeclareFunction(func, VMFuncInfo::FuncKind::kPackedFunc);
+  }
+  Index func_idx = exec_->func_map.at(func);
+  EmitCall(vm::Instruction::Arg::FuncIdx(func_idx), args, dst);
 }
 
 void ExecBuilderNode::EmitRet(vm::Instruction::Arg result) {
@@ -134,12 +175,17 @@ void ExecBuilderNode::EmitIf(vm::Instruction::Arg cond, vm::Index false_offset) 
 }
 
 void ExecBuilderNode::CheckExecutable() {
-  for (auto it = exec_->global_funcs.cbegin(); it != exec_->global_funcs.cend(); ++it) {
+  for (auto it = exec_->func_table.cbegin(); it != exec_->func_table.cend(); ++it) {
+    if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
+
     Index num_inputs = it->num_args;
     std::unordered_set<RegName> dst_registers;
     std::unordered_set<RegName> arg_registers;
     size_t start_instr = it->start_instr;
-    size_t end_instr = exec_->instr_offset.size();
+    size_t end_instr = it->end_instr;
+
+    CHECK_LT(start_instr, end_instr)
+        << "Function " << it->name << " EndFunction has not be been called";
 
     auto check_reg_defined = [&](Instruction::Arg arg) {
       if (arg.kind() != Instruction::ArgKind::kRegister) return;
@@ -161,15 +207,22 @@ void ExecBuilderNode::CheckExecutable() {
           << exec_->AsText();
     };
 
+    auto check_func_defined = [&](Instruction::Arg arg) {
+      if (arg.kind() != Instruction::ArgKind::kFuncIdx) return;
+      CHECK_LT(arg.value(), exec_->func_table.size())
+          << "Func index " << arg.value() << " exceed size of fun_table. Dump:\n"
+          << exec_->AsText();
+    };
+
     for (size_t idx = start_instr; idx < end_instr; ++idx) {
       Instruction instr = exec_->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
-          CHECK_LT(instr.func_idx, exec_->func_names.size())
-              << "func_index " << instr.func_idx << "exceed bound";
+          check_func_defined(Instruction::Arg::FuncIdx(instr.func_idx));
           for (int i = 0; i < instr.num_args; ++i) {
             check_reg_defined(instr.args[i]);
             check_const_defined(instr.args[i]);
+            check_func_defined(instr.args[i]);
             arg_registers.emplace(instr.args[i].value());
           }
           if (instr.dst != Instruction::kVoidRegister) {
@@ -203,16 +256,20 @@ void ExecBuilderNode::CheckExecutable() {
 void ExecBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
   // and decide the number of registers to allocate for each VMFunction in the Executable
-  for (auto it = this->exec_->global_funcs.begin(); it != this->exec_->global_funcs.end(); ++it) {
+  for (auto it = this->exec_->func_table.begin(); it != this->exec_->func_table.end(); ++it) {
+    if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
+
     Index num_inputs = it->num_args;
     RegName register_idx = num_inputs;
     std::unordered_map<RegName, RegName> register_map;
     size_t start_instr = it->start_instr;
-    size_t end_instr = this->exec_->instr_offset.size();
+    size_t end_instr = it->end_instr;
+
     for (size_t idx = start_instr; idx < end_instr; ++idx) {
       Instruction instr = this->exec_->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
+          // rewrite args
           for (int i = 0; i < instr.num_args; ++i) {
             if (instr.args[i].kind() == Instruction::ArgKind::kRegister &&
                 instr.args[i].value() >= num_inputs &&
@@ -268,8 +325,16 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
       *ret = builder->ConvertConstant(rt).data();
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderFunction")
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
     .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitFunction);
+
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
+    .set_body_method<ExecBuilder>(&ExecBuilderNode::EndFunction);
+
+TVM_REGISTER_GLOBAL("relax.ExecBuilderDeclareFunction")
+    .set_body_typed([](ExecBuilder builder, String name, int32_t kind) {
+      builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
+    });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
     .set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
@@ -304,6 +369,10 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderImm").set_body_typed([](ExecBuilder builde
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderC").set_body_typed([](ExecBuilder builder, int64_t value) {
   return Instruction::Arg::ConstIdx(value).data();
+});
+
+TVM_REGISTER_GLOBAL("relax.ExecBuilderF").set_body_typed([](ExecBuilder builder, String value) {
+  return builder->GetFunction(value).data();
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {

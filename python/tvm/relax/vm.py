@@ -16,14 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
-from typing import Callable, List, Optional, Union, Dict, Tuple
+from typing import Callable, List, Optional, Union, Dict, Tuple, Any
 import numpy as np  # type: ignore
 
 from tvm._ffi import base as _base
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.relay import Any
 from tvm.runtime import Device, Module, PackedFunc, container
 from tvm.runtime.object import Object
 from tvm.tir.function import PrimFunc
@@ -451,10 +450,32 @@ class VirtualMachine(object):
         )
 
 
-def _codegen(
+def _vmcodegen(
+    builder: "relax.ExecBuilder",
     mod: tvm.IRModule,
+) -> tvm.IRModule:
+    """Running VM codegen.
+
+    Parameters
+    ----------
+    builder: relax.ExecBuilder
+        ExecBuilder to collect the vm executable.
+
+    mod: IRModule
+        The input IRModule to be built.
+
+    Return
+    ------
+    leftover: IRModule
+        Left over IRModule that may contain extra functions.
+    """
+    return _ffi_api.VMCodeGen(builder, mod)  # type: ignore
+
+
+def _vmlink(
+    builder: "relax.ExecBuilder",
     target: Union[str, tvm.target.Target],
-    lib: Optional[tvm.runtime.Module] = None,
+    tir_mod: Optional[tvm.IRModule] = None,
     ext_libs: List[tvm.runtime.Module] = None,
     params: Optional[Dict[str, list]] = None,
 ):
@@ -467,14 +488,14 @@ def _codegen(
 
     Parameters
     ----------
-    mod: IRModule
-        The input IRModule to be built.
+    builder: relax.ExecBuilder
+        Builder used to collect executables.
 
     target : Union[str, tvm.target.Target]
         A build target which can have optional host side compilation target.
 
-    lib: Optional[tvm.runtime.Module]
-        The compiled library modules.
+    tir_mod: IRModule
+        The input TIR IRModule to be linked together.
 
     ext_libs:  List[tvm.runtime.Module]
         List of compiled external modules.
@@ -493,7 +514,10 @@ def _codegen(
         params = {}
     if ext_libs is None:
         ext_libs = []
-    return Executable(_ffi_api.VMCodeGen(mod, target, lib, ext_libs, params))  # type: ignore
+    lib = None
+    if tir_mod is not None:
+        lib = tvm.build(tir_mod, target=target)
+    return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
 
 
 def build(
@@ -546,7 +570,7 @@ def build(
 
     passes = [relax.transform.ToNonDataflow()]
     passes.append(relax.transform.CallTIRRewrite())
-    passes.append(relax.transform.VMMemoryLower())
+    passes.append(relax.transform.VMBuiltinLower())
     passes.append(relax.transform.VMShapeLower())
     passes.append(relax.transform.AttachGlobalSymbol())
     seq = tvm.transform.Sequential(passes)
@@ -554,17 +578,16 @@ def build(
 
     # Split primfunc and relax function
     rx_mod, tir_mod = _split_tir_relax(new_mod)
-    lib = tvm.build(tir_mod, target=target)
 
     # Extract external runtime modules if exist.
     ext_libs = []
     if mod.attrs and "external_mods" in mod.attrs:
         ext_libs = mod.attrs["external_mods"]
 
-    if params is None:
-        params = {}
-
-    return _codegen(rx_mod, target, lib, ext_libs, params)
+    # builder collects the executable
+    builder = relax.ExecBuilder()
+    _vmcodegen(builder, rx_mod)
+    return _vmlink(builder, target, tir_mod, ext_libs, params)
 
 
 def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:

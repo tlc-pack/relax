@@ -48,19 +48,38 @@ class ExecBuilder;
 class ExecBuilderNode : public Object {
  public:
   /*!
+   * \brief Declare a function, it is OK to have multiple declarations.
+   * \param func The function name.
+   * \param kind The kind of the function.
+   */
+  void DeclareFunction(const std::string& func, vm::VMFuncInfo::FuncKind kind);
+  /*!
    * \brief To annotate the start of a vm function.
    * \param func The function name.
    * \param num_inputs The number of inputs.
    * \param param_names The function parameter names.
    */
-  void EmitFunction(std::string func, int64_t num_inputs, Array<String> param_names);
+  void EmitFunction(const std::string& func, int64_t num_inputs,
+                    Optional<Array<String>> param_names);
+  /*!
+   * \brief Annotate the end of a vm function.
+   * \param func The function name.
+   */
+  void EndFunction(const std::string& func);
   /*!
    * \brief Emit a call instruction for a packed function.
    * \param func The packed function name.
    * \param args The arguments of the function.
    * \param ret The return register.
    */
-  void EmitCall(std::string func, std::vector<vm::Instruction::Arg> args, vm::RegName ret);
+  void EmitCall(const std::string& func, std::vector<vm::Instruction::Arg> args, vm::RegName ret);
+  /*!
+   * \brief Emit a call instruction with func as argument.
+   * \param func The packed function index.
+   * \param args The arguments of the function.
+   * \param ret The return register.
+   */
+  void EmitCall(vm::Instruction::Arg func, std::vector<vm::Instruction::Arg> args, vm::RegName ret);
   /*!
    * \brief Emit a ret instruction.
    * \param result The return result.
@@ -79,6 +98,12 @@ class ExecBuilderNode : public Object {
    * \note result must be a register.
    */
   void EmitIf(vm::Instruction::Arg cond, vm::Index false_offset);
+  /*!
+   * \brief Get function index by its name.
+   * \param name The name of the function.
+   * \return The argument corresponding to the function index.
+   */
+  vm::Instruction::Arg GetFunction(const std::string& name);
   /*!
    * \brief Convert a constant value something that exec builder can understand.
    *
