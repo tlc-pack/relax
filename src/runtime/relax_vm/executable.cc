@@ -51,15 +51,6 @@ enum ConstantType : int {
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
 
-TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
-
-VMClosure::VMClosure(String func_name, Array<ObjectRef> free_vars) {
-  auto ptr = make_object<VMClosureObj>();
-  ptr->func_name = func_name;
-  ptr->free_vars = std::move(free_vars);
-  data_ = std::move(ptr);
-}
-
 PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "stats") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
@@ -71,7 +62,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsPython(); });
   } else if (name == "vm_load_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ObjectPtr<VirtualMachine> vm = make_object<VirtualMachine>();
+      ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
       ICHECK(sptr_to_self.get() == this);
       vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
@@ -134,21 +125,11 @@ std::string Executable::Stats() const {
   oss << "]" << std::endl;
 
   // Get the number of globals and the name of each of them.
-  oss << "  Globals (#" << global_funcs.size() << "): [";
-  for (const auto& it : global_funcs) {
+  oss << "  Globals (#" << func_table.size() << "): [";
+  for (const auto& it : func_table) {
     oss << it.name << ", ";
   }
-  if (!global_map.empty()) oss.seekp(-2, oss.cur);
-  oss << "]" << std::endl;
-
-  // Get the number of packed funcs and the name of each of them.
-  oss << "  Packed functions (#" << func_names.size() << "): [";
-  for (const auto& it : func_names) {
-    oss << it << ", ";
-  }
-  if (!func_names.empty()) {
-    oss.seekp(-2, oss.cur);
-  }
+  if (!func_map.empty()) oss.seekp(-2, oss.cur);
   oss << "]" << std::endl;
 
   return oss.str();
@@ -225,9 +206,6 @@ void Executable::SaveToBinary(dmlc::Stream* stream) {
   // Constant section.
   SaveConstantSection(&strm);
 
-  // Packedfunc names section.
-  SavePackedFuncNames(&strm);
-
   // Code section.
   SaveCodeSection(&strm);
 
@@ -258,9 +236,6 @@ Module Executable::LoadFromBinary(void* stream) {
   // Constant section.
   exec->LoadConstantSection(&strm);
 
-  // Packedfunc names section.
-  exec->LoadPackedFuncNames(&strm);
-
   // Code section.
   exec->LoadCodeSection(&strm);
 
@@ -281,30 +256,31 @@ Module Executable::LoadFromFile(const std::string& file_name) {
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_relax.Executable")
     .set_body_typed(Executable::LoadFromFile);
 
-void SerializeVMFunc(const VMFunction& func, dmlc::Stream* strm) {
-  strm->Write(func.name);
-  strm->Write(func.start_instr);
-  strm->Write(func.num_args);
-  strm->Write(func.register_file_size);
-  strm->Write(func.param_names);
+void VMFuncInfo::Save(dmlc::Stream* strm) const {
+  int32_t temp_kind = static_cast<int32_t>(kind);
+  strm->Write(temp_kind);
+  strm->Write(name);
+  strm->Write(start_instr);
+  strm->Write(end_instr);
+  strm->Write(num_args);
+  strm->Write(register_file_size);
+  strm->Write(param_names);
 }
 
-VMFunction DeserializeVMFunc(dmlc::Stream* strm) {
-  VMFunction func;
-  STREAM_CHECK(strm->Read(&func.name), "vmfunc name");
-  STREAM_CHECK(strm->Read(&func.start_instr), "vmfunc start_instr");
-  STREAM_CHECK(strm->Read(&func.num_args), "vmfunc num_args");
-  STREAM_CHECK(strm->Read(&func.register_file_size), "vmfunc register_file_size");
-  STREAM_CHECK(strm->Read(&func.param_names), "vmfunc params");
-  return func;
+bool VMFuncInfo::Load(dmlc::Stream* strm) {
+  int32_t temp_kind;
+  if (!strm->Read(&temp_kind)) return false;
+  this->kind = static_cast<VMFuncInfo::FuncKind>(temp_kind);
+  if (!strm->Read(&name)) return false;
+  if (!strm->Read(&start_instr)) return false;
+  if (!strm->Read(&end_instr)) return false;
+  if (!strm->Read(&num_args)) return false;
+  if (!strm->Read(&register_file_size)) return false;
+  if (!strm->Read(&param_names)) return false;
+  return true;
 }
 
-void Executable::SaveGlobalSection(dmlc::Stream* strm) {
-  strm->Write(static_cast<uint64_t>(this->global_funcs.size()));
-  for (const auto& func : this->global_funcs) {
-    SerializeVMFunc(func, strm);
-  }
-}
+void Executable::SaveGlobalSection(dmlc::Stream* strm) { strm->Write(func_table); }
 
 void Executable::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
@@ -341,23 +317,16 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void Executable::SavePackedFuncNames(dmlc::Stream* strm) { strm->Write(func_names); }
-
 void Executable::SaveCodeSection(dmlc::Stream* strm) {
   strm->Write(instr_offset);
   strm->Write(instr_data);
 }
 
 void Executable::LoadGlobalSection(dmlc::Stream* strm) {
-  uint64_t sz;
-  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
-  size_t size = static_cast<size_t>(sz);
-  for (size_t i = 0; i < size; i++) {
-    VMFunction func = DeserializeVMFunc(strm);
-    this->global_funcs.push_back(func);
-  }
-  for (size_t i = 0; i < global_funcs.size(); ++i) {
-    this->global_map[global_funcs[i].name] = i;
+  STREAM_CHECK(strm->Read(&func_table), "Global Section");
+  // setup func map
+  for (size_t i = 0; i < func_table.size(); ++i) {
+    this->func_map[func_table[i].name] = i;
   }
 }
 
@@ -416,13 +385,6 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void Executable::LoadPackedFuncNames(dmlc::Stream* strm) {
-  STREAM_CHECK(strm->Read(&(this->func_names)), "packed func names");
-  for (size_t i = 0; i < func_names.size(); ++i) {
-    this->func2idx[func_names[i]] = i;
-  }
-}
-
 void Executable::LoadCodeSection(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->instr_offset)), "instr offset");
   STREAM_CHECK(strm->Read(&(this->instr_data)), "instr data");
@@ -452,59 +414,53 @@ std::string RegNameToStr(RegName reg) {
   return "%" + std::to_string(reg);
 }
 
-std::string InstrArgToStr(Instruction::Arg arg) {
-  // only for argument
-  switch (arg.kind()) {
-    case Instruction::ArgKind::kRegister:
-      return RegNameToStr(arg.value());
-    case Instruction::ArgKind::kImmediate:
-      return "i" + std::to_string(arg.value());
-    case Instruction::ArgKind::kConstIdx:
-      return "c[" + std::to_string(arg.value()) + "]";
-    default:
-      LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
-      return "";
-  }
-}
-
-std::string InstrArgToPyStr(Instruction::Arg arg) {
-  switch (arg.kind()) {
-    case Instruction::ArgKind::kRegister:
-      if (arg.value() == Instruction::kVMRegister) {
-        return "ib.r(vm)";
-      }
-      return "ib.r(" + std::to_string(arg.value()) + ")";
-    case Instruction::ArgKind::kImmediate:
-      return "ib.imm(" + std::to_string(arg.value()) + ")";
-    case Instruction::ArgKind::kConstIdx:
-      return "ib.c(" + std::to_string(arg.value()) + ")";
-    default:
-      LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
-      return "";
-  }
-}
-
 String Executable::AsText() const {
+  auto get_func_name = [&](Index index) -> std::string {
+    if (static_cast<size_t>(index) < func_table.size()) {
+      return func_table[index].name;
+    } else {
+      return "unknown_func_index(" + std::to_string(index) + ")";
+    }
+  };
+
+  auto instr_to_str = [&](Instruction::Arg arg) -> std::string {
+    // only for argument
+    switch (arg.kind()) {
+      case Instruction::ArgKind::kRegister:
+        return RegNameToStr(arg.value());
+      case Instruction::ArgKind::kImmediate:
+        return "i" + std::to_string(arg.value());
+      case Instruction::ArgKind::kConstIdx:
+        return "c[" + std::to_string(arg.value()) + "]";
+      case Instruction::ArgKind::kFuncIdx:
+        return "f[" + get_func_name(arg.value()) + "]";
+      default:
+        LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
+        return "";
+    }
+  };
+
   // print the text format
   std::ostringstream os;
-  for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
-    const VMFunction& gfunc = this->global_funcs[fidx];
+  for (size_t fidx = 0; fidx < this->func_table.size(); ++fidx) {
+    const VMFuncInfo& gfunc = this->func_table[fidx];
+    if (gfunc.kind == VMFuncInfo::FuncKind::kPackedFunc) {
+      os << "@" << gfunc.name << " packed_func;\n\n";
+      continue;
+    }
+    ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
     os << "@" << gfunc.name << ":\n";
     size_t start_instr = gfunc.start_instr;
-    size_t end_instr = this->instr_offset.size();
-    if ((fidx + 1) < global_funcs.size()) {
-      end_instr = global_funcs[fidx + 1].start_instr;
-    }
+    size_t end_instr = gfunc.end_instr;
+
     for (size_t idx = start_instr; idx < end_instr; ++idx) {
       os << "  ";
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
-          ICHECK_LT(instr.func_idx, this->func_names.size());
-
           os << std::setw(6) << std::left << "call" << std::setw(16) << std::left
-             << this->func_names[instr.func_idx] << " in: " << std::setw(12) << std::left
-             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToStr)
+             << get_func_name(instr.func_idx) << " in: " << std::setw(12) << std::left
+             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", instr_to_str)
              << " dst: " << RegNameToStr(instr.dst) << "\n";
           break;
         }
@@ -532,24 +488,54 @@ String Executable::AsText() const {
 }
 
 String Executable::AsPython() const {
+  auto get_func_name = [&](Index index) -> std::string {
+    if (static_cast<size_t>(index) < func_table.size()) {
+      return "\"" + func_table[index].name + "\"";
+    } else {
+      return "ib.unknown_func_index(" + std::to_string(index) + ")";
+    }
+  };
+
+  auto arg_to_py_str = [&](Instruction::Arg arg) -> std::string {
+    switch (arg.kind()) {
+      case Instruction::ArgKind::kRegister:
+        if (arg.value() == Instruction::kVMRegister) {
+          return "ib.r(vm)";
+        }
+        return "ib.r(" + std::to_string(arg.value()) + ")";
+      case Instruction::ArgKind::kImmediate:
+        return "ib.imm(" + std::to_string(arg.value()) + ")";
+      case Instruction::ArgKind::kConstIdx:
+        return "ib.c(" + std::to_string(arg.value()) + ")";
+      case Instruction::ArgKind::kFuncIdx: {
+        return "ib.f(" + get_func_name(arg.value()) + ")";
+      }
+      default:
+        LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
+        return "";
+    }
+  };
+
   // print the python format
   std::ostringstream os;
   os << "ib = rx.Builder()\n";
-  for (size_t fidx = 0; fidx < this->global_funcs.size(); ++fidx) {
-    const VMFunction& gfunc = this->global_funcs[fidx];
+  for (size_t fidx = 0; fidx < this->func_table.size(); ++fidx) {
+    const VMFuncInfo& gfunc = this->func_table[fidx];
+    if (gfunc.kind == VMFuncInfo::FuncKind::kPackedFunc) {
+      continue;
+    }
+    ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
+
     os << "with ib.function(\"" << gfunc.name << "\", num_inputs=" << gfunc.num_args << "):\n";
     size_t start_instr = gfunc.start_instr;
-    size_t end_instr = this->instr_offset.size();
-    if ((fidx + 1) < global_funcs.size()) {
-      end_instr = global_funcs[fidx + 1].start_instr;
-    }
+    size_t end_instr = gfunc.end_instr;
+
     for (size_t idx = start_instr; idx < end_instr; ++idx) {
       Instruction instr = this->GetInstruction(idx);
       switch (instr.op) {
         case Opcode::Call: {
-          ICHECK_LT(instr.func_idx, this->func_names.size());
-          os << "    ib.emit_call(\"" << this->func_names[instr.func_idx] << "\", args=["
-             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", InstrArgToPyStr)
+          os << "    ib.emit_call(" << get_func_name(instr.func_idx) << ", args=["
+             << StrJoin<Instruction::Arg>(instr.args, 0, instr.num_args, ", ", arg_to_py_str)
              << "]";
           if (instr.dst != Instruction::kVoidRegister) os << ", dst=ib.r(" << instr.dst << ")";
           os << ")\n";

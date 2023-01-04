@@ -31,11 +31,11 @@ namespace relax {
 namespace transform {
 
 /*!
- * \brief Perform memory lowering. Lowers the relax.builtin.alloc_tensor intrinsic to VM intrinsics.
+ * \brief Perform builtin lowering to map most of the op to VM builtin functions.
  *
  * \return The Pass.
  */
-TVM_DLL Pass VMMemoryLower();
+TVM_DLL Pass VMBuiltinLower();
 
 /*!
  * \brief Lower the shape expression in relax to VM shape heap and TIR functions.

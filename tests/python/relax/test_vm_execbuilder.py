@@ -39,6 +39,7 @@ def test_vm_execute():
             4,
         )
     )
+
     add_res = check_saved_func(vm, "func0", a, b)
     tvm.testing.assert_allclose(add_res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
@@ -239,8 +240,9 @@ def test_vm_invoke_closure():
         ib.emit_call("test.vm.add", args=[ib.r(3), ib.r(5)], dst=ib.r(6))
         ib.emit_ret(ib.r(6))
     with ib.function("main", num_inputs=2):
-        x = ib.convert_constant("lifted_func_1")
-        ib.emit_call("vm.builtin.alloc_closure", args=[x, ib.r(0), ib.r(1)], dst=ib.r(2))
+        ib.emit_call(
+            "vm.builtin.make_closure", args=[ib.f("lifted_func_1"), ib.r(0), ib.r(1)], dst=ib.r(2)
+        )
         ib.emit_ret(ib.r(2))
 
     ex = ib.get()
@@ -250,7 +252,7 @@ def test_vm_invoke_closure():
     y_inp = tvm.nd.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]])
     z_inp = tvm.nd.array(np.random.rand(2, 3))
     clo = vm["main"](w_inp, x_inp)
-    res = vm.invoke_closure(clo, (y_inp, z_inp))
+    res = vm.invoke_closure(clo, y_inp, z_inp)
     tvm.testing.assert_allclose(
         res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
     )

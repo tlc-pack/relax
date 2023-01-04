@@ -27,6 +27,12 @@ from tvm.relax.testing.vm import check_saved_func
 from tvm.relax.testing.runtime_builtin import MatchShapeCode, MakeShapeCode
 
 
+def codegen(mod, target):
+    builder = relax.ExecBuilder()
+    relax.vm._vmcodegen(builder, mod)
+    return relax.vm._vmlink(builder, target)
+
+
 def test_vm_copy():
     @tvm.script.ir_module
     class TestVMMove:
@@ -38,7 +44,7 @@ def test_vm_copy():
 
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = check_saved_func(vm, "foo", inp)
@@ -59,7 +65,7 @@ def test_if_cond_const():
 
     mod = TestVMIfCondConst
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(3, 4))
     res = vm["main"](inp)
@@ -77,7 +83,7 @@ def test_vm_exec_serialize_export_library():
 
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     from tvm.contrib import utils
 
     temp_dir = utils.tempdir()
@@ -102,7 +108,7 @@ def test_if_cond():
 
     mod = TestVMCompileIf
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(3, 4))
     res = vm["ife"](tvm.nd.array(1), inp)
@@ -127,7 +133,7 @@ def test_vm_return_const_tuple():
 
     mod = ReturnConstTuple
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(2, 3))
     res0, res1, res2 = vm["main"](inp)
@@ -158,7 +164,7 @@ def test_vm_const_as_call_arg():
 
     mod = TestVMConstAsCallArg
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(np.random.rand(1, 2))
     res = vm["main"](inp)
@@ -218,7 +224,7 @@ def test_shape_check_builtin():
 
     mod = TestVMShapeCheck
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm._codegen(mod, target)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.nd.array(np.zeros((1, 2)).astype("float32"))
     res = vm["main"](x)
