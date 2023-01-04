@@ -89,11 +89,7 @@ struct Instruction {
   /*!
    * \brief The kind of instruction's argument.
    */
-  enum class ArgKind : int {
-    kRegister = 0,
-    kImmediate = 1,
-    kConstIdx = 2,
-  };
+  enum class ArgKind : int { kRegister = 0, kImmediate = 1, kConstIdx = 2, kFuncIdx = 3 };
   /*!
    * \brief The auxiliary data structure for instruction argument.
    */
@@ -124,6 +120,12 @@ struct Instruction {
      * \return The constructed arg.
      */
     static Arg Immediate(int64_t imm_value) { return Arg(ArgKind::kImmediate, imm_value); }
+    /*!
+     * \brief construct a FuncIdx arg.
+     * \param index The func index in the function table.
+     * \return The constructed arg.
+     */
+    static Arg FuncIdx(Index index) { return Arg(ArgKind::kFuncIdx, index); }
     /*!
      * \brief Get the kind of argument..
      * \return The kind of argument.

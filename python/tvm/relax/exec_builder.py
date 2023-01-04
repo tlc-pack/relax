@@ -32,10 +32,20 @@ class SpecialReg(IntEnum):
     VM_STATE = (1 << 54) + 1
 
 
+class VMFuncKind(IntEnum):
+    """VM function kind code."""
+
+    PACKED_FUNC = 0
+    VM_FUNC = 1
+
+
 class VMFuncScope(object):
     """An object corresponds to each VM function, working as a context manager."""
 
     stack: List["VMFuncScope"] = []
+
+    def __init__(self, exit_callback):
+        self.exit_callback = exit_callback
 
     def __enter__(self):
         VMFuncScope.stack.append(self)
@@ -43,6 +53,7 @@ class VMFuncScope(object):
 
     def __exit__(self, ptype, value, trace):
         VMFuncScope.stack.pop()
+        self.exit_callback()
 
 
 @tvm._ffi.register_object("relax.ExecBuilder")
@@ -64,18 +75,26 @@ class ExecBuilder(Object):
         """set instruction's argument as a constant."""
         return _ffi_api.ExecBuilderC(self, idx)  # type: ignore
 
+    def f(self, name: str) -> int:
+        """set instruction's argument as a function."""
+        return _ffi_api.ExecBuilderF(self, name)  # type: ignore
+
     def void_arg(self) -> int:
         return self.r(SpecialReg.VOID_ARG)
 
     def vm_state(self) -> int:
         return self.r(SpecialReg.VM_STATE)
 
+    def declare_function(self, func_name: str, kind: VMFuncKind = VMFuncKind.PACKED_FUNC) -> None:
+        """Declare a function"""
+        _ffi_api.ExecBuilderDecalreFunction(self, func_name, kind)  # type: ignore
+
     def function(
         self, func_name: str, num_inputs: Optional[int] = 0, param_names: List[str] = None
     ) -> VMFuncScope:
         """annotate a VM function."""
-        _ffi_api.ExecBuilderFunction(self, func_name, num_inputs, param_names)  # type: ignore
-        return VMFuncScope()
+        _ffi_api.ExecBuilderEmitFunction(self, func_name, num_inputs, param_names)  # type: ignore
+        return VMFuncScope(lambda: _ffi_api.ExecBuilderEndFunction(self, func_name))  # type: ignore
 
     def _check_scope(self) -> None:
         if len(VMFuncScope.stack) == 0:
