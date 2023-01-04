@@ -88,7 +88,7 @@ class ASTPrinter(ExprFunctor):
     def build_expr(self, node: relax.Expr, nodename: str, force_newline=False, **kwargs: str):
         """
         Renders a Relax expression as a string using `build_ast_node`.
-        Handles whether to include the checked_type_ and shape_ fields.
+        Handles whether to include the checked_type_ and struct_info fields.
         """
         fields = kwargs.copy()
         if node.struct_info_ and self.include_struct_info_annotations:
@@ -136,7 +136,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_extern_func_(self, op: relax.ExternFunc) -> str:
         # ExternFunc does not inherit from relax.Expr either,
-        # so it doesn't have checked_type_ or shape_ fields and we don't use build_expr
+        # so it doesn't have checked_type_ or struct_info fields and we don't use build_expr
         return self.build_ast_node("ExternFunc", global_symbol=wrap_quotes(op.global_symbol))
 
     def visit_global_var_(self, op: relax.GlobalVar) -> str:
@@ -203,7 +203,7 @@ class ASTPrinter(ExprFunctor):
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
         # op is not actually a Relax expr and does not have checked_type_
-        # or shape_ fields, so we don't use build_expr here
+        # or struct_info fields, so we don't use build_expr here
         return self.build_ast_node("Op", name=wrap_quotes(op.name))
 
     def visit_prim_expr_(self, prim_expr: PrimExpr) -> str:
@@ -223,7 +223,7 @@ class ASTPrinter(ExprFunctor):
         Recurse down types and print their ASTs too
         """
         if isinstance(type_node, relax.ShapeType):
-            return self.build_ast_node("ShapeType")
+            return self.build_ast_node("ShapeType", ndim=str(type_node.ndim))
         if isinstance(type_node, relax.ObjectType):
             return self.build_ast_node("ObjectType")
         if isinstance(type_node, relax.PackedFuncType):
@@ -274,12 +274,12 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("TensorStructInfo", **fields)
         elif isinstance(struct_info_node, relax.TupleStructInfo):
             return self.build_ast_node(
-                "TupleType",
+                "TupleStructInfo",
                 fields=self.build_list(map(self.visit_struct_info_, struct_info_node.fields)),
             )
         elif isinstance(struct_info_node, relax.FuncStructInfo):
             fields = {}
-            if struct_info_node.params:
+            if struct_info_node.params is not None:
                 fields["params"] = self.build_list(
                     map(self.visit_struct_info_, struct_info_node.params)
                 )
