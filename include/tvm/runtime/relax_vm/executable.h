@@ -66,7 +66,7 @@ struct VMFuncInfo {
   /*! \brief The function parameter names.*/
   std::vector<std::string> param_names;
 
-  // defined customized loader sa
+  // defined customized loader save
   void Save(dmlc::Stream* writer) const;
   bool Load(dmlc::Stream* reader);
 };

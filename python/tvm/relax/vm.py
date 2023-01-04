@@ -475,7 +475,7 @@ def _vmcodegen(
 def _vmlink(
     builder: "relax.ExecBuilder",
     target: Union[str, tvm.target.Target],
-    tir_mod: tvm.IRModule = None,
+    tir_mod: Optional[tvm.IRModule] = None,
     ext_libs: List[tvm.runtime.Module] = None,
     params: Optional[Dict[str, list]] = None,
 ):

@@ -75,7 +75,7 @@ class ExecBuilderNode : public Object {
   void EmitCall(const std::string& func, std::vector<vm::Instruction::Arg> args, vm::RegName ret);
   /*!
    * \brief Emit a call instruction with func as argument.
-   * \param func The packed function name.
+   * \param func The packed function index.
    * \param args The arguments of the function.
    * \param ret The return register.
    */

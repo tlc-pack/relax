@@ -206,9 +206,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Calculate the false offset of If
     size_t false_offset = exec->instr_offset.size() - num_instr + 1;
 
-    Instruction::Arg false_falue = this->VisitExpr(ife->false_branch);
+    Instruction::Arg false_value = this->VisitExpr(ife->false_branch);
     // Copy the output data of false branch to merge register
-    builder_->EmitCall("vm.builtin.copy", {false_falue}, merge_register);
+    builder_->EmitCall("vm.builtin.copy", {false_value}, merge_register);
 
     // Update the offsets of the If instruction emitted above
     // Jump to the behind of the next goto instruction
