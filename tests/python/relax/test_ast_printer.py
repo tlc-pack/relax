@@ -41,7 +41,7 @@ def strip_whitespace(text: str) -> str:
 
 def normalize(func: rx.Function) -> rx.Function:
     """
-    Normalize the expr to fill in the checked_type_ and shape_ fields everywhere
+    Normalize the expr to fill in the checked_type_ and struct_info fields everywhere
     """
     # using a default mutator to use the BlockBuilder's normalizer,
     # which oddly differs from the Normalize pass
@@ -262,8 +262,8 @@ def test_shape_expr():
 
 def test_types():
     printer = ASTPrinter()
-    shape_type = rx.ShapeType()
-    assert strip_whitespace(printer.visit_type_(shape_type)) == "ShapeType()"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType())) == "ShapeType(ndim=-1)"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
     object_type = rx.ObjectType()
     assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
     packed_type = rx.PackedFuncType()
@@ -272,9 +272,11 @@ def test_types():
     assert strip_whitespace(printer.visit_type_(tensor_type)) == "DynTensorType(ndim=2,dtype=int32)"
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
-    tuple_type = rx.TupleType([shape_type, object_type])
+    tuple_type = rx.TupleType([rx.ShapeType(), object_type])
     assert_fields(
-        "TupleType", {"fields": "[ShapeType(), ObjectType()]"}, printer.visit_type_(tuple_type)
+        "TupleType",
+        {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
+        strip_whitespace(printer.visit_type_(tuple_type)),
     )
 
     func_type = rx.FuncType([tensor_type], unit_type)
@@ -282,6 +284,66 @@ def test_types():
         "FuncType",
         {"arg_types": "[DynTensorType(ndim=2, dtype=int32)]", "ret_type": "TupleType(fields=[])"},
         printer.visit_type_(func_type),
+    )
+
+
+def test_struct_info():
+    printer = ASTPrinter(include_type_annotations=True)
+
+    assert printer.visit_struct_info_(rx.ObjectStructInfo()) == "ObjectStructInfo()"
+
+    assert printer.visit_struct_info_(rx.PrimStructInfo("int32")) == "PrimStructInfo(dtype=int32)"
+
+    # empty shape
+    empty_ssi = rx.ShapeStructInfo()
+    assert printer.visit_struct_info_(empty_ssi) == "ShapeStructInfo(ndim=-1)"
+
+    # include some dimensions
+    shape_info = rx.ShapeStructInfo([tir.IntImm("int64", 1), tir.IntImm("int64", 2)])
+    assert (
+        strip_whitespace(printer.visit_struct_info_(shape_info))
+        == "ShapeStructInfo(ndim=2,values=[PrimExpr(value=`1i64`),PrimExpr(value=`2i64`)])"
+    )
+
+    # tensor struct info
+    default_tsi = rx.TensorStructInfo()
+    assert (
+        strip_whitespace(printer.visit_struct_info_(default_tsi))
+        == "TensorStructInfo(dtype=float32,ndim=-1)"
+    )
+
+    # use a var as the shape
+    x = rx.Var("x", struct_info=rx.ShapeStructInfo(values=[]))
+    var_tsi = rx.TensorStructInfo(shape=x, dtype="int32")
+    assert strip_whitespace(printer.visit_struct_info_(var_tsi)) == strip_whitespace(
+        """
+        TensorStructInfo(
+            dtype=int32,
+            shape=Var(
+                name_hint="x",
+                struct_info=ShapeStructInfo(ndim=0, values=[]),
+                checked_type_=ShapeType(ndim=0)
+            )
+        )
+        """
+    )
+
+    empty_tuple = rx.TupleStructInfo([])
+    assert printer.visit_struct_info_(empty_tuple) == "TupleStructInfo(fields=[])"
+
+    tuple_of_shape = rx.TupleStructInfo([empty_ssi])
+    assert strip_whitespace(printer.visit_struct_info_(tuple_of_shape)) == strip_whitespace(
+        """
+        TupleStructInfo(fields=[
+            ShapeStructInfo(ndim=-1)
+        ])
+        """
+    )
+
+    simple_func = rx.FuncStructInfo([], rx.ObjectStructInfo())
+    assert (
+        strip_whitespace(printer.visit_struct_info_(simple_func))
+        == "FuncStructInfo(params=[],ret=ObjectStructInfo())"
     )
 
 
@@ -439,7 +501,7 @@ def test_operators():
     assert print_attrs_str in bar_str
 
 
-def test_print_shape_annotation_non_var():
+def test_print_struct_info_annotation_non_var():
     @R.function
     def f() -> R.Tensor:
         return R.const([1, 2])
@@ -457,7 +519,7 @@ def test_print_shape_annotation_non_var():
                     ndim=1,
                     values=[PrimExpr(value=`2i64`)]
                 ),
-                checked_type_=ShapeType()
+                checked_type_=ShapeType(ndim=1)
             )
         )
         """
@@ -481,7 +543,7 @@ def test_print_type_annotation_non_var():
 
     call_str = strip_whitespace(dump_ast(call))
     # we expect the shape_of call to have a checked_type_ of ShapeType
-    type_str = "checked_type_=ShapeType()"
+    type_str = "checked_type_=ShapeType(ndim=-1)"
     assert type_str in call_str
 
 
