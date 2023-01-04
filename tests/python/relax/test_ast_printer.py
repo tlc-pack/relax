@@ -287,6 +287,66 @@ def test_types():
     )
 
 
+def test_struct_info():
+    printer = ASTPrinter(include_type_annotations=True)
+
+    assert printer.visit_struct_info_(rx.ObjectStructInfo()) == "ObjectStructInfo()"
+
+    assert printer.visit_struct_info_(rx.PrimStructInfo("int32")) == "PrimStructInfo(dtype=int32)"
+
+    # empty shape
+    empty_ssi = rx.ShapeStructInfo()
+    assert printer.visit_struct_info_(empty_ssi) == "ShapeStructInfo(ndim=-1)"
+
+    # include some dimensions
+    shape_info = rx.ShapeStructInfo([tir.IntImm("int64", 1), tir.IntImm("int64", 2)])
+    assert (
+        strip_whitespace(printer.visit_struct_info_(shape_info))
+        == "ShapeStructInfo(ndim=2,values=[PrimExpr(value=`1i64`),PrimExpr(value=`2i64`)])"
+    )
+
+    # tensor struct info
+    default_tsi = rx.TensorStructInfo()
+    assert (
+        strip_whitespace(printer.visit_struct_info_(default_tsi))
+        == "TensorStructInfo(dtype=float32,ndim=-1)"
+    )
+
+    # use a var as the shape
+    x = rx.Var("x", struct_info=rx.ShapeStructInfo(values=[]))
+    var_tsi = rx.TensorStructInfo(shape=x, dtype="int32")
+    assert strip_whitespace(printer.visit_struct_info_(var_tsi)) == strip_whitespace(
+        """
+        TensorStructInfo(
+            dtype=int32,
+            shape=Var(
+                name_hint="x",
+                struct_info=ShapeStructInfo(ndim=0, values=[]),
+                checked_type_=ShapeType(ndim=0)
+            )
+        )
+        """
+    )
+
+    empty_tuple = rx.TupleStructInfo([])
+    assert printer.visit_struct_info_(empty_tuple) == "TupleStructInfo(fields=[])"
+
+    tuple_of_shape = rx.TupleStructInfo([empty_ssi])
+    assert strip_whitespace(printer.visit_struct_info_(tuple_of_shape)) == strip_whitespace(
+        """
+        TupleStructInfo(fields=[
+            ShapeStructInfo(ndim=-1)
+        ])
+        """
+    )
+
+    simple_func = rx.FuncStructInfo([], rx.ObjectStructInfo())
+    assert (
+        strip_whitespace(printer.visit_struct_info_(simple_func))
+        == "FuncStructInfo(params=[],ret=ObjectStructInfo())"
+    )
+
+
 def test_call_packed():
     # test case from test_parser
     @R.function
