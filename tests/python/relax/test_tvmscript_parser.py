@@ -524,7 +524,7 @@ def test_annotate_override():
 
     @R.function
     def bar(x: R.Tensor):
-        # Error: x is of Tensor StructInfo, the annotation of `z` is ignored.
+        # x is of Tensor StructInfo, the annotation of `z` is ignored.
         z: R.Object = x
         return z
 
