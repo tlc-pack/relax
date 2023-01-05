@@ -13,6 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
+# under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Basic tensor operations."""
 import numpy as np  # type: ignore
@@ -20,18 +21,6 @@ import tvm
 
 from . import _ffi_api
 from ..expr import Expr
-
-
-def add(lhs: Expr, rhs: Expr) -> Expr:
-    return _ffi_api.add(lhs, rhs)  # type: ignore
-
-
-def multiply(lhs: Expr, rhs: Expr) -> Expr:
-    return _ffi_api.multiply(lhs, rhs)  # type: ignore
-
-
-def ewise_fma(e1: Expr, e2: Expr, e3: Expr) -> Expr:
-    return _ffi_api.ewise_fma(e1, e2, e3)  # type: ignore
 
 
 def unique(

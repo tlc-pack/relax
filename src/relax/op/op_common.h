@@ -29,34 +29,107 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/data_layout.h>
+
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relax {
 
-bool EqualConstInt(const PrimExpr& lhs, int64_t value);
+/************ Op input struct info getter ************/
 
-bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs);
-
-/*! Quick helper macro
- * - Expose a positional make function to construct the node.
- * - Register op to the registry.
- *
- * We make the decision to always only expose positional argument.
- * We will do rewrapping in the frontend to support language
- * sugars such as keyword arguments and default value.
- *
- * \param OpName the name of registry.
+/*!
+ * \brief Get the tensor struct info of the operator input.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \return The tensor struct info of each input.
+ * \note This function require every input to be Tensor. The number of call arguments is required
+ * to match the number of inputs of the op being called.
  */
-#define RELAX_REGISTER_BINARY_BROADCAST_OP(OpName)                                \
-  TVM_REGISTER_GLOBAL("relax.op." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
-    static const Op& op = Op::Get("relax." OpName);                               \
-    return Call(op, {lhs, rhs}, Attrs(), {});                                     \
-  });                                                                             \
-  RELAY_REGISTER_OP("relax." OpName)                                              \
-      .set_num_inputs(2)                                                          \
-      .add_argument("lhs", "Tensor", "The left hand side tensor.")                \
-      .add_argument("rhs", "Tensor", "The right hand side tensor.")               \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcast)
+Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx);
+
+/*!
+ * \brief Get the tensor struct info of the unary operator input.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \return The tensor struct info of the unary operator input.
+ * \throw Throw exception if the number of input is not one, or the struct info of the input is not
+ * a tensor struct info.
+ */
+inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
+  return GetInputTensorStructInfo(call, ctx)[0];
+}
+
+/************ Op registration macro ************/
+
+/*!
+ * \brief Quick helper macro to
+ * - expose a make-function interface which construct the call node.
+ * - register op to the registry.
+ * \param OpName The name of operator to register.
+ * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
+ */
+#define RELAX_REGISTER_UNARY_OP_INTERFACE(OpName, RequireFloatDtype) \
+  Expr OpName(Expr x) {                                              \
+    static const Op& op = Op::Get("relax." #OpName);                 \
+    return Call(op, {std::move(x)}, Attrs(), {});                    \
+  }                                                                  \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);   \
+  TVM_REGISTER_OP("relax." #OpName)                                  \
+      .set_num_inputs(1)                                             \
+      .add_argument("x", "Tensor", "The input tensor.")              \
+      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnary<RequireFloatDtype>)
+
+template <bool require_float_dtype>
+inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  if (require_float_dtype && !input_sinfo->IsUnknownDtype() && !input_sinfo->dtype.is_float()) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << call->op
+        << " requires the input tensor to have float dtype. However, the given input dtype is "
+        << input_sinfo->dtype);
+  }
+  return input_sinfo;
+}
+
+/************ Utilities ************/
+
+/*!
+ * \brief Infer the output datatype for binary arithmetic operators.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param x1_sinfo The struct info of the first operand
+ * \param x2_sinfo The struct info of the second operand
+ * \return The inferred output dtype.
+ * \throw Throw exception if the dtype of two input TensorStructInfo don’t match
+ */
+inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
+                                           const TensorStructInfo& x1_sinfo,
+                                           const TensorStructInfo& x2_sinfo) {
+  if (x1_sinfo->IsUnknownDtype() || x2_sinfo->IsUnknownDtype()) {
+    return DataType::Void();
+  } else if (x1_sinfo->dtype != x2_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Data types " << x1_sinfo->dtype << " and " << x2_sinfo->dtype
+                     << " must be equal for binary operators");
+  }
+  return x1_sinfo->dtype;
+}
+
+/*!
+ * \brief Infer the output shape for binary broadcast operators.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param x1_shape The shape of the first operand.
+ * \param x2_shape The shape of the second operand.
+ * \return The inferred output shape after broadcasting. Or `NullOpt` if the output shape cannot be
+ * determined due to symbolic broadcast.
+ */
+Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const BlockBuilder& ctx,
+                                                    const Array<PrimExpr>& x1_shape,
+                                                    const Array<PrimExpr>& x2_shape);
 
 }  // namespace relax
 }  // namespace tvm
