@@ -27,113 +27,82 @@
 namespace tvm {
 namespace relax {
 
-Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx) {
-  if (call->args.size() != 3) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call) << "EwiseFMA op should have 3 arguments");
-  }
-  Type type0 = call->args[0]->checked_type();
-  Type type1 = call->args[1]->checked_type();
-  Type type2 = call->args[2]->checked_type();
-  auto* t0 = type0.as<DynTensorTypeNode>();
-  auto* t1 = type1.as<DynTensorTypeNode>();
-  auto* t2 = type2.as<DynTensorTypeNode>();
-  if (!t0 || !t1 || !t2) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call)
-                       << "The 3 arguments of EwiseFMA should be DynTensor");
-  }
-
-  DataType output_dtype;
-  if (t0->IsUnknownDtype() || t1->IsUnknownDtype() || t2->IsUnknownDtype()) {
-    output_dtype = DataType::Void();
-  } else if (t0->dtype != t1->dtype || t1->dtype != t2->dtype) {
-    diag_ctx.EmitFatal(Diagnostic::Error(call)
-                       << "Data types " << t0->dtype << ", " << t1->dtype << ", and " << t2->dtype
-                       << " must be equal for EwiseFMA");
-  } else {
-    output_dtype = t0->dtype;
-  }
-
-  int output_ndim;
-  if (t0->IsUnknownNdim() || t1->IsUnknownNdim() || t2->IsUnknownNdim()) {
-    output_ndim = -1;
-  } else {
-    output_ndim = t0->ndim;
-  }
-  return DynTensorType(output_ndim, output_dtype);
-}
-
 StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
-  if (call->args.size() != 3) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "EwiseFMA op should have 3 arguments");
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo t1 = input_sinfo[0];
+  TensorStructInfo t2 = input_sinfo[1];
+  TensorStructInfo t3 = input_sinfo[2];
+
+  int ndim = kUnknownNDim;
+  if (!t1->IsUnknownNdim()) {
+    ndim = t1->ndim;
   }
-
-  auto* t0 = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  auto* t1 = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
-  auto* t2 = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
-
-  if (!t0 || !t1 || !t2) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "EwiseFMA expects three tensor inputs");
-  }
-
-  DataType output_dtype;
-  if (t0->IsUnknownDtype() || t1->IsUnknownDtype() || t2->IsUnknownDtype()) {
-    output_dtype = DataType::Void();
-  } else if (t0->dtype != t1->dtype || t1->dtype != t2->dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Data types " << t0->dtype << ", " << t1->dtype << ", and " << t2->dtype
-                     << " must be equal for EwiseFMA");
-  } else {
-    output_dtype = t0->dtype;
-  }
-
-  auto* s0 = t0->shape.as<ShapeExprNode>();
-  auto* s1 = t1->shape.as<ShapeExprNode>();
-  auto* s2 = t2->shape.as<ShapeExprNode>();
-  if (s0 && s1 && s2) {
-    Array<PrimExpr> output_shape;
-    size_t ndim0 = s0->values.size();
-    size_t ndim1 = s1->values.size();
-    size_t ndim2 = s2->values.size();
-    if (ndim0 != ndim1 || ndim1 != ndim2) {
+  if (!t2->IsUnknownNdim()) {
+    if (ndim == kUnknownNDim) {
+      ndim = t2->ndim;
+    } else if (t2->ndim != ndim) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The 3 arguments of EwiseFMA must have the same number of dimensions");
     }
-    for (size_t i = 0; i < ndim0; ++i) {
-      PrimExpr dim0 = s0->values[i];
+  }
+  if (!t3->IsUnknownNdim()) {
+    if (ndim == kUnknownNDim) {
+      ndim = t3->ndim;
+    } else if (t3->ndim != ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "The 3 arguments of EwiseFMA must have the same number of dimensions");
+    }
+  }
+
+  DataType output_dtype;
+  if (t1->IsUnknownDtype() || t2->IsUnknownDtype() || t3->IsUnknownDtype()) {
+    output_dtype = DataType::Void();
+  } else if (t1->dtype != t2->dtype || t2->dtype != t3->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Data types " << t1->dtype << ", " << t2->dtype << ", and " << t3->dtype
+                     << " must be equal for EwiseFMA");
+  } else {
+    output_dtype = t1->dtype;
+  }
+
+  auto* s1 = t1->shape.as<ShapeExprNode>();
+  auto* s2 = t2->shape.as<ShapeExprNode>();
+  auto* s3 = t3->shape.as<ShapeExprNode>();
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  if (s1 && s2 && s3) {
+    Array<PrimExpr> output_shape;
+    for (int i = 0; i < ndim; ++i) {
       PrimExpr dim1 = s1->values[i];
       PrimExpr dim2 = s2->values[i];
-      if (EqualCheck(dim0, dim1) && EqualCheck(dim1, dim2)) {
-        output_shape.push_back(dim0);
+      PrimExpr dim3 = s3->values[i];
+      if (analyzer->CanProveEqual(dim1, dim2) && analyzer->CanProveEqual(dim2, dim3)) {
+        output_shape.push_back(dim1);
       } else {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "The 3 arguments of EwiseFMA must have the same shape");
       }
     }
     return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+  } else if (t1->shape.defined() && t1->shape.same_as(t2->shape) && t1->shape.same_as(t3->shape)) {
+    return TensorStructInfo(t1->shape.value(), output_dtype);
   }
 
-  int output_ndim;
-  if (t0->IsUnknownNdim() || t1->IsUnknownNdim() || t2->IsUnknownNdim()) {
-    output_ndim = kUnknownNDim;
-  } else {
-    output_ndim = t0->ndim;
-  }
-  return TensorStructInfo(output_dtype, output_ndim);
+  return TensorStructInfo(output_dtype, ndim);
 }
 
-RELAY_REGISTER_OP("relax.ewise_fma")
+TVM_REGISTER_OP("relax.ewise_fma")
     .set_num_inputs(3)
-    .add_argument("e1", "Expr", "The input expression")
-    .add_argument("e2", "Expr", "The input expression")
-    .add_argument("e3", "Expr", "The input expression")
+    .add_argument("x1", "Tensor", "The left hand operand of the multiplication")
+    .add_argument("x2", "Tensor", "The right hand operand of the multiplication")
+    .add_argument("x3", "Tensor", "The operand of the addition")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEwiseFMA);
 
-Expr MakeEwiseFma(Expr expr1, Expr expr2, Expr expr3) {
+Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
   static const Op& op = Op::Get("relax.ewise_fma");
-  return Call(op, {expr1, expr2, expr3}, {}, {});
+  return Call(op, {x1, x2, x3}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ewise_fma").set_body_typed(MakeEwiseFma);
+TVM_REGISTER_GLOBAL("relax.op.ewise_fma").set_body_typed(ewise_fma);
 
 }  // namespace relax
 }  // namespace tvm
