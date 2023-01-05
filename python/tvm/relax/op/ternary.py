@@ -14,15 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+# pylint: disable=redefined-builtin, invalid-name
+"""Relax ternary arithmetic operators."""
+from . import _ffi_api
+from ..expr import Expr
 
-# Operators
-from .base import *
-from .binary import *
-from .tensor import *
-from .op_attrs import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import memory
+
+def ewise_fma(x1: Expr, x2: Expr, x3: Expr) -> Expr:
+    """Elementwise fused multiply-add operator
+    Returns elementwise result of :math:`x1 * x2 + x3`
+
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The left hand operand of the multiplication
+
+    x2 : relax.Expr
+        The right hand operand of the multiplication
+
+    x3 : relax.Expr
+        The operand of the addition
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.ewise_fma(x1, x2, x3)  # type: ignore
