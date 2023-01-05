@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/type_analysis.h>
 #include <tvm/script/ir_builder/relax/ir.h>
 #include <tvm/tir/op.h>
@@ -195,11 +196,22 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.DataflowBlockOutput")
 
 /////////////////////////////// Bindings ///////////////////////////////
 
-tvm::relax::Var Emit(const tvm::relax::Expr& expr) {
+tvm::relax::Var Emit(const tvm::relax::Expr& expr,
+                     const Optional<tvm::relax::StructInfo>& annotate_struct_info) {
+  using tvm::relax::GetStructInfo;
   BlockFrame block_frame = CheckBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-  tvm::relax::Var var{nullptr};
-  var = block_builder->Emit(expr);
+  if (annotate_struct_info.defined()) {
+    const auto& sinfo = annotate_struct_info.value();
+    if (!expr->struct_info_.defined()) {
+      UpdateStructInfo(expr, sinfo);
+    } else {
+      CHECK(StructInfoBaseCheck(sinfo, GetStructInfo(expr)) != tvm::relax::BaseCheckResult::kFailL0)
+          << "Invalid annotation. Got rhs value struct info: " << GetStructInfo(expr)
+          << ", given struct info: " << sinfo;
+    }
+  }
+  tvm::relax::Var var = block_builder->Emit(expr);
   block_frame->emitted_vars.push_back(var);
   return var;
 }
@@ -216,17 +228,6 @@ tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
 
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchCast").set_body_typed(EmitMatchCast);
-
-///////////////////////////// Type Deduce //////////////////////////////
-
-void AnnotateStructInfo(const tvm::relax::Var& var,
-                        const tvm::relax::StructInfo& anno_struct_info) {
-  var->checked_type_ = GetStaticType(anno_struct_info);
-  var->struct_info_ = anno_struct_info;
-}
-
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.AnnotateStructInfo")
-    .set_body_typed(AnnotateStructInfo);
 
 ///////////////////////////// If Then Else /////////////////////////////
 
