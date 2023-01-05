@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,25 +19,25 @@
 
 /*!
  * \file ternary.h
- * \brief shape and type deduction for ternary operators.
+ * \brief The functions to make Relax ternary operator calls.
  */
-
 #ifndef TVM_RELAX_OP_TENSOR_TERNARY_H_
 #define TVM_RELAX_OP_TENSOR_TERNARY_H_
-
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
-
-#include <vector>
 
 #include "../op_common.h"
 
 namespace tvm {
 namespace relax {
 
-/* relax.ewise_fma */
-Type InferTypeEwiseFMA(const Call& call, DiagnosticContext diag_ctx);
-StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx);
+/*!
+ * \brief Elementwise fused multiply-add operator
+ * Returns elementwise result of `x1 * x2 + x3`
+ * \param x1 The left hand operand of the multiplication
+ * \param x2 The right hand operand of the multiplication
+ * \param x3 The operand of the addition
+ * \return The computed result.
+ */
+Expr ewise_fma(Expr x1, Expr x2, Expr x3);
 
 }  // namespace relax
 }  // namespace tvm

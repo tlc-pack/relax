@@ -251,6 +251,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
+  arith::Analyzer* GetAnalyzer() final { return &analyzer_; }
+
  protected:
   /*!
    * \brief A representation of a block frame.
