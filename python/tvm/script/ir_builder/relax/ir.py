@@ -269,19 +269,22 @@ call_builtin = _tensor_type_wrapper(call_builtin)  # pylint: disable=invalid-nam
 ############################### Bindings ###############################
 
 
-def emit(value: Expr) -> Var:
+def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
     value: Expr
         The right side value of the bindings to be emitted.
 
+    annotate_struct_info: Optional[StructInfo]
+        The optional struct info annotation for the emitted value.
+
     Returns
     -------
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.Emit(value)  # pylint: disable=no-member # type: ignore
+    return _ffi_api.Emit(value, annotate_struct_info)  # pylint: disable=no-member # type: ignore
 
 
 def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
@@ -299,25 +302,6 @@ def emit_match_cast(value: Expr, struct_info: StructInfo) -> Var:
         The left side var of the emitted binding.
     """
     return _ffi_api.EmitMatchCast(value, struct_info)  # type: ignore
-
-
-############################# Type Deduce ##############################
-
-
-def annotate_struct_info(var: Var, anno_struct_info: StructInfo) -> None:
-    """Annotate the struct info of relax var.
-
-    Parameters
-    ----------
-    var: Var
-        The input var to be annotated.
-
-
-    anno_struct_info: StructInfo
-        The annotated struct info
-
-    """
-    _ffi_api.AnnotateStructInfo(var, anno_struct_info)
 
 
 ############################# If Then Else #############################

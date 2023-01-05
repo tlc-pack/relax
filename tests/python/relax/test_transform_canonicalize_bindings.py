@@ -112,6 +112,7 @@ def test_ops():
     assert_structural_equal(new_mod, Expected)
 
 
+@pytest.mark.xfail(reason="The lhs and rhs of an assignment should have the same struct info.")
 def test_casting():
     @tvm.script.ir_module
     class TestCasting:

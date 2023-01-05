@@ -106,9 +106,12 @@ TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
 /*!
  * \brief Emit a binding to the last binding block frame.
  * \param value The right side value of the bindings to be emitted.
+ * \param annotate_struct_info The optional struct info annotation for the emitted value.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value);
+TVM_DLL tvm::relax::Var Emit(
+    const tvm::relax::Expr& value,
+    const Optional<tvm::relax::StructInfo>& annotate_struct_info = NullOpt);
 
 /*!
  * \brief Emit a match_cast binding to the last binding block frame.
@@ -118,18 +121,6 @@ TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value);
  */
 TVM_DLL tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
                                       const tvm::relax::StructInfo& struct_info);
-
-///////////////////////////// Type Deduce //////////////////////////////
-
-/*!
- * \brief Annotate the struct info of a var.
- * \param var The input var to be annotated.
- * \param anno_struct_info The annotated struct info, which can be undefined.
- * \note This function will check if the type of var is compatible with the annotated type.
- * And we annotate to the var with more detailed type.
- */
-TVM_DLL void AnnotateStructInfo(const tvm::relax::Var& var,
-                                const tvm::relax::StructInfo& anno_struct_info);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

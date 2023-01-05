@@ -484,6 +484,7 @@ def test_annotation():
 
     def _check_struct_info(binding, expected_sinfo):
         tvm.ir.assert_structural_equal(binding.var.struct_info, expected_sinfo)
+        tvm.ir.assert_structural_equal(binding.value.struct_info, expected_sinfo)
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
@@ -505,13 +506,31 @@ def test_annotate_override():
     def foo(x: R.Tensor):
         y = x
         # z will be treated as object type even though it's a tensor
-        z: R.Object = y
+        z: R.Object = R.add(x, y)
         return z
 
     assert isinstance(foo.ret_struct_info, relax.ObjectStructInfo)
     y_bind, z_bind = foo.body.blocks[0].bindings
-    assert isinstance(y_bind.var.checked_type, relax.DynTensorType)
-    assert isinstance(z_bind.var.checked_type, relax.ObjectType)
+    assert isinstance(y_bind.var.struct_info, relax.TensorStructInfo)
+    assert isinstance(z_bind.var.struct_info, relax.ObjectStructInfo)
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def test(x: R.Tensor):
+            # Error: x is of Tensor StructInfo, which can not annotate to R.Shape.
+            z: R.Shape = x
+            return z
+
+    @R.function
+    def bar(x: R.Tensor):
+        # x is of Tensor StructInfo, the annotation of `z` is ignored.
+        z: R.Object = x
+        return z
+
+    assert isinstance(bar.ret_struct_info, relax.TensorStructInfo)
+    (z_bind,) = bar.body.blocks[0].bindings
+    assert isinstance(z_bind.var.struct_info, relax.TensorStructInfo)
 
 
 def test_empty_shape():
