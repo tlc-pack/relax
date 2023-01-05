@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/object.h>
@@ -203,6 +204,12 @@ class BlockBuilderNode : public Object {
    * \note This function will create a binding var for non-leaf expressions such as Call.
    */
   virtual Expr NormalizeArgument(const Expr& expr) = 0;
+
+  /*!
+   * \brief Get the analyzer of the BlockBuilder.
+   * \return The BlockBuilder's arithmetic analyzer.
+   */
+  virtual arith::Analyzer* GetAnalyzer() = 0;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.BlockBuilder";
