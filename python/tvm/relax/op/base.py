@@ -22,7 +22,8 @@ import tvm
 from tvm.runtime.object import Object
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr, Tuple, Call, ExternFunc
+from ..expr import Expr, ShapeExpr, Call, ExternFunc
+from ..expr import Tuple as RxTuple
 from ..ty import DynTensorType, TupleType
 from ...ir import Array, Type, PrimExpr
 
@@ -43,8 +44,8 @@ def null_value() -> Call:
 
 def call_tir(
     func: Union[str, Expr],
-    args: Union[Expr, Tuple, List[Expr]],
-    shape: Union[Tuple, ShapeExpr, List[int]],
+    args: Union[Expr, List[Expr]],
+    shape: Union[RxTuple, ShapeExpr, List[int]],
     dtype: Union[str, List[str]],
     tir_vars: Optional[ShapeExpr] = None,
 ) -> Call:
@@ -56,10 +57,10 @@ def call_tir(
     func : Union[str, Expr]
         The destination-passing-style function, can be ExternFunc or PrimFunc.
 
-    args : Union[Expr, Tuple, List[Expr]]
+    args : Union[Expr, List[Expr]]
         The input arguments.
 
-    shape: Union[Tuple, ShapeExpr, List[int]]
+    shape: Union[RxTuple, ShapeExpr, List[int]]
         The output shape. Tuple(ShapeExpr) if multiple outputs, ShapeExpr if single output.
 
     dtype: Union[str, List[str]]
@@ -95,7 +96,7 @@ def call_tir(
         if all([not isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
             shape = _create_shape(shape)  # type: ignore
         elif all([isinstance(x, (list, tuple, Array, ShapeExpr)) for x in shape]):
-            shape = Tuple(
+            shape = RxTuple(
                 [
                     _create_shape(x) if not isinstance(x, ShapeExpr) else x  # type: ignore
                     for x in shape
@@ -107,10 +108,10 @@ def call_tir(
             )
 
     if isinstance(args, Expr):  # type: ignore
-        args = Tuple((args,))
+        args = RxTuple((args,))
 
     if isinstance(args, (list, tuple)):
-        args = Tuple(args)
+        args = RxTuple(args)
 
     if isinstance(dtype, str):
         output_type = DynTensorType(len(shape), dtype)
@@ -126,7 +127,7 @@ def call_tir(
 
 def call_builtin(
     func: Union[str, Expr],
-    args: Union[Tuple, List[Expr]],
+    args: Union[RxTuple, List[Expr]],
     *,
     type_args: Optional[List[Type]] = None,
     int_args: Optional[List[int]] = None,
@@ -141,7 +142,7 @@ def call_builtin(
     func : Expr
         The builtin function to be called.
 
-    args : Union[Tuple, List[Expr]]
+    args : Union[RxTuple, List[Expr]]
         The input arguments.
 
     type_args: Optional[List[Type]]
@@ -168,7 +169,7 @@ def call_builtin(
         func = ExternFunc(func)
 
     if isinstance(args, (list, tuple)):
-        args = Tuple(args)
+        args = RxTuple(args)
 
     return _ffi_api.call_builtin(  # type: ignore
         func, args, type_args, int_args, dtype_arg, str_args, require_ctx  # type: ignore
@@ -177,7 +178,7 @@ def call_builtin(
 
 def make_closure(
     func: Expr,
-    args: Union[Tuple, List[Expr]],
+    args: Union[RxTuple, List[Expr]],
 ) -> Object:
     """
     Create a closure with free variables and return the closure.
@@ -198,14 +199,14 @@ def make_closure(
     """
 
     if isinstance(args, (list, tuple)):
-        args = Tuple(args)
+        args = RxTuple(args)
 
     return _ffi_api.make_closure(func, args)  # type: ignore
 
 
 def invoke_closure(
     closure: Expr,
-    args: Union[Tuple, List[Expr]],
+    args: Union[RxTuple, List[Expr]],
     type_args: Union[List[Type], Type],
 ) -> Object:
     """
@@ -229,7 +230,7 @@ def invoke_closure(
     """
 
     if isinstance(args, (list, tuple)):
-        args = Tuple(args)
+        args = RxTuple(args)
     if not isinstance(type_args, (list, tuple)):
         type_args = (type_args,)
 
