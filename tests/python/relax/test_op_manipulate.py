@@ -1028,6 +1028,11 @@ def test_concat_infer_struct_info_with_axis():
         bb, relax.op.concat([x5, y5, z4], axis=1), relax.TensorStructInfo(dtype="", ndim=3)
     )
     _check_inference(bb, relax.op.concat([x5, y5, z5], axis=1), relax.TensorStructInfo(dtype=""))
+    _check_inference(
+        bb,
+        relax.op.concat(relax.Tuple([x0, y0, z0]), axis=1),
+        relax.TensorStructInfo((2, 12, 4), "float32"),
+    )
 
 
 def test_concat_infer_struct_info_with_axis_shape_symbolic():
@@ -1055,6 +1060,11 @@ def test_concat_infer_struct_info_with_axis_shape_symbolic():
     )
     _check_inference(
         bb, relax.op.concat([x1, y, z], axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
+    _check_inference(
+        bb,
+        relax.op.concat(relax.Tuple([x0, y, z]), axis=1),
+        relax.TensorStructInfo((a0, b0 + b1 + b2, c), "float32"),
     )
 
 
@@ -1096,6 +1106,11 @@ def test_concat_infer_struct_info_with_axis_shape_var():
     _check_inference(
         bb, relax.op.concat([x4, y0, z0], axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
     )
+    _check_inference(
+        bb,
+        relax.op.concat(relax.Tuple([x0, y0, z0]), axis=1),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
 
 
 def test_concat_infer_struct_info_without_axis():
@@ -1136,6 +1151,11 @@ def test_concat_infer_struct_info_without_axis():
         relax.op.concat([x1, y1, z1], axis=None),
         relax.TensorStructInfo(dtype="float32", ndim=1),
     )
+    _check_inference(
+        bb,
+        relax.op.concat(relax.Tuple([x0, y0, z0]), axis=None),
+        relax.TensorStructInfo((12,), "float32"),
+    )
 
 
 def test_concat_infer_struct_info_without_axis_shape_symbolic():
@@ -1159,6 +1179,11 @@ def test_concat_infer_struct_info_without_axis_shape_symbolic():
     _check_inference(
         bb, relax.op.concat([x1, y1], axis=None), relax.TensorStructInfo((a0 + a1,), dtype="")
     )
+    _check_inference(
+        bb,
+        relax.op.concat(relax.Tuple([x0, y0]), axis=None),
+        relax.TensorStructInfo((a0 + a1,), "float32"),
+    )
 
 
 def test_concat_infer_struct_info_without_axis_shape_var():
@@ -1175,6 +1200,11 @@ def test_concat_infer_struct_info_without_axis_shape_var():
     )
     _check_inference(
         bb, relax.op.concat([x1, y0], axis=None), relax.TensorStructInfo(dtype="float32", ndim=1)
+    )
+    _check_inference(
+        bb,
+        relax.op.concat(relax.Tuple([x0, y0]), axis=None),
+        relax.TensorStructInfo(dtype="float32", ndim=1),
     )
 
 
