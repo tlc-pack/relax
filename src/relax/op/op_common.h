@@ -131,6 +131,19 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
                                                     const Array<PrimExpr>& x1_shape,
                                                     const Array<PrimExpr>& x2_shape);
 
+/*!
+ * \brief Convert all axes to non-negative indices, and meanwhile check if the given array of axes
+ * are all in range and non-repetitive with regards to the given ndim.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param ndim The ndim constraint, which is required to be known already.
+ * \param axes The axis indices to be checked
+ * \return The input axes in non-negative indexing.
+ * \throw Throw exception if there exists out-of-range axis index or repetitive indices.
+ */
+std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
+                               const Array<Integer>& axes);
+
 }  // namespace relax
 }  // namespace tvm
 

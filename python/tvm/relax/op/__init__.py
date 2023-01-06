@@ -22,6 +22,7 @@ from .base import *
 from .binary import *
 from .tensor import *
 from .op_attrs import *
+from .statistical import *
 from .ternary import *
 from .unary import *
 from . import builtin
