@@ -57,3 +57,8 @@ class PrintAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.AssertOpAttrs")
 class AssertOpAttrs(Attrs):
     """Attributes used for the assert operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.StatisticalAttrs")
+class StatisticalAttrs(Attrs):
+    """Attributes used in statistical operator"""

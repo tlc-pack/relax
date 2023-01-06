@@ -28,9 +28,9 @@ def add(x1: Expr, x2: Expr) -> Expr:
     Parameters
     ----------
     x1 : Expr
-        The left hand side input data
+        The first input tensor.
     x2 : Expr
-        The right hand side input data
+        The second input tensor.
 
     Returns
     -------
@@ -54,10 +54,10 @@ def divide(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -67,15 +67,15 @@ def divide(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.divide(x1, x2)  # type: ignore
 
 
-def floor_divide(x1, x2) -> Expr:
+def floor_divide(x1: Expr, x2: Expr) -> Expr:
     """Floor division with numpy-style broadcasting.
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -91,9 +91,9 @@ def multiply(x1: Expr, x2: Expr) -> Expr:
     Parameters
     ----------
     x1 : Expr
-        The left hand side input data
+        The first input tensor.
     x2 : Expr
-        The right hand side input data
+        The second input tensor.
 
     Returns
     -------
@@ -108,10 +108,10 @@ def subtract(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -129,10 +129,10 @@ def equal(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -147,10 +147,10 @@ def greater(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -165,10 +165,10 @@ def greater_equal(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -183,10 +183,10 @@ def less(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -201,10 +201,10 @@ def less_equal(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
@@ -219,10 +219,10 @@ def not_equal(x1: Expr, x2: Expr) -> Expr:
 
     Parameters
     ----------
-    lhs : relax.Expr
-        The left hand side input data
-    rhs : relax.Expr
-        The right hand side input data
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
 
     Returns
     -------
