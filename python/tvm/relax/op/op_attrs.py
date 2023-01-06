@@ -99,6 +99,21 @@ class SqueezeAttrs(Attrs):
     """Attributes for squeeze operator"""
 
 
+@tvm._ffi.register_object("relax.attrs.TakeAttrs")
+class TakeAttrs(Attrs):
+    """Attributes used in take operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.StridedSliceAttrs")
+class StridedSliceAttrs(Attrs):
+    """Attributes used in strided_slice operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.AstypeAttrs")
+class AstypeAttrs(Attrs):
+    """Attributes used in astype operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.Conv2DAttrs")
 class Conv2DAttrs(Attrs):
     """Attributes for nn.conv2d"""
