@@ -62,3 +62,13 @@ class AssertOpAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.StatisticalAttrs")
 class StatisticalAttrs(Attrs):
     """Attributes used in statistical operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.InitAttrs")
+class InitAttrs(Attrs):
+    """Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.TriluAttrs")
+class TriluAttrs(Attrs):
+    """Attributes used in tril and triu operator"""

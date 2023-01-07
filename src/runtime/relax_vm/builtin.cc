@@ -149,7 +149,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body(MakeShape);
  * \brief Builtin function to check if arg is Tensor(dtype, ndim)
  * \param arg The input argument.
  * \param ndim Expected ndim of the Tensor, can be -1 (indicate unknown).
- * \paramf dtype The expected content data type.
+ * \param dtype The expected content data type.
  * \param err_ctx Additional context if error occurs.
  */
 void CheckTensorInfo(TVMArgs args, TVMRetValue* rv) {
