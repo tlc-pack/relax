@@ -44,11 +44,6 @@ class VMAllocTensorAttrs(Attrs):
     """Attributes used in VM alloc_tensor operators"""
 
 
-@tvm._ffi.register_object("relax.attrs.UniqueAttrs")
-class UniqueAttrs(Attrs):
-    """Attributes used for the unique operator"""
-
-
 @tvm._ffi.register_object("relax.attrs.PrintAttrs")
 class PrintAttrs(Attrs):
     """Attributes used for the print operator"""
@@ -72,3 +67,8 @@ class InitAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.TriluAttrs")
 class TriluAttrs(Attrs):
     """Attributes used in tril and triu operator"""
+
+
+@tvm._ffi.register_object("relax.attrs.UniqueAttrs")
+class UniqueAttrs(Attrs):
+    """Attributes used for the unique operator"""

@@ -49,33 +49,6 @@ using FInferStructInfo =
  */
 using FCallPacked = String;
 
-/*! \brief Attributes used in unique operator */
-struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
-  bool sorted;
-  bool return_inverse;
-  bool return_counts;
-  int dim;
-  TVM_DECLARE_ATTRS(UniqueAttrs, "relax.attrs.UniqueAttrs") {
-    TVM_ATTR_FIELD(sorted)
-        .describe(
-            "Whether to sort the unique elements in ascending order before returning as output.")
-        .set_default(true);
-    TVM_ATTR_FIELD(return_inverse)
-        .describe(
-            "Whether to return an additional tensor with indices for where elements in the "
-            "original input ended up in the returned unique list.")
-        .set_default(false);
-    TVM_ATTR_FIELD(return_counts)
-        .describe("Whether to return an additional tensor with counts of each unique elements")
-        .set_default(false);
-    TVM_ATTR_FIELD(dim)
-        .describe(
-            "The dimension to apply unique. If negative, the unique of the flattened input is "
-            "returned.")
-        .set_default(-1);
-  }
-};  // struct UniqueAttrs
-
 struct PrintAttrs : public tvm::AttrsNode<PrintAttrs> {
   std::string format;
   TVM_DECLARE_ATTRS(PrintAttrs, "relax.attrs.PrintAttrs") {
