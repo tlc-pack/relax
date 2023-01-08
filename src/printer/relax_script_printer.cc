@@ -59,7 +59,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::TupleNode* op) {
   size_t num_fields = op->fields.size();
 
   if (num_fields == 0) {
-    return Doc::Text("R.Tuple()");
+    return Doc::Text("R.tuple()");
   }
 
   Doc doc;

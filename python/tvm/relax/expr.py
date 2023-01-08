@@ -231,12 +231,14 @@ class Var(Expr):
         struct_info: Optional[StructInfo] = None,
         span: Span = None,
     ) -> None:
-        if struct_info is not None and not isinstance(struct_info, StructInfo):
-            raise TypeError(
-                "struct_info needs to be an instance of StructInfo. "
-                "If you attempt to pass in shape, "
-                "use relax.TensorStructInfo(shape, dtype)."
-            )
+        if struct_info is not None:
+            struct_info = tvm.runtime.convert_to_object(struct_info)
+            if not isinstance(struct_info, StructInfo):
+                raise TypeError(
+                    "struct_info needs to be an instance of StructInfo. "
+                    "If you attempt to pass in shape, "
+                    "use relax.TensorStructInfo(shape, dtype)."
+                )
         self.__init_handle_by_constructor__(
             _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,  # type: ignore
             name_hint,
@@ -284,12 +286,14 @@ class DataflowVar(Var):
         struct_info: Optional[StructInfo] = None,
         span: Span = None,
     ) -> None:
-        if struct_info is not None and not isinstance(struct_info, StructInfo):
-            raise TypeError(
-                "struct_info needs to be an instance of StructInfo. "
-                "If you attempt to pass in shape, "
-                "use relax.TensorStructInfo(shape, dtype)."
-            )
+        if struct_info is not None:
+            struct_info = tvm.runtime.convert_to_object(struct_info)
+            if not isinstance(struct_info, StructInfo):
+                raise TypeError(
+                    "struct_info needs to be an instance of StructInfo. "
+                    "If you attempt to pass in shape, "
+                    "use relax.TensorStructInfo(shape, dtype)."
+                )
 
         self.__init_handle_by_constructor__(
             _ffi_api.DataflowVar  # type: ignore

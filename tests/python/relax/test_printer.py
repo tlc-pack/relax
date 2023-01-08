@@ -54,7 +54,7 @@ def test_annotations():
 def test_ndim_annotations():
     @R.function
     def foo(
-        x: R.Tensor((2, 3, 5), "float32", ndim=3),
+        x: R.Tensor((2, 3, 5), "float32"),
         y: R.Tensor(dtype="float32", ndim=-1),
         z: R.Tensor(dtype="float32", ndim=2),
     ):
@@ -103,7 +103,7 @@ def test_tuplegetitem():
     def foo(x: R.Tensor(ndim=2)):
         y = R.add(x, x)
         z = R.multiply(y, x)
-        t = R.Tuple((y, z))
+        t = (y, z)
         a = R.TupleGetItem(t, 0)
         b = R.TupleGetItem(t, 1)
         c = R.multiply(a, b)
@@ -413,7 +413,7 @@ def test_func_type():
 
             @R.function
             def local_func_2(
-                y: R.Tensor(("m", "n"), "float32")
+                y: R.Tensor((m, n), "float32")
             ) -> R.Callable((R.Tensor((m, n), "float32"),), R.Tensor((m, n), "float32")):
                 @R.function
                 def local_func_3(

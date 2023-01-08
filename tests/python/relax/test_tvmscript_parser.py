@@ -19,6 +19,7 @@ from typing import Optional, Union
 
 import pytest
 import tvm
+import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir
 from tvm.relax import DynTensorType
@@ -773,7 +774,7 @@ def test_erase_to_well_defined():
 def test_empty_tuple():
     @R.function
     def foo(x: R.Tuple()):
-        y: R.Tuple() = R.Tuple()
+        y: R.Tuple() = R.tuple()
         return y
 
     x = relax.Var("x", relax.TupleStructInfo([]))
@@ -871,4 +872,5 @@ def test_meta():
 
 
 if __name__ == "__main__":
+    test_call_packed()
     tvm.testing.main()

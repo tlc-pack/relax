@@ -33,8 +33,8 @@ def test_function_simple():
         with R.function():
             R.func_name("foo")
             R.func_attr({"Primitive": 1})
-            x = R.arg("x", R.tensor((128, 128), "float32"))
-            R.func_ret_struct_info(R.tensor(dtype="float32", ndim=2))
+            x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
+            R.func_ret_struct_info(relax.TensorStructInfo(dtype="float32", ndim=2))
             out = R.emit(R.call_tir("extern_func", x, (128, 128), dtype="float32"))
             IRBuilder.name("out", out)
             R.func_ret_value(out)
@@ -67,12 +67,12 @@ def test_match_cast():
     with IRBuilder() as ir_builder:
         with R.function():
             R.func_name("foo")
-            x = R.arg("x", R.tensor(ndim=-1, dtype="float32"))
-            y = R.arg("y", R.tensor(ndim=-1, dtype="float32"))
+            x = R.arg("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
+            y = R.arg("y", relax.TensorStructInfo(ndim=-1, dtype="float32"))
             m = tir.Var("m", dtype="int64")
             n = tir.Var("n", dtype="int64")
-            _ = R.emit_match_cast(x, R.tensor((m,), "float32"))
-            y1 = R.emit_match_cast(y, R.tensor((n,), "float32"))
+            _ = R.emit_match_cast(x, relax.TensorStructInfo((m,), "float32"))
+            y1 = R.emit_match_cast(y, relax.TensorStructInfo((n,), "float32"))
             IRBuilder.name("y1", y1)
             R.func_ret_value(relax.ShapeExpr([m, n * 2]))
     func = ir_builder.get()
@@ -84,8 +84,8 @@ def test_match_cast():
     n = tir.Var("n", dtype="int64")
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
-        _ = bb.match_cast(x, R.tensor((m,), "float32"))
-        y1 = bb.match_cast(y, R.tensor((n,), "float32"))
+        _ = bb.match_cast(x, relax.TensorStructInfo((m,), "float32"))
+        y1 = bb.match_cast(y, relax.TensorStructInfo((n,), "float32"))
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
     mod = bb.get()
 
@@ -107,7 +107,7 @@ def test_dataflow_block():
     with IRBuilder() as ir_builder:
         with R.function():
             R.func_name("foo")
-            x = R.arg("x", R.tensor((128, 128), "float32"))
+            x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
             with R.dataflow() as df:
                 lv0 = R.emit(R.call_tir("extern_func", x, (128, 128), dtype="float32"))
                 IRBuilder.name("lv0", lv0)

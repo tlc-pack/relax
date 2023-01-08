@@ -302,7 +302,7 @@ def test_tuple():
 def test_tuplegetitem():
     @R.function
     def f(x: R.Tensor, y: R.Tensor):
-        t1 = R.Tuple((x, y))
+        t1 = R.tuple(x, y)
         t2 = (x, y)
         a = t1[0]
         b = R.TupleGetItem(t2, 1)

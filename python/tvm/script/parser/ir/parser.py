@@ -15,37 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """The base parser for ir module"""
-from typing import Optional, Tuple
 
-from tvm.ir import PrimExpr, PrimType, RelayExpr, Type
 from ...ir_builder import ir as I
 from .._core import Parser, dispatch, doc
-
-
-def eval_func_type_shape(
-    self: Parser, node: doc.FunctionDef
-) -> Tuple[Optional[Type], Optional[RelayExpr]]:
-    """evaluate function type and shape.
-    Parameters
-    ----------
-    self : Parser
-        The visiting parser.
-    node : doc.FunctionDef
-        The doc FunctionDef node.
-    """
-    token = self.get_dispatch_token(node)
-    with self.with_dispatch_token(token):
-        result = self.visit_tvm_annotation(node.returns)
-    if result is None:
-        return None, None
-    elif isinstance(result, tuple) and len(result) == 2:
-        # relax dialect
-        return result
-    elif isinstance(result, PrimExpr):
-        # tir dialect
-        return PrimType(result.dtype), None
-    else:
-        raise TypeError(f"Unsupported annotation type: {result}")
 
 
 @dispatch.register(token="ir", type_name="ClassDef")
