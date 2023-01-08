@@ -482,9 +482,10 @@ def test_operators():
     )
     # checking that the attributes are present
     assert '"sorted":1' in foo_str
+    assert '"return_index"' in foo_str
     assert '"return_inverse"' in foo_str
     assert '"return_counts"' in foo_str
-    assert '"dim"' in foo_str
+    assert '"axis"' in foo_str
 
     @R.function
     def bar(x: R.Tensor):
