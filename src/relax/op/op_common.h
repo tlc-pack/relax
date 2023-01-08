@@ -144,6 +144,20 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
 std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
                                const Array<Integer>& axes);
 
+/*!
+ * \brief Convert the given axis to non-negative index. Meanwhile check if the axis is in range
+ * with regards to the given ndim.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param ndim The ndim constraint.
+ * \param axis The axis index to be checked
+ * \return The input axis in non-negative indexing.
+ * \throw Throw exception the given axis is out-of-range.
+ */
+inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, int axis) {
+  return NormalizeAxes(call, ctx, ndim, {axis})[0];
+}
+
 }  // namespace relax
 }  // namespace tvm
 

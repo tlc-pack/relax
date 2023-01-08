@@ -189,7 +189,7 @@ def test_statistical_infer_struct_info_axis_out_of_range_repetitive():
         bb.normalize(relax.op.mean(x0, axis=[-5]))
 
 
-def test_dropout_infer_struct_info_wrong_input_type():
+def test_statistical_infer_struct_info_wrong_input_type():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
