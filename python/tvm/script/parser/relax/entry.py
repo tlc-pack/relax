@@ -122,6 +122,9 @@ def Tensor(
     if isinstance(shape, str) and dtype is None:
         dtype = shape
         shape = None
+
+    if shape is not None and not isinstance(shape, (tuple, list)):
+        raise ValueError(f"shape must be a list or tuple, but got: {shape}")
     return TensorProxy(shape, dtype, ndim)
 
 

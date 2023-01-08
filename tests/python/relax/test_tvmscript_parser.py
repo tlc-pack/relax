@@ -468,7 +468,7 @@ def test_annotation():
     @R.function
     def foo(
         x: R.Tensor((32, "m"), "float32"),
-        y: R.Tensor(("m"), "float32"),
+        y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
         m = T.var("int64", "m")
@@ -786,6 +786,30 @@ def test_empty_tuple():
     _check(foo, bb.get()["foo"])
 
 
+def test_symbolic_shape_computing():
+    @R.function
+    def foo(x: R.Tensor(("m + 1",), "float32"), y: R.Tensor(("m", 1), "float32")):
+        z = R.add(x, y)
+        return z
+
+    m = tir.Var("m", "int64")
+    x = relax.Var("x", relax.TensorStructInfo([m + 1], "float32"))
+    y = relax.Var("y", relax.TensorStructInfo([m, 1], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x, y)):
+        z = bb.emit(relax.op.add(x, y))
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def foo(x: R.Tensor(("m + 1", "m * 2"), "float32")):  # name 'm' is not defined
+            z = R.add(x, x)
+            return z
+
+
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
 def test_meta():
     metadata = tvm.ir.load_json(
@@ -872,5 +896,4 @@ def test_meta():
 
 
 if __name__ == "__main__":
-    test_call_packed()
     tvm.testing.main()

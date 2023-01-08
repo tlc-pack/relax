@@ -101,6 +101,15 @@ def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
         raise err
 
 
+def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> StructInfo:
+    var_table = self.var_table.get() if eval_str else None
+    try:
+        return eval_struct_info_proxy(self, node).as_struct_info(var_table)
+    except Exception as err:
+        self.report_error(node, str(err))
+        raise err
+
+
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
     # Collect symbolic vars from parameters
     symbolic_vars = set()
@@ -124,9 +133,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 collect_symbolic_var_from_params(self, node)
 
                 if node.returns is not None:
-                    ann_sinfo = eval_struct_info_proxy(self, node.returns).as_struct_info(
-                        self.var_table.get()
-                    )
+                    ann_sinfo = eval_struct_info(self, node.returns, eval_str=True)
                     R.func_ret_struct_info(ann_sinfo)
 
                 self.visit(node.args)
@@ -137,18 +144,17 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
     with self.var_table.with_frame():
         collect_symbolic_var_from_params(self, node)
-        var_table = self.var_table.get()
 
         if node.returns is None:
             ret_sinfo = relax.TupleStructInfo([])
         else:
-            ret_sinfo = eval_struct_info_proxy(self, node.returns).as_struct_info(var_table)
+            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
         params = []
         params_sinfo = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_sinfo = eval_struct_info_proxy(self, arg.annotation).as_struct_info(var_table)
+            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
             params_sinfo.append(param_sinfo)
             params.append(relax.Var(arg.arg, param_sinfo))
 
@@ -183,11 +189,10 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
 @dispatch.register(token="relax", type_name="arguments")
 def visit_arguments(self: Parser, node: doc.arguments) -> None:
     arg: doc.arg
-    var_dict = self.var_table.get()
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_sinfo = eval_struct_info_proxy(self, arg.annotation).as_struct_info(var_dict)
+        param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
         param = R.arg(arg.arg, param_sinfo)
 
         self.var_table.add(arg.arg, param)
@@ -195,8 +200,7 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
 
 @dispatch.register(token="relax", type_name="tvm_annotation")
 def visit_tvm_annotation(self: Parser, node: doc.expr) -> StructInfo:
-    proxy = eval_struct_info_proxy(self, node)
-    return proxy.as_struct_info()
+    return eval_struct_info(self, node, eval_str=False)
 
 
 @dispatch.register(token="relax", type_name="With")

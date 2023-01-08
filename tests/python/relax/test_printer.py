@@ -344,7 +344,6 @@ def test_class_irmodule():
     check_roundtrip(my_module)
 
 
-@pytest.mark.skip("Need to fix string ast expr")
 def test_tir_max():
     @R.function
     def tir_max(x: R.Tensor(("m", "n"), "float32")):
@@ -355,7 +354,6 @@ def test_tir_max():
     check_roundtrip(tir_max)
 
 
-@pytest.mark.skip("Need to fix string ast expr")
 def test_tir_cast():
     @R.function
     def tir_cast(x: R.Tensor(("m",), "float32")):

@@ -43,7 +43,7 @@ Doc RelaxScriptPrinter::Print(const ObjectRef& node) {
   } else if (node->IsInstance<TypeNode>()) {
     return VisitType(Downcast<Type>(node));
   } else if (node->IsInstance<PrimExprNode>()) {
-    return VisitExpr(Downcast<PrimExpr>(node));
+    return PrintPrimExpr(Downcast<PrimExpr>(node));
   } else if (node->IsInstance<tir::PrimFuncNode>()) {
     return tir::AsTVMScriptDoc(Downcast<tir::PrimFunc>(node), "T", false);
   } else if (node->IsInstance<runtime::StringObj>()) {
@@ -354,22 +354,30 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ExternFuncNode* op) {
   return Doc::StrLiteral(op->global_symbol);
 }
 
+Doc RelaxScriptPrinter::PrintPrimExpr(const PrimExpr& expr) {
+  Doc body = VisitExpr(expr);
+  if (print_symbolic_shape_as_str_ && !expr->IsInstance<IntImmNode>()) {
+    std::string s = body.str();
+    // replace all '\"' with '\''
+    // T.cast(m, "int32") ==> "T.cast(m, 'int32')"
+    std::replace(s.begin(), s.end(), '\"', '\'');
+    return Doc::Text("\"") << s << "\"";
+  } else {
+    return body;
+  }
+}
+
 Doc RelaxScriptPrinter::VisitExpr_(const tir::VarNode* op) {
   tir::Var var = GetRef<tir::Var>(op);
   if (!dim_var_map_.count(var)) {
     dim_var_map_[var] = GetUniqueName(var->name_hint, "dim");
   }
-  if (print_symbolic_shape_as_str_) {
-    Doc doc;
-    doc << "\"" << dim_var_map_[var] << "\"";
-    return doc;
-  } else {
-    if (std::none_of(symbolic_vars_.begin(), symbolic_vars_.end(),
-                     [&var](const tir::Var& v) { return v.same_as(var); })) {
-      symbolic_vars_.push_back(var);
-    }
-    return dim_var_map_[var];
+  if (!print_symbolic_shape_as_str_ &&
+      std::none_of(symbolic_vars_.begin(), symbolic_vars_.end(),
+                   [&var](const tir::Var& v) { return v.same_as(var); })) {
+    symbolic_vars_.push_back(var);
   }
+  return dim_var_map_[var];
 }
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::IntImmNode* op) {
@@ -379,8 +387,8 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::IntImmNode* op) {
 #define TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(OpName, OpString) \
   Doc RelaxScriptPrinter::VisitExpr_(const OpName* op) {          \
     Doc doc;                                                      \
-    doc << "(" << Print(op->a) << OpString;                       \
-    doc << Print(op->b) << ")";                                   \
+    doc << "(" << VisitExpr(op->a) << OpString;                   \
+    doc << VisitExpr(op->b) << ")";                               \
     return doc;                                                   \
   }
 
@@ -392,13 +400,13 @@ TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(tir::FloorDivNode, " // ")
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::CastNode* op) {
   Doc doc;
-  doc << "T.cast(" << Print(op->value) << ", " << PrintDType(op->dtype) << ")";
+  doc << "T.cast(" << VisitExpr(op->value) << ", " << PrintDType(op->dtype) << ")";
   return doc;
 }
 
 Doc RelaxScriptPrinter::VisitExpr_(const tir::MaxNode* op) {
   Doc doc;
-  doc << "T.max(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << "T.max(" << VisitExpr(op->a) << ", " << VisitExpr(op->b) << ")";
   return doc;
 }
 
