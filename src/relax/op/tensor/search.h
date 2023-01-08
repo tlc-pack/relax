@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,22 +18,24 @@
  */
 
 /*!
- * \file unary.cc
- * \brief Relax unary arithmetic operators.
+ * \file search.h
+ * \brief The functions to make Relax searching operator calls.
  */
+#ifndef TVM_RELAX_OP_TENSOR_SEARCH_H_
+#define TVM_RELAX_OP_TENSOR_SEARCH_H_
 
-#include "unary.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relax {
 
-RELAX_REGISTER_UNARY_OP_INTERFACE(cos, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_OP_INTERFACE(log, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_OP_INTERFACE(negative, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_OP_INTERFACE(sigmoid, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_OP_INTERFACE(sin, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_OP_INTERFACE(sqrt, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_OP_INTERFACE(tanh, /*require_float_dtype=*/true);
+/*!
+ * \brief Selecting elements from either the input tensors depending on the value of the
+ * condition.
+ */
+Expr where(Expr condition, Expr x1, Expr x2);
 
 }  // namespace relax
 }  // namespace tvm
+
+#endif  // TVM_RELAX_OP_TENSOR_SEARCH_H_
