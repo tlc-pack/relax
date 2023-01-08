@@ -25,7 +25,9 @@ copy the examples and raise errors with the same message convention.
 
     Please also refer to :ref:`error-handling-guide`.
 """
-from tvm._ffi.base import register_error, TVMError
+from typing import List
+
+from tvm._ffi.base import TVMError, register_error
 
 
 @register_error
@@ -134,3 +136,7 @@ class DiagnosticError(TVMError):
 
     See the configured diagnostic renderer for detailed error information.
     """
+
+    def _render_traceback_(self) -> List[str]:
+        """Custom traceback for IPython/Jupyter Notebook"""
+        return None
