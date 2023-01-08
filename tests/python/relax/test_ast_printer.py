@@ -352,7 +352,7 @@ def test_call_packed():
     @R.function
     def f(
         x: R.Tensor((32, "m"), "float32"),
-        y: R.Tensor(("m"), "float32"),
+        y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
         m = T.var("int64")

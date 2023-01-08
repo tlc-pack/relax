@@ -39,7 +39,7 @@ def test_annotations():
     @R.function
     def f(
         x: R.Tensor((32, "m"), "float32"),
-        y: R.Tensor(("m"), "float32"),
+        y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
         m = T.var("int64")
@@ -302,7 +302,7 @@ def test_tuple():
 def test_tuplegetitem():
     @R.function
     def f(x: R.Tensor, y: R.Tensor):
-        t1 = R.Tuple((x, y))
+        t1 = R.tuple(x, y)
         t2 = (x, y)
         a = t1[0]
         b = R.TupleGetItem(t2, 1)

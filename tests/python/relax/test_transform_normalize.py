@@ -259,7 +259,7 @@ def test_normalize_if_condition():
     def expected(
         cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
     ) -> R.Tensor(dtype="float32", ndim=1):
-        c = R.TupleGetItem(R.Tuple(cond), 0)
+        c = R.TupleGetItem(R.tuple(cond), 0)
         if c:
             gv = R.add(x, x)
             y = gv

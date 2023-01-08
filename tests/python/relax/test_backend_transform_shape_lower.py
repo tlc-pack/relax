@@ -16,12 +16,12 @@
 # under the License.
 
 import tvm.script
-
-from tvm import tir, relax
+import tvm.testing
+from tvm import relax
 from tvm.ir import assert_structural_equal
-
-from tvm.script import tir as T, relax as R
-from tvm.relax.testing.runtime_builtin import MatchShapeCode, MakeShapeCode
+from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_const_shape_arg():
@@ -406,3 +406,8 @@ def test_return_match_check():
     expected = Expected
     after = relax.transform.VMShapeLower(emit_err_ctx=False)(before)
     assert_structural_equal(after, expected)
+
+
+if __name__ == "__main__":
+    test_static_fn_check()
+    tvm.testing.main()
