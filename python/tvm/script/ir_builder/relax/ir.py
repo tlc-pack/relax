@@ -18,12 +18,14 @@
 """IRBuilder for Relax dialect"""
 
 import functools
+import inspect
 from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm.ir import Type
-from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, TupleType, Var, const
-from tvm.relax.struct_info import StructInfo, TensorStructInfo
+from tvm import relax
+from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
+from tvm.relax.struct_info import StructInfo
 from tvm.relax.analysis import get_static_type
 
 ############################### Operators ###############################
@@ -75,50 +77,15 @@ from tvm.relax.op import (
     zeros_like,
 )
 from tvm.relax.utils import convert_to_expr
-from tvm.runtime import Object as tvm_Object
-from tvm.tir import PrimExpr
+from tvm.runtime import Object as tvm_Object, ObjectGeneric
 
-from ..tir import var as _tir_var
 from . import _ffi_api, frame
 
-############################## Tensor Type ##############################
+##################### Python Native Function Alias ######################
 
+py_print = print
+py_tuple = tuple
 
-def tensor(
-    shape: Optional[List[Union[PrimExpr, str]]] = None,
-    dtype: Optional[str] = None,
-    ndim: int = -1,
-) -> TensorStructInfo:
-    """Helper function for `R.Tensor` in parser
-    Parameters
-    ----------
-    shape: Optional[List[Union[PrimExpr, str]]]
-        The shape of the tensor. It's runtime dependent if `shape` is None.
-    dtype: Optional[str]
-        The element data type of the tensor. It's runtime dependent if `dtype` is None.
-    ndim: int
-        The number of dimensions of the tensor. It's runtime dependent if `ndim` is -1.
-    Returns
-    -------
-    ret: TensorStructInfo
-        The result TensorStructInfo
-    """
-
-    if shape is not None:
-        if not isinstance(shape, list):
-            shape = list(shape)
-
-        for i, s in enumerate(shape):
-            if isinstance(s, str):
-                shape[i] = _tir_var("int64", s)
-
-    return _ffi_api.Tensor(shape, dtype, ndim)  # pylint: disable=no-member # type: ignore
-
-
-############################## Other Types ##############################
-
-Object = tvm.relax.ObjectStructInfo()  # pylint: disable=invalid-name
-Void = TupleType([])  # pylint: disable=invalid-name
 
 ############################### Function ################################
 
@@ -244,13 +211,16 @@ def call_packed(
     args = [convert_to_expr(arg) for arg in args]
     if type_args is None:
         raise ValueError("R.call_packed is required to have type_args")
-    if isinstance(type_args, tuple):
+    if isinstance(type_args, py_tuple):
         type_args = list(type_args)
     elif not isinstance(type_args, list):
         type_args = [type_args]
     for i, argument in enumerate(type_args):
         if callable(argument):
             argument = argument()
+        # Convert possible StructInfoProxy to StructInfo
+        if isinstance(argument, ObjectGeneric):
+            argument = argument.asobject()
         if isinstance(argument, StructInfo):
             type_args[i] = get_static_type(argument)
         elif isinstance(argument, Type):
@@ -279,11 +249,15 @@ def _tensor_type_wrapper(func):
     """A wrapper to convert StructInfo to relax.DynTensorType"""
 
     def _convert_tensor_type(args):
-        if isinstance(args, (list, tuple)):
+        if isinstance(args, (list, py_tuple)):
             new_args = [_convert_tensor_type(x) for x in args]
             return type(args)(new_args)
         if isinstance(args, dict):
             return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
+        if inspect.isfunction(args):
+            args = args()
+        if isinstance(args, ObjectGeneric):
+            args = args.asobject()
         return get_static_type(args) if isinstance(args, StructInfo) else args
 
     @functools.wraps(func)
@@ -373,35 +347,24 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
     return _ffi_api.Else()  # pylint: disable=no-member # type: ignore
 
 
-######################## Symbolic Shape Rewriter ########################
+############################### R.tuple ################################
 
 
-def RewriteSymbolicShape(
-    struct_info: StructInfo,
-    var_table: Dict[str, tvm.tir.Var],
-) -> Tuple[StructInfo, List[tvm.tir.Var]]:
-    """Helper function to rewrite symbolic shape
-
-    This function remaps the symbolic shape by
-    mapping certain vars to new variables.
-
-    struct_info: StructInfo
-        The input struct info
-
-    var_table: Dict[str, tvm.tir.Var]
-        Dictionary to map name of var to a new var.
-
+def tuple(*fields: List[Expr]) -> Expr:
+    """Create a tuple expression.
+    Parameters
+    ----------
+    fields : List[Expr]
+        The fields of the tuple.
     Returns
     -------
-    rewritten_info : StructInfo
-        The rewritten StructInfo
-
-    undefined_vars: List[tvm.tir.Var]
-        List of undefined vars.
+    res : Expr
+        The result tuple.
     """
-    return _ffi_api.RewriteSymbolicShape(
-        struct_info, var_table
-    )  # pylint: disable=no-member # type: ignore
+    if len(fields) == 0:
+        fields = []
+
+    return relax.Tuple(fields)  # pylint: disable=no-member # type: ignore
 
 
 ############################### Importer ###############################
@@ -409,11 +372,8 @@ def RewriteSymbolicShape(
 __all__ = [
     "Else",
     "If",
-    "Object",
-    "RewriteSymbolicShape",
     "Then",
     "TupleGetItem",
-    "Void",
     "add",
     "arg",
     "assert_op",
@@ -466,9 +426,9 @@ __all__ = [
     "subtract",
     "sum",
     "tanh",
-    "tensor",
     "tril",
     "triu",
+    "tuple",
     "variance",
     "zeros",
     "zeros_like",

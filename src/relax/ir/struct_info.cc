@@ -84,6 +84,7 @@ ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
 
 ShapeStructInfo::ShapeStructInfo(int ndim, Span span) {
   ObjectPtr<ShapeStructInfoNode> n = make_object<ShapeStructInfoNode>();
+  CHECK_GE(ndim, -1) << "ndim of ShapeStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
@@ -130,6 +131,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Span span) {
 
 TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Span span) {
   ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
+  CHECK_GE(ndim, -1) << "ndim of TensorStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->dtype = dtype;
   n->span = span;

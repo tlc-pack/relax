@@ -327,6 +327,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   Doc VisitStructInfo_(const FuncStructInfoNode* op) override;
 
   Doc GetUniqueName(std::string prefix, std::string fallback);
+  Doc PrintPrimExpr(const PrimExpr& expr);
 
   /*!
    * \brief Attribute printer which prints the attributes as kwargs in a call.

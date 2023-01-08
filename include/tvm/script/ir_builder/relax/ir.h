@@ -29,18 +29,6 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
-//////////////////////////////// Tensor /////////////////////////////////
-
-/*!
- * \brief Create a TensorStructInfo.
- * \param shape The shape of the tensor. It's runtime dependent if `shape` is None.
- * \param dtype The element data type of the tensor. It's runtime dependent if `dtype` is None.
- * \param ndim The number of dimensions of the tensor. It's runtime dependent if `ndim` is -1.
- * \return The TensorStructInfo.
- */
-TVM_DLL tvm::relax::TensorStructInfo Tensor(Optional<Array<PrimExpr>> shape, DataType dtype,
-                                            int ndim = -1);
-
 /////////////////////////////// Function ////////////////////////////////
 
 /*!
