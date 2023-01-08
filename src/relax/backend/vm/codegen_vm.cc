@@ -24,6 +24,7 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/memory.h>
+#include <tvm/relax/attrs/set.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -390,9 +391,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     if (call_node->op == unique_op_) {
       auto unique_attrs = call_node->attrs.as<UniqueAttrs>();
       args.push_back(builder_->ConvertConstant(unique_attrs->sorted));
+      args.push_back(builder_->ConvertConstant(unique_attrs->return_index));
       args.push_back(builder_->ConvertConstant(unique_attrs->return_inverse));
       args.push_back(builder_->ConvertConstant(unique_attrs->return_counts));
-      args.push_back(builder_->ConvertConstant(unique_attrs->dim));
+      args.push_back(builder_->ConvertConstant(unique_attrs->axis));
       return;
     }
     if (call_node->op == print_op_) {

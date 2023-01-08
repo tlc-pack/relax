@@ -73,6 +73,7 @@ from tvm.relax.op import (
     triu,
     unique,
     variance,
+    where,
     zeros,
     zeros_like,
 )
@@ -417,7 +418,6 @@ __all__ = [
     "output",
     "print",
     "prod",
-    "unique",
     "shape_of",
     "sigmoid",
     "sin",
@@ -429,7 +429,9 @@ __all__ = [
     "tril",
     "triu",
     "tuple",
+    "unique",
     "variance",
+    "where",
     "zeros",
     "zeros_like",
 ]
