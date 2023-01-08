@@ -426,7 +426,6 @@ __all__ = [
     "subtract",
     "sum",
     "tanh",
-    "tensor",
     "tril",
     "triu",
     "tuple",

@@ -40,7 +40,7 @@ def check_roundtrip(f_pre):
 
 def test_annotations():
     @R.function
-    def foo(x: R.Tensor((32, "m"), "float32"), y: R.Tensor(("m"), "float32")) -> R.Tensor:
+    def foo(x: R.Tensor((32, "m"), "float32"), y: R.Tensor(("m",), "float32")) -> R.Tensor:
         m = T.var("int64")
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w = R.multiply(z, z)

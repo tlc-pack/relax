@@ -18,7 +18,7 @@
 
 import functools
 import numbers
-from typing import Any
+from typing import Any, Optional
 
 from tvm import relax, tir
 from tvm.ir import structural_equal
