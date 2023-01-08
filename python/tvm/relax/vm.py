@@ -601,7 +601,7 @@ def build(
     return _vmlink(builder, target, tir_mod, ext_libs, params)
 
 
-def _filter_tir(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
+def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
     tir_mod = IRModule({})
     for gv in mod.get_global_vars():
         if isinstance(mod[gv], PrimFunc):

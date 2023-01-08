@@ -91,7 +91,6 @@ def test_vm_compile_stage2(exec_mode):
     mod = TestVMCompileStage2
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target, exec_mode=exec_mode)
-    # print(ex.mod.imported_modules[0].get_source())
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test last-stage of codegen VM.
+"""Test the TIR codegen path of VM compiled mode.
 
 Restrictions: all shape lowered, explicit allocation.
 """
