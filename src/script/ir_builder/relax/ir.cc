@@ -49,30 +49,6 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       vid->name_hint = name;
     });
 
-////////////////////////////// Tensor Type //////////////////////////////
-
-using tvm::relax::TensorStructInfo;
-using tvm::relax::TupleStructInfo;
-
-TensorStructInfo Tensor(Optional<Array<PrimExpr>> shape, DataType dtype, int ndim) {
-  using namespace tvm::relax;
-  ICHECK_GE(ndim, -1) << "ndim must be >= -1, but got " << ndim;
-  if (shape.defined() && ndim >= 0) {
-    CHECK_EQ(shape.value().size(), ndim)
-        << "The dimension of the given shape is mismatched with the given `ndim`";
-  } else if (shape.defined()) {
-    ndim = shape.value().size();
-  }
-  if (shape.defined()) {
-    ShapeExpr shape_expr(shape.value());
-    return TensorStructInfo(shape_expr, dtype);
-  } else {
-    return TensorStructInfo(dtype, ndim);
-  }
-}
-
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.Tensor").set_body_typed(Tensor);
-
 /////////////////////////////// Function ////////////////////////////////
 
 FunctionFrame Function() {
@@ -252,55 +228,6 @@ ElseFrame Else() {
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.If").set_body_typed(If);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Then").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Else").set_body_typed(Else);
-
-//////////////////////// Symbolic Shape Rewriter ////////////////////////
-
-using tvm::relax::Expr;
-class SymbolicShapeRewriter : public tvm::relax::StructInfoMutator {
- public:
-  explicit SymbolicShapeRewriter(Map<String, tvm::tir::Var> var_table)
-      : var_table_(std::move(var_table)) {}
-
-  Array<tvm::tir::Var> undefined_vars_;
-
- private:
-  Expr VisitStructInfoExprField(const Expr& expr) {
-    if (const auto* shape_expr = expr.as<tvm::relax::ShapeExprNode>()) {
-      Array<PrimExpr> new_shape;
-      bool changed = false;
-      for (const tvm::PrimExpr& s : shape_expr->values) {
-        if (const auto* var = s.as<tvm::tir::VarNode>()) {
-          auto it = var_table_.find(var->name_hint);
-          if (it != var_table_.end()) {
-            new_shape.push_back((*it).second);
-            changed = true;
-          } else {
-            undefined_vars_.push_back(GetRef<tvm::tir::Var>(var));
-            var_table_.Set(var->name_hint, GetRef<tvm::tir::Var>(var));
-            new_shape.push_back(s);
-          }
-        } else {
-          // TODO(siyuan, ruihang): confirm and use VisitPrimExpr to recursive rewrite.
-          new_shape.push_back(s);
-        }
-      }
-      if (changed) {
-        return tvm::relax::ShapeExpr(new_shape);
-      }
-    }
-    return expr;
-  }
-
- private:
-  Map<String, tvm::tir::Var> var_table_;
-};
-
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.RewriteSymbolicShape")
-    .set_body_typed([](tvm::relax::StructInfo struct_info, Map<String, tvm::tir::Var> var_table) {
-      SymbolicShapeRewriter rewriter(var_table);
-      tvm::relax::StructInfo rewritten_info = rewriter(std::move(struct_info));
-      return Array<ObjectRef>{rewritten_info, rewriter.undefined_vars_};
-    });
 
 }  // namespace relax
 }  // namespace ir_builder

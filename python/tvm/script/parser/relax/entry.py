@@ -16,22 +16,28 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
 import inspect
+from typing import Any
 from typing import Callable as _Callable
-from typing import List, Optional, Tuple
-from typing import TypeVar as _TypeVar
-from typing import Union
+from typing import Dict, List, Optional, Set, TypeVar, Union
 
-from tvm import relax
-from tvm.relax import DynTensorType, Expr, Function, StructInfo
-from tvm.relax import Tuple as RxTuple
-from tvm.relax import Type, Var
+from tvm.relax import (
+    Expr,
+    FuncStructInfo,
+    Function,
+    ObjectStructInfo,
+    ShapeStructInfo,
+    StructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+)
 from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
-from ...ir_builder.relax import tensor
 from .._core import parse, utils
 
-FType = _TypeVar("FType", bound=_Callable)
+FType = TypeVar("FType", bound=_Callable)
+
+############################## R.function ##############################
 
 
 def function(f: FType) -> Union[Function, FType]:
@@ -45,40 +51,89 @@ def function(f: FType) -> Union[Function, FType]:
 setattr(function, "dispatch_token", "relax")
 
 
+############################# Struct Info ##############################
+
+
+class StructInfoProxy(ObjectGeneric):
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> StructInfo:
+        raise NotImplementedError()
+
+    def get_symbolic_vars(self) -> Set[str]:
+        return {}
+
+    def asobject(self):
+        return self.as_struct_info(None)
+
+
 ############################### R.Tensor ###############################
 
 
-class TensorProxy(ObjectGeneric):
-    def __call__(
+def _eval_shape(expr: Union[str, PrimExpr], dict_globals: Optional[Dict[str, Any]]) -> PrimExpr:
+    if isinstance(expr, str):
+        code = compile(expr, "<string>", "eval")
+        return eval(code, dict_globals or {})  # pylint: disable=eval-used
+    else:
+        return expr
+
+
+class TensorProxy(StructInfoProxy):
+    shape: Optional[List[Union[str, PrimExpr]]]
+    dtype: str
+    ndim: int
+
+    def __init__(
         self,
         shape: Optional[List[Union[PrimExpr, str]]] = None,
-        dtype: str = None,
+        dtype: Optional[str] = None,
         ndim: int = -1,
-    ) -> relax.TensorStructInfo:
-        # scalar tensor case
-        if shape is not None and len(shape) == 0:
-            shape = []
-        if isinstance(shape, str) and dtype is None:
-            dtype = shape
-            shape = None
-        return tensor(shape, dtype, ndim)
+    ) -> None:
+        self.shape = shape
+        self.dtype = dtype
+        self.ndim = ndim
+        super().__init__()
 
-    def __getitem__(self, keys) -> Var:
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+    def get_symbolic_vars(self) -> Set[str]:
+        if self.shape is None:
+            return {}
+        else:
+            return {s for s in self.shape if isinstance(s, str) and s.isidentifier()}
 
-    def asobject(self):
-        """Convert to object when direct call `R.Tensor`
-        e.g. `x = R.invoke_closure(clo, (y,), type_args=R.Tensor)`
-        """
-        return DynTensorType()
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TensorStructInfo:
+        if self.shape is None:
+            return TensorStructInfo(None, self.dtype, self.ndim)
+        else:
+            if dict_globals is None and any([isinstance(s, str) for s in self.shape]):
+                raise ValueError(
+                    "String-defined shape expr is only allowed when parsing function parameters "
+                    "and return annotations for TVMScript."
+                )
+            shape = [_eval_shape(s, dict_globals) for s in self.shape]
+            return TensorStructInfo(shape, self.dtype, self.ndim)
 
 
-Tensor = TensorProxy()  # pylint: disable=invalid-name
+def Tensor(
+    shape: Optional[List[Union[PrimExpr, str]]] = None,
+    dtype: Optional[str] = None,
+    ndim: int = -1,
+) -> TensorProxy:
+    # scalar tensor case
+    if shape is not None and len(shape) == 0:
+        shape = []
+    if isinstance(shape, str) and dtype is None:
+        dtype = shape
+        shape = None
+
+    if shape is not None and not isinstance(shape, (tuple, list)):
+        raise ValueError(f"shape must be a list or tuple, but got: {shape}")
+    return TensorProxy(shape, dtype, ndim)
+
 
 ############################## R.Callable ##############################
 
 
-class CallableProxy:
+class CallableProxy(StructInfoProxy):
+    params: List[StructInfoProxy]
+    ret: StructInfoProxy
     """Function type.
 
     A function type consists of a list of type parameters to enable
@@ -88,75 +143,81 @@ class CallableProxy:
 
     Parameters
     ----------
-    params : List[StructInfo]
-        The argument StructInfo
+    params : List[StructInfoProxy]
+        The argument StructInfoProxy
 
-    ret : StructInfo
-        The return StructInfo.
+    ret : StructInfoProxy
+        The return StructInfoProxy.
 
     """
 
-    def __call__(
+    def __init__(
         self,
-        params: Union[StructInfo, List[StructInfo], Tuple[StructInfo]],
-        ret: StructInfo,
-    ) -> relax.FuncStructInfo:
+        params: Union[StructInfoProxy, List[StructInfoProxy]],
+        ret: StructInfoProxy,
+    ) -> None:
         if not isinstance(params, (list, tuple)):
             params = [params]
-        return relax.FuncStructInfo(params, ret)
+        # convert `R.Tensor` to `R.Tensor()`
+        self.params = [param() if callable(param) else param for param in params]
+        self.ret = ret() if callable(ret) else ret
 
-    def __getitem__(self, keys) -> Var:
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+    def get_symbolic_vars(self) -> Set[str]:
+        return set().union(*[p.get_symbolic_vars() for p in self.params])
+
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> FuncStructInfo:
+        params = [param.as_struct_info(dict_globals) for param in self.params]
+        ret = self.ret.as_struct_info(dict_globals)
+        return FuncStructInfo(params, ret)
 
 
-Callable = CallableProxy()
+def Callable(
+    params: Union[StructInfoProxy, List[StructInfoProxy]],
+    ret: StructInfoProxy,
+) -> CallableProxy:
+    return CallableProxy(params, ret)
+
 
 ############################### R.Tuple ################################
 
 
-class TupleProxy:
+class TupleProxy(StructInfoProxy):
+    fields: List[StructInfoProxy]
     """The type of tuple values.
 
     Parameters
     ----------
-    fields : List[Union[Expr, Type, StructInfo]]
+    fields : List[StructInfoProxy]
         The fields in the tuple
     """
 
-    def __call__(
+    def __init__(
         self,
-        *fields: List[Union[Expr, Type, StructInfo]],
-    ) -> Union[Expr, StructInfo]:
+        *fields: List[StructInfoProxy],
+    ) -> None:
         if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
             fields = fields[0]
+        # convert `R.Tensor` to `R.Tensor()`
+        self.fields = [field() if callable(field) else field for field in fields]
 
-        if len(fields) == 0:
-            # Note: We cannot detect it's an expr or a struct info for empty tuple.
-            # So we return an expr by default, and use a spacial case in parser to fix it.
-            return RxTuple([])
+    def get_symbolic_vars(self) -> Set[str]:
+        return set().union(*[f.get_symbolic_vars() for f in self.fields])
 
-        if all([isinstance(f, Expr) for f in fields]):
-            return RxTuple(fields)
-        else:
-            fields = list(fields)
-            for i, x in enumerate(fields):
-                if callable(x):
-                    fields[i] = x()
-            if all([isinstance(f, StructInfo) for f in fields]):
-                return relax.TupleStructInfo(fields)
-            else:
-                raise TypeError(f"Invalid tuple type: {fields}")
-
-    def __getitem__(self, keys) -> Var:
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TupleStructInfo:
+        fields = [field.as_struct_info(dict_globals) for field in self.fields]
+        return TupleStructInfo(fields)
 
 
-Tuple = TupleProxy()
+def Tuple(*fields: List[StructInfoProxy]) -> TupleProxy:
+    return TupleProxy(*fields)
+
 
 ############################### R.Shape ################################
 
 
-class ShapeProxy:
+class ShapeProxy(StructInfoProxy):
+    values: Optional[List[PrimExpr]]
+    ndim: int
     """The type of shape values.
 
     Parameters
@@ -168,18 +229,56 @@ class ShapeProxy:
        The size of the shape.
     """
 
-    def __call__(
+    def __init__(
         self,
         values: Optional[List[PrimExpr]] = None,
         ndim: int = -1,
-    ) -> StructInfo:
-        return relax.ShapeStructInfo(values, ndim)
+    ) -> None:
+        self.values = values
+        self.ndim = ndim
 
-    def __getitem__(self, keys) -> Var:
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+    def get_symbolic_vars(self) -> Set[str]:
+        if self.values is None:
+            return {}
+        else:
+            return {v for v in self.values if isinstance(v, str) and v.isidentifier()}
+
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+        values = [_eval_shape(v, dict_globals) for v in self.values] if self.values else None
+        return ShapeStructInfo(values, self.ndim)
 
 
-Shape = ShapeProxy()
+def Shape(values: Optional[List[PrimExpr]] = None, ndim: int = -1) -> ShapeProxy:
+    return ShapeProxy(values, ndim)
+
+
+############################### R.Object ################################
+
+
+class ObjectProxy(StructInfoProxy):
+    """The proxy fo ObjectStructInfo.
+
+    Parameters
+    ----------
+    values : Optional[List[PrimExpr]]
+       The symbolic shape values if known.
+
+    ndim : Optional[int]
+       The size of the shape.
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def get_symbolic_vars(self) -> Set[str]:
+        return set()
+
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+        return ObjectStructInfo()
+
+
+def Object() -> ObjectProxy:
+    return ObjectProxy()
 
 
 ############################ R.match_cast #############################

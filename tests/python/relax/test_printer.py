@@ -40,7 +40,7 @@ def check_roundtrip(f_pre):
 
 def test_annotations():
     @R.function
-    def foo(x: R.Tensor((32, "m"), "float32"), y: R.Tensor(("m"), "float32")) -> R.Tensor:
+    def foo(x: R.Tensor((32, "m"), "float32"), y: R.Tensor(("m",), "float32")) -> R.Tensor:
         m = T.var("int64")
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w = R.multiply(z, z)
@@ -54,7 +54,7 @@ def test_annotations():
 def test_ndim_annotations():
     @R.function
     def foo(
-        x: R.Tensor((2, 3, 5), "float32", ndim=3),
+        x: R.Tensor((2, 3, 5), "float32"),
         y: R.Tensor(dtype="float32", ndim=-1),
         z: R.Tensor(dtype="float32", ndim=2),
     ):
@@ -103,7 +103,7 @@ def test_tuplegetitem():
     def foo(x: R.Tensor(ndim=2)):
         y = R.add(x, x)
         z = R.multiply(y, x)
-        t = R.Tuple((y, z))
+        t = (y, z)
         a = R.TupleGetItem(t, 0)
         b = R.TupleGetItem(t, 1)
         c = R.multiply(a, b)
@@ -344,7 +344,6 @@ def test_class_irmodule():
     check_roundtrip(my_module)
 
 
-@pytest.mark.skip("Need to fix string ast expr")
 def test_tir_max():
     @R.function
     def tir_max(x: R.Tensor(("m", "n"), "float32")):
@@ -355,7 +354,6 @@ def test_tir_max():
     check_roundtrip(tir_max)
 
 
-@pytest.mark.skip("Need to fix string ast expr")
 def test_tir_cast():
     @R.function
     def tir_cast(x: R.Tensor(("m",), "float32")):
@@ -413,7 +411,7 @@ def test_func_type():
 
             @R.function
             def local_func_2(
-                y: R.Tensor(("m", "n"), "float32")
+                y: R.Tensor((m, n), "float32")
             ) -> R.Callable((R.Tensor((m, n), "float32"),), R.Tensor((m, n), "float32")):
                 @R.function
                 def local_func_3(
