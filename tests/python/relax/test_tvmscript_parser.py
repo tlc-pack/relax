@@ -787,6 +787,7 @@ def test_empty_tuple():
 
 
 def test_symbolic_shape_computing():
+    # Tensor Case 1
     @R.function
     def foo(x: R.Tensor(("m + 1",), "float32"), y: R.Tensor(("m", 1), "float32")):
         z = R.add(x, y)
@@ -802,6 +803,43 @@ def test_symbolic_shape_computing():
 
     _check(foo, bb.get()["foo"])
 
+    # Tensor Case 2
+    @R.function
+    def bar(
+        x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")
+    ) -> R.Tensor(("T.max(m, 20) + 1",), "float32"):
+        m = T.var("int64")
+        z = R.call_tir("test_intrin", (x, y), (T.max(m, 20) + 1,), dtype="float32")
+        return z
+
+    m = tir.Var("m", "int64")
+    x = relax.Var("x", relax.TensorStructInfo([m], "float32"))
+    y = relax.Var("y", relax.TensorStructInfo([tir.max(m, 20)], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("bar", (x, y)):
+        z = bb.emit(relax.call_tir("test_intrin", (x, y), (tir.max(m, 20) + 1,), dtype="float32"))
+        bb.emit_func_output(z)
+
+    _check(bar, bb.get()["bar"])
+
+    # Shape Case
+    @R.function
+    def baz(x: R.Shape(("m",)), y: R.Tensor(("m * 2",), "float32")):
+        m = T.var("int64")
+        z = R.call_tir("test_intrin", y, (m * 2,), dtype="float32")
+        return z
+
+    m = tir.Var("m", "int64")
+    x = relax.Var("x", relax.ShapeStructInfo([m]))
+    y = relax.Var("y", relax.TensorStructInfo([m * 2], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("baz", (x, y)):
+        z = bb.emit(relax.call_tir("test_intrin", (y), (m * 2,), dtype="float32"))
+        bb.emit_func_output(z)
+
+    _check(baz, bb.get()["baz"])
+
+    # Error Case
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function

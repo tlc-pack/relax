@@ -593,7 +593,6 @@ Doc RelaxScriptPrinter::PrintFunctionDef(const Doc& name, const relax::Function&
     doc << " -> " << Print(ret_sinfo);
   }
   doc << ":" << Doc::NewLine(4);
-  // TODO(siyuan): Add printing of composite expression
   print_symbolic_shape_as_str_ = false;
 
   // Step 3: print function attr
