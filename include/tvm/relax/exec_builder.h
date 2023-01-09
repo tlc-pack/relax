@@ -58,9 +58,13 @@ class ExecBuilderNode : public Object {
    * \param func The function name.
    * \param num_inputs The number of inputs.
    * \param param_names The function parameter names.
+   * \param kind The kind of the function.
+   * \param init_register_size Initial setting of register file size.
    */
   void EmitFunction(const std::string& func, int64_t num_inputs,
-                    Optional<Array<String>> param_names);
+                    Optional<Array<String>> param_names,
+                    vm::VMFuncInfo::FuncKind kind = vm::VMFuncInfo::FuncKind::kVMFunc,
+                    int64_t init_register_size = 0);
   /*!
    * \brief Annotate the end of a vm function.
    * \param func The function name.

@@ -180,10 +180,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   Instruction::Arg VisitExpr_(const IfNode* op) final {
     const If& ife = GetRef<If>(op);
+    Instruction::Arg cond_value = this->VisitExpr(ife->cond);
 
-    // Visit the condition expression
-    // NOTE: must call ensure reg here so we won't have extra flags
-    Instruction::Arg cond_reg = EnsureReg(this->VisitExpr(ife->cond));
+    // Reserve a register for cond
+    RegName cond_reg = NewRegister();
+    builder_->EmitCall("vm.builtin.read_if_cond", {cond_value}, cond_reg);
 
     // obtain the temp exec in progress.
     vm::Executable* exec = builder_->exec();
@@ -191,7 +192,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Record the offset of If instruction
     size_t if_offset = exec->instr_offset.size();
 
-    builder_->EmitIf(cond_reg, 3);
+    builder_->EmitIf(Instruction::Arg::Register(cond_reg), 3);
     size_t num_instr = exec->instr_offset.size();
     Instruction::Arg true_value = this->VisitExpr(ife->true_branch);
     // Reserve a register for return

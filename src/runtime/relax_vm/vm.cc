@@ -226,16 +226,35 @@ class VirtualMachineImpl : public VirtualMachine {
    */
   void SaveClosure(const String& func_name, const String& save_name, bool include_return,
                    TVMArgs args);
-
   /*!
-   * \brief Invoke a VM function.
+   * \brief Internal function to invoke a closure.
+   * \param closure_or_packed The closure to be invoked.
+   * \param args The arguments to the function.
+   * \return The result value.
+   */
+  RegType InvokeClosureInternal(const ObjectRef& closure_or_packed,
+                                const std::vector<RegType>& args);
+  /*!
+   * \brief Invoke a VM function by interpreting bytecode.
    * \param fidx The function index.
    * \param args The arguments to the function.
    * \return The object representing the result.
    */
-  RegType Invoke(Index fidx, const std::vector<RegType>& args);
+  RegType InvokeBytecode(Index fidx, const std::vector<RegType>& args);
 
  protected:
+  /*!
+   * \brief Get function by querying all of the current module's imports.
+   * \param name The name of the function.
+   * \return The result function, can return PackedFunc(nullptr) if nothing is found.
+   */
+  PackedFunc GetFuncFromImports(const String& name) {
+    for (auto& lib : this->imports_) {
+      PackedFunc func = lib->GetFunction(name, true);
+      if (func.defined()) return func;
+    }
+    return PackedFunc(nullptr);
+  }
   /*!
    * \brief Initialize function pool.
    */
@@ -297,12 +316,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param inst The call instruction.
    */
   inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
-  /*!
-   * \brief Read a VM register and cast it to int64_t.
-   * \param reg The register to read from.
-   * \return The read scalar.
-   */
-  int64_t LoadScalarInt(RegName reg);
+
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
@@ -435,7 +449,7 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
                    << "; use `set_input` first.";
         return;
       }
-      outputs_[func_name] = this->Invoke(gf_idx, inputs_[func_name]);
+      outputs_[func_name] = this->InvokeClosureInternal(func_pool_[gf_idx], inputs_[func_name]);
     });
   } else if (name == "get_output_arity") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -537,6 +551,33 @@ void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedf
   clo->impl.CallPacked(TVMArgs(values.data(), tcodes.data(), args.size() + 1), rv);
 }
 
+// internal variant version of invoke closurepacked
+RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_packed,
+                                                  const std::vector<RegType>& args) {
+  RegType ret;
+  auto* packed = closure_or_packed.as<PackedFunc::ContainerType>();
+  auto* clo = closure_or_packed.as<VMClosureObj>();
+  int clo_offset = clo != nullptr ? 1 : 0;
+  std::vector<TVMValue> values(args.size() + clo_offset);
+  std::vector<int> tcodes(args.size() + clo_offset);
+  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
+
+  if (clo != nullptr) {
+    setter(0, static_cast<void*>(static_cast<VirtualMachine*>(this)));
+  }
+  for (size_t i = 0; i < args.size(); ++i) {
+    setter(i + clo_offset, args[i]);
+  }
+
+  if (packed != nullptr) {
+    packed->CallPacked(TVMArgs(values.data(), tcodes.data(), values.size()), &ret);
+  } else {
+    ICHECK(clo != nullptr);
+    clo->impl.CallPacked(TVMArgs(values.data(), tcodes.data(), values.size()), &ret);
+  }
+  return ret;
+}
+
 void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save_name,
                                      bool include_return, TVMArgs args) {
   VMClosure clo = this->GetClosure(func_name);
@@ -564,25 +605,57 @@ VMClosure VirtualMachineImpl::GetClosure(const String& func_name) {
   CHECK(it != exec_->func_map.end()) << "ValueError: Unknown function: " << func_name;
 
   Index gf_idx = it->second;
-  // NOTE: should not capture strong ref to self and avoid cyclic ref.
-  auto impl = PackedFunc([gf_idx](TVMArgs args, TVMRetValue* rv) {
-    // Per convention, ctx ptr is a VirtualMachine*
-    VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].operator void*());
+  const VMFuncInfo& finfo = exec_->func_table[gf_idx];
 
-    std::vector<RegType> inputs(args.size() - 1);
-    for (size_t i = 0; i < inputs.size(); ++i) {
-      inputs[i] = args[i + 1];
-    }
-    *rv = static_cast<VirtualMachineImpl*>(ctx_ptr)->Invoke(gf_idx, inputs);
-  });
-  return VMClosure(func_name, impl);
+  if (finfo.kind == VMFuncInfo::FuncKind::kVMFunc) {
+    // NOTE: should not capture strong ref to self and avoid cyclic ref.
+    auto impl = PackedFunc([gf_idx](TVMArgs args, TVMRetValue* rv) {
+      // Per convention, ctx ptr is a VirtualMachine*
+      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].operator void*());
+
+      std::vector<RegType> inputs(args.size() - 1);
+      for (size_t i = 0; i < inputs.size(); ++i) {
+        inputs[i] = args[i + 1];
+      }
+      *rv = static_cast<VirtualMachineImpl*>(ctx_ptr)->InvokeBytecode(gf_idx, inputs);
+    });
+    return VMClosure(func_name, impl);
+  } else {
+    ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMTIRFunc)
+        << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
+    PackedFunc tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
+    ICHECK(tir_func != nullptr) << "Cannot find underlying compiled tir function of VMTIRFunc "
+                                << finfo.name;
+    auto impl = PackedFunc([this, finfo, tir_func](TVMArgs args, TVMRetValue* rv) {
+      // Per convention, ctx ptr is a VirtualMachine*
+      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].operator void*());
+      ICHECK(ctx_ptr == this);
+      ICHECK_EQ(args.size() - 1, finfo.num_args)
+          << "Function " << finfo.name << " expects " << finfo.num_args << " arguments";
+      ICHECK_GE(finfo.register_file_size, finfo.num_args + 1);
+      std::vector<TVMRetValue> reg_file(finfo.register_file_size);
+      for (int64_t i = 0; i < finfo.num_args; ++i) {
+        reg_file[i] = args[i + 1];
+      }
+      void* reg_anylist_handle = reg_file.data();
+      void* const_anylist_handle = this->const_pool_.data();
+      void* func_anylist_handle = this->func_pool_.data();
+      tir_func(static_cast<void*>(ctx_ptr), reg_anylist_handle, const_anylist_handle,
+               func_anylist_handle);
+      // Return value always stored after inputs.
+      *rv = reg_file[finfo.num_args];
+    });
+    return VMClosure(func_name, impl);
+  }
 }
 
 //--------------------------------------------------------------------
 // Instruction interpretations.
 //--------------------------------------------------------------------
-RegType VirtualMachineImpl::Invoke(Index gf_idx, const std::vector<RegType>& args) {
+RegType VirtualMachineImpl::InvokeBytecode(Index gf_idx, const std::vector<RegType>& args) {
   const VMFuncInfo& gfunc = exec_->func_table[gf_idx];
+  ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
+
   // Get the curr instr which might be a potential caller.
   Instruction curr_instr = exec_->GetInstruction(pc_);
   PushFrame(this->pc_, gfunc);
@@ -608,19 +681,11 @@ RegType VirtualMachineImpl::Invoke(Index gf_idx, const std::vector<RegType>& arg
 void VirtualMachineImpl::InitFuncPool() {
   func_pool_.resize(exec_->func_table.size());
 
-  auto query_imports = [this](const String& name) -> PackedFunc {
-    for (auto lib : this->imports_) {
-      PackedFunc func = lib->GetFunction(name, true);
-      if (func.defined()) return func;
-    }
-    return PackedFunc(nullptr);
-  };
-
   for (size_t func_index = 0; func_index < exec_->func_table.size(); ++func_index) {
     const VMFuncInfo& info = exec_->func_table[func_index];
     if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
       // only look through imports first
-      PackedFunc func = query_imports(info.name);
+      PackedFunc func = GetFuncFromImports(info.name);
       if (!func.defined()) {
         const PackedFunc* p_func = Registry::Get(info.name);
         if (p_func != nullptr) func = *(p_func);
@@ -632,10 +697,9 @@ void VirtualMachineImpl::InitFuncPool() {
       func_pool_[func_index] = func;
 
     } else {
-      ICHECK(info.kind == VMFuncInfo::FuncKind::kVMFunc);
+      ICHECK(info.kind == VMFuncInfo::FuncKind::kVMFunc ||
+             info.kind == VMFuncInfo::FuncKind::kVMTIRFunc);
       auto clo = this->GetClosure(info.name);
-      ICHECK(clo.defined()) << "Error: Cannot find global function " << info.name
-                            << " in function table";
       func_pool_[func_index] = clo;
     }
   }
@@ -694,40 +758,6 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   pc_++;
 }
 
-int64_t VirtualMachineImpl::LoadScalarInt(RegName reg) {
-  int64_t result = 0;
-  VMFrame* curr_frame = frames_.back().get();
-  const RegType& obj = ReadRegister(curr_frame, reg);
-  NDArray ndarray = obj.operator tvm::runtime::NDArray();
-  NDArray ndarray_host = ndarray.CopyTo(devices[0]);
-
-  switch (ndarray_host->dtype.bits) {
-    case 1: {
-      result = reinterpret_cast<bool*>(ndarray_host->data)[0];
-      break;
-    }
-    case 8: {
-      result = reinterpret_cast<int8_t*>(ndarray_host->data)[0];
-      break;
-    }
-    case 16: {
-      result = reinterpret_cast<int16_t*>(ndarray_host->data)[0];
-      break;
-    }
-    case 32: {
-      result = reinterpret_cast<int32_t*>(ndarray_host->data)[0];
-      break;
-    }
-    case 64: {
-      result = reinterpret_cast<int64_t*>(ndarray_host->data)[0];
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(ndarray_host->dtype);
-  }
-  return result;
-}
-
 void VirtualMachineImpl::RunLoop() {
   VMFrame* curr_frame = frames_.back().get();
 
@@ -761,7 +791,7 @@ void VirtualMachineImpl::RunLoop() {
         break;
       }
       case Opcode::If: {
-        int64_t cond_val = LoadScalarInt(instr.cond);
+        int64_t cond_val = ReadRegister(curr_frame, instr.cond);
         if (cond_val != 0) {
           pc_++;
         } else {
