@@ -29,10 +29,12 @@
 #define TVM_RELAX_NESTED_MSG_H_
 
 #include <tvm/relax/expr.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/optional.h>
 
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relax {
@@ -123,7 +125,7 @@ class NestedMsg : public ObjectRef {
   NestedMsg<T>& operator=(NestedMsg<T>&&) = default;
   /*!
    * \brief Construct from an ObjectPtr
-   *        whose type already satiesfies the constraint
+   *        whose type already satisfies the constraint
    * \param ptr
    */
   explicit NestedMsg(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
@@ -159,7 +161,7 @@ class NestedMsg : public ObjectRef {
   }
 
   // delete the int constructor
-  // since NestedMsg<Integer>(0) is ambiguious
+  // since NestedMsg<Integer>(0) is ambiguous
   // 0 can be implicitly casted to nullptr_t
   explicit NestedMsg(int val) = delete;
   NestedMsg<T>& operator=(int val) = delete;
@@ -276,6 +278,34 @@ NestedMsg<T> MapToNestedMsg(Expr expr, FType fmapleaf) {
 }
 
 /*!
+ * \brief Map structinfo with possible nested-sinfo to nested message.
+ *
+ * This function will unpack recursive sinfo and run fmapleaf for each leaf,
+ * then recursively combines the results together into a NestedMsg.
+ *
+ * The nesting structure will corresponds to the tuple structure.
+ *
+ * \param sinfo The input struct info.
+ * \param fmapleaf The mapping function for each leaf with signature
+ *             NestedMsg<T> fmap(StructInfo)
+ * \tparam T the content type of nested msg
+ * \tparam FType The mapping function type
+ */
+template <typename T, typename FType>
+NestedMsg<T> MapToNestedMsg(StructInfo sinfo, FType fmapleaf) {
+  if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
+    Array<NestedMsg<T>> res;
+    res.reserve(tuple->fields.size());
+    for (StructInfo x : tuple->fields) {
+      res.push_back(MapToNestedMsg<T, FType>(x, fmapleaf));
+    }
+    return res;
+  } else {
+    return fmapleaf(sinfo);
+  }
+}
+
+/*!
  * \brief Recursively combine two nested message into one.
  *
  * This function requires the two messages to be compatible with each other.
@@ -338,6 +368,55 @@ void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
     }
   } else {
     fvisitleaf(expr, msg);
+  }
+}
+
+/*!
+ * \brief Recursively transform the tuple structure in expr and msgs along with it.
+ *
+ * This function will call ftransleaf for each leaf expression in expr.
+ * This function will throw an error if the nesting structure in msg does not
+ * match the tuple nesting structure in expr.
+ *
+ * \param expr The input expression to be transform.
+ * \param msgs The input messages to guide the transformation.
+ * \param ftransleaf with signature ftransleaf(Expr, Array<NestedMsg<T>>)->Expr
+ * \tparam T the content type of nested msg
+ * \tparam FType The visit function type.
+ */
+template <typename T, typename FType>
+Expr TransformTupleLeaf(Expr expr, Array<NestedMsg<T>> msgs, FType ftransleaf) {
+  StructInfo sinfo = GetStructInfo(expr);
+  if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
+    std::vector<Array<NestedMsg<T>>> msg_arrays;
+    for (const auto& msg : msgs) {
+      ICHECK(msg.IsNested()) << "Expected nested to match tuple";
+      msg_arrays.push_back(msg.NestedArray());
+    }
+    bool same = true;
+    Array<Expr> fields;
+    fields.reserve(tuple->fields.size());
+    for (size_t i = 0; i < tuple->fields.size(); ++i) {
+      Expr field;
+      if (const auto* expr_tuple = expr.as<TupleNode>()) {
+        field = expr_tuple->fields[i];
+      } else {
+        field = TupleGetItem(expr, i);
+        UpdateStructInfo(field, tuple->fields[i]);
+      }
+      std::vector<NestedMsg<T>> new_msgs;
+      for (const auto& msg_array : msg_arrays) {
+        new_msgs.push_back(msg_array[i]);
+      }
+      fields.push_back(TransformTupleLeaf(field, Array<NestedMsg<T>>(new_msgs), ftransleaf));
+      same &= (fields.back().same_as(field));
+    }
+    return same ? expr : Tuple(fields);
+  } else {
+    for (const auto& msg : msgs) {
+      ICHECK(msg.IsLeaf()) << "Expected leaf to match non-tuple";
+    }
+    return ftransleaf(expr, msgs);
   }
 }
 
