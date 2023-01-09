@@ -31,7 +31,8 @@ from tvm.script import relax as R, tir as T
 from tvm.relax.testing.vm import check_saved_func
 
 
-def test_vm_compile_simple():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_compile_simple(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
@@ -43,7 +44,7 @@ def test_vm_compile_simple():
 
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     inp1 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -51,7 +52,8 @@ def test_vm_compile_simple():
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_match_check():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_match_check(exec_mode):
     @tvm.script.ir_module
     class TestMatchCheck:
         @R.function
@@ -60,7 +62,7 @@ def test_match_check():
 
     mod = TestMatchCheck
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x0 = tvm.nd.array(np.zeros((1, 2)).astype("int32"))
     y0 = tvm.nd.array(np.zeros((2, 1)).astype("float32"))
@@ -76,7 +78,8 @@ def test_match_check():
         vm["foo"](x0, y2)
 
 
-def test_vm_compile_stage2():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_compile_stage2(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileStage2:
         @R.function
@@ -87,7 +90,7 @@ def test_vm_compile_stage2():
 
     mod = TestVMCompileStage2
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -109,7 +112,8 @@ def test_vm_compile_stage2():
         vm["foo"]([])
 
 
-def test_vm_compile_stage3():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_compile_stage3(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileStage3:
         @R.function
@@ -121,7 +125,7 @@ def test_vm_compile_stage3():
 
     mod = TestVMCompileStage3
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -130,7 +134,8 @@ def test_vm_compile_stage3():
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_e2e():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_compile_e2e(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E:
         @R.function
@@ -145,7 +150,7 @@ def test_vm_compile_e2e():
     mod = TestVMCompileE2E
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -154,7 +159,8 @@ def test_vm_compile_e2e():
     tvm.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_e2e_func_param_with_shape():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E2:
         @T.prim_func
@@ -185,7 +191,7 @@ def test_vm_compile_e2e_func_param_with_shape():
     mod = TestVMCompileE2E2
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.nd.array(np.random.rand(32, 16).astype(np.float32))
@@ -195,7 +201,8 @@ def test_vm_compile_e2e_func_param_with_shape():
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-def test_vm_emit_te_extern():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_emit_te_extern(exec_mode):
     if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
         print("skip because extern function is not available")
         return
@@ -211,7 +218,7 @@ def test_vm_emit_te_extern():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.nd.array(np.random.rand(16, 32).astype(np.float32))
@@ -221,7 +228,8 @@ def test_vm_emit_te_extern():
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-def test_vm_emit_te_concat():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_emit_te_concat(exec_mode):
     # concatenate of two vectors of size (n,) and (m,)
     bb = relax.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
@@ -239,7 +247,7 @@ def test_vm_emit_te_concat():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
@@ -258,7 +266,8 @@ def test_vm_emit_te_concat():
     )
 
 
-def test_vm_emit_te_dtype_change():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_emit_te_dtype_change(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
@@ -278,7 +287,7 @@ def test_vm_emit_te_dtype_change():
     assert new_mod["rx_func"].body.blocks[0].bindings[0].value.attrs.dtype == "int16"
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.nd.array(
@@ -290,7 +299,8 @@ def test_vm_emit_te_dtype_change():
     np.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
 
 
-def test_vm_emit_te_floor_symbolic_shape():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
@@ -306,7 +316,7 @@ def test_vm_emit_te_floor_symbolic_shape():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (9,)
@@ -320,7 +330,8 @@ def test_vm_emit_te_floor_symbolic_shape():
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_emit_te_constant_param_cpu():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_emit_te_constant_param_cpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
 
@@ -334,7 +345,7 @@ def test_vm_emit_te_constant_param_cpu():
         bb.emit_func_output(gv)
 
     mod = bb.get()
-    exec = relax.vm.build(mod, "llvm")
+    exec = relax.vm.build(mod, "llvm", exec_mode=exec_mode)
     dev = tvm.cpu()
     vm = relax.VirtualMachine(exec, dev)
 
@@ -342,8 +353,9 @@ def test_vm_emit_te_constant_param_cpu():
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @tvm.testing.requires_gpu
-def test_vm_emit_te_constant_param_gpu():
+def test_vm_emit_te_constant_param_gpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
 
@@ -361,7 +373,7 @@ def test_vm_emit_te_constant_param_gpu():
     loops = sch.get_loops(sch.get_block(name="T_add", func_name="add"))
     sch.bind(loops[0], "threadIdx.x")
 
-    exec = relax.vm.build(sch.mod, "cuda")
+    exec = relax.vm.build(sch.mod, "cuda", exec_mode=exec_mode)
     dev = tvm.cuda()
     vm = relax.VirtualMachine(exec, dev)
 
@@ -369,7 +381,8 @@ def test_vm_emit_te_constant_param_gpu():
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
-def test_vm_relax_symbolic_shape():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_relax_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
@@ -386,7 +399,7 @@ def test_vm_relax_symbolic_shape():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape1 = (5,)
@@ -401,7 +414,8 @@ def test_vm_relax_symbolic_shape():
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_relax_dyn_tir_shape():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_relax_dyn_tir_shape(exec_mode):
     # case where TIR variables are unbound in generated PrimFunc
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -420,7 +434,7 @@ def test_vm_relax_dyn_tir_shape():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
 
     ex.mod.export_library("exec.so")
     exec1 = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
@@ -436,7 +450,8 @@ def test_vm_relax_dyn_tir_shape():
     tvm.testing.assert_allclose(res.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_tuple():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_tuple(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
 
@@ -450,7 +465,7 @@ def test_vm_tuple():
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (5,)
@@ -463,7 +478,8 @@ def test_vm_tuple():
     tvm.testing.assert_allclose(res3.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_tuplegetitem():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_tuplegetitem(exec_mode):
     @tvm.script.ir_module
     class TestVMTupleGetItem:
         @R.function
@@ -479,7 +495,7 @@ def test_vm_tuplegetitem():
 
     mod = TestVMTupleGetItem
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
@@ -488,6 +504,8 @@ def test_vm_tuplegetitem():
 
 
 def test_vm_print_const():
+    # do not support print for now in compiled
+    # just to simplify impl and we can unify after PrimValue
     @tvm.script.ir_module
     class PrintConst:
         @R.function
@@ -515,7 +533,8 @@ def test_vm_print_const():
         sys.stdout = stdout
 
 
-def test_sub_func_call():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_sub_func_call(exec_mode):
     @tvm.script.ir_module
     class TestVMSubFunction:
         @T.prim_func
@@ -558,7 +577,7 @@ def test_sub_func_call():
             return gv1
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(TestVMSubFunction, target)
+    ex = relax.vm.build(TestVMSubFunction, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
     y_inp = tvm.nd.array(np.random.rand(32, 32).astype(np.float32))
@@ -568,7 +587,8 @@ def test_sub_func_call():
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-def test_recursion():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_recursion(exec_mode):
     @tvm.script.ir_module
     class TestVMRecursion:
         @R.function
@@ -589,7 +609,7 @@ def test_recursion():
             return res
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(TestVMRecursion, target)
+    ex = relax.vm.build(TestVMRecursion, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     inp = np.empty(1).astype("float32")
@@ -600,7 +620,8 @@ def test_recursion():
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_closure():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_closure(exec_mode):
     @tvm.script.ir_module
     class TestClosure:
         @R.function
@@ -618,7 +639,7 @@ def test_vm_closure():
 
     mod = TestClosure
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(mod, target)
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm.nd.array(np.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]], dtype="float32"))
@@ -626,7 +647,8 @@ def test_vm_closure():
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
 
 
-def test_time_evaluator():
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_time_evaluator(exec_mode):
     @tvm.script.ir_module
     class TestTimeEvaluator:
         @R.function
@@ -634,7 +656,7 @@ def test_time_evaluator():
             return R.call_packed("test.vm.add", x, y, type_args=(R.Tensor(ndim=1, dtype="float32")))
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.vm.build(TestTimeEvaluator, target)
+    ex = relax.vm.build(TestTimeEvaluator, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.nd.array(np.random.rand(1).astype("float32"))
     y = tvm.nd.array(np.random.rand(1).astype("float32"))
@@ -753,10 +775,10 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     _ = vm.get_outputs("main")
 
 
-def make_vm(mod) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+def make_vm(mod, exec_mode) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(TestVMSetInput, target)
+    exec = relax.vm.build(TestVMSetInput, target, exec_mode=exec_mode)
     exec.mod.export_library("exec.so")
     exec_loaded = relax.vm.Executable(tvm.runtime.load_module("exec.so"))
     os.remove("exec.so")
@@ -765,14 +787,16 @@ def make_vm(mod) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
 
 
 def run_on_rpc(
-    mod: tvm.IRModule, trial_func: Callable[[relax.VirtualMachine, tvm.runtime.Device], None]
+    mod: tvm.IRModule,
+    trial_func: Callable[[relax.VirtualMachine, tvm.runtime.Device], None],
+    exec_mode: str,
 ):
     """
     Sets up a VM over localhost using the given mod and runs the given trial function.
     The trial function should take a VM and a device
     """
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.vm.build(mod, target)
+    exec = relax.vm.build(mod, target, exec_mode=exec_mode)
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
     exec.mod.export_library(path)
@@ -797,12 +821,14 @@ def run_on_rpc(
     check_remote(rpc.Server("127.0.0.1"))
 
 
-def test_set_input():
-    set_input_trial(*make_vm(TestVMSetInput))
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_set_input(exec_mode):
+    set_input_trial(*make_vm(TestVMSetInput, exec_mode))
 
 
-def test_set_input_rpc():
-    run_on_rpc(TestVMSetInput, set_input_trial)
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_set_input_rpc(exec_mode):
+    run_on_rpc(TestVMSetInput, set_input_trial, exec_mode)
 
 
 def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
@@ -814,12 +840,14 @@ def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Dev
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_save_function_kwargs():
-    save_function_kwargs_trial(*make_vm(TestVMSetInput))
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_save_function_kwargs(exec_mode):
+    save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode))
 
 
-def test_save_function_kwargs_rpc():
-    run_on_rpc(TestVMSetInput, save_function_kwargs_trial)
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_save_function_kwargs_rpc(exec_mode):
+    run_on_rpc(TestVMSetInput, save_function_kwargs_trial, exec_mode)
 
 
 def save_function_time_evaluator_trial(
@@ -832,43 +860,51 @@ def save_function_time_evaluator_trial(
     vm.time_evaluator("saved_main", device)()
 
 
-def test_save_function_time_evaluator():
-    save_function_time_evaluator_trial(*make_vm(TestVMSetInput))
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_save_function_time_evaluator(exec_mode):
+    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode))
 
 
-def test_save_function_time_evaluator():
-    run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial)
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_save_function_time_evaluator(exec_mode):
+    run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial, exec_mode)
 
 
 # if you set an input, you should not be able to call statelessly
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @pytest.mark.xfail()
-def test_set_input_stateless_failure():
-    set_input_attempt_stateless(*make_vm(TestVMSetInput))
+def test_set_input_stateless_failure(exec_mode):
+    set_input_attempt_stateless(*make_vm(TestVMSetInput, exec_mode))
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @pytest.mark.xfail()
-def test_set_input_stateless_failure_rpc():
-    run_on_rpc(TestVMSetInput, set_input_attempt_stateless)
+def test_set_input_stateless_failure_rpc(exec_mode):
+    run_on_rpc(TestVMSetInput, set_input_attempt_stateless, exec_mode)
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @pytest.mark.xfail()
-def test_set_input_invoke_failure():
-    set_input_attempt_invoke(*make_vm(TestVMSetInput))
+def test_set_input_invoke_failure(exec_mode):
+    set_input_attempt_invoke(*make_vm(TestVMSetInput, exec_mode))
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @pytest.mark.xfail()
-def test_set_input_invoke_failure_rpc():
-    run_on_rpc(TestVMSetInput, set_input_attempt_invoke)
+def test_set_input_invoke_failure_rpc(exec_mode):
+    run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @pytest.mark.xfail()
-def test_set_input_get_failure():
-    set_input_attempt_get(*make_vm(TestVMSetInput))
+def test_set_input_get_failure(exec_mode):
+    set_input_attempt_get(*make_vm(TestVMSetInput, exec_mode))
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
 @pytest.mark.xfail()
-def test_set_input_get_failure_rpc():
-    run_on_rpc(TestVMSetInput, set_input_attempt_get)
+def test_set_input_get_failure_rpc(exec_mode):
+    run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
 
 
 if __name__ == "__main__":
