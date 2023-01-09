@@ -378,10 +378,11 @@ void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
  * This function will throw an error if the nesting structure in msg does not
  * match the tuple nesting structure in expr.
  *
- * \param expr The input expression to be transform.
+ * \param expr The input expression to be transform. 
  * \param msgs The input messages to guide the transformation.
  * \param ftransleaf with signature ftransleaf(Expr, Array<NestedMsg<T>>)->Expr
  * \tparam T the content type of nested msg
+ * \tparam N the number of messages
  * \tparam FType The visit function type.
  */
 template <typename T, std::size_t N, typename FType>
