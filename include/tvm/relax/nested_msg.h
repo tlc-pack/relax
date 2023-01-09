@@ -389,10 +389,10 @@ template <typename T, std::size_t N, typename FType>
 Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftransleaf) {
   StructInfo sinfo = GetStructInfo(expr);
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-    std::vector<Array<NestedMsg<T>>> msg_arrays;
-    for (const auto& msg : msgs) {
-      ICHECK(msg.IsNested()) << "Expected nested to match tuple";
-      msg_arrays.push_back(msg.NestedArray());
+    std::array<Array<NestedMsg<T>>, N> msg_arrays;
+    for (size_t i = 0; i < N; ++i) {
+      ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
+      msg_arrays[i] = msgs[i].NestedArray();
     }
     bool same = true;
     Array<Expr> fields;
@@ -405,13 +405,11 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
         field = TupleGetItem(expr, i);
         UpdateStructInfo(field, tuple->fields[i]);
       }
-      std::vector<NestedMsg<T>> sub_msgs;
-      std::array<NestedMsg<T>, N> sub_msgs_arr;
-      for (const auto& msg_array : msg_arrays) {
-        sub_msgs.push_back(msg_array[i]);
+      std::array<NestedMsg<T>, N> sub_msgs;
+      for (size_t j = 0; j < N; ++j) {
+        sub_msgs[j] = msg_arrays[j][i];
       }
-      std::move(sub_msgs.begin(), sub_msgs.end(), sub_msgs_arr.begin());
-      fields.push_back(TransformTupleLeaf(field, std::move(sub_msgs_arr), ftransleaf));
+      fields.push_back(TransformTupleLeaf(field, std::move(sub_msgs), ftransleaf));
       same &= (fields.back().same_as(field));
     }
     return same ? expr : Tuple(fields);

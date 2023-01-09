@@ -234,4 +234,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
 
   EXPECT_TRUE(StructuralEqual()(
       TransformTupleLeaf(expr, std::array<NInt, 2>({msg1, msg2}), ftransleaf), expected));
+
+  EXPECT_TRUE(
+      expr.same_as(TransformTupleLeaf(expr, std::array<NInt, 2>({msg1, msg1}), ftransleaf)));
 }
