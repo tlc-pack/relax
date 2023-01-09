@@ -14,20 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+"""Constructor APIs"""
+import tvm._ffi
 
-# Operators
-from .base import *
-from .binary import *
-from .create import *
-from .op_attrs import *
-from .search import *
-from .set import *
-from .statistical import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import image
-from . import memory
-from . import nn
+tvm._ffi._init_api("relax.op.nn", __name__)
