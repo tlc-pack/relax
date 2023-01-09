@@ -209,15 +209,17 @@ TEST(NestedMsg, TransformTupleLeaf) {
   auto c0 = Integer(0);
   auto c1 = Integer(1);
   auto c2 = Integer(2);
-  NestedMsg<Integer> msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
-  NestedMsg<Integer> msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
+  using NInt = NestedMsg<Integer>;
+
+  NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
+  NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
 
   PrimStructInfo s = PrimStructInfo(runtime::DataType::Int(32));
   relax::Var x("x", s), y("y", s), z("z", s);
   BlockBuilder bb = BlockBuilder::Create(NullOpt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
-  auto ftransleaf = [&](Expr value, Array<NestedMsg<Integer>> msgs) -> Expr {
+  auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {
     int lhs = Downcast<Integer>(msgs[0].LeafValue())->value;
     int rhs = Downcast<Integer>(msgs[1].LeafValue())->value;
     if (lhs > rhs)
@@ -231,5 +233,5 @@ TEST(NestedMsg, TransformTupleLeaf) {
   Expr expected = Tuple({y, Tuple({y, z}), x, Tuple({y, Tuple({y, z})})});
 
   EXPECT_TRUE(StructuralEqual()(
-      TransformTupleLeaf(expr, Array<NestedMsg<Integer>>{msg1, msg2}, ftransleaf), expected));
+      TransformTupleLeaf(expr, std::array<NInt, 2>({msg1, msg2}), ftransleaf), expected));
 }

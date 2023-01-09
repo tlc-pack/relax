@@ -384,8 +384,8 @@ void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
  * \tparam T the content type of nested msg
  * \tparam FType The visit function type.
  */
-template <typename T, typename FType>
-Expr TransformTupleLeaf(Expr expr, Array<NestedMsg<T>> msgs, FType ftransleaf) {
+template <typename T, std::size_t N, typename FType>
+Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftransleaf) {
   StructInfo sinfo = GetStructInfo(expr);
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
     std::vector<Array<NestedMsg<T>>> msg_arrays;
@@ -404,11 +404,13 @@ Expr TransformTupleLeaf(Expr expr, Array<NestedMsg<T>> msgs, FType ftransleaf) {
         field = TupleGetItem(expr, i);
         UpdateStructInfo(field, tuple->fields[i]);
       }
-      std::vector<NestedMsg<T>> new_msgs;
+      std::vector<NestedMsg<T>> sub_msgs;
+      std::array<NestedMsg<T>, N> sub_msgs_arr;
       for (const auto& msg_array : msg_arrays) {
-        new_msgs.push_back(msg_array[i]);
+        sub_msgs.push_back(msg_array[i]);
       }
-      fields.push_back(TransformTupleLeaf(field, Array<NestedMsg<T>>(new_msgs), ftransleaf));
+      std::move(sub_msgs.begin(), sub_msgs.end(), sub_msgs_arr.begin());
+      fields.push_back(TransformTupleLeaf(field, std::move(sub_msgs_arr), ftransleaf));
       same &= (fields.back().same_as(field));
     }
     return same ? expr : Tuple(fields);
