@@ -158,6 +158,83 @@ inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, in
   return NormalizeAxes(call, ctx, ndim, {axis})[0];
 }
 
+/************ Utilities for NN operators ************/
+
+/*!
+ * \brief Complete the padding to a 4-length array.
+ * - If the padding length is 1, the same padding is used on all top/left/bottom/right sides
+ * - If the padding length is 2, top/bottom sides use padding[0] and left/right use padding[1]
+ * - If the padding length is 4, padding is in the order of (top, left, bottom, right)
+ * \param padding The given padding to be completed
+ * \return The completed padding.
+ * \throws Throws error if the input padding length is neither 1, 2 or 4.
+ */
+inline Array<PrimExpr> GetCompletePadding2D(Array<PrimExpr> padding) {
+  if (padding.size() == 1) {
+    return {padding[0], padding[0], padding[0], padding[0]};
+  } else if (padding.size() == 2) {
+    return {padding[0], padding[1], padding[0], padding[1]};
+  } else if (padding.size() == 4) {
+    return padding;
+  }
+  LOG(FATAL) << "The input padding length is expected to be either 1, 2 or 4. However, the given "
+                "padding is "
+             << padding;
+  throw;
+}
+
+/*!
+ * \brief Check if the given tensor layout can be converted to the given target layout.
+ * If convertible, return the tensor layout and the bijective conversion in tir::Layout and
+ * tir::BijectiveLayout accordingly.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param tensor_layout The tensor layout to be checked
+ * \param tgt_layout The target layout to be matched
+ * \param tensor_name The name of the input tensor
+ * \return The tensor layout and the bijective conversion in tir::Layout and tir::BijectiveLayout
+ * accordingly.
+ */
+inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(const Call& call,
+                                                                      const BlockBuilder& ctx,
+                                                                      const String& tensor_layout,
+                                                                      const String& tgt_layout,
+                                                                      const String& tensor_name) {
+  tir::Layout _tensor_layout(tensor_layout, DataType::Int(64));
+  tir::BijectiveLayout tensor2tgt(_tensor_layout, tir::Layout(tgt_layout, DataType::Int(64)));
+  if (!tensor2tgt.defined()) {
+    ctx->ReportFatal(Diagnostic::Error(call) << call->op << " requires the given " << tensor_name
+                                             << " layout to be convertible from " << tgt_layout
+                                             << " layout. However, the given layout "
+                                             << tensor_layout << " is not convertible.");
+  }
+  return {_tensor_layout, tensor2tgt};
+}
+
+/*!
+ * \brief Check if the given tensor struct info has expected ndim per the given layout (or the ndim
+ * is unknown), and try to cast the shape to ShapeExpr.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param sinfo The input tensor struct info to be checked.
+ * \param layout The layout that the given tensor is expected to have.
+ * \return The shape of the input tensor in ShapeExpr, or `NullOpt` if the shape is unknown.
+ */
+inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const BlockBuilder& ctx,
+                                                         const TensorStructInfo& sinfo,
+                                                         const tir::Layout& layout) {
+  if (!sinfo->IsUnknownNdim() && sinfo->ndim != static_cast<int>(layout.ndim())) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "In " << call->op << ", layout " << layout << " requires the input to be "
+                     << layout.ndim() << "-dim tensor. However, the given input has ndim "
+                     << sinfo->ndim);
+  }
+  if (const auto* shape_expr = sinfo->shape.as<ShapeExprNode>()) {
+    return GetRef<ShapeExpr>(shape_expr);
+  }
+  return NullOpt;
+}
+
 }  // namespace relax
 }  // namespace tvm
 
