@@ -21,6 +21,7 @@
 from .base import *
 from .binary import *
 from .create import *
+from .manipulate import *
 from .linear_algebra import *
 from .op_attrs import *
 from .search import *
