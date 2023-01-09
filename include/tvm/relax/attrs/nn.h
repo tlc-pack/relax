@@ -125,6 +125,57 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
   }
 };  // struct AdaptivePool2DAttrs
 
+/*! \brief Attributes used in softmax operators */
+struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(SoftmaxAttrs, "relax.attrs.SoftmaxAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis to sum over when computing softmax.");
+  }
+};
+
+/*! \brief Attributes used in batch_norm operator */
+struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
+  int axis;
+  double epsilon;
+  bool center;
+  bool scale;
+
+  TVM_DECLARE_ATTRS(BatchNormAttrs, "relax.attrs.BatchNormAttrs") {
+    TVM_ATTR_FIELD(axis).describe("The axis along which the normalization is applied.");
+    TVM_ATTR_FIELD(epsilon).describe("Small float added to variance to avoid dividing by zero");
+    TVM_ATTR_FIELD(center).describe(
+        "Indicating if the beta offset will be added to the normalized tensor.");
+    TVM_ATTR_FIELD(scale).describe("Indicating if the gamma scale will be multiplied.");
+  }
+};  // struct BatchNormAttrs
+
+/*! \brief Attributes used in layer_norm operator */
+struct LayerNormAttrs : public tvm::AttrsNode<LayerNormAttrs> {
+  Array<Integer> axes;
+  double epsilon;
+  bool center;
+  bool scale;
+
+  TVM_DECLARE_ATTRS(LayerNormAttrs, "relax.attrs.LayerNormAttrs") {
+    TVM_ATTR_FIELD(axes).describe("The axes that along which the normalization is applied.");
+    TVM_ATTR_FIELD(epsilon).describe("Small float added to variance to avoid dividing by zero");
+    TVM_ATTR_FIELD(center).describe(
+        "Indicating if the beta offset will be added to the normalized tensor.");
+    TVM_ATTR_FIELD(scale).describe("Indicating if the gamma scale will be multiplied.");
+  }
+};  // struct LayerNormAttrs
+
+/*! \brief Attributes used in dropout operator */
+struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
+  double rate;
+
+  TVM_DECLARE_ATTRS(DropoutAttrs, "relax.attrs.DropoutAttrs") {
+    TVM_ATTR_FIELD(rate).describe(
+        "Fraction of the input that gets dropped out during training time");
+  }
+};  // struct DropoutAttrs
+
 }  // namespace relax
 }  // namespace tvm
 
