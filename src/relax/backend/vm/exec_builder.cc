@@ -102,15 +102,15 @@ vm::Instruction::Arg ExecBuilderNode::GetFunction(const std::string& func_name) 
 }
 
 void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inputs,
-                                   Optional<Array<String>> param_names) {
+                                   Optional<Array<String>> param_names,
+                                   vm::VMFuncInfo::FuncKind kind, int64_t init_register_size) {
   auto it = exec_->func_map.find(func_name);
   if (it == exec_->func_map.end()) {
-    this->DeclareFunction(func_name, VMFuncInfo::FuncKind::kVMFunc);
+    this->DeclareFunction(func_name, kind);
   }
   auto& vmfunc = exec_->func_table.at(exec_->func_map.at(func_name));
   ICHECK_EQ(vmfunc.name, func_name);
   ICHECK_EQ(vmfunc.num_args, -2) << "Function " << func_name << " already defined";
-  vmfunc.start_instr = exec_->instr_offset.size();
   vmfunc.num_args = num_inputs;
   if (param_names.defined()) {
     std::vector<std::string> names;
@@ -119,6 +119,10 @@ void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inp
     }
     vmfunc.param_names = names;
   }
+  vmfunc.register_file_size = init_register_size;
+  if (kind == vm::VMFuncInfo::FuncKind::kVMFunc) {
+    vmfunc.start_instr = exec_->instr_offset.size();
+  }
 }
 
 void ExecBuilderNode::EndFunction(const std::string& func_name) {
@@ -126,7 +130,10 @@ void ExecBuilderNode::EndFunction(const std::string& func_name) {
   ICHECK(it != exec_->func_map.end());
   VMFuncInfo& vmfunc = exec_->func_table.at(it->second);
   ICHECK_EQ(vmfunc.end_instr, 0) << "EndFuncton can only be called once";
-  vmfunc.end_instr = exec_->instr_offset.size();
+
+  if (vmfunc.kind == vm::VMFuncInfo::FuncKind::kVMFunc) {
+    vmfunc.end_instr = exec_->instr_offset.size();
+  }
 }
 
 void ExecBuilderNode::EmitCall(vm::Instruction::Arg func, std::vector<vm::Instruction::Arg> args,
@@ -177,7 +184,11 @@ void ExecBuilderNode::EmitIf(vm::Instruction::Arg cond, vm::Index false_offset) 
 void ExecBuilderNode::CheckExecutable() {
   for (auto it = exec_->func_table.cbegin(); it != exec_->func_table.cend(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
-
+    if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
+      ICHECK_GE(it->register_file_size, it->num_args + 1)
+          << "Function " << it->name << " do not meet register file constraint.";
+      continue;
+    }
     Index num_inputs = it->num_args;
     std::unordered_set<RegName> dst_registers;
     std::unordered_set<RegName> arg_registers;
@@ -258,6 +269,7 @@ void ExecBuilderNode::Formalize() {
   // and decide the number of registers to allocate for each VMFunction in the Executable
   for (auto it = this->exec_->func_table.begin(); it != this->exec_->func_table.end(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
+    if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) continue;
 
     Index num_inputs = it->num_args;
     RegName register_idx = num_inputs;
@@ -326,7 +338,10 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
     });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitFunction);
+    .set_body_typed([](ExecBuilder builder, String func, int64_t num_inputs,
+                       Optional<Array<String>> param_names) {
+      builder->EmitFunction(func, num_inputs, param_names);
+    });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
     .set_body_method<ExecBuilder>(&ExecBuilderNode::EndFunction);

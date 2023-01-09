@@ -226,9 +226,9 @@ def test_vm_if():
             4,
         )
     )
-    res = vm["main"](tvm.nd.array(False), a, b)
+    res = vm["main"](0, a, b)
     tvm.testing.assert_allclose(res.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
-    res = vm["main"](tvm.nd.array(1), a, b)
+    res = vm["main"](1, a, b)
     tvm.testing.assert_allclose(res.numpy(), a.numpy() + b.numpy(), rtol=1e-7, atol=1e-7)
 
 
