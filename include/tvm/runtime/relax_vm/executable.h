@@ -49,7 +49,9 @@ struct VMFuncInfo {
     /*! \brief system level packed function */
     kPackedFunc = 0,
     /*! \brief VM function. */
-    kVMFunc = 1
+    kVMFunc = 1,
+    /*! \brief VMTIR function. */
+    kVMTIRFunc = 2,
   };
   /*! \brief The kind of function. */
   FuncKind kind;

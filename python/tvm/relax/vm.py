@@ -453,6 +453,7 @@ class VirtualMachine(object):
 def _vmcodegen(
     builder: "relax.ExecBuilder",
     mod: tvm.IRModule,
+    exec_mode: str = "bytecode",
 ) -> tvm.IRModule:
     """Running VM codegen.
 
@@ -464,12 +465,20 @@ def _vmcodegen(
     mod: IRModule
         The input IRModule to be built.
 
+    exec_mode: {"bytecode", "compiled"}
+        The execution mode.
+
     Return
     ------
     leftover: IRModule
         Left over IRModule that may contain extra functions.
     """
-    return _ffi_api.VMCodeGen(builder, mod)  # type: ignore
+
+    if exec_mode == "bytecode":
+        return _ffi_api.VMCodeGen(builder, mod)  # type:ignore
+    if exec_mode == "compiled":
+        return _ffi_api.VMTIRCodeGen(builder, mod)  # type: ignore
+    raise ValueError("Unknown exec_mode %s" % exec_mode)
 
 
 def _vmlink(
@@ -524,6 +533,7 @@ def build(
     mod: tvm.IRModule,
     target: Union[str, tvm.target.Target],
     params: Optional[Dict[str, list]] = None,
+    exec_mode: str = "bytecode",
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -545,6 +555,9 @@ def build(
 
     params: Optional[Dict[str, list]]
         Parameters for the input IRModule that will be bound.
+
+    exec_mode: {"bytecode", "compiled"}
+        The execution mode.
 
     Returns
     -------
@@ -576,9 +589,6 @@ def build(
     seq = tvm.transform.Sequential(passes)
     new_mod = seq(mod)
 
-    # Split primfunc and relax function
-    rx_mod, tir_mod = _split_tir_relax(new_mod)
-
     # Extract external runtime modules if exist.
     ext_libs = []
     if mod.attrs and "external_mods" in mod.attrs:
@@ -586,22 +596,14 @@ def build(
 
     # builder collects the executable
     builder = relax.ExecBuilder()
-    _vmcodegen(builder, rx_mod)
+    leftover_mod = _vmcodegen(builder, new_mod, exec_mode=exec_mode)
+    tir_mod = _filter_tir(leftover_mod)
     return _vmlink(builder, target, tir_mod, ext_libs, params)
 
 
-def _split_tir_relax(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
-    rx_mod = IRModule({})
+def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
     tir_mod = IRModule({})
     for gv in mod.get_global_vars():
         if isinstance(mod[gv], PrimFunc):
             tir_mod[gv] = mod[gv]
-        elif isinstance(mod[gv], relax.Function):
-            rx_mod[gv] = mod[gv]
-        else:
-            raise TypeError(
-                "IRModule is expected to contain PrimFunc or Function, but gets {}".format(
-                    type(mod[gv])
-                )
-            )
-    return rx_mod, tir_mod
+    return tir_mod
