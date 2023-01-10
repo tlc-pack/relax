@@ -363,6 +363,55 @@ def test_call_te():
     assert len(rx_func.body.blocks[0].bindings) == 1
 
 
+def test_call_te_with_shape_arg():
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def reshape(
+            rxplaceholder: T.Buffer[T.int64(200), "float32"],
+            T_reshape: T.Buffer[(T.int64(10), T.int64(20)), "float32"],
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_reshape"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(
+                        rxplaceholder[
+                            (T.Cast("int64", ax0) * T.int64(20) + T.Cast("int64", ax1))
+                            % T.int64(200)
+                        ]
+                    )
+                    T.writes(T_reshape[ax0, ax1])
+                    T_reshape[ax0, ax1] = rxplaceholder[
+                        (T.Cast("int64", ax0) * T.int64(20) + T.Cast("int64", ax1)) % T.int64(200)
+                    ]
+
+        @R.function
+        def rx_func(x: R.Tensor((200,), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
+            gv = R.call_tir(reshape, (x,), (10, 20), dtype="float32")
+            return gv
+
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", R.Tensor((200,), "float32"))
+
+    with bb.function("rx_func", [x]):
+        out = bb.emit(bb.call_te(topi.reshape, x, rx.ShapeExpr((10, 20))))
+        bb.emit_func_output(out)
+
+    assert_structural_equal(bb.get(), Expected)
+
+
+def test_call_te_with_unsupported_shape_arg():
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", R.Tensor((200,), "float32"))
+    s = rx.Var("s", R.Shape((200,)))
+
+    with pytest.raises(AssertionError):
+        with bb.function("rx_func", [x]):
+            out = bb.emit(bb.call_te(topi.reshape, x, s))
+            bb.emit_func_output(out)
+
+
 def test_emit_te():
     bb = rx.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
