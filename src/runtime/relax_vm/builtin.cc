@@ -357,6 +357,7 @@ bool ReadIfCond(TVMArgValue cond) {
     }
     default:
       LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(arr->dtype);
+      throw;
   }
   return result != 0;
 }
