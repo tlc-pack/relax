@@ -20,6 +20,8 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/relax/nested_msg.h>
+#include <tvm/relax/struct_info.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -38,7 +40,7 @@ using namespace tvm::relax;
 
 TEST(NestedMsg, Basic) {
   // start with no annotation
-  relax::Var x("x", NullOpt, NullOpt), y("y", NullOpt, NullOpt);
+  relax::Var x("x", NullOpt), y("y", NullOpt);
 
   // constructor from array, T and nullopt.
   NestedMsg<relax::Expr> msg({x, NullOpt, x});
@@ -79,7 +81,7 @@ TEST(NestedMsg, Basic) {
 }
 
 TEST(NestedMsg, ForEachLeaf) {
-  relax::Var x("x", NullOpt, NullOpt), y("y", NullOpt, NullOpt);
+  relax::Var x("x", NullOpt), y("y", NullOpt);
   NestedMsg<Expr> msg = {x, {x, y}, NullOpt, {x, {x, y}}};
 
   int x_count = 0, y_count = 0;
@@ -93,8 +95,8 @@ TEST(NestedMsg, ForEachLeaf) {
 }
 
 TEST(NestedMsg, Equal) {
-  relax::Var x("x", NullOpt, NullOpt), y("y", NullOpt, NullOpt);
-  relax::Var z("z", NullOpt, NullOpt);
+  relax::Var x("x", NullOpt), y("y", NullOpt);
+  relax::Var z("z", NullOpt);
 
   auto fequal = [](Expr lhs, Expr rhs) { return lhs.same_as(rhs); };
 
@@ -129,11 +131,13 @@ TEST(NestedMsg, Equal) {
 }
 
 TEST(NestedMsg, MapAndDecompose) {
-  relax::Var x("x", NullOpt, NullOpt), y("y", NullOpt, NullOpt);
-  relax::Var z("z", NullOpt, NullOpt);
+  relax::Var x("x", PrimStructInfo(runtime::DataType::Int(16)));
+  relax::Var y("y", PrimStructInfo(runtime::DataType::Int(32)));
+  relax::Var z("z", PrimStructInfo(runtime::DataType::Int(64)));
 
-  relax::Tuple t0({x, y});
-  relax::Tuple t1({t0, x, z, t0});
+  BlockBuilder bb = BlockBuilder::Create(NullOpt);
+  relax::Expr t0 = bb->Normalize(Tuple({x, y}));
+  relax::Expr t1 = bb->Normalize(Tuple({t0, x, z, t0}));
 
   auto c0 = Integer(0);
   auto c1 = Integer(1);
@@ -148,6 +152,20 @@ TEST(NestedMsg, MapAndDecompose) {
   NestedMsg<Integer> expected = {{c0, c1}, c0, c2, {c0, c1}};
 
   EXPECT_TRUE(Equal(output, expected,
+                    [](Integer lhs, Integer rhs) -> bool { return lhs->value == rhs->value; }));
+
+  auto output2 =
+      MapToNestedMsg<Integer>(GetStructInfo(t1), [&](StructInfo sinfo) -> NestedMsg<Integer> {
+        const auto* prim_sinfo = sinfo.as<PrimStructInfoNode>();
+        if (prim_sinfo == nullptr) return NullOpt;
+        int bits = prim_sinfo->dtype.bits();
+        if (bits == 16) return c0;
+        if (bits == 32) return c1;
+        if (bits == 64) return c2;
+        return NullOpt;
+      });
+
+  EXPECT_TRUE(Equal(output2, expected,
                     [](Integer lhs, Integer rhs) -> bool { return lhs->value == rhs->value; }));
 
   int x_count = 0, y_count = 0, z_count = 0;
@@ -185,4 +203,38 @@ TEST(NestedMsg, CombineNestedMsg) {
 
   EXPECT_TRUE(Equal(output, expected,
                     [](Integer lhs, Integer rhs) -> bool { return lhs->value == rhs->value; }));
+}
+
+TEST(NestedMsg, TransformTupleLeaf) {
+  auto c0 = Integer(0);
+  auto c1 = Integer(1);
+  auto c2 = Integer(2);
+  using NInt = NestedMsg<Integer>;
+
+  NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
+  NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
+
+  PrimStructInfo s = PrimStructInfo(runtime::DataType::Int(32));
+  relax::Var x("x", s), y("y", s), z("z", s);
+  BlockBuilder bb = BlockBuilder::Create(NullOpt);
+  Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
+
+  auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {
+    int lhs = Downcast<Integer>(msgs[0].LeafValue())->value;
+    int rhs = Downcast<Integer>(msgs[1].LeafValue())->value;
+    if (lhs > rhs)
+      return z;
+    else if (lhs == rhs)
+      return value;
+    else
+      return y;
+  };
+
+  Expr expected = Tuple({y, Tuple({y, z}), x, Tuple({y, Tuple({y, z})})});
+
+  EXPECT_TRUE(StructuralEqual()(
+      TransformTupleLeaf(expr, std::array<NInt, 2>({msg1, msg2}), ftransleaf), expected));
+
+  EXPECT_TRUE(
+      expr.same_as(TransformTupleLeaf(expr, std::array<NInt, 2>({msg1, msg1}), ftransleaf)));
 }
