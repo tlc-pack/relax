@@ -186,6 +186,9 @@ def test_shadowing():
         z = bb.emit(y)
         bb.emit_func_output(z)
 
+    print(foo.script())
+    print(bb.get()["foo"])
+
     _check(foo, bb.get()["foo"])
 
 
@@ -846,6 +849,29 @@ def test_symbolic_shape_computing():
         def foo(x: R.Tensor(("m + 1", "m * 2"), "float32")):  # name 'm' is not defined
             z = R.add(x, x)
             return z
+
+
+def test_arith_operators():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
+        a0 = x + y
+        a1 = x - y
+        a2 = x * y
+        a3 = x / y
+        a4 = x // y
+
+        c0 = x > y
+        c1 = x < y
+        c2 = x >= y
+        c3 = x <= y
+
+        tuple_expr = ((x, x), y)
+        t0 = tuple_expr[0]
+        t1 = tuple_expr[1]
+        t2 = tuple_expr[0][0]
+        return a0, a1, a2, a3, a4, c0, c1, c2, c3, t0, t1, t2
+
+    _check(foo, None)
 
 
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
