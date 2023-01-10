@@ -129,7 +129,7 @@ def call_builtin(
     func: Union[str, Expr],
     args: Union[RxTuple, List[Expr]],
     *,
-    type_args: Optional[List[Type]] = None,
+    type_args: Optional[Union[Type, List[Type]]] = None,
     int_args: Optional[List[int]] = None,
     dtype_arg: Optional[str] = None,
     str_args: Optional[List[str]] = None,
@@ -145,7 +145,7 @@ def call_builtin(
     args : Union[RxTuple, List[Expr]]
         The input arguments.
 
-    type_args: Optional[List[Type]]
+    type_args: Optional[Union[Type, List[Type]]]
         The type arguments to the call node.
 
     int_args: Optional[List[int]]
@@ -170,6 +170,9 @@ def call_builtin(
 
     if isinstance(args, (list, tuple)):
         args = RxTuple(args)
+
+    if not isinstance(type_args, (list, tuple)):
+        type_args = [type_args]
 
     return _ffi_api.call_builtin(  # type: ignore
         func, args, type_args, int_args, dtype_arg, str_args, require_ctx  # type: ignore
