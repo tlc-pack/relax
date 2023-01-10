@@ -204,7 +204,15 @@ def test_call_packed():
     check_roundtrip(foo)
 
 
-@pytest.mark.skip("Need to fix string ast expr")
+def test_relax_base_op():
+    @R.function
+    def foo(x: R.Tensor((2, 4), dtype="float32")):
+        gv = R.call_builtin("test_intrin", [x], type_args=R.Object)
+        return gv
+
+    check_roundtrip(foo)
+
+
 def test_primexpr_arithmetic():
     @R.function
     def foo(x: R.Tensor(("n", "m"), "float32")):
@@ -271,6 +279,18 @@ def test_const():
         return w
 
     check_roundtrip(my_const)
+
+
+def test_scalar_const():
+    x = relax.Var("x", relax.TensorStructInfo((8,)))
+    const_one = relax.const(1, "float32")
+
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x]):
+        v0 = bb.emit(R.add(x, const_one))
+        bb.emit_func_output(v0)
+
+    check_roundtrip(bb.get())
 
 
 def test_const_meta():
@@ -430,4 +450,5 @@ def test_func_type():
 
 
 if __name__ == "__main__":
+    test_relax_base_op()
     tvm.testing.main()
