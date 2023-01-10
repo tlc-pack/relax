@@ -79,14 +79,14 @@ class StructInfo(Node):
         return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
 
 
-# will be registered afterwards
+# will be registered afterwards in python/tvm/relax/op/init.py
 _op_ffi_api = None
 
 
 def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
-    if not isinstance(lhs, relay.Expr):
+    if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
-    if isinstance(rhs, relay.Expr):
+    if isinstance(rhs, Expr):  # type: ignore
         return op(lhs, rhs)
     elif isinstance(rhs, Number):
         raise TypeError(f"Please convert {rhs} with `const` first")
@@ -170,6 +170,7 @@ class ExprWithOp(Expr):
         return _binary_rhs_helper(other)
 
     def __mod__(self, other: Expr) -> "ExprWithOp":
+        # TODO(siyuan): Support it after mod operator is supported in relax
         raise ValueError("relax.mod is not supported yet.")
 
     def __rmod__(self, other: Expr) -> "ExprWithOp":

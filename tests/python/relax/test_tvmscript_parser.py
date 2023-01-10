@@ -186,9 +186,6 @@ def test_shadowing():
         z = bb.emit(y)
         bb.emit_func_output(z)
 
-    print(foo.script())
-    print(bb.get()["foo"])
-
     _check(foo, bb.get()["foo"])
 
 
@@ -868,9 +865,8 @@ def test_arith_operators():
         tuple_expr = ((x, x), y)
         t0 = tuple_expr[0]
         t1 = tuple_expr[1]
-        t2 = tuple_expr[0][0] # <= Will normalize to two bindings
+        t2 = tuple_expr[0][0]  # <= Will normalize to two bindings
         return a0, a1, a2, a3, a4, c0, c1, c2, c3, t0, t1, t2
-
 
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")

@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import relay
 from tvm import relax as rx
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -53,7 +52,7 @@ def test_implicit_op():
         assert isinstance(expr, rx.Call)
         if not op_name.startswith("relax."):
             op_name = "relax." + op_name
-        op = relay.op.get(op_name)
+        op = tvm.ir.Op.get(op_name)
         assert expr.op == op
 
     # Comparison operators
