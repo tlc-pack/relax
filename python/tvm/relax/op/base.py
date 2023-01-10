@@ -171,7 +171,7 @@ def call_builtin(
     if isinstance(args, (list, tuple)):
         args = RxTuple(args)
 
-    if not isinstance(type_args, (list, tuple)):
+    if type_args is not None and not isinstance(type_args, (list, tuple)):
         type_args = [type_args]
 
     return _ffi_api.call_builtin(  # type: ignore
