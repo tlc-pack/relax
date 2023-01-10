@@ -140,8 +140,9 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   if (!op->type_args.empty()) {
     doc << ", type_args=";
     std::vector<Doc> type_args = PrintTypeArgs(op->type_args);
+
     if (type_args.size() == 1) {
-      doc << type_args[0];
+      doc << "(" << type_args[0] << " ,)";
     } else {
       doc << "(" << Doc::Concat(type_args, Doc::Text(", ")) << ")";
     }
@@ -229,7 +230,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ConstantNode* op) {
     } else if (dtype == DataType::Bool()) {
       scalar_val = ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
     }
-    return doc << scalar_val;
+    return doc << "R.const(" << Doc::Concat({scalar_val, PrintDType(dtype)}) << ")";
   }
   // default fall-back, record it as meta node.
   // Don't append optional_info. Because the entry function is Print,
