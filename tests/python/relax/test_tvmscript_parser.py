@@ -868,10 +868,35 @@ def test_arith_operators():
         tuple_expr = ((x, x), y)
         t0 = tuple_expr[0]
         t1 = tuple_expr[1]
-        t2 = tuple_expr[0][0]
+        t2 = tuple_expr[0][0] # <= Will normalize to two bindings
         return a0, a1, a2, a3, a4, c0, c1, c2, c3, t0, t1, t2
 
-    _check(foo, None)
+
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x = relax.Var("x", relax.TensorStructInfo([m, n], "float32"))
+    y = relax.Var("y", relax.TensorStructInfo([m, n], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x, y)):
+        a0 = bb.emit(relax.op.add(x, y))
+        a1 = bb.emit(relax.op.subtract(x, y))
+        a2 = bb.emit(relax.op.multiply(x, y))
+        a3 = bb.emit(relax.op.divide(x, y))
+        a4 = bb.emit(relax.op.floor_divide(x, y))
+
+        c0 = bb.emit(relax.op.greater(x, y))
+        c1 = bb.emit(relax.op.less(x, y))
+        c2 = bb.emit(relax.op.greater_equal(x, y))
+        c3 = bb.emit(relax.op.less_equal(x, y))
+
+        tuple_expr = bb.emit(relax.Tuple((relax.Tuple((x, x)), y)))
+        t0 = bb.emit(relax.TupleGetItem(tuple_expr, 0))
+        t1 = bb.emit(relax.TupleGetItem(tuple_expr, 1))
+        tmp = bb.emit(relax.TupleGetItem(tuple_expr, 0))
+        t2 = bb.emit(relax.TupleGetItem(tmp, 0))
+        bb.emit_func_output(relax.Tuple((a0, a1, a2, a3, a4, c0, c1, c2, c3, t0, t1, t2)))
+
+    _check(foo, bb.get()["foo"])
 
 
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
