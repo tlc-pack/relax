@@ -450,5 +450,4 @@ def test_func_type():
 
 
 if __name__ == "__main__":
-    test_relax_base_op()
     tvm.testing.main()
