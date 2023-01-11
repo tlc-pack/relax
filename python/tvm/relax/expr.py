@@ -17,22 +17,24 @@
 # pylint: disable=invalid-name, unused-import, super-init-not-called
 # pylint: disable=redefined-builtin
 """The expression nodes of Relax."""
-from typing import Any, List, Optional, Union
 import typing
-import numpy as _np  # type: ignore
+from numbers import Number
+from typing import Any, Callable, Dict, List, Optional, Union
 
+import numpy as _np  # type: ignore
 import tvm
 import tvm._ffi
-from tvm.runtime import ndarray as _nd
 import tvm.relax
-
+from tvm import DataType
 from tvm._ffi import base as _base
+from tvm.runtime import ndarray as _nd
+
 from .. import relay
 from ..ir import BaseFunc, Node, SourceName, Span
 from ..relay import Id
 from ..runtime import String
 from ..tir import PrimExpr
-from . import _ffi_api, ty
+from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
@@ -77,8 +79,143 @@ class StructInfo(Node):
         return _ffi_api.StructInfoIsBaseOf(self, derived)  # type: ignore
 
 
+# will be registered afterwards in python/tvm/relax/op/init.py
+_op_ffi_api = None
+
+
+def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
+    if not isinstance(lhs, Expr):  # type: ignore
+        raise ValueError("lhs must be Expr")
+    if isinstance(rhs, Expr):  # type: ignore
+        return op(lhs, rhs)
+    elif isinstance(rhs, Number):
+        raise TypeError(f"Please convert {rhs} with `const` first")
+    else:
+        raise TypeError(f"type {type(rhs)} not supported")
+
+
+def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
+    if isinstance(rhs, Number):
+        raise TypeError(f"Please convert {rhs} with `const` first")
+    raise TypeError(f"type {type(rhs)} not supported")
+
+
+class ExprWithOp(Expr):
+    """Basetype of all relax expressions that defines op overloading."""
+
+    def astype(self, dtype: Union[str, DataType]) -> "ExprWithOp":
+        """Cast the content type of the current data to dtype.
+
+        Parameters
+        ----------
+        dtype : str
+            The target data type.
+
+        Note
+        ----
+        This function only works for TensorType Exprs.
+
+        Returns
+        -------
+        result : ExprWithOp
+            The result expression.
+        """
+        return _op_ffi_api.astype(self, dtype)  # type: ignore
+
+    def __neg__(self) -> "ExprWithOp":
+        raise ValueError("relax.negative is not supported yet.")
+
+    def __lt__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.less)  # type: ignore
+
+    def __gt__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.greater)  # type: ignore
+
+    def __ge__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.greater_equal)  # type: ignore
+
+    def __le__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.less_equal)  # type: ignore
+
+    # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
+
+    def __add__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
+
+    def __radd__(self, other: Expr) -> "ExprWithOp":
+        return self.__add__(other)
+
+    def __sub__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.subtract)  # type: ignore
+
+    def __rsub__(self, other: Expr) -> "ExprWithOp":
+        return _binary_rhs_helper(other)
+
+    def __mul__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.multiply)  # type: ignore
+
+    def __rmul__(self, other: Expr) -> "ExprWithOp":
+        return self.__mul__(other)
+
+    def __truediv__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.divide)  # type: ignore
+
+    def __rtruediv__(self, other: Expr) -> "ExprWithOp":
+        return _binary_rhs_helper(other)
+
+    def __floordiv__(self, other: Expr) -> "ExprWithOp":
+        return _binary_op_helper(self, other, _op_ffi_api.floor_divide)  # type: ignore
+
+    def __rfloordiv__(self, other: Expr) -> "ExprWithOp":
+        return _binary_rhs_helper(other)
+
+    def __mod__(self, other: Expr) -> "ExprWithOp":
+        # TODO(siyuan): Support it after mod operator is supported in relax
+        raise ValueError("relax.mod is not supported yet.")
+
+    def __rmod__(self, other: Expr) -> "ExprWithOp":
+        return _binary_rhs_helper(other)
+
+    def __call__(self, *args: List[Expr], attrs: Optional[Dict[str, Any]] = None) -> "ExprWithOp":
+        """Call the variable (if it represents a function).
+
+        Parameters
+        ----------
+        args: List[Expr]
+            The arguments to the call.
+
+        attr: Optional[Dict[str, object]]
+            The additional attributes to the call.
+
+        Returns
+        -------
+        call: ExprWithOp
+            A call taking the variable as a function.
+        """
+        return Call(self, args, attrs=attrs)
+
+    def __getitem__(self, index: int) -> "ExprWithOp":
+        """Get the i-th element of the tuple or Expr with TupleType.
+
+        Parameters
+        ----------
+        index: int
+            The index of the element to be retrieved.
+
+        Note
+        ----
+        This function will be overridden by Tuple and ShapeExpr
+
+        Returns
+        -------
+        result: ExprWithOp
+            The result expression.
+        """
+        return TupleGetItem(self, index)
+
+
 @tvm._ffi.register_object("relax.expr.Call")
-class Call(Expr):
+class Call(ExprWithOp):
     """Function call node in Relax.
 
     Call node corresponds the operator application node
@@ -119,7 +256,7 @@ class Call(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.If")
-class If(Expr):
+class If(ExprWithOp):
     """A conditional expression in Relax.
 
     Parameters
@@ -141,7 +278,7 @@ class If(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.Tuple")
-class Tuple(Expr):
+class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
 
     Parameters
@@ -166,7 +303,7 @@ class Tuple(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.TupleGetItem")
-class TupleGetItem(Expr):
+class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
 
     Parameters
@@ -185,7 +322,7 @@ class TupleGetItem(Expr):
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
-class ShapeExpr(Expr):
+class ShapeExpr(ExprWithOp):
     """A shape expression which allows users to construct a shape containing PrimExpr."""
 
     values: List[PrimExpr]
@@ -213,13 +350,13 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
 
 
 @tvm._ffi.register_object("relax.expr.Constant")
-class Constant(Expr):
+class Constant(ExprWithOp):
     def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Var")
-class Var(Expr):
+class Var(ExprWithOp):
     """The variable class for all Relax bindings."""
 
     vid: Id
@@ -251,25 +388,6 @@ class Var(Expr):
         """Get name hint of the current var."""
         name = str(self.vid.name_hint)
         return name
-
-    def __call__(self, *args: Any, attrs=None) -> Call:
-        if self._checked_type_ and isinstance(self._checked_type_, ty.FuncType):
-            return Call(self, args, attrs=attrs)
-        else:
-            raise TypeError(
-                f"Only vars with function type can be called, but got type: {self._checked_type_}"
-            )
-
-    def __getitem__(self, key):
-        if not isinstance(key, int):
-            raise TypeError("TupleGetItem only supports integer index")
-        var_type = self._checked_type_
-        if var_type and isinstance(var_type, ty.TupleType):
-            return TupleGetItem(self, key)
-        else:
-            raise TypeError(
-                f"Only vars with TupleType is subscriptable, but got type: {self._checked_type_}"
-            )
 
 
 @tvm._ffi.register_object("relax.expr.DataflowVar")
@@ -375,7 +493,7 @@ class DataflowBlock(BindingBlock):
 
 
 @tvm._ffi.register_object("relax.expr.SeqExpr")
-class SeqExpr(Expr):
+class SeqExpr(ExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
     blocks: List[BindingBlock]
