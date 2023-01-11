@@ -512,7 +512,7 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
                                      const Array<runtime::NDArray>& constants,
                                      const Optional<Array<tir::Var>>& tir_var_list,
                                      std::optional<DataType> index_dtype_override) {
-  // Infomations used in CreatePrimFunc and its sub-functions.
+  // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   Array<Stmt> root_stmts;
