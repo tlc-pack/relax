@@ -21,7 +21,7 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tir, topi
 from tvm.relax import DynTensorType
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
@@ -534,7 +534,7 @@ def test_annotate_override():
     assert isinstance(z_bind.var.struct_info, relax.TensorStructInfo)
 
 
-def test_empty_shape():
+def test_call_tir_empty_shape():
     @R.function
     def foo(x: R.Tensor((), "float32")):
         z = R.call_tir("scalar_add", x, (), dtype="float32")
@@ -545,6 +545,16 @@ def test_empty_shape():
 
     assert isinstance(shape_expr, relax.ShapeExpr)
     assert len(shape_expr.values) == 0
+
+
+def test_call_tir_empty_tuple_arg():
+    bb = relax.BlockBuilder()
+    dummy_param = relax.Var("dummy_param", R.Tensor(()))
+    with bb.function("foo", [dummy_param]):
+        output = bb.emit_te(topi.full, shape=(16, 32), dtype="float32", fill_value=1.0)
+        bb.emit_func_output(output)
+
+    _check(bb.get(), expect=None)
 
 
 def test_local_function():
