@@ -35,3 +35,14 @@ from . import builtin
 from . import image
 from . import memory
 from . import nn
+
+
+def _register_op_make():
+    # pylint: disable=import-outside-toplevel
+    from . import _ffi_api
+    from .. import expr
+
+    expr._op_ffi_api = _ffi_api  # type: ignore
+
+
+_register_op_make()
