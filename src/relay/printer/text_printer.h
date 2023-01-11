@@ -598,9 +598,18 @@ class TextPrinter {
                (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
                 node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
-    } else if (node.defined() &&
-               (node->IsInstance<relax::VarNode>() || node->IsInstance<relax::FunctionNode>() ||
-                node->IsInstance<relax::ShapeExprNode>())) {
+    } else if (node.defined() && (node->IsInstance<relax::VarNode>() ||           //
+                                  node->IsInstance<relax::FunctionNode>() ||      //
+                                  node->IsInstance<relax::ShapeExprNode>() ||     //
+                                  node->IsInstance<relax::TupleNode>() ||         //
+                                  node->IsInstance<relax::TupleGetItemNode>() ||  //
+                                  node->IsInstance<relax::CallNode>() ||          //
+                                  node->IsInstance<relax::IfNode>() ||            //
+                                  node->IsInstance<relax::ConstantNode>() ||      //
+                                  node->IsInstance<relax::BindingNode>() ||       //
+                                  node->IsInstance<relax::BindingBlockNode>() ||  //
+                                  node->IsInstance<relax::SeqExprNode>() ||       //
+                                  node->IsInstance<relax::ExternFuncNode>())) {
       doc << relax_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);
