@@ -107,7 +107,7 @@ def call_tir(
                 f"The shape is expected to be ShapeExpr or Tuple[ShapeExpr], bot got: f{shape}"
             )
 
-    if isinstance(args, Expr):  # type: ignore
+    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
     if isinstance(args, (list, tuple)):
