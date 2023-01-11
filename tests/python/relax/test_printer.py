@@ -19,6 +19,7 @@ import pytest
 import tvm
 import tvm.testing
 
+from tvm import TVMError
 from tvm import relax
 from tvm import tir
 from tvm.ir import assert_structural_equal
@@ -447,6 +448,147 @@ def test_func_type():
 
     func_type = TestFuncType
     check_roundtrip(func_type)
+
+
+def test_tuple_pretty_print():
+    x = relax.Var("x", R.Tensor(ndim=2))
+    y = relax.Var("y", R.Tensor((32,)))
+    assert relax.Tuple([x]).__str__() == "(x,)"
+    assert relax.Tuple([x, y]).__str__() == "(x, y)"
+
+
+def test_tuple_get_item_pretty_print():
+    t = relax.Var(
+        "t", relax.TupleStructInfo([relax.TensorStructInfo((32,)), relax.TensorStructInfo(ndim=2)])
+    )
+    assert relax.TupleGetItem(t, 0).__str__() == "t[0]"
+    assert relax.TupleGetItem(t, 1).__str__() == "t[1]"
+
+
+def test_call_pretty_print():
+    x = relax.Var("x", R.Tensor((32,), "float32"))
+
+    extern_func = relax.ExternFunc("my_func")
+    call = relax.Call(extern_func, [x], type_args=[relax.DynTensorType(ndim=1, dtype="float32")])
+    assert (
+        call.__str__()
+        == 'R.call_packed("my_func", x, type_args=(R.Tensor(ndim=1, dtype="float32") ,))'
+    )
+
+
+def test_if_pretty_print():
+    @R.function
+    def foo(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor:
+        if cond:
+            w = R.add(x, x)
+            y = R.multiply(w, w)
+        else:
+            w = R.multiply(x, x)
+            y = R.add(w, w)
+        return y
+
+    if_node = foo.body.blocks[0].bindings[0].value
+    assert isinstance(foo.body.blocks[0].bindings[0].value, relax.If)
+
+    # Relax script printer doesn't support printing a standalone IfNode.
+    # Catch the error thrown by Relax script printer
+    with pytest.raises(TVMError):
+        if_node.__str__()
+
+
+def test_constant_pretty_print():
+    import numpy as np  # pylint: disable=import-outside-toplevel
+
+    const0 = relax.const(1.0, "float32")
+    assert isinstance(const0, relax.Constant)
+    assert const0.__str__() == 'R.const(1, "float32")'
+
+    const1 = relax.const(np.array([[2, 3], [1, 4]], "float32"), "float32")
+    assert isinstance(const1, relax.Constant)
+    assert const1.__str__() == 'metadata["relax.expr.Constant"][0]\n'
+
+
+def test_binding_pretty_print():
+    @R.function
+    def foo0(
+        x: R.Tensor((2, 3, 5), "float32"),
+    ):
+        y: R.Tensor((2, 3, 5), "float32") = R.add(x, x)
+        return y
+
+    binding = foo0.body.blocks[0].bindings[0]
+    assert isinstance(binding, relax.VarBinding)
+    assert binding.__str__() == 'y: R.Tensor((2, 3, 5), dtype="float32") = R.add(x, x)'
+
+    @R.function
+    def foo1(x: R.Tensor(dtype="float32")):
+        n, m = T.var("int64"), T.var("int64")
+        _ = R.match_cast(R.shape_of(x), R.Shape((n, m)))
+        y: R.Tensor((n, m), "float32") = R.add(x, x)
+        return x
+
+    binding = foo1.body.blocks[0].bindings[0]
+    assert isinstance(binding, relax.MatchCast)
+    assert binding.__str__() == "_: R.Shape([n, m]) = R.match_cast(R.shape_of(x), R.Shape([n, m]))"
+
+
+def test_binding_block_pretty_print():
+    @R.function
+    def foo0(
+        x: R.Tensor((2, 3, 5), "float32"),
+    ):
+        y: R.Tensor((2, 3, 5), "float32") = R.add(x, x)
+        z: R.Tensor((2, 3, 5), "float32") = R.multiply(x, y)
+        return z
+
+    block = foo0.body.blocks[0]
+    assert isinstance(block, relax.BindingBlock)
+    assert block.__str__() == (
+        'y: R.Tensor((2, 3, 5), dtype="float32") = R.add(x, x)\n'
+        'z: R.Tensor((2, 3, 5), dtype="float32") = R.multiply(x, y)\n'
+    )
+
+    @R.function
+    def foo1(
+        x: R.Tensor((2, 3, 5), "float32"),
+    ):
+        with R.dataflow():
+            y: R.Tensor((2, 3, 5), "float32") = R.add(x, x)
+            z: R.Tensor((2, 3, 5), "float32") = R.multiply(x, y)
+            R.output(z)
+        return z
+
+    block = foo1.body.blocks[0]
+    assert isinstance(block, relax.DataflowBlock)
+    assert block.__str__() == (
+        "with R.dataflow():\n"
+        '    y: R.Tensor((2, 3, 5), dtype="float32") = R.add(x, x)\n'
+        '    z: R.Tensor((2, 3, 5), dtype="float32") = R.multiply(x, y)\n'
+        "    R.output(z)\n"
+    )
+
+
+def test_seq_expr_pretty_print():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 3, 5), "float32"),
+    ):
+        y: R.Tensor((2, 3, 5), "float32") = R.add(x, x)
+        z: R.Tensor((2, 3, 5), "float32") = R.multiply(x, y)
+        return z
+
+    seq_expr = foo.body
+    assert isinstance(seq_expr, relax.SeqExpr)
+    assert seq_expr.__str__() == (
+        "# block 0\n"
+        'y: R.Tensor((2, 3, 5), dtype="float32") = R.add(x, x)\n'
+        'z: R.Tensor((2, 3, 5), dtype="float32") = R.multiply(x, y)\n'
+    )
+
+
+def test_extern_func_pretty_print():
+    extern_func = relax.ExternFunc("my_func")
+    assert extern_func.__str__() == '"my_func"'
 
 
 if __name__ == "__main__":
