@@ -23,6 +23,7 @@
 #include "./emit_te.h"
 
 #include <tvm/relax/struct_info.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -36,7 +37,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(RXPlaceholderOpNode);
 
-te::Tensor TETensor(Expr value, std::string name) {
+te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string name) {
   auto n = make_object<RXPlaceholderOpNode>();
   n->name = name;
   n->value = value;
@@ -65,7 +66,8 @@ te::Tensor TETensor(Expr value, std::string name) {
       << "ValueError: Expression does not have an known symbolic shape, please consider use "
          "match_cast "
       << "to constrain the shape before passing into te_tensor";
-  n->shape = shape_expr->values;
+  n->shape = shape_expr->values.Map(
+      [&tir_var_map](const PrimExpr& e) { return tir::Substitute(e, tir_var_map); });
   n->dtype = tensor_sinfo->dtype;
   return te::PlaceholderOp(n).output(0);
 }

@@ -85,7 +85,9 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                 if relay_op_name in ir.Op.list_op_names():
                     relay_op = ir.Op.get(relay_op_name)
 
-                    te_inputs = [relax.expr.te_tensor(arg) for arg in call_node.args]
+                    # Todo(relax-team): to be revisited - support dyn shape or deprecate.
+                    tir_var_map = dict()
+                    te_inputs = [relax.expr.te_tensor(arg, tir_var_map) for arg in call_node.args]
                     best_impl_tuple = select_implementation(
                         relay_op,
                         call_node.attrs,
