@@ -90,6 +90,7 @@ def from_relay(
         func = relay.build_module.bind_params_by_name(func, relay_params)
 
     params = []
+    tir_var_map: Dict[tvm.tir.Var, tvm.tir.PrimExpr] = dict()
 
     def convert_shape(shape: List[tvm.tir.PrimExpr]) -> List[tvm.tir.PrimExpr]:
         """Convert the relay shape to relax shape by changing Any dim to symbolic dim"""
@@ -102,6 +103,18 @@ def from_relay(
             else:
                 ret.append(dim)
         return ret
+
+    def _copy_undefined_var_in_shape(sinfo: relax.TensorStructInfo):
+        def _visit_expr(e: tvm.tir.PrimExpr):
+            if isinstance(e, tvm.tir.Var) and e not in tir_var_map:
+                new_var = tvm.tir.Var(e.name, e.dtype)
+                tir_var_map[e] = new_var
+
+        assert isinstance(
+            sinfo.shape, relax.ShapeExpr
+        ), "arg with TensorStructInfo in Relay translator must have ShapeExpr shape"
+        for shape_value in sinfo.shape.values:
+            tvm.tir.stmt_functor.post_order_visit(shape_value, _visit_expr)
 
     def visit_func(node):
         nonlocal output_var
@@ -123,8 +136,9 @@ def from_relay(
                 if arg in var_map:
                     arg_expr = var_map[arg]
                     if isinstance(arg_expr.struct_info, relax.TensorStructInfo):
+                        _copy_undefined_var_in_shape(arg_expr.struct_info)
                         new_args.append(arg_expr)
-                        te_inputs.append(tvm.relax.expr.te_tensor(arg_expr))
+                        te_inputs.append(tvm.relax.expr.te_tensor(arg_expr, tir_var_map))
                     elif isinstance(arg_expr.struct_info, relax.TupleStructInfo):
                         n_tensor = len(arg_expr.struct_info.fields)
                         bound_tuple = bb.lookup_binding(arg_expr)
@@ -135,8 +149,14 @@ def from_relay(
                                 item = bb.emit(bound_tuple[i])
                             else:
                                 item = bb.emit(relax.TupleGetItem(arg_expr, i))
+
+                            assert isinstance(item.struct_info, relax.TensorStructInfo), (
+                                "Relay translator doesn't support Call "
+                                "argument being nested Tensor tuple."
+                            )
+                            _copy_undefined_var_in_shape(item.struct_info)
                             new_args.append(item)
-                            te_inputs.append(tvm.relax.expr.te_tensor(item))
+                            te_inputs.append(tvm.relax.expr.te_tensor(item, tir_var_map))
                     else:
                         raise TypeError(
                             f"CallTIR argument type being {type(arg_expr.checked_type)} is not "

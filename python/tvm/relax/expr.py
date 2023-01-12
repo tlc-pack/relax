@@ -636,9 +636,25 @@ def const(
     return Constant(value)
 
 
-def te_tensor(value: Expr, name: str = "rxplaceholder"):
-    """Create te tensor from relax expression."""
-    return _ffi_api.TETensor(value, name)  # type: ignore
+def te_tensor(
+    value: Expr, tir_var_map: Dict[tvm.tir.Var, tvm.tir.PrimExpr], name: str = "rxplaceholder"
+):
+    """Create a TE tensor from relax expression, with TIR variables in the
+    tensor shape substituted by the given mapping
+
+    Parameters
+    ----------
+    value : Expr
+        The relax expression, which is required to have TensorStructInfo.
+
+    tir_var_map : Dict[tvm.tir.Var, tvm.tir.PrimExpr]
+        The mapping to substitute the TIR variables appeared in the
+        shape of the input Expr.
+
+    name : str
+        The name of the created tensor.
+    """
+    return _ffi_api.TETensor(value, tir_var_map, name)  # type: ignore
 
 
 def get_shape_of(expr: Expr) -> Expr:
