@@ -17,16 +17,15 @@
 
 import pytest
 import tvm
-from tvm import tir, te
-from tvm import relay
-from tvm import relax as rx
-from tvm.tir.function import PrimFunc
+import tvm.testing
 
+from tvm import te, tir, topi
+from tvm import relax as rx, relay
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
-from tvm import topi
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
+from tvm.tir.function import PrimFunc
 
 
 @tvm.register_func("test.blockbuilder.nop")
@@ -375,16 +374,9 @@ def test_call_te_with_shape_arg():
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_reshape"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(
-                        rxplaceholder[
-                            (T.Cast("int64", ax0) * T.int64(20) + T.Cast("int64", ax1))
-                            % T.int64(200)
-                        ]
-                    )
+                    T.reads(rxplaceholder[(ax0 * T.int64(20) + ax1) % T.int64(200)])
                     T.writes(T_reshape[ax0, ax1])
-                    T_reshape[ax0, ax1] = rxplaceholder[
-                        (T.Cast("int64", ax0) * T.int64(20) + T.Cast("int64", ax1)) % T.int64(200)
-                    ]
+                    T_reshape[ax0, ax1] = rxplaceholder[(ax0 * T.int64(20) + ax1) % T.int64(200)]
 
         @R.function
         def rx_func(x: R.Tensor((200,), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
@@ -410,6 +402,83 @@ def test_call_te_with_unsupported_shape_arg():
         with bb.function("rx_func", [x]):
             out = bb.emit(bb.call_te(topi.reshape, x, s))
             bb.emit_func_output(out)
+
+
+def test_call_te_with_float_arg():
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def full(T_full: T.Buffer[(T.int64(16), T.int64(32)), "float32"]):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(16), T.int64(32)):
+                with T.block("T_full"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads()
+                    T.writes(T_full[ax0, ax1])
+                    T_full[ax0, ax1] = T.float32(1)
+
+        @R.function
+        def rx_func(
+            dummy_param: R.Tensor((200,), dtype="float32")
+        ) -> R.Tensor((16, 32), dtype="float32"):
+            gv = R.call_tir(full, (), (16, 32), dtype="float32")
+            return gv
+
+    bb = rx.BlockBuilder()
+    dummy_param = rx.Var("dummy_param", R.Tensor((200,), "float32"))
+
+    with bb.function("rx_func", [dummy_param]):
+        out = bb.emit(
+            bb.call_te(
+                topi.full,
+                rx.ShapeExpr((16, 32)),
+                dtype="float32",
+                fill_value=tir.FloatImm("float32", 1.0),
+            )
+        )
+        bb.emit_func_output(out)
+
+    assert_structural_equal(bb.get()["rx_func"], Expected["rx_func"], map_free_vars=True)
+
+
+def test_call_te_with_symbolic_arg():
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def reshape(var_rxplaceholder: T.handle, var_T_reshape: T.handle):
+            T.func_attr({"tir.noalias": True})
+            m = T.var("int64")
+            n = T.var("int64")
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n], dtype="float32")
+            T_reshape = T.match_buffer(var_T_reshape, [n, m], dtype="float32")
+            for i0, i1 in T.grid(n, m):
+                with T.block("T_reshape"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[(ax0 * m + ax1) // n % m, (ax0 * m + ax1) % n])
+                    T.writes(T_reshape[ax0, ax1])
+                    T_reshape[ax0, ax1] = rxplaceholder[
+                        (ax0 * m + ax1) // n % m, (ax0 * m + ax1) % n
+                    ]
+
+        @R.function
+        def rx_func(
+            x: R.Tensor(("m", "n"), dtype="float32")
+        ) -> R.Tensor(("n", "m"), dtype="float32"):
+            n = T.var("int64")
+            m = T.var("int64")
+            gv = R.call_tir(reshape, (x,), (n, m), dtype="float32")
+            return gv
+
+    bb = rx.BlockBuilder()
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x = rx.Var("x", R.Tensor((m, n), "float32"))
+
+    with bb.function("rx_func", [x]):
+        out = bb.emit(bb.call_te(topi.reshape, x, (n, m)))
+        bb.emit_func_output(out)
+
+    assert_structural_equal(bb.get(), Expected)
 
 
 def test_emit_te():
@@ -654,4 +723,4 @@ def test_block_builder_scope_recovery():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
