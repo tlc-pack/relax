@@ -86,7 +86,6 @@ def test_tuple() -> None:
         t[-3]
 
 
-
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
     m = tir.Var("m", dtype="int64")
