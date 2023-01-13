@@ -192,6 +192,12 @@ def test_shape_expr():
     assert s[-2] == m
     assert isinstance(s.struct_info, rx.ShapeStructInfo)
 
+    with pytest.raises(IndexError, match="ShapeExpr index out of range"):
+        s[2]
+
+    with pytest.raises(IndexError, match="ShapeExpr index out of range"):
+        s[-3]
+
     shape_expr = rx.ShapeExpr([10, 20])
     assert shape_expr.values[0] == 10
     assert shape_expr.values[1] == 20

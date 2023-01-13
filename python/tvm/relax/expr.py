@@ -294,7 +294,7 @@ class Tuple(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
 
     def __getitem__(self, index: int) -> Expr:
-        if index >= len(self):
+        if index >= len(self) or index < -len(self):
             raise IndexError("Tuple index out of range")
         return self.fields[index]
 
@@ -335,7 +335,7 @@ class ShapeExpr(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
 
     def __getitem__(self, index):
-        if index >= len(self):
+        if index >= len(self) or index < -len(self):
             raise IndexError("ShapeExpr index out of range")
         return self.values[index]
 
