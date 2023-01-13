@@ -84,6 +84,9 @@ class IRFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitNode_(const relax::SeqExprNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::FunctionNode* op, Args... args) IR_FUNCTOR_DEFAULT;
   virtual R VisitNode_(const relax::ExternFuncNode* op, Args... args) IR_FUNCTOR_DEFAULT;
+  virtual R VisitNode_(const relax::PrimValueNode* op, Args... args) IR_FUNCTOR_DEFAULT;
+  virtual R VisitNode_(const relax::StringImmNode* op, Args... args) IR_FUNCTOR_DEFAULT;
+  virtual R VisitNode_(const relax::DataTypeImmNode* op, Args... args) IR_FUNCTOR_DEFAULT;
 
   virtual R VisitNodeDefault_(const Object* op, Args...) {
     LOG(FATAL) << "no default visitor implemented for " << op->GetTypeKey();
@@ -110,6 +113,9 @@ class IRFunctor<R(const ObjectRef& n, Args...)> {
     RELAX_IR_FUNCTOR_DISPATCH(relax::SeqExprNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::FunctionNode);
     RELAX_IR_FUNCTOR_DISPATCH(relax::ExternFuncNode);
+    RELAX_IR_FUNCTOR_DISPATCH(relax::PrimValueNode);
+    RELAX_IR_FUNCTOR_DISPATCH(relax::StringImmNode);
+    RELAX_IR_FUNCTOR_DISPATCH(relax::DataTypeImmNode);
     return vtable;
   }
 };

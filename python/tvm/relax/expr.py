@@ -423,6 +423,36 @@ class DataflowVar(Var):
         )
 
 
+@tvm._ffi.register_object("relax.expr.PrimValue")
+class PrimValue(Expr):
+    """The prim expr representing the value."""
+
+    value: PrimExpr
+
+    def __init__(self, value: PrimExpr, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
+
+
+@tvm._ffi.register_object("relax.expr.StringImm")
+class StringImm(Expr):
+    """Represent a string literal constant."""
+
+    value: str
+
+    def __init__(self, value: str, span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
+
+
+@tvm._ffi.register_object("relax.expr.DataTypeImm")
+class DataTypeImm(Expr):
+    """Represent a data type constant."""
+
+    value: DataType
+
+    def __init__(self, value: Union[DataType, str], span: Span = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
+
+
 @tvm._ffi.register_object("relax.expr.Binding")
 class Binding(Node):
     """The base class of a binding in Relax."""

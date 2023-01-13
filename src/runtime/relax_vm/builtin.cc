@@ -435,7 +435,11 @@ int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMValue* ar
   using namespace tvm::runtime;
   API_BEGIN();
   auto* list = static_cast<TVMRetValue*>(anylist);
-  list[index] = TVMRetValue::MoveFromCHost(args[ret_offset], type_codes[ret_offset]);
+  if (type_codes[ret_offset] == kTVMStr || type_codes[ret_offset] == kTVMBytes) {
+    list[index] = TVMArgValue(args[ret_offset], type_codes[ret_offset]);
+  } else {
+    list[index] = TVMRetValue::MoveFromCHost(args[ret_offset], type_codes[ret_offset]);
+  }
   API_END();
 }
 }  // extern "C"

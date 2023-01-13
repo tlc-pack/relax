@@ -322,6 +322,53 @@ TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, S
   return Constant(data, span);
 });
 
+PrimValue::PrimValue(PrimExpr value, Span span) {
+  ObjectPtr<PrimValueNode> n = make_object<PrimValueNode>();
+  n->checked_type_ = PrimType(value.dtype());
+  n->struct_info_ = PrimStructInfo(value.dtype());
+  n->value = std::move(value);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(PrimValueNode);
+
+TVM_REGISTER_GLOBAL("relax.PrimValue").set_body_typed([](PrimExpr value, Span span) {
+  return PrimValue(value, span);
+});
+
+StringImm::StringImm(String value, Span span) {
+  ObjectPtr<StringImmNode> n = make_object<StringImmNode>();
+  n->value = std::move(value);
+  n->span = std::move(span);
+  // use the base structinfo for now
+  n->checked_type_ = ObjectType();
+  n->struct_info_ = ObjectStructInfo();
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(StringImmNode);
+
+TVM_REGISTER_GLOBAL("relax.StringImm").set_body_typed([](String value, Span span) {
+  return StringImm(value, span);
+});
+
+DataTypeImm::DataTypeImm(DataType value, Span span) {
+  ObjectPtr<DataTypeImmNode> n = make_object<DataTypeImmNode>();
+  n->value = std::move(value);
+  n->span = std::move(span);
+  // use the base structinfo for now
+  n->checked_type_ = ObjectType();
+  n->struct_info_ = ObjectStructInfo();
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DataTypeImmNode);
+
+TVM_REGISTER_GLOBAL("relax.DataTypeImm").set_body_typed([](DataType value, Span span) {
+  return DataTypeImm(value, span);
+});
+
 TVM_REGISTER_NODE_TYPE(MatchCastNode);
 
 MatchCast::MatchCast(Var var, Expr value, StructInfo struct_info, Span span) {

@@ -35,6 +35,9 @@ from tvm.relax.expr import (
     ShapeExpr,
     Tuple,
     TupleGetItem,
+    PrimValue,
+    StringImm,
+    DataTypeImm,
     Var,
     VarBinding,
 )
@@ -133,6 +136,15 @@ class ASTPrinter(PyExprVisitor):
         self.log.push_scope()
         self.visit_expr(op.tuple_value)
         self.log.pop_scope()
+
+    def visit_prim_value_(self, op: PrimValue) -> None:
+        self.log.add("PrimValue")
+
+    def visit_string_imm_(self, op: StringImm) -> None:
+        self.log.add("StringImm")
+
+    def visit_data_type_imm_(self, op: DataTypeImm) -> None:
+        self.log.add("DataTypeImm")
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         self.log.add("ShapeExpr")
@@ -244,6 +256,21 @@ class ASTPostPrinterMutator(PyExprMutator):
     def visit_tuple_getitem_(self, op: TupleGetItem) -> Expr:
         op = self.visit_expr_post_order(op)
         self.log.add("TupleGetItem")
+        return op
+
+    def visit_prim_value_(self, op: PrimValue) -> Expr:
+        op = self.visit_expr_post_order(op)
+        self.log.add("PrimValue")
+        return op
+
+    def visit_string_imm_(self, op: StringImm) -> Expr:
+        op = self.visit_expr_post_order(op)
+        self.log.add("StringImm")
+        return op
+
+    def visit_data_type_imm_(self, op: DataTypeImm) -> Expr:
+        op = self.visit_expr_post_order(op)
+        self.log.add("DataTypeImm")
         return op
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:

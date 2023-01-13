@@ -361,9 +361,29 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = 
                         Optional<Integer> opt_index = Optional<Integer>(),
                         Optional<Span> opt_span = Optional<Span>());
 
+/*!
+ * \brief Base type of all (non-function) leaf Exprs.
+ * \sa Expr
+ */
+class LeafExprNode : public ExprNode {
+ public:
+  static constexpr const char* _type_key = "relax.expr.LeafExpr";
+  static constexpr const uint32_t _type_child_slots = 7;
+  TVM_DECLARE_BASE_OBJECT_INFO(LeafExprNode, ExprNode);
+};
+
+/*!
+ * \brief Managed reference to BaseExprNode.
+ * \sa LeafExprNode
+ */
+class LeafExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(LeafExpr, Expr, LeafExprNode);
+};
+
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
-class ShapeExprNode : public ExprNode {
+class ShapeExprNode : public LeafExprNode {
  public:
   /*! The values of the shape expression. */
   Array<PrimExpr> values;
@@ -385,18 +405,18 @@ class ShapeExprNode : public ExprNode {
   static constexpr const char* _type_key = "relax.expr.ShapeExpr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, LeafExprNode);
 };
 
-class ShapeExpr : public Expr {
+class ShapeExpr : public LeafExpr {
  public:
   TVM_DLL explicit ShapeExpr(Array<PrimExpr> values, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, Expr, ShapeExprNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapeExpr, LeafExpr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
 /*! \brief The variable class for all Relax bindings. */
-class VarNode : public ExprNode {
+class VarNode : public LeafExprNode {
  public:
   /*! \brief The identifier of the variable, which is used for comparing stable equality across
    * transformations. */
@@ -426,17 +446,17 @@ class VarNode : public ExprNode {
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, ExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, LeafExprNode);
 };
 
-class Var : public Expr {
+class Var : public LeafExpr {
  public:
   TVM_DLL explicit Var(String name_hint, Optional<StructInfo> struct_info_annotation,
                        Span span = Span())
       : Var(Id(name_hint), struct_info_annotation, span) {}
 
   TVM_DLL explicit Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Var, LeafExpr, VarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
 
@@ -486,7 +506,7 @@ class DataflowVar : public Var {
  *
  * \note Scalar constants are represented by ndim-0 constant tensors.
  */
-class ConstantNode : public ExprNode {
+class ConstantNode : public LeafExprNode {
  public:
   /*! \brief The data of the tensor */
   runtime::NDArray data;
@@ -512,10 +532,10 @@ class ConstantNode : public ExprNode {
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(data); }
 
   static constexpr const char* _type_key = "relax.expr.Constant";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, LeafExprNode);
 };
 
-class Constant : public Expr {
+class Constant : public LeafExpr {
  public:
   /*!
    * \brief The constructor
@@ -524,8 +544,139 @@ class Constant : public Expr {
    */
   TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
+};
+
+/*!
+ * \brief PrimValue.
+ *
+ * Expression representing a TIR POD expression.
+ */
+class PrimValueNode : public LeafExprNode {
+ public:
+  /*! \brief The prim expr representing the value */
+  PrimExpr value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const PrimValueNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from data.
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
+
+  static constexpr const char* _type_key = "relax.expr.PrimValue";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PrimValueNode, LeafExprNode);
+};
+
+/*!
+ * \brief Managed reference to PrimValueNode
+ * \sa PrimValeNode
+ */
+class PrimValue : public LeafExpr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param value The value input.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit PrimValue(PrimExpr value, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimValue, LeafExpr, PrimValueNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
+};
+
+/*!
+ * \brief Represent a string literal constant.
+ */
+class StringImmNode : public LeafExprNode {
+ public:
+  /*! \brief The data value. */
+  String value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from data.
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
+
+  static constexpr const char* _type_key = "relax.expr.StringImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, LeafExprNode);
+};
+
+/*!
+ * \brief Managed reference to StringImm
+ * \sa StringImmNode
+ */
+class StringImm : public LeafExpr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param value The value input.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit StringImm(String value, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(StringImm, LeafExpr, StringImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
+};
+
+/*!
+ * \brief Represent a data type constant.
+ */
+class DataTypeImmNode : public LeafExprNode {
+ public:
+  /*! \brief The data value. */
+  DataType value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const DataTypeImmNode* other, SEqualReducer equal) const {
+    // struct info can be deterministically derived from data.
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
+
+  static constexpr const char* _type_key = "relax.expr.DataTypeImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataTypeImmNode, LeafExprNode);
+};
+
+/*!
+ * \brief Managed reference to DataTypeImm
+ * \sa DataTypeImmNode
+ */
+class DataTypeImm : public LeafExpr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param value The value input.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL explicit DataTypeImm(DataType value, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(DataTypeImm, LeafExpr, DataTypeImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
 };
 
 /*! \brief The base class of a variable binding in Relax. */

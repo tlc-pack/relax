@@ -124,9 +124,11 @@ TVM_DLL bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank = true,
                               bool permit_unknown_dtype = true);
 
 /*!
- * \brief Check if the given expression is a "leaf" node for normalization purposes.
+ * \brief Check if the given expression is a "leaf" node or tuple node for normalization purposes.
+ *
  *    The following expressions are defined as leaf nodes: Var, Constant, ShapeExpr,
- *    GlobalVar, Op, ExternFunc, and Tuple.
+ *    GlobalVar, Op, ExternFunc.
+ *
  *    Tuples are included in this list mainly for convenience in grouping operator arguments.
  *    *Note*: Since tuples can contain nested expressions, it is necessary to ensure that
  *    values nested inside them are also leaves.
@@ -136,7 +138,7 @@ TVM_DLL bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank = true,
  * \return True iff the input expression is a "leaf" node (a value allowed to appear
  *    inline without being bound to a var during normalization).
  */
-TVM_DLL bool IsLeafExpr(const Expr& expr);
+TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm

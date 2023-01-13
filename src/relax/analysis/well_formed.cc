@@ -153,7 +153,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const TupleNode* op) final {
     for (size_t i = 0; i < op->fields.size(); i++) {
       Expr expr = op->fields[i];
-      if (IsLeafExpr(expr)) {
+      if (IsLeafOrTuple(expr)) {
         this->VisitExpr(expr);
       } else {
         Malformed(Diagnostic::Error(expr)
@@ -165,7 +165,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
-    if (IsLeafExpr(op->tuple)) {
+    if (IsLeafOrTuple(op->tuple)) {
       this->VisitExpr(op->tuple);
     } else {
       Malformed(Diagnostic::Error(op)
@@ -225,14 +225,14 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (IsLeafExpr(op->op)) {
+    if (IsLeafOrTuple(op->op)) {
       this->VisitExpr(op->op);
     } else {
       Malformed(Diagnostic::Error(op) << "The called expression must be a leaf expression");
     }
     for (size_t i = 0; i < op->args.size(); i++) {
       Expr arg = op->args[i];
-      if (IsLeafExpr(arg)) {
+      if (IsLeafOrTuple(arg)) {
         this->VisitExpr(arg);
       } else {
         Malformed(Diagnostic::Error(arg->span)
@@ -244,7 +244,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const IfNode* op) final {
-    if (IsLeafExpr(op->cond)) {
+    if (IsLeafOrTuple(op->cond)) {
       this->VisitExpr(op->cond);
     } else {
       Malformed(Diagnostic::Error(op) << "The condition for an if node must be a leaf expression.");
@@ -290,7 +290,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     for (BindingBlock block : op->blocks) {
       this->VisitBindingBlock(block);
     }
-    if (!IsLeafExpr(op->body)) {
+    if (!IsLeafOrTuple(op->body)) {
       Malformed(Diagnostic::Error(op) << "SeqExpr bodies must be leaf expressions.");
     }
     this->VisitExpr(op->body);
