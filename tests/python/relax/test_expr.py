@@ -188,8 +188,8 @@ def test_shape_expr():
     assert s.values[1] == n
     assert s[0] == m
     assert s[1] == n
-    assert s[-1] == m
-    assert s[-2] == n
+    assert s[-1] == n
+    assert s[-2] == m
     assert isinstance(s.struct_info, rx.ShapeStructInfo)
 
     shape_expr = rx.ShapeExpr([10, 20])
