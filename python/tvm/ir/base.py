@@ -16,7 +16,6 @@
 # under the License.
 """Common base structures."""
 import json
-from typing import Union
 
 import tvm._ffi
 import tvm.error

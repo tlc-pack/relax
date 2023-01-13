@@ -16,7 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """TVM Script APIs of TVM Python Package"""
-from .parser import ir, ir_module
-from .parser import parse as from_source
+from . import parser
+
+from .parser import ir
+from .parser import ir_module
+from .parser import parse
 from .parser import tir
-from .printer import script
+from .parser import relax
+
+from_source = parse
