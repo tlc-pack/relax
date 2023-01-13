@@ -32,14 +32,14 @@ namespace tir {
 /*!
  * \brief Substitute a given source buffer with a given target buffer in statements or expressions.
  */
-class BufferSubstituter : private StmtExprMutator {
+class FuseTIRBufferSubstitor : private StmtExprMutator {
  public:
   static Stmt Substitute(const Map<Buffer, Buffer>& buffer_map, Stmt stmt) {
-    return BufferSubstituter(buffer_map)(std::move(stmt));
+    return FuseTIRBufferSubstitor(buffer_map)(std::move(stmt));
   }
 
  private:
-  explicit BufferSubstituter(const Map<Buffer, Buffer>& buffer_map) {
+  explicit FuseTIRBufferSubstitor(const Map<Buffer, Buffer>& buffer_map) {
     for (const auto& kv : buffer_map) {
       const Buffer& src = kv.first;
       const Buffer& tgt = kv.second;
@@ -527,7 +527,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
-    body = tir::BufferSubstituter::Substitute(func_info_.buffer_subst_map, body);
+    body = tir::FuseTIRBufferSubstitor::Substitute(func_info_.buffer_subst_map, body);
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,

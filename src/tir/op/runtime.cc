@@ -16,31 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/array.h>
 
 /*!
- * \file tir/ir/functor_common.h
- * \brief Common utils for implementing functors
+ * \file tir/op/runtime.cc
+ * \brief TIR ops for runtime functions.
  */
-#ifndef TVM_TIR_IR_FUNCTOR_COMMON_H_
-#define TVM_TIR_IR_FUNCTOR_COMMON_H_
+#include <tvm/ir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 namespace tvm {
 namespace tir {
 
-// Implementation of Visitors
-template <typename T, typename F>
-inline void VisitArray(const Array<T>& arr, F fvisit) {
-  for (size_t i = 0; i < arr.size(); i++) {
-    fvisit(arr[i]);
-  }
-}
+TVM_REGISTER_OP("tir.TVMBackendAnyListSetPackedArg")
+    .set_num_inputs(5)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListSetPackedArg")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-template <typename T, typename F>
-inline Array<T> MutateArray(Array<T> arr, F fmutate) {
-  return arr.Map(fmutate);
-}
+TVM_REGISTER_OP("tir.TVMBackendAnyListMoveFromPackedReturn")
+    .set_num_inputs(3)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListMoveFromPackedReturn")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_IR_FUNCTOR_COMMON_H_
