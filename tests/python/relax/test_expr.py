@@ -67,6 +67,26 @@ def test_dataflow_var() -> None:
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float16"))
 
 
+def test_tuple() -> None:
+    v0 = rx.Var("v0")
+    v1 = rx.Var("v1")
+    t = rx.Tuple((v0, v1))
+
+    assert t.fields[0] == v0
+    assert t.fields[1] == v1
+    assert t[0] == v0
+    assert t[1] == v1
+    assert t[-1] == v1
+    assert t[-2] == v0
+
+    with pytest.raises(IndexError, match="Tuple index out of range"):
+        t[2]
+
+    with pytest.raises(IndexError, match="Tuple index out of range"):
+        t[-3]
+
+
+
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
     m = tir.Var("m", dtype="int64")
