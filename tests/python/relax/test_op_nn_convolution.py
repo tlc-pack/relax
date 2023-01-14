@@ -218,6 +218,89 @@ def test_conv2d_infer_struct_info_shape_var():
     )
 
 
+def test_conv2d_infer_struct_info_groups():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 128, 28, 28), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 8, 28, 28, 16), "float32"))
+    w0 = relax.Var("w", R.Tensor((48, 16, 3, 3), "float32"))
+    w1 = relax.Var("w", R.Tensor((48, 2, 3, 3, 8), "float32"))
+
+    _check_inference(
+        bb, relax.op.nn.conv2d(x0, w0, groups=8), relax.TensorStructInfo((2, 48, 26, 26), "float32")
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d(x0, w1, kernel_layout="OIHW8i", groups=8),
+        relax.TensorStructInfo((2, 48, 26, 26), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d(x1, w0, data_layout="NCHW16c", groups=8),
+        relax.TensorStructInfo((2, 3, 26, 26, 16), "float32"),
+    )
+
+
+def test_conv2d_infer_struct_info_symbolic_groups():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    ic = tir.Var("c", "int64")
+    oc = tir.Var("oc", "int64")
+    x = relax.Var("x", R.Tensor((n, ic * 4, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((oc * 4, ic, 3, 3), "float32"))
+    w1 = relax.Var("w", R.Tensor((oc, ic, 3, 3), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.conv2d(x, w0, groups=4),
+        relax.TensorStructInfo((n, oc * 4, 26, 26), "float32"),
+    )
+    _check_inference(
+        bb, relax.op.nn.conv2d(x, w1, groups=4), relax.TensorStructInfo((n, oc, 26, 26), "float32")
+    )
+
+
+def test_conv2d_infer_struct_info_input_channel_group_incompatible():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    ic = tir.Var("c", "int64")
+    oc = tir.Var("oc", "int64")
+    x0 = relax.Var("x", R.Tensor((2, 128, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((48, 20, 3, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor((n, ic * 6, 28, 28), "float32"))
+    w1 = relax.Var("w", R.Tensor((oc, ic - 1, 3, 3), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.conv2d(x0, w0, groups=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.conv2d(x1, w1, groups=6))
+
+
+def test_conv2d_infer_struct_info_output_channel_group_incompatible():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    ic = tir.Var("c", "int64")
+    oc = tir.Var("oc", "int64")
+    x0 = relax.Var("x", R.Tensor((2, 120, 28, 28), "float32"))
+    w0 = relax.Var("w", R.Tensor((128, 20, 3, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor((n, ic * 6, 28, 28), "float32"))
+    w1 = relax.Var("w", R.Tensor((oc * 6 + 4, ic * 6, 3, 3), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.conv2d(x0, w0, groups=6))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.conv2d(x1, w1, groups=6))
+
+
+def test_conv2d_non_positive_group():
+    x = relax.Var("x", R.Tensor((2, 128, 28, 28), "float32"))
+    w = relax.Var("w", R.Tensor((48, 16, 3, 3), "float32"))
+
+    with pytest.raises(TVMError):
+        relax.op.nn.conv2d(x, w, groups=0)
+    with pytest.raises(TVMError):
+        relax.op.nn.conv2d(x, w, groups=-2)
+
+
 def test_conv2d_infer_struct_info_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float16"))

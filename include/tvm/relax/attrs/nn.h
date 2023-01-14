@@ -34,6 +34,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<PrimExpr> strides;
   Array<PrimExpr> padding;
   Array<PrimExpr> dilation;
+  int groups;
   String data_layout;
   String kernel_layout;
   String out_layout;
@@ -49,6 +50,9 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
         "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(dilation).describe(
         "Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).describe(
+        "Number of groups to split the input into for grouped convolution. The number of input and "
+        "output channels should be divisible by the number of groups.");
     TVM_ATTR_FIELD(data_layout)
         .describe(
             "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
@@ -76,6 +80,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<PrimExpr> strides;
   Array<PrimExpr> padding;
   Array<PrimExpr> dilation;
+  bool ceil_mode;
   String layout;
   String out_layout;
 
@@ -89,6 +94,9 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
         "one int : same padding used on all sides"
         "two int : bottom, right will use same padding as top, left"
         "four int : padding width in the order of (top, left, bottom, right)");
+    TVM_ATTR_FIELD(ceil_mode).describe(
+        "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+        "every element in the input tensor will be covered by a sliding window.");
     TVM_ATTR_FIELD(layout).describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
