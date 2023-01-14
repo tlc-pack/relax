@@ -37,12 +37,13 @@ namespace relax {
 
 template <typename T>
 inline Expr MakeConv(Expr data, Expr weight, Array<PrimExpr> strides, Array<PrimExpr> padding,
-                     Array<PrimExpr> dilation, String data_layout, String kernel_layout,
+                     Array<PrimExpr> dilation, int groups, String data_layout, String kernel_layout,
                      String out_layout, DataType out_dtype, std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
   attrs->data_layout = std::move(data_layout);
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
@@ -53,7 +54,7 @@ inline Expr MakeConv(Expr data, Expr weight, Array<PrimExpr> strides, Array<Prim
 
 /*! \brief 2D convolution */
 Expr conv2d(Expr data, Expr weight, Array<PrimExpr> strides, Array<PrimExpr> padding,
-            Array<PrimExpr> dilation, String data_layout, String kernel_layout,
+            Array<PrimExpr> dilation, int groups, String data_layout, String kernel_layout,
             Optional<String> out_layout, DataType out_dtype);
 
 }  // namespace relax

@@ -29,7 +29,7 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 
 Expr max_pool2d(Expr data, Array<PrimExpr> pool_size, Array<PrimExpr> strides,
-                Array<PrimExpr> padding, Array<PrimExpr> dilation, String layout,
+                Array<PrimExpr> padding, Array<PrimExpr> dilation, bool ceil_mode, String layout,
                 Optional<String> out_layout) {
   padding = GetCompletePadding2D(std::move(padding));
   if (pool_size.size() == 1) {
@@ -56,6 +56,7 @@ Expr max_pool2d(Expr data, Array<PrimExpr> pool_size, Array<PrimExpr> strides,
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
+  attrs->ceil_mode = ceil_mode;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   static const Op& op = Op::Get("relax.nn.max_pool2d");
@@ -95,10 +96,15 @@ StructInfo InferStructInfoMaxPool2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = data_NCHW_shape[1];
-  out_NCHW_shape[2] = analyzer->Simplify(
-      (input_h + padding_h - attrs->dilation[0] * (kernel_h - 1) - 1) / attrs->strides[0] + 1);
-  out_NCHW_shape[3] = analyzer->Simplify(
-      (input_w + padding_w - attrs->dilation[1] * (kernel_w - 1) - 1) / attrs->strides[1] + 1);
+
+  PrimExpr numerator_h = input_h + padding_h - attrs->dilation[0] * (kernel_h - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[1] * (kernel_w - 1) - 1;
+  if (attrs->ceil_mode) {
+    numerator_h += attrs->strides[0] - 1;
+    numerator_w += attrs->strides[1] - 1;
+  }
+  out_NCHW_shape[2] = analyzer->Simplify(numerator_h / attrs->strides[0] + 1);
+  out_NCHW_shape[3] = analyzer->Simplify(numerator_w / attrs->strides[1] + 1);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
