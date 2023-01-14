@@ -32,6 +32,7 @@ def conv2d(
     strides: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
     padding: Union[PrimExprLike, Tuple[PrimExprLike]] = (0, 0),
     dilation: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
+    groups: int = 1,
     data_layout: str = "NCHW",
     kernel_layout: str = "OIHW",
     out_layout: Optional[str] = None,
@@ -81,6 +82,10 @@ def conv2d(
         Specifies the dilation rate to be used for dilated convolution.
         It is required to have length either 1 or 2.
 
+    groups : int
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
     data_layout : str
         Layout of the input.
 
@@ -111,6 +116,7 @@ def conv2d(
         strides,
         padding,
         dilation,
+        groups,
         data_layout,
         kernel_layout,
         out_layout,
@@ -124,6 +130,7 @@ def max_pool2d(
     strides: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
     padding: Union[PrimExprLike, Tuple[PrimExprLike]] = (0, 0),
     dilation: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
+    ceil_mode: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -165,6 +172,10 @@ def max_pool2d(
     dilation : Union[PrimExprLike, Tuple[PrimExprLike]]
         The dilation of pooling. It is required to have length either 1 or 2.
 
+    ceil_mode : bool
+        A boolean indicating if use ceil or floor to compute the output shape.
+        By using ceil, every element in the input tensor will be covered by a sliding window.
+
     layout : str
         Layout of the input.
 
@@ -186,7 +197,7 @@ def max_pool2d(
         padding = (padding, padding, padding, padding)
 
     return _ffi_api.max_pool2d(  # type: ignore
-        data, pool_size, strides, padding, dilation, layout, out_layout
+        data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout
     )
 
 
