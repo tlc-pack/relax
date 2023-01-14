@@ -109,32 +109,20 @@ def test_max_pool2d_infer_struct_info_shape_symbolic():
     iw = tir.Var("iw", "int64")
     kh = tir.Var("kh", "int64")
     kw = tir.Var("kw", "int64")
-    stride_h = tir.Var("stride_h", "int64")
-    stride_w = tir.Var("stride_w", "int64")
-    padding_t = tir.Var("padding_t", "int64")
-    padding_l = tir.Var("padding_l", "int64")
-    padding_b = tir.Var("padding_b", "int64")
-    padding_r = tir.Var("padding_r", "int64")
-    dilation_h = tir.Var("dilation_h", "int64")
-    dilation_w = tir.Var("dilation_w", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
 
     _check_inference(
         bb,
         relax.op.nn.max_pool2d(
-            x0,
-            pool_size=(kh, kw),
-            strides=(stride_h, stride_w),
-            padding=(padding_t, padding_l, padding_b, padding_r),
-            dilation=(dilation_h, dilation_w),
+            x0, pool_size=(kh, kw), strides=(3, 3), padding=(2, 2), dilation=(2, 2)
         ),
         relax.TensorStructInfo(
             (
                 n,
                 c,
-                tvm.tir.div(ih + padding_t + padding_b - dilation_h * (kh - 1) - 1, stride_h) + 1,
-                tvm.tir.div(iw + padding_l + padding_r - dilation_w * (kw - 1) - 1, stride_w) + 1,
+                tvm.tir.floordiv(ih + 2 - kh * 2, 3) + 2,
+                tvm.tir.floordiv(iw + 2 - kw * 2, 3) + 2,
             ),
             "float32",
         ),
@@ -194,40 +182,15 @@ def test_max_pool2d_infer_struct_info_ceil_mode_symbolic():
     iw = tir.Var("iw", "int64")
     kh = tir.Var("kh", "int64")
     kw = tir.Var("kw", "int64")
-    stride_h = tir.Var("stride_h", "int64")
-    stride_w = tir.Var("stride_w", "int64")
-    padding_t = tir.Var("padding_t", "int64")
-    padding_l = tir.Var("padding_l", "int64")
-    padding_b = tir.Var("padding_b", "int64")
-    padding_r = tir.Var("padding_r", "int64")
-    dilation_h = tir.Var("dilation_h", "int64")
-    dilation_w = tir.Var("dilation_w", "int64")
     x = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
 
     _check_inference(
         bb,
         relax.op.nn.max_pool2d(
-            x,
-            pool_size=(kh, kw),
-            strides=(stride_h, stride_w),
-            padding=(padding_t, padding_l, padding_b, padding_r),
-            dilation=(dilation_h, dilation_w),
-            ceil_mode=True,
+            x, pool_size=(kh, kw), strides=(2, 2), padding=(1, 1), dilation=(2, 2), ceil_mode=True
         ),
         relax.TensorStructInfo(
-            (
-                n,
-                c,
-                tvm.tir.div(
-                    ih + padding_t + padding_b + stride_h - dilation_h * (kh - 1) - 2, stride_h
-                )
-                + 1,
-                tvm.tir.div(
-                    iw + padding_l + padding_r + stride_w - dilation_w * (kw - 1) - 2, stride_w
-                )
-                + 1,
-            ),
-            "float32",
+            (n, c, tvm.tir.floordiv(ih, 2) + 3 - kh, tvm.tir.floordiv(iw, 2) + 3 - kw), "float32"
         ),
     )
 
@@ -244,6 +207,20 @@ def test_max_pool2d_infer_struct_info_more_input_dtype():
     _check_inference(
         bb, relax.op.nn.max_pool2d(x2), relax.TensorStructInfo((2, 3, 32, 32), "int64")
     )
+
+
+def test_conv2d_stride_padding_dilation_int64():
+    x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
+    max_pool2d = relax.op.nn.max_pool2d(x, (3, 3), strides=(1, 1), padding=(1, 1), dilation=(1, 1))
+
+    assert max_pool2d.attrs.strides[0].dtype == "int64"
+    assert max_pool2d.attrs.strides[1].dtype == "int64"
+    assert max_pool2d.attrs.padding[0].dtype == "int64"
+    assert max_pool2d.attrs.padding[1].dtype == "int64"
+    assert max_pool2d.attrs.padding[2].dtype == "int64"
+    assert max_pool2d.attrs.padding[3].dtype == "int64"
+    assert max_pool2d.attrs.dilation[0].dtype == "int64"
+    assert max_pool2d.attrs.dilation[1].dtype == "int64"
 
 
 def test_max_pool2d_wrong_strides_padding_dilation_length():

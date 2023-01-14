@@ -137,14 +137,6 @@ def test_conv2d_infer_struct_info_shape_symbolic():
     ko = tir.Var("ko", "int64")
     kh = tir.Var("kh", "int64")
     kw = tir.Var("kw", "int64")
-    stride_h = tir.Var("stride_h", "int64")
-    stride_w = tir.Var("stride_w", "int64")
-    padding_t = tir.Var("padding_t", "int64")
-    padding_l = tir.Var("padding_l", "int64")
-    padding_b = tir.Var("padding_b", "int64")
-    padding_r = tir.Var("padding_r", "int64")
-    dilation_h = tir.Var("dilation_h", "int64")
-    dilation_w = tir.Var("dilation_w", "int64")
     x0 = relax.Var("x", R.Tensor((n, c, ih, iw), "float32"))
     x1 = relax.Var("x", R.Tensor((n, c, ih, iw, c16), "float32"))
     w0 = relax.Var("w", R.Tensor((ko, ki, kh, kw), "float32"))
@@ -170,20 +162,9 @@ def test_conv2d_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.conv2d(
-            x0,
-            w0,
-            strides=(stride_h, stride_w),
-            padding=(padding_t, padding_l, padding_b, padding_r),
-            dilation=(dilation_h, dilation_w),
-        ),
+        relax.op.nn.conv2d(x0, w0, strides=(2, 2), padding=(1, 1), dilation=(2, 2)),
         relax.TensorStructInfo(
-            (
-                n,
-                ko,
-                tvm.tir.div(ih + padding_t + padding_b - dilation_h * (kh - 1) - 1, stride_h) + 1,
-                tvm.tir.div(iw + padding_l + padding_r - dilation_w * (kw - 1) - 1, stride_w) + 1,
-            ),
+            (n, ko, tvm.tir.floordiv(ih + 3, 2) + 1 - kh, tvm.tir.floordiv(iw + 3, 2) + 1 - kw),
             "float32",
         ),
     )
@@ -361,6 +342,21 @@ def test_conv2d_unequal_input_channel():
         bb.normalize(relax.op.nn.conv2d(x0, w0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.conv2d(x1, w1))
+
+
+def test_conv2d_stride_padding_dilation_int64():
+    x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
+    w = relax.Var("w", R.Tensor((4, 3, 3, 3), "float32"))
+    conv2d = relax.op.nn.conv2d(x, w, strides=(1, 1), padding=(1, 1), dilation=(1, 1))
+
+    assert conv2d.attrs.strides[0].dtype == "int64"
+    assert conv2d.attrs.strides[1].dtype == "int64"
+    assert conv2d.attrs.padding[0].dtype == "int64"
+    assert conv2d.attrs.padding[1].dtype == "int64"
+    assert conv2d.attrs.padding[2].dtype == "int64"
+    assert conv2d.attrs.padding[3].dtype == "int64"
+    assert conv2d.attrs.dilation[0].dtype == "int64"
+    assert conv2d.attrs.dilation[1].dtype == "int64"
 
 
 def test_conv2d_wrong_strides_padding_dilation_length():
