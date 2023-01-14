@@ -34,7 +34,7 @@ namespace relax {
 
 /*! \brief 2D maximum pooling operator. */
 Expr max_pool2d(Expr data, Array<PrimExpr> pool_size, Array<PrimExpr> strides,
-                Array<PrimExpr> padding, Array<PrimExpr> dilation, String layout,
+                Array<PrimExpr> padding, Array<PrimExpr> dilation, bool ceil_mode, String layout,
                 Optional<String> out_layout);
 
 /*! \brief 2D adaptive average pooling operator. */
