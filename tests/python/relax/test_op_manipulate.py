@@ -1676,6 +1676,16 @@ def test_split_infer_struct_info_by_n_section():
     )
     _check_inference(
         bb,
+        relax.op.split(x0, 2, axis=1),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((2, 5, 4), "float32"),
+                relax.TensorStructInfo((2, 5, 4), "float32"),
+            ]
+        ),
+    )
+    _check_inference(
+        bb,
         relax.op.split(x0, 3, axis=-2),
         relax.TupleStructInfo(
             [
@@ -1930,6 +1940,16 @@ def test_split_infer_struct_info_single_output():
         relax.op.split(x5, 1, axis=1),
         relax.TupleStructInfo([relax.TensorStructInfo(s2, "float32")]),
     )
+
+
+def test_split_indices_or_sections_int64():
+    x = relax.Var("x", R.Tensor((2, 10, 4), "float32"))
+    split0 = relax.op.split(x, [3, 6], axis=1)
+    split1 = relax.op.split(x, 4, axis=1)
+
+    assert split0.attrs.indices_or_sections[0].dtype == "int64"
+    assert split0.attrs.indices_or_sections[1].dtype == "int64"
+    assert split1.attrs.indices_or_sections.dtype == "int64"
 
 
 def test_split_infer_struct_info_non_integer_indices():

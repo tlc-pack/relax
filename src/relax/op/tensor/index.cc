@@ -110,11 +110,31 @@ Expr strided_slice(Expr x,                 //
         << "StridedSlice requires the number of strides to equal the number of axes.";
   }
 
+  // Todo(relax-team): We are going to support dynamic strided slice, where
+  // begin/end/stride can be not static at compile time. Therefore, begin/end/stride
+  // should not be part of StridedSliceAttrs, as we only allow static values to
+  // reside in attributes. However, using ShapeExpr to represent these
+  // arrays is not conceptually right, because they are not describing a
+  // concrete shape. The proper way to support dynamic strided slice is to use
+  // Tuple of PrimValue to represent begin/end/stride. Since at this moment
+  // we have no support for PrimValue, we store begin/end/stride as attribute
+  // fields as a workaround.
+  // Will switch to Tuple of PrimValue after introducing PrimValue.
+  auto f_convert_to_int64 = [](const PrimExpr& value) {
+    if (value->IsInstance<IntImmNode>()) {
+      return cast(DataType::Int(64), value);
+    }
+    CHECK(value.dtype() == DataType::Int(64)) << "strided_slice expects the input begin/end/stride "
+                                                 "values to be all int64. However, the given "
+                                              << value << " has dtype " << value->dtype;
+    return value;
+  };
+
   ObjectPtr<StridedSliceAttrs> attrs = make_object<StridedSliceAttrs>();
   attrs->axes = std::move(axes);
-  attrs->begin = std::move(begin);
-  attrs->end = std::move(end);
-  attrs->strides = std::move(strides);
+  attrs->begin = begin.Map(f_convert_to_int64);
+  attrs->end = end.Map(f_convert_to_int64);
+  attrs->strides = strides.defined() ? strides.value().Map(f_convert_to_int64) : strides;
 
   static const Op& op = Op::Get("relax.strided_slice");
   return Call(op, {std::move(x)}, Attrs(attrs), {});

@@ -32,8 +32,8 @@ namespace relax {
 /* relax.nn.conv2d */
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
-Expr conv2d(Expr data, Expr weight, Array<PrimExpr> strides, Array<PrimExpr> padding,
-            Array<PrimExpr> dilation, int groups, String data_layout, String kernel_layout,
+Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
+            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
             Optional<String> out_layout, DataType out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
   if (strides.size() == 1) {
@@ -125,10 +125,11 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = weight_OIHW_shape[0];
-  out_NCHW_shape[2] = analyzer->Simplify(
-      (input_h + padding_h - attrs->dilation[0] * (kernel_h - 1) - 1) / attrs->strides[0] + 1);
-  out_NCHW_shape[3] = analyzer->Simplify(
-      (input_w + padding_w - attrs->dilation[1] * (kernel_w - 1) - 1) / attrs->strides[1] + 1);
+
+  PrimExpr numerator_h = input_h + padding_h - attrs->dilation[0] * (kernel_h - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[1] * (kernel_w - 1) - 1;
+  out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[0]) + 1);
+  out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);

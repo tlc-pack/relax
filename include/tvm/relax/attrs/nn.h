@@ -31,9 +31,9 @@ namespace relax {
 
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
-  Array<PrimExpr> strides;
-  Array<PrimExpr> padding;
-  Array<PrimExpr> dilation;
+  Array<IntImm> strides;
+  Array<IntImm> padding;
+  Array<IntImm> dilation;
   int groups;
   String data_layout;
   String kernel_layout;
@@ -77,9 +77,9 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
 /*! \brief Attributes used in max_pool2d operator */
 struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<PrimExpr> pool_size;
-  Array<PrimExpr> strides;
-  Array<PrimExpr> padding;
-  Array<PrimExpr> dilation;
+  Array<IntImm> strides;
+  Array<IntImm> padding;
+  Array<IntImm> dilation;
   bool ceil_mode;
   String layout;
   String out_layout;

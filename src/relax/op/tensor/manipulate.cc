@@ -600,10 +600,12 @@ Expr split(Expr x, ObjectRef indices_or_sections, int axis) {
                                "However, the given indices "
                             << indices_or_sections << " contains some non-integer.";
     }
+    indices_or_sections = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
   } else if (const auto* n_section = indices_or_sections.as<IntImmNode>()) {
     CHECK_GT(n_section->value, 0) << "Split op expects the input number of sections to be a "
                                      "positive integer. However, the given number of sections is "
                                   << n_section->value;
+    indices_or_sections = IntImm(DataType::Int(64), n_section->value);
   } else {
     LOG(FATAL) << "Split op expects the input indices_or_sections to be either an Array of "
                   "PrimExpr or an integer. However, the given one is "

@@ -176,6 +176,15 @@ inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, in
   return NormalizeAxes(call, ctx, ndim, {axis})[0];
 }
 
+/*!
+ * \brief Convert an array of integers to int64 dtype.
+ * \param int_imms The input IntImms to be converted.
+ * \return The conversion result, where every IntImm has dtype int64
+ */
+inline Array<IntImm> ConvertIntImmToInt64(const Array<IntImm>& int_imms) {
+  return int_imms.Map([](const IntImm& i) { return Downcast<IntImm>(cast(DataType::Int(64), i)); });
+}
+
 /************ Utilities for NN operators ************/
 
 /*!
@@ -187,7 +196,7 @@ inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, in
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1, 2 or 4.
  */
-inline Array<PrimExpr> GetCompletePadding2D(Array<PrimExpr> padding) {
+inline Array<IntImm> GetCompletePadding2D(Array<IntImm> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0], padding[0], padding[0]};
   } else if (padding.size() == 2) {
