@@ -146,6 +146,22 @@ def test_resize2d_infer_struct_info_shape_var():
     )
 
 
+def test_resize2d_infer_struct_info_pool_size_var():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    s0 = relax.Var("s", relax.ShapeStructInfo((30, 30)))
+    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
+
+    _check_inference(
+        bb,
+        relax.op.image.resize2d(x0, s0),
+        relax.TensorStructInfo(dtype="float32", ndim=4),
+    )
+    _check_inference(
+        bb, relax.op.image.resize2d(x0, s1), relax.TensorStructInfo(dtype="float32", ndim=4)
+    )
+
+
 def test_resize2d_infer_struct_info_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float16"))
@@ -182,15 +198,47 @@ def test_resize2d_wrong_input_ndim():
         bb.normalize(relax.op.image.resize2d(x2, size=28))
 
 
+def test_resize2d_wrong_pool_size_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float16"))
+    s0 = relax.ShapeExpr((3,))
+    s1 = relax.Var("s", relax.ShapeStructInfo((30, 30, 30)))
+    s2 = relax.Var("s", relax.ShapeStructInfo(ndim=3))
+    s3 = relax.Var("s", relax.ShapeStructInfo(ndim=1))
+    s4 = relax.Var("s", relax.ShapeStructInfo(ndim=0))
+    s5 = relax.Var("s", relax.ShapeStructInfo())
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, (3, 3, 3)))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, s0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, s1))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, s2))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, s3))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, s4))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x0, s5))
+
+
 def test_resize2d_infer_struct_info_wrong_input_type():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28), "float32")))
+    x2 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    s0 = relax.Var("s", R.Tensor((3, 3)))
 
     with pytest.raises(TVMError):
         bb.normalize(relax.op.image.resize2d(x0, size=32))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.image.resize2d(x1, size=32))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.image.resize2d(x2, s0))
+    with pytest.raises(TVMError):
+        relax.op.image.resize2d(x2, [30, 30])
 
 
 if __name__ == "__main__":

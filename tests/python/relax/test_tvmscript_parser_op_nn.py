@@ -57,13 +57,13 @@ def test_max_pool2d():
     def foo(
         x: R.Tensor((1, 1, 32, 32), dtype="float32")
     ) -> R.Tensor((1, 1, 30, 30), dtype="float32"):
-        gv: R.Tensor((1, 1, 30, 30), dtype="float32") = R.nn.max_pool2d(x, pool_size=[3])
+        gv: R.Tensor((1, 1, 30, 30), dtype="float32") = R.nn.max_pool2d(x, pool_size=(3,))
         return gv
 
     x = relax.Var("x", R.Tensor([1, 1, 32, 32], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x]):
-        gv = bb.emit(relax.op.nn.max_pool2d(x, pool_size=[3]))
+        gv = bb.emit(relax.op.nn.max_pool2d(x, pool_size=(3,)))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
@@ -72,7 +72,7 @@ def test_max_pool2d():
 def test_adaptive_avg_pool2d():
     @R.function
     def foo(x: R.Tensor((2, 64, 8, 9), "float32")) -> R.Tensor((2, 64, 7, 7), "float32"):
-        gv: R.Tensor((2, 64, 7, 7), "float32") = R.nn.adaptive_avg_pool2d(x, output_size=[7, 7])
+        gv: R.Tensor((2, 64, 7, 7), "float32") = R.nn.adaptive_avg_pool2d(x, output_size=(7, 7))
         return gv
 
     x = relax.Var("x", R.Tensor((2, 64, 8, 9), dtype="float32"))

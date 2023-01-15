@@ -21,7 +21,7 @@ from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
-from ...expr import Expr
+from ...expr import Expr, ShapeExpr
 
 
 PrimExprLike = Union[int, PrimExpr]
@@ -29,7 +29,7 @@ PrimExprLike = Union[int, PrimExpr]
 
 def resize2d(
     data: Expr,
-    size: Union[PrimExprLike, Tuple[PrimExprLike]],
+    size: Union[Expr, PrimExprLike, Tuple[PrimExprLike]],
     roi: Optional[Union[float, Tuple[float]]] = None,
     layout: str = "NCHW",
     method: str = "linear",
@@ -55,9 +55,10 @@ def resize2d(
     data : relax.Expr
         The input data to the operator.
 
-    size: Union[PrimExprLike, Tuple[PrimExprLike]]
+    size: Union[Expr, PrimExprLike, Tuple[PrimExprLike]]
         The out size to which the image will be resized.
-        It is required to have length either 1 or 2.
+        If specified as a list, it is required to have length either 1 or 2.
+        If specified as an Expr, it is required to have ndim 2.
 
     roi: Optional[Union[float, Tuple[float]]]
         The region of interest for cropping the input image. Expected to be of
@@ -106,6 +107,11 @@ def resize2d(
 
     if isinstance(size, (int, PrimExpr)):
         size = (size, size)
+    if isinstance(size, tuple):
+        if len(size) == 1:
+            size = ShapeExpr([size[0], size[0]])
+        else:
+            size = ShapeExpr(size)
 
     return _ffi_api.resize2d(  # type: ignore
         data,
