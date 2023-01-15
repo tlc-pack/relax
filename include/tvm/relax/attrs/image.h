@@ -31,7 +31,6 @@ namespace relax {
 
 /*! \brief Attributes used in image resize2d operator */
 struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
-  Array<PrimExpr> size;
   Array<FloatImm> roi;
   String layout;
   String method;
@@ -43,7 +42,6 @@ struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize2DAttrs, "relax.attrs.Resize2DAttrs") {
-    TVM_ATTR_FIELD(size).describe("Output image size.");
     TVM_ATTR_FIELD(roi).describe(
         "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).describe(

@@ -76,7 +76,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
 
 /*! \brief Attributes used in max_pool2d operator */
 struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
-  Array<PrimExpr> pool_size;
+  Array<IntImm> pool_size;
   Array<IntImm> strides;
   Array<IntImm> padding;
   Array<IntImm> dilation;
@@ -113,7 +113,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
 
 /*! \brief Attributes for 2d adaptive pool operator */
 struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
-  Optional<Array<PrimExpr>> output_size;
+  Optional<Array<IntImm>> output_size;
   String layout;
   String out_layout;
 
