@@ -33,7 +33,7 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Image resize2d operator. */
-Expr resize2d(Expr data, Array<PrimExpr> size, Array<FloatImm> roi, String layout, String method,
+Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String method,
               String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
               int cubic_exclude, double extrapolation_value, DataType out_dtype);
 
