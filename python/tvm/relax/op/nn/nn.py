@@ -18,20 +18,17 @@
 from typing import List, Optional, Tuple, Union
 
 from tvm import DataType
-from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
 from ...expr import Expr
-
-PrimExprLike = Union[int, PrimExpr]
 
 
 def conv2d(
     data: Expr,
     weight: Expr,
-    strides: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
-    padding: Union[PrimExprLike, Tuple[PrimExprLike]] = (0, 0),
-    dilation: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
+    strides: Union[int, Tuple[int, int]] = (1, 1),
+    padding: Union[int, Tuple[int, ...]] = (0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1, 1),
     groups: int = 1,
     data_layout: str = "NCHW",
     kernel_layout: str = "OIHW",
@@ -71,14 +68,14 @@ def conv2d(
     weight : relax.Expr
         The weight expressions.
 
-    strides : Union[PrimExprLike, Tuple[PrimExprLike]]
+    strides : Union[int, Tuple[int, int]]
         The strides of convolution. It is required to have length either 1 or 2.
 
-    padding : Union[PrimExprLike, Tuple[PrimExprLike]]
+    padding : Union[int, Tuple[int, ...]]
         The padding of convolution on both sides of inputs before convolution.
         It is required to have length either 1, 2 or 4.
 
-    dilation : Union[PrimExprLike, Tuple[PrimExprLike]]
+    dilation : Union[int, Tuple[int, int]]
         Specifies the dilation rate to be used for dilated convolution.
         It is required to have length either 1 or 2.
 
@@ -103,11 +100,11 @@ def conv2d(
     result : relax.Expr
         The computed result.
     """
-    if isinstance(strides, (int, PrimExpr)):
+    if isinstance(strides, int):
         strides = (strides, strides)
-    if isinstance(dilation, (int, PrimExpr)):
+    if isinstance(dilation, int):
         dilation = (dilation, dilation)
-    if isinstance(padding, (int, PrimExpr)):
+    if isinstance(padding, int):
         padding = (padding, padding, padding, padding)
 
     return _ffi_api.conv2d(  # type: ignore
@@ -126,10 +123,10 @@ def conv2d(
 
 def max_pool2d(
     data: Expr,
-    pool_size: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
-    strides: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
-    padding: Union[PrimExprLike, Tuple[PrimExprLike]] = (0, 0),
-    dilation: Union[PrimExprLike, Tuple[PrimExprLike]] = (1, 1),
+    pool_size: Union[int, Tuple[int, int]] = (1, 1),
+    strides: Union[int, Tuple[int, int]] = (1, 1),
+    padding: Union[int, Tuple[int, ...]] = (0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1, 1),
     ceil_mode: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
@@ -160,16 +157,16 @@ def max_pool2d(
     data : relax.Expr
         The input data to the operator.
 
-    pool_size : Union[PrimExprLike, Tuple[PrimExprLike]]
+    pool_size : Union[int, Tuple[int, int]]
         The size of window for pooling. It is required to have length either 1 or 2.
 
-    strides : Union[PrimExprLike, Tuple[PrimExprLike]]
+    strides : Union[int, Tuple[int, int]]
         The strides of pooling. It is required to have length either 1 or 2.
 
-    padding : Union[PrimExprLike, Tuple[PrimExprLike]]
+    padding : Union[int, Tuple[int, ...]]
         The padding for pooling. It is required to have length either 1, 2 or 4.
 
-    dilation : Union[PrimExprLike, Tuple[PrimExprLike]]
+    dilation : Union[int, Tuple[int, int]]
         The dilation of pooling. It is required to have length either 1 or 2.
 
     ceil_mode : bool
@@ -187,13 +184,13 @@ def max_pool2d(
     result : Expr
         The computed result.
     """
-    if isinstance(pool_size, (int, PrimExpr)):
+    if isinstance(pool_size, int):
         pool_size = (pool_size, pool_size)
-    if isinstance(strides, (int, PrimExpr)):
+    if isinstance(strides, int):
         strides = (strides, strides)
-    if isinstance(dilation, (int, PrimExpr)):
+    if isinstance(dilation, int):
         dilation = (dilation, dilation)
-    if isinstance(padding, (int, PrimExpr)):
+    if isinstance(padding, int):
         padding = (padding, padding, padding, padding)
 
     return _ffi_api.max_pool2d(  # type: ignore
@@ -203,7 +200,7 @@ def max_pool2d(
 
 def adaptive_avg_pool2d(
     data: Expr,
-    output_size: Optional[Union[PrimExprLike, Tuple[PrimExprLike]]] = None,
+    output_size: Optional[Union[int, Tuple[int, int]]] = None,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -236,7 +233,7 @@ def adaptive_avg_pool2d(
     data : relax.Expr
         The input data to the operator.
 
-    output_size : Optional[Union[PrimExprLike, Tuple[PrimExprLike]]]
+    output_size : Optional[Union[int, Tuple[int, int]]]
         Output height and width.
         If not specified, it will be the same as the input height and width.
         If specified, it is required to have length either 1 or 2.
@@ -252,7 +249,7 @@ def adaptive_avg_pool2d(
     result : relax.Expr
         The computed result.
     """
-    if isinstance(output_size, (int, PrimExpr)):
+    if isinstance(output_size, int):
         output_size = (output_size, output_size)
     return _ffi_api.adaptive_avg_pool2d(data, output_size, layout, out_layout)  # type: ignore
 
