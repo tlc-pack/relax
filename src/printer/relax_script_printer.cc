@@ -91,14 +91,14 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   if (op->op == call_tir_op) {
     doc << "R.call_tir";
 
-    for (const Expr& arg : op->args) {
-      args.push_back(Print(arg));
+    for (int i = 0; i < 3; ++i) {
+      args.push_back(Print(op->args[i]));
     }
     doc << "(" << Doc::Concat(args, Doc::Text(", "));
 
     Type output_type = op->type_args[0];
     if (const auto* out_type = output_type.as<DynTensorTypeNode>()) {
-      doc << ", dtype=" << PrintDType(out_type->dtype) << ")";
+      doc << ", dtype=" << PrintDType(out_type->dtype);
     } else if (const auto* out_type = output_type.as<TupleTypeNode>()) {
       std::vector<Doc> dtypes;
       for (auto field : out_type->fields) {
@@ -110,10 +110,16 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
           LOG(FATAL) << "TypeError: Invalid type: " << field_type->GetTypeKey();
         }
       }
-      doc << ", dtype=(" << Doc::Concat(dtypes, Doc::Text(", ")) << "))";
+      doc << ", dtype=(" << Doc::Concat(dtypes, Doc::Text(", ")) << ")";
     } else {
       LOG(FATAL) << "TypeError: Invalid type: " << output_type->GetTypeKey();
     }
+
+    if (op->args.size() == 4) {
+      doc << ", tir_vars=" << Print(op->args[3]);
+    }
+    doc << ")";
+
     return doc;
   }
 
