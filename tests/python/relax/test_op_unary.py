@@ -31,6 +31,7 @@ def test_op_correctness():
     assert relax.op.tanh(x).op == Op.get("relax.tanh")
     assert relax.op.sqrt(x).op == Op.get("relax.sqrt")
     assert relax.op.log(x).op == Op.get("relax.log")
+    assert relax.op.exp(x).op == Op.get("relax.exp")
     assert relax.op.sigmoid(x).op == Op.get("relax.sigmoid")
     assert relax.op.unique(x).op == Op.get("relax.unique")
 
@@ -74,7 +75,7 @@ def test_unary_arith_infer_struct_info_shape_var():
     x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
 
     _check_inference(bb, relax.op.log(x0), relax.TensorStructInfo(s0, "float32"))
-    _check_inference(bb, relax.op.tanh(x1), relax.TensorStructInfo(s1, "float32"))
+    _check_inference(bb, relax.op.exp(x1), relax.TensorStructInfo(s1, "float32"))
 
 
 def test_unary_arith_infer_struct_info_more_input_dtype():

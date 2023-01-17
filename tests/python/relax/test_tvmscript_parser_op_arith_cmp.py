@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import tvm
 import tvm.testing
@@ -34,124 +34,83 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
-def test_relax_add():
-    @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = R.add(x, y)
-        return gv
-
-    x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    y = relax.Var("y", R.Tensor((2, 1), "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", [x, y]):
-        gv = bb.emit(relax.op.add(x, y))
-        bb.emit_func_output(gv)
-
-    _check(foo, bb.get()["foo"])
-
-
-def test_relax_subtract():
-    @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = R.subtract(x, y)
-        return gv
-
-    x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    y = relax.Var("y", R.Tensor((2, 1), "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", [x, y]):
-        gv = bb.emit(relax.op.subtract(x, y))
-        bb.emit_func_output(gv)
-
-    _check(foo, bb.get()["foo"])
-
-
-def test_relax_floor_divide():
-    @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = R.floor_divide(x, y)
-        return gv
-
-    x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    y = relax.Var("y", R.Tensor((2, 1), "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", [x, y]):
-        gv = bb.emit(relax.op.floor_divide(x, y))
-        bb.emit_func_output(gv)
-
-    _check(foo, bb.get()["foo"])
-
-
-def test_relax_sin():
+def _test_unary(op_func: Callable):
     @R.function
     def foo(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = R.sin(x)
+        gv: R.Tensor((2, 3), "float32") = op_func(x)
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x]):
-        gv = bb.emit(relax.op.sin(x))
+        gv = bb.emit(op_func(x))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
 
 
-def test_relax_sigmoid():
-    @R.function
-    def foo(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = R.sigmoid(x)
-        return gv
-
-    x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", [x]):
-        gv = bb.emit(relax.op.sigmoid(x))
-        bb.emit_func_output(gv)
-
-    _check(foo, bb.get()["foo"])
-
-
-def test_relax_equal():
+def _test_binary_arith(op_func: Callable):
     @R.function
     def foo(
         x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "bool"):
-        gv: R.Tensor((2, 3), "bool") = R.equal(x, y)
+    ) -> R.Tensor((2, 3), "float32"):
+        gv: R.Tensor((2, 3), "float32") = op_func(x, y)
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 1), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x, y]):
-        gv = bb.emit(relax.op.equal(x, y))
+        gv = bb.emit(op_func(x, y))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
 
 
-def test_relax_less():
+def _test_binary_cmp(op_func: Callable):
     @R.function
     def foo(
         x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
     ) -> R.Tensor((2, 3), "bool"):
-        gv: R.Tensor((2, 3), "bool") = R.less(x, y)
+        gv: R.Tensor((2, 3), "bool") = op_func(x, y)
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 1), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x, y]):
-        gv = bb.emit(relax.op.less(x, y))
+        gv = bb.emit(op_func(x, y))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
+
+
+def test_unary():
+    _test_unary(relax.op.cos)
+    _test_unary(relax.op.exp)
+    _test_unary(relax.op.log)
+    _test_unary(relax.op.negative)
+    _test_unary(relax.op.sigmoid)
+    _test_unary(relax.op.sin)
+    _test_unary(relax.op.sqrt)
+    _test_unary(relax.op.tanh)
+
+
+def test_binary_arith():
+    _test_binary_arith(relax.op.add)
+    _test_binary_arith(relax.op.divide)
+    _test_binary_arith(relax.op.floor_divide)
+    _test_binary_arith(relax.op.multiply)
+    _test_binary_arith(relax.op.subtract)
+
+
+def test_binary_cmp():
+    _test_binary_cmp(relax.op.equal)
+    _test_binary_cmp(relax.op.greater)
+    _test_binary_cmp(relax.op.greater_equal)
+    _test_binary_cmp(relax.op.less)
+    _test_binary_cmp(relax.op.less_equal)
+    _test_binary_cmp(relax.op.not_equal)
 
 
 def test_relax_ewise_fma():
