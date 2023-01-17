@@ -41,7 +41,7 @@ class NormalizeMutator : public ExprMutatorBase {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
   }
 
-  Expr VisitExpr_(const FunctionNode* op) {
+  Expr VisitExpr_(const FunctionNode* op) final{
     Expr body = this->VisitWithNewScope(op->body, op->params);
 
     if (body.same_as(op->body)) {
@@ -51,7 +51,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) {
+  Expr VisitExpr_(const IfNode* op) final{
     Expr guard = this->VisitExpr(op->cond);
     Expr true_b = this->VisitWithNewScope(op->true_branch);
     Expr false_b = this->VisitWithNewScope(op->false_branch);
