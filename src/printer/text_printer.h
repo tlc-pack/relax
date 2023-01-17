@@ -246,14 +246,11 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
                            public AttrFunctor<Doc(const ObjectRef&)>,
                            public relax::StructInfoFunctor<Doc(const StructInfo&)> {
  public:
-  explicit RelaxScriptPrinter(bool show_meta_data, TextMetaDataContext* meta)
-      : show_meta_data_(show_meta_data), meta_(meta) {}
+  explicit RelaxScriptPrinter(TextMetaDataContext* meta) : meta_(meta) {}
   TVM_DLL Doc Print(const ObjectRef& node);
 
  private:
   NameTable name_table_;
-  /*! \brief Whether to print meta data. */
-  bool show_meta_data_;
   /*! \brief A counter for naming local functions. */
   size_t local_func_counter_ = 0;
   /*! \brief meta data context. */
@@ -573,7 +570,7 @@ class TextPrinter {
         show_warning_(show_warning),
         annotate_(annotate),
         relay_text_printer_(show_meta_data, &meta_, annotate),
-        relax_text_printer_(show_meta_data, &meta_),
+        relax_text_printer_(&meta_),
         tir_text_printer_(show_meta_data, &meta_) {}
 
   /*! \brief whether show meta data */
