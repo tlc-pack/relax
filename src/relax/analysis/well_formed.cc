@@ -93,9 +93,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   explicit WellFormedChecker(IRModule mod, bool check_struct_info)
       : mod_(std::move(mod)), check_struct_info_(check_struct_info) {}
 
+  using relax::ExprVisitor::VisitExpr_;
   using tir::ExprVisitor::VisitExpr;
   using tir::ExprVisitor::VisitExpr_;
-  using relax::ExprVisitor::VisitExpr_;
 
   // Possible mode of visitor
   enum class VisitMode {
