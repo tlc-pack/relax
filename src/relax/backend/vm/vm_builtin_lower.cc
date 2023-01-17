@@ -33,10 +33,11 @@
 namespace tvm {
 namespace relax {
 
-// This pass lowers most ops to VM specific builins.
+// This pass lowers most ops to VM specific builtins.
 // TODO(relax-team): revisit after PrimValue.
 class VMBuiltinLowerMutator : public ExprMutator {
  public:
+  using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* call_node) final {
     // post-order mutation
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
@@ -52,10 +53,10 @@ class VMBuiltinLowerMutator : public ExprMutator {
     } else {
       return call;
     }
-    return call;
   }
+
   static ObjectPtr<BuiltinFuncAttrs> DefaultBuiltinAttrs() {
-    // intiialize with default value
+    // initialize with default value
     auto n = make_object<BuiltinFuncAttrs>();
     n->InitBySeq();
     return n;

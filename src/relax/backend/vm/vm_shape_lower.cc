@@ -219,6 +219,8 @@ class VMShapeLowerMutator
   explicit VMShapeLowerMutator(IRModule mod, bool emit_err_ctx)
       : ExprMutator(mod), emit_err_ctx_(emit_err_ctx) {}
 
+  using ExprMutator::VisitExpr_;
+
   // Unit rewrite function per function.
   Function Rewrite(GlobalVar gvar, Function func) {
     // prepare mapping and heap var
