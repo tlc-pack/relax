@@ -187,7 +187,7 @@ TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
 TVM_DLL Pass FuseTIR();
 
 /*!
- * \brief Remove unused global relax functions in a IRModule.
+ * \brief Remove unused global relax functions in an IRModule.
  * \param entry_functions list of entry functions
  * \return The Pass.
  */
