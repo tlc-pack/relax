@@ -40,6 +40,23 @@ def cos(x: Expr) -> Expr:
     return _ffi_api.cos(x)  # type: ignore
 
 
+def exp(x: Expr) -> Expr:
+    """Compute element-wise exp of data.
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.exp(x)  # type: ignore
+
+
 def log(x: Expr) -> Expr:
     """Compute element-wise natural logarithm of the input data.
 
