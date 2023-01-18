@@ -25,10 +25,10 @@ import typing
 import tvm
 import tvm._ffi as tvm_ffi
 from tvm.ir.expr import PrimExpr
-from tvm.relax import Expr, Var
 from tvm.relay.op import get
 from tvm.ir.container import Array
 
+from ..expr import Expr, Var
 from ...ir import make_node
 from ...runtime import Object
 from ...ir.base import Node
@@ -198,7 +198,7 @@ class DFPattern(Node):
         Unlike Relay whose function is an expression, functions in Relax consists
         of blocks of bindings that they are not syntactically connected. We use a
         mapping (i.e., var2val) to migrate the gap. For example, to when matching
-        "relax.add(lv0, lv1)", given var2val, we match lv0's binded expression
+        "relax.add(lv0, lv1)", given var2val, we match lv0's bound expression
         when the recursive pattern matching goes to check lv0. The var2val mapping
         can be computed through the tvm.relax.analysis.get_var2val function.
         """
@@ -1056,3 +1056,20 @@ def _only_used_by(
     if isinstance(rhs, DFPattern):
         rhs = PatternSeq([rhs])
     return ffi.only_used_by(lhs, rhs, index)  # type: ignore
+
+
+def make_conv_pattern(conv_name, with_bias=False, activation=None):
+    data = wildcard()
+    weight = wildcard()
+    conv = is_op(conv_name)(data, weight)
+
+    if with_bias:
+        bias = wildcard()
+        conv_out = is_op("relax.add")(conv, bias)
+    else:
+        conv_out = conv
+
+    if activation:
+        return is_op(activation)(conv_out)
+
+    return conv_out

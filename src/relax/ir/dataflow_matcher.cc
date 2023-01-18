@@ -499,13 +499,30 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
 }
 
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val) {
-  if (var2val.defined())  // autojump is enabled with var2val.
+  if (var2val)  // autojump is enabled with var2val.
     return DFPatternMatcher(std::move(var2val.value())).Match(pattern, expr);
   else
     return DFPatternMatcher().Match(pattern, expr);
 }
 
 TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
+
+Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
+                                                  Optional<Map<Var, Expr>> bindings_opt) {
+  auto bindings = bindings_opt ? bindings_opt.value() : Map<Var, Expr>{};
+  DFPatternMatcher matcher(bindings);
+
+  if (!matcher.Match(pattern, expr)) {
+    return NullOpt;
+  }
+
+  Map<DFPattern, Expr> matching;
+  for (const auto& [pat, matches] : matcher.GetMemo()) {
+    ICHECK(matches.size() == 1) << "More than one match for the pattern " << pat;
+    matching.Set(pat, matches[0]);
+  }
+  return matching;
+}
 
 struct PNode {
   const DFPatternNode* ptr;

@@ -28,6 +28,8 @@ class Var2ValAnalysis : public relax::ExprVisitor {
   tvm::runtime::Map<Var, Expr> var2value_;
   void VisitBinding_(const VarBindingNode* binding) override {
     var2value_.Set(binding->var, binding->value);
+    // Recursively visit the value to handle local functions.
+    VisitExpr(binding->value);
   }
 };
 

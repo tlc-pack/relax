@@ -27,6 +27,9 @@
  * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
  */
 
+#include <tvm/relax/analysis.h>
+#include <tvm/relax/dataflow_matcher.h>
+#include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -372,15 +375,22 @@ class FunctionCreator : public ExprMutator {
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (const auto* call = var_binding->value.as<CallNode>()) {
-        ICHECK(call->op == Op::Get("relax.call_tir"));
-        // Update the name of the function.
-        name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
+        if (call->op == Op::Get("relax.call_tir")) {
+          // Update the name of the function.
+          name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
-        const Tuple& args = Downcast<Tuple>(call->args[1]);
-        for (const Expr& arg : args->fields) {
-          CheckDefAndUpdateParam(arg);
+          const Tuple& args = Downcast<Tuple>(call->args[1]);
+          for (const Expr& arg : args->fields) {
+            CheckDefAndUpdateParam(arg);
+          }
+          // TODO(tvm-team): handle shape expr
+        } else {
+          ICHECK(call->op->IsInstance<OpNode>());
+          name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
+          for (const Expr& arg : call->args) {
+            CheckDefAndUpdateParam(arg);
+          }
         }
-        // TODO(tvm-team): handle shape expr
       } else {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
         ICHECK(tuple_item != nullptr);
@@ -407,9 +417,9 @@ class FunctionCreator : public ExprMutator {
 
   /*!
    * \brief Create the grouped function according according to the collected bindings and parameters
-   * \note The created function won't be returned immediately. Tt's stored in the `function_` field.
+   * \note The created function won't be returned immediately. It's stored in the `function_` field.
    */
-  void CreateFunction() {
+  void CreateFunction(const std::string& composite_name) {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 
@@ -439,6 +449,9 @@ class FunctionCreator : public ExprMutator {
     body = builder_->Normalize(SeqExpr({new_block}, body));
     Map<String, ObjectRef> attrs;
     attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
+    if (!composite_name.empty()) {
+      attrs.Set(tvm::relax::attr::kComposite, String(composite_name));
+    }
     function_ = Function(/*params=*/params_,           //
                          /*body=*/body,                //
                          /*ret_struct_info=*/NullOpt,  //
@@ -543,14 +556,16 @@ class OperatorFusor : public ExprMutator {
     }
   }
 
+  OperatorFusor(IRModule mod,
+                const std::unordered_map<const Object*, GraphPartitioner::Group*>& obj2group)
+      : ExprMutator(mod), mod_(std::move(mod)), obj2group_(obj2group) {}
+
   /*!
    * \brief The main transformation on the IRModule
    * \return The new IRModule after transformation
    */
   IRModule Transform() {
-    for (const auto& kv : mod_->functions) {
-      const GlobalVar& gv = kv.first;
-      const BaseFunc& func = kv.second;
+    for (const auto& [gv, func] : mod_->functions) {
       // Only visit Relax function without attr kPrimitive.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
@@ -579,9 +594,8 @@ class OperatorFusor : public ExprMutator {
     CollectFuncBoundary(block->bindings);
 
     // Step 3. Create the grouped function for each group.
-    for (auto& kv : group2func_) {
-      FunctionCreator& creator = kv.second;
-      creator.CreateFunction();
+    for (auto& [g, creator] : group2func_) {
+      creator.CreateFunction(g->composite_name);
     }
 
     // Step 4. Start generating the new binding block.
@@ -757,6 +771,101 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
   return mod;
 }
 
+static Map<Expr, Var> GetBindingInverse(const Map<Var, Expr>& binding) {
+  Map<Expr, Var> value_to_bound_var;
+  for (const auto& [var, val] : binding) {
+    value_to_bound_var.Set(val, var);
+  }
+  return value_to_bound_var;
+}
+
+class PatternBasedPartitioner : ExprVisitor {
+ public:
+  using Group = GraphPartitioner::Group;
+  using ExprVisitor::VisitExpr_;
+
+  static std::unordered_map<const Object*, Group*> Run(runtime::String pattern_name,
+                                                       DFPattern pattern, Expr expr,
+                                                       support::Arena* arena) {
+    PatternBasedPartitioner part(pattern_name, pattern, AnalyzeVar2Value(expr));
+    PostOrderVisit(
+        expr, [arena, &part](const Expr& e) { part.group_map_[e.get()] = arena->make<Group>(); });
+    part.VisitExpr(expr);
+    return part.group_map_;
+  }
+
+  PatternBasedPartitioner(const std::string& pattern_name, DFPattern pattern,
+                          const tvm::runtime::Map<Var, Expr>& bindings)
+      : pat_name_(pattern_name),
+        pat_(pattern),
+        bindings_(bindings),
+        value_to_bound_var_(GetBindingInverse(bindings)) {}
+
+  void VisitBindingBlock_(const DataflowBlockNode* block) final {
+    for (const auto& binding : block->bindings) {
+      auto it = group_map_.find(binding->var.get());
+      ICHECK(it != group_map_.end());
+      if (const auto* var_binding = binding.as<VarBindingNode>()) {
+        VisitExpr(var_binding->value);
+      }
+    }
+  }
+
+  void VisitExpr_(const CallNode* call) override {
+    if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
+      auto parent_group = GetGroupForBoundVar(GetRef<Call>(call));
+      ICHECK(parent_group);
+      parent_group->composite_name = pat_name_;
+
+      for (const auto& [_, match] : matches_opt.value()) {
+        ICHECK(group_map_.count(match.get()));
+        if (!match->IsInstance<OpNode>()) {
+          AddToGroup(match, parent_group);
+          if (value_to_bound_var_.count(match) && GetGroupForBoundVar(match)->num_nodes == 1) {
+            AddToGroup(value_to_bound_var_[match], parent_group);
+          }
+        }
+      }
+    }
+  }
+
+ private:
+  void AddToGroup(Expr e, Group* to) {
+    if (group_map_[e.get()] != to) {
+      --group_map_[e.get()]->num_nodes;
+      group_map_[e.get()] = to;
+      ++to->num_nodes;
+    }
+  }
+
+  Group* GetGroupForBoundVar(Expr e) {
+    ICHECK(value_to_bound_var_.count(e));
+    auto bound_var = value_to_bound_var_[e];
+    ICHECK(group_map_.count(bound_var.get()));
+    return group_map_[bound_var.get()];
+  }
+
+  std::string pat_name_;
+  DFPattern pat_;
+  Map<Var, Expr> bindings_;
+  Map<Expr, Var> value_to_bound_var_;
+  std::unordered_map<const Object*, Group*> group_map_;
+};
+
+IRModule FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+                          const tvm::Array<DFPattern>& patterns, IRModule mod) {
+  support::Arena arena;
+  for (size_t i = 0; i < pattern_names.size(); ++i) {
+    std::unordered_map<const Object*, PatternBasedPartitioner::Group*> group_map;
+    for (const auto& [gv, func] : mod->functions) {
+      auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], func, &arena);
+      group_map.insert(map.begin(), map.end());
+    }
+    mod = OperatorFusor(mod, group_map).Transform();
+  }
+  return mod;
+}
+
 namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
@@ -773,6 +882,20 @@ Pass FuseOps(int fuse_opt_level) {
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
+
+Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+                      const tvm::Array<DFPattern>& patterns) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+      [=](IRModule m, PassContext pc) {
+        return relax::FuseOpsByPattern(pattern_names, patterns, m);
+      };
+  return CreateModulePass(/*pass_function=*/pass_func,       //
+                          /*opt_level=*/0,                   //
+                          /*pass_name=*/"FuseOpsByPattern",  //
+                          /*required=*/{});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.FuseOpsByPattern").set_body_typed(FuseOpsByPattern);
 
 }  // namespace transform
 

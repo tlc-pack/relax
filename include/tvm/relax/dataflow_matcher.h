@@ -45,6 +45,9 @@ namespace relax {
  */
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
 
+Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
+    DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings_opt = NullOpt);
+
 /**
  * \brief Match a sub-graph in a DataflowBlock with a graph of patterns and return the mapping.
  * \note This algorithm returns the first matched sub-graph. Use `start_hint` to specify the

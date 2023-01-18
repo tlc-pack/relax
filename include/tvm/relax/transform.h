@@ -25,6 +25,7 @@
 #define TVM_RELAX_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -162,6 +163,10 @@ TVM_DLL Pass AnnotateTIROpPattern();
  * \return The Pass.
  */
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
+
+// TODO
+TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+                              const tvm::Array<DFPattern>& patterns);
 
 /*!
  * \brief Fuse relax sub-function into a larger TIR function if possible.

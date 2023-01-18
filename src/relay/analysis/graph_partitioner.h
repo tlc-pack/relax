@@ -176,6 +176,7 @@ class GraphPartitioner {
      */
     uint32_t num_nodes{1};
 
+    std::string composite_name;
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.

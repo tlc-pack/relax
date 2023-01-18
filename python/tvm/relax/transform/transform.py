@@ -25,6 +25,7 @@ import numpy as np  # type: ignore
 import tvm.ir
 from tvm.runtime import NDArray
 from . import _ffi_api
+from ..dpl import DFPattern
 
 
 @tvm._ffi.register_object("relax.FunctionPass")
@@ -284,6 +285,11 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
         The registered pass for operator fusion.
     """
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
+
+
+def FuseOpsByPattern(pattern_names: List[str], patterns: List[DFPattern]) -> tvm.ir.transform.Pass:
+    """TODO"""
+    return _ffi_api.FuseOpsByPattern(pattern_names, patterns)  # type: ignore
 
 
 def FuseTIR() -> tvm.ir.transform.Pass:
