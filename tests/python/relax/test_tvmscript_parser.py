@@ -557,6 +557,29 @@ def test_call_tir_empty_tuple_arg():
     _check(bb.get(), expect=None)
 
 
+def test_call_tir_with_tir_var():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2", "float32"))
+        ) -> R.Tensor(("n * 2",), "float32"):
+            n = T.var("int64")
+            y = R.call_tir(copy, (x,), ((n * 2,)), dtype="float32", tir_vars=(n,))
+            return y
+
+        @T.prim_func
+        def copy(var_x: T.handle, var_y: T.handle, n: T.int64):
+            X = T.match_buffer(var_x, (n * 2,), dtype="float32")
+            Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
+            for i in T.grid(n * 2):
+                with T.block("block"):
+                    vi = T.axis.remap("S", [i])
+                    Y[vi] = X[vi]
+
+    _check(Module, expect=None)
+
+
 def test_local_function():
     @R.function
     def main(
