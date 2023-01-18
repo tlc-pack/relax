@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
@@ -136,6 +137,9 @@ TVM_DLL bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank = true,
  *    inline without being bound to a var during normalization).
  */
 TVM_DLL bool IsLeafExpr(const Expr& expr);
+
+// TODO
+TVM_DLL IRModule RemoveUnusedFunctions(IRModule mod, Array<runtime::String> entry_funcs);
 
 }  // namespace relax
 }  // namespace tvm

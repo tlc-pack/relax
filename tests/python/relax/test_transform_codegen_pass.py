@@ -138,7 +138,7 @@ def test_single_annot_func():
     check_roundtrip(ex0, dev, inputs, expected)
 
     # If the annotation does not match with the target codegen, do not perform the codegen process.
-    new_mod = relax.transform.RunCodegen(target_codegens=["INVALID_CODEGEN"])(mod)
+    new_mod = relax.transform.RunCodegen(target_options={"INVALID_CODEGEN":{}})(mod)
     # TODO(tvm-team): Currently disabled due to the lack of type annotation support during parser.
     #                 Revisit when new version of parser is available.
     # tvm.ir.assert_structural_equal(mod, new_mod)
