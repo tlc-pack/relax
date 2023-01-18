@@ -28,6 +28,7 @@ namespace tvm {
 namespace relax {
 
 RELAX_REGISTER_UNARY_OP_INTERFACE(cos, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_OP_INTERFACE(exp, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_OP_INTERFACE(log, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_OP_INTERFACE(negative, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_OP_INTERFACE(sigmoid, /*require_float_dtype=*/true);
