@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Optional
+from typing import Union, List, Tuple, Optional
 
 
 import tvm
@@ -47,7 +47,7 @@ def call_tir(
     args: Union[Expr, List[Expr]],
     shape: Union[RxTuple, ShapeExpr, List[int]],
     dtype: Union[str, List[str]],
-    tir_vars: Optional[ShapeExpr] = None,
+    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
     """
     Call a destination-passing-style function and return the output.
@@ -66,7 +66,7 @@ def call_tir(
     dtype: Union[str, List[str]]
         The output dtype. List[str] if multiple outputs, str if single output.
 
-    tir_vars : ShapeExpr, optional
+    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -121,6 +121,9 @@ def call_tir(
         output_type = TupleType([DynTensorType(len(x), y) for x, y in zip(shape, dtype)])
     else:
         raise TypeError("Not supported dtype for call_tir: " + str(type(dtype)))
+
+    if isinstance(tir_vars, (list, tuple)):
+        tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir(func, args, shape, output_type, tir_vars)  # type: ignore
 
