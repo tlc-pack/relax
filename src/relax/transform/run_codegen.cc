@@ -115,10 +115,10 @@ class CodeGenRunner : ExprMutator {
       PostOrderVisit(func, [&target_functions, &target_options](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
           auto f = Downcast<Function>(e);
-          if (auto opt_codegen = f->GetAttr<String>(attr::kCodegen)) {
-            String codegen_str = opt_codegen.value();
-            if (target_options.empty() || target_options.count(codegen_str)) {
-              target_functions[codegen_str].push_back(f);
+          if (auto target_opt = f->GetAttr<String>(attr::kCodegen)) {
+            String target = target_opt.value();
+            if (target_options.empty() || target_options.count(target)) {
+              target_functions[target].push_back(f);
             }
           }
         }
