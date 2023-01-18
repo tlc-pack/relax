@@ -20,6 +20,7 @@
 import copy
 import math
 import warnings
+import onnx
 from typing import Optional
 
 import numpy as np
@@ -28,6 +29,26 @@ import tvm
 from tvm import relax, topi
 from tvm.ir import IRModule
 from tvm.relax import testing
+
+
+def get_numpy(tensor_proto):
+    """Grab data in TensorProto and convert to numpy array."""
+    if isinstance(tensor_proto, onnx.TensorProto):
+        try:
+            from onnx.numpy_helper import to_array
+        except ImportError as e:
+            raise ImportError("Unable to import onnx which is required {}".format(e))
+        return to_array(tensor_proto)
+    return tensor_proto
+
+
+def print_partial_graph(bb, var):    # A debugging helper function that prints
+    # Start by getting list of input vars.
+    gp = GraphProto.current
+    param_list = [v for _, v in gp._inputs.items()]
+    output_var = bb.emit_output(var)
+    bb.emit_func_output(output_var, params=param_list)
+    print(bb.get())
 
 
 def new_var(var_name, shape, dtype="float32"):
@@ -262,7 +283,30 @@ def layer_norm(bb, x, eps, gamma, beta):
 
     Use LayerNormalization for the actual onnx op.
     """
-    output = bb.emit_te(topi.nn.layer_norm, x, gamma, beta, (2,), eps)
+    x_dtype = x.checked_type.dtype
+    x_shape = [val.value for val in x.shape.values]
+    rnum_elements = relax.const(1 / np.prod(x_shape), dtype=x_dtype)
+
+    # Compute Mean
+    mean = bb.emit_te(topi.sum, x)
+    mean = bb.emit_te(topi.multiply, mean, rnum_elements)
+
+    # Compute Variance
+    diff = bb.emit_te(topi.subtract, x, mean)
+    sq_diff = bb.emit_te(topi.multiply, diff, diff)
+    var_sum = bb.emit_te(topi.sum, sq_diff, -1, True)
+    var = bb.emit_te(topi.multiply, var_sum, rnum_elements)
+
+    # Compute Layer Normalization
+    sub = bb.emit_te(topi.subtract, x, mean)
+    add = bb.emit_te(topi.add, var, relax.const(eps, dtype=x_dtype))
+    sqrt = bb.emit_te(topi.rsqrt, add)
+    output = bb.emit_te(topi.multiply, sub, sqrt)
+    output = bb.emit_te(topi.multiply, output, gamma)
+
+    if beta is not None:
+        output = bb.emit_te(topi.add, output, beta)
+    #output = bb.emit_te(topi.nn.layer_norm, x, gamma, beta, (2,), eps)
 
     return output
 
@@ -608,6 +652,202 @@ class Identity(OnnxOpConverter):
         return inputs[0]
 
 
+class Where(OnnxOpConverter):
+    """Find values where condition is true."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.where, inputs[0], inputs[1], inputs[2])
+
+
+class CumSum(OnnxOpConverter):
+    """Compute cumulative sum of a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        exclusive = attr.get("exclusive", 0)
+        data = inputs[0]
+        axis = inputs[1]
+        if not isinstance(axis, int):
+            axis = int(axis.data.numpy())
+        return bb.emit_te(topi.cumsum, data, axis, None, exclusive)
+
+
+class Unsqueeze(OnnxOpConverter):
+    """Add an axis to a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        data = inputs[0]
+        axes = inputs[1].data.numpy()
+
+        output = data
+        for axis in axes:
+            output = bb.emit_te(topi.expand_dims, data, int(axis))
+
+        return output
+
+
+class Equal(OnnxOpConverter):
+    """Find elements where two tensors have the same value."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.equal, inputs[0], inputs[1])
+
+
+class Squeeze(OnnxOpConverter):
+    """Remove dimensions from a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.squeeze, inputs[0], inputs[1].data.numpy().tolist())        
+
+
+class Expand(OnnxOpConverter):
+    """Add dimensions to a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.broadcast_to, inputs[0], inputs[1])     
+
+
+class Div(OnnxOpConverter):
+    """Divide two tensors."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.div, inputs[0], inputs[1])          
+
+
+class Mul(OnnxOpConverter):
+    """Multiply two tensors."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.multiply, inputs[0], inputs[1])              
+
+
+class Not(OnnxOpConverter):
+    """Boolean invert a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.bitwise_not, inputs[0])
+
+
+class Add(OnnxOpConverter):
+    """Add two tensors."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        return bb.emit_te(topi.add, inputs[0], inputs[1])        
+
+
+class Shape(OnnxOpConverter):
+    """Return the shape of a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        data_shape = [val.value for val in inputs[0].shape.values]
+        return relax.const(data_shape, "int64")
+
+
+class ReduceL2(OnnxOpConverter):
+    """Compute the L2 norm along a set of axes."""        
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        data = inputs[0]
+        data_shape = [val.value for val in data.shape.values]
+        axes = attr.get("axes", list(range(len(data_shape))))
+        keepdims = attr.get("keepdims", True)
+        two = relax.const(2.0, dtype=data.checked_type.dtype)
+        dot_value = bb.emit_te(topi.power, data, two)
+        sqr_sum = bb.emit_te(topi.sum, dot_value, axes, keepdims)
+        sqrt_sum = bb.emit_te(topi.sqrt, sqr_sum)
+        return sqrt_sum
+
+
+class ConstantOfShape(OnnxOpConverter):
+    """Create a constant with a specific shape."""
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):
+        tensor_shape = inputs[0]
+        value = get_numpy(attr.get("value", 0)).tolist()
+        new_tensor = relax.const([value], dtype="float32")
+        return bb.emit_te(topi.broadcast, new_tensor, tensor_shape)
+
+
+class LayerNormalization(OnnxOpConverter):
+    """Apply layer normalization to a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):        
+        data = inputs[0]
+        gamma = inputs[1]
+        beta = inputs[2]
+        eps = attr.get("epsilon", 1e-05)
+
+        return layer_norm(bb, data, eps, gamma, beta)
+        
+
+class Reshape(OnnxOpConverter):
+    """Reshape a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):        
+        data = inputs[0]
+        data_shape = [val.value for val in data.shape.values]
+        new_shape = inputs[1].data.numpy().tolist()
+        # Process -1s in new shape. We shoudl replace this with a relax op.
+        total_original_elements = 1
+        for dim in data_shape:
+            total_original_elements *= dim
+
+        total_new_elements = 1
+        for dim in new_shape:
+            if dim > 0:
+                total_new_elements *= dim
+
+        for i, dim in enumerate(new_shape):
+            if dim == -1:
+                new_shape[i] = int(total_original_elements / total_new_elements)
+
+        return bb.emit_te(topi.reshape, inputs[0], new_shape)
+
+
+class ReduceSum(OnnxOpConverter):
+    """Compute the sum along an axis of a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):        
+        data = inputs[0]
+        axes = inputs[1]
+        keepdims = attr.get("keepdims", True)
+        return bb.emit_te(topi.sum, data, axes, keepdims)
+
+
+class Cast(OnnxOpConverter):
+    """Change the datatype of a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):        
+        dtype = get_type(attr.get("to"))
+        return bb.emit_te(topi.cast, inputs[0], dtype)        
+
+
+class Clip(OnnxOpConverter):
+    """Clip a tensor."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr):        
+        data = inputs[0]
+        minimum = inputs[1]
+        maximum = inputs[2]
+        return bb.emit_te(topi.clip, data, minimum, maximum)
+
+
 def _get_convert_map(opset):
     return {
         "MatMul": MatMul.get_converter(opset),
@@ -623,6 +863,25 @@ def _get_convert_map(opset):
         "SkipLayerNormalization": SkipLayerNormalization.get_converter(opset),
         "EmbedLayerNormalization": EmbedLayerNormalization.get_converter(opset),
         "Attention": AttentionCutlass.get_converter(opset),
+        # Ops for spacev5
+        "Where": Where.get_converter(opset),
+        "CumSum": CumSum.get_converter(opset),
+        "Unsqueeze": Unsqueeze.get_converter(opset),
+        "Equal": Equal.get_converter(opset),
+        "Squeeze": Squeeze.get_converter(opset),
+        "Expand": Expand.get_converter(opset),
+        "Div": Div.get_converter(opset),
+        "Mul": Mul.get_converter(opset),
+        "Not": Not.get_converter(opset),
+        "Add": Add.get_converter(opset),
+        "Shape": Shape.get_converter(opset),
+        "ReduceL2": ReduceL2.get_converter(opset),
+        "ConstantOfShape": ConstantOfShape.get_converter(opset),
+        "LayerNormalization": LayerNormalization.get_converter(opset),
+        "Reshape": Reshape.get_converter(opset),
+        "ReduceSum": ReduceSum.get_converter(opset),
+        "Cast": Cast.get_converter(opset),
+        "Clip": Clip.get_converter(opset),
     }
 
 
@@ -650,6 +909,14 @@ class GraphProto:
         self._dtype = dtype
         self.opset = None
         self.bb = relax.BlockBuilder()
+
+    def __enter__(self):
+        self._old_manager = GraphProto.current
+        GraphProto.current = self
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        GraphProto.current = self._old_manager    
 
     def from_onnx(self, graph, opset) -> IRModule:
         """Construct Relax expression from ONNX graph.
@@ -957,4 +1224,5 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, convert_config=Non
         )
 
     # Use the graph proto as a scope so that ops can access other nodes if needed.
-    return g.from_onnx(graph, opset)
+    with g:
+        return g.from_onnx(graph, opset)

@@ -26,6 +26,7 @@ from onnx import TensorProto, helper
 from tvm import meta_schedule as ms
 from tvm import relax
 import argparse
+import onnx_graphsurgeon as gs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--fp16', action='store_true', default=False)
@@ -234,20 +235,31 @@ def inject_schedule(extracted_tasks, work_dir):
 
 if __name__ == "__main__":
     WORK_DIR = "./logs"
-    model_path = "./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx"
-    if ARGS.fp16:
-        model_path = "./vortex_fp16.onnx"
+    #model_path = "./onnx_emails_int32_dummy_turing_vortex_fixed_v2.onnx"
+    #if ARGS.fp16:
+    #    model_path = "./vortex_fp16.onnx"
+
+    #model = onnx.load(model_path)
+    #shape_dict = {
+    #    "q_title_token_ids": [1, 256],
+    #    "q_title_token_types": [1, 256],
+    #    "q_title_token_masks": [1, 256],
+    #}
+
+    model_path = "./spacev5_fp16.onnx"
 
     model = onnx.load(model_path)
+    sorted_graph = gs.import_onnx(model)
+    sorted_graph.toposort()
+    model = gs.export_onnx(sorted_graph)
+
     shape_dict = {
-        "q_title_token_ids": [1, 512],
-        "q_title_token_types": [1, 512],
-        "q_title_token_masks": [1, 512],
+        'id__mask__segment': [3, 1, 512]
     }
 
     mod = relax.frontends.from_onnx(model, shape=shape_dict)
     # mark layer_norm as injective
-    mod["layer_norm"] = mod["layer_norm"].with_attr("op_pattern", 2)
+    #mod["layer_norm"] = mod["layer_norm"].with_attr("op_pattern", 2)
 
     mod = relax.transform.FoldConstant()(mod)
     mod = relax.transform.AnnotateTIROpPattern()(mod)
@@ -293,9 +305,9 @@ if __name__ == "__main__":
     executable = tvm.runtime.load_module(PKG_FILE)
     vm = relax.VirtualMachine(executable, tvm.cuda())
     print("VM Created")
-    input0 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
-    input1 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
-    input2 = tvm.nd.array(np.random.rand(1, 512).astype("int32"), tvm.cuda())
+    input0 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
+    input1 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
+    input2 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
     evaluator = vm.time_evaluator(
         func_name="main",
         dev=tvm.cuda(),
@@ -314,9 +326,9 @@ if __name__ == "__main__":
     print("Available Providers: ", onnx_providers)
 
     input_dict = {
-        "q_title_token_ids": np.random.randint(256, size=[1, 512]).astype("int32"),
-        "q_title_token_types": np.random.randint(256, size=[1, 512]).astype("int32"),
-        "q_title_token_masks": np.random.randint(256, size=[1, 512]).astype("int32"),
+        "q_title_token_ids": np.random.randint(256, size=[1, 256]).astype("int32"),
+        "q_title_token_types": np.random.randint(256, size=[1, 256]).astype("int32"),
+        "q_title_token_masks": np.random.randint(256, size=[1, 256]).astype("int32"),
     }
 
     import time
