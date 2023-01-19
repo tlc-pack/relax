@@ -245,6 +245,9 @@ if __name__ == "__main__":
     #    "q_title_token_types": [1, 256],
     #    "q_title_token_masks": [1, 256],
     #}
+    target = tvm.target.Target(
+        "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536"
+    )
 
     model_path = "./spacev5_fp16.onnx"
 
@@ -257,12 +260,13 @@ if __name__ == "__main__":
         'id__mask__segment': [3, 1, 512]
     }
 
-    mod = relax.frontends.from_onnx(model, shape=shape_dict)
+    with target:
+        mod = relax.frontends.from_onnx(model, shape=shape_dict)
     # mark layer_norm as injective
-    #mod["layer_norm"] = mod["layer_norm"].with_attr("op_pattern", 2)
+    mod["layer_norm"] = mod["layer_norm"].with_attr("op_pattern", 2)
 
     mod = relax.transform.FoldConstant()(mod)
-    mod = relax.transform.AnnotateTIROpPattern()(mod)
+    #mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
     mod = relax.transform.FuseTIR()(mod)
     print("Fused")
@@ -270,14 +274,20 @@ if __name__ == "__main__":
     mod = relax.transform.LowerVtxMM()(mod)
     print("Transformed to cutlass")
 
-    target = tvm.target.Target(
-        "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536"
-    )
     with target:
         tasks, task_weights = inject_schedule(
             ms.relax_integration.extract_tasks(mod, target, params=None),
             work_dir=WORK_DIR,
         )
+        # Explicitly remove cumsum from tuned tasks since its prescheduled for cuda.
+        new_tasks = []
+        new_weights = []
+        for i, task in enumerate(tasks):
+            if "cumsum" not in task.task_name:
+                new_tasks.append(task)
+                new_weights.append(task_weights[i])
+        tasks = new_tasks
+        task_weights = new_weights
         database = ms.tune_tasks(
             tasks=tasks,
             task_weights=task_weights,
