@@ -418,9 +418,11 @@ class FunctionCreator : public ExprMutator {
 
   /*!
    * \brief Create the grouped function according according to the collected bindings and parameters
+   * \param composite_name The name to identify the pattern this function is created from, if any.
+   * It will become the value of the kComposite attribute of the created function.
    * \note The created function won't be returned immediately. It's stored in the `function_` field.
    */
-  void CreateFunction(const std::string& composite_name) {
+  void CreateFunction(std::optional<std::string> composite_name) {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 
@@ -450,8 +452,8 @@ class FunctionCreator : public ExprMutator {
     body = builder_->Normalize(SeqExpr({new_block}, body));
     Map<String, ObjectRef> attrs;
     attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
-    if (!composite_name.empty()) {
-      attrs.Set(tvm::relax::attr::kComposite, String(composite_name));
+    if (composite_name) {
+      attrs.Set(tvm::relax::attr::kComposite, String(*composite_name));
     }
     function_ = Function(/*params=*/params_,           //
                          /*body=*/body,                //
