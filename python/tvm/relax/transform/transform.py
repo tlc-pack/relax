@@ -287,7 +287,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
 
 
-def FuseOpsByPattern(pattern_names: List[str], patterns: List[DFPattern]) -> tvm.ir.transform.Pass:
+def FuseOpsByPattern(patterns: List[tuple]) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
 
@@ -295,12 +295,11 @@ def FuseOpsByPattern(pattern_names: List[str], patterns: List[DFPattern]) -> tvm
 
     Parameters
     ----------
-    pattern_names : List[str]
-        The name of each pattern. It becomes the value of the kComposite attribute of a
-        fused function after successful matching.
-    patterns : List[DFPattern]
+    patterns : List[Tuple[str, DFPattern]]
         The patterns to detect. The order of the patterns determines the order of priority in which
         they are matched. Higher-priority patterns should come earlier in the list.
+        The string is the name of the corresponding pattern. It becomes the value of the kComposite
+        attribute of a fused function after a successful matching.
 
     Returns
     -------
@@ -308,7 +307,8 @@ def FuseOpsByPattern(pattern_names: List[str], patterns: List[DFPattern]) -> tvm
         The registered pass for pattern-based fusion.
 
     """
-    return _ffi_api.FuseOpsByPattern(pattern_names, patterns)  # type: ignore
+    pattern_names, df_patterns = zip(*patterns)
+    return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns)  # type: ignore
 
 
 def FuseTIR() -> tvm.ir.transform.Pass:
