@@ -25,7 +25,6 @@ import numpy as np  # type: ignore
 import tvm.ir
 from tvm.runtime import NDArray
 from . import _ffi_api
-from ..dpl import DFPattern
 
 
 @tvm._ffi.register_object("relax.FunctionPass")
