@@ -1059,6 +1059,7 @@ def _only_used_by(
 
 
 def make_conv_pattern(conv_name, with_bias=False, activation=None):
+    """A simple utility to create patterns for fused convolution."""
     data = wildcard()
     weight = wildcard()
     conv = is_op(conv_name)(data, weight)

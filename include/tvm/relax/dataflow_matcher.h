@@ -39,7 +39,7 @@ namespace relax {
  *
  * \param pattern The pattern to match
  * \param expr The expression to match
- * \param binding The mapping from relax.Var to relax.Expr
+ * \param bindings The mapping from relax.Var to relax.Expr
  * \return true if matched
  * \return false if unmatched
  */

@@ -385,7 +385,8 @@ class FunctionCreator : public ExprMutator {
           }
           // TODO(tvm-team): handle shape expr
         } else {
-          ICHECK(call->op->IsInstance<OpNode>());
+          ICHECK(call->op->IsInstance<OpNode>()) << "Only support relax.call_tir or high-level "
+                                                    "operators as the callee op for CallNode.";
           name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
           for (const Expr& arg : call->args) {
             CheckDefAndUpdateParam(arg);
@@ -536,6 +537,7 @@ class FunctionCreator : public ExprMutator {
  */
 class OperatorFusor : public ExprMutator {
  public:
+  using GroupMap = std::unordered_map<const Object*, GraphPartitioner::Group*>;
   /*!
    * \brief Construct a new operator fusor. Given the indexed-forward graph and the graph partition
    * result on that graph, the constructor creates a mapping from each leaf AST object
@@ -556,8 +558,7 @@ class OperatorFusor : public ExprMutator {
     }
   }
 
-  OperatorFusor(IRModule mod,
-                const std::unordered_map<const Object*, GraphPartitioner::Group*>& obj2group)
+  OperatorFusor(IRModule mod, const GroupMap& obj2group)
       : ExprMutator(mod), mod_(std::move(mod)), obj2group_(obj2group) {}
 
   /*!
@@ -749,7 +750,7 @@ class OperatorFusor : public ExprMutator {
   /*! \brief Internal arena. */
   support::Arena arena_;
   /*! \brief The group assignment map. */
-  std::unordered_map<const Object*, GraphPartitioner::Group*> obj2group_;
+  GroupMap obj2group_;
   /*! \brief Internal function information map. */
   std::unordered_map<GraphPartitioner::Group*, FunctionCreator> group2func_;
 };
@@ -779,15 +780,19 @@ static Map<Expr, Var> GetBindingInverse(const Map<Var, Expr>& binding) {
   return value_to_bound_var;
 }
 
+/*! \brief Create a "partitioning", a map from interior / leaf expr to its representative group,
+ * based on the provided pattern. The result can be passed to OperatorFusor above to fuse operations
+ * in a group and create a grouped function.
+ */
 class PatternBasedPartitioner : ExprVisitor {
  public:
   using Group = GraphPartitioner::Group;
+  using GroupMap = OperatorFusor::GroupMap;
   using ExprVisitor::VisitExpr_;
 
-  static std::unordered_map<const Object*, Group*> Run(runtime::String pattern_name,
-                                                       DFPattern pattern, Expr expr,
-                                                       support::Arena* arena) {
+  static GroupMap Run(String pattern_name, DFPattern pattern, Expr expr, support::Arena* arena) {
     PatternBasedPartitioner part(pattern_name, pattern, AnalyzeVar2Value(expr));
+    // Initialize each expr to have its own group
     PostOrderVisit(
         expr, [arena, &part](const Expr& e) { part.group_map_[e.get()] = arena->make<Group>(); });
     part.VisitExpr(expr);
@@ -795,33 +800,44 @@ class PatternBasedPartitioner : ExprVisitor {
   }
 
   PatternBasedPartitioner(const std::string& pattern_name, DFPattern pattern,
-                          const tvm::runtime::Map<Var, Expr>& bindings)
+                          const Map<Var, Expr>& bindings)
       : pat_name_(pattern_name),
         pat_(pattern),
         bindings_(bindings),
         value_to_bound_var_(GetBindingInverse(bindings)) {}
 
-  void VisitBindingBlock_(const DataflowBlockNode* block) final {
-    for (const auto& binding : block->bindings) {
-      auto it = group_map_.find(binding->var.get());
-      ICHECK(it != group_map_.end());
-      if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        VisitExpr(var_binding->value);
-      }
-    }
-  }
-
   void VisitExpr_(const CallNode* call) override {
     if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
+      // If a match is found, put all matching expressions into the same group.
+      // OperatorFusor also requires that the bound variable be in the same group as the RHS value.
+      // Since is_op(...) based pattern only matches against call nodes on the right hand side,
+      // we need to take care of groups corresponding to the LHS bound variables carefully.
+
+      // In the example below, conv2d + relu pattern would match if the "call" variable in this
+      // function points to the relu op. We identify the group corresponding to "conv1", and make
+      // it the representative group for relu and conv2d on the RHS and also "lv" on the LHS.
+
+      // with R.dataflow():
+      //   lv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(...)
+      //   conv1: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
+
+      // parent_group corresponds to the group of "conv1" above.
       auto parent_group = GetGroupForBoundVar(GetRef<Call>(call));
       ICHECK(parent_group);
       parent_group->composite_name = pat_name_;
 
       for (const auto& [_, match] : matches_opt.value()) {
         ICHECK(group_map_.count(match.get()));
+        // The op node itself is also a part of the matched expressions, but it can be ignored.
         if (!match->IsInstance<OpNode>()) {
+          // Put all matching expressions into the parent group.
           AddToGroup(match, parent_group);
           if (value_to_bound_var_.count(match) && GetGroupForBoundVar(match)->num_nodes == 1) {
+            // In the example above, we hit this code path when "match" is the conv2d call node
+            // on the RHS.
+            // After we put the conv2d into the parent group, "conv1", we also need to put "lv"
+            // on the LHS into the same parent group. We need this additional handling because
+            // "lv" does not appear as part of the matched expressions.
             AddToGroup(value_to_bound_var_[match], parent_group);
           }
         }
@@ -849,14 +865,14 @@ class PatternBasedPartitioner : ExprVisitor {
   DFPattern pat_;
   Map<Var, Expr> bindings_;
   Map<Expr, Var> value_to_bound_var_;
-  std::unordered_map<const Object*, Group*> group_map_;
+  GroupMap group_map_;
 };
 
-IRModule FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
                           const tvm::Array<DFPattern>& patterns, IRModule mod) {
   support::Arena arena;
   for (size_t i = 0; i < pattern_names.size(); ++i) {
-    std::unordered_map<const Object*, PatternBasedPartitioner::Group*> group_map;
+    OperatorFusor::GroupMap group_map;
     for (const auto& [gv, func] : mod->functions) {
       auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], func, &arena);
       group_map.insert(map.begin(), map.end());
@@ -883,7 +899,7 @@ Pass FuseOps(int fuse_opt_level) {
 
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
-Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+Pass FuseOpsByPattern(const tvm::Array<String>& pattern_names,
                       const tvm::Array<DFPattern>& patterns) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
