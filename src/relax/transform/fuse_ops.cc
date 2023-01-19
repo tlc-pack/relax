@@ -826,13 +826,13 @@ class PatternBasedPartitioner : ExprVisitor {
       ICHECK(parent_group);
       parent_group->composite_name = pat_name_;
 
-      for (const auto& [_, match] : matches_opt.value()) {
+      for (const auto& [pat, match] : matches_opt.value()) {
         ICHECK(group_map_.count(match.get()));
         // The op node itself is also a part of the matched expressions, but it can be ignored.
         if (!match->IsInstance<OpNode>()) {
           // Put all matching expressions into the parent group.
           AddToGroup(match, parent_group);
-          if (value_to_bound_var_.count(match) && GetGroupForBoundVar(match)->num_nodes == 1) {
+          if (match != GetRef<Call>(call) && !pat->IsInstance<WildcardPatternNode>()) {
             // In the example above, we hit this code path when "match" is the conv2d call node
             // on the RHS.
             // After we put the conv2d into the parent group, "conv1", we also need to put "lv"

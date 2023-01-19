@@ -45,7 +45,6 @@ namespace relax {
  */
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings = NullOpt);
 
-
 /* \brief Similar to above, but return pairs of a matching pattern and an expression.  */
 Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
     DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings = NullOpt);

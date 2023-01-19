@@ -288,7 +288,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
 
 
 def FuseOpsByPattern(patterns: List[tuple]) -> tvm.ir.transform.Pass:
-    """Apply pattern matching to each function in the given module, and group matched expressions
+    """Apply pattern matching to each function in the given module, and groups matched expressions
     into a new function.
 
     The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.
