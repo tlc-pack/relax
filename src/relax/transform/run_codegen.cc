@@ -55,6 +55,7 @@ class CodeGenRunner : ExprMutator {
       out_mod = WithAttr(out_mod, tvm::attr::kExternalMods, std::move(ext_mods));
     }
 
+    // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
     return RemoveUnusedFunctions(out_mod, entry_functions);
   }
 
