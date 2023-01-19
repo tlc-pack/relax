@@ -176,6 +176,7 @@ class GraphPartitioner {
      */
     uint32_t num_nodes{1};
 
+    /*! \brief The name to identify the pattern this group is created from, if any. */
     std::string composite_name;
     /*!
      * \brief Find the group root, perform path compression
