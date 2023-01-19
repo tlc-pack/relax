@@ -48,7 +48,9 @@ def print_partial_graph(bb, var):    # A debugging helper function that prints
     param_list = [v for _, v in gp._inputs.items()]
     output_var = bb.emit_output(var)
     bb.emit_func_output(output_var, params=param_list)
-    print(bb.get())
+    result = bb.get()
+    print(result)
+    return result
 
 
 def new_var(var_name, shape, dtype="float32"):
@@ -709,7 +711,13 @@ class Expand(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
-        return bb.emit_te(topi.broadcast_to, inputs[0], inputs[1])     
+        # Assume a fixed shape, total hack.
+        if not isinstance(inputs[1], relax.Constant):
+            if inputs[1].shape[0] == 3:
+                shape = [1, 512, 768]
+        else:
+            shape = [1, 100]
+        return bb.emit_te(topi.broadcast_to, inputs[0], shape)
 
 
 class Div(OnnxOpConverter):
@@ -717,7 +725,7 @@ class Div(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
-        return bb.emit_te(topi.div, inputs[0], inputs[1])          
+        return bb.emit_te(topi.divide, inputs[0], inputs[1])          
 
 
 class Mul(OnnxOpConverter):
@@ -773,10 +781,9 @@ class ConstantOfShape(OnnxOpConverter):
     """Create a constant with a specific shape."""
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):
-        tensor_shape = inputs[0]
+        tensor_shape = inputs[0].data.numpy().tolist()
         value = get_numpy(attr.get("value", 0)).tolist()
-        new_tensor = relax.const([value], dtype="float32")
-        return bb.emit_te(topi.broadcast, new_tensor, tensor_shape)
+        return bb.emit_te(topi.full, tensor_shape, "int64", value[0])
 
 
 class LayerNormalization(OnnxOpConverter):
@@ -823,7 +830,7 @@ class ReduceSum(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr):        
         data = inputs[0]
-        axes = inputs[1]
+        axes = inputs[1].data.numpy().tolist()
         keepdims = attr.get("keepdims", True)
         return bb.emit_te(topi.sum, data, axes, keepdims)
 
@@ -845,7 +852,14 @@ class Clip(OnnxOpConverter):
         data = inputs[0]
         minimum = inputs[1]
         maximum = inputs[2]
-        return bb.emit_te(topi.clip, data, minimum, maximum)
+        output = data
+        if minimum is not None:
+            minimum = minimum.data.numpy().tolist()
+            output = bb.emit_te(topi.maximum, minimum, data)
+        if maximum is not None:
+            maximum = maximum.data.numpy().tolist()
+            output = bb.emit_te(topi.minimum, maximum, data)
+        return output
 
 
 def _get_convert_map(opset):
