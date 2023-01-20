@@ -31,8 +31,8 @@ class Conv2dReLUx2:
         weight2: R.Tensor((64, 64, 3, 3), "float32"),
     ):
         with R.dataflow():
-            conv1 = relax.op.nn.relu(relax.op.nn.conv2d(data, weight1, padding=(1, 1)))
-            conv2 = relax.op.nn.relu(relax.op.nn.conv2d(conv1, weight2, padding=(0, 0)))
+            conv1 = R.nn.relu(R.nn.conv2d(data, weight1, padding=(1, 1)))
+            conv2 = R.nn.relu(R.nn.conv2d(conv1, weight2, padding=(0, 0)))
             R.output(conv2)
 
         return conv2
@@ -137,8 +137,8 @@ class Conv2dConv2dReLU:
         weight2: R.Tensor((64, 64, 3, 3), "float32"),
     ):
         with R.dataflow():
-            conv1 = relax.op.nn.conv2d(data, weight1, padding=(1, 1))
-            conv2d = relax.op.nn.relu(relax.op.nn.conv2d(conv1, weight2, padding=(0, 0)))
+            conv1 = R.nn.conv2d(data, weight1, padding=(1, 1))
+            conv2d = R.nn.relu(R.nn.conv2d(conv1, weight2, padding=(0, 0)))
             R.output(conv2d)
 
         return conv2d
@@ -196,10 +196,10 @@ class BranchTupleOutput:
         weight: R.Tensor((64, 64, 3, 3), "float32"),
     ):
         with R.dataflow():
-            conv1 = relax.op.nn.conv2d(data, weight)
-            relu1 = relax.op.nn.relu(conv1)
-            gelu1 = relax.op.nn.gelu(relu1)
-            gelu2 = relax.op.nn.gelu(conv1)
+            conv1 = R.nn.conv2d(data, weight)
+            relu1 = R.nn.relu(conv1)
+            gelu1 = R.nn.gelu(relu1)
+            gelu2 = R.nn.gelu(conv1)
             out = relax.op.add(gelu1, gelu2)
             R.output(out)
 
@@ -249,9 +249,9 @@ class Branch:
         weight: R.Tensor((64, 64, 3, 3), "float32"),
     ):
         with R.dataflow():
-            conv1 = relax.op.nn.conv2d(data, weight)
-            relu1 = relax.op.nn.relu(conv1)
-            gelu1 = relax.op.nn.gelu(conv1)
+            conv1 = R.nn.conv2d(data, weight)
+            relu1 = R.nn.relu(conv1)
+            gelu1 = R.nn.gelu(conv1)
 
             out = relax.op.add(relu1, gelu1)
             R.output(out)
