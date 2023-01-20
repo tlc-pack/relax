@@ -413,7 +413,7 @@ class FunctionCreator : public ExprMutator {
   }
 
   /*! \brief Set a var defined in the group as output. */
-  int AppendOutput(const Var& var) {
+  size_t AppendOutput(const Var& var) {
     ICHECK(defined_vars_.count(var.get()));
     auto output_idx = GetOutputIndex(var);
     if (output_idx) {
@@ -627,6 +627,9 @@ class OperatorFusor : public ExprMutator {
     //  dependencies among the bindings of different groups. And therefore, we will skip all but the
     //  last binding of the group.
     builder_->BeginDataflowBlock();
+
+    // For each group, record which variables need to be remapped to the output of TupleGetItem.
+    // Only relevant when the output of the grouped function is a tuple.
     std::unordered_map<GraphPartitioner::Group*, std::vector<Var>> pending_tuple_get;
 
     for (size_t i = 0; i < block->bindings.size(); ++i) {
@@ -644,6 +647,9 @@ class OperatorFusor : public ExprMutator {
       ICHECK(it_creator != group2func_.end());
       const FunctionCreator& func_info = it_creator->second;
 
+      // If this binding belongs to a group whose output is a tuple, the original bound variable
+      // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
+      // emitted.
       if (IsTupleOutput(func_info.function_)) {
         pending_tuple_get[group].push_back(binding->var);
       }
@@ -674,7 +680,11 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      if (pending_tuple_get.count(group)) {
+      if (IsTupleOutput(func_info.function_)) {
+        // If the output is a tuple, attach TupleGetItem to all tuple elements, and
+        // remap variables approriately.
+        // The variables that need to be remapped and the corresponding tuple indices are
+        // available in pending_tuple_get and tuple_get_indices_ respectively.
         for (const auto& var : pending_tuple_get[group]) {
           ICHECK(tuple_get_indices_.count(var.get()));
           auto tuple_get = TupleGetItem(new_var, tuple_get_indices_[var.get()]);
@@ -789,6 +799,8 @@ class OperatorFusor : public ExprMutator {
   GroupMap obj2group_;
   /*! \brief Internal function information map. */
   std::unordered_map<GraphPartitioner::Group*, FunctionCreator> group2func_;
+  /*! \brief Record the index for TupleGetItem if the variable needs to be remapped to an output
+   * tuple element after fusion. */
   std::unordered_map<const VarNode*, int> tuple_get_indices_;
 };
 
