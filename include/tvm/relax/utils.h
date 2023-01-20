@@ -138,14 +138,6 @@ TVM_DLL bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank = true,
  */
 TVM_DLL bool IsLeafExpr(const Expr& expr);
 
-/*!
- * \brief Remove unused global relax functions in an IRModule.
- * \param mod The target module
- * \param entry_functions list of entry functions
- * \return The updated module.
- */
-TVM_DLL IRModule RemoveUnusedFunctions(IRModule mod, Array<runtime::String> entry_funcs);
-
 }  // namespace relax
 }  // namespace tvm
 

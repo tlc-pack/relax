@@ -25,11 +25,11 @@
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/utils.h>
 
 #include <iostream>
 
 #include "../backend/contrib/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {

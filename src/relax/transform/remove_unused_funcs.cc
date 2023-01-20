@@ -26,9 +26,10 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
-#include <iostream>
 #include <unordered_set>
 #include <vector>
+
+#include "util.h"
 
 namespace tvm {
 namespace relax {
