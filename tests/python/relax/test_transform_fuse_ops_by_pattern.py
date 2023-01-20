@@ -188,6 +188,59 @@ class Conv2dReLUx2Partitioned_only_conv2d:
         return gv1
 
 
+@tvm.script.ir_module
+class BranchTupleOutput:
+    @R.function
+    def main(
+        data: R.Tensor((1, 64, 56, 56), "float32"),
+        weight: R.Tensor((64, 64, 3, 3), "float32"),
+    ):
+        with R.dataflow():
+            conv1 = relax.op.nn.conv2d(data, weight)
+            relu1 = relax.op.nn.relu(conv1)
+            gelu1 = relax.op.nn.gelu(relu1)
+            gelu2 = relax.op.nn.gelu(conv1)
+            out = relax.op.add(gelu1, gelu2)
+            R.output(out)
+
+        return out
+
+
+@tvm.script.ir_module
+class BranchTupleOutputPartitioned:
+    @R.function
+    def main(
+        data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+    ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+        with R.dataflow():
+            lv: R.Tuple(
+                R.Tensor((1, 64, 54, 54), dtype="float32"),
+                R.Tensor((1, 64, 54, 54), dtype="float32"),
+            ) = fused_relax_nn_conv2d_relax_nn_relu(data, weight)
+            lv1: R.Tensor((1, 64, 54, 54), dtype="float32") = lv[1] # conv1
+            lv2: R.Tensor((1, 64, 54, 54), dtype="float32") = lv[0] # relu(conv1)
+            gelu1: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.gelu(lv2)
+            gelu2: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.gelu(lv1)
+            out: R.Tensor((1, 64, 54, 54), dtype="float32") = R.add(gelu1, gelu2)
+            R.output(out)
+        return out
+
+    @R.function
+    def fused_relax_nn_conv2d_relax_nn_relu(
+        data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+    ) -> R.Tuple(
+        R.Tensor((1, 64, 54, 54), dtype="float32"), R.Tensor((1, 64, 54, 54), dtype="float32")
+    ):
+        R.func_attr({"Primitive": 1, "Composite": "dnnl.conv2d_relu"})
+        with R.dataflow():
+            gv: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.conv2d(data1, weight1)
+            gv1: R.Tensor((1, 64, 54, 54), dtype="float32") = R.nn.relu(gv)
+            R.output(gv, gv1)
+        return (gv1, gv)
+
+
 conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=None)
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
@@ -213,6 +266,14 @@ def test_partition_order():
     )(Conv2dReLUx2)
 
     tvm.ir.assert_structural_equal(partitioned, Conv2dReLUx2Partitioned_only_conv2d)
+
+
+def test_branch():
+    partitioned = relax.transform.FuseOpsByPattern([("dnnl.conv2d_relu", conv2d_relu_pat)])(
+        BranchTupleOutput
+    )
+
+    tvm.ir.assert_structural_equal(partitioned, BranchTupleOutputPartitioned)
 
 
 if __name__ == "__main__":
