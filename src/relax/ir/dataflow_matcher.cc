@@ -509,7 +509,7 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
 
   Map<DFPattern, Expr> matching;
   for (const auto& [pat, matches] : matcher.GetMemo()) {
-    ICHECK(matches.size() == 1) << "More than one match for the pattern " << pat;
+    ICHECK_EQ(matches.size(), 1) << "More than one match for the pattern " << pat;
     matching.Set(pat, matches[0]);
   }
   return matching;

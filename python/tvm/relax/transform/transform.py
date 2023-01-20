@@ -19,7 +19,7 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, Union, Optional, List
+from typing import Callable, Dict, Union, Optional, List, Tuple
 import numpy as np  # type: ignore
 
 import tvm.ir
@@ -286,8 +286,8 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
 
 
-def FuseOpsByPattern(patterns: List[tuple]) -> tvm.ir.transform.Pass:
-    """Apply pattern matching to each function in the given module, and groups matched expressions
+def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
+    """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
 
     The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.

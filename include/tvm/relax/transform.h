@@ -165,7 +165,7 @@ TVM_DLL Pass AnnotateTIROpPattern();
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
- * \brief Apply pattern matching to each function in the given module, and groups matched
+ * \brief Apply pattern matching to each function in the given module, and group matched
  * expressions into a new function. The end result is similar to FuseOps, but fusion is driven
  * completely by the provided patterns.
  *
