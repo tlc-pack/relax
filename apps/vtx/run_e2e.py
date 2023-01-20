@@ -33,7 +33,8 @@ parser.add_argument('--fp16', action='store_true', default=False)
 ARGS = parser.parse_args()
 
 SRC_FILE = "./fmha.cu"
-PKG_FILE = "./packaged.o"
+#PKG_FILE = "./packaged.o"
+PKG_FILE = "./packaged.so"
 
 BATCH_SIZE = 1
 SEQ_LEN = 512
@@ -189,6 +190,7 @@ def test_construct_onnx_graph():
 def inject_schedule(extracted_tasks, work_dir):
     from schedule_gemv import sch_fn as sch_gemv
     from schedule_sum import sch_fn as sch_sum
+    from schedule_cumsum import sch_fn as sch_cumsum
 
     tasks = []
     task_weights = []
@@ -197,9 +199,15 @@ def inject_schedule(extracted_tasks, work_dir):
         ms.logging.get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
         ms.utils.fork_seed(None, n=len(extracted_tasks)),
     ):
-        if task.task_name == "sum":
+        #if task.task_name == "sum":
+        #    space = ms.space_generator.ScheduleFn(
+        #        sch_fn=sch_sum,
+        #        sch_rules=[],
+        #        postprocs=[],
+        #    )
+        if task.task_name == "cumsum":
             space = ms.space_generator.ScheduleFn(
-                sch_fn=sch_sum,
+                sch_fn = sch_cumsum,
                 sch_rules=[],
                 postprocs=[],
             )
@@ -246,7 +254,7 @@ if __name__ == "__main__":
     #    "q_title_token_masks": [1, 256],
     #}
     target = tvm.target.Target(
-        "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536"
+        "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536 -libs=thrust"
     )
 
     model_path = "./spacev5_fp16.onnx"
@@ -279,22 +287,13 @@ if __name__ == "__main__":
             ms.relax_integration.extract_tasks(mod, target, params=None),
             work_dir=WORK_DIR,
         )
-        # Explicitly remove cumsum from tuned tasks since its prescheduled for cuda.
-        new_tasks = []
-        new_weights = []
-        for i, task in enumerate(tasks):
-            if "cumsum" not in task.task_name:
-                new_tasks.append(task)
-                new_weights.append(task_weights[i])
-        tasks = new_tasks
-        task_weights = new_weights
-        database = ms.tune_tasks(
-            tasks=tasks,
-            task_weights=task_weights,
-            work_dir=WORK_DIR,
-            max_trials_global=200,
-            num_trials_per_iter=64,
-        )
+        #database = ms.tune_tasks(
+        #    tasks=tasks,
+        #    task_weights=task_weights,
+        #    work_dir=WORK_DIR,
+        #    max_trials_global=500,
+        #    num_trials_per_iter=64,
+        #)
         database = ms.database.create(work_dir=WORK_DIR)
         print("Database Loaded")
         relax_ex = ms.relax_integration.compile_relax(
@@ -307,17 +306,19 @@ if __name__ == "__main__":
         import_source_module(relax_ex)
         relax_ex.mod.export_library(
             PKG_FILE,
-            fcompile=create_archive,
+            #fcompile=create_archive,
             cc="nvcc",
-            options=["-r"],
+            #options=["-r"],
         )
         print("Exported")
     executable = tvm.runtime.load_module(PKG_FILE)
     vm = relax.VirtualMachine(executable, tvm.cuda())
     print("VM Created")
-    input0 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
-    input1 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
-    input2 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
+    #input0 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
+    #input1 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
+    #input2 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
+    input0 = tvm.nd.array(np.random.randint(256, size=[3, 1, 512]).astype("int64"), tvm.cuda())
+
     evaluator = vm.time_evaluator(
         func_name="main",
         dev=tvm.cuda(),
@@ -325,26 +326,32 @@ if __name__ == "__main__":
         number=5,
         min_repeat_ms=500,
     )
-    result = evaluator(input0, input1, input2)
+    #result = evaluator(input0, input1, input2)
+    result = evaluator(input0)
     print(result)
-    res = vm["main"](input0, input1, input2)
-    print("TVM result: ", res[0], res[1], res[2])
+    #res = vm["main"](input0, input1, input2)
+    res = vm["main"](input0)
+    print("TVM result: ", res[0], res[1], res[2], res[3], res[4])
 
     # ORT
     onnx_providers = onnxruntime.get_available_providers()
 
     print("Available Providers: ", onnx_providers)
 
+    #input_dict = {
+    #    "q_title_token_ids": np.random.randint(256, size=[1, 256]).astype("int32"),
+    #    "q_title_token_types": np.random.randint(256, size=[1, 256]).astype("int32"),
+    #    "q_title_token_masks": np.random.randint(256, size=[1, 256]).astype("int32"),
+    #}
+
     input_dict = {
-        "q_title_token_ids": np.random.randint(256, size=[1, 256]).astype("int32"),
-        "q_title_token_types": np.random.randint(256, size=[1, 256]).astype("int32"),
-        "q_title_token_masks": np.random.randint(256, size=[1, 256]).astype("int32"),
+        "id__mask__segment": np.random.randint(256, size=[3, 1, 512]).astype("int64")
     }
 
     import time
 
     session = onnxruntime.InferenceSession(
-        model_path, providers=onnx_providers
+        model_path, providers=['CUDAExecutionProvider']
     )
     outputs = session.run([], input_dict)
     print("Onnx result: ", outputs)
