@@ -928,6 +928,23 @@ def test_arith_operators():
     _check(foo, bb.get()["foo"])
 
 
+def test_vm_ops():
+    @R.function
+    def foo(x: R.Tensor(("m", "n"), dtype="float32")):
+        m = T.var("int64")
+        n = T.var("int64")
+        storage = R.vm.alloc_storage((4 * m * n,), dtype="float32", runtime_device_index=0)
+        alloc = R.vm.alloc_tensor(storage, (m, n), offset=0, dtype="float32")
+        tensor = R.builtin.alloc_tensor((m, n), dtype="float32", runtime_device_index=0)
+        _ = R.vm.call_tir_dyn("te_func", (x, tensor, (m, n)))
+        gv = tensor
+        # TODO: add testcase for store_shape / load_shape
+        # Need some context of how to use them.
+        return alloc, gv
+
+    _check(foo, None)
+
+
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
 def test_meta():
     metadata = tvm.ir.load_json(
