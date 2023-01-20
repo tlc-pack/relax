@@ -266,7 +266,7 @@ if __name__ == "__main__":
     mod["layer_norm"] = mod["layer_norm"].with_attr("op_pattern", 2)
 
     mod = relax.transform.FoldConstant()(mod)
-    #mod = relax.transform.AnnotateTIROpPattern()(mod)
+    mod = relax.transform.AnnotateTIROpPattern()(mod)
     mod = relax.transform.FuseOps()(mod)
     mod = relax.transform.FuseTIR()(mod)
     print("Fused")
