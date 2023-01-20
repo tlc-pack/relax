@@ -922,8 +922,8 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
   support::Arena arena;
   for (size_t i = 0; i < pattern_names.size(); ++i) {
     OperatorFusor::GroupMap group_map;
-    for (const auto& [_, func] : mod->functions) {
-      auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], func, &arena);
+    for (const auto& entry : mod->functions) {
+      auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
       group_map.insert(map.begin(), map.end());
     }
     mod = OperatorFusor(mod, group_map).Transform();
