@@ -24,7 +24,8 @@ from tvm.contrib.cutlass.build import _get_cutlass_path, select_gemm_kernel
 from tvm.contrib.cutlass.gen_gemm import CutlassGemmProfiler
 from tvm.contrib.cutlass.library import DataTypeTag
 
-SM = 75
+#SM = 75
+SM = 86
 TMP_DIR = "/tmp/"
 
 

@@ -254,7 +254,7 @@ if __name__ == "__main__":
     #    "q_title_token_masks": [1, 256],
     #}
     target = tvm.target.Target(
-        "cuda -arch=sm_75 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536 -libs=thrust"
+        "cuda -arch=sm_86 -max_shared_memory_per_block=49152 -max_threads_per_block=1024 -thread_warp_size=32 -registers_per_block=65536 -libs=thrust"
     )
 
     model_path = "./spacev5_fp16.onnx"
@@ -351,7 +351,7 @@ if __name__ == "__main__":
     import time
 
     session = onnxruntime.InferenceSession(
-        model_path, providers=['CUDAExecutionProvider']
+        model_path, providers=['TensorrtExecutionProvider']
     )
     outputs = session.run([], input_dict)
     print("Onnx result: ", outputs)

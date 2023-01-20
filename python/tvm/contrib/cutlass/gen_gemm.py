@@ -165,6 +165,15 @@ DEFAULT_KERNELS = {
             "cutlass_tensorop_s1688gemm_64x64_16x3_tn_align1",
         ),
     },
+    86: {
+        ("float16", "float16"): "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        ("float16", "float32"): "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        # two kernels for tf32 and 3xtf32
+        ("float32", "float32"): (
+            "cutlass_tensorop_s1688gemm_128x64_32x3_tn_align1",
+            "cutlass_tensorop_s1688gemm_64x64_16x3_tn_align1",
+        ),
+    },
 }
 
 

@@ -331,6 +331,7 @@ def generate_sm80_tensor_op_16816(
 GENERATOR_FUNC_TABLE = {
     75: generate_sm75_tensor_op_1688,
     80: generate_sm80_tensor_op_16816,
+    86: generate_sm80_tensor_op_16816,
 }
 
 
