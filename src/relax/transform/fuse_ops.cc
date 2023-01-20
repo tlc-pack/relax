@@ -807,7 +807,7 @@ class OperatorFusor : public ExprMutator {
   /*! \brief Record the index for TupleGetItem if the variable needs to be remapped to an output
    * tuple element after fusion. */
   std::unordered_map<const VarNode*, int> tuple_get_indices_;
-  // A map from a group to its dependent groups, used to detect cyclic dependencies.
+  /*! \brief A map from a group to its dependent groups, used to detect cyclic dependencies. */
   std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
 };
 

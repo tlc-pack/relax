@@ -263,35 +263,33 @@ conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=No
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
 
+def check(mod, patterns, expected):
+    partitioned = relax.transform.FuseOpsByPattern(patterns)(mod)
+    tvm.ir.assert_structural_equal(partitioned, expected)
+
+
 def test_partition_conv2d_relu():
-    partitioned = relax.transform.FuseOpsByPattern([("dnnl.conv2d_relu", conv2d_relu_pat)])(
-        Conv2dReLUx2
-    )
-    tvm.ir.assert_structural_equal(partitioned, Conv2dReLUx2Partitioned)
+    check(Conv2dReLUx2, [("dnnl.conv2d_relu", conv2d_relu_pat)], Conv2dReLUx2Partitioned)
 
 
 def test_partition_multiple_patterns():
-    partitioned = relax.transform.FuseOpsByPattern(
-        [("dnnl.conv2d_relu", conv2d_relu_pat), ("dnnl.conv2d", conv2d_pat)]
-    )(Conv2dConv2dReLU)
-
-    tvm.ir.assert_structural_equal(partitioned, Conv2dConv2dReLUPartitioned)
+    check(
+        Conv2dConv2dReLU,
+        [("dnnl.conv2d_relu", conv2d_relu_pat), ("dnnl.conv2d", conv2d_pat)],
+        Conv2dConv2dReLUPartitioned,
+    )
 
 
 def test_partition_order():
-    partitioned = relax.transform.FuseOpsByPattern(
-        [("dnnl.conv2d", conv2d_pat), ("dnnl.conv2d_relu", conv2d_relu_pat)]
-    )(Conv2dReLUx2)
-
-    tvm.ir.assert_structural_equal(partitioned, Conv2dReLUx2Partitioned_only_conv2d)
+    check(
+        Conv2dReLUx2,
+        [("dnnl.conv2d", conv2d_pat), ("dnnl.conv2d_relu", conv2d_relu_pat)],
+        Conv2dReLUx2Partitioned_only_conv2d,
+    )
 
 
 def test_branch_tuple_output():
-    partitioned = relax.transform.FuseOpsByPattern([("dnnl.conv2d_relu", conv2d_relu_pat)])(
-        BranchTupleOutput
-    )
-
-    tvm.ir.assert_structural_equal(partitioned, BranchTupleOutputPartitioned)
+    check(BranchTupleOutput, [("dnnl.conv2d_relu", conv2d_relu_pat)], BranchTupleOutputPartitioned)
 
 
 def test_cyclic_dependency():
