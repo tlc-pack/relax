@@ -19,7 +19,7 @@ import tvm
 
 from tvm import relax
 from tvm.script import relax as R
-from tvm.relax.dpl.pattern import make_fused_bias_activation_pattern
+from tvm.relax.dpl.pattern import make_fused_bias_activation_pattern, is_op, wildcard
 
 
 @tvm.script.ir_module
@@ -241,6 +241,24 @@ class BranchTupleOutputPartitioned:
         return (gv1, gv)
 
 
+@tvm.script.ir_module
+class Branch:
+    @R.function
+    def main(
+        data: R.Tensor((1, 64, 56, 56), "float32"),
+        weight: R.Tensor((64, 64, 3, 3), "float32"),
+    ):
+        with R.dataflow():
+            conv1 = relax.op.nn.conv2d(data, weight)
+            relu1 = relax.op.nn.relu(conv1)
+            gelu1 = relax.op.nn.gelu(conv1)
+
+            out = relax.op.add(relu1, gelu1)
+            R.output(out)
+
+        return out
+
+
 conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=None)
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
@@ -274,6 +292,17 @@ def test_branch_tuple_output():
     )
 
     tvm.ir.assert_structural_equal(partitioned, BranchTupleOutputPartitioned)
+
+
+def test_cyclic_dependency():
+    conv_pat = make_fused_bias_activation_pattern("relax.nn.conv2d")
+    relu_pat = is_op("relax.nn.relu")(conv_pat)
+    add_pat = is_op("relax.add")(relu_pat, wildcard())
+
+    with pytest.raises(tvm.error.TVMError) as err:
+        relax.transform.FuseOpsByPattern([("compiler_A.conv2d_relu_add", add_pat)])(Branch)
+
+    assert "A cyclic dependency detected" in str(err.value)
 
 
 if __name__ == "__main__":

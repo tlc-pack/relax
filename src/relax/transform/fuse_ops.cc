@@ -35,8 +35,6 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/function.h>
 
-#include <unordered_map>
-
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
 
@@ -552,7 +550,8 @@ class FunctionCreator : public ExprMutator {
  */
 class OperatorFusor : public ExprMutator {
  public:
-  using GroupMap = std::unordered_map<const Object*, GraphPartitioner::Group*>;
+  using Group = GraphPartitioner::Group;
+  using GroupMap = std::unordered_map<const Object*, Group*>;
   /*!
    * \brief Construct a new operator fusor. Given the indexed-forward graph and the graph partition
    * result on that graph, the constructor creates a mapping from each leaf AST object
@@ -563,10 +562,10 @@ class OperatorFusor : public ExprMutator {
    * \param groups The grouped result of the group partition on the input indexed-forward graph.
    */
   explicit OperatorFusor(IRModule mod, const IndexedForwardGraph& graph,
-                         const std::vector<GraphPartitioner::Group*>& groups)
+                         const std::vector<Group*>& groups)
       : ExprMutator(mod), mod_(std::move(mod)) {
     for (int nid = 0; nid < static_cast<int>(graph.post_dfs_order.size()); ++nid) {
-      GraphPartitioner::Group* group_root = groups[nid]->FindRoot();
+      Group* group_root = groups[nid]->FindRoot();
       ICHECK(group_root != nullptr);
       ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
       obj2group_[graph.post_dfs_order[nid]->ref] = group_root;
@@ -630,14 +629,14 @@ class OperatorFusor : public ExprMutator {
 
     // For each group, record which variables need to be remapped to the output of TupleGetItem.
     // Only relevant when the output of the grouped function is a tuple.
-    std::unordered_map<GraphPartitioner::Group*, std::vector<Var>> pending_tuple_get;
+    std::unordered_map<Group*, std::vector<Var>> pending_tuple_get;
 
     for (size_t i = 0; i < block->bindings.size(); ++i) {
       const Binding& binding = block->bindings[i];
 
       // Case 1. If the binding is the only binding in its group, recurse into it and emit the
       // transformed binding as usual.
-      GraphPartitioner::Group* group = GetGroupFromBinding(binding);
+      Group* group = GetGroupFromBinding(binding);
       if (group->num_nodes == 1) {
         VisitBinding(binding);
         continue;
@@ -650,7 +649,7 @@ class OperatorFusor : public ExprMutator {
       // If this binding belongs to a group whose output is a tuple, the original bound variable
       // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
       // emitted.
-      if (IsTupleOutput(func_info.function_)) {
+      if (IsTupleOutput(func_info.function_) && tuple_get_indices_.count(binding->var.get())) {
         pending_tuple_get[group].push_back(binding->var);
       }
 
@@ -686,7 +685,6 @@ class OperatorFusor : public ExprMutator {
         // The variables that need to be remapped and the corresponding tuple indices are
         // available in pending_tuple_get and tuple_get_indices_ respectively.
         for (const auto& var : pending_tuple_get[group]) {
-          ICHECK(tuple_get_indices_.count(var.get()));
           auto tuple_get = TupleGetItem(new_var, tuple_get_indices_[var.get()]);
           var_remap_[var->vid] = builder_->Emit(tuple_get);
         }
@@ -707,7 +705,7 @@ class OperatorFusor : public ExprMutator {
   void CollectFuncBindings(const Array<Binding>& bindings) {
     for (const Binding& binding : bindings) {
       // If the binding is the only binding in its group, there is no need to create a new function.
-      GraphPartitioner::Group* group = GetGroupFromBinding(binding);
+      Group* group = GetGroupFromBinding(binding);
       if (group->num_nodes == 1) {
         continue;
       }
@@ -721,18 +719,25 @@ class OperatorFusor : public ExprMutator {
   void CollectFuncBoundary(const Array<Binding>& bindings) {
     for (const Binding& binding : bindings) {
       // Step 1. Get current binding's group
-      GraphPartitioner::Group* cur_group = GetGroupFromBinding(binding);
+      Group* cur_group = GetGroupFromBinding(binding);
 
       // Step 2. Collect all used vars in the binding value and update bondary.
       // - If the var's group is same as the binding's, the var is defined in the same group
       // - If the var's group is different with the binding's, the var must be the output from
       //   another group. Mark it to be the group output.
-      auto update_boundary = [this, &cur_group](const Expr& e) {
+      auto update_boundary = [this, binding, &cur_group](const Expr& e) {
         if (e->IsInstance<VarNode>()) {
           const Var& used_var = Downcast<Var>(e);
-          GraphPartitioner::Group* producer_group = GetGroupFromVar(used_var);
+          Group* producer_group = GetGroupFromVar(used_var);
           // Only check those group defined before.
           // Skip the vars from input or groups with single binding.
+          if (producer_group != cur_group) {
+            ICHECK(!group_deps_[producer_group].count(cur_group))
+                << "A cyclic dependency detected between the groups " << binding->var->name_hint()
+                << " and " << used_var->name_hint() << " are in.";
+            group_deps_[cur_group].insert(producer_group);
+          }
+
           if (producer_group != cur_group &&
               group2func_.find(producer_group) != group2func_.end()) {
             FunctionCreator& producer_func_info = group2func_[producer_group];
@@ -757,7 +762,7 @@ class OperatorFusor : public ExprMutator {
    * \param binding The binding to be queried
    * \return The pointer to the group which the input binding is in
    */
-  GraphPartitioner::Group* GetGroupFromBinding(const Binding& binding) {
+  Group* GetGroupFromBinding(const Binding& binding) {
     Var var = binding->var;
     return GetGroupFromVar(var);
   }
@@ -767,10 +772,10 @@ class OperatorFusor : public ExprMutator {
    * \param Var The var to be queried
    * \return The pointer to the group which the input var is in
    */
-  GraphPartitioner::Group* GetGroupFromVar(const Var& var) {
+  Group* GetGroupFromVar(const Var& var) {
     const auto& it_group = obj2group_.find(var.get());
     ICHECK(it_group != obj2group_.end());
-    GraphPartitioner::Group* group = it_group->second;
+    Group* group = it_group->second;
     ICHECK(group->FindRoot() == group);
     return group;
   }
@@ -798,10 +803,12 @@ class OperatorFusor : public ExprMutator {
   /*! \brief The group assignment map. */
   GroupMap obj2group_;
   /*! \brief Internal function information map. */
-  std::unordered_map<GraphPartitioner::Group*, FunctionCreator> group2func_;
+  std::unordered_map<Group*, FunctionCreator> group2func_;
   /*! \brief Record the index for TupleGetItem if the variable needs to be remapped to an output
    * tuple element after fusion. */
   std::unordered_map<const VarNode*, int> tuple_get_indices_;
+  // A map from a group to its dependent groups, used to detect cyclic dependencies.
+  std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
 };
 
 IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
