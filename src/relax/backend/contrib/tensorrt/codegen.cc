@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../transform/utils.h"
 #include "../codegen_json/codegen_json.h"
 #include "../utils.h"
 
@@ -321,7 +322,7 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
                                         Map<String, ObjectRef> /*unused*/) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
-    std::string func_name = backend::GetExtSymbol(func);
+    std::string func_name = GetExtSymbol(func);
     VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
     TensorRTJSONSerializer serializer(func_name, func);
     serializer.serialize();

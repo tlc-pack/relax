@@ -28,7 +28,6 @@
 
 #include <iostream>
 
-#include "../backend/contrib/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -102,7 +101,7 @@ class CodeGenRunner : ExprMutator {
     Function func = GetRef<Function>(func_node);
     auto opt_codegen = func->GetAttr<String>(attr::kCodegen);
     if (opt_codegen) {
-      return ExternFunc(backend::GetExtSymbol(func));
+      return ExternFunc(GetExtSymbol(func));
     } else {
       return ExprMutator::VisitExpr_(func_node);
     }
