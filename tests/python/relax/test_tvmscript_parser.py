@@ -965,7 +965,6 @@ def test_datatype_imm():
         gv = R.call_packed("test", R.dtype("float32"), type_args=R.Tensor((32, 32), "float32"))
         return gv
 
-
     _check(foo, None)
 
 

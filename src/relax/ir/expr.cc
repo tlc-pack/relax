@@ -342,6 +342,7 @@ StringImm::StringImm(String value, Span span) {
   n->value = std::move(value);
   n->span = std::move(span);
   // use the base structinfo for now
+  // we can choose to introduce more fine-grained struct info later if necessary.
   n->checked_type_ = ObjectType();
   n->struct_info_ = ObjectStructInfo();
   data_ = std::move(n);
@@ -358,6 +359,7 @@ DataTypeImm::DataTypeImm(DataType value, Span span) {
   n->value = std::move(value);
   n->span = std::move(span);
   // use the base structinfo for now
+  // we can choose to introduce more fine-grained struct info later if necessary.
   n->checked_type_ = ObjectType();
   n->struct_info_ = ObjectStructInfo();
   data_ = std::move(n);
