@@ -307,5 +307,32 @@ def test_annotate_opkind_softmax():
     assert new_mod["softmax"].attrs["op_pattern"] == OpPatternKind.kOutEWiseFusable
 
 
+def test_multiple_bufer_stores_fallback():
+    @tvm.script.ir_module
+    class CumsumModule:
+        @T.prim_func
+        def cumsum(var_rxplaceholder: T.handle, out_buf: T.Buffer[160, "float32"]):
+            rxplaceholder = T.match_buffer(
+                var_rxplaceholder, [10, 16], dtype="float32", offset_factor=1
+            )
+            with T.block("cumsum_generic"):
+                T.reads(rxplaceholder[0:10, 0:16])
+                T.writes(out_buf[0:160])
+                for fused in T.parallel(1):
+                    out_buf[fused * 160] = rxplaceholder[fused * 160 // 16, fused * 160 % 16]
+                    for v_k in T.serial(159):
+                        out_buf[fused * 160 + (v_k + 1)] = (
+                            out_buf[fused * 160 + (v_k + 1 - 1)]
+                            + rxplaceholder[
+                                (fused * 160 + (v_k + 1)) // 16,
+                                (fused * 160 + (v_k + 1)) % 16,
+                            ]
+                        )
+
+    mod = CumsumModule
+    new_mod = relax.transform.AnnotateTIROpPattern()(mod)
+    assert new_mod["cumsum"].attrs["op_pattern"] == OpPatternKind.kOpaque
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
