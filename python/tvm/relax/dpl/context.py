@@ -20,7 +20,7 @@
 from typing import Optional, Dict
 
 import tvm
-from tvm.relax import DataflowBlock, Var
+from ..expr import DataflowBlock, Var
 from .pattern import DFPattern
 from . import _ffi as ffi
 
