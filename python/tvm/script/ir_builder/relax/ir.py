@@ -22,10 +22,9 @@ import inspect
 from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
-from tvm.ir import Type
 from tvm import relax
+from tvm.ir import Type
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
-from tvm.relax.struct_info import StructInfo
 from tvm.relax.analysis import get_static_type
 
 ############################### Operators ###############################
@@ -35,9 +34,8 @@ from tvm.relax.op import (
     astype,
     broadcast_to,
     builtin,
-    null_value,
-    call_tir,
     call_builtin,
+    call_tir,
     concat,
     cos,
     divide,
@@ -66,6 +64,7 @@ from tvm.relax.op import (
     negative,
     nn,
     not_equal,
+    null_value,
     ones,
     ones_like,
     permute_dims,
@@ -88,12 +87,15 @@ from tvm.relax.op import (
     triu,
     unique,
     variance,
+    vm,
     where,
     zeros,
     zeros_like,
 )
+from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import convert_to_expr
-from tvm.runtime import Object as tvm_Object, ObjectGeneric
+from tvm.runtime import Object as tvm_Object
+from tvm.runtime import ObjectGeneric
 
 from . import _ffi_api, frame
 
@@ -400,7 +402,6 @@ __all__ = [
     "call_tir",
     "call_builtin",
     "cos",
-    "null_value",
     "concat",
     "const",
     "dataflow",
@@ -437,6 +438,7 @@ __all__ = [
     "negative",
     "nn",
     "not_equal",
+    "null_value",
     "ones",
     "ones_like",
     "output",
@@ -461,6 +463,7 @@ __all__ = [
     "tuple",
     "unique",
     "variance",
+    "vm",
     "where",
     "zeros",
     "zeros_like",

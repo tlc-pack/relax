@@ -443,8 +443,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   /*! \brief the context module. */
   IRModule ctx_mod_;
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
-  const Op& alloc_storage_op_ = Op::Get("relax.vm.builtin.alloc_storage");
-  const Op& alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
+  const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
+  const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
   const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
   const Op& null_value_op_ = Op::Get("relax.null_value");
   const Op& unique_op_ = Op::Get("relax.unique");

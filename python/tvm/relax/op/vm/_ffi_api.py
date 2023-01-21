@@ -13,37 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
+"""FFI APIs for tvm.relax.op.vm"""
+import tvm._ffi
 
-# Operators
-from .base import *
-from .binary import *
-from .create import *
-from .datatype import *
-from .index import *
-from .linear_algebra import *
-from .manipulate import *
-from .op_attrs import *
-from .search import *
-from .set import *
-from .statistical import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import image
-from . import memory
-from . import nn
-from . import vm
-
-
-def _register_op_make():
-    # pylint: disable=import-outside-toplevel
-    from . import _ffi_api
-    from .. import expr
-
-    expr._op_ffi_api = _ffi_api  # type: ignore
-
-
-_register_op_make()
+tvm._ffi._init_api("relax.op.vm", __name__)
