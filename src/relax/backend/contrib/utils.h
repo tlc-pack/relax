@@ -86,18 +86,6 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
 };
 
 /*!
- * \brief Get the external symbol of the Relax function name.
- *
- * \param func The provided function.
- * \return An external symbol.
- */
-inline std::string GetExtSymbol(const Function& func) {
-  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
-  return std::string(name_node.value());
-}
-
-/*!
  * \brief Get the Packed Func
  *
  * \param func_name
