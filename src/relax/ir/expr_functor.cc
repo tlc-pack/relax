@@ -52,6 +52,9 @@
     RELAX_VISIT_BINDING_DISPATCH(IfNode);                                            \
     RELAX_VISIT_BINDING_DISPATCH(OpNode);                                            \
     RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                  \
+    RELAX_VISIT_BINDING_DISPATCH(PrimValueNode);                                     \
+    RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                     \
+    RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                   \
     return vtable;                                                                   \
   }                                                                                  \
   void Type::VisitBinding_(const VarBindingNode* binding) {                          \
@@ -181,7 +184,7 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
   }
 }
 
-void ExprVisitor::VisitExpr_(const OpNode* op) {}
+void ExprVisitor::VisitExpr_(const OpNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitSpan(op->span);
@@ -220,6 +223,15 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   }
 }
 
+void ExprVisitor::VisitExpr_(const PrimValueNode* op) {
+  this->VisitPrimExpr(op->value);
+  this->VisitSpan(op->span);
+}
+
+void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span); }
+
+void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->span); }
+
 void ExprVisitor::VisitType(const Type& t) {}
 
 void ExprVisitor::VisitSpan(const Span& span) {}
@@ -241,6 +253,9 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(SeqExprNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(IfNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(PrimValueNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(StringImmNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
@@ -452,6 +467,20 @@ Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* op) {
   }
 }
 
+Expr ExprMutatorBase::VisitExpr_(const PrimValueNode* op) {
+  auto value = this->VisitPrimExpr(op->value);
+  if (op->value.same_as(value)) {
+    // struct info can be deterministically derived by value
+    // if value does not change, then struct info won't change.
+    return GetRef<Expr>(op);
+  }
+  return PrimValue(value, op->span);
+}
+
+Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return GetRef<Expr>(op); }
+
+Expr ExprMutatorBase::VisitExpr_(const DataTypeImmNode* op) { return GetRef<Expr>(op); }
+
 Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
   auto values = op->values.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
 
@@ -619,6 +648,9 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(SeqExprNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(IfNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(PrimValueNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(StringImmNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);

@@ -361,6 +361,18 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::ExternFuncNode* op) {
   return Doc::StrLiteral(op->global_symbol);
 }
 
+Doc RelaxScriptPrinter::VisitNode_(const relax::PrimValueNode* op) {
+  return Doc::Text("R.prim_value(") << Print(op->value) << ")";
+}
+
+Doc RelaxScriptPrinter::VisitNode_(const relax::StringImmNode* op) {
+  return Doc::Text("R.str(") << Print(op->value) << ")";
+}
+
+Doc RelaxScriptPrinter::VisitNode_(const relax::DataTypeImmNode* op) {
+  return Doc::Text("R.dtype(") << PrintDType(op->value) << ")";
+}
+
 Doc RelaxScriptPrinter::PrintPrimExpr(const PrimExpr& expr) {
   Doc body = VisitExpr(expr);
   if (print_symbolic_shape_as_str_ && !expr->IsInstance<IntImmNode>()) {
@@ -655,9 +667,7 @@ Doc RelaxScriptPrinter::VisitStructInfo_(const ObjectStructInfoNode* op) {
 }
 
 Doc RelaxScriptPrinter::VisitStructInfo_(const PrimStructInfoNode* op) {
-  // TODO(@relax-team): support PrimStructInfo printing and parsing
-  LOG(FATAL) << "Not allowed to print PrimStructInfo for now.";
-  return Doc::Text("");
+  return Doc::Text("R.Prim(") << PrintDType(op->dtype) << ")";
 }
 
 Doc RelaxScriptPrinter::VisitStructInfo_(const ShapeStructInfoNode* op) {

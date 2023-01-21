@@ -245,6 +245,24 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return builder_->ConvertConstant(ShapeTuple(shape));
   }
 
+  Instruction::Arg VisitExpr_(const PrimValueNode* op) final {
+    if (auto* int_imm = op->value.as<IntImmNode>()) {
+      return builder_->ConvertConstant(int_imm->value);
+    } else {
+      auto* float_imm = op->value.as<FloatImmNode>();
+      ICHECK(float_imm) << "PrimValue can only be IntImm/FloatImm for now";
+      return builder_->ConvertConstant(float_imm->value);
+    }
+  }
+
+  Instruction::Arg VisitExpr_(const StringImmNode* op) final {
+    return builder_->ConvertConstant(op->value);
+  }
+
+  Instruction::Arg VisitExpr_(const DataTypeImmNode* op) final {
+    return builder_->ConvertConstant(op->value);
+  }
+
   Instruction::Arg VisitExpr_(const TupleNode* op) final {
     Tuple tuple = GetRef<Tuple>(op);
     std::vector<Instruction::Arg> args;
