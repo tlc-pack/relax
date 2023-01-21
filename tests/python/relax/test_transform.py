@@ -311,7 +311,7 @@ def test_vm_memory_lower():
     block = func.body.blocks[0]
     s1 = block.bindings[0].value
     assert isinstance(s1, relax.Call)
-    assert s1.op.name == "relax.vm.builtin.alloc_storage"
+    assert s1.op.name == "relax.vm.alloc_storage"
     s2 = block.bindings[1].value
     assert isinstance(s2, relax.Call)
     s3 = block.bindings[2].value

@@ -390,7 +390,7 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTen
 
 // vm alloc_storage
 
-RELAY_REGISTER_OP("relax.vm.builtin.alloc_storage")
+RELAY_REGISTER_OP("relax.vm.alloc_storage")
     .set_attrs_type<VMAllocStorageAttrs>()
     .set_num_inputs(1)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
@@ -400,11 +400,11 @@ Expr MakeVMAllocStorage(Expr size, DataType dtype, int64_t runtime_device_index)
   auto attrs = make_object<VMAllocStorageAttrs>();
   attrs->dtype = std::move(dtype);
   attrs->runtime_device_index = std::move(runtime_device_index);
-  static const Op& op = Op::Get("relax.vm.builtin.alloc_storage");
+  static const Op& op = Op::Get("relax.vm.alloc_storage");
   return Call(op, {size}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_storage").set_body_typed(MakeVMAllocStorage);
+TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);
 
 // vm alloc_tensor
 
@@ -421,7 +421,7 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
   return TensorStructInfo(attrs->dtype, kUnknownNDim);
 }
 
-RELAY_REGISTER_OP("relax.vm.builtin.alloc_tensor")
+RELAY_REGISTER_OP("relax.vm.alloc_tensor")
     .set_attrs_type<VMAllocTensorAttrs>()
     .set_num_inputs(2)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
@@ -432,46 +432,11 @@ Expr MakeVMAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
   auto attrs = make_object<VMAllocTensorAttrs>();
   attrs->offset = std::move(offset);
   attrs->dtype = std::move(dtype);
-  static const Op& op = Op::Get("relax.vm.builtin.alloc_tensor");
+  static const Op& op = Op::Get("relax.vm.alloc_tensor");
   return Call(op, {storage, shape}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.alloc_tensor").set_body_typed(MakeVMAllocTensor);
-
-// vm store_shape
-
-RELAY_REGISTER_OP("relax.vm.builtin.store_shape")
-    .set_attrs_type<ShapeHeapAttrs>()
-    .set_num_inputs(2)
-    .add_argument("shape", "Expr", "The shape to be stored.")
-    .add_argument("heap", "Expr", "The heap to store the shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
-
-Expr MakeStoreShape(Expr shape, Expr heap, Array<Integer> indices) {
-  auto attrs = make_object<ShapeHeapAttrs>();
-  attrs->indices = std::move(indices);
-  static const Op& op = Op::Get("relax.vm.builtin.store_shape");
-  return Call(op, {shape, heap}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.store_shape").set_body_typed(MakeStoreShape);
-
-// vm load_shape
-
-RELAY_REGISTER_OP("relax.vm.builtin.load_shape")
-    .set_attrs_type<ShapeHeapAttrs>()
-    .set_num_inputs(1)
-    .add_argument("heap", "Expr", "The heap to load the shape from.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeStructInfo);
-
-Expr MakeLoadShape(Expr heap, Array<Integer> indices) {
-  auto attrs = make_object<ShapeHeapAttrs>();
-  attrs->indices = std::move(indices);
-  static const Op& op = Op::Get("relax.vm.builtin.load_shape");
-  return Call(op, {heap}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.vm.builtin.load_shape").set_body_typed(MakeLoadShape);
+TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
 // vm call_tir_dyn
 
@@ -481,6 +446,13 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
     .add_argument("args", "Tuple",
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
+
+Expr MakeCallTIRDyn(Expr func, Tuple args) {
+  static const Op& op = Op::Get("relax.vm.call_tir_dyn");
+  return Call(op, {func, args}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);
 
 }  // namespace relax
 }  // namespace tvm
