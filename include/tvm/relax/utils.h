@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>

@@ -187,7 +187,7 @@ TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
 TVM_DLL Pass FuseTIR();
 
 /*!
- * \brief Remove unused global relax functions in a IRModule.
+ * \brief Remove unused global relax functions in an IRModule.
  * \param entry_functions list of entry functions
  * \return The Pass.
  */
@@ -195,11 +195,11 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
 /*!
  * \brief Run codegen.
- * \param target_codegens list of codegens
+ * \param target_options pairs of target name and compilation options
  * \param entry_functions list of entry functions
  * \return The Pass.
  */
-TVM_DLL Pass RunCodegen(Optional<Array<runtime::String>> target_codegens,
+TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
                         Array<runtime::String> entry_functions);
 
 }  // namespace transform

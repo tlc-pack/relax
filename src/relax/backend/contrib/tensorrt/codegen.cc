@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../transform/utils.h"
 #include "../codegen_json/codegen_json.h"
 #include "../utils.h"
 
@@ -313,26 +314,27 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
 }
 
 /*!
- * \brief Create a runtime module for TensorRT.
- * \param ref The ext_func Relay expression/module to be executed using extern ops.
- * \return A runtime module.
+ * \brief Create runtime modules for TensorRT.
+ * \param functions The extern functions to be compiled via TensorRT
+ * \return Runtime modules.
  */
-runtime::Module TensorRTCompiler(const ObjectRef& ref) {
-  ICHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relax function.";
-  Function func = Downcast<Function>(ref);
-  std::string func_name = backend::GetExtSymbol(func);
-
-  VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
-  TensorRTJSONSerializer serializer(func_name, func);
-  serializer.serialize();
-  std::string graph_json = serializer.GetJSON();
-  VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
-  auto param_names = serializer.GetParams();
-  const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
-  ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
-  VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-  runtime::Module lib = (*pf)(func_name, graph_json, param_names);
-  return lib;
+Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
+                                        Map<String, ObjectRef> /*unused*/) {
+  Array<runtime::Module> compiled_functions;
+  for (const auto& func : functions) {
+    std::string func_name = GetExtSymbol(func);
+    VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
+    TensorRTJSONSerializer serializer(func_name, func);
+    serializer.serialize();
+    std::string graph_json = serializer.GetJSON();
+    VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
+    auto param_names = serializer.GetParams();
+    const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
+    ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+    VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
+    compiled_functions.push_back((*pf)(func_name, graph_json, param_names));
+  }
+  return compiled_functions;
 }
 
 TVM_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
