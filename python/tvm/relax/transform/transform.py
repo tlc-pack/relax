@@ -311,6 +311,11 @@ def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns)  # type: ignore
 
 
+def FuseCompositeFunctions() -> tvm.ir.transform.Pass:
+    """TODO"""
+    return _ffi_api.FuseCompositeFunctions()  # type: ignore
+
+
 def FuseTIR() -> tvm.ir.transform.Pass:
     """Fuse primitive relax function into a larger TIR function if possible
 

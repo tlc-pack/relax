@@ -127,11 +127,7 @@ def test_single_annot_func():
     mod["relax_func"] = new_relax_func
 
     # Run Codegen pass
-    seq = tvm.transform.Sequential(
-        [relax.transform.RunCodegen(), relax.transform.RemoveUnusedFunctions()]
-    )
-
-    new_mod = seq(mod)
+    new_mod = relax.transform.RunCodegen()(mod)
     ex0 = relax.vm.build(new_mod, target, params={})
 
     # Sanity check for the correctness and rountrip
@@ -196,7 +192,6 @@ def test_mix_use_tensorrt_and_tvm():
             seq = tvm.transform.Sequential(
                 [
                     relax.transform.RunCodegen(),
-                    relax.transform.RemoveUnusedFunctions(),
                     transform.LowerWithRelayOpStrategyPass(target),
                     relax.transform.MetaScheduleTuneIRMod(
                         params={}, work_dir=work_dir, max_trials_global=8
