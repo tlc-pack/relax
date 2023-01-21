@@ -87,58 +87,6 @@ def alloc_tensor(
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
-def store_shape(
-    shape: Union[Tuple[PrimExpr], Expr],
-    heap: Expr,
-    indices: List[int],
-) -> Call:
-    """Construct a Call to store the shape of a tensor to the heap.
-
-    Parameters
-    ----------
-    shape: Union[Tuple[PrimExpr], Expr]
-        The shape of the tensor to be stored.
-
-    heap: Expr
-        The heap to store the shape.
-
-    indices: List[int]
-        The indices of the shape to be stored.
-
-    Returns
-    -------
-    result : Call
-        A relax Call, which stores the shape.
-    """
-    if isinstance(shape, (tuple, list)):
-        shape = ShapeExpr(shape)
-    elif not isinstance(shape, Expr):
-        raise TypeError("shape must be a tuple of PrimExpr or relax.Expr")
-    return _ffi_api.store_shape(shape, heap, indices)  # type: ignore
-
-
-def load_shape(
-    heap: Expr,
-    indices: List[int],
-) -> Call:
-    """Construct a Call to load the shape of a tensor from the heap.
-
-    Parameters
-    ----------
-    heap: Expr
-        The heap to load the shape.
-
-    indices: List[int]
-        The indices of the shape to be loaded.
-
-    Returns
-    -------
-    result : Call
-        A relax Call, which loads the shape.
-    """
-    return _ffi_api.load_shape(heap, indices)  # type: ignore
-
-
 def call_tir_dyn(
     func: Union[str, Expr],
     args: Union[Expr, List[Expr]],

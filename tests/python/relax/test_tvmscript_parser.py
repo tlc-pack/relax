@@ -938,8 +938,6 @@ def test_vm_ops():
         tensor = R.builtin.alloc_tensor((m, n), dtype="float32", runtime_device_index=0)
         _ = R.vm.call_tir_dyn("te_func", (x, tensor, (m, n)))
         gv = tensor
-        # TODO: add testcase for store_shape / load_shape
-        # Need some context of how to use them.
         return alloc, gv
 
     _check(foo, None)

@@ -438,41 +438,6 @@ Expr MakeVMAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
-// vm store_shape
-
-RELAY_REGISTER_OP("relax.vm.store_shape")
-    .set_attrs_type<ShapeHeapAttrs>()
-    .set_num_inputs(2)
-    .add_argument("shape", "Expr", "The shape to be stored.")
-    .add_argument("heap", "Expr", "The heap to store the shape.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
-
-Expr MakeStoreShape(Expr shape, Expr heap, Array<Integer> indices) {
-  auto attrs = make_object<ShapeHeapAttrs>();
-  attrs->indices = std::move(indices);
-  static const Op& op = Op::Get("relax.vm.store_shape");
-  return Call(op, {shape, heap}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.vm.store_shape").set_body_typed(MakeStoreShape);
-
-// vm load_shape
-
-RELAY_REGISTER_OP("relax.vm.load_shape")
-    .set_attrs_type<ShapeHeapAttrs>()
-    .set_num_inputs(1)
-    .add_argument("heap", "Expr", "The heap to load the shape from.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeStructInfo);
-
-Expr MakeLoadShape(Expr heap, Array<Integer> indices) {
-  auto attrs = make_object<ShapeHeapAttrs>();
-  attrs->indices = std::move(indices);
-  static const Op& op = Op::Get("relax.vm.load_shape");
-  return Call(op, {heap}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.vm.load_shape").set_body_typed(MakeLoadShape);
-
 // vm call_tir_dyn
 
 RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
@@ -488,7 +453,6 @@ Expr MakeCallTIRDyn(Expr func, Tuple args) {
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);
-
 
 }  // namespace relax
 }  // namespace tvm
