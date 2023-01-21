@@ -29,7 +29,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "util.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
