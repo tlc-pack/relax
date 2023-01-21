@@ -36,6 +36,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
 
+#include <cctype>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -290,6 +291,16 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
       }
     }
     return ConstListGet(builder_->ConvertConstant(ShapeTuple(shape)).value());
+  }
+
+  Optional<PrimExpr> VisitExpr_(const PrimValueNode* op) final { return op->value; }
+
+  Optional<PrimExpr> VisitExpr_(const StringImmNode* op) final {
+    return ConstListGet(builder_->ConvertConstant(op->value).value());
+  }
+
+  Optional<PrimExpr> VisitExpr_(const DataTypeImmNode* op) final {
+    return ConstListGet(builder_->ConvertConstant(op->value).value());
   }
 
   Optional<PrimExpr> VisitExpr_(const TupleNode* op) final {

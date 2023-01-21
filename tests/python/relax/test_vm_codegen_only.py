@@ -248,3 +248,57 @@ def test_shape_check_builtin(exec_mode):
     # wrong dtype
     with pytest.raises(ValueError, match=r".*dtype.*"):
         vm["main"](tvm.nd.array(np.zeros((1, 2)).astype("int32")))
+
+
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_prim_value(exec_mode):
+    @tvm.script.ir_module
+    class TestVMPrimValue:
+        @R.function
+        def main():
+            R.func_attr({"global_symbol": "main"})
+            ret = R.prim_value(T.int64(1))
+            return ret
+
+    mod = TestVMPrimValue
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"]()
+    assert res == 1
+
+
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_string_imm(exec_mode):
+    @tvm.script.ir_module
+    class TestVMStringImm:
+        @R.function
+        def main():
+            R.func_attr({"global_symbol": "main"})
+            ret = R.str("hello")
+            return ret
+
+    mod = TestVMStringImm
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"]()
+    assert res == "hello"
+
+
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_datatype_imm(exec_mode):
+    @tvm.script.ir_module
+    class TestDataTypeImm:
+        @R.function
+        def main():
+            R.func_attr({"global_symbol": "main"})
+            ret = R.dtype("float32")
+            return ret
+
+    mod = TestDataTypeImm
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"]()
+    assert res == "float32"

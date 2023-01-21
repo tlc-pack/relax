@@ -16,26 +16,43 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression functor of Relax."""
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import tvm
-from tvm.runtime import Object
 from tvm.ir import Op
 from tvm.meta_schedule.utils import derived_object
+from tvm.runtime import Object
 
-from .expr import Type, Span, Expr
-from .expr import Function, ExternFunc
-from .expr import Constant, Var, DataflowVar
-from .expr import ShapeExpr
-from .expr import GlobalVar, SeqExpr, Tuple
-from .expr import Call, If, TupleGetItem
-from .expr import Binding, MatchCast, VarBinding
-from .expr import BindingBlock, DataflowBlock
-from .struct_info import StructInfo
-from ..relay import Id
 from ..ir.module import IRModule
-from .block_builder import BlockBuilder
+from ..relay import Id
 from . import _ffi_api
+from .block_builder import BlockBuilder
+from .expr import (
+    Binding,
+    BindingBlock,
+    Call,
+    Constant,
+    DataflowBlock,
+    DataflowVar,
+    DataTypeImm,
+    Expr,
+    ExternFunc,
+    Function,
+    GlobalVar,
+    If,
+    MatchCast,
+    PrimValue,
+    SeqExpr,
+    ShapeExpr,
+    Span,
+    StringImm,
+    Tuple,
+    TupleGetItem,
+    Type,
+    Var,
+    VarBinding,
+)
+from .struct_info import StructInfo
 
 visitor = derived_object
 """
@@ -143,6 +160,12 @@ class ExprFunctor:
             ret = self.visit_op_(expr)
         elif isinstance(expr, TupleGetItem):
             ret = self.visit_tuple_getitem_(expr)
+        elif isinstance(expr, PrimValue):
+            ret = self.visit_prim_value_(expr)
+        elif isinstance(expr, StringImm):
+            ret = self.visit_string_imm_(expr)
+        elif isinstance(expr, DataTypeImm):
+            ret = self.visit_data_type_imm_(expr)
         else:
             raise TypeError("Invalid type: {0}".format(type(expr)))
 
@@ -185,6 +208,15 @@ class ExprFunctor:
         raise NotImplementedError()
 
     def visit_tuple_getitem_(self, op: TupleGetItem):
+        raise NotImplementedError()
+
+    def visit_prim_value_(self, op: PrimValue):
+        raise NotImplementedError()
+
+    def visit_string_imm_(self, op: StringImm):
+        raise NotImplementedError()
+
+    def visit_data_type_imm_(self, op: DataTypeImm):
         raise NotImplementedError()
 
     def visit_var_binding_(self, binding: VarBinding):
@@ -257,6 +289,9 @@ class _PyExprVisitor(Object):
         f_visit_if_: Callable = None,
         f_visit_op_: Callable = None,
         f_visit_tuple_getitem_: Callable = None,
+        f_visit_prim_value_: Callable = None,
+        f_visit_string_imm_: Callable = None,
+        f_visit_data_type_imm_: Callable = None,
         f_visit_binding: Callable = None,
         f_visit_var_binding_: Callable = None,
         f_visit_match_cast_: Callable = None,
@@ -287,6 +322,9 @@ class _PyExprVisitor(Object):
             f_visit_if_,
             f_visit_op_,
             f_visit_tuple_getitem_,
+            f_visit_prim_value_,
+            f_visit_string_imm_,
+            f_visit_data_type_imm_,
             f_visit_binding,
             f_visit_var_binding_,
             f_visit_match_cast_,
@@ -376,6 +414,9 @@ class PyExprVisitor:
             "visit_if_",
             "visit_op_",
             "visit_tuple_getitem_",
+            "visit_prim_value_",
+            "visit_string_imm_",
+            "visit_data_type_imm_",
             "visit_binding",
             "visit_var_binding_",
             "visit_match_cast_",
@@ -610,6 +651,45 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
+    def visit_prim_value_(self, op: PrimValue) -> None:
+        """Visit PrimValue.
+        Users can customized this function to overwrite VisitExpr_(const PrimValueNode* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : PrimValue
+            The PrimValue to be visited.
+        """
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
+
+    def visit_string_imm_(self, op: StringImm) -> None:
+        """Visit StringImm.
+        Users can customized this function to overwrite VisitExpr_(const StringImmNode* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : StringImm
+            The StringImm to be visited.
+        """
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
+
+    def visit_data_type_imm_(self, op: DataTypeImm) -> None:
+        """Visit DataTypeImm.
+        Users can customized this function to overwrite VisitExpr_(const DataTypeImmNode* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : DataTypeImm
+            The DataTypeImm to be visited.
+        """
+        # Using self._outer() to ref _PyExprVisitor
+        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
+
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
         Users can customized this function to overwrite VisitBinding_(const VarBindingNode* binding)
@@ -741,6 +821,9 @@ class _PyExprMutator(Object):
         f_visit_if_: Callable = None,
         f_visit_op_: Callable = None,
         f_visit_tuple_getitem_: Callable = None,
+        f_visit_prim_value_: Callable = None,
+        f_visit_string_imm_: Callable = None,
+        f_visit_data_type_imm_: Callable = None,
         f_visit_binding: Callable = None,
         f_visit_var_binding_: Callable = None,
         f_visit_match_cast_: Callable = None,
@@ -772,6 +855,9 @@ class _PyExprMutator(Object):
             f_visit_if_,
             f_visit_op_,
             f_visit_tuple_getitem_,
+            f_visit_prim_value_,
+            f_visit_string_imm_,
+            f_visit_data_type_imm_,
             f_visit_binding,
             f_visit_var_binding_,
             f_visit_match_cast_,
@@ -877,6 +963,9 @@ class PyExprMutator:
             "visit_if_",
             "visit_op_",
             "visit_tuple_getitem_",
+            "visit_prim_value_",
+            "visit_string_imm_",
+            "visit_data_type_imm_",
             "visit_binding",
             "visit_var_binding_",
             "visit_match_cast_",
@@ -1186,6 +1275,60 @@ class PyExprMutator:
         ----------
         op : TupleGetItem
             The TupleGetItem to be visited.
+
+        Returns
+        -------
+        result : Expr
+            The Expr after transformation
+        """
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
+
+    def visit_prim_value_(self, op: PrimValue) -> Expr:
+        """Visit PrimValue.
+        Users can customized this function to overwrite VisitExpr_(const PrimValueNode* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : PrimValue
+            The PrimValue to be visited.
+
+        Returns
+        -------
+        result : Expr
+            The Expr after transformation
+        """
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
+
+    def visit_string_imm_(self, op: StringImm) -> Expr:
+        """Visit StringImm.
+        Users can customized this function to overwrite VisitExpr_(const StringImmNode* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : StringImm
+            The StringImm to be visited.
+
+        Returns
+        -------
+        result : Expr
+            The Expr after transformation
+        """
+        # Using self._outer() to ref _PyExprMutator
+        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
+
+    def visit_data_type_imm_(self, op: DataTypeImm) -> Expr:
+        """Visit DataTypeImm.
+        Users can customized this function to overwrite VisitExpr_(const DataTypeImmNode* op)
+        on the C++ side.
+
+        Parameters
+        ----------
+        op : DataTypeImm
+            The DataTypeImm to be visited.
 
         Returns
         -------

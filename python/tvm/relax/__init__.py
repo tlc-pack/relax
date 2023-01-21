@@ -51,6 +51,9 @@ from .expr import (
     Call,
     If,
     Constant,
+    PrimValue,
+    DataTypeImm,
+    StringImm,
 )
 
 from .expr import const, extern, get_shape_of
