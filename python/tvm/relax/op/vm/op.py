@@ -47,8 +47,7 @@ def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index:
     """
     if isinstance(size, (tuple, list)):
         size = ShapeExpr(size)
-    elif not isinstance(size, Expr):
-        raise TypeError("size must be a tuple of PrimExpr or relax.Expr")
+
     return _ffi_api.alloc_storage(size, dtype, runtime_device_index)  # type: ignore
 
 
@@ -81,8 +80,7 @@ def alloc_tensor(
     """
     if isinstance(shape, (tuple, list)):
         shape = ShapeExpr(shape)
-    elif not isinstance(shape, Expr):
-        raise TypeError("storage must be a tuple of PrimExpr or relax.Expr")
+
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
