@@ -25,6 +25,7 @@ from tvm.relax import (
     FuncStructInfo,
     Function,
     ObjectStructInfo,
+    PrimStructInfo,
     ShapeStructInfo,
     StructInfo,
     TensorStructInfo,
@@ -279,6 +280,33 @@ class ObjectProxy(StructInfoProxy):
 
 def Object() -> ObjectProxy:
     return ObjectProxy()
+
+
+################################ R.Prim ################################
+
+
+class PrimProxy(StructInfoProxy):
+    dtype: str
+    """The type of shape values.
+
+    Parameters
+    ----------
+    dtype : str
+       The data type.
+    """
+
+    def __init__(self, dtype: str) -> None:
+        self.dtype = dtype
+
+    def get_symbolic_vars(self) -> Set[str]:
+        return set()
+
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+        return PrimStructInfo(self.dtype)
+
+
+def Prim(dtype: str) -> PrimProxy:
+    return PrimProxy(dtype)
 
 
 ############################ R.match_cast #############################

@@ -198,6 +198,9 @@ def is_relax_expr(expr: RelayExpr) -> bool:
             relax.SeqExpr,
             relax.Function,
             relax.ExternFunc,
+            relax.PrimValue,
+            relax.StringImm,
+            relax.DataTypeImm,
         ),
     ):
         return True

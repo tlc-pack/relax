@@ -236,5 +236,28 @@ def test_shape_expr():
         rx.ShapeExpr([m, 3])
 
 
+def test_prim_value():
+    pv = rx.PrimValue(tir.IntImm("int64", 1))
+    assert pv.value.value == 1
+    _check_equal(pv, rx.PrimValue(tir.IntImm("int64", 1)))
+    _check_json_roundtrip(pv)
+
+
+def test_string_imm():
+    s0 = rx.StringImm("hello")
+    s1 = rx.StringImm("hello")
+    assert s0.value == "hello"
+    _check_equal(s0, s1)
+    _check_json_roundtrip(s0)
+
+
+def test_datatype_imm():
+    d0 = rx.DataTypeImm("int32")
+    d1 = rx.DataTypeImm("int32")
+    assert d0.value == "int32"
+    _check_equal(d0, d1)
+    _check_json_roundtrip(d0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
