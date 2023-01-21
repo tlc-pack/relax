@@ -19,7 +19,7 @@
 import functools
 import inspect
 import types
-from typing import Callable, Dict, Union, Optional, List
+from typing import Callable, Dict, Union, Optional, List, Tuple
 import numpy as np  # type: ignore
 
 import tvm.ir
@@ -284,6 +284,30 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
         The registered pass for operator fusion.
     """
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
+
+
+def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
+    """Apply pattern matching to each function in the given module, and group matched expressions
+    into a new function.
+
+    The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.
+
+    Parameters
+    ----------
+    patterns : List[Tuple[str, DFPattern]]
+        The patterns to detect. The order of the patterns determines the order of priority in which
+        they are matched. Higher-priority patterns should come earlier in the list.
+        The string is the name of the corresponding pattern. It becomes the value of the kComposite
+        attribute of a fused function after a successful matching.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for pattern-based fusion.
+
+    """
+    pattern_names, df_patterns = zip(*patterns)
+    return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns)  # type: ignore
 
 
 def FuseTIR() -> tvm.ir.transform.Pass:

@@ -39,11 +39,15 @@ namespace relax {
  *
  * \param pattern The pattern to match
  * \param expr The expression to match
- * \param var2val The mapping from relax.Var to relax.Expr
+ * \param bindings The mapping from relax.Var to relax.Expr
  * \return true if matched
  * \return false if unmatched
  */
-bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> var2val = NullOpt);
+bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings = NullOpt);
+
+/* \brief Similar to above, but return pairs of a matching pattern and an expression.  */
+Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
+    DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings = NullOpt);
 
 /**
  * \brief Match a sub-graph in a DataflowBlock with a graph of patterns and return the mapping.
