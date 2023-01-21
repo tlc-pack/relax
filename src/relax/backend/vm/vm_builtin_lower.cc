@@ -160,8 +160,8 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
   const Op& alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
   // functions to lower to
-  const Op& vm_alloc_storage_op_ = Op::Get("relax.vm.builtin.alloc_storage");
-  const Op& vm_alloc_tensor_op_ = Op::Get("relax.vm.builtin.alloc_tensor");
+  const Op& vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
+  const Op& vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
   // Function to compute allocated shape.
   const ExternFunc builtin_compute_alloc_shape_{"vm.builtin.compute_alloc_shape"};
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};
