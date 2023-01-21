@@ -25,6 +25,7 @@
 #define TVM_RELAX_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -162,6 +163,20 @@ TVM_DLL Pass AnnotateTIROpPattern();
  * \return The Pass.
  */
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
+
+/*!
+ * \brief Apply pattern matching to each function in the given module, and group matched
+ * expressions into a new function. The end result is similar to FuseOps, but fusion is driven
+ * completely by the provided patterns.
+ *
+ * \param pattern_names The name of each pattern. It becomes the value of the kComposite attribute
+ * of a fused function after successful matching.
+ * \param patterns The patterns to detect. The order of the patterns determines the order
+ * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
+ * \return The Pass.
+ */
+TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
+                              const tvm::Array<DFPattern>& patterns);
 
 /*!
  * \brief Fuse relax sub-function into a larger TIR function if possible.

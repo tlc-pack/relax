@@ -25,10 +25,10 @@ import typing
 import tvm
 import tvm._ffi as tvm_ffi
 from tvm.ir.expr import PrimExpr
-from tvm.relax import Expr, Var
 from tvm.relay.op import get
 from tvm.ir.container import Array
 
+from ..expr import Expr, Var
 from ...ir import make_node
 from ...runtime import Object
 from ...ir.base import Node
@@ -195,10 +195,10 @@ class DFPattern(Node):
 
         Note
         ----
-        Unlike Relay whose function is an expression, functions in Relax consists
-        of blocks of bindings that they are not syntactically connected. We use a
-        mapping (i.e., var2val) to migrate the gap. For example, to when matching
-        "relax.add(lv0, lv1)", given var2val, we match lv0's binded expression
+        Unlike Relay whose function is an expression, functions in Relax consist
+        of blocks of bindings that are not syntactically connected. We use a
+        mapping (i.e., var2val) to mitigate the gap. For example, when matching
+        "relax.add(lv0, lv1)", given var2val, we match lv0's bound expression
         when the recursive pattern matching goes to check lv0. The var2val mapping
         can be computed through the tvm.relax.analysis.get_var2val function.
         """
@@ -1056,3 +1056,37 @@ def _only_used_by(
     if isinstance(rhs, DFPattern):
         rhs = PatternSeq([rhs])
     return ffi.only_used_by(lhs, rhs, index)  # type: ignore
+
+
+def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None):
+    """
+    A simple utility to create patterns for an operation fused with bias addition and activation.
+
+    Parameters
+    ----------
+    op_name: str
+        The name of a Relax op, such as "relax.nn.conv2d"
+
+    with_bias: bool
+        Whether or not to include bias addition
+
+    activation: str
+        The name of an activation Relax op, such as "relax.nn.relu"
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a fused operation
+    """
+    lhs = wildcard()
+    rhs = wildcard()
+    out = is_op(op_name)(lhs, rhs)
+
+    if with_bias:
+        bias = wildcard()
+        out = is_op("relax.add")(out, bias)
+
+    if activation:
+        return is_op(activation)(out)
+
+    return out

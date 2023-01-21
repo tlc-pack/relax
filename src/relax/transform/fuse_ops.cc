@@ -27,6 +27,9 @@
  * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
  */
 
+#include <tvm/relax/analysis.h>
+#include <tvm/relax/dataflow_matcher.h>
+#include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -372,15 +375,23 @@ class FunctionCreator : public ExprMutator {
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (const auto* call = var_binding->value.as<CallNode>()) {
-        ICHECK(call->op == Op::Get("relax.call_tir"));
-        // Update the name of the function.
-        name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
+        if (call->op == Op::Get("relax.call_tir")) {
+          // Update the name of the function.
+          name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
-        const Tuple& args = Downcast<Tuple>(call->args[1]);
-        for (const Expr& arg : args->fields) {
-          CheckDefAndUpdateParam(arg);
+          const Tuple& args = Downcast<Tuple>(call->args[1]);
+          for (const Expr& arg : args->fields) {
+            CheckDefAndUpdateParam(arg);
+          }
+          // TODO(tvm-team): handle shape expr
+        } else {
+          ICHECK(call->op->IsInstance<OpNode>()) << "Only support relax.call_tir or high-level "
+                                                    "operators as the callee op for CallNode.";
+          name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
+          for (const Expr& arg : call->args) {
+            CheckDefAndUpdateParam(arg);
+          }
         }
-        // TODO(tvm-team): handle shape expr
       } else {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
         ICHECK(tuple_item != nullptr);
@@ -400,31 +411,37 @@ class FunctionCreator : public ExprMutator {
   }
 
   /*! \brief Set a var defined in the group as output. */
-  void AppendOutput(const Var& var) {
+  size_t AppendOutput(const Var& var) {
     ICHECK(defined_vars_.count(var.get()));
-    output_vars_.insert(var.get());
+    auto output_idx = GetOutputIndex(var);
+    if (output_idx) {
+      return *output_idx;
+    }
+    output_vars_.push_back(var.get());
+    return output_vars_.size() - 1;
   }
 
   /*!
    * \brief Create the grouped function according according to the collected bindings and parameters
-   * \note The created function won't be returned immediately. Tt's stored in the `function_` field.
+   * \param composite_name The name to identify the pattern this function is created from, if any.
+   * It will become the value of the kComposite attribute of the created function.
+   * \note The created function won't be returned immediately. It's stored in the `function_` field.
    */
-  void CreateFunction() {
+  void CreateFunction(std::optional<std::string> composite_name) {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 
     // Step 2. Visit each binding and collect outputs one by one.
-    Array<Expr> outputs;
+    Array<Expr> outputs(output_vars_.size(), Expr());
     for (const Binding& binding : bindings_) {
-      const VarNode* var = binding->var.get();
-      if (output_vars_.count(var)) {
+      if (auto output_idx = GetOutputIndex(binding->var)) {
         // Case 1. It is an output binding
         // We only allow VarBinding as output.
         const auto* var_binding = binding.as<VarBindingNode>();
         ICHECK_NOTNULL(var_binding);
         Var output_var = builder_->EmitOutput(VisitExpr(var_binding->value));
         var_remap_[var_binding->var->vid] = output_var;
-        outputs.push_back(output_var);
+        outputs.Set(*output_idx, output_var);
       } else {
         // Case 2. It is an internel binding, add it to the binding list.
         VisitBinding(binding);
@@ -439,6 +456,9 @@ class FunctionCreator : public ExprMutator {
     body = builder_->Normalize(SeqExpr({new_block}, body));
     Map<String, ObjectRef> attrs;
     attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
+    if (composite_name) {
+      attrs.Set(tvm::relax::attr::kComposite, String(*composite_name));
+    }
     function_ = Function(/*params=*/params_,           //
                          /*body=*/body,                //
                          /*ret_struct_info=*/NullOpt,  //
@@ -457,6 +477,14 @@ class FunctionCreator : public ExprMutator {
   Function function_{nullptr};
 
  private:
+  std::optional<size_t> GetOutputIndex(Var v) {
+    auto it = std::find(output_vars_.begin(), output_vars_.end(), v.get());
+    if (it != output_vars_.end()) {
+      return std::distance(output_vars_.begin(), it);
+    }
+    return std::nullopt;
+  }
+
   /*!
    * \brief Check whether the input expression is defined within this function. If not, create a new
    * parameter for the expression.
@@ -464,8 +492,7 @@ class FunctionCreator : public ExprMutator {
    */
   void CheckDefAndUpdateParam(const Expr& expr) {
     // If the expression has already served as an argument, no need to create another one for it.
-    auto it = std::find(arguments_.begin(), arguments_.end(), expr);
-    if (it != arguments_.end()) {
+    if (std::find(arguments_.begin(), arguments_.end(), expr) != arguments_.end()) {
       return;
     }
 
@@ -502,7 +529,7 @@ class FunctionCreator : public ExprMutator {
   /*! \brief The number of parameters reserved for constants */
   int n_param_for_const_ = 0;
   /*! \brief The output vars */
-  std::unordered_set<const VarNode*> output_vars_;
+  std::vector<const VarNode*> output_vars_;
 };
 
 /*!
@@ -523,6 +550,8 @@ class FunctionCreator : public ExprMutator {
  */
 class OperatorFusor : public ExprMutator {
  public:
+  using Group = GraphPartitioner::Group;
+  using GroupMap = std::unordered_map<const Object*, Group*>;
   /*!
    * \brief Construct a new operator fusor. Given the indexed-forward graph and the graph partition
    * result on that graph, the constructor creates a mapping from each leaf AST object
@@ -533,24 +562,25 @@ class OperatorFusor : public ExprMutator {
    * \param groups The grouped result of the group partition on the input indexed-forward graph.
    */
   explicit OperatorFusor(IRModule mod, const IndexedForwardGraph& graph,
-                         const std::vector<GraphPartitioner::Group*>& groups)
+                         const std::vector<Group*>& groups)
       : ExprMutator(mod), mod_(std::move(mod)) {
     for (int nid = 0; nid < static_cast<int>(graph.post_dfs_order.size()); ++nid) {
-      GraphPartitioner::Group* group_root = groups[nid]->FindRoot();
+      Group* group_root = groups[nid]->FindRoot();
       ICHECK(group_root != nullptr);
       ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
       obj2group_[graph.post_dfs_order[nid]->ref] = group_root;
     }
   }
 
+  OperatorFusor(IRModule mod, const GroupMap& obj2group)
+      : ExprMutator(mod), mod_(std::move(mod)), obj2group_(obj2group) {}
+
   /*!
    * \brief The main transformation on the IRModule
    * \return The new IRModule after transformation
    */
   IRModule Transform() {
-    for (const auto& kv : mod_->functions) {
-      const GlobalVar& gv = kv.first;
-      const BaseFunc& func = kv.second;
+    for (const auto& [gv, func] : mod_->functions) {
       // Only visit Relax function without attr kPrimitive.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
@@ -561,6 +591,12 @@ class OperatorFusor : public ExprMutator {
   }
 
  private:
+  bool IsTupleOutput(Function f) {
+    auto sinfo = GetStructInfo(f).as<FuncStructInfoNode>();
+    ICHECK(sinfo);
+    return sinfo->ret->IsInstance<TupleStructInfoNode>();
+  }
+
   BindingBlock VisitBindingBlock(const BindingBlock& block) final {
     if (const auto* df_block = block.as<DataflowBlockNode>()) {
       return VisitBindingBlock_(df_block);
@@ -579,9 +615,8 @@ class OperatorFusor : public ExprMutator {
     CollectFuncBoundary(block->bindings);
 
     // Step 3. Create the grouped function for each group.
-    for (auto& kv : group2func_) {
-      FunctionCreator& creator = kv.second;
-      creator.CreateFunction();
+    for (auto& [g, creator] : group2func_) {
+      creator.CreateFunction(g->composite_name);
     }
 
     // Step 4. Start generating the new binding block.
@@ -591,12 +626,17 @@ class OperatorFusor : public ExprMutator {
     //  dependencies among the bindings of different groups. And therefore, we will skip all but the
     //  last binding of the group.
     builder_->BeginDataflowBlock();
+
+    // For each group, record which variables need to be remapped to the output of TupleGetItem.
+    // Only relevant when the output of the grouped function is a tuple.
+    std::unordered_map<Group*, std::vector<Var>> pending_tuple_get;
+
     for (size_t i = 0; i < block->bindings.size(); ++i) {
       const Binding& binding = block->bindings[i];
 
       // Case 1. If the binding is the only binding in its group, recurse into it and emit the
       // transformed binding as usual.
-      GraphPartitioner::Group* group = GetGroupFromBinding(binding);
+      Group* group = GetGroupFromBinding(binding);
       if (group->num_nodes == 1) {
         VisitBinding(binding);
         continue;
@@ -605,6 +645,13 @@ class OperatorFusor : public ExprMutator {
       const auto& it_creator = group2func_.find(group);
       ICHECK(it_creator != group2func_.end());
       const FunctionCreator& func_info = it_creator->second;
+
+      // If this binding belongs to a group whose output is a tuple, the original bound variable
+      // needs to be remapped to the output of TupleGetItem after the corresponding tuple is
+      // emitted.
+      if (IsTupleOutput(func_info.function_) && tuple_get_indices_.count(binding->var.get())) {
+        pending_tuple_get[group].push_back(binding->var);
+      }
 
       // Case 2. If the binding is not the last binding of the group, we skip it.
       if (!func_info.bindings_.back().same_as(binding)) {
@@ -632,7 +679,18 @@ class OperatorFusor : public ExprMutator {
       }
 
       // Step c. Update the mapping used for the remapping of the binding variables.
-      var_remap_[var_binding->var->vid] = new_var;
+      if (IsTupleOutput(func_info.function_)) {
+        // If the output is a tuple, attach TupleGetItem to all tuple elements, and
+        // remap variables approriately.
+        // The variables that need to be remapped and the corresponding tuple indices are
+        // available in pending_tuple_get and tuple_get_indices_ respectively.
+        for (const auto& var : pending_tuple_get[group]) {
+          auto tuple_get = TupleGetItem(new_var, tuple_get_indices_[var.get()]);
+          var_remap_[var->vid] = builder_->Emit(tuple_get);
+        }
+      } else {
+        var_remap_[var_binding->var->vid] = new_var;
+      }
     }
     // Step 5. Finish the binding block generation.
     return builder_->EndBlock();
@@ -647,7 +705,7 @@ class OperatorFusor : public ExprMutator {
   void CollectFuncBindings(const Array<Binding>& bindings) {
     for (const Binding& binding : bindings) {
       // If the binding is the only binding in its group, there is no need to create a new function.
-      GraphPartitioner::Group* group = GetGroupFromBinding(binding);
+      Group* group = GetGroupFromBinding(binding);
       if (group->num_nodes == 1) {
         continue;
       }
@@ -661,22 +719,30 @@ class OperatorFusor : public ExprMutator {
   void CollectFuncBoundary(const Array<Binding>& bindings) {
     for (const Binding& binding : bindings) {
       // Step 1. Get current binding's group
-      GraphPartitioner::Group* cur_group = GetGroupFromBinding(binding);
+      Group* cur_group = GetGroupFromBinding(binding);
 
       // Step 2. Collect all used vars in the binding value and update bondary.
       // - If the var's group is same as the binding's, the var is defined in the same group
       // - If the var's group is different with the binding's, the var must be the output from
       //   another group. Mark it to be the group output.
-      auto update_boundary = [this, &cur_group](const Expr& e) {
+      auto update_boundary = [this, binding, &cur_group](const Expr& e) {
         if (e->IsInstance<VarNode>()) {
           const Var& used_var = Downcast<Var>(e);
-          GraphPartitioner::Group* producer_group = GetGroupFromVar(used_var);
+          Group* producer_group = GetGroupFromVar(used_var);
           // Only check those group defined before.
           // Skip the vars from input or groups with single binding.
+          if (producer_group != cur_group) {
+            ICHECK(!group_deps_[producer_group].count(cur_group))
+                << "A cyclic dependency detected between the groups " << binding->var->name_hint()
+                << " and " << used_var->name_hint() << " are in.";
+            group_deps_[cur_group].insert(producer_group);
+          }
+
           if (producer_group != cur_group &&
               group2func_.find(producer_group) != group2func_.end()) {
             FunctionCreator& producer_func_info = group2func_[producer_group];
-            producer_func_info.AppendOutput(used_var);
+            auto output_index = producer_func_info.AppendOutput(used_var);
+            tuple_get_indices_[used_var.get()] = output_index;
           }
         }
       };
@@ -696,7 +762,7 @@ class OperatorFusor : public ExprMutator {
    * \param binding The binding to be queried
    * \return The pointer to the group which the input binding is in
    */
-  GraphPartitioner::Group* GetGroupFromBinding(const Binding& binding) {
+  Group* GetGroupFromBinding(const Binding& binding) {
     Var var = binding->var;
     return GetGroupFromVar(var);
   }
@@ -706,10 +772,10 @@ class OperatorFusor : public ExprMutator {
    * \param Var The var to be queried
    * \return The pointer to the group which the input var is in
    */
-  GraphPartitioner::Group* GetGroupFromVar(const Var& var) {
+  Group* GetGroupFromVar(const Var& var) {
     const auto& it_group = obj2group_.find(var.get());
     ICHECK(it_group != obj2group_.end());
-    GraphPartitioner::Group* group = it_group->second;
+    Group* group = it_group->second;
     ICHECK(group->FindRoot() == group);
     return group;
   }
@@ -735,9 +801,14 @@ class OperatorFusor : public ExprMutator {
   /*! \brief Internal arena. */
   support::Arena arena_;
   /*! \brief The group assignment map. */
-  std::unordered_map<const Object*, GraphPartitioner::Group*> obj2group_;
+  GroupMap obj2group_;
   /*! \brief Internal function information map. */
-  std::unordered_map<GraphPartitioner::Group*, FunctionCreator> group2func_;
+  std::unordered_map<Group*, FunctionCreator> group2func_;
+  /*! \brief Record the index for TupleGetItem if the variable needs to be remapped to an output
+   * tuple element after fusion. */
+  std::unordered_map<const VarNode*, int> tuple_get_indices_;
+  /*! \brief A map from a group to its dependent groups, used to detect cyclic dependencies. */
+  std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
 };
 
 IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
@@ -757,6 +828,116 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
   return mod;
 }
 
+static Map<Expr, Var> GetBindingInverse(const Map<Var, Expr>& binding) {
+  Map<Expr, Var> value_to_bound_var;
+  for (const auto& [var, val] : binding) {
+    value_to_bound_var.Set(val, var);
+  }
+  return value_to_bound_var;
+}
+
+/*! \brief Create a "partitioning", a map from interior / leaf expr to its representative group,
+ * based on the provided pattern. The result can be passed to OperatorFusor above to fuse operations
+ * in a group and create a grouped function.
+ */
+class PatternBasedPartitioner : ExprVisitor {
+ public:
+  using Group = GraphPartitioner::Group;
+  using GroupMap = OperatorFusor::GroupMap;
+  using ExprVisitor::VisitExpr_;
+
+  static GroupMap Run(String pattern_name, DFPattern pattern, Expr expr, support::Arena* arena) {
+    PatternBasedPartitioner part(pattern_name, pattern, AnalyzeVar2Value(expr));
+    // Initialize each expr to have its own group
+    PostOrderVisit(
+        expr, [arena, &part](const Expr& e) { part.group_map_[e.get()] = arena->make<Group>(); });
+    part.VisitExpr(expr);
+    return part.group_map_;
+  }
+
+  PatternBasedPartitioner(const std::string& pattern_name, DFPattern pattern,
+                          const Map<Var, Expr>& bindings)
+      : pat_name_(pattern_name),
+        pat_(pattern),
+        bindings_(bindings),
+        value_to_bound_var_(GetBindingInverse(bindings)) {}
+
+  void VisitExpr_(const CallNode* call) override {
+    if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
+      // If a match is found, put all matching expressions into the same group.
+      // OperatorFusor also requires that the bound variable be in the same group as the RHS value.
+      // Since is_op(...) based pattern only matches against call nodes on the right hand side,
+      // we need to take care of groups corresponding to the LHS bound variables carefully.
+
+      // In the example below, conv2d + relu pattern would match if the "call" variable in this
+      // function points to the relu op. We identify the group corresponding to "conv1", and make
+      // it the representative group for relu and conv2d on the RHS and also "lv" on the LHS.
+
+      // with R.dataflow():
+      //   lv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(...)
+      //   conv1: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
+
+      // parent_group corresponds to the group of "conv1" above.
+      auto parent_group = GetGroupForBoundVar(GetRef<Call>(call));
+      ICHECK(parent_group);
+      parent_group->composite_name = pat_name_;
+
+      for (const auto& [pat, match] : matches_opt.value()) {
+        ICHECK(group_map_.count(match.get()));
+        // The op node itself is also a part of the matched expressions, but it can be ignored.
+        if (!match->IsInstance<OpNode>()) {
+          // Put all matching expressions into the parent group.
+          AddToGroup(match, parent_group);
+          if (match != GetRef<Call>(call) && !pat->IsInstance<WildcardPatternNode>()) {
+            // In the example above, we hit this code path when "match" is the conv2d call node
+            // on the RHS.
+            // After we put the conv2d into the parent group, "conv1", we also need to put "lv"
+            // on the LHS into the same parent group. We need this additional handling because
+            // "lv" does not appear as part of the matched expressions.
+            AddToGroup(value_to_bound_var_[match], parent_group);
+          }
+        }
+      }
+    }
+  }
+
+ private:
+  void AddToGroup(Expr e, Group* to) {
+    if (group_map_[e.get()] != to) {
+      --group_map_[e.get()]->num_nodes;
+      group_map_[e.get()] = to;
+      ++to->num_nodes;
+    }
+  }
+
+  Group* GetGroupForBoundVar(Expr e) {
+    ICHECK(value_to_bound_var_.count(e));
+    auto bound_var = value_to_bound_var_[e];
+    ICHECK(group_map_.count(bound_var.get()));
+    return group_map_[bound_var.get()];
+  }
+
+  std::string pat_name_;
+  DFPattern pat_;
+  Map<Var, Expr> bindings_;
+  Map<Expr, Var> value_to_bound_var_;
+  GroupMap group_map_;
+};
+
+IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
+                          const tvm::Array<DFPattern>& patterns, IRModule mod) {
+  support::Arena arena;
+  for (size_t i = 0; i < pattern_names.size(); ++i) {
+    OperatorFusor::GroupMap group_map;
+    for (const auto& entry : mod->functions) {
+      auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
+      group_map.insert(map.begin(), map.end());
+    }
+    mod = OperatorFusor(mod, group_map).Transform();
+  }
+  return mod;
+}
+
 namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
@@ -773,6 +954,20 @@ Pass FuseOps(int fuse_opt_level) {
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
+
+Pass FuseOpsByPattern(const tvm::Array<String>& pattern_names,
+                      const tvm::Array<DFPattern>& patterns) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+      [=](IRModule m, PassContext pc) {
+        return relax::FuseOpsByPattern(pattern_names, patterns, m);
+      };
+  return CreateModulePass(/*pass_function=*/pass_func,       //
+                          /*opt_level=*/0,                   //
+                          /*pass_name=*/"FuseOpsByPattern",  //
+                          /*required=*/{});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.FuseOpsByPattern").set_body_typed(FuseOpsByPattern);
 
 }  // namespace transform
 
