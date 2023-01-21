@@ -21,7 +21,6 @@ from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
 from ...expr import Call, Expr, ExternFunc, ShapeExpr
-from ...expr import Tuple as RxTuple
 from ...utils import convert_to_expr
 from . import _ffi_api
 
