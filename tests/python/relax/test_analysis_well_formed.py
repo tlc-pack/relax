@@ -374,5 +374,29 @@ def test_global_var_vs_gsymbol():
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
+def test_nested_dataflow():
+    scalar_struct_info = rx.TensorStructInfo(shape=[], dtype="int32")
+    gv0 = rx.Var("gv0", scalar_struct_info)
+    f = rx.DataflowVar("f", rx.FuncStructInfo([], scalar_struct_info))
+    x0 = rx.DataflowVar("x0", scalar_struct_info)
+    x1 = rx.DataflowVar("x1", scalar_struct_info)
+    x2 = rx.DataflowVar("x2", scalar_struct_info)
+    y = rx.Var("y", scalar_struct_info)
+    inner_block = rx.DataflowBlock([rx.VarBinding(x0, rx.const(2, "int32")), rx.VarBinding(y, x0)])
+    inner_func = rx.Function([], rx.SeqExpr([inner_block], y), scalar_struct_info)
+    outer_block = rx.DataflowBlock(
+        [
+            rx.VarBinding(x1, rx.const(1, "int32")),
+            rx.VarBinding(f, inner_func),
+            rx.VarBinding(x2, rx.op.add(x1, rx.Call(f, []))),
+            rx.VarBinding(gv0, x2),
+        ]
+    )
+    func = rx.Function([], rx.SeqExpr([outer_block], gv0), scalar_struct_info)
+    mod = tvm.IRModule.from_expr(func)
+    normalized = rx.transform.Normalize()(mod)
+    assert rx.analysis.well_formed(normalized)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

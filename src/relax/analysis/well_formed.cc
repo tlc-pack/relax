@@ -184,7 +184,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitExpr_(const DataflowVarNode* op) final {
     DataflowVar var = GetRef<DataflowVar>(op);
-    if (!is_dataflow_) {
+    if (!is_dataflow_.back()) {
       Malformed(Diagnostic::Error(var)
                 << "DataflowVar " << op->name_hint() << " is used outside DataflowBlock.");
     }
@@ -197,9 +197,11 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const FunctionNode* op) final {
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
+    auto prev_dataflow_var_set = dataflow_var_set_;
     auto prev_symbolic_var_set = symbolic_var_set_;
     // symbolic var is not captured across function boundaries
     symbolic_var_set_.clear();
+    is_dataflow_.push_back(false);
 
     // first populate defs in params
     WithMode(VisitMode::kMatchVarDef, [&]() {
@@ -220,6 +222,8 @@ class WellFormedChecker : public relax::ExprVisitor,
       Malformed(Diagnostic::Error(op) << "Function bodies must be sequence expressions");
     }
 
+    is_dataflow_.pop_back();
+    dataflow_var_set_ = prev_dataflow_var_set;
     var_set_ = prev_var_set;
     symbolic_var_set_ = prev_symbolic_var_set;
   }
@@ -312,16 +316,16 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) final {
-    is_dataflow_ = true;
+    is_dataflow_[is_dataflow_.size() - 1] = true;
     for (Binding binding : block->bindings) {
       this->VisitBinding(binding);
     }
-    is_dataflow_ = false;
+    is_dataflow_[is_dataflow_.size() - 1] = false;
     dataflow_var_set_.clear();
   }
 
   void VisitVarDef_(const DataflowVarNode* var) final {
-    if (!is_dataflow_) {
+    if (!is_dataflow_.back()) {
       Malformed(Diagnostic::Error(var)
                 << "DataflowVar " << var->name_hint() << " is defined outside DataflowBlock.");
     }
@@ -423,7 +427,10 @@ class WellFormedChecker : public relax::ExprVisitor,
   IRModule mod_;
   const bool check_struct_info_;
   bool well_formed_ = true;
-  bool is_dataflow_ = false;
+  // To handle dataflow blocks inside nested functions, this tracks whether
+  // we've reached a current dataflow block in the current function scope
+  // (push a new var when starting to parse a new function, pop when finishing)
+  std::vector<bool> is_dataflow_;
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
