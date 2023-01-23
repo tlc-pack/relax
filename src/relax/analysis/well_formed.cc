@@ -197,6 +197,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const FunctionNode* op) final {
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
+    auto prev_dataflow_var_set = dataflow_var_set_;
     auto prev_symbolic_var_set = symbolic_var_set_;
     // symbolic var is not captured across function boundaries
     symbolic_var_set_.clear();
@@ -222,6 +223,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     is_dataflow_.pop_back();
+    dataflow_var_set_ = prev_dataflow_var_set;
     var_set_ = prev_var_set;
     symbolic_var_set_ = prev_symbolic_var_set;
   }
