@@ -57,7 +57,7 @@ Optional<Expr> InferShapeVtxMM(const Call& call, DiagnosticContext diag_ctx) {
     ICHECK_EQ(s0->values.size(), 3);
     ICHECK_EQ(s1->values.size(), 3);
     // Here we always assume [1, m, k] * [1, n, k]
-    ICHECK(analyzer.CanProve(s0->values[0] == 1));
+    //ICHECK(analyzer.CanProve(s0->values[0] == 1));
     ICHECK(analyzer.CanProve(s1->values[0] == 1));
     ICHECK(analyzer.CanProve(s0->values[2] == s1->values[2]));
     Array<tvm::PrimExpr> output_shape;

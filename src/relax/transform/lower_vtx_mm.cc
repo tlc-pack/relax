@@ -51,7 +51,8 @@ class VtxMMRewriter : public ExprMutator {
     if (has_bias) {
       LOG(INFO) << "bias->shape = " << Downcast<ShapeExpr>(call->args[2]->shape());
     }
-    // HACK: assume [1, m, k] * [1, n, k] => [1, m, n]
+    // HACK: assume [b, m, k] * [b, n, k] => [b, m, n]
+    int b = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[0])->value;
     int m = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[1])->value;
     int k = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[0]->shape())->values[2])->value;
     int n = Downcast<IntImm>(Downcast<ShapeExpr>(call->args[1]->shape())->values[1])->value;
@@ -88,7 +89,7 @@ class VtxMMRewriter : public ExprMutator {
                      });
     GlobalVar gv = this->builder_->AddFunction(func, func_name);
     new_funcs.Set(gv, func);  // HACK: somehow the line above doesn't work with FunctionPass
-    return Call(call_tir, {gv, Tuple(call->args), ShapeExpr({1, m, n})}, Attrs(),
+    return Call(call_tir, {gv, Tuple(call->args), ShapeExpr({b, m, n})}, Attrs(),
                 {
                     DynTensorType(3, Downcast<DynTensorType>(call->checked_type())->dtype),
                 });

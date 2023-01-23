@@ -36,7 +36,7 @@ SRC_FILE = "./fmha.cu"
 #PKG_FILE = "./packaged.o"
 PKG_FILE = "./packaged.so"
 
-BATCH_SIZE = 1
+BATCH_SIZE = 8
 SEQ_LEN = 512
 NUM_HEADS = 12
 HEAD_SIZE = 64
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     model = gs.export_onnx(sorted_graph)
 
     shape_dict = {
-        'id__mask__segment': [3, 1, 512]
+        'id__mask__segment': [3, 8, 512]
     }
 
     with target:
@@ -292,7 +292,7 @@ if __name__ == "__main__":
         #    task_weights=task_weights,
         #    work_dir=WORK_DIR,
         #    max_trials_global=500,
-        #    num_trials_per_iter=64,
+        #    num_trials_per_iter=32,
         #)
         database = ms.database.create(work_dir=WORK_DIR)
         print("Database Loaded")
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     #input0 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
     #input1 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
     #input2 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
-    input0 = tvm.nd.array(np.random.randint(256, size=[3, 1, 512]).astype("int64"), tvm.cuda())
+    input0 = tvm.nd.array(np.random.randint(256, size=[3, 8, 512]).astype("int64"), tvm.cuda())
 
     evaluator = vm.time_evaluator(
         func_name="main",
@@ -345,13 +345,13 @@ if __name__ == "__main__":
     #}
 
     input_dict = {
-        "id__mask__segment": np.random.randint(256, size=[3, 1, 512]).astype("int64")
+        "id__mask__segment": np.random.randint(256, size=[3, 8, 512]).astype("int64")
     }
 
     import time
 
     session = onnxruntime.InferenceSession(
-        model_path, providers=['TensorrtExecutionProvider']
+        model_path, providers=['CUDAExecutionProvider']
     )
     outputs = session.run([], input_dict)
     print("Onnx result: ", outputs)
