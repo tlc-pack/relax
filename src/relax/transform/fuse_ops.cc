@@ -388,7 +388,12 @@ class FunctionCreator : public ExprMutator {
           if (call->op->IsInstance<OpNode>()) {
             name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
           } else if (call->op->IsInstance<GlobalVarNode>()) {
-            name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->op)->name_hint;
+            std::string gvar_name = Downcast<GlobalVar>(call->op)->name_hint;
+            if (auto pos = gvar_name.find("fused_"); pos == 0) {
+              name_hint_ = name_hint_ + "_" + gvar_name.substr(std::string("fused_").size());
+            } else {
+              name_hint_ = name_hint_ + "_" + gvar_name;
+            }
           }
 
           for (const Expr& arg : call->args) {
@@ -555,7 +560,6 @@ class OperatorFusor : public ExprMutator {
  public:
   using Group = GraphPartitioner::Group;
   using GroupMap = std::unordered_map<const Object*, Group*>;
-
   /*!
    * \brief Construct a new operator fusor. Given the indexed-forward graph and the graph partition
    * result on that graph, the constructor creates a mapping from each leaf AST object
@@ -642,7 +646,13 @@ class OperatorFusor : public ExprMutator {
     // Only relevant when the output of the grouped function is a tuple.
     std::unordered_map<Group*, std::vector<Var>> pending_tuple_get;
 
-    for (const auto& binding: TopoSortByGroupDep(block->bindings)) {
+    // A grouped function which returns a tuple requires attaching TupleGetItem to each element and
+    // remapping variables in earlier bindings approriately. Thus, a binding whose value depends on
+    // some elements of a tuple from other group's function must be emitted after a call to the
+    // tuple-producing function is emitted and remapping is done.
+    // To guarantee this, we process bindings in the order of the topological sort of the group
+    // dependency relations.
+    for (const auto& binding : TopoSortByGroupDep(block->bindings)) {
       // Case 1. If the binding is the only binding in its group, recurse into it and emit the
       // transformed binding as usual.
       Group* group = GetGroupFromBinding(binding);
@@ -701,7 +711,6 @@ class OperatorFusor : public ExprMutator {
         var_remap_[var_binding->var->vid] = new_var;
       }
     }
-
     // Step 5. Finish the binding block generation.
     return builder_->EndBlock();
   }
@@ -806,13 +815,15 @@ class OperatorFusor : public ExprMutator {
   }
 
  private:
+  // Topologically sort bindings according to the group dependency relations.
   Array<Binding> TopoSortByGroupDep(const Array<Binding>& bindings) {
     std::unordered_map<Group*, std::vector<Binding>> bindings_per_group;
+    // The order to visit groups should respect the original order of bindings as much as possible.
     std::vector<Group*> group_order;
     for (const auto& binding : bindings) {
       auto g = GetGroupFromBinding(binding);
+      group_order.push_back(g);  // Duplication does not matter since each group is visited once.
       bindings_per_group[g].push_back(binding);
-      group_order.push_back(g);  // Duplication does not matter.
     }
 
     std::unordered_set<Group*> visited;
@@ -870,9 +881,7 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 
   // Step 3. Transform the IRModule by fusing the operators in accordance with the graph partition
   // results.
-  mod = OperatorFusor(mod, graph, groups).Transform();
-
-  return mod;
+  return OperatorFusor(mod, graph, groups).Transform();
 }
 
 IRModule MakeGroupedFunctions(
