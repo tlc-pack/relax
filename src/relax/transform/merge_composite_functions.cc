@@ -24,6 +24,34 @@
  *
  * The new function will be annotated with kCodegen and kGlobalSymbol attributes, and it is
  * intented to be offloaded to an external backend.
+ *
+ * A group for one composite function can be merged into another group for one of its arguments,
+ * which we call the parent group for brevity, if the following conditions are met:
+ * - The argument is the result of calling a composite function offloaded to the same backend
+ * - Merging into the parent group would not create a cyclic dependency with other parent groups
+ *
+ * For example, in the subgraph below the bottom group cannot be merged into the left parent group,
+ * since the right parent group for X depends on an output from the left parent group.
+ *
+ *  O = Offloaded to A
+ *  X = Offloaded to B
+ *
+ * Correct partitioning:
+ *
+ *     O         O
+ *    / \       /	      \
+ *   O   X --> O    +     +    X
+ *    \ /             \ /
+ *     O               O
+ *
+ * The algorithm proceeds by assigning a "label", consisting of a pointer to the representative
+ * group and the name of the target backend, to each subexpression in the function according to
+ * its dataflow. On encountering a call node whose callee is a composite function, we check the
+ * two conditions above to see if we can merge this call node into one of its parent groups.
+ *
+ * To detect cyclic dependencies between groups, we propagate dependency relations, both direct
+ * and indirect ones, as we flow through the function. The propagation of indirect dependencies
+ * is important since the dependency relation is transitive.
  */
 
 #include <tvm/relax/expr_functor.h>
@@ -197,7 +225,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
       rep->num_nodes = 0;
     }
 
-    // Record immediate parent dependencies.
+    // Record direct parent dependencies.
     for (const auto& arg : args) {
       auto arg_group = memo_[arg];
       if (arg_group.target != composite_name) {
