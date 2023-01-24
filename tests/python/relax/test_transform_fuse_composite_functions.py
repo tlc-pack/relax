@@ -593,7 +593,7 @@ class MergeCompilerRegionsExampleRef:
 
 
 def check(mod, expected):
-    partitioned = relax.transform.FuseCompositeFunctions()(mod)
+    partitioned = relax.transform.MergeCompositeFunctions()(mod)
     tvm.ir.structural_equal(partitioned, expected)
 
 

@@ -311,7 +311,7 @@ def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns)  # type: ignore
 
 
-def FuseCompositeFunctions() -> tvm.ir.transform.Pass:
+def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     """Group one or multiple composite functions created by FuseOpsByPattern into a new function.
     The new function will be annotated with "Codegen" and "global_symbol" attributes, and it
     is intented to be offloaded to an external backend.
@@ -327,7 +327,7 @@ def FuseCompositeFunctions() -> tvm.ir.transform.Pass:
         The registered pass for composite function fusion.
 
     """
-    return _ffi_api.FuseCompositeFunctions()  # type: ignore
+    return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
 def FuseTIR() -> tvm.ir.transform.Pass:

@@ -190,7 +190,7 @@ TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
  *
  * \return The Pass.
  */
-TVM_DLL Pass FuseCompositeFunctions();
+TVM_DLL Pass MergeCompositeFunctions();
 
 /*!
  * \brief Fuse relax sub-function into a larger TIR function if possible.

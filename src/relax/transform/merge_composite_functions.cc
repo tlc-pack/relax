@@ -221,7 +221,7 @@ class BuildCompositeGroups : public MemoizedExprTranslator<CompositeGroup> {
 };
 
 /*! \brief Inline definitions of composite functions at the global level into their call sites.
-  This is necessary to make functions created by FuseCompositeFunctions self-contained - each
+  This is necessary to make functions created by MergeCompositeFunctions self-contained - each
   external backend compiler does not need to refer to the original containing module.
  */
 class InlineComposite : public ExprMutator {
@@ -263,7 +263,7 @@ class InlineComposite : public ExprMutator {
 
 }  // namespace
 
-IRModule FuseCompositeFunctions(IRModule mod) {
+IRModule MergeCompositeFunctions(IRModule mod) {
   auto gvar = mod->GetGlobalVar("main");
   auto func = Downcast<Function>(mod->Lookup(gvar));
   support::Arena arena;
@@ -285,17 +285,17 @@ IRModule FuseCompositeFunctions(IRModule mod) {
 
 namespace transform {
 
-Pass FuseCompositeFunctions() {
+Pass MergeCompositeFunctions() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
-      [=](IRModule mod, PassContext pc) { return relax::FuseCompositeFunctions(mod); };
+      [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
   return CreateModulePass(/*pass_function=*/pass_func,       //
                           /*opt_level=*/0,                   //
                           /*pass_name=*/"FuseOpsByPattern",  //
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseCompositeFunctions")
-    .set_body_typed(FuseCompositeFunctions);
+TVM_REGISTER_GLOBAL("relax.transform.MergeCompositeFunctions")
+    .set_body_typed(MergeCompositeFunctions);
 
 }  // namespace transform
 
