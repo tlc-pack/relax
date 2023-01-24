@@ -106,7 +106,7 @@ inline std::string GetExtSymbol(const Function& func) {
  * function.
  *
  * \param mod The input module.
- * \param partition a mapping from a subexpression to the containing group.
+ * \param partition A mapping from a subexpression to the containing group.
  * \param create_single_binding_function Whether or not to create a grouped function for a group
  *  containing a single binding.
  * \return A new module containing grouped functions.

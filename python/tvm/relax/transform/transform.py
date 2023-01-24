@@ -324,7 +324,7 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for composite function fusion.
+        The registered pass for merging composite functions.
 
     """
     return _ffi_api.MergeCompositeFunctions()  # type: ignore

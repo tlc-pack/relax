@@ -795,8 +795,7 @@ class OperatorFusor : public ExprMutator {
     const auto& it_group = obj2group_.find(var.get());
     ICHECK(it_group != obj2group_.end());
     Group* group = it_group->second;
-    ICHECK(group->FindRoot() == group);
-    return group;
+    return group->FindRoot();
   }
 
   /*!
@@ -967,7 +966,7 @@ class PatternBasedPartitioner : ExprVisitor {
   void AddToGroup(Expr e, Group* to) {
     if (group_map_[e.get()] != to) {
       --group_map_[e.get()]->num_nodes;
-      group_map_[e.get()] = to;
+      group_map_[e.get()]->parent = to;
       ++to->num_nodes;
     }
   }
@@ -976,7 +975,7 @@ class PatternBasedPartitioner : ExprVisitor {
     ICHECK(value_to_bound_var_.count(e));
     auto bound_var = value_to_bound_var_[e];
     ICHECK(group_map_.count(bound_var.get()));
-    return group_map_[bound_var.get()];
+    return group_map_[bound_var.get()]->FindRoot();
   }
 
   std::string pat_name_;

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relax/transform/fuse_composite_functions.cc
+ * \file src/relax/transform/merge_composite_functions.cc
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new
  * function.
  *
