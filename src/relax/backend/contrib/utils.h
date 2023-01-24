@@ -26,6 +26,9 @@
 
 #include <tvm/relax/expr.h>
 
+#include <string>
+#include <vector>
+
 namespace tvm {
 namespace relax {
 namespace backend {

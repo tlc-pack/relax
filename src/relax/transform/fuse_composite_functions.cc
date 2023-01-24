@@ -134,7 +134,7 @@ class BuildCompositeGroups : public MemoizedExprTranslator<CompositeGroup> {
       auto rep_group = GetRepresentative(call->args, *composite_name);
 
       if (rep_group->num_nodes != 0) {
-        // Merge other parent groups the representative group.
+        // Merge other parent groups into the representative group.
         for (const auto& arg : call->args) {
           auto& arg_group = memo_[arg];
           if (arg_group.target == composite_name && arg_group.representative != rep_group) {
@@ -145,7 +145,7 @@ class BuildCompositeGroups : public MemoizedExprTranslator<CompositeGroup> {
         }
       }
 
-      // Merge this call node to the representative group.
+      // Merge this call node into the representative group.
       ++rep_group->num_nodes;
       return CompositeGroup{rep_group, *composite_name};
     }
