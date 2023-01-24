@@ -61,13 +61,13 @@ struct CompositeGroup {
 
 /*! \brief Assign a "CompositeGroup" label to each subexpression in a function according to its
  * dataflow, and returns a mapping from a subexpression to its representative group. */
-class BuildCompositeGroups : public MemoizedExprTranslator<CompositeGroup> {
+class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
  public:
   using Group = GraphPartitioner::Group;
   using GroupMap = std::unordered_map<const Object*, Group*>;
   using MemoizedExprTranslator<CompositeGroup>::VisitExpr_;
 
-  BuildCompositeGroups(IRModule mod, support::Arena* arena)
+  CompositeGroupsBuilder(IRModule mod, support::Arena* arena)
       : mod_(mod), arena_(arena), default_group_(CompositeGroup{nullptr, kDefaultTarget}) {}
 
   GroupMap Run(Function func) {
@@ -224,9 +224,9 @@ class BuildCompositeGroups : public MemoizedExprTranslator<CompositeGroup> {
   This is necessary to make functions created by MergeCompositeFunctions self-contained - each
   external backend compiler does not need to refer to the original containing module.
  */
-class InlineComposite : public ExprMutator {
+class CompositeInliner : public ExprMutator {
  public:
-  explicit InlineComposite(IRModule mod) : ExprMutator(mod), mod_(mod) {}
+  explicit CompositeInliner(IRModule mod) : ExprMutator(mod), mod_(mod) {}
   using ExprMutator::VisitExpr_;
 
   std::pair<Function, std::string> Run(Function func) {
@@ -267,10 +267,10 @@ IRModule MergeCompositeFunctions(IRModule mod) {
   auto gvar = mod->GetGlobalVar("main");
   auto func = Downcast<Function>(mod->Lookup(gvar));
   support::Arena arena;
-  auto group_map = BuildCompositeGroups(mod, &arena).Run(func);
+  auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
   auto new_mod = MakeGroupedFunctions(mod, group_map, true);
 
-  InlineComposite inliner(mod);
+  CompositeInliner inliner(mod);
   for (const auto& [gvar, func] : new_mod->functions) {
     if (!mod->functions.count(gvar)) {
       auto [new_func, target_name] = inliner.Run(Downcast<Function>(func));
