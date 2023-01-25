@@ -311,6 +311,25 @@ def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns)  # type: ignore
 
 
+def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
+    """Group one or multiple composite functions created by FuseOpsByPattern into a new function.
+    The new function will be annotated with "Codegen" and "global_symbol" attributes, and it
+    is intented to be offloaded to an external backend.
+
+    Even if there is only one composite function, or a backend does not benefit from receiving
+    larger subgraphs, this pass is required to run for offloading (BYOC) since a composite function
+    needs to be wrapped by an outer function that are annotated with "Codegen" and "global_symbol"
+    attributes.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for merging composite functions.
+
+    """
+    return _ffi_api.MergeCompositeFunctions()  # type: ignore
+
+
 def FuseTIR() -> tvm.ir.transform.Pass:
     """Fuse primitive relax function into a larger TIR function if possible
 
