@@ -90,19 +90,20 @@ def test_single_annot_func():
     @tvm.script.ir_module
     class InputModule:
         @R.function
-        def relax_func(
+        def byoc_func(
             x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
         ) -> R.Tensor((16, 16), "float32"):
-            z1 = relax.multiply(x, y)
-            z2 = relax.add(z1, z1)
-            z3 = relax.add(z1, z2)
+            R.func_attr({"Codegen": "tensorrt", "global_symbol": "byoc_func"})
+            z1 = R.multiply(x, y)
+            z2 = R.add(z1, z1)
+            z3 = R.add(z1, z2)
             return z3
 
         @R.function
         def main(
             x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
         ) -> R.Tensor((16, 16), "float32"):
-            lv0: R.Tensor((16, 16), "float32") = relax_func(x, y)
+            lv0: R.Tensor((16, 16), "float32") = byoc_func(x, y)
             return lv0
 
     # Prepare IRModule and its input
@@ -120,24 +121,12 @@ def test_single_annot_func():
     # TODO(@sunggg): Sort this out
     expected = gen_ground_truth(mod, target, dev, inputs)
 
-    # TODO(@sunggg): Revisit when TVMScript supports annotation.
-    # Annotate target function.
-    new_relax_func = mod["relax_func"].with_attr("Codegen", "tensorrt")
-    new_relax_func = new_relax_func.with_attr("global_symbol", "trt_relax_func")
-    mod["relax_func"] = new_relax_func
-
     # Run Codegen pass
     new_mod = relax.transform.RunCodegen()(mod)
     ex0 = relax.vm.build(new_mod, target, params={})
 
     # Sanity check for the correctness and rountrip
     check_roundtrip(ex0, dev, inputs, expected)
-
-    # If the annotation does not match with the target codegen, do not perform the codegen process.
-    new_mod = relax.transform.RunCodegen(target_options={"INVALID_CODEGEN": {}})(mod)
-    # TODO(tvm-team): Currently disabled due to the lack of type annotation support during parser.
-    #                 Revisit when new version of parser is available.
-    # tvm.ir.assert_structural_equal(mod, new_mod)
 
 
 @tvm.testing.requires_gpu
@@ -148,9 +137,10 @@ def test_mix_use_tensorrt_and_tvm():
         def byoc_func(
             x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
         ) -> R.Tensor((16, 16), "float32"):
-            z1 = relax.multiply(x, y)
-            z2 = relax.add(z1, z1)
-            z3 = relax.add(z1, z2)
+            R.func_attr({"Codegen": "tensorrt", "global_symbol": "byoc_func"})
+            z1 = R.multiply(x, y)
+            z2 = R.add(z1, z1)
+            z3 = R.add(z1, z2)
             return z3
 
         @R.function
@@ -179,12 +169,6 @@ def test_mix_use_tensorrt_and_tvm():
     data1 = tvm.nd.array(np1, dev)
     inputs = [data0, data1]
     expected = gen_ground_truth(mod, target, dev, [data0, data1])
-
-    # TODO(@sunggg): Revisit when TVMScript supports annotation.
-    # Annotate target function.
-    new_byoc_func = mod["byoc_func"].with_attr("Codegen", "tensorrt")
-    new_byoc_func = new_byoc_func.with_attr("global_symbol", "trt_byoc_func")
-    mod["byoc_func"] = new_byoc_func
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
