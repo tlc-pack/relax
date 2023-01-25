@@ -160,7 +160,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   auto expr = TryGetValOfVar(expr0, var2val_);
   bool matches = VisitDFPattern(attr_pattern->pattern, expr);
   if (!matches) return matches;
-  VLOG(1) << "considering AttrPatternNode at:\n" << PrettyPrint(expr);
+  VLOG(1) << "considering AttrPatternNode at:\n" << expr;
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
   if (const auto* op_node = expr.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);

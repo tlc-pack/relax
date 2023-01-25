@@ -17,11 +17,11 @@
 
 import pytest
 import tvm
-from tvm import tir, relay, relax
-from tvm.ir import assert_structural_equal
-
 import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm import relax, relay, tir
+from tvm.ir import assert_structural_equal
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 # TODO: replace xfails with proper diagnostics checking.
 #       c.f. tests/python/unittest/test_tvmscript_error_report.py
@@ -592,7 +592,7 @@ def test_call_packed_no_sinfo_args_fail():
         @R.function
         def f(x: R.Tensor((3, 3), "float32")):
             n, m = T.var("int64"), T.var("int64")
-            z: R.Tensor((n, m), "float32") = relax.call_packed("contrib.my_matmul", x, x)
+            z: R.Tensor((n, m), "float32") = R.call_packed("contrib.my_matmul", x, x)
             return z
 
 
@@ -601,7 +601,7 @@ def test_call_packed_wrong_sinfo_args_fail():
 
         @R.function
         def f(x: R.Tensor((3, 3), "float32")):
-            z: R.Tensor((n, m), "float32") = relax.call_packed(
+            z: R.Tensor((n, m), "float32") = R.call_packed(
                 "contrib.my_matmul", x, x, sinfo_args=(Tuple)
             )
             return z

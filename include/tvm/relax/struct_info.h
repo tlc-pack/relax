@@ -20,7 +20,6 @@
 #define TVM_RELAX_STRUCT_INFO_H_
 
 #include <tvm/ir/env_func.h>
-#include <tvm/ir/span.h>
 #include <tvm/node/node.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>

@@ -25,7 +25,6 @@
 #ifndef TVM_RELAX_EXPR_FUNCTOR_H_
 #define TVM_RELAX_EXPR_FUNCTOR_H_
 
-#include <tvm/ir/error.h>
 #include <tvm/node/functor.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>

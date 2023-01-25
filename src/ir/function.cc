@@ -41,35 +41,30 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
           return ret.value();
         }
       }
-      LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
-    });
-
-TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
-    .set_body_typed([](BaseFunc func, Map<String, ObjectRef> attr_map) -> BaseFunc {
-      if (func->IsInstance<tir::PrimFuncNode>()) {
-        return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
-      } else if (func->IsInstance<relay::FunctionNode>()) {
-        return WithAttrs(Downcast<relay::Function>(std::move(func)), attr_map);
-      } else if (func->IsInstance<relax::FunctionNode>()) {
-        return WithAttrs(Downcast<relax::Function>(std::move(func)), attr_map);
-      } else {
-        LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
-        return func;
+      if (const auto* f = runtime::Registry::Get("relax.FuncWithAttr")) {
+        if (Optional<BaseFunc> ret = (*f)(func, key, value)) {
+          return ret.value();
+        }
       }
+      LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
     });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
     .set_body_typed([](BaseFunc func, String key) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
-      } else if (func->IsInstance<relay::FunctionNode>()) {
-        return WithoutAttr(Downcast<relay::Function>(std::move(func)), key);
-      } else if (func->IsInstance<relax::FunctionNode>()) {
-        return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
-      } else {
-        LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
-        return func;
       }
+      if (const auto* f = runtime::Registry::Get("relay.ir.FuncWithoutAttr")) {
+        if (Optional<BaseFunc> ret = (*f)(func, key)) {
+          return ret.value();
+        }
+      }
+      if (const auto* f = runtime::Registry::Get("relax.FuncWithoutAttr")) {
+        if (Optional<BaseFunc> ret = (*f)(func, key)) {
+          return ret.value();
+        }
+      }
+      LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
     });
 
 }  // namespace tvm
