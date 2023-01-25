@@ -143,20 +143,23 @@ class OpAttrExtractor : public AttrVisitor {
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 };
 
+using NodeEntries = std::vector<JSONGraphNodeEntry>;
+
 /*! \brief Serialize a Relax expression to JSON. */
-class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGraphNodeEntry>> {
+class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
  public:
+  using MemoizedExprTranslator<NodeEntries>::VisitExpr_;
+  using MemoizedExprTranslator<NodeEntries>::VisitBinding_;
+
   /*!
    * \brief Constructor
    *
    * \param symbol The symbol that represents the graph being converted.
    * \param expr The Relax expression to be converted to the JSON form.
    */
-  JSONSerializer(const std::string& symbol, const Expr& expr) : symbol_(symbol), func_(expr) {}
+  JSONSerializer(const std::string& symbol) : symbol_(symbol) {}
 
-  void serialize() {
-    relax::Function func = Downcast<relax::Function>(func_);
-
+  void serialize(Function func) {
     // First we convert all the parameters into input nodes.
     for (const auto& param : func->params) {
       auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint(), "input" /* op_type_ */);
@@ -187,11 +190,11 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
    * \return A list of graph entry nodes. It the relax expr is a tuple type, we
    *         will flatten it.
    */
-  std::vector<JSONGraphNodeEntry> AddNode(JSONGraphObjectPtr node, const Expr& expr) {
+  NodeEntries AddNode(JSONGraphObjectPtr node, const Expr& expr) {
     auto struct_info = GetStructInfo(expr);
     auto node_id = nodes_.size();
     nodes_.push_back(node);
-    std::vector<JSONGraphNodeEntry> ret;
+    NodeEntries ret;
     ShapeVector shape;
     TypeVector dtype;
 
@@ -246,19 +249,13 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     }
   }
 
-  std::vector<JSONGraphNodeEntry> VisitBinding_(const VarBindingNode* binding) {
-    ICHECK_EQ(memo_.count(binding->var), 0);
-    memo_[binding->var] = VisitExpr(binding->value);
-    return VisitExpr(binding->value);
-  }
-
-  std::vector<JSONGraphNodeEntry> VisitBinding_(const MatchCastNode* binding) {
+  NodeEntries VisitBinding_(const MatchCastNode* binding) {
     LOG(FATAL) << "JSON runtime currently doesn't match cast\n";
     return {};
   }
 
-  std::vector<JSONGraphNodeEntry> VisitBinding(const Binding& binding) {
-    std::vector<JSONGraphNodeEntry> nodes;
+  NodeEntries VisitBinding(const Binding& binding) {
+    NodeEntries nodes;
     if (const auto* node = binding.as<VarBindingNode>()) {
       auto from_b = VisitBinding_(node);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
@@ -271,8 +268,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return nodes;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitBindingBlock(const BindingBlock& block) {
-    std::vector<JSONGraphNodeEntry> nodes;
+  NodeEntries VisitBindingBlock(const BindingBlock& block) {
+    NodeEntries nodes;
     if (const auto* node = block.as<DataflowBlockNode>()) {
       auto from_bb = VisitBindingBlock_(node);
       nodes.insert(nodes.end(), from_bb.begin(), from_bb.end());
@@ -285,8 +282,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return nodes;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitBindingBlock_(const BindingBlockNode* block) {
-    std::vector<JSONGraphNodeEntry> nodes;
+  NodeEntries VisitBindingBlock_(const BindingBlockNode* block) {
+    NodeEntries nodes;
     for (Binding binding : block->bindings) {
       auto from_b = VisitBinding(binding);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
@@ -294,8 +291,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return nodes;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitBindingBlock_(const DataflowBlockNode* block) {
-    std::vector<JSONGraphNodeEntry> nodes;
+  NodeEntries VisitBindingBlock_(const DataflowBlockNode* block) {
+    NodeEntries nodes;
     for (Binding binding : block->bindings) {
       auto from_b = VisitBinding(binding);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
@@ -303,8 +300,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return nodes;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const SeqExprNode* op) {
-    std::vector<JSONGraphNodeEntry> nodes;
+  NodeEntries VisitExpr_(const SeqExprNode* op) {
+    NodeEntries nodes;
 
     for (BindingBlock block : op->blocks) {
       auto from_bb = VisitBindingBlock(block);
@@ -317,25 +314,20 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return nodes;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) {
+  NodeEntries VisitExprDefault_(const Object* op) {
     LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();
     return {};
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const VarNode* vn) {
-    ICHECK(memo_.count(GetRef<Expr>(vn)));
-    return memo_[GetRef<Expr>(vn)];
-  }
-
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) {
+  NodeEntries VisitExpr_(const ConstantNode* cn) {
     std::string name = symbol_ + "_const_" + std::to_string(params_.size());
     params_.push_back(name);
     auto node = std::make_shared<JSONGraphNode>(name, "const" /* op_type_ */);
     return AddNode(node, GetRef<Expr>(cn));
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleNode* tn) {
-    std::vector<JSONGraphNodeEntry> fields;
+  NodeEntries VisitExpr_(const TupleNode* tn) {
+    NodeEntries fields;
     for (const auto& field : tn->fields) {
       auto ref = VisitExpr(field);
       fields.insert(fields.end(), ref.begin(), ref.end());
@@ -343,7 +335,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return fields;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* cn) {
+  NodeEntries VisitExpr_(const CallNode* cn) {
     Expr expr = GetRef<Expr>(cn);
     std::string name;
     if (const auto* op_node = cn->op.as<OpNode>()) {
@@ -360,7 +352,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     // Currently, simply remove "relax." prefix to make it work.
     name = std::string("tensorrt.") + name.substr(6);
 
-    std::vector<JSONGraphNodeEntry> inputs;
+    NodeEntries inputs;
     for (const auto& arg : cn->args) {
       auto res = VisitExpr(arg);
       inputs.insert(inputs.end(), res.begin(), res.end());
@@ -372,12 +364,12 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
     return AddNode(node, GetRef<Expr>(cn));
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleGetItemNode* gtn) {
+  NodeEntries VisitExpr_(const TupleGetItemNode* gtn) {
     auto vtuple = VisitExpr(gtn->tuple);
     return {vtuple[gtn->index]};
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const FunctionNode* fn) {
+  NodeEntries VisitExpr_(const FunctionNode* fn) {
     ICHECK(fn->GetAttr<String>(attr::kComposite).defined())
         << "JSON runtime only supports composite functions";
 
@@ -415,12 +407,10 @@ class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGrap
  private:
   /*! \brief The symbol that represents the json graph. */
   std::string symbol_;
-  /*! \brief The function to be serialized. */
-  const Expr func_;
   /*! \brief JSON graph nodes. */
   std::vector<JSONGraphObjectPtr> nodes_;
   /*! \brief Output of the JSON graph. */
-  std::vector<JSONGraphNodeEntry> heads_;
+  NodeEntries heads_;
   /*! \brief The list of required constants. */
   Array<String> params_;
 };
