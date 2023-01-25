@@ -35,8 +35,8 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/function.h>
 
-#include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -385,9 +385,17 @@ class FunctionCreator : public ExprMutator {
           }
           // TODO(tvm-team): handle shape expr
         } else {
-          ICHECK(call->op->IsInstance<OpNode>()) << "Only support relax.call_tir or high-level "
-                                                    "operators as the callee op for CallNode.";
-          name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
+          if (call->op->IsInstance<OpNode>()) {
+            name_hint_ = name_hint_ + "_" + Downcast<Op>(call->op)->name;
+          } else if (call->op->IsInstance<GlobalVarNode>()) {
+            std::string gvar_name = Downcast<GlobalVar>(call->op)->name_hint;
+            if (auto pos = gvar_name.find("fused_"); pos == 0) {
+              name_hint_ = name_hint_ + "_" + gvar_name.substr(std::string("fused_").size());
+            } else {
+              name_hint_ = name_hint_ + "_" + gvar_name;
+            }
+          }
+
           for (const Expr& arg : call->args) {
             CheckDefAndUpdateParam(arg);
           }
@@ -562,8 +570,11 @@ class OperatorFusor : public ExprMutator {
    * \param groups The grouped result of the group partition on the input indexed-forward graph.
    */
   explicit OperatorFusor(IRModule mod, const IndexedForwardGraph& graph,
-                         const std::vector<Group*>& groups)
-      : ExprMutator(mod), mod_(std::move(mod)) {
+                         const std::vector<Group*>& groups,
+                         bool create_single_binding_function = false)
+      : ExprMutator(mod),
+        mod_(std::move(mod)),
+        create_single_binding_function_(create_single_binding_function) {
     for (int nid = 0; nid < static_cast<int>(graph.post_dfs_order.size()); ++nid) {
       Group* group_root = groups[nid]->FindRoot();
       ICHECK(group_root != nullptr);
@@ -572,8 +583,12 @@ class OperatorFusor : public ExprMutator {
     }
   }
 
-  OperatorFusor(IRModule mod, const GroupMap& obj2group)
-      : ExprMutator(mod), mod_(std::move(mod)), obj2group_(obj2group) {}
+  OperatorFusor(IRModule mod, const GroupMap& obj2group,
+                bool create_single_binding_function = false)
+      : ExprMutator(mod),
+        mod_(std::move(mod)),
+        obj2group_(obj2group),
+        create_single_binding_function_(create_single_binding_function) {}
 
   /*!
    * \brief The main transformation on the IRModule
@@ -631,13 +646,17 @@ class OperatorFusor : public ExprMutator {
     // Only relevant when the output of the grouped function is a tuple.
     std::unordered_map<Group*, std::vector<Var>> pending_tuple_get;
 
-    for (size_t i = 0; i < block->bindings.size(); ++i) {
-      const Binding& binding = block->bindings[i];
-
+    // A grouped function which returns a tuple requires attaching TupleGetItem to each element and
+    // remapping variables in earlier bindings approriately. Thus, a binding whose value depends on
+    // some elements of a tuple from other group's function must be emitted after a call to the
+    // tuple-producing function is emitted and remapping is done.
+    // To guarantee this, we process bindings in the order of the topological sort of the group
+    // dependency relations.
+    for (const auto& binding : TopoSortByGroupDep(block->bindings)) {
       // Case 1. If the binding is the only binding in its group, recurse into it and emit the
       // transformed binding as usual.
       Group* group = GetGroupFromBinding(binding);
-      if (group->num_nodes == 1) {
+      if (group->num_nodes == 1 && !create_single_binding_function_) {
         VisitBinding(binding);
         continue;
       }
@@ -706,7 +725,7 @@ class OperatorFusor : public ExprMutator {
     for (const Binding& binding : bindings) {
       // If the binding is the only binding in its group, there is no need to create a new function.
       Group* group = GetGroupFromBinding(binding);
-      if (group->num_nodes == 1) {
+      if (group->num_nodes == 1 && !create_single_binding_function_) {
         continue;
       }
       // Add the binding to the grouped function it's in, and update the function information
@@ -776,8 +795,7 @@ class OperatorFusor : public ExprMutator {
     const auto& it_group = obj2group_.find(var.get());
     ICHECK(it_group != obj2group_.end());
     Group* group = it_group->second;
-    ICHECK(group->FindRoot() == group);
-    return group;
+    return group->FindRoot();
   }
 
   /*!
@@ -796,6 +814,43 @@ class OperatorFusor : public ExprMutator {
   }
 
  private:
+  // Topologically sort bindings according to the group dependency relations.
+  Array<Binding> TopoSortByGroupDep(const Array<Binding>& bindings) {
+    std::unordered_map<Group*, std::vector<Binding>> bindings_per_group;
+    // The order to visit groups should respect the original order of bindings as much as possible.
+    std::vector<Group*> group_order;
+    for (const auto& binding : bindings) {
+      auto g = GetGroupFromBinding(binding);
+      group_order.push_back(g);  // Duplication does not matter since each group is visited once.
+      bindings_per_group[g].push_back(binding);
+    }
+
+    std::unordered_set<Group*> visited;
+
+    std::function<void(Group*, std::function<void(Group*)>)> dfs_visit;
+    dfs_visit = [this, &visited, &dfs_visit](Group* g, auto leaf_fun) {
+      if (!visited.count(g)) {
+        visited.insert(g);
+        for (auto dep : group_deps_[g]) {
+          dfs_visit(dep, leaf_fun);
+        }
+        leaf_fun(g);
+      }
+    };
+
+    Array<Binding> sorted;
+
+    for (auto g : group_order) {
+      dfs_visit(g, [&sorted, &bindings_per_group](Group* leaf) {
+        for (const auto& binding : bindings_per_group[leaf]) {
+          sorted.push_back(binding);
+        }
+      });
+    }
+
+    return sorted;
+  }
+
   /*! \brief The IRModule. */
   IRModule mod_;
   /*! \brief Internal arena. */
@@ -809,6 +864,8 @@ class OperatorFusor : public ExprMutator {
   std::unordered_map<const VarNode*, int> tuple_get_indices_;
   /*! \brief A map from a group to its dependent groups, used to detect cyclic dependencies. */
   std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
+  /*! \brief Whether or not a grouped function with a single binding should be created. */
+  bool create_single_binding_function_{false};
 };
 
 IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
@@ -823,9 +880,13 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 
   // Step 3. Transform the IRModule by fusing the operators in accordance with the graph partition
   // results.
-  mod = OperatorFusor(mod, graph, groups).Transform();
+  return OperatorFusor(mod, graph, groups).Transform();
+}
 
-  return mod;
+IRModule MakeGroupedFunctions(
+    IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
+    bool create_single_binding_function) {
+  return OperatorFusor(mod, partition, create_single_binding_function).Transform();
 }
 
 static Map<Expr, Var> GetBindingInverse(const Map<Var, Expr>& binding) {
@@ -905,7 +966,7 @@ class PatternBasedPartitioner : ExprVisitor {
   void AddToGroup(Expr e, Group* to) {
     if (group_map_[e.get()] != to) {
       --group_map_[e.get()]->num_nodes;
-      group_map_[e.get()] = to;
+      group_map_[e.get()]->parent = to;
       ++to->num_nodes;
     }
   }
@@ -914,7 +975,7 @@ class PatternBasedPartitioner : ExprVisitor {
     ICHECK(value_to_bound_var_.count(e));
     auto bound_var = value_to_bound_var_[e];
     ICHECK(group_map_.count(bound_var.get()));
-    return group_map_[bound_var.get()];
+    return group_map_[bound_var.get()]->FindRoot();
   }
 
   std::string pat_name_;
@@ -933,7 +994,7 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
       auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
       group_map.insert(map.begin(), map.end());
     }
-    mod = OperatorFusor(mod, group_map).Transform();
+    mod = MakeGroupedFunctions(mod, group_map);
   }
   return mod;
 }
