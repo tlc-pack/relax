@@ -157,7 +157,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
    * \param symbol The symbol that represents the graph being converted.
    * \param expr The Relax expression to be converted to the JSON form.
    */
-  JSONSerializer(const std::string& symbol) : symbol_(symbol) {}
+  explicit JSONSerializer(const std::string& symbol) : symbol_(symbol) {}
 
   void serialize(Function func) {
     // First we convert all the parameters into input nodes.

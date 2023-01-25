@@ -209,7 +209,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
-  TensorRTJSONSerializer(const std::string& symbol) : JSONSerializer(symbol) {}
+  explicit TensorRTJSONSerializer(const std::string& symbol) : JSONSerializer(symbol) {}
 
   using JSONSerializer::VisitExpr_;
 
