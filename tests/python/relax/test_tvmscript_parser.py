@@ -30,7 +30,7 @@ from tvm.script.parser import tir as T
 
 def _check(
     parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]],
+    expect: Optional[Union[relax.Function, IRModule]] = None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.parse(test)
@@ -966,6 +966,44 @@ def test_datatype_imm():
         return gv
 
     _check(foo, None)
+
+
+def test_function_void_return_type():
+    @tvm.script.ir_module
+    class Foo:
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32")):
+            res = mul(x)
+            return res
+
+        @R.function
+        def mul(x: R.Tensor((3, 3), dtype="float32")):
+            res = R.multiply(x, x)
+            return res
+
+    _check(Foo)
+    # Since the return type of function `mul` is not annotated,
+    # the function `main` regards it as a generic return type.
+    assert isinstance(Foo["main"].ret_struct_info, relax.ObjectStructInfo)
+    assert isinstance(Foo["mul"].ret_struct_info, relax.TensorStructInfo)
+
+    @tvm.script.ir_module
+    class Bar:
+        @R.function
+        def main(x1: R.Tensor((3, 3), dtype="float32")):
+            res1 = mul(x1)
+            return res1
+
+        @R.function
+        def mul(x: R.Tensor((3, 3), dtype="float32")) -> None:
+            res = R.multiply(x, x)
+            return res
+
+    # Since the return type of function `mul` is not annotated,
+    # the function `main` regards it as a generic return type.
+    _check(Bar)
+    tvm.ir.assert_structural_equal(Bar["main"].ret_struct_info, relax.TupleStructInfo([]))
+    tvm.ir.assert_structural_equal(Bar["mul"].ret_struct_info, relax.TupleStructInfo([]))
 
 
 @pytest.mark.skip(reason="potential upstream Metadata changes.")
