@@ -30,7 +30,7 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchCastPair, StructInfoProxy
+from .entry import MatchCastPair, StructInfoProxy, TupleProxy
 
 
 def bind_assign_value(
@@ -90,6 +90,8 @@ def bind_assign_value(
 def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
     try:
         annotation = self.eval_expr(node)
+        if annotation is None:
+            return TupleProxy([])
         if callable(annotation):
             annotation = annotation()
         if isinstance(annotation, StructInfoProxy):
@@ -146,7 +148,9 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
         collect_symbolic_var_from_params(self, node)
 
         if node.returns is None:
-            ret_sinfo = relax.TupleStructInfo([])
+            # Use ObjectStructInfo as unknown return type
+            # NOTE: Cannot use VoidStructInfo here because the return type can be refined later.
+            ret_sinfo = relax.ObjectStructInfo()
         else:
             ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
         params = []
