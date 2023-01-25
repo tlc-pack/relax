@@ -27,7 +27,6 @@
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
-#include <tvm/te/tensor.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -453,12 +452,6 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     }
     return header;
   }
-
-  void UpdateFuncName(const IRModule& mod) {
-    for (const auto& x : mod->functions) {
-      func2var_[x.second.get()] = x.first;
-    }
-  }
 };
 
 /*!
@@ -765,10 +758,6 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintCommReducer(node.as<CommReducerNode>());
   } else if (node->IsInstance<TargetNode>()) {
     return PrintTarget(node.as<TargetNode>());
-  } else if (node->IsInstance<tvm::te::TensorNode>()) {
-    Doc doc;
-    doc << "te.Tensor";
-    return doc;
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
   }
@@ -1627,7 +1616,9 @@ Doc TVMScriptPrinter::PrintIRModule(const IRModule& module) {
   Doc doc;
   doc << "@tvm.script.ir_module" << Doc::NewLine();
   doc << "class Module:";
-  UpdateFuncName(module);
+  for (const auto& x : op->functions) {
+    func2var_[x.second.operator->()] = x.first;
+  }
   Doc body = Doc::NewLine();
   std::vector<Doc> functions;
   for (auto it = op->functions.begin(); it != op->functions.end(); ++it) {
@@ -2015,37 +2006,6 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
   res << PrintUnderline(loop, res.str().size());
   return res;
 }
-
-String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
-  // Temporary redirect possibly relax related printing to relax script
-  // TODO(tvm-team): make relax script printer handle all possible cases and
-  // make that as a default of TVMScript printer
-  if (mod->IsInstance<IRModuleNode>() || mod->IsInstance<relax::FunctionNode>()) {
-    // TODO(tvm-team) support tir_prefix in relax printer
-    return relax::AsRelaxScript(mod, show_meta);
-  }
-
-  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  Doc doc;
-  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
-      << TVMScriptPrinter(tir_prefix, show_meta).Print(mod);
-  return doc.str() + "\n";
-}
-
-Doc AsTVMScriptDoc(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
-                   const PrimFunc& func) {
-  ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  TVMScriptPrinter printer(tir_prefix, show_meta);
-  // TODO(altan, tqchen): change to the first argument only?
-  Doc doc;
-  if (mod->IsInstance<IRModuleNode>()) {
-    printer.UpdateFuncName(Downcast<IRModule>(mod));
-  }
-  doc << (func.defined() ? printer.Print(func) : printer.Print(mod)) << Doc::NewLine();
-  return doc;
-}
-
-TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate) {

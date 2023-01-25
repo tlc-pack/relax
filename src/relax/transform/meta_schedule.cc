@@ -26,8 +26,6 @@
 #include <tvm/relax/tuning_api.h>
 #include <tvm/tir/transform.h>
 
-#include "../../printer/text_printer.h"
-
 namespace tvm {
 namespace relax {
 namespace transform {
