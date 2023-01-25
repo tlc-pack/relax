@@ -26,11 +26,60 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/expr_functor.h>
 
 #include <string>
+#include <unordered_map>
+
+#include "../../relay/analysis/graph_partitioner.h"
 
 namespace tvm {
 namespace relax {
+
+/*!
+ * \brief A simple wrapper around ExprFunctor for a single argument case.
+ *  The result of visit is memoized.
+ */
+template <typename OutputType>
+class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const Expr&)> {
+  using BaseFunctor = ::tvm::relax::ExprFunctor<OutputType(const Expr&)>;
+
+ public:
+  /*! \brief virtual destructor */
+  virtual ~MemoizedExprTranslator() {}
+
+  /*!
+   * \brief The memoized call.
+   * \param n The expression node.
+   * \return The result of the call
+   */
+  virtual OutputType VisitExpr(const Expr& n) {
+    ICHECK(n.defined());
+    auto it = memo_.find(n);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    auto res = BaseFunctor::VisitExpr(n);
+    memo_[n] = res;
+    return res;
+  }
+
+  virtual OutputType VisitExpr_(const VarNode* vn) {
+    ICHECK(memo_.count(GetRef<Expr>(vn)));
+    return memo_[GetRef<Expr>(vn)];
+  }
+
+  virtual OutputType VisitBinding_(const VarBindingNode* binding) {
+    ICHECK_EQ(memo_.count(binding->var), 0);
+    auto v = VisitExpr(binding->value);
+    memo_[binding->var] = v;
+    return v;
+  }
+
+ protected:
+  /*! \brief Internal map used for memoization. */
+  std::unordered_map<Expr, OutputType, ObjectPtrHash, ObjectPtrEqual> memo_;
+};
 
 /*!
  * \brief Remove unused global relax functions in an IRModule.
@@ -51,6 +100,21 @@ inline std::string GetExtSymbol(const Function& func) {
   ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }
+
+/*!
+ * \brief Fuse ops or functions according to the given partition, and grouped them into a new
+ * function.
+ *
+ * \param mod The input module.
+ * \param partition A mapping from a subexpression to the containing group.
+ * \param create_single_binding_function Whether or not to create a grouped function for a group
+ *  containing a single binding.
+ * \return A new module containing grouped functions.
+ */
+IRModule MakeGroupedFunctions(
+    IRModule mod,
+    const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
+    bool create_single_binding_function = false);
 
 }  // namespace relax
 }  // namespace tvm

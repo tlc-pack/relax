@@ -24,66 +24,14 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 #define TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 
-#include <dmlc/json.h>
-#include <tvm/driver/driver_api.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/expr_functor.h>
-#include <tvm/relax/transform.h>
-#include <tvm/relax/type.h>
-#include <tvm/target/codegen.h>
-#include <tvm/target/virtual_device.h>
-#include <tvm/te/operation.h>
-#include <tvm/tir/usmp/utils.h>
 
-#include <iostream>
-#include <sstream>
 #include <string>
-#include <typeinfo>
-#include <unordered_map>
-#include <unordered_set>
-#include <utility>
 #include <vector>
-
-#include "../../../runtime/meta_data.h"
-#include "../../../target/metadata.h"
-#include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace relax {
 namespace backend {
-
-/*!
- * \brief A simple wrapper around ExprFunctor for a single argument case.
- *  The result of visit is memoized.
- */
-template <typename OutputType>
-class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const Expr&)> {
-  using BaseFunctor = ::tvm::relax::ExprFunctor<OutputType(const Expr&)>;
-
- public:
-  /*! \brief virtual destructor */
-  virtual ~MemoizedExprTranslator() {}
-
-  /*!
-   * \brief The memoized call.
-   * \param n The expression node.
-   * \return The result of the call
-   */
-  virtual OutputType VisitExpr(const Expr& n) {
-    ICHECK(n.defined());
-    auto it = memo_.find(n);
-    if (it != memo_.end()) {
-      return it->second;
-    }
-    auto res = BaseFunctor::VisitExpr(n);
-    memo_[n] = res;
-    return res;
-  }
-
- protected:
-  /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, OutputType, ObjectPtrHash, ObjectPtrEqual> memo_;
-};
 
 /*!
  * \brief Get the Packed Func

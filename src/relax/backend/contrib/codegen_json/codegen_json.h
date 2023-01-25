@@ -38,6 +38,7 @@
 
 #include "../../../../runtime/contrib/json/json_node.h"
 #include "../../../../runtime/contrib/json/json_runtime.h"
+#include "../../../transform/utils.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -143,8 +144,7 @@ class OpAttrExtractor : public AttrVisitor {
 };
 
 /*! \brief Serialize a Relax expression to JSON. */
-class JSONSerializer
-    : public tvm::relax::backend::MemoizedExprTranslator<std::vector<JSONGraphNodeEntry>> {
+class JSONSerializer : public relax::MemoizedExprTranslator<std::vector<JSONGraphNodeEntry>> {
  public:
   /*!
    * \brief Constructor
