@@ -209,8 +209,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
-  TensorRTJSONSerializer(const std::string& symbol, const Expr& expr)
-      : JSONSerializer(symbol, expr) {}
+  explicit TensorRTJSONSerializer(const std::string& symbol) : JSONSerializer(symbol) {}
 
   using JSONSerializer::VisitExpr_;
 
@@ -324,8 +323,8 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
   for (const auto& func : functions) {
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
-    TensorRTJSONSerializer serializer(func_name, func);
-    serializer.serialize();
+    TensorRTJSONSerializer serializer(func_name);
+    serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
     auto param_names = serializer.GetParams();
