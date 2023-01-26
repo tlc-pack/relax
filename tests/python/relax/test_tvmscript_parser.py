@@ -456,7 +456,7 @@ def test_call_packed():
                 relax.ExternFunc("vm.builtin.copy"),
                 (x,),
                 None,
-                type_args=[DynTensorType(2, "float32")],
+                sinfo_args=[R.Tensor("float32", ndim=2)],
             )
         )
         bb.emit_func_output(z)

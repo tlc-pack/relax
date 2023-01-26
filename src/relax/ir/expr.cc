@@ -27,24 +27,24 @@ namespace relax {
 using tvm::ReprPrinter;
 using tvm::runtime::Optional;
 
-Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<StructInfo> sinfo_args, Span span) {
   ObjectPtr<CallNode> n = make_object<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
-  n->type_args = std::move(type_args);
+  n->sinfo_args = std::move(sinfo_args);
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
-                Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
+                Optional<Attrs> opt_attrs, Optional<Array<StructInfo>> opt_sinfo_args,
                 Optional<Span> opt_span) {
   // Collect new values for fields.
   Expr op = opt_op.value_or(call->op);
   Array<Expr> args = opt_args.value_or(call->args);
   Attrs attrs = opt_attrs.value_or(call->attrs);
-  Array<Type> type_args = opt_type_args.value_or(call->type_args);
+  Array<StructInfo> sinfo_args = opt_sinfo_args.value_or(call->sinfo_args);
   Span span = opt_span.value_or(call->span);
 
   // Check if anything changed.
@@ -59,9 +59,9 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
     }
   }
   if (unchanged) {
-    if (type_args.size() == call->type_args.size()) {
-      for (size_t i = 0; i < type_args.size(); i++) {
-        unchanged &= type_args[i].same_as(call->type_args[i]);
+    if (sinfo_args.size() == call->sinfo_args.size()) {
+      for (size_t i = 0; i < sinfo_args.size(); i++) {
+        unchanged &= sinfo_args[i].same_as(call->sinfo_args[i]);
       }
     } else {
       unchanged = false;
@@ -74,7 +74,7 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
     cow_call_node->op = op;
     cow_call_node->args = args;
     cow_call_node->attrs = attrs;
-    cow_call_node->type_args = type_args;
+    cow_call_node->sinfo_args = sinfo_args;
     cow_call_node->span = span;
   }
   return call;
@@ -83,15 +83,14 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
 TVM_REGISTER_NODE_TYPE(CallNode);
 
 TVM_REGISTER_GLOBAL("relax.Call")
-    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
-      return Call(op, args, attrs, type_args, span);
-    });
+    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<StructInfo> sinfo_args,
+                       Span span) { return Call(op, args, attrs, sinfo_args, span); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const CallNode*>(ref.get());
       p->stream << "CallNode(" << node->op << ", " << node->args << ", " << node->attrs << ", "
-                << node->type_args << ")";
+                << node->sinfo_args << ")";
     });
 
 If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
@@ -524,17 +523,17 @@ TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
     });
 
 // Special opaque derivation function for ExternFunc
-// Take look at type_args to figure out the return StructInfo.
-// TODO(relax-team): revisit type_args related deduction.
+// Take look at sinfo_args to figure out the return StructInfo.
+// TODO(relax-team): revisit sinfo_args related deduction.
 TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_by_ty_args")
     .set_body_typed([](const Call& call, const BlockBuilder& ctx) -> StructInfo {
-      if (call->type_args.defined()) {
-        if (call->type_args.size() == 0) {
+      if (call->sinfo_args.defined()) {
+        if (call->sinfo_args.size() == 0) {
           return ObjectStructInfo();
-        } else if (call->type_args.size() == 1) {
-          return StructInfoFromType(call->type_args[0]);
+        } else if (call->sinfo_args.size() == 1) {
+          return call->sinfo_args[0];
         } else {
-          return StructInfoFromType(TupleType(call->type_args));
+          return StructInfoFromType(GetStaticType(TupleStructInfo(call->sinfo_args)));
         }
       } else {
         return ObjectStructInfo();

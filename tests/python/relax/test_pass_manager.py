@@ -76,7 +76,7 @@ class SwapMAVar(relax.PyExprMutator):
         else:
             new_op = self.visit_expr(call.op)
 
-        new_call = Call(new_op, call.args, call.attrs, call.type_args, call.span)
+        new_call = Call(new_op, call.args, call.attrs, call.sinfo_args, call.span)
         return self.builder_.normalize(new_call)
 
 

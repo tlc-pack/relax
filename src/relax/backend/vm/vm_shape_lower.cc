@@ -358,7 +358,7 @@ class VMShapeLowerMutator
       n->str_args = NullValue<Array<String>>();
       n->require_ctx = true;
       Call call(call_builtin_op_, {builtin_alloc_shape_heap_, Tuple(Array<Expr>())}, Attrs(n),
-                {GetStaticType(heap_sinfo)});
+                {StructInfoFromType(GetStaticType(heap_sinfo))});
       UpdateStructInfo(call, heap_sinfo);
       return VarBinding(var, call);
     } else {
@@ -404,7 +404,7 @@ class VMShapeLowerMutator
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
     Call call(call_builtin_op_, {builtin_make_shape_, Tuple({shape_heap_})}, ExtraIntArgs(int_args),
-              {ShapeType(static_cast<int>(op->values.size()))});
+              {StructInfoFromType(ShapeType(static_cast<int>(op->values.size())))});
     return call;
   }
 
@@ -673,7 +673,7 @@ class VMShapeLowerMutator
     } else {
       // call runtime tuple get item, and return a object.
       Call call(call_builtin_op_, {builtin_tuple_getitem_, Tuple({value})}, ExtraIntArgs({index}),
-                {object_type_});
+                {object_sinfo_});
       UpdateStructInfo(call, ObjectStructInfo());
       return call;
     }
@@ -730,8 +730,8 @@ class VMShapeLowerMutator
   // call builtin cop
   const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
   const Op& null_value_op_ = Op::Get("relax.null_value");
-  // common types
-  const Type object_type_ = ObjectType();
+  // common struct info
+  const StructInfo object_sinfo_ = ObjectStructInfo();
   // check function
   const ExternFunc builtin_alloc_shape_heap_{"vm.builtin.alloc_shape_heap"};
   const ExternFunc builtin_match_shape_{"vm.builtin.match_shape"};

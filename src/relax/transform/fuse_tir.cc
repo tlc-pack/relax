@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -663,7 +664,8 @@ class TIRFuseMutator : public ExprMutator {
         // Step b. Create call_tir
         Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list),
                                  GetCallTIRShape(GetStructInfo(call))};
-        return Call(call_tir_op_, call_args, call->attrs, {call->checked_type()});
+        return Call(call_tir_op_, call_args, call->attrs,
+                    {StructInfoFromType(call->checked_type())});
       } else {
         // Case 1.2. The callee function is not primitive, nothing to do.
         return call;
@@ -673,7 +675,7 @@ class TIRFuseMutator : public ExprMutator {
       GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
       tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
       GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
-      return Call(call->op, {new_gv, call->args[1], call->args[2]}, call->attrs, call->type_args,
+      return Call(call->op, {new_gv, call->args[1], call->args[2]}, call->attrs, call->sinfo_args,
                   call->span);
     } else {
       // Case 3. CallNode in other types. Leave it as it is.

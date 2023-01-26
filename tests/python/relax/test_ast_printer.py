@@ -362,7 +362,7 @@ def test_call_packed():
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
         o: R.Object = R.call_packed(
-            "contrib.tensor_array_stack", x, y, type_args=R.Object, test_attr=True
+            "contrib.tensor_array_stack", x, y, type_args=R.Object(), test_attr=True
         )
         return o
 
@@ -393,7 +393,7 @@ def test_call_packed():
         {
             "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
             "args": '[Var(name_hint="x"), Var(name_hint="y")]',
-            "type_args": "[ObjectType()]",
+            "sinfo_args": "[ObjectStructInfo()]",
             "attrs": '{"test_attr": 1}',
         },
         extern_call_text,
@@ -459,7 +459,12 @@ def test_call_tir():
                     PrimExpr(value=`n: int64`)
                 ])
             ]""",
-            "type_args": "[DynTensorType(ndim=2, dtype=float32)]",
+            "sinfo_args": """[
+                TensorStructInfo(
+                    dtype=float32,
+                    ndim=2
+                )
+            ]""",
         },
         tir_call_text,
     )
