@@ -109,8 +109,8 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  */
 inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
   auto local_bindings = AnalyzeVar2Value(f);
-  for (auto [var, val] : local_bindings) {
-    if (auto call = val.as<CallNode>(); call && backend::IsOp(call, op_name)) {
+  for (const auto& entry : local_bindings) {
+    if (auto call = entry.first.as<CallNode>(); call && backend::IsOp(call, op_name)) {
       return call;
     }
   }
