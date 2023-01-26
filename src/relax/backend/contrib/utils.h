@@ -30,6 +30,8 @@
 #include <string>
 #include <vector>
 
+#include "../../transform/utils.h"
+
 namespace tvm {
 namespace relax {
 namespace backend {
