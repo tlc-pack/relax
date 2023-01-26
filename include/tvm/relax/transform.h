@@ -183,11 +183,6 @@ TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
  *  function. The new function will be annotated with kCodegen and GlobalSymbol attributes,
  *  and it is intented to be offloaded to an external backend.
  *
- *  Even if there is only one composite function, or a backend does not benefit from receiving
- *  larger subgraphs, this pass is required to run for offloading (BYOC) since a composite function
- *  needs to be wrapped by an outer function that are annotated with "Codegen" and "global_symbol"
- *  attributes.
- *
  * \return The Pass.
  */
 TVM_DLL Pass MergeCompositeFunctions();

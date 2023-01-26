@@ -316,11 +316,6 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     The new function will be annotated with "Codegen" and "global_symbol" attributes, and it
     is intented to be offloaded to an external backend.
 
-    Even if there is only one composite function, or a backend does not benefit from receiving
-    larger subgraphs, this pass is required to run for offloading (BYOC) since a composite function
-    needs to be wrapped by an outer function that are annotated with "Codegen" and "global_symbol"
-    attributes.
-
     Returns
     -------
     ret : tvm.transform.Pass
@@ -693,3 +688,8 @@ def dataflowblock_pass(
     if pass_func:
         return create_dataflowblock_pass(pass_func)
     return create_dataflowblock_pass
+
+
+def WrapCompositeFunction() -> tvm.ir.transform.Pass:
+    """TODO"""
+    return _ffi_api.WrapCompositeFunction()  # type: ignore
