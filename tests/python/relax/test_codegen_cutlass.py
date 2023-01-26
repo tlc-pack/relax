@@ -97,11 +97,15 @@ def test_conv2d_offload():
     weight_np = np.random.randn(32, 3, 3, 16).astype("float16")
     bias_np = np.random.randn(1, 1, 1, 32).astype("float16")
 
-    pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=True, activation="relax.nn.relu")
+    pat = make_fused_bias_activation_pattern(
+        "relax.nn.conv2d", with_bias=True, activation="relax.nn.relu"
+    )
 
     seq = tvm.transform.Sequential(
         [
-            relax.transform.FuseOpsByPattern([("cutlass.conv2d_bias_relu", pat)], annotate_codegen=True),
+            relax.transform.FuseOpsByPattern(
+                [("cutlass.conv2d_bias_relu", pat)], annotate_codegen=True
+            ),
             relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}}),
         ]
     )

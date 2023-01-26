@@ -287,7 +287,9 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
 
 
-def FuseOpsByPattern(patterns: List[Tuple], annotate_codegen: bool = False) -> tvm.ir.transform.Pass:
+def FuseOpsByPattern(
+    patterns: List[Tuple], annotate_codegen: bool = False
+) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
 

@@ -545,6 +545,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     """A Relax function mutator that tunes and annotates CUTLASS composite functions
     with shape, dtype and generated templates.
     """
+
     def __init__(self, mod, conv2d_profiler, options):
         super().__init__(mod)
         self.options = options
@@ -628,7 +629,9 @@ def profile_relax_function(functions, options):
     annotated_functions = []
 
     for f in functions:
-        annotator = CutlassRelaxFunctionAnnotator(tvm.IRModule.from_expr(f), conv2d_profiler, options)
+        annotator = CutlassRelaxFunctionAnnotator(
+            tvm.IRModule.from_expr(f), conv2d_profiler, options
+        )
         annotated_functions.append(annotator.visit_expr(f))
 
     return annotated_functions
@@ -779,9 +782,7 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
     return tvm.runtime.vm.Executable.load_exec(code, lib)
 
 
-def finalize_modules_relax(
-    vm_exec, lib_path="compile.so", tmp_dir="./tmp"
-):
+def finalize_modules_relax(vm_exec, lib_path="compile.so", tmp_dir="./tmp"):
     """finalize_modules_vm equivalent for Relax VM.
 
     Parameters
