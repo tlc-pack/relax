@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 #define TVM_RELAX_BACKEND_CONTRIB_UTILS_H_
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 
 #include <string>
@@ -84,6 +85,37 @@ inline std::string DType2String(const tvm::DataType dtype) {
   }
   os << dtype.bits();
   return os.str();
+}
+
+/*!
+ * \brief Check if a call node is calling an op with the given name
+ * \param call The call node whose callee we want to check
+ * \param op_name The name of the op
+ * \return true if the callee op matches with the op name
+ */
+inline bool IsOp(const CallNode* call, const std::string& op_name) {
+  const auto* op_node = call->op.as<OpNode>();
+  if (!op_node) return false;
+  Op op = GetRef<Op>(op_node);
+  return op == Op::Get(op_name);
+}
+
+/*!
+ * \brief Return a call node within the function which calls an op with the given name
+ * The function must contain exactly one call to such op.
+ * \param f The function to look for an op.
+ * \param op_name The name of the op
+ * \return A call node which calls an op with the given name
+ */
+inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
+  auto local_bindings = AnalyzeVar2Value(f);
+  for (const auto& entry : local_bindings) {
+    if (auto call = entry.first.as<CallNode>(); call && backend::IsOp(call, op_name)) {
+      return call;
+    }
+  }
+  LOG(FATAL) << op_name << " not found in the function " << PrettyPrint(f);
+  return nullptr;
 }
 
 }  // namespace backend
