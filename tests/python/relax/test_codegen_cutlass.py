@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import pytest
 import numpy as np
 import tvm
 import tvm.testing
@@ -82,6 +82,16 @@ class Conv2dBiasReLU:
         return conv1
 
 
+has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
+
+cutlass_enabled = pytest.mark.skipif(
+    not has_cutlass,
+    reason="CUTLASS note enabled.",
+)
+
+pytestmark = [cutlass_enabled]
+
+
 def test_conv2d_offload():
     data_np = np.random.randn(16, 32, 32, 16).astype("float16")
     weight_np = np.random.randn(32, 3, 3, 16).astype("float16")
@@ -91,8 +101,7 @@ def test_conv2d_offload():
 
     seq = tvm.transform.Sequential(
         [
-            relax.transform.FuseOpsByPattern([("cutlass.conv2d_bias_relu", pat)]),
-            relax.transform.MergeCompositeFunctions(),
+            relax.transform.FuseOpsByPattern([("cutlass.conv2d_bias_relu", pat)], annotate_codegen=True),
             relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}}),
         ]
     )

@@ -287,7 +287,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     return _ffi_api.FuseOps(fuse_opt_level)  # type: ignore
 
 
-def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
+def FuseOpsByPattern(patterns: List[Tuple], annotate_codegen: bool = False) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
 
@@ -301,6 +301,15 @@ def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
         The string is the name of the corresponding pattern. It becomes the value of the kComposite
         attribute of a fused function after a successful matching.
 
+    annotate_codegen : bool
+        If True, wrap each created composite function with another function, whose body consists
+        only of a call to the composite function, and annotate the outer function with "Codegen"
+        and "global_symbol" attributes. The "Codegen" attribute is set as the prefix of the
+        corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
+
+        This must be True if the created composite functions are intended to be offloaded to
+        an external backend without using the MergeCompositeFunctions pass.
+
     Returns
     -------
     ret : tvm.transform.Pass
@@ -308,7 +317,7 @@ def FuseOpsByPattern(patterns: List[Tuple]) -> tvm.ir.transform.Pass:
 
     """
     pattern_names, df_patterns = zip(*patterns)
-    return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns)  # type: ignore
+    return _ffi_api.FuseOpsByPattern(pattern_names, df_patterns, annotate_codegen)  # type: ignore
 
 
 def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
@@ -688,8 +697,3 @@ def dataflowblock_pass(
     if pass_func:
         return create_dataflowblock_pass(pass_func)
     return create_dataflowblock_pass
-
-
-def WrapCompositeFunction() -> tvm.ir.transform.Pass:
-    """TODO"""
-    return _ffi_api.WrapCompositeFunction()  # type: ignore
