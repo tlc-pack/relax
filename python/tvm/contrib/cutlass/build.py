@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value
+# pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
 import os
@@ -552,6 +552,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         self.conv2d_profiler = conv2d_profiler
 
     def handle_conv2d(self, f, op_type):
+        """Tune and annotate a conv2d op."""
         signature, op_attrs = _extract_relax_function_info(f)
 
         d_shape = signature["arg0_shape"]
@@ -618,6 +619,9 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         raise ValueError("Unsupported composite {}".format(op_type))
 
+    def visit_span(self, span):
+        return span
+
 
 @register_func("contrib.cutlass.tune_relax_function")
 def profile_relax_function(functions, options):
@@ -661,7 +665,7 @@ def compile_cutlass_module(c_source_module, options):
     """
     tmp_dir = options.get("tmp_dir", "./tmp")
     defaults = {"sm": 80, "threads": -1, "use_fast_math": False}
-    compile_config = {key: options.get(key, defaults[key]) for key in defaults.keys()}
+    compile_config = {key: options.get(key, val) for key, val in defaults.items()}
 
     function_names = c_source_module.get_function("get_func_names")()
     compile_options = _get_cutlass_compile_options(**compile_config)
