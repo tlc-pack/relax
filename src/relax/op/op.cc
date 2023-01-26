@@ -89,6 +89,7 @@ StructInfo CallTIRStructInfoFromShapeType(Expr shape, Type type) {
 }
 
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
+  // Todo(ruihang): reorganize in the followup PR
   Expr output_shape = call->args[2];
   if (call->sinfo_args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -110,6 +111,7 @@ RELAY_REGISTER_OP("relax.call_tir")
 
 Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
                  Optional<Expr> packed_ints) {
+  // Todo(ruihang): reorganize in the followup PR
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
@@ -126,6 +128,7 @@ TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 // call builtin
 StructInfo InferStructInfoCallBuiltin(const Call& call, const BlockBuilder& ctx) {
+  // Todo(ruihang): reorganize in the followup PR
   if (call->sinfo_args.size() == 0) {
     // by default return void.
     return TupleStructInfo(Array<StructInfo>());
@@ -143,6 +146,7 @@ TVM_REGISTER_OP("relax.call_builtin")
 
 Expr MakeCallBuiltin(Expr func, Tuple args, Array<Type> type_args, Array<IntImm> int_args,
                      DataType dtype_arg, Array<String> str_args, bool require_ctx) {
+  // Todo(ruihang): reorganize in the followup PR
   Array<StructInfo> sinfo_args = type_args.Map([](Type type) { return StructInfoFromType(type); });
 
   auto attrs = make_object<BuiltinFuncAttrs>();
@@ -255,6 +259,7 @@ TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
 // invoke_closure
 
 StructInfo InferStructInfoInvokeClosure(const Call& call, const BlockBuilder& ctx) {
+  // Todo(ruihang): reorganize in the followup PR
   if (call->sinfo_args.empty()) {
     return ObjectStructInfo();
   } else if (call->sinfo_args.size() == 1) {
@@ -271,6 +276,7 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure);
 
 Expr InvokeClosure(Expr closure, Tuple args, Array<Type> type_args) {
+  // Todo(ruihang): reorganize in the followup PR
   Array<StructInfo> sinfo_args = type_args.Map([](Type type) { return StructInfoFromType(type); });
   static const Op& op = Op::Get("relax.invoke_closure");
   return Call(op, {closure, args}, {}, sinfo_args);

@@ -527,6 +527,7 @@ TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
 // TODO(relax-team): revisit sinfo_args related deduction.
 TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_by_ty_args")
     .set_body_typed([](const Call& call, const BlockBuilder& ctx) -> StructInfo {
+      // Todo(ruihang): reorganize in the followup PR
       if (call->sinfo_args.defined()) {
         if (call->sinfo_args.size() == 0) {
           return ObjectStructInfo();

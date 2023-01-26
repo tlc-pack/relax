@@ -357,6 +357,7 @@ class VMShapeLowerMutator
       n->dtype_arg = DataType::Void();
       n->str_args = NullValue<Array<String>>();
       n->require_ctx = true;
+      // Todo(ruihang): reorganize in the followup PR
       Call call(call_builtin_op_, {builtin_alloc_shape_heap_, Tuple(Array<Expr>())}, Attrs(n),
                 {StructInfoFromType(GetStaticType(heap_sinfo))});
       UpdateStructInfo(call, heap_sinfo);
@@ -404,7 +405,7 @@ class VMShapeLowerMutator
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
     Call call(call_builtin_op_, {builtin_make_shape_, Tuple({shape_heap_})}, ExtraIntArgs(int_args),
-              {StructInfoFromType(ShapeType(static_cast<int>(op->values.size())))});
+              {ShapeStructInfo(static_cast<int>(op->values.size()))});
     return call;
   }
 

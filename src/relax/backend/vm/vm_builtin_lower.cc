@@ -75,6 +75,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
     } else {
       auto attrs = DefaultBuiltinAttrs();
       attrs->dtype_arg = dtype;
+      // Todo(ruihang): reorganize in the followup PR
       return Call(call_builtin_op_, {builtin_compute_alloc_shape_, Tuple({shape})}, Attrs(attrs),
                   {StructInfoFromType(GetStaticType(GetStructInfo(shape)))});
     }
