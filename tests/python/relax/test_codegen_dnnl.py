@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import pytest
 import numpy as np
 import tvm
 import tvm.testing
@@ -60,6 +60,16 @@ class Conv2dReLUx2:
             R.output(conv2d)
 
         return conv2d
+
+
+has_dnnl = tvm.get_global_func("relax.ext.dnnl", True)
+
+dnnl_enabled = pytest.mark.skipif(
+    not has_dnnl,
+    reason="DNNL note enabled.",
+)
+
+pytestmark = [dnnl_enabled]
 
 
 def test_dnnl_offload():
