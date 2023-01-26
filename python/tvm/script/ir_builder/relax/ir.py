@@ -17,6 +17,7 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """IRBuilder for Relax dialect"""
 
+import builtins
 import functools
 import inspect
 from typing import Dict, List, Optional, Tuple, Union
@@ -110,7 +111,7 @@ from . import _ffi_api, frame
 
 ##################### Python Native Function Alias ######################
 
-py_print = print
+py_print = builtins.print
 py_tuple = tuple
 py_str = str
 
