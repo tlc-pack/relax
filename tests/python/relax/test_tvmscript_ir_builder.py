@@ -130,5 +130,12 @@ def test_dataflow_block():
     tvm.ir.assert_structural_equal(func, bb.get()["foo"])
 
 
+def test_regression_py_print():
+    # Test that the py_print directs to python builtin print
+    from tvm.script.ir_builder.relax.ir import py_print  # pylint: disable=import-outside-toplevel
+
+    assert py_print == print
+
+
 if __name__ == "__main__":
     tvm.testing.main()
