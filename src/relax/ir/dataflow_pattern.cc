@@ -548,8 +548,7 @@ ConstantPattern IsConst() { return ConstantPattern(make_object<ConstantPatternNo
 WildcardPattern Wildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
 ExprPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
 ExprPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
-CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
-                      Optional<Array<PrimExpr>> oshape) {
+CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args) {
   DFPattern arg_pattern;
   if (!var_args.defined()) {
     arg_pattern = Wildcard();
@@ -557,23 +556,11 @@ CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
     arg_pattern = var_args.value();
   }
 
-  DFPattern shape_pattern;
-  if (!oshape.defined()) {
-    shape_pattern = Wildcard();
-  } else {
-    shape_pattern = PrimArrPattern(oshape.value());
-  }
-
-  return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern, shape_pattern);
+  return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern);
 }
 
-CallPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes) {
-  Array<DFPattern> shape_patterns;
-  shape_patterns.reserve(oshapes.size());
-  for (auto shape : oshapes) shape_patterns.push_back(PrimArrPattern(std::move(shape)));
-
-  return IsOp("relax.call_tir")(GlobalVarPattern(name), var_args,
-                                IsTuple(std::move(shape_patterns)));
+CallPattern IsCallTIR(const String& name, TuplePattern var_args) {
+  return IsOp("relax.call_tir")(GlobalVarPattern(name), var_args);
 }
 
 DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered) {

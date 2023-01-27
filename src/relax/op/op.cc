@@ -71,55 +71,50 @@ StructInfo ReturnShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
 
 // call_tir
 
-StructInfo CallTIRStructInfoFromShapeType(Expr shape, Type type) {
-  if (auto* tuple = shape.as<TupleNode>()) {
-    auto* ptr_type = type.as<TupleTypeNode>();
-    ICHECK(ptr_type != nullptr) << "Expect tuple type and shape to be consistent.";
-    ICHECK_EQ(ptr_type->fields.size(), tuple->fields.size());
-    Array<StructInfo> arr;
-    for (size_t i = 0; i < ptr_type->fields.size(); ++i) {
-      arr.push_back(CallTIRStructInfoFromShapeType(tuple->fields[i], ptr_type->fields[i]));
-    }
-    return TupleStructInfo(arr);
-  } else {
-    auto* ptr_type = type.as<DynTensorTypeNode>();
-    ICHECK(ptr_type != nullptr) << "Expect singleton shape to correspond to DynTensorType.";
-    return TensorStructInfo(shape, ptr_type->dtype);
-  }
-}
-
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
-  // Todo(ruihang): reorganize in the followup PR
-  Expr output_shape = call->args[2];
   if (call->sinfo_args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exact 1 output struct info.");
   }
-  Type output_type = GetStaticType(call->sinfo_args[0]);
-  return CallTIRStructInfoFromShapeType(output_shape, output_type);
+  return call->sinfo_args[0];
 }
 
 RELAY_REGISTER_OP("relax.call_tir")
-    .set_num_inputs(4)
+    .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("output_shape", "Expr", "The output shape.")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR);
 
-Expr MakeCallTIR(Expr func, Tuple args, Expr output_shape, Type output_type,
-                 Optional<Expr> packed_ints) {
-  // Todo(ruihang): reorganize in the followup PR
+Expr MakeCallTIR(Expr func, Tuple args, StructInfo out_sinfo, Optional<Expr> packed_ints) {
+  auto f_check_shape = [](const TensorStructInfoNode* sinfo) {
+    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape";
+  };
+  if (const auto* tensor_sinfo = out_sinfo.as<TensorStructInfoNode>()) {
+    f_check_shape(tensor_sinfo);
+  } else if (const auto* tuple_sinfo = out_sinfo.as<TupleStructInfoNode>()) {
+    for (const StructInfo& field_sinfo : tuple_sinfo->fields) {
+      const auto* tensor_field = field_sinfo.as<TensorStructInfoNode>();
+      CHECK(tensor_field != nullptr)
+          << "out_sinfo of call_tir should be either TensorStructInfo or a TupleStructInfo whose "
+             "fields are all TensorStructInfo";
+      f_check_shape(tensor_field);
+    }
+  } else {
+    LOG(FATAL) << "out_sinfo of call_tir should be either TensorStructInfo or a TupleStructInfo "
+                  "whose fields are all TensorStructInfo";
+  }
+
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args, output_shape}, {}, {StructInfoFromType(output_type)});
+    call = Call(op, {func, args}, {}, {out_sinfo});
   } else {
-    call = Call(op, {func, args, output_shape, packed_ints.value()}, {},
-                {StructInfoFromType(output_type)});
+    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
   }
   return call;
 }
@@ -128,13 +123,12 @@ TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 // call builtin
 StructInfo InferStructInfoCallBuiltin(const Call& call, const BlockBuilder& ctx) {
-  // Todo(ruihang): reorganize in the followup PR
   if (call->sinfo_args.size() == 0) {
     // by default return void.
     return TupleStructInfo(Array<StructInfo>());
   } else {
-    ICHECK(call->sinfo_args[0].defined()) << call;
-    return StructInfoFromType(GetStaticType(call->sinfo_args[0]));
+    ICHECK_EQ(call->sinfo_args.size(), 1);
+    return call->sinfo_args[0];
   }
 }
 
@@ -144,11 +138,8 @@ TVM_REGISTER_OP("relax.call_builtin")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltin);
 
-Expr MakeCallBuiltin(Expr func, Tuple args, Array<Type> type_args, Array<IntImm> int_args,
+Expr MakeCallBuiltin(Expr func, Tuple args, Array<StructInfo> sinfo_args, Array<IntImm> int_args,
                      DataType dtype_arg, Array<String> str_args, bool require_ctx) {
-  // Todo(ruihang): reorganize in the followup PR
-  Array<StructInfo> sinfo_args = type_args.Map([](Type type) { return StructInfoFromType(type); });
-
   auto attrs = make_object<BuiltinFuncAttrs>();
   attrs->int_args = int_args.Map([](IntImm value) {
     if (value->dtype != DataType::Int(64)) {
@@ -259,13 +250,12 @@ TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
 // invoke_closure
 
 StructInfo InferStructInfoInvokeClosure(const Call& call, const BlockBuilder& ctx) {
-  // Todo(ruihang): reorganize in the followup PR
   if (call->sinfo_args.empty()) {
     return ObjectStructInfo();
   } else if (call->sinfo_args.size() == 1) {
-    return StructInfoFromType(GetStaticType(call->sinfo_args[0]));
+    return call->sinfo_args[0];
   } else {
-    return StructInfoFromType(GetStaticType(TupleStructInfo(call->sinfo_args)));
+    return TupleStructInfo(call->sinfo_args);
   }
 }
 
@@ -275,9 +265,7 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .add_argument("args", "Tuple", "The captured variables.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure);
 
-Expr InvokeClosure(Expr closure, Tuple args, Array<Type> type_args) {
-  // Todo(ruihang): reorganize in the followup PR
-  Array<StructInfo> sinfo_args = type_args.Map([](Type type) { return StructInfoFromType(type); });
+Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
   return Call(op, {closure, args}, {}, sinfo_args);
 }

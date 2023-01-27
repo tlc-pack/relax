@@ -525,25 +525,21 @@ TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
 // Special opaque derivation function for ExternFunc
 // Take look at sinfo_args to figure out the return StructInfo.
 // TODO(relax-team): revisit sinfo_args related deduction.
-TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_by_ty_args")
+TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_by_sinfo_args")
     .set_body_typed([](const Call& call, const BlockBuilder& ctx) -> StructInfo {
-      // Todo(ruihang): reorganize in the followup PR
-      if (call->sinfo_args.defined()) {
-        if (call->sinfo_args.size() == 0) {
-          return ObjectStructInfo();
-        } else if (call->sinfo_args.size() == 1) {
-          return call->sinfo_args[0];
-        } else {
-          return StructInfoFromType(GetStaticType(TupleStructInfo(call->sinfo_args)));
-        }
-      } else {
+      ICHECK(call->sinfo_args.defined()) << "sinfo_args field of CallNode should always be defined";
+      if (call->sinfo_args.empty()) {
         return ObjectStructInfo();
+      } else if (call->sinfo_args.size() == 1) {
+        return call->sinfo_args[0];
+      } else {
+        return TupleStructInfo(call->sinfo_args);
       }
     });
 
 // Get the derive function.
 FuncStructInfo GetExternFuncStructInfo() {
-  EnvFunc fn = EnvFunc::Get("tvm.relax.struct_info.infer_by_ty_args");
+  EnvFunc fn = EnvFunc::Get("tvm.relax.struct_info.infer_by_sinfo_args");
   StructInfoDeriveFunc derive;
   derive = fn;
   return FuncStructInfo::OpaqueFunc(derive);

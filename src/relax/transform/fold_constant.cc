@@ -35,12 +35,22 @@ class ConstantFolder : public ExprMutator {
 
  private:
   /*!
-   * \brief Pattern match expr to a constant shape and get runtime shape tuple from it.
+   * \brief Pattern match the shape inside the given struct info to a
+   * constant shape and get runtime shape tuple from it.
+   * \param struct_info The given struct info whose shape inside is to be casted.
    * \return The runtime shape tuple, or nullopt if it is not a constant shape.
+   * \note Only TensorStructInfo is supported at this moment. Return NullOpt
+   * if the input struct info is not TensorStructInfo.
    */
-  static Optional<runtime::ShapeTuple> MatchConstShape(const Expr& expr) {
-    auto* shape = expr.as<ShapeExprNode>();
-    if (!shape) return NullOpt;
+  static Optional<runtime::ShapeTuple> MatchConstShape(const StructInfo& struct_info) {
+    // Only support single output for call_tir at this moment.
+    const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
+    if (tensor_sinfo == nullptr) {
+      return NullOpt;
+    }
+
+    const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
+    ICHECK(shape != nullptr) << "struct info given by call_tir should have ShapeExpr shape";
 
     std::vector<int64_t> shape_values;
     for (const auto v : shape->values) {
@@ -145,12 +155,13 @@ class ConstantFolder : public ExprMutator {
 
   Expr VisitCallTIR(Call call) {
     // call_tir needs to have at least three arguments
-    ICHECK_GE(call->args.size(), 3);
+    ICHECK_GE(call->args.size(), 2);
     Optional<tir::PrimFunc> func = MatchPrimFunc(call->args[0]);
     ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
     Optional<Array<runtime::NDArray>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
-    Optional<runtime::ShapeTuple> shape = MatchConstShape(call->args[2]);
+    ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
+    Optional<runtime::ShapeTuple> shape = MatchConstShape(call->sinfo_args[0]);
     bool output_not_tuple = call->sinfo_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
     if (func && arr_args && shape && output_not_tuple) {
