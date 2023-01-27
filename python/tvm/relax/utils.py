@@ -121,6 +121,22 @@ class _ArgsConverter:
 
     @staticmethod
     def convert(args_to_expr: List[str], args_to_list_expr: List[str]):
+        """Convert the arguments to Expr.
+
+        Parameters
+        ----------
+        args_to_expr : List[str]
+            The argument names to be converted to Expr.
+
+        args_to_list_expr : List[str]
+            The argument names to be converted to List[Expr].
+
+        Returns
+        -------
+        output : Callable[[FType], FType]
+            The decorator.
+        """
+
         if any([x in args_to_list_expr for x in args_to_expr]):
             raise ValueError(f"`args_to_expr` and `args_to_list_expr` should be disjoint.")
 
@@ -237,4 +253,4 @@ class _ArgsConverter:
         return _ArgsConverter.convert(args_to_expr, args_to_list_expr)(func)
 
 
-args_converter = _ArgsConverter()
+args_converter = _ArgsConverter()  # pylint: disable=invalid-name
