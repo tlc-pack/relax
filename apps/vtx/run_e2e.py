@@ -265,7 +265,7 @@ if __name__ == "__main__":
     model = gs.export_onnx(sorted_graph)
 
     shape_dict = {
-        'id__mask__segment': [3, 8, 512]
+        'id__mask__segment': [3, BATCH_SIZE, 512]
     }
 
     with target:
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     #input0 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
     #input1 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
     #input2 = tvm.nd.array(np.random.rand(1, 256).astype("int32"), tvm.cuda())
-    input0 = tvm.nd.array(np.random.randint(256, size=[3, 8, 512]).astype("int64"), tvm.cuda())
+    input0 = tvm.nd.array(np.random.randint(256, size=[3, BATCH_SIZE, 512]).astype("int64"), tvm.cuda())
 
     evaluator = vm.time_evaluator(
         func_name="main",
@@ -345,7 +345,7 @@ if __name__ == "__main__":
     #}
 
     input_dict = {
-        "id__mask__segment": np.random.randint(256, size=[3, 8, 512]).astype("int64")
+        "id__mask__segment": np.random.randint(256, size=[3, BATCH_SIZE, 512]).astype("int64")
     }
 
     import time

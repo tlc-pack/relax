@@ -30,7 +30,7 @@ int _FusedQKVToCxtImpl(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
   CHECK_EQ(Mask->ndim, 2);    // B, S
   CHECK_EQ(Output->ndim, 4);  // B, N, S, H'
 
-  using Attention = AttentionKernel<T, cutlass::arch::Sm80, /*is_aligned=*/true,
+  using Attention = AttentionKernel<T, cutlass::arch::Sm75, /*is_aligned=*/true,
                                     /*queries_per_block=*/64, /*keys_per_block=*/64,
                                     /*single_value_iteration=*/true>;
 
