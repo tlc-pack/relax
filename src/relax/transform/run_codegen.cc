@@ -86,7 +86,8 @@ class CodeGenRunner : ExprMutator {
         func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
         builder_->UpdateFunction(gvar, func);
 
-        return Call(call_op, new_args, tvm::Attrs(), {GetStaticType(func->ret_struct_info)});
+        return Call(call_op, new_args, tvm::Attrs(),
+                    {StructInfoFromType(GetStaticType(func->ret_struct_info))});
       }
     }
     Array<Expr> new_args;
@@ -94,7 +95,7 @@ class CodeGenRunner : ExprMutator {
       new_args.push_back(VisitExpr(arg));
     }
 
-    return Call(call_node->op, new_args, call_node->attrs, call_node->type_args, call_node->span);
+    return Call(call_node->op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {

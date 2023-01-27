@@ -160,8 +160,8 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->op);
 
-  for (Type ty_arg : op->type_args) {
-    this->VisitType(ty_arg);
+  for (StructInfo sinfo_arg : op->sinfo_args) {
+    this->VisitExprDepStructInfoField(sinfo_arg);
   }
 
   for (Expr arg : op->args) {
@@ -420,11 +420,11 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   Expr new_op = this->VisitExpr(call_node->op);
   bool unchanged = call_node->op.same_as(new_op);
 
-  tvm::Array<Type> ty_args;
-  for (Type ty_arg : call_node->type_args) {
-    Type new_ty_arg = this->VisitType(ty_arg);
-    ty_args.push_back(new_ty_arg);
-    unchanged &= new_ty_arg.same_as(ty_arg);
+  Array<StructInfo> sinfo_args;
+  for (StructInfo sinfo_arg : call_node->sinfo_args) {
+    StructInfo new_sinfo_arg = this->VisitExprDepStructInfoField(sinfo_arg);
+    sinfo_args.push_back(new_sinfo_arg);
+    unchanged &= new_sinfo_arg.same_as(sinfo_arg);
   }
 
   tvm::Array<Expr> call_args;
@@ -437,7 +437,7 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   if (unchanged && VisitAndCheckStructInfoFieldUnchanged(call_node->struct_info_)) {
     return GetRef<Expr>(call_node);
   } else {
-    return Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
+    return Call(new_op, call_args, call_node->attrs, sinfo_args, call_node->span);
   }
 }
 

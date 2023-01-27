@@ -151,7 +151,7 @@ class ConstantFolder : public ExprMutator {
     Optional<Array<runtime::NDArray>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
     Optional<runtime::ShapeTuple> shape = MatchConstShape(call->args[2]);
-    bool output_not_tuple = call->type_args.size() == 1;
+    bool output_not_tuple = call->sinfo_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
     if (func && arr_args && shape && output_not_tuple) {
       DynTensorType ret_type = Downcast<DynTensorType>(call->checked_type());

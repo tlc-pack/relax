@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ir/type_functor.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/ir_functor.h>
 #include <tvm/relax/utils.h>
 
@@ -96,7 +97,7 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
     }
     doc << "(" << Doc::Concat(args, Doc::Text(", "));
 
-    Type output_type = op->type_args[0];
+    Type output_type = GetStaticType(op->sinfo_args[0]);
     if (const auto* out_type = output_type.as<DynTensorTypeNode>()) {
       doc << ", dtype=" << PrintDType(out_type->dtype);
     } else if (const auto* out_type = output_type.as<TupleTypeNode>()) {
@@ -143,14 +144,16 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
     doc << ", " << Doc::Concat(attrs);
   }
 
-  if (!op->type_args.empty()) {
+  if (!op->sinfo_args.empty()) {
     doc << ", type_args=";
-    std::vector<Doc> type_args = PrintTypeArgs(op->type_args);
+    Array<Type> type_args =
+        op->sinfo_args.Map([](StructInfo sinfo) { return GetStaticType(sinfo); });
+    std::vector<Doc> type_args_doc = PrintTypeArgs(type_args);
 
-    if (type_args.size() == 1) {
-      doc << "(" << type_args[0] << " ,)";
+    if (type_args_doc.size() == 1) {
+      doc << "(" << type_args_doc[0] << " ,)";
     } else {
-      doc << "(" << Doc::Concat(type_args, Doc::Text(", ")) << ")";
+      doc << "(" << Doc::Concat(type_args_doc, Doc::Text(", ")) << ")";
     }
   }
 

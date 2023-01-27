@@ -87,7 +87,7 @@ def test_annotations():
     assert isinstance(f.ret_struct_info, relax.ObjectStructInfo)
 
     assert isinstance(o._checked_type_, relax.ty.ObjectType)
-    assert len(o_call_packed.type_args) == 1
+    assert len(o_call_packed.sinfo_args) == 1
 
 
 def test_mismatch_cast_dims_and_ndim():
@@ -475,7 +475,7 @@ def test_call_tir():
     call_tir_node = foo.body.blocks[0].bindings[0].value
     assert call_tir_node.attrs is None
     assert_structural_equal(
-        call_tir_node.type_args[0], relax.DynTensorType(ndim=2, dtype="float32")
+        call_tir_node.sinfo_args[0], relax.TensorStructInfo(ndim=2, dtype="float32")
     )
 
 
@@ -552,25 +552,28 @@ def test_call_packed():
     assert z_value.op.global_symbol == "contrib.my_matmul"
     assert "mp" in z_value.attrs and z_value.attrs["mp"] == False
     assert_structural_equal(z_value.args, [x, x])
-    assert len(z_value.type_args) == 1
-    assert_structural_equal(z_value.type_args[0], relax.ty.DynTensorType(2, "float32"))
+    assert len(z_value.sinfo_args) == 1
+    assert_structural_equal(z_value.sinfo_args[0], relax.TensorStructInfo(ndim=2, dtype="float32"))
 
     w_value = w_bind.value
     assert isinstance(w_value.attrs, relay.op.op_attrs.ShapeOfAttrs)
-    assert_structural_equal(w_value.type_args[0], relax.ty.ShapeType())
+    assert_structural_equal(w_value.sinfo_args[0], relax.ShapeStructInfo())
 
     o_value = o_bind.value
-    assert_structural_equal(o_value.type_args[0], relax.ty.ObjectType())
+    assert_structural_equal(o_value.sinfo_args[0], relax.ObjectStructInfo())
 
     k_value = k_bind.value
     assert_structural_equal(
-        k_value.type_args[0],
-        relax.ty.TupleType(
+        k_value.sinfo_args[0],
+        relax.TupleStructInfo(
             [
-                relax.TupleType(
-                    [relax.ty.DynTensorType(2, "float32"), relax.ty.DynTensorType(-1, None)]
+                relax.TupleStructInfo(
+                    [
+                        relax.TensorStructInfo(ndim=2, dtype="float32"),
+                        relax.TensorStructInfo(dtype=""),
+                    ]
                 ),
-                relax.ty.DynTensorType(-1, None),
+                relax.TensorStructInfo(dtype=""),
             ]
         ),
     )

@@ -164,8 +164,8 @@ class ASTPrinter(ExprFunctor):
             "op": self.visit_expr(op.op),
             "args": self.build_list(map(self.visit_expr, op.args)),
         }
-        if op.type_args:
-            fields["type_args"] = self.build_list(map(self.visit_type_, op.type_args))
+        if op.sinfo_args:
+            fields["sinfo_args"] = self.build_list(map(self.visit_struct_info_, op.sinfo_args))
         if op.attrs and self.include_call_attrs:
 
             def display_attrs(attr_key):

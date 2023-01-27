@@ -469,7 +469,7 @@ def test_call_pretty_print():
     x = relax.Var("x", R.Tensor((32,), "float32"))
 
     extern_func = relax.ExternFunc("my_func")
-    call = relax.Call(extern_func, [x], type_args=[relax.DynTensorType(ndim=1, dtype="float32")])
+    call = relax.Call(extern_func, [x], sinfo_args=[R.Tensor(ndim=1, dtype="float32")])
     assert (
         call.__str__()
         == 'R.call_packed("my_func", x, type_args=(R.Tensor(ndim=1, dtype="float32") ,))'
