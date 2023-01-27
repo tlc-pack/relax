@@ -17,9 +17,10 @@
 
 from . import _ffi_api
 from ...expr import Expr, Call
-from ...utils import convert_to_expr
+from ...utils import args_converter
 
 
+@args_converter.auto
 def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dtype: str) -> Call:
     """Construct a Call to allocate a storage with specific size, virtual_device_index,
     storage_scope and dtype.
@@ -44,10 +45,10 @@ def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dty
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    size = convert_to_expr(size)
     return _ffi_api.alloc_storage(size, virtual_device_index, storage_scope, dtype)  # type: ignore
 
 
+@args_converter.auto
 def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -70,10 +71,10 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    shape = convert_to_expr(shape)
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
+@args_converter.auto
 def kill_storage(storage: Expr) -> Call:
     """Construct a Call to kill a storage.
 
@@ -90,6 +91,7 @@ def kill_storage(storage: Expr) -> Call:
     return _ffi_api.kill_storage(storage)  # type: ignore
 
 
+@args_converter.auto
 def kill_tensor(tensor: Expr) -> Call:
     """Construct a Call to kill a tensor.
 
