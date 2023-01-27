@@ -71,6 +71,7 @@ class Conv2dReLU_composite_annotated:
                 lv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                     data2,
                     weight12,
+                    padding=[1, 1, 1, 1],
                 )
                 gv2: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
                 R.output(gv2)
