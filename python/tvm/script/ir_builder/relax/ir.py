@@ -20,21 +20,12 @@
 import builtins
 import functools
 import inspect
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import tvm
-
-from tvm import relax, DataType
-from tvm.ir import Type, PrimExpr
-from tvm.relax import (
-    Call,
-    Expr,
-    ExternFunc,
-    TupleGetItem,
-    Var,
-    const,
-)
-
+from tvm import DataType, relax
+from tvm.ir import PrimExpr, Type
+from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
 from tvm.relax.analysis import get_static_type
 
 # Todo(ruihang): introduced to make call_packed work. To be removed in the followup PR.
@@ -106,7 +97,7 @@ from tvm.relax.op import (
     zeros_like,
 )
 from tvm.relax.struct_info import StructInfo
-from tvm.relax.utils import convert_to_expr
+from tvm.relax.utils import args_converter
 from tvm.runtime import Object as tvm_Object
 from tvm.runtime import ObjectGeneric
 
@@ -216,11 +207,12 @@ def output(*vars: Tuple[Var]) -> None:
 ################################## Ops #################################
 
 
+@args_converter.auto
 def call_packed(
     func: str,
-    *args: List[Expr],
+    *args: Expr,
     type_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
-    **kwargs: Dict[str, Expr],
+    **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
     Parameters
@@ -231,7 +223,7 @@ def call_packed(
         The arguments.
     type_args: Optional[Union[StructInfo, List[StructInfo]]]
         List of Types
-    kwargs: Dict[str, Expr]
+    kwargs: Expr
         The keyword arguments.
 
     Returns
@@ -242,7 +234,6 @@ def call_packed(
     # Todo(ruihang): reorganize API in the followup PR of A1.
     sinfo_args = type_args
     op = ExternFunc(func)
-    args = [convert_to_expr(arg) for arg in args]
     if sinfo_args is None:
         raise ValueError("R.call_packed is required to have type_args")
     if isinstance(sinfo_args, py_tuple):

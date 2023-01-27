@@ -15,16 +15,16 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from typing import List, Tuple, Union
+from typing import Union
 
 from tvm import DataType
-from tvm.ir.expr import PrimExpr
 
-from ...expr import Call, Expr, ExternFunc, ShapeExpr
-from ...utils import convert_to_expr
+from ...expr import Call, Expr, ExternFunc
+from ...utils import args_converter
 from . import _ffi_api
 
 
+@args_converter.auto
 def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index: int) -> Call:
     """Construct a Call to allocate storage with specific size, dtype, runtime_device_index.
 
@@ -45,18 +45,12 @@ def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index:
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    if isinstance(size, (tuple, list)):
-        size = ShapeExpr(size)
 
     return _ffi_api.alloc_storage(size, dtype, runtime_device_index)  # type: ignore
 
 
-def alloc_tensor(
-    storage: Expr,
-    shape: Union[Tuple[PrimExpr], Expr],
-    offset: int,
-    dtype: Union[DataType, str],
-) -> Call:
+@args_converter.auto
+def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: Union[DataType, str]) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 
     Parameters
@@ -64,7 +58,7 @@ def alloc_tensor(
     storage: Expr
         The storage location to be allocated.
 
-    shape: Union[Tuple[PrimExpr], Expr]
+    shape: Expr
         The shape of the tensor to be allocated.
 
     offset: int
@@ -78,16 +72,11 @@ def alloc_tensor(
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    if isinstance(shape, (tuple, list)):
-        shape = ShapeExpr(shape)
-
     return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
 
 
-def call_tir_dyn(
-    func: Union[str, Expr],
-    args: Union[Expr, List[Expr]],
-) -> Call:
+@args_converter.auto
+def call_tir_dyn(func: Union[str, Expr], args: Expr) -> Call:
     """Construct a Call to call a tir function with dynamic shape.
 
     Parameters
@@ -95,7 +84,7 @@ def call_tir_dyn(
     func: Union[str, Expr],
         The destination-passing-style function, can be ExternFunc or PrimFunc.
 
-    args: Union[Expr, List[Expr]]
+    args: Expr
         The arguments to the tir function.
 
     Returns
@@ -105,7 +94,5 @@ def call_tir_dyn(
     """
     if isinstance(func, str):
         func = ExternFunc(func)
-
-    args = convert_to_expr(args)
 
     return _ffi_api.call_tir_dyn(func, args)  # type: ignore

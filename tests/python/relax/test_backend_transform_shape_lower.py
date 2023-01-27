@@ -409,5 +409,4 @@ def test_return_match_check():
 
 
 if __name__ == "__main__":
-    test_static_fn_check()
     tvm.testing.main()
