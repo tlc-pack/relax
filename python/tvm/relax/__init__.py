@@ -85,3 +85,6 @@ from .struct_info import (
     TupleStructInfo,
     FuncStructInfo,
 )
+
+# Frontend
+from . import frontend
