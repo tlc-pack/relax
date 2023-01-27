@@ -48,6 +48,11 @@ def get_static_type(sinfo: StructInfo) -> Type:
     return _ffi_api.GetStaticType(sinfo)  # type: ignore
 
 
+# Todo(ruihang): introduced to make call_packed work. To be removed in the followup PR.
+def struct_info_from_type(ty: Type):  # pylint: disable=invalid-name
+    return _ffi_api.StructInfoFromType(ty)  # type: ignore
+
+
 def erase_to_well_defined(
     sinfo: StructInfo,
     shape_var_map: Dict[tir.Var, tir.PrimExpr] = None,
