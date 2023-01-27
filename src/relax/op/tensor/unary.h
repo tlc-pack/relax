@@ -30,14 +30,66 @@ namespace tvm {
 namespace relax {
 
 /*!
- * \brief Compute element-wise cos of the input data.
+ * \brief Quick helper macro to
+ * - expose a make-function interface which construct the call node.
+ * - register op to the registry.
+ * \param OpName The name of operator to register.
+ * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
+ *  (Only for unary arith operators since all check operators don't require float dtype.)
+ */
+#define RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName) \
+  RELAX_UNARY_OP_INTERFACE(OpName, #OpName);     \
+  RELAX_REGISTER_UNARY_OP(#OpName)
+
+#define RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(OpName, RequireFloatDtype) \
+  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>(    \
+      "FInferStructInfo", InferStructInfoUnaryArith<RequireFloatDtype>)
+
+#define RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(OpName)                 \
+  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \
+      "FInferStructInfo", InferStructInfoUnaryCheck)  // require_float_dtype=false for check op
+
+/***************** Arithmetic operators *****************/
+
+/*!
+ * \brief Compute element-wise absolute value of the input data.
  * \param x The input data.
  * \return The computed result.
  */
+Expr abs(Expr x);
+
+/*! \brief Compute element-wise arc cos of the input data. */
+Expr acos(Expr x);
+
+/*! \brief Compute element-wise arc cosh of the input data. */
+Expr acosh(Expr x);
+
+/*! \brief Compute element-wise arc sin of the input data. */
+Expr asin(Expr x);
+
+/*! \brief Compute element-wise arc sinh of the input data. */
+Expr asinh(Expr x);
+
+/*! \brief Compute element-wise arc tan of the input data. */
+Expr atan(Expr x);
+
+/*! \brief Compute element-wise arc tanh of the input data. */
+Expr atanh(Expr x);
+
+/*! \brief Take ceil of input data. */
+Expr ceil(Expr x);
+
+/*! \brief Compute element-wise cos of the input data. */
 Expr cos(Expr x);
+
+/*! \brief Compute element-wise cosh of the input data. */
+Expr cosh(Expr x);
 
 /*! \brief Compute element-wise exp of data. */
 Expr exp(Expr x);
+
+/*! \brief Take floor of input data. */
+Expr floor(Expr x);
 
 /*! \brief Compute element-wise natural logarithm of data. */
 Expr log(Expr x);
@@ -45,17 +97,43 @@ Expr log(Expr x);
 /*! \brief Compute element-wise negative value of data. */
 Expr negative(Expr x);
 
+/*! \brief Rounds each element of the input data to nearest integer. */
+Expr round(Expr x);
+
 /*! \brief Compute element-wise sigmoid of data. */
 Expr sigmoid(Expr x);
+
+/*! \brief Returns an indication of the sign of a number for each element of the input data. */
+Expr sign(Expr x);
 
 /*! \brief Compute element-wise sin of data. */
 Expr sin(Expr x);
 
+/*! \brief Compute element-wise sinh of data. */
+Expr sinh(Expr x);
+
 /*! \brief Compute element-wise square root of data. */
 Expr sqrt(Expr x);
 
+/*! \brief Squares each element of the input data. */
+Expr square(Expr x);
+
+/*! \brief Compute element-wise tan of data. */
+Expr tan(Expr x);
+
 /*! \brief Compute element-wise tanh of data. */
 Expr tanh(Expr x);
+
+/***************** Check operators *****************/
+
+/*! \brief Check if input value is finite. */
+Expr isfinite(Expr x);
+
+/*! \brief Check if input value is infinite. */
+Expr isinf(Expr x);
+
+/*! \brief Check if input value is Nan. */
+Expr isnan(Expr x);
 
 }  // namespace relax
 }  // namespace tvm
