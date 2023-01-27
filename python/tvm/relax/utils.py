@@ -69,7 +69,7 @@ def metadata_partitioner(rx_txt: str) -> List[str]:
 
 
 def convert_to_expr(value: Any) -> Expr:
-    """Helper function to convert tuple to Expr, which follows the rules:
+    """Helper function to convert the input to Expr, which follows the rules:
     1. Return the input itself if it's already a `relax.Expr`;
     2. Return `relax.PrimValue` if the input is a `PrimExpr`;
     3. Return `relax.StringImm` if the input is `tvm.String` or `str`;
@@ -86,7 +86,7 @@ def convert_to_expr(value: Any) -> Expr:
     # Case 1
     if isinstance(tvm_value, Expr):
         return tvm_value
-    # Notes 1
+    # Note`` 1
     if isinstance(tvm_value, tir.StringImm):
         raise TypeError(
             "Cannot convert `tir.StringImm` to `relax.Expr` because of ambiguity,"
@@ -132,7 +132,7 @@ class _ArgsConverter:
                     return convert_to_expr(value)
                 except:
                     raise TypeError(
-                        f"Argument `{name}` is expected to be convert to `Expr`, "
+                        f"Argument `{name}` is expected to be converted to `Expr`, "
                         f"but failed with input value: {value}"
                     )
             elif name in args_to_list_expr:
@@ -140,7 +140,7 @@ class _ArgsConverter:
                     return [convert_to_expr(x) for x in value]
                 except:
                     raise TypeError(
-                        f"Argument `{name}` is expected to be convert to `List[Expr]`, "
+                        f"Argument `{name}` is expected to be converted to `List[Expr]`, "
                         f"but failed with input value: {value}"
                     )
             else:
