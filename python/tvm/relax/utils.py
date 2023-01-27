@@ -84,7 +84,7 @@ def convert_to_expr(value: Any) -> Expr:
     """
     tvm_value = convert_to_object(value)
     # Case 1
-    if isinstance(tvm_value, Expr):
+    if isinstance(tvm_value, Expr):  # type: ignore
         return tvm_value
     # Note`` 1
     if isinstance(tvm_value, tir.StringImm):
@@ -191,7 +191,7 @@ class _ArgsConverter:
                         )
                 return func(*bound.args, **bound.kwargs)
 
-            return wrapper
+            return wrapper  # type: ignore
 
         return inner
 
