@@ -37,6 +37,9 @@ from tvm.relax import (
 
 from tvm.relax.analysis import get_static_type
 
+# Todo(ruihang): introduced to make call_packed work. To be removed in the followup PR.
+from tvm.relax.analysis import struct_info_from_type
+
 ############################### Operators ###############################
 from tvm.relax.op import (
     add,
@@ -236,24 +239,26 @@ def call_packed(
     call: Call
         The created Relax Call
     """
+    # Todo(ruihang): reorganize API in the followup PR of A1.
+    sinfo_args = type_args
     op = ExternFunc(func)
     args = [convert_to_expr(arg) for arg in args]
-    if type_args is None:
+    if sinfo_args is None:
         raise ValueError("R.call_packed is required to have type_args")
-    if isinstance(type_args, py_tuple):
-        type_args = list(type_args)
-    elif not isinstance(type_args, list):
-        type_args = [type_args]
-    for i, argument in enumerate(type_args):
+    if isinstance(sinfo_args, py_tuple):
+        sinfo_args = list(sinfo_args)
+    elif not isinstance(sinfo_args, list):
+        sinfo_args = [sinfo_args]
+    for i, argument in enumerate(sinfo_args):
         if callable(argument):
             argument = argument()
         # Convert possible StructInfoProxy to StructInfo
         if isinstance(argument, ObjectGeneric):
             argument = argument.asobject()
         if isinstance(argument, StructInfo):
-            type_args[i] = get_static_type(argument)
+            sinfo_args[i] = struct_info_from_type(get_static_type(argument))
         elif isinstance(argument, Type):
-            type_args[i] = argument
+            sinfo_args[i] = struct_info_from_type(argument)
         else:
             raise TypeError(
                 "call_packed `type_args` is expected to be list of StructInfo/Type, "
@@ -271,7 +276,7 @@ def call_packed(
     if kwargs or not is_default:
         attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
-    return Call(op, args, attrs=attrs, type_args=type_args)
+    return Call(op, args, attrs=attrs, sinfo_args=sinfo_args)
 
 
 def _tensor_type_wrapper(func):

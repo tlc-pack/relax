@@ -232,9 +232,11 @@ class Call(ExprWithOp):
     attrs: Optional[tvm.ir.Attrs]
         Attributes to the call, can be None
 
-    type_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]]
-        The additional type arguments, this is only
-        used in advanced usecase of template functions.
+    sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]]
+        The structure info arguments of a CallNode.
+        sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
+        call_tir, call_builtin, etc.) and calls to ExternFuncs, with the main
+        usage of structure info inference.
 
     span: Optional[Span]
         Span that points to original source code
@@ -245,13 +247,13 @@ class Call(ExprWithOp):
         op: Union[Expr, tvm.ir.Op],
         args: Union[List[Expr], typing.Tuple[Expr, ...]],
         attrs: Optional[tvm.ir.Attrs] = None,
-        type_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]] = None,
+        sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]] = None,
         span: Optional[Span] = None,
     ):
-        if not type_args:
-            type_args = []
+        if not sinfo_args:
+            sinfo_args = []
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, op, args, attrs, type_args, span  # type: ignore
+            _ffi_api.Call, op, args, attrs, sinfo_args, span  # type: ignore
         )
 
 

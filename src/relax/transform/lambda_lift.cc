@@ -58,7 +58,7 @@ class LambdaLifter : public ExprMutator {
           clo_arg = this->var_remap_.at(var->vid);
         }
         return Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
-                    {call_node->checked_type_});
+                    {StructInfoFromType(call_node->checked_type_)});
       }
     }
     if (auto global_var_node = call_node->op.as<GlobalVarNode>()) {
@@ -75,9 +75,9 @@ class LambdaLifter : public ExprMutator {
           for (const auto arg : nest_call->args) {
             new_args.push_back(arg);
           }
-          return Call(nest_call->op, new_args, call_node->attrs, call_node->type_args);
+          return Call(nest_call->op, new_args, call_node->attrs, call_node->sinfo_args);
         }
-        return Call(it->second, call->args, call_node->attrs, call_node->type_args);
+        return Call(it->second, call->args, call_node->attrs, call_node->sinfo_args);
       }
     }
     return std::move(call);

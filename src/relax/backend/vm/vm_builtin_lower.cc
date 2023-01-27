@@ -75,8 +75,9 @@ class VMBuiltinLowerMutator : public ExprMutator {
     } else {
       auto attrs = DefaultBuiltinAttrs();
       attrs->dtype_arg = dtype;
+      // Todo(ruihang): reorganize in the followup PR
       return Call(call_builtin_op_, {builtin_compute_alloc_shape_, Tuple({shape})}, Attrs(attrs),
-                  {GetStaticType(GetStructInfo(shape))});
+                  {StructInfoFromType(GetStaticType(GetStructInfo(shape)))});
     }
   }
 
@@ -129,7 +130,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
     auto attrs = DefaultBuiltinAttrs();
 
     return Call(call_builtin_op_, {builtin_make_closure_, Tuple(args)}, Attrs(attrs),
-                {object_type_});
+                {object_sinfo_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -149,11 +150,11 @@ class VMBuiltinLowerMutator : public ExprMutator {
     auto attrs = DefaultBuiltinAttrs();
     attrs->require_ctx = true;
     return Call(call_builtin_op_, {builtin_invoke_closure_, Tuple(args)}, Attrs(attrs),
-                {object_type_});
+                {object_sinfo_});
   }
 
   const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
-  const Type object_type_ = ObjectType();
+  const StructInfo object_sinfo_ = ObjectStructInfo();
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");

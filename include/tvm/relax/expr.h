@@ -111,40 +111,28 @@ class CallNode : public ExprNode {
   Attrs attrs;
 
   /*!
-   * \brief The type arguments passed to polymorphic(template) function.
-   *
-   * This is the advance feature that is only used when the function is
-   * polymorphic. It is safe to be ignored in most cases. For example, in the
-   * following code, the type_args of addone call is [int].
-   *
-   * \code
-   *
-   * template<typename T>
-   * T addone(T a) { return a + 1; }
-   *
-   * void main() {
-   *   int x = addone<int>(10);
-   * }
-   *
-   * \endcode
+   * \brief The structure info arguments of a CallNode.
+   * sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
+   * call_tir, call_builtin, etc.) and calls to ExternFuncs, with the main
+   * usage of structure info inference.
    */
-  tvm::Array<Type> type_args;
+  Array<StructInfo> sinfo_args;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
-    v->Visit("type_args", &type_args);
+    v->Visit("sinfo_args", &sinfo_args);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    // skip type_args check for primitive ops.
+    // skip sinfo_args check for primitive ops.
     equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
-           (IsPrimitiveOp(op) || equal(type_args, other->type_args)) &&
+           (IsPrimitiveOp(op) || equal(sinfo_args, other->sinfo_args)) &&
            equal(struct_info_, other->struct_info_);
   }
 
@@ -154,7 +142,7 @@ class CallNode : public ExprNode {
     hash_reduce(args);
     hash_reduce(attrs);
     if (!IsPrimitiveOp(op)) {
-      hash_reduce(type_args);
+      hash_reduce(sinfo_args);
     }
     hash_reduce(struct_info_);
   }
@@ -170,11 +158,11 @@ class Call : public Expr {
    * \param op The operator to be invoked.
    * \param args The arguments of the call.
    * \param attrs The attributes of the call node.
-   * \param type_args The type arguments passed to a polymorphic function.
+   * \param sinfo_args The structure info arguments passed to a function.
    * \param span The source span of the expression.
    */
   TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
-               Array<Type> type_args = Array<Type>(), Span span = Span());
+               Array<StructInfo> sinfo_args = Array<StructInfo>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
@@ -188,7 +176,7 @@ class Call : public Expr {
 Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
                 Optional<Attrs> opt_attrs = Optional<Attrs>(),
-                Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(),
+                Optional<Array<StructInfo>> opt_sinfo_args = Optional<Array<StructInfo>>(),
                 Optional<Span> opt_span = Optional<Span>());
 
 /*!
