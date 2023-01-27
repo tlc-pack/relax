@@ -15,11 +15,7 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from typing import List, Union
-
-from tvm.ir.expr import PrimExpr
-
-from ...expr import Call, ShapeExpr, Expr
+from ...expr import Call, Expr
 from ...utils import args_converter
 from . import _ffi_api
 
