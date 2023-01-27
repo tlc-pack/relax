@@ -863,8 +863,8 @@ class CutlassModuleCodegen {
   runtime::Module CreateCSourceModule() {
     code_stream_ << EmitHeaders();
 
-    for (const auto& [_, f] : mod_->functions) {
-      if (const auto* function_node = GetCutlassFunctionNode(f)) {
+    for (const auto& entry : mod_->functions) {
+      if (const auto* function_node = GetCutlassFunctionNode(entry.second)) {
         GenCutlassFunc(GetRef<Function>(function_node));
       }
     }
