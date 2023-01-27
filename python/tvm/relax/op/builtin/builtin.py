@@ -15,20 +15,18 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from typing import List, Union
-from tvm.ir.expr import PrimExpr
+from ...expr import Call, Expr
+from ...utils import args_converter
 from . import _ffi_api
-from ...expr import ShapeExpr, Call
 
 
-def alloc_tensor(
-    shape: Union[ShapeExpr, PrimExpr, List[PrimExpr]], dtype: str, runtime_device_index: int
-) -> Call:
+@args_converter.auto
+def alloc_tensor(shape: Expr, dtype: str, runtime_device_index: int) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 
     Parameters
     ----------
-    shape : Union[ShapeExpr, PrimExpr, List[PrimExpr]]
+    shape : Expr
         The shape of the tensor to be allocated.
 
     dtype : str
@@ -43,8 +41,4 @@ def alloc_tensor(
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    if not isinstance(shape, ShapeExpr):
-        if not isinstance(shape, (tuple, list)):
-            shape = (shape,)
-        shape = ShapeExpr(shape)
     return _ffi_api.alloc_tensor(shape, dtype, runtime_device_index)  # type: ignore

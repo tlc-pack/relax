@@ -944,7 +944,7 @@ def test_vm_ops():
 def test_prim_value():
     @R.function
     def foo():
-        gv = R.call_packed("test", R.prim_value(1), type_args=R.Tensor((32, 32), "float32"))
+        gv = R.call_packed("test", 1, type_args=R.Tensor((32, 32), "float32"))
         return gv
 
     _check(foo, None)
@@ -953,7 +953,7 @@ def test_prim_value():
 def test_string_imm():
     @R.function
     def foo():
-        gv = R.call_packed("test", R.str("hello"), type_args=R.Tensor((32, 32), "float32"))
+        gv = R.call_packed("test", "hello", type_args=R.Tensor((32, 32), "float32"))
         return gv
 
     _check(foo, None)
