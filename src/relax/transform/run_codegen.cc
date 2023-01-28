@@ -69,12 +69,7 @@ class CodeGenRunner : ExprMutator {
       Expr new_op = VisitExpr(func);
       if (new_op->IsInstance<ExternFuncNode>()) {
         Array<Expr> new_args({new_op});
-        Array<Expr> tmp_args;
-        for (const auto& arg : call_node->args) {
-          tmp_args.push_back(VisitExpr(arg));
-        }
-        new_args.push_back(Tuple(tmp_args));
-        new_args.push_back(GetShapeOf(func->body));
+        new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
         static const Op& call_op = Op::Get("relax.call_tir");
 
@@ -86,8 +81,7 @@ class CodeGenRunner : ExprMutator {
         func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
         builder_->UpdateFunction(gvar, func);
 
-        return Call(call_op, new_args, tvm::Attrs(),
-                    {StructInfoFromType(GetStaticType(func->ret_struct_info))});
+        return Call(call_op, new_args, tvm::Attrs(), {func->ret_struct_info});
       }
     }
     Array<Expr> new_args;

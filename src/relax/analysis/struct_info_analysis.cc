@@ -101,11 +101,6 @@ StructInfo StructInfoFromType(const Type& type) {
   }
 }
 
-// Todo(ruihang): introduced to make call_packed work. To be removed in the followup PR.
-TVM_REGISTER_GLOBAL("relax.analysis.StructInfoFromType").set_body_typed([](const Type& type) {
-  return StructInfoFromType(type);
-});
-
 //--------------------------
 // EraseToWellDefined
 //--------------------------

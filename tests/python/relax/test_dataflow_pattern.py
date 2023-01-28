@@ -55,8 +55,8 @@ class Module:
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
-            lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
-            lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+            lv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir(tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 
@@ -294,7 +294,7 @@ def test_is_call_tir():
 def simple_call_packed(
     x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
 ) -> R.Tensor:
-    gv0 = R.call_packed("test.vm.mul", x, w, type_args=(R.Tensor(ndim=2, dtype="float32")))
+    gv0 = R.call_packed("test.vm.mul", x, w, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
     return gv0
 
 
@@ -378,10 +378,10 @@ class Diamond:
             # relu  sigmoid
             #  \      /
             #    add
-            lv0 = R.call_tir("tir_matmul", (x, w), (32, 32), dtype="float32")
-            lv1 = R.call_tir("tir_relu", (lv0,), (32, 32), dtype="float32")
-            lv2 = R.call_tir("tir_sigmoid", (lv0), (32, 32), dtype="float32")
-            lv3 = R.call_tir("tir_add", (lv1, lv2), (32, 32), dtype="float32")
+            lv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir("tir_relu", (lv0,), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_tir("tir_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv3 = R.call_tir("tir_add", (lv1, lv2), R.Tensor((32, 32), dtype="float32"))
             R.output(lv3)
         return lv3
 
@@ -440,8 +440,8 @@ class SmallDiamond:
             #  /      \
             #  \      /
             #    add
-            lv0 = R.call_tir("my_relu", (x,), (32, 32), dtype="float32")
-            lv1 = R.call_tir("my_add", (lv0, lv0), (32, 32), dtype="float32")
+            lv0 = R.call_tir("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir("my_add", (lv0, lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 
@@ -454,9 +454,9 @@ class SmallParallel:
             # relu   relu
             #   \    /
             #    add
-            lv0 = R.call_tir("my_relu", (x,), (32, 32), dtype="float32")
-            lv1 = R.call_tir("my_relu", (x,), (32, 32), dtype="float32")
-            lv2 = R.call_tir("my_add", (lv0, lv1), (32, 32), dtype="float32")
+            lv0 = R.call_tir("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_tir("my_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32"))
             R.output(lv2)
         return lv2
 
@@ -507,13 +507,13 @@ class CBRx2:
         #     \   /
         #     concat
         with R.dataflow():
-            lv0 = R.call_tir("conv1x1", (x, w0), (32, 32), dtype="float32")
-            lv1 = R.call_tir("bias_add", (lv0, bias0), (32, 32), dtype="float32")
-            lv2 = R.call_tir("my_relu", (lv1), (32, 32), dtype="float32")
-            lv3 = R.call_tir("conv1x1", (x, w1), (32, 32), dtype="float32")
-            lv4 = R.call_tir("bias_add", (lv3, bias1), (32, 32), dtype="float32")
-            lv5 = R.call_tir("my_relu", (lv4), (32, 32), dtype="float32")
-            lv6 = R.call_tir("concat", (lv2, lv5), (32, 64), dtype="float32")
+            lv0 = R.call_tir("conv1x1", (x, w0), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir("bias_add", (lv0, bias0), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_tir("my_relu", (lv1), R.Tensor((32, 32), dtype="float32"))
+            lv3 = R.call_tir("conv1x1", (x, w1), R.Tensor((32, 32), dtype="float32"))
+            lv4 = R.call_tir("bias_add", (lv3, bias1), R.Tensor((32, 32), dtype="float32"))
+            lv5 = R.call_tir("my_relu", (lv4), R.Tensor((32, 32), dtype="float32"))
+            lv6 = R.call_tir("concat", (lv2, lv5), R.Tensor((32, 64), dtype="float32"))
             R.output(lv6)
         return lv6
 
@@ -626,8 +626,8 @@ def test_two_matmul():
             c: R.Tensor((48, 32), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_tir("matmul", (a, b), (32, 48), dtype="float32")
-                lv1 = R.call_tir("matmul", (lv0, c), (32, 32), dtype="float32")
+                lv0 = R.call_tir("matmul", (a, b), R.Tensor((32, 48), dtype="float32"))
+                lv1 = R.call_tir("matmul", (lv0, c), R.Tensor((32, 32), dtype="float32"))
                 R.output(lv1)
             return lv1
 
@@ -661,10 +661,12 @@ def test_concat_mm_split():
             c: R.Tensor((16, 32), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_tir("my_concat", (b, c), (32, 32), dtype="float32")
-                lv1 = R.call_tir("my_matmul", (a, lv0), (32, 32), dtype="float32")
+                lv0 = R.call_tir("my_concat", (b, c), R.Tensor((32, 32), dtype="float32"))
+                lv1 = R.call_tir("my_matmul", (a, lv0), R.Tensor((32, 32), dtype="float32"))
                 lv2 = R.call_tir(
-                    "my_split", (lv1,), ((16, 32), (16, 32)), dtype=("float32", "float32")
+                    "my_split",
+                    (lv1,),
+                    [R.Tensor((16, 32), dtype="float32"), R.Tensor((16, 32), dtype="float32")],
                 )
                 lv3 = R.TupleGetItem(lv2, 0)
                 lv4 = R.TupleGetItem(lv2, 1)
@@ -709,18 +711,18 @@ def test_self_attention():
         ) -> R.Tensor:
             b, s, n, h = T.var("int64"), T.var("int64"), T.var("int64"), T.var("int64")
             with R.dataflow():
-                fcq = R.call_tir("my_fc", (x, wq), (b, s, n, h), dtype="float32")
-                tpq = R.call_tir("my_transpose", (fcq,), (b, s, h, n), dtype="float32")
+                fcq = R.call_tir("my_fc", (x, wq), R.Tensor((b, s, n, h), dtype="float32"))
+                tpq = R.call_tir("my_transpose", (fcq,), R.Tensor((b, s, h, n), dtype="float32"))
 
-                fck = R.call_tir("my_fc", (x, wk), (b, s, n, h), dtype="float32")
-                tpk = R.call_tir("my_transpose", (fck,), (b, s, h, n), dtype="float32")
+                fck = R.call_tir("my_fc", (x, wk), R.Tensor((b, s, n, h), dtype="float32"))
+                tpk = R.call_tir("my_transpose", (fck,), R.Tensor((b, s, h, n), dtype="float32"))
 
                 mul = R.multiply(tpq, tpk)
                 scale = R.multiply(mul, R.const(1.1, "float32"))
-                softmax = R.call_tir("softmax", (scale,), (b, s, n, h), dtype="float32")
+                softmax = R.call_tir("softmax", (scale,), R.Tensor((b, s, n, h), dtype="float32"))
 
-                fcv = R.call_tir("my_fc", (x, wv), (b, s, n, h), dtype="float32")
-                tpv = R.call_tir("my_transpose", (fcv,), (b, s, h, n), dtype="float32")
+                fcv = R.call_tir("my_fc", (x, wv), R.Tensor((b, s, n, h), dtype="float32"))
+                tpv = R.call_tir("my_transpose", (fcv,), R.Tensor((b, s, h, n), dtype="float32"))
 
                 out = R.multiply(softmax, tpv)
                 R.output(out)
@@ -750,14 +752,14 @@ def test_nested_diamond():
                 #      add5      add6
                 #          \    /
                 #           add7
-                lv0 = R.call_tir("tir_matmul", (x, w), (32, 32), dtype="float32")
-                lv1 = R.call_tir("tir_matmul", (x, w), (32, 32), dtype="float32")
-                lv2 = R.call_tir("tir_sigmoid", (lv0), (32, 32), dtype="float32")
-                lv3 = R.call_tir("tir_sigmoid", (lv1), (32, 32), dtype="float32")
-                lv4 = R.call_tir("tir_add", (lv0, lv1), (32, 32), dtype="float32")
-                lv5 = R.call_tir("tir_add", (lv2, lv4), (32, 32), dtype="float32")
-                lv6 = R.call_tir("tir_add", (lv3, lv4), (32, 32), dtype="float32")
-                lv7 = R.call_tir("tir_add", (lv5, lv6), (32, 32), dtype="float32")
+                lv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
+                lv1 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
+                lv2 = R.call_tir("tir_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
+                lv3 = R.call_tir("tir_sigmoid", (lv1), R.Tensor((32, 32), dtype="float32"))
+                lv4 = R.call_tir("tir_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32"))
+                lv5 = R.call_tir("tir_add", (lv2, lv4), R.Tensor((32, 32), dtype="float32"))
+                lv6 = R.call_tir("tir_add", (lv3, lv4), R.Tensor((32, 32), dtype="float32"))
+                lv7 = R.call_tir("tir_add", (lv5, lv6), R.Tensor((32, 32), dtype="float32"))
                 R.output(lv7)
             return lv7
 
@@ -809,9 +811,9 @@ def test_incremental_solving():
     def simple_chain(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             # relu -> sigmoid -> neg
-            lv0 = R.call_tir("tir_relu", (x), (32, 32), dtype="float32")
-            lv1 = R.call_tir("tir_sigmoid", (lv0), (32, 32), dtype="float32")
-            lv2 = R.call_tir("tir_neg", (lv1), (32, 32), dtype="float32")
+            lv0 = R.call_tir("tir_relu", (x), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir("tir_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv2 = R.call_tir("tir_neg", (lv1), R.Tensor((32, 32), dtype="float32"))
             R.output(lv2)
         return lv2
 
@@ -838,8 +840,8 @@ def test_incremental_solving_counter():
     def simple_chain(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             # sigmoid -> neg
-            lv0 = R.call_tir("tir_sigmoid", (x), (32, 32), dtype="float32")
-            lv1 = R.call_tir("tir_neg", (lv0), (32, 32), dtype="float32")
+            lv0 = R.call_tir("tir_sigmoid", (x), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir("tir_neg", (lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 

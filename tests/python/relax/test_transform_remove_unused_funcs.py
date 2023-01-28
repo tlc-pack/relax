@@ -51,7 +51,7 @@ def test_unused_relax_func():
         def main(
             x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
         ) -> R.Tensor((16, 16), "float32"):
-            gv0 = R.call_tir(tir_add, (x, w), (16, 16), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
     mod = InputModule
@@ -85,7 +85,7 @@ def test_unused_relax_func_custom_entry_func():
         def foo(
             x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
         ) -> R.Tensor((16, 16), "float32"):
-            gv0 = R.call_tir(tir_add, (x, w), (16, 16), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
     mod = InputModule
@@ -121,7 +121,7 @@ def test_unused_relax_func_symbolic_shape():
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
             m, k = T.var("int64"), T.var("int64")
-            gv0 = R.call_tir(tir_add, (x, w), (m + 1, k), dtype="float32")
+            gv0 = R.call_tir(tir_add, (x, w), R.Tensor((m + 1, k), dtype="float32"))
             return gv0
 
     mod = InputModule

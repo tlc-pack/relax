@@ -99,11 +99,11 @@ class CallTIRMutator : public ExprMutator {
         args = Downcast<Tuple>(call->args[1])->fields;
         args.insert(args.end(), outs.begin(), outs.end());
 
-        if (call->args.size() == 3) {
+        if (call->args.size() == 2) {
           builder_->Emit(Call(call->args[0], args), "_");
         } else {
           // unpack semantics
-          args.push_back(call->args[3]);
+          args.push_back(call->args[2]);
           builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {

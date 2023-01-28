@@ -94,7 +94,7 @@ def test_closure():
         ) -> R.Tensor((2, 3), "float32"):
             outer_func = lifted_func_0
             in_call = outer_func(x)
-            res = R.invoke_closure(in_call, (y,), type_args=(R.Tensor(ndim=2, dtype="float32")))
+            res = R.invoke_closure(in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32")))
             return res
 
         @R.function
@@ -117,7 +117,7 @@ def test_closure():
             @R.function
             def outer_func(c1: R.Tensor((2, 3), "float32")):
                 @R.function
-                def inner_func(x1: R.Tensor((2, 3), "float32")):
+                def inner_func(x1: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
                     s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
                     return s
 
@@ -144,7 +144,7 @@ def test_recursive():
             i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
             cond: R.Tensor((), "bool") = R.call_packed(
-                "test.vm.less", i, R.const(10), type_args=(R.Tensor(ndim=0, dtype="bool"))
+                "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
             )
             c: R.Tensor((), "int32") = R.const(1, dtype="int32")
             if cond:
@@ -161,7 +161,7 @@ def test_recursive():
             gv = R.invoke_closure(
                 while_loop,
                 (relax.const(0), x),
-                type_args=(R.Tensor(ndim=2, dtype="float32")),
+                sinfo_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             return gv
 
@@ -175,7 +175,7 @@ def test_recursive():
                 i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
             ) -> R.Tensor((2, 3), "float32"):
                 cond: R.Tensor((), "bool") = R.call_packed(
-                    "test.vm.less", i, R.const(10), type_args=(R.Tensor(ndim=0, dtype="bool"))
+                    "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
                 )
                 c: R.Tensor((), "int32") = R.const(1, dtype="int32")
                 if cond:
@@ -290,7 +290,7 @@ def test_no_local_func():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor(dtype="float32", ndim=2)):
-            s = R.call_tir(sub, (c0, x), (16, 16), dtype="float32")
+            s = R.call_tir(sub, (c0, x), R.Tensor((16, 16), dtype="float32"))
             return s
 
     before = Before

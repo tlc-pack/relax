@@ -800,30 +800,23 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     return PrimArrPattern(shape)
 
 
+# Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def _is_call_tir(
     func_pattern: DFPattern,
     args: Union[List, Tuple, TuplePattern] = None,
-    shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
     elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
-    if shape is None:
-        shape = wildcard()
-    elif isinstance(shape, (list, Array)):
-        shape = PrimArrPattern(shape)
-    elif isinstance(shape, (tuple)):
-        shape = is_tuple(shape)  # multiple shape patterns
-
-    return is_op("relax.call_tir")(func_pattern, args, shape)
+    return is_op("relax.call_tir")(func_pattern, args)
 
 
+# Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def is_call_tir(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
-    shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
@@ -834,8 +827,6 @@ def is_call_tir(
         Name of the CPS function to call.
     args : Union[List[DFPattern], Tuple[DFPattern]], optional
         Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
-    shape : Union[Tuple, List[tvm.ir.PrimExpr], DFPattern], optional
-        Shape (or shapes in a tuple) of the output, by default None meaning arbitrary shape(s)
 
     Returns
     -------
@@ -843,13 +834,12 @@ def is_call_tir(
         The resulting CallPattern
     """
     func_pattern = GlobalVarPattern(func_name)
-    return _is_call_tir(func_pattern, args, shape)
+    return _is_call_tir(func_pattern, args)
 
 
 def is_call_tir_extern(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
-    shape: Union[Tuple, List[tvm.ir.PrimExpr], DFPattern] = None,
 ) -> CallPattern:
     """Syntax sugar for creating a CallPattern for call_tir that calls an extern function
 
@@ -859,8 +849,6 @@ def is_call_tir_extern(
         Name of the CPS function to call.
     args : Union[List[DFPattern], Tuple[DFPattern]], optional
         Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
-    shape : Union[Tuple, List[tvm.ir.PrimExpr], DFPattern], optional
-        Shape (or shapes in a tuple) of the output, by default None meaning arbitrary shape(s)
 
     Returns
     -------
@@ -868,7 +856,7 @@ def is_call_tir_extern(
         The resulting CallPattern
     """
     func_pattern = ExternFuncPattern(func_name)
-    return _is_call_tir(func_pattern, args, shape)
+    return _is_call_tir(func_pattern, args)
 
 
 def is_call_packed(

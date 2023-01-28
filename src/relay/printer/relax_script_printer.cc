@@ -92,32 +92,28 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   if (op->op == call_tir_op) {
     doc << "R.call_tir";
 
-    for (int i = 0; i < 3; ++i) {
+    ICHECK(op->args.size() == 2 || op->args.size() == 3);
+    for (int i = 0; i < 2; ++i) {
       args.push_back(Print(op->args[i]));
     }
     doc << "(" << Doc::Concat(args, Doc::Text(", "));
 
-    Type output_type = GetStaticType(op->sinfo_args[0]);
-    if (const auto* out_type = output_type.as<DynTensorTypeNode>()) {
-      doc << ", dtype=" << PrintDType(out_type->dtype);
-    } else if (const auto* out_type = output_type.as<TupleTypeNode>()) {
-      std::vector<Doc> dtypes;
-      for (auto field : out_type->fields) {
-        if (const auto* field_type = field.as<DynTensorTypeNode>()) {
-          Doc dtype;
-          dtype << PrintDType(field_type->dtype);
-          dtypes.push_back(dtype);
-        } else {
-          LOG(FATAL) << "TypeError: Invalid type: " << field_type->GetTypeKey();
-        }
+    ICHECK(op->sinfo_args.size() == 1);
+    Doc out_sinfo_doc;
+    if (const auto* tuple_out_sinfo = op->sinfo_args[0].as<TupleStructInfoNode>()) {
+      std::vector<Doc> field_sinfo_doc;
+      field_sinfo_doc.reserve(tuple_out_sinfo->fields.size());
+      for (const StructInfo& field_sinfo : tuple_out_sinfo->fields) {
+        field_sinfo_doc.push_back(Print(field_sinfo));
       }
-      doc << ", dtype=(" << Doc::Concat(dtypes, Doc::Text(", ")) << ")";
+      out_sinfo_doc << "[" << Doc::Concat(field_sinfo_doc, Doc::Text(", ")) << "]";
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << output_type->GetTypeKey();
+      out_sinfo_doc << Print(op->sinfo_args[0]);
     }
+    doc << ", out_sinfo=" << out_sinfo_doc;
 
-    if (op->args.size() == 4) {
-      doc << ", tir_vars=" << Print(op->args[3]);
+    if (op->args.size() == 3) {
+      doc << ", tir_vars=" << Print(op->args[2]);
     }
     doc << ")";
 
@@ -145,16 +141,14 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   }
 
   if (!op->sinfo_args.empty()) {
-    doc << ", type_args=";
-    Array<Type> type_args =
-        op->sinfo_args.Map([](StructInfo sinfo) { return GetStaticType(sinfo); });
-    std::vector<Doc> type_args_doc = PrintTypeArgs(type_args);
+    doc << ", sinfo_args=[";
 
-    if (type_args_doc.size() == 1) {
-      doc << "(" << type_args_doc[0] << " ,)";
-    } else {
-      doc << "(" << Doc::Concat(type_args_doc, Doc::Text(", ")) << ")";
+    std::vector<Doc> sinfo_args_docs;
+    sinfo_args_docs.reserve(op->sinfo_args.size());
+    for (const StructInfo& sinfo_arg : op->sinfo_args) {
+      sinfo_args_docs.push_back(Print(sinfo_arg));
     }
+    doc << Doc::Concat(sinfo_args_docs, Doc::Text(", ")) << "]";
   }
 
   doc << ")";
@@ -502,22 +496,6 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_printer);
   }
   return kwargs;
-}
-
-std::vector<Doc> RelaxScriptPrinter::PrintTypeArgs(const Array<tvm::Type>& type_args) {
-  std::vector<Doc> type_args_doc;
-  if (!type_args.empty()) {
-    for (const auto& type : type_args) {
-      if (const auto* tensor = type.as<DynTensorTypeNode>()) {
-        Doc doc;
-        doc << "R.Tensor(ndim=" << tensor->ndim << ", dtype=" << PrintDType(tensor->dtype) << ")";
-        type_args_doc.push_back(doc);
-      } else {
-        type_args_doc.push_back(this->VisitType(type));
-      }
-    }
-  }
-  return type_args_doc;
 }
 
 Doc RelaxScriptPrinter::VisitAttrDefault_(const Object* op) {

@@ -40,7 +40,7 @@ def test_vm_copy(exec_mode):
         @R.function
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
-            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(ndim=2, dtype="float32")))
+            z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -81,7 +81,7 @@ def test_vm_exec_serialize_export_library(exec_mode):
         @R.function
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
-            z = R.call_packed("vm.builtin.copy", x, type_args=(R.Tensor(ndim=2, dtype="float32")))
+            z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
             return z
 
     mod = TestVMMove
@@ -105,9 +105,9 @@ def test_if_cond(exec_mode):
         def ife(cond: R.Tensor((), "bool"), x: R.Tensor((3, 4), "float32")) -> R.Tensor:
             R.func_attr({"global_symbol": "ife"})
             if cond:
-                w = R.call_packed("test.vm.add", x, x, type_args=(R.Tensor))
+                w = R.call_packed("test.vm.add", x, x, sinfo_args=(R.Tensor))
             else:
-                w = R.call_packed("test.vm.mul", x, x, type_args=(R.Tensor))
+                w = R.call_packed("test.vm.mul", x, x, sinfo_args=(R.Tensor))
             return w
 
     mod = TestVMCompileIf
@@ -158,13 +158,13 @@ def test_vm_const_as_call_arg(exec_mode):
                 "test.vm.add",
                 relax.const([1, 2]),
                 relax.const([3, 4]),
-                type_args=(R.Tensor(ndim=2, dtype="float32")),
+                sinfo_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             b = R.call_packed(
                 "test.vm.add",
                 a,
                 x,
-                type_args=(R.Tensor(ndim=2, dtype="float32")),
+                sinfo_args=(R.Tensor(ndim=2, dtype="float32")),
             )
             return b
 
@@ -197,7 +197,7 @@ def test_shape_check_builtin(exec_mode):
                 [],
                 int_args=[3],
                 require_ctx=True,
-                type_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_builtin(
                 "vm.builtin.check_tensor_info",
@@ -225,7 +225,7 @@ def test_shape_check_builtin(exec_mode):
                     MK.USE_IMM,
                     2,
                 ],
-                type_args=[R.Shape(ndim=3)],
+                sinfo_args=[R.Shape(ndim=3)],
             )
             return s
 

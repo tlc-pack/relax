@@ -81,7 +81,7 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
     PrimExprSlotCollector collector;
     collector.slot_vec_ = slot_vec;
     collector.slot_map_ = slot_map;
-    // collect shape delcarations in func params
+    // collect shape declaration in func params
     for (auto param : func->params) {
       collector.VisitStructInfo(GetStructInfo(param));
       collector.VisitExpr(param);
@@ -283,7 +283,7 @@ class VMShapeLowerMutator
   }
 
   //-------------------------------------------------------
-  // PrimExpr slot hanlding
+  // PrimExpr slot handling
   //-------------------------------------------------------
   static DataType ShapeDType() { return DataType::Int(64); }
 
@@ -310,9 +310,9 @@ class VMShapeLowerMutator
   //-------------------------------------------------------
   // Helper functions to construct BuiltinFuncAttrs
   //-------------------------------------------------------
-  // Buildin attrs that contains extra int arguments.
+  // Builtin attrs that contains extra int arguments.
   Attrs ExtraIntArgs(std::vector<int64_t> int_args, Optional<String> err_ctx = NullOpt) {
-    // intiialize with default value
+    // initialize with default value
     auto n = make_object<BuiltinFuncAttrs>();
     Array<IntImm> arr;
     for (int64_t val : int_args) {
@@ -332,9 +332,9 @@ class VMShapeLowerMutator
     return Attrs(n);
   }
 
-  // Buildin attrs that contains extra int arguments.
+  // Builtin attrs that contains extra int arguments.
   Attrs ExtraTensorInfoArgs(int ndim, DataType dtype, String err_ctx) {
-    // intiialize with default value
+    // initialize with default value
     auto n = make_object<BuiltinFuncAttrs>();
     n->int_args = {IntImm(DataType::Int(64), ndim)};
     n->dtype_arg = dtype;
@@ -351,15 +351,14 @@ class VMShapeLowerMutator
     if (heap_size->value > 0) {
       TensorStructInfo heap_sinfo(ShapeDType(), 1);
       Var var("shape_heap", heap_sinfo);
-      // set up the buildin func.
+      // set up the builtin func.
       auto n = make_object<BuiltinFuncAttrs>();
       n->int_args = {heap_size};
       n->dtype_arg = DataType::Void();
       n->str_args = NullValue<Array<String>>();
       n->require_ctx = true;
-      // Todo(ruihang): reorganize in the followup PR
       Call call(call_builtin_op_, {builtin_alloc_shape_heap_, Tuple(Array<Expr>())}, Attrs(n),
-                {StructInfoFromType(GetStaticType(heap_sinfo))});
+                {heap_sinfo});
       UpdateStructInfo(call, heap_sinfo);
       return VarBinding(var, call);
     } else {
@@ -439,7 +438,7 @@ class VMShapeLowerMutator
   /*!
    * \brief Execute the match todo items.
    *
-   * This functoin can populate vars in the match items when seeing it for the first time.
+   * This function can populate vars in the match items when seeing it for the first time.
    * These new vars will be added to this->ready_vars_.
    *
    * If an item contains PrimExpr that are yet to be computed (but may be computable through
@@ -586,7 +585,7 @@ class VMShapeLowerMutator
    * \param struct_info The struct info to be matched.
    * \param value The input value.
    * \param always_check Whether we insert runtime check even if we can prove
-   *        that value's struct info already satisifies the condition.
+   *        that value's struct info already satisfies the condition.
    *        This option is necessary for argument checking per our calling convention.
    *
    * \param err_ctx Extra error context to bring more informative error reporting.
