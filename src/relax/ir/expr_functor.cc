@@ -232,8 +232,6 @@ void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span
 
 void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitType(const Type& t) {}
-
 void ExprVisitor::VisitSpan(const Span& span) {}
 
 void ExprVisitor::VisitPrimExpr(const PrimExpr& expr) {}
@@ -542,8 +540,6 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
   }
 }
 
-Type ExprMutatorBase::VisitType(const Type& t) { return t; }
-
 PrimExpr ExprMutatorBase::VisitPrimExpr(const PrimExpr& expr) { return expr; }
 
 // ==================
@@ -828,11 +824,6 @@ TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitVarDef")
       visitor->ExprVisitor::VisitVarDef(var);
     });
 
-TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitType")
-    .set_body_typed([](PyExprVisitor visitor, const Type& type) {
-      visitor->ExprVisitor::VisitType(type);
-    });
-
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitSpan")
     .set_body_typed([](PyExprVisitor visitor, const Span& span) {
       visitor->ExprVisitor::VisitSpan(span);
@@ -878,11 +869,6 @@ TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBindingBlock")
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitVarDef")
     .set_body_typed([](PyExprMutator mutator, const Var& var) {
       return mutator->ExprMutator::VisitVarDef(var);
-    });
-
-TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitType")
-    .set_body_typed([](PyExprMutator mutator, const Type& type) {
-      return mutator->ExprMutator::VisitType(type);
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExprPostOrder")
