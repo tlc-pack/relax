@@ -65,12 +65,12 @@ class InputModule:
     @R.function
     def main(x:R.Tensor((m,n), "float32"), w:R.Tensor((n,k), "float32")) -> R.Tensor:
         with R.dataflow():
-            sh = R.call_packed("vm.builtin.shape_of", x)
+            sh = R.call_packed("vm.builtin.shape_of", x, sinfo_args=R.Tensor)
             x0 = R.match_cast(sh, R.Tensor((m, n), "float32"))
-            sh1 = R.call_packed("vm.builtin.shape_of", w)
+            sh1 = R.call_packed("vm.builtin.shape_of", w, sinfo_args=R.Tensor)
             x1 = R.match_cast(sh1, R.Tensor((n, k), "float32"))
-            lv0 = R.call_tir(tir_matmul, (x, w), (m, k), dtype="float32")
-            lv1 = R.call_tir(tir_relu, (lv0), (m, k), dtype="float32)
+            lv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+            lv1 = R.call_tir(tir_relu, (lv0), R.Tensor((m, k), dtype="float32))
             R.output(lv1)
         return lv1
 """
@@ -110,8 +110,8 @@ def test_autotir(dev: str):
         @R.function
         def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_tir(tir_matmul, (x, w), (32, 32), dtype="float32")
-                lv1 = R.call_tir(tir_relu, (lv0), (32, 32), dtype="float32")
+                lv0 = R.call_tir(tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+                lv1 = R.call_tir(tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
                 R.output(lv1)
             return lv1
 
@@ -211,12 +211,12 @@ def test_meta_schedule_extract_tasks():
         @R.function
         def main(x: R.Tensor((128, 128), "float32")) -> R.Tensor(dtype="float32"):
             with R.dataflow():
-                lv0 = R.call_tir(add1, (x,), (128, 128), dtype="float32")
-                lv1 = R.call_tir(multiply1, (lv0,), (128, 128), dtype="float32")
-                lv2 = R.call_tir(add2, (lv1,), (128, 128), dtype="float32")
-                lv3 = R.call_tir(multiply1, (lv2,), (128, 128), dtype="float32")
-                lv4 = R.call_tir(add3, (lv3,), (128, 128), dtype="float32")
-                gv = R.call_tir(add1, (lv4,), (128, 128), dtype="float32")
+                lv0 = R.call_tir(add1, (x,), R.Tensor((128, 128), dtype="float32"))
+                lv1 = R.call_tir(multiply1, (lv0,), R.Tensor((128, 128), dtype="float32"))
+                lv2 = R.call_tir(add2, (lv1,), R.Tensor((128, 128), dtype="float32"))
+                lv3 = R.call_tir(multiply1, (lv2,), R.Tensor((128, 128), dtype="float32"))
+                lv4 = R.call_tir(add3, (lv3,), R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_tir(add1, (lv4,), R.Tensor((128, 128), dtype="float32"))
                 R.output(gv)
             return gv
 

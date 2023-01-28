@@ -117,7 +117,7 @@ def test_simple_symbolic_shape():
                 [],
                 int_args=[2],
                 require_ctx=True,
-                type_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_builtin(
                 "vm.builtin.check_tensor_info",
@@ -185,7 +185,7 @@ def test_symbolic_compute():
                 [],
                 int_args=[4],
                 require_ctx=True,
-                type_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_builtin(
                 "vm.builtin.check_tensor_info",
@@ -247,7 +247,7 @@ def test_symbolic_compute():
                     MK.USE_IMM,
                     2,
                 ],
-                type_args=[R.Shape(ndim=3)],
+                sinfo_args=[R.Shape(ndim=3)],
             )
             return s
 
@@ -286,7 +286,7 @@ def test_tuple_handling():
                 [],
                 int_args=[3],
                 require_ctx=True,
-                type_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             # recursively unpack tuple for static info check
             _ = R.call_builtin("vm.builtin.check_tuple_info", [x], int_args=[2], str_args=[""])
@@ -360,7 +360,7 @@ def test_return_match_check():
                 [],
                 int_args=[2],
                 require_ctx=True,
-                type_args=[R.Tensor(ndim=1, dtype="int64")],
+                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_builtin(
                 "vm.builtin.check_tensor_info",
@@ -377,7 +377,9 @@ def test_return_match_check():
             )
             _ = R.call_builtin("vm.builtin.check_tuple_info", [y], int_args=[1], str_args=[""])
             # emit runtime function call since y do not have the right type.
-            y1 = R.call_builtin("vm.builtin.tuple_getitem", [y], int_args=[0], type_args=[R.Object])
+            y1 = R.call_builtin(
+                "vm.builtin.tuple_getitem", [y], int_args=[0], sinfo_args=[R.Object]
+            )
             # run check
             _ = R.call_builtin(
                 "vm.builtin.check_tensor_info",

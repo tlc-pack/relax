@@ -58,7 +58,7 @@ class LambdaLifter : public ExprMutator {
           clo_arg = this->var_remap_.at(var->vid);
         }
         return Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
-                    {StructInfoFromType(call_node->checked_type_)});
+                    {GetStructInfo(GetRef<Expr>(call_node))});
       }
     }
     if (auto global_var_node = call_node->op.as<GlobalVarNode>()) {

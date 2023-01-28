@@ -169,7 +169,9 @@ def from_relay(
 
             if translate_op_with_tir and op_name in translate_op_with_tir:
                 tir_gvar = bb.add_func(translate_op_with_tir[op_name], op_name)
-                call = relax.call_tir(tir_gvar, new_args, out_type.shape, out_type.dtype)
+                call = relax.call_tir(
+                    tir_gvar, new_args, relax.TensorStructInfo(out_type.shape, out_type.dtype)
+                )
                 var = bb.emit(call)
             else:
                 with target:
