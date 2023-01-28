@@ -276,7 +276,6 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitVarDef_(const VarNode* var);
   virtual void VisitVarDef_(const DataflowVarNode* var);
 
-  virtual void VisitType(const Type& t);
   virtual void VisitSpan(const Span& span);
   virtual void VisitPrimExpr(const PrimExpr& expr);
 
@@ -348,15 +347,6 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    * \return The binding block after transformation.
    */
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
-
-  /*!
-   * \brief Used to visit the types inside of expressions.
-   *
-   * Can be overloaded to transform the types in arbitrary
-   * ways, one way would be to define a sub-class of type
-   * visitor for types which transform them appropriately.
-   */
-  virtual Type VisitType(const Type& t);
 
   /*!
    * \brief Used to visit the PrimExpr inside of expressions.
@@ -623,8 +613,6 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   PackedFunc f_visit_var_def_{nullptr};
   /*! \brief The packed function to the `VisitVarDef_(const DataflowVarNode* var)` function. */
   PackedFunc f_visit_dataflow_var_def_{nullptr};
-  /*! \brief The packed function to the `VisitType(const Type& t)` function. */
-  PackedFunc f_visit_type{nullptr};
   /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
   PackedFunc f_visit_span{nullptr};
 
@@ -666,7 +654,6 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
       PY_EXPR_VISITOR_DEFAULT(GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
                               ExprVisitor::VisitVarDef_(var));
 
-  void VisitType(const Type& t) PY_EXPR_VISITOR_DEFAULT(t, f_visit_type, ExprVisitor::VisitType(t));
   void VisitSpan(const Span& span)
       PY_EXPR_VISITOR_DEFAULT(span, f_visit_span, ExprVisitor::VisitSpan(span));
 
@@ -741,7 +728,6 @@ class PyExprVisitor : public ObjectRef {
    * \param f_visit_var_def_ The packed function of `VisitVarDef_(const VarNode* var)`.
    * \param f_visit_dataflow_var_def_ The packed function of `VisitVarDef_(const DataflowVarNode*
    * var)`.
-   * \param f_visit_type The packed function of `VisitType(const Type& t)`.
    * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
    * \return The PyVisitor created.
    */
@@ -755,13 +741,12 @@ class PyExprVisitor : public ObjectRef {
       PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_cast_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
-      PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_type, PackedFunc f_visit_span) {
+      PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_span) {
     ObjectPtr<PyExprVisitorNode> n = make_object<PyExprVisitorNode>();
     n->f_visit_expr = f_visit_expr;
     n->f_visit_binding = f_visit_binding;
     n->f_visit_binding_block = f_visit_binding_block;
     n->f_visit_var_def = f_visit_var_def;
-    n->f_visit_type = f_visit_type;
     n->f_visit_span = f_visit_span;
     n->f_visit_constant_ = f_visit_constant_;
     n->f_visit_tuple_ = f_visit_tuple_;
@@ -857,8 +842,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   PackedFunc f_visit_var_def_{nullptr};
   /*! \brief The packed function to the `VisitVarDef_(const DataflowVarNode* var)` function. */
   PackedFunc f_visit_dataflow_var_def_{nullptr};
-  /*! \brief The packed function to the `VisitType(const Type& t)` function. */
-  PackedFunc f_visit_type{nullptr};
   /*! \brief The packed function to the `VisitSpan(const Span& span)` function. */
   PackedFunc f_visit_span{nullptr};
 
@@ -910,9 +893,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   Var VisitVarDef_(const DataflowVarNode* var)
       PY_EXPR_MUTATOR_DEFAULT(GetRef<DataflowVar>(var), f_visit_dataflow_var_def_,
                               ExprMutator::VisitVarDef_(var), Var);
-
-  Type VisitType(const Type& t)
-      PY_EXPR_MUTATOR_DEFAULT(t, f_visit_type, ExprMutator::VisitType(t), Type);
 
   /*!
    * \brief Dispatcher for post-order rewrite.
@@ -1024,7 +1004,6 @@ class PyExprMutator : public ObjectRef {
    * \param f_visit_var_def_ The packed function of `VisitVarDef_(const VarNode* var)`.
    * \param f_visit_dataflow_var_def_ The packed function of `VisitVarDef_(const DataflowVarNode*
    * var)`.
-   * \param f_visit_type The packed function of `VisitType(const Type& t)`.
    * \param f_visit_span The packed function of `VisitSpan(const Span& span)`.
    * \return The PyExprMutator created.
    */
@@ -1039,7 +1018,7 @@ class PyExprMutator : public ObjectRef {
       PackedFunc f_visit_var_binding_, PackedFunc f_visit_match_cast_,
       PackedFunc f_visit_binding_block, PackedFunc f_visit_binding_block_,
       PackedFunc f_visit_dataflow_block_, PackedFunc f_visit_var_def, PackedFunc f_visit_var_def_,
-      PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_type, PackedFunc f_visit_span) {
+      PackedFunc f_visit_dataflow_var_def_, PackedFunc f_visit_span) {
     ObjectPtr<PyExprMutatorNode> n = make_object<PyExprMutatorNode>();
     n->builder_ = builder_;
     n->f_visit_expr = f_visit_expr;
@@ -1068,7 +1047,6 @@ class PyExprMutator : public ObjectRef {
     n->f_visit_var_def = f_visit_var_def;
     n->f_visit_var_def_ = f_visit_var_def_;
     n->f_visit_dataflow_var_def_ = f_visit_dataflow_var_def_;
-    n->f_visit_type = f_visit_type;
     n->f_visit_span = f_visit_span;
     return PyExprMutator(n);
   }
