@@ -379,6 +379,8 @@ class CallPatternNode : public DFPatternNode {
    */
   bool varg_default_wildcard; /*!< #args can be < #real args with the rest padded by Wildcard() */
 
+  // Todo(relax-team): Dataflow pattern for StructInfo, and match sinfo_args
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
@@ -786,10 +788,10 @@ ExprPattern IsExpr(const Expr& expr);
 /*! \brief Syntatic Sugar for creating a ExprPattern base on an Op */
 ExprPattern IsOp(const String& op_name);
 /*! \brief Syntatic Sugar for call_tir (return a tensor) */
-CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt,
-                      Optional<Array<PrimExpr>> oshape = NullOpt);
+// Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
+CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
-CallPattern IsCallTIR(const String& name, TuplePattern var_args, Array<Array<PrimExpr>> oshapes);
+CallPattern IsCallTIR(const String& name, TuplePattern var_args);
 /*! \brief Syntatic Sugar for creating TuplePattern or UnorderedTuplePattern (unordered=true) */
 DFPattern IsTuple(const Array<DFPattern>& fields, bool unordered = false);
 /*! \brief Syntatic Sugar for creating a TupleGetItemPattern */

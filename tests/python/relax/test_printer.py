@@ -178,7 +178,7 @@ def test_inline_tir():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-        z = R.call_tir(my_matmul, (x, y), (B, 128), dtype="float32")
+        z = R.call_tir(my_matmul, (x, y), R.Tensor((B, 128), dtype="float32"))
         return z
 
     check_roundtrip(foo)
@@ -190,16 +190,16 @@ def test_call_packed():
         # test that we can intro dim vars
         n, m = T.var("int64"), T.var("int64")
         z: R.Tensor((n, m), "float32") = R.call_packed(
-            "contrib.my_matmul", x, x, mp=False, type_args=R.Tensor(ndim=2, dtype="float32")
+            "contrib.my_matmul", x, x, mp=False, sinfo_args=R.Tensor((n, m), dtype="float32")
         )
         w = R.call_packed(
             "contrib.my_shape_of",
             x,
             dtype="int32",
             attrs_type_key="relay.attrs.ShapeOfAttrs",
-            type_args=R.Shape,
+            sinfo_args=R.Shape(),
         )
-        o = R.call_packed("contrib.tensor_array_stack", x, z, type_args=R.Object)
+        o = R.call_packed("contrib.tensor_array_stack", x, z, sinfo_args=R.Object())
         return z
 
     check_roundtrip(foo)
@@ -208,7 +208,7 @@ def test_call_packed():
 def test_relax_base_op():
     @R.function
     def foo(x: R.Tensor((2, 4), dtype="float32")):
-        gv = R.call_builtin("test_intrin", [x], type_args=R.Object)
+        gv = R.call_builtin("test_intrin", [x], sinfo_args=R.Object)
         return gv
 
     check_roundtrip(foo)
@@ -219,7 +219,7 @@ def test_primexpr_arithmetic():
     def foo(x: R.Tensor(("n", "m"), "float32")):
         n, m = T.var("int64"), T.var("int64")
         z: R.Tensor((n * m,), "float32") = R.call_packed(
-            "my_flatten", (x,), type_args=R.Tensor(ndim=1, dtype="float32")
+            "my_flatten", (x,), sinfo_args=R.Tensor((n * m,), dtype="float32")
         )
         sh: R.Shape = (n + m, n // m)
         return z
@@ -230,7 +230,7 @@ def test_primexpr_arithmetic():
 def test_call_tir_extern():
     @R.function
     def foo(x: R.Tensor):
-        z = R.call_tir("my_extern", (x,), (10,), dtype="float32")
+        z = R.call_tir("my_extern", (x,), R.Tensor((10,), dtype="float32"))
         return z
 
     check_roundtrip(foo)
@@ -350,7 +350,7 @@ def test_class_irmodule():
         @R.function
         def g(y: R.Tensor(("n", "n"))) -> R.Tensor(("n", "n"), "float32"):
             n = T.var("int64")
-            r = relax.call_tir(my_matmul, (y, y), (n, n), dtype="float32")
+            r = relax.call_tir(my_matmul, (y, y), R.Tensor((n, n), dtype="float32"))
             return r
 
         @R.function
@@ -358,7 +358,7 @@ def test_class_irmodule():
             x: R.Tensor(("n", "n")), y: R.Tensor(("n", "n")), z: R.Tensor(("n", "n"))
         ) -> R.Tensor:
             n = T.var("int64")
-            _ = R.call_tir(my_matmul, (x, y), (n, n), dtype="float32")
+            _ = R.call_tir(my_matmul, (x, y), R.Tensor((n, n), dtype="float32"))
             return z
 
     my_module = MyModule
@@ -369,7 +369,7 @@ def test_tir_max():
     @R.function
     def tir_max(x: R.Tensor(("m", "n"), "float32")):
         m, n = T.var("int64"), T.var("int64")
-        gv = relax.call_tir("my_extern", (x,), (T.max(n, m),), dtype="float32")
+        gv = relax.call_tir("my_extern", (x,), R.Tensor((T.max(n, m),), dtype="float32"))
         return gv
 
     check_roundtrip(tir_max)
@@ -379,7 +379,9 @@ def test_tir_cast():
     @R.function
     def tir_cast(x: R.Tensor(("m",), "float32")):
         m = T.var("int64")
-        gv = R.call_tir("my_extern", (x,), (T.cast(T.cast(m, "int32"), "int64"),), dtype="float32")
+        gv = R.call_tir(
+            "my_extern", (x,), R.Tensor((T.cast(T.cast(m, "int32"), "int64"),), dtype="float32")
+        )
         return gv
 
     check_roundtrip(tir_cast)
@@ -472,7 +474,7 @@ def test_call_pretty_print():
     call = relax.Call(extern_func, [x], sinfo_args=[R.Tensor(ndim=1, dtype="float32")])
     assert (
         call.__str__()
-        == 'R.call_packed("my_func", x, type_args=(R.Tensor(ndim=1, dtype="float32") ,))'
+        == 'R.call_packed("my_func", x, sinfo_args=[R.Tensor(dtype="float32", ndim=1)])'
     )
 
 

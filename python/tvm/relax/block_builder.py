@@ -418,9 +418,6 @@ class BlockBuilder(Object):
             and all(isinstance(t, tvm.te.tensor.Tensor) for t in te_out)
         ), "only support te.tensor or tuple/list/Array of te.tensor as function output"
 
-        if isinstance(te_out, (tuple, list, tvm.ir.Array)) and len(te_out) == 1:
-            te_out = te_out[0]
-
         outs = [te_out] if isinstance(te_out, tvm.te.tensor.Tensor) else list(te_out)
         unbound_tir_vars = self._get_unbound_tir_vars(te_args + outs)
 
@@ -446,27 +443,22 @@ class BlockBuilder(Object):
         # Invert the TIR variable mapping, to convert the output shape back
         # with old set of variables.
         tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
-        output_shape = (
-            _shape_with_old_tir_var(outs[0].shape, tir_var_inverse_map)
-            if isinstance(te_out, tvm.te.tensor.Tensor)
-            else Tuple([_shape_with_old_tir_var(x.shape, tir_var_inverse_map) for x in outs])
-        )
 
-        output_dtype = (
-            te_out.dtype if isinstance(te_out, tvm.te.tensor.Tensor) else [x.dtype for x in outs]
-        )
+        output_sinfo = [
+            TensorStructInfo(_shape_with_old_tir_var(out.shape, tir_var_inverse_map), out.dtype)
+            for out in outs
+        ]
 
         # add arguments for extra parameters from unbound var
         if len(unbound_tir_vars) > 0:
             call = call_tir(
                 gvar,
                 call_args,
-                output_shape,
-                output_dtype,
+                output_sinfo,
                 tir_vars=_shape_with_old_tir_var(unbound_tir_vars, tir_var_inverse_map),
             )
         else:
-            call = call_tir(gvar, call_args, output_shape, output_dtype)
+            call = call_tir(gvar, call_args, output_sinfo)
         return call
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
@@ -539,7 +531,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor((n, m), "float32"), y: Tensor((n, m), "float32")) -> Tensor:
                     # block 0
-                    gv = relax.call_tir("te_func", (x, y), (128, 128), dtype="float32")
+                    gv = relax.call_tir("te_func", (x, y), R.Tensor((128, 128), "float32"))
                     return gv
 
         Example
@@ -584,7 +576,7 @@ class BlockBuilder(Object):
                 def rx_func(x: Tensor((n,), "float32"), y: Tensor(((n + 1),), "float32"))
                     -> Tensor(None, "float32", ndim=-1):
                     # block 0
-                    gv = relax.call_tir(te_func, (y,), ((n + 1),), (n,), dtype="float32")
+                    gv = relax.call_tir(te_func, (y,), R.Tensor((n + 1,), "float32"), (n,))
                     return gv
         """
         return self.emit(self.call_te(func, *args, **kwargs))

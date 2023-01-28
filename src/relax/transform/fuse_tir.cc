@@ -387,9 +387,9 @@ class FusedTIRConstructor : public ExprVisitor {
   static size_t GetCallTIROutputSize(const CallNode* call) {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     ICHECK(call->op.same_as(call_tir_op_));
-    const Expr& output_shapes = call->args[2];
-    if (const auto* tuple_output_shapes = output_shapes.as<TupleNode>()) {
-      return tuple_output_shapes->fields.size();
+    ICHECK_EQ(call->sinfo_args.size(), 1);
+    if (const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+      return tuple_sinfo->fields.size();
     } else {
       return 1;
     }
@@ -662,10 +662,8 @@ class TIRFuseMutator : public ExprMutator {
           arg_list.insert(arg_list.end(), flattened.begin(), flattened.end());
         }
         // Step b. Create call_tir
-        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list),
-                                 GetCallTIRShape(GetStructInfo(call))};
-        return Call(call_tir_op_, call_args, call->attrs,
-                    {StructInfoFromType(call->checked_type())});
+        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list)};
+        return Call(call_tir_op_, call_args, call->attrs, {GetStructInfo(call)});
       } else {
         // Case 1.2. The callee function is not primitive, nothing to do.
         return call;
@@ -675,8 +673,7 @@ class TIRFuseMutator : public ExprMutator {
       GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
       tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
       GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
-      return Call(call->op, {new_gv, call->args[1], call->args[2]}, call->attrs, call->sinfo_args,
-                  call->span);
+      return Call(call->op, {new_gv, call->args[1]}, call->attrs, call->sinfo_args, call->span);
     } else {
       // Case 3. CallNode in other types. Leave it as it is.
       return call;

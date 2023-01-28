@@ -175,12 +175,12 @@ def test_block_builder_input_mod():
             x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
         ) -> R.Tensor:
             m, n, k = T.var("int64"), T.var("int64"), T.var("int64")
-            gv0 = R.call_tir("tir_matmul", (x, w), (m, k), dtype="float32")
+            gv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((m, k), dtype="float32"))
             return gv0
 
     @R.function
     def after_main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
-        gv0 = R.call_tir("tir_matmul", (x, w), (32, 32), dtype="float32")
+        gv0 = R.call_tir("tir_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
         return gv0
 
     input_mod = InputModule
@@ -380,7 +380,7 @@ def test_call_te_with_shape_arg():
 
         @R.function
         def rx_func(x: R.Tensor((200,), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
-            gv = R.call_tir(reshape, (x,), (10, 20), dtype="float32")
+            gv = R.call_tir(reshape, (x,), R.Tensor((10, 20), dtype="float32"))
             return gv
 
     bb = rx.BlockBuilder()
@@ -421,7 +421,7 @@ def test_call_te_with_float_arg():
         def rx_func(
             dummy_param: R.Tensor((200,), dtype="float32")
         ) -> R.Tensor((16, 32), dtype="float32"):
-            gv = R.call_tir(full, (), (16, 32), dtype="float32")
+            gv = R.call_tir(full, (), R.Tensor((16, 32), dtype="float32"))
             return gv
 
     bb = rx.BlockBuilder()
@@ -466,7 +466,7 @@ def test_call_te_with_symbolic_arg():
         ) -> R.Tensor(("n", "m"), dtype="float32"):
             n = T.var("int64")
             m = T.var("int64")
-            gv = R.call_tir(reshape, (x,), (n, m), dtype="float32")
+            gv = R.call_tir(reshape, (x,), R.Tensor((n, m), dtype="float32"))
             return gv
 
     bb = rx.BlockBuilder()
@@ -523,7 +523,7 @@ def test_emit_te():
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert isinstance(call_node, rx.Call)
     assert call_node.op == relay.op.get("relax.call_tir")
-    assert len(call_node.args) == 3
+    assert len(call_node.args) == 2
     assert call_node.args[0].name_hint == "te_func"
     assert call_node.args[1][0] == x
     assert call_node.args[1][1] == y
@@ -583,10 +583,10 @@ def test_emit_te_multiple_output():
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert call_node.op == relay.op.get("relax.call_tir")
     assert call_node.args[0].name_hint == "te_func"
-    assert isinstance(call_node.args[2], rx.Tuple)
-    assert len(call_node.args[2]) == 2
-    assert isinstance(call_node.args[2][0], rx.ShapeExpr)
-    assert isinstance(call_node.args[2][1], rx.ShapeExpr)
+    assert isinstance(call_node.sinfo_args[0], rx.TupleStructInfo)
+    assert len(call_node.sinfo_args[0].fields) == 2
+    assert isinstance(call_node.sinfo_args[0].fields[0].shape, rx.ShapeExpr)
+    assert isinstance(call_node.sinfo_args[0].fields[1].shape, rx.ShapeExpr)
 
 
 def test_emit_te_extern():
@@ -609,12 +609,12 @@ def test_emit_te_extern():
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert isinstance(call_node, rx.Call)
     assert call_node.op == relay.op.get("relax.call_tir")
-    assert len(call_node.args) == 3
+    assert len(call_node.args) == 2
     assert call_node.args[0].name_hint == "matmul"
     assert call_node.args[1][0] == x
     assert call_node.args[1][1] == y
-    assert call_node.args[2][0] == n
-    assert call_node.args[2][1] == n
+    assert call_node.sinfo_args[0].shape[0] == n
+    assert call_node.sinfo_args[0].shape[1] == n
 
 
 def test_emit_tuple_get_item():

@@ -24,12 +24,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr, Type
+from tvm.ir import PrimExpr
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, Var, const
-from tvm.relax.analysis import get_static_type
-
-# Todo(ruihang): introduced to make call_packed work. To be removed in the followup PR.
-from tvm.relax.analysis import struct_info_from_type
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -211,7 +207,7 @@ def output(*vars: Tuple[Var]) -> None:
 def call_packed(
     func: str,
     *args: Expr,
-    type_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: Union[StructInfo, List[StructInfo]],
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -221,8 +217,8 @@ def call_packed(
         The name of extern function.
     args : List[Expr]
         The arguments.
-    type_args: Optional[Union[StructInfo, List[StructInfo]]]
-        List of Types
+    sinfo_args: Union[StructInfo, List[StructInfo]]
+        The list of structure info arguments.
     kwargs: Expr
         The keyword arguments.
 
@@ -231,8 +227,6 @@ def call_packed(
     call: Call
         The created Relax Call
     """
-    # Todo(ruihang): reorganize API in the followup PR of A1.
-    sinfo_args = type_args
     op = ExternFunc(func)
     if sinfo_args is None:
         raise ValueError("R.call_packed is required to have type_args")
@@ -240,21 +234,13 @@ def call_packed(
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
         sinfo_args = [sinfo_args]
-    for i, argument in enumerate(sinfo_args):
-        if callable(argument):
-            argument = argument()
+    for i, sinfo_arg in enumerate(sinfo_args):
+        if callable(sinfo_arg):
+            sinfo_arg = sinfo_arg()
         # Convert possible StructInfoProxy to StructInfo
-        if isinstance(argument, ObjectGeneric):
-            argument = argument.asobject()
-        if isinstance(argument, StructInfo):
-            sinfo_args[i] = struct_info_from_type(get_static_type(argument))
-        elif isinstance(argument, Type):
-            sinfo_args[i] = struct_info_from_type(argument)
-        else:
-            raise TypeError(
-                "call_packed `type_args` is expected to be list of StructInfo/Type, "
-                f"but got {type(arg)}"
-            )
+        if isinstance(sinfo_arg, ObjectGeneric):
+            sinfo_arg = sinfo_arg.asobject()
+        sinfo_args[i] = sinfo_arg
 
     is_default = False
     if "attrs_type_key" in kwargs:
@@ -270,8 +256,8 @@ def call_packed(
     return Call(op, args, attrs=attrs, sinfo_args=sinfo_args)
 
 
-def _tensor_type_wrapper(func):
-    """A wrapper to convert StructInfo to relax.DynTensorType"""
+def _sinfo_arg_wrapper(func):
+    """A wrapper to convert StructInfoProxies to StructInfo for builtin operators with sinfo_args"""
 
     def _convert_tensor_type(args):
         if isinstance(args, (list, py_tuple)):
@@ -283,7 +269,7 @@ def _tensor_type_wrapper(func):
             args = args()
         if isinstance(args, ObjectGeneric):
             args = args.asobject()
-        return get_static_type(args) if isinstance(args, StructInfo) else args
+        return args
 
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
@@ -292,9 +278,9 @@ def _tensor_type_wrapper(func):
     return wrapped  # type: ignore
 
 
-invoke_closure = _tensor_type_wrapper(invoke_closure)  # pylint: disable=invalid-name
+invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-name
 
-call_builtin = _tensor_type_wrapper(call_builtin)  # pylint: disable=invalid-name
+call_builtin = _sinfo_arg_wrapper(call_builtin)  # pylint: disable=invalid-name
 
 ############################### Bindings ###############################
 

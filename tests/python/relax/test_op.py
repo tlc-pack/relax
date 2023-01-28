@@ -39,8 +39,8 @@ def identity_tir(a: T.handle, b: T.handle) -> None:
 
 def test_call_tir() -> None:
     v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
-    v1 = rx.call_tir(rx.extern("test.op.identity"), [v0], [54, 96], "float32")
-    v1 = rx.call_tir(identity_tir, [v0], [54, 96], "float32")
+    v1 = rx.call_tir(rx.extern("test.op.identity"), [v0], R.Tensor((54, 96), "float32"))
+    v1 = rx.call_tir(identity_tir, [v0], R.Tensor((54, 96), "float32"))
 
 
 def test_implicit_op():

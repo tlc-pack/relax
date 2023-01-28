@@ -23,6 +23,9 @@ from tvm.script import relax as R
 
 def _check(mod_before, mod_expected):
     mod = relax.transform.FuseTIR()(mod_before)
+    print(mod.script())
+    print(mod_expected.script())
+    print(tvm.ir.base.get_first_structural_mismatch(mod, mod_expected))
     tvm.ir.assert_structural_equal(mod, mod_expected)
 
 

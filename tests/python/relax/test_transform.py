@@ -215,8 +215,8 @@ def test_to_non_dataflow():
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.var("int64"), T.var("int64")
             with R.dataflow():
-                lv0 = R.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
-                gv0 = R.call_tir("test.op.identity", (lv0,), (m, n), dtype="float32")
+                lv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+                gv0 = R.call_tir("test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32"))
                 R.output(gv0)
             return gv0
 
@@ -259,7 +259,7 @@ def test_call_tir_rewrite():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.var("int64"), T.var("int64")
-            gv0 = R.call_tir("test.op.identity", (x,), (m, n), dtype="float32")
+            gv0 = R.call_tir("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
 
     mod = TestCallTIRRewrite
@@ -281,7 +281,7 @@ def test_call_tir_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.args[2])
+    assert structural_equal(s1.args[0], s0.sinfo_args[0].shape)
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
@@ -294,7 +294,7 @@ def test_vm_memory_lower():
             m, n = T.var("int64"), T.var("int64")
             alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
-                "test.op.identity", x, alloc, type_args=(R.Tensor(ndim=2, dtype="float32"))
+                "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             gv0 = alloc
             return gv0
