@@ -34,7 +34,7 @@ from .expr import (
     BaseFunc,
     Binding,
 )
-from .struct_info import ShapeStructInfo, StructInfo, TensorStructInfo, TupleStructInfo
+from .struct_info import ShapeStructInfo, StructInfo, TensorStructInfo
 from .op.base import call_tir
 from . import _ffi_api
 
@@ -444,13 +444,10 @@ class BlockBuilder(Object):
         # with old set of variables.
         tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
-        out_sinfo_list = [
+        output_sinfo = [
             TensorStructInfo(_shape_with_old_tir_var(out.shape, tir_var_inverse_map), out.dtype)
             for out in outs
         ]
-        output_sinfo: Union[TensorStructInfo, TupleStructInfo] = (
-            out_sinfo_list[0] if len(out_sinfo_list) == 1 else TupleStructInfo(out_sinfo_list)
-        )
 
         # add arguments for extra parameters from unbound var
         if len(unbound_tir_vars) > 0:

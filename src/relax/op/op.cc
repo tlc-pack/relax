@@ -88,24 +88,20 @@ RELAY_REGISTER_OP("relax.call_tir")
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR);
 
-Expr MakeCallTIR(Expr func, Tuple args, StructInfo out_sinfo, Optional<Expr> packed_ints) {
-  auto f_check_shape = [](const TensorStructInfoNode* sinfo) {
+Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
+                 Optional<Expr> packed_ints) {
+  for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape";
-  };
-  if (const auto* tensor_sinfo = out_sinfo.as<TensorStructInfoNode>()) {
-    f_check_shape(tensor_sinfo);
-  } else if (const auto* tuple_sinfo = out_sinfo.as<TupleStructInfoNode>()) {
-    for (const StructInfo& field_sinfo : tuple_sinfo->fields) {
-      const auto* tensor_field = field_sinfo.as<TensorStructInfoNode>();
-      CHECK(tensor_field != nullptr)
-          << "out_sinfo of call_tir should be either TensorStructInfo or a TupleStructInfo whose "
-             "fields are all TensorStructInfo";
-      f_check_shape(tensor_field);
-    }
+    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+                               "However, one given structure info is "
+                            << sinfo;
+  }
+
+  StructInfo out_sinfo{nullptr};
+  if (out_sinfo_list.size() == 1) {
+    out_sinfo = out_sinfo_list[0];
   } else {
-    LOG(FATAL) << "out_sinfo of call_tir should be either TensorStructInfo or a TupleStructInfo "
-                  "whose fields are all TensorStructInfo";
+    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
   }
 
   static const Op& op = Op::Get("relax.call_tir");

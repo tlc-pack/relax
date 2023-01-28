@@ -24,7 +24,7 @@ from tvm.runtime.object import Object
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Call, ExternFunc
 from ..expr import Tuple as RxTuple
-from ..struct_info import StructInfo, TensorStructInfo, TupleStructInfo
+from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
 from ..utils import args_converter
 
@@ -47,7 +47,7 @@ def null_value() -> Call:
 def call_tir(
     func: Union[str, Expr],
     args: Expr,
-    out_sinfo: Union[TensorStructInfo, TupleStructInfo],
+    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
     """
@@ -61,12 +61,10 @@ def call_tir(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[TensorStructInfo, TupleStructInfo]
+    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_tir output.
-        - It should either a single TensorStructInfo, indicating a single
-        returned tensor,
-        - or a TupleStructInfo with all fields TensorStructInfo, indicating
-        multiple returned tensors.
+        It should be a single or a list of TensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
 
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
@@ -82,14 +80,8 @@ def call_tir(
     if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
-    if isinstance(out_sinfo, TupleStructInfo) and not all(
-        [isinstance(field_sinfo, TensorStructInfo) for field_sinfo in out_sinfo.fields]
-    ):
-        raise TypeError(
-            f"The input out_sinfo is expected to be a TensorStructInfo or a "
-            "TupleStructInfo whose fields are all TensorStructInfo. However, "
-            "the given out_sinfo is {out_sinfo}."
-        )
+    if not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
 
     if isinstance(tir_vars, (list, tuple)):
         tir_vars = ShapeExpr(tir_vars)

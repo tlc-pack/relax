@@ -524,7 +524,6 @@ TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
 
 // Special opaque derivation function for ExternFunc
 // Take look at sinfo_args to figure out the return StructInfo.
-// TODO(relax-team): revisit sinfo_args related deduction.
 TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_by_sinfo_args")
     .set_body_typed([](const Call& call, const BlockBuilder& ctx) -> StructInfo {
       ICHECK(call->sinfo_args.defined()) << "sinfo_args field of CallNode should always be defined";

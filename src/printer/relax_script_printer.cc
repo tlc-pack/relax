@@ -92,12 +92,26 @@ Doc RelaxScriptPrinter::VisitNode_(const relax::CallNode* op) {
   if (op->op == call_tir_op) {
     doc << "R.call_tir";
 
+    ICHECK(op->args.size() == 2 || op->args.size() == 3);
     for (int i = 0; i < 2; ++i) {
       args.push_back(Print(op->args[i]));
     }
     doc << "(" << Doc::Concat(args, Doc::Text(", "));
+
     ICHECK(op->sinfo_args.size() == 1);
-    doc << ", out_sinfo=" << Print(op->sinfo_args[0]);
+    Doc out_sinfo_doc;
+    if (const auto* tuple_out_sinfo = op->sinfo_args[0].as<TupleStructInfoNode>()) {
+      std::vector<Doc> field_sinfo_doc;
+      field_sinfo_doc.reserve(tuple_out_sinfo->fields.size());
+      for (const StructInfo& field_sinfo : tuple_out_sinfo->fields) {
+        field_sinfo_doc.push_back(Print(field_sinfo));
+      }
+      out_sinfo_doc << "[" << Doc::Concat(field_sinfo_doc, Doc::Text(", ")) << "]";
+    } else {
+      out_sinfo_doc << Print(op->sinfo_args[0]);
+    }
+    doc << ", out_sinfo=" << out_sinfo_doc;
+
     if (op->args.size() == 3) {
       doc << ", tir_vars=" << Print(op->args[2]);
     }

@@ -666,9 +666,7 @@ def test_concat_mm_split():
                 lv2 = R.call_tir(
                     "my_split",
                     (lv1,),
-                    R.Tuple(
-                        R.Tensor((16, 32), dtype="float32"), R.Tensor((16, 32), dtype="float32")
-                    ),
+                    [R.Tensor((16, 32), dtype="float32"), R.Tensor((16, 32), dtype="float32")],
                 )
                 lv3 = R.TupleGetItem(lv2, 0)
                 lv4 = R.TupleGetItem(lv2, 1)
