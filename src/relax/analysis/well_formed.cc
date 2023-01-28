@@ -245,6 +245,10 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
+    for (const StructInfo& sinfo_arg : op->sinfo_args) {
+      this->VisitStructInfo(sinfo_arg);
+    }
+
     CheckStructInfo(op);
   }
 
