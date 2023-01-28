@@ -48,7 +48,6 @@ from .expr import (
     StringImm,
     Tuple,
     TupleGetItem,
-    Type,
     Var,
     VarBinding,
 )
@@ -301,7 +300,6 @@ class _PyExprVisitor(Object):
         f_visit_var_def: Callable = None,
         f_visit_var_def_: Callable = None,
         f_visit_dataflow_var_def_: Callable = None,
-        f_visit_type: Callable = None,
         f_visit_span: Callable = None,
     ) -> None:
         """Constructor."""
@@ -334,7 +332,6 @@ class _PyExprVisitor(Object):
             f_visit_var_def,
             f_visit_var_def_,
             f_visit_dataflow_var_def_,
-            f_visit_type,
             f_visit_span,
         )
 
@@ -426,7 +423,6 @@ class PyExprVisitor:
             "visit_var_def",
             "visit_var_def_",
             "visit_dataflow_var_def_",
-            "visit_type",
             "visit_span",
         ],
     }
@@ -768,18 +764,6 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_type(self, t: Type) -> None:
-        """Visit Type.
-        Users can customized this function to overwrite VisitType(const Type& t) on the C++ side.
-
-        Parameters
-        ----------
-        t : Type
-            The Type to be visited.
-        """
-        # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitType(self._outer(), t)  # type: ignore
-
     def visit_span(self, span: Span) -> None:
         """Visit Span.
         Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
@@ -833,7 +817,6 @@ class _PyExprMutator(Object):
         f_visit_var_def: Callable = None,
         f_visit_var_def_: Callable = None,
         f_visit_dataflow_var_def_: Callable = None,
-        f_visit_type: Callable = None,
         f_visit_span: Callable = None,
     ) -> None:
         """Constructor."""
@@ -867,7 +850,6 @@ class _PyExprMutator(Object):
             f_visit_var_def,
             f_visit_var_def_,
             f_visit_dataflow_var_def_,
-            f_visit_type,
             f_visit_span,
         )
 
@@ -975,7 +957,6 @@ class PyExprMutator:
             "visit_var_def",
             "visit_var_def_",
             "visit_dataflow_var_def_",
-            "visit_type",
             "visit_span",
         ],
     }
@@ -1435,23 +1416,6 @@ class PyExprMutator:
         """
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
-
-    def visit_type(self, t: Type) -> Type:
-        """Visit Type.
-        Users can customized this function to overwrite VisitType(const Type& t) on the C++ side.
-
-        Parameters
-        ----------
-        t : Type
-            The Type to be visited.
-
-        Returns
-        -------
-        result : Type
-            The type after transformation.
-        """
-        # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitType(self._outer(), t)  # type: ignore
 
     def visit_span(self, span: Span) -> Span:
         """Visit Span.
