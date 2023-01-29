@@ -19,6 +19,160 @@
 from . import _ffi_api
 from ..expr import Expr
 
+###################### Arithmetic operators ######################
+
+
+def abs(x: Expr) -> Expr:
+    """Compute element-wise absolute value of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.abs(x)  # type: ignore
+
+
+def acos(x: Expr) -> Expr:
+    """Compute element-wise arc cos of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.acos(x)  # type: ignore
+
+
+def acosh(x: Expr) -> Expr:
+    """Compute element-wise arc cosh of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.acosh(x)  # type: ignore
+
+
+def asin(x: Expr) -> Expr:
+    """Compute element-wise arc sin of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.asin(x)  # type: ignore
+
+
+def asinh(x: Expr) -> Expr:
+    """Compute element-wise arc sinh of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.asinh(x)  # type: ignore
+
+
+def atan(x: Expr) -> Expr:
+    """Compute element-wise arc tan of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.atan(x)  # type: ignore
+
+
+def atanh(x: Expr) -> Expr:
+    """Compute element-wise arc tanh of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.atanh(x)  # type: ignore
+
+
+def ceil(x: Expr) -> Expr:
+    """Take ceil of input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.ceil(x)  # type: ignore
+
 
 def cos(x: Expr) -> Expr:
     """Compute element-wise cos of the input data.
@@ -40,21 +194,60 @@ def cos(x: Expr) -> Expr:
     return _ffi_api.cos(x)  # type: ignore
 
 
-def exp(x: Expr) -> Expr:
-    """Compute element-wise exp of data.
+def cosh(x: Expr) -> Expr:
+    """Compute element-wise cosh of the input data.
+
     Parameters
     ----------
     x : relax.Expr
         The input data
+
     Returns
     -------
     result : relax.Expr
         The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.cosh(x)  # type: ignore
+
+
+def exp(x: Expr) -> Expr:
+    """Compute element-wise exp of data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
     Note
     ----
     The input tensor is required to have float dtype
     """
     return _ffi_api.exp(x)  # type: ignore
+
+
+def floor(x: Expr) -> Expr:
+    """Take floor of input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.floor(x)  # type: ignore
 
 
 def log(x: Expr) -> Expr:
@@ -93,6 +286,22 @@ def negative(x: Expr) -> Expr:
     return _ffi_api.negative(x)  # type: ignore
 
 
+def round(x: Expr) -> Expr:
+    """Rounds each element of the input data to nearest integer.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.round(x)  # type: ignore
+
+
 def sigmoid(x: Expr) -> Expr:
     """Compute element-wise sigmoid of the input data.
 
@@ -111,6 +320,22 @@ def sigmoid(x: Expr) -> Expr:
     The input tensor is required to have float dtype
     """
     return _ffi_api.sigmoid(x)  # type: ignore
+
+
+def sign(x: Expr) -> Expr:
+    """Returns an indication of the sign of a number for each element of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.sign(x)  # type: ignore
 
 
 def sin(x: Expr) -> Expr:
@@ -133,6 +358,42 @@ def sin(x: Expr) -> Expr:
     return _ffi_api.sin(x)  # type: ignore
 
 
+def sinh(x: Expr) -> Expr:
+    """Compute element-wise sinh of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.sinh(x)  # type: ignore
+
+
+def square(x: Expr) -> Expr:
+    """Squares each element of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.square(x)  # type: ignore
+
+
 def sqrt(x: Expr) -> Expr:
     """Compute element-wise square root of the input data.
 
@@ -153,6 +414,26 @@ def sqrt(x: Expr) -> Expr:
     return _ffi_api.sqrt(x)  # type: ignore
 
 
+def tan(x: Expr) -> Expr:
+    """Compute element-wise tan of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.tan(x)  # type: ignore
+
+
 def tanh(x: Expr) -> Expr:
     """Compute element-wise tanh of the input data.
 
@@ -171,3 +452,54 @@ def tanh(x: Expr) -> Expr:
     The input tensor is required to have float dtype
     """
     return _ffi_api.tanh(x)  # type: ignore
+
+
+###################### Check operators ######################
+
+
+def isfinite(x: Expr) -> Expr:
+    """Check if input value is finite.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.isfinite(x)  # type: ignore
+
+
+def isinf(x: Expr) -> Expr:
+    """Check if input value is infinite.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.isinf(x)  # type: ignore
+
+
+def isnan(x: Expr) -> Expr:
+    """Check if input value is Nan.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.isnan(x)  # type: ignore

@@ -34,83 +34,123 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
-def _test_unary(op_func: Callable):
+(unary_arith_op,) = tvm.testing.parameters(
+    (relax.op.abs,),
+    (relax.op.acos,),
+    (relax.op.acosh,),
+    (relax.op.asin,),
+    (relax.op.asinh,),
+    (relax.op.atan,),
+    (relax.op.atanh,),
+    (relax.op.ceil,),
+    (relax.op.cos,),
+    (relax.op.cosh,),
+    (relax.op.exp,),
+    (relax.op.floor,),
+    (relax.op.log,),
+    (relax.op.negative,),
+    (relax.op.round,),
+    (relax.op.sigmoid,),
+    (relax.op.sign,),
+    (relax.op.sin,),
+    (relax.op.sinh,),
+    (relax.op.square,),
+    (relax.op.sqrt,),
+    (relax.op.tan,),
+    (relax.op.tanh,),
+)
+
+
+def test_unary_arith(unary_arith_op: Callable):
     @R.function
     def foo(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = op_func(x)
+        gv: R.Tensor((2, 3), "float32") = unary_arith_op(x)
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x]):
-        gv = bb.emit(op_func(x))
+        gv = bb.emit(unary_arith_op(x))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
 
 
-def _test_binary_arith(op_func: Callable):
+(unary_check_op,) = tvm.testing.parameters(
+    (relax.op.isfinite,),
+    (relax.op.isinf,),
+    (relax.op.isnan,),
+)
+
+
+def test_unary_check(unary_check_op: Callable):
+    @R.function
+    def foo(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
+        gv: R.Tensor((2, 3), "bool") = unary_check_op(x)
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(unary_check_op(x))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
+(binary_arith_op,) = tvm.testing.parameters(
+    (relax.op.add,),
+    (relax.op.divide,),
+    (relax.op.floor_divide,),
+    (relax.op.multiply,),
+    (relax.op.subtract,),
+)
+
+
+def test_binary_arith(binary_arith_op: Callable):
     @R.function
     def foo(
         x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
     ) -> R.Tensor((2, 3), "float32"):
-        gv: R.Tensor((2, 3), "float32") = op_func(x, y)
+        gv: R.Tensor((2, 3), "float32") = binary_arith_op(x, y)
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 1), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x, y]):
-        gv = bb.emit(op_func(x, y))
+        gv = bb.emit(binary_arith_op(x, y))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
 
 
-def _test_binary_cmp(op_func: Callable):
+(binary_cmp_op,) = tvm.testing.parameters(
+    (relax.op.equal,),
+    (relax.op.greater,),
+    (relax.op.greater_equal,),
+    (relax.op.less,),
+    (relax.op.less_equal,),
+    (relax.op.not_equal,),
+)
+
+
+def test_binary_cmp(binary_cmp_op: Callable):
     @R.function
     def foo(
         x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
     ) -> R.Tensor((2, 3), "bool"):
-        gv: R.Tensor((2, 3), "bool") = op_func(x, y)
+        gv: R.Tensor((2, 3), "bool") = binary_cmp_op(x, y)
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 1), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x, y]):
-        gv = bb.emit(op_func(x, y))
+        gv = bb.emit(binary_cmp_op(x, y))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])
-
-
-def test_unary():
-    _test_unary(relax.op.cos)
-    _test_unary(relax.op.exp)
-    _test_unary(relax.op.log)
-    _test_unary(relax.op.negative)
-    _test_unary(relax.op.sigmoid)
-    _test_unary(relax.op.sin)
-    _test_unary(relax.op.sqrt)
-    _test_unary(relax.op.tanh)
-
-
-def test_binary_arith():
-    _test_binary_arith(relax.op.add)
-    _test_binary_arith(relax.op.divide)
-    _test_binary_arith(relax.op.floor_divide)
-    _test_binary_arith(relax.op.multiply)
-    _test_binary_arith(relax.op.subtract)
-
-
-def test_binary_cmp():
-    _test_binary_cmp(relax.op.equal)
-    _test_binary_cmp(relax.op.greater)
-    _test_binary_cmp(relax.op.greater_equal)
-    _test_binary_cmp(relax.op.less)
-    _test_binary_cmp(relax.op.less_equal)
-    _test_binary_cmp(relax.op.not_equal)
 
 
 def test_relax_ewise_fma():
