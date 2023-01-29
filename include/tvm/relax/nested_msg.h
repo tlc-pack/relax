@@ -258,8 +258,7 @@ bool Equal(const NestedMsg<T>& lhs, const NestedMsg<T>& rhs, FType fequal) {
  * The nesting structure will corresponds to the tuple structure.
  *
  * \param expr The input expression.
- * \param fmapleaf The mapping function for each leaf with signature
- *             NestedMsg<T> fmap(Expr)
+ * \param fmapleaf The mapping function for each leaf with signature `NestedMsg<T> fmap(Expr)`
  * \tparam T the content type of nested msg
  * \tparam FType The mapping function type
  */
@@ -286,8 +285,7 @@ NestedMsg<T> MapToNestedMsg(Expr expr, FType fmapleaf) {
  * The nesting structure will corresponds to the tuple structure.
  *
  * \param sinfo The input struct info.
- * \param fmapleaf The mapping function for each leaf with signature
- *             NestedMsg<T> fmap(StructInfo)
+ * \param fmapleaf The mapping function for each leaf with signature `NestedMsg<T> fmap(StructInfo)`
  * \tparam T the content type of nested msg
  * \tparam FType The mapping function type
  */
@@ -306,6 +304,90 @@ NestedMsg<T> MapToNestedMsg(StructInfo sinfo, FType fmapleaf) {
 }
 
 /*!
+ * \brief Map expr with possible nested-tuple to nested message.
+ *
+ * This function will unpack recursive expr by its struct info and
+ * run fmapleaf for each leaf, then recursively combines the results
+ * together into a NestedMsg.
+ *
+ * The nesting structure will corresponds to the struct info of expr.
+ *
+ * \param expr The input expression which should have struct info.
+ * \param fmapleaf The mapping function for each leaf with signature `NestedMsg<T> fmapleaf(Expr)`
+ * \tparam T the content type of nested msg
+ * \tparam FType The mapping function type
+ */
+template <typename T, typename FType>
+NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
+  auto sinfo = GetStructInfo(expr);
+  if (auto* tuple = sinfo.as<TupleStructInfoNode>()) {
+    Array<NestedMsg<T>> res;
+    res.reserve(tuple->fields.size());
+    for (size_t i = 0; i < tuple->fields.size(); ++i) {
+      Expr field;
+      if (const auto* expr_tuple = expr.as<TupleNode>()) {
+        field = expr_tuple->fields[i];
+      } else {
+        field = TupleGetItem(expr, i);
+        UpdateStructInfo(field, tuple->fields[i]);
+      }
+      res.push_back(MapToNestedMsgBySInfo<T, FType>(field, fmapleaf));
+    }
+    return res;
+  } else {
+    return fmapleaf(expr);
+  }
+}
+
+/*!
+ * \brief Map nested message back to the expr.
+ *
+ * This function will decompose the nested message and
+ * run fmapleaf for each leaf message and get the leaf expr,
+ * then recursively combines the results as tuple expr.
+ *
+ * \param msg The input nested message.
+ * \param fmapleaf The mapping function for each leaf with signature `Expr fmapleaf(Optional<T>)`.
+ * \tparam T the content type of nested msg.
+ * \tparam FType The mapping function type.
+ */
+template <typename T, typename FType>
+Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
+  if (msg.IsNull()) {
+    return fmapleaf(NullOpt);
+  } else if (msg.IsLeaf()) {
+    return fmapleaf(msg.LeafValue());
+  } else {
+    ICHECK(msg.IsNested());
+    Array<NestedMsg<T>> arr = msg.NestedArray();
+    Array<Expr> subexpr;
+    subexpr.reserve(arr.size());
+    for (size_t i = 0; i < arr.size(); ++i) {
+      subexpr.push_back(NestedMsgToExpr<T, FType>(arr[i], fmapleaf));
+    }
+    Optional<Expr> simplified_tuple;
+    bool simplified_flag = false;
+    if (subexpr.size() >= 1) {
+      simplified_flag = true;
+      for (size_t i = 0; i < subexpr.size() && simplified_flag; ++i) {
+        auto* node = subexpr[i].as<TupleGetItemNode>();
+        if (node == nullptr || node->index != static_cast<int>(i)) {
+          simplified_flag = false;
+        } else {
+          if (simplified_tuple.defined()) {
+            simplified_flag &= (simplified_tuple == node->tuple);
+          } else {
+            simplified_tuple = node->tuple;
+            ICHECK(simplified_tuple.defined());
+          }
+        }
+      }
+    }
+    return simplified_flag ? simplified_tuple.value() : Tuple(subexpr);
+  }
+}
+
+/*!
  * \brief Recursively combine two nested message into one.
  *
  * This function requires the two messages to be compatible with each other.
@@ -317,7 +399,7 @@ NestedMsg<T> MapToNestedMsg(StructInfo sinfo, FType fmapleaf) {
  *
  * \param lhs The left operand.
  * \param rhs The right operand.
- * \param fcombine with signature NestedMsg<T> fcombine(lhs, rhs)
+ * \param fcombine with signature T fcombine(T lhs, T rhs)
  * \tparam T the content type of nested msg
  * \tparam FType combine function type.
  */
