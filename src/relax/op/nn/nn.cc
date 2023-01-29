@@ -26,16 +26,13 @@ namespace tvm {
 namespace relax {
 
 /* relax.nn.relu */
-RELAX_REGISTER_UNARY_OP("nn.relu", /*require_float_dtype=*/false);
-RELAX_UNARY_OP_INTERFACE(relu, "nn.relu");
+RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(relu, "nn.relu", /*require_float_dtype=*/false);
 
 /* relax.nn.gelu */
-RELAX_REGISTER_UNARY_OP("nn.gelu", /*require_float_dtype=*/true);
-RELAX_UNARY_OP_INTERFACE(gelu, "nn.gelu");
+RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu, "nn.gelu", /*require_float_dtype=*/true);
 
 /* relax.nn.silu */
-RELAX_REGISTER_UNARY_OP("nn.silu", /*require_float_dtype=*/true);
-RELAX_UNARY_OP_INTERFACE(silu, "nn.silu");
+RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);

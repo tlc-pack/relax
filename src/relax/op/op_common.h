@@ -67,19 +67,17 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
  * \brief Quick helper macro to register the operator to registry
  * \param OpRegName The name of operator to register. The name passed in will
  * be prepended with a prefix "relax." as the identifier string in the operator registry.
- * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
  */
-#define RELAX_REGISTER_UNARY_OP(OpRegName, RequireFloatDtype) \
-  TVM_REGISTER_OP("relax." OpRegName)                         \
-      .set_num_inputs(1)                                      \
-      .add_argument("x", "Tensor", "The input tensor.")       \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnary<RequireFloatDtype>)
+#define RELAX_REGISTER_UNARY_OP(OpRegName) \
+  TVM_REGISTER_OP("relax." OpRegName)      \
+      .set_num_inputs(1)                   \
+      .add_argument("x", "Tensor", "The input tensor.")
 
 /*!
  * \brief Quick helper macro to expose a make-function to construct the operator.
  * \param OpName The name of the operator as well as the make-function name, which will
  * be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
- * \param OpRegName The identifier of the operator in the registry
+ * \param OpRegName The identifier of the operator in the registry.
  */
 #define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)    \
   Expr OpName(Expr x) {                                \
@@ -88,19 +86,21 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
   }                                                    \
   TVM_REGISTER_GLOBAL("relax.op." OpRegName).set_body_typed(OpName)
 
-/*!
- * \brief Quick helper macro to
- * - expose a make-function interface which construct the call node.
- * - register op to the registry.
- * \param OpName The name of operator to register.
- * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
- */
-#define RELAX_REGISTER_UNARY_OP_INTERFACE(OpName, RequireFloatDtype) \
-  RELAX_UNARY_OP_INTERFACE(OpName, #OpName);                         \
-  RELAX_REGISTER_UNARY_OP(#OpName, RequireFloatDtype)
+/************ Utilities ************/
 
-template <bool require_float_dtype>
-inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx) {
+/*!
+ * \brief Infer the struct info for unary elementwise ops.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param f_compute_out_dtype The function to compute the output dtype, with
+ * signature DataType f_compute_out_dtype(const TensorStructInfo& input_sinfo).
+ * \tparam require_float_dtype whether this op requires the input dtype to be float
+ * \tparam Ftype the type of f_compute_out_dtype
+ * \return The inferred struct info.
+ */
+template <bool require_float_dtype, typename FType>
+inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx,
+                                       FType f_compute_out_dtype) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   if (require_float_dtype && !input_sinfo->IsUnknownDtype() && !input_sinfo->dtype.is_float()) {
     ctx->ReportFatal(
@@ -109,7 +109,23 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_sinfo->dtype);
   }
-  return input_sinfo;
+  auto output_sinfo = make_object<TensorStructInfoNode>(*input_sinfo.get());
+  output_sinfo->dtype = f_compute_out_dtype(input_sinfo);
+  return TensorStructInfo(output_sinfo);
+}
+
+/*!
+ * \brief Infer  the struct info for unary arithmetic elementwise ops. It's also
+ * used in some NN operators.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \tparam require_float_dtype whether this op requires the input dtype to be float
+ * \return The inferred struct info.
+ */
+template <bool require_float_dtype>
+StructInfo InferStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) {
+  return InferStructInfoUnary<require_float_dtype>(
+      call, ctx, [](const TensorStructInfo& input_sinfo) { return input_sinfo->dtype; });
 }
 
 /************ Utilities ************/
