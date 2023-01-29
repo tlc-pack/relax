@@ -30,15 +30,16 @@
  *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
  *       attribute, the name of the GlobalVar must equal the value of the
  *       `global_symbol` attribute value.
- *    4. Vars are defined before use.
- *    5. Vars are defined exactly once.
- *    6. Symbolic Vars are defined before use.
- *    7. DataflowVars cannot be defined inside BindingBlock.
- *    8. Vars defined in IfNode, except the return Var, are invisible
+ *    4. Any variable cannot used as different function parameters in the same IRModule
+ *    5. Vars are defined before use.
+ *    6. Vars are defined exactly once.
+ *    7. Symbolic Vars are defined before use.
+ *    8. DataflowVars cannot be defined inside BindingBlock.
+ *    9. Vars defined in IfNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
- *    9. SeqExpr only serves as function body, or in the true and
+ *    10. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
- *    10. The IR is in ANF:
+ *    11. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
@@ -53,7 +54,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    11. Expr always has checked_type_ (with the exception of Op).
+ *    12. Expr always has checked_type_ (with the exception of Op).
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -63,6 +64,8 @@
 #include <tvm/tir/expr_functor.h>
 
 #include <unordered_set>
+
+#include "../../printer/text_printer.h"
 
 namespace tvm {
 namespace relax {
@@ -215,6 +218,15 @@ class WellFormedChecker : public relax::ExprVisitor,
     // check all expr are well defined.
     for (Var param : op->params) {
       this->VisitVarDef(param);
+
+      if (param_var_func_map_.count(param) == 1) {
+        Malformed(Diagnostic::Error(param->span)
+                  << "Relax variable " << param->name_hint()
+                  << " is repeatedly used as parameters in function:\n"
+                  << AsRelaxScript(param_var_func_map_[param], false) << "\nand function:\n"
+                  << AsRelaxScript(GetRef<Function>(op), false));
+      }
+      param_var_func_map_.insert({param, GetRef<Function>(op)});
     }
 
     if (auto seq = op->body.as<SeqExprNode>()) {
@@ -440,6 +452,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
+  std::unordered_map<Var, Function, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
 };
 
 bool WellFormed(IRModule m, bool check_struct_info) {
