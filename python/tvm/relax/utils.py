@@ -22,7 +22,8 @@ from typing import Any, Callable, List, Optional, TypeVar
 from .. import tir
 from ..runtime import String, convert_to_object
 from ..tir import PrimExpr
-from .expr import Expr, PrimValue, ShapeExpr, StringImm
+from . import _ffi_api
+from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm
 from .expr import Tuple as rx_Tuple
 
 
@@ -254,3 +255,21 @@ class _ArgsConverter:
 
 
 args_converter = _ArgsConverter()  # pylint: disable=invalid-name
+
+
+def copy_with_new_params(func: Function) -> Function:
+    """Copy the given function. The parameters of the original function would be copied to
+    satisfy the restriction in the well-formed check: any two functions cannot share the same
+    parameter variable.
+
+    Parameters
+    ----------
+    func : Function
+        The relax function to copy.
+
+    Returns
+    -------
+    ret : Function
+        The copied function.
+    """
+    return _ffi_api.CopyWithNewParams(func)  # type: ignore
