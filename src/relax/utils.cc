@@ -82,5 +82,28 @@ bool IsLeafOrTuple(const Expr& expr) {
          expr.as<OpNode>() || expr.as<TupleNode>();
 }
 
+class FunctionCopier : public ExprMutator {
+ public:
+  static Function Transform(Function func) {
+    FunctionCopier copier;
+    // the parameters would be copied and substituted to satisfy the restriction in the well-formed
+    // check: any two functions cannot share the same parameter variable.
+    Array<Var> new_params;
+    for (Var param : func->params) {
+      Var new_param = Var(param->vid, GetStructInfo(param), param->span);
+      copier.var_remap_[param->vid] = new_param;
+      new_params.push_back(new_param);
+    }
+
+    Expr body = copier.VisitWithNewScope(func->body, new_params);
+
+    return Function(new_params, body, func->ret_struct_info, func->attrs);
+  }
+};
+
+Function CopyWithNewParams(Function func) { return FunctionCopier::Transform(func); }
+
+TVM_REGISTER_GLOBAL("relax.CopyWithNewParams").set_body_typed(CopyWithNewParams);
+
 }  // namespace relax
 }  // namespace tvm
