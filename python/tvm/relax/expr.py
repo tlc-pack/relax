@@ -235,7 +235,7 @@ class Call(ExprWithOp):
     sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]]
         The structure info arguments of a CallNode.
         sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
-        call_tir, call_builtin, etc.) and calls to ExternFuncs, with the main
+        call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
         usage of structure info inference.
 
     span: Optional[Span]
@@ -431,7 +431,9 @@ class PrimValue(Expr):
 
     value: PrimExpr
 
-    def __init__(self, value: PrimExpr, span: Span = None) -> None:
+    def __init__(self, value: Union[PrimExpr, int], span: Span = None) -> None:
+        if isinstance(value, int):
+            value = tvm.tir.IntImm("int64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 
 

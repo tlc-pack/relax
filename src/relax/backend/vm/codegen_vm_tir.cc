@@ -23,7 +23,6 @@
  */
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/module.h>
-#include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
@@ -227,8 +226,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     }
     int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
-      if (call_node->op == call_builtin_op_) {
-        EmitCallBuiltin(call, dst_reg);
+      if (call_node->op == call_builtin_with_ctx_op_) {
+        EmitCallBuiltinWithCtx(call, dst_reg);
       } else if (call_node->op == alloc_storage_op_) {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
@@ -417,14 +416,10 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
-  void EmitCallBuiltin(const Call& call_node, int64_t dst_reg) {
-    auto builtin_attrs = call_node->attrs.as<BuiltinFuncAttrs>();
-    ICHECK(builtin_attrs != nullptr);
+  void EmitCallBuiltinWithCtx(const Call& call_node, int64_t dst_reg) {
     Array<PrimExpr> args;
     // if context is required, pass as first argument.
-    if (builtin_attrs->require_ctx) {
-      args.push_back(ctx_ptr_);
-    }
+    args.push_back(ctx_ptr_);
     auto* func = call_node->args[0].as<ExternFuncNode>();
     ICHECK(func) << "CallBuiltin comes with extern func";
 
@@ -435,20 +430,6 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
       args.push_back(this->VisitExpr(arg).value());
     }
 
-    if (builtin_attrs->int_args.defined()) {
-      for (auto val : builtin_attrs->int_args) {
-        args.push_back(ConstInt64(val->value));
-      }
-    }
-    if (builtin_attrs->dtype_arg != DataType::Void()) {
-      args.push_back(ConstListGet(builder_->ConvertConstant(builtin_attrs->dtype_arg).value()));
-    }
-
-    if (builtin_attrs->str_args.defined()) {
-      for (auto val : builtin_attrs->str_args) {
-        args.push_back(tir::StringImm(val));
-      }
-    }
     this->EmitCallPacked(func->global_symbol, args, dst_reg);
   }
 
@@ -519,7 +500,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
-  const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
+  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
 };
 

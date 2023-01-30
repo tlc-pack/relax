@@ -330,6 +330,10 @@ PrimValue::PrimValue(PrimExpr value, Span span) {
   data_ = std::move(n);
 }
 
+PrimValue PrimValue::Int64(int64_t value, Span span) {
+  return PrimValue(IntImm(DataType::Int(64), value), span);
+}
+
 TVM_REGISTER_NODE_TYPE(PrimValueNode);
 
 TVM_REGISTER_GLOBAL("relax.PrimValue").set_body_typed([](PrimExpr value, Span span) {
