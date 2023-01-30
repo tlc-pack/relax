@@ -164,8 +164,8 @@ class MatMul(OnnxOpConverter):
         assert len(inputs) == 2, "MatMul op takes 2 inputs, {} given".format(len(inputs))
         weight = bb.emit_te(topi.transpose, inputs[1], [1, 0])
         weight = bb.emit_te(topi.expand_dims, weight, 0)
-        #return bb.emit_te(tvm.contrib.cublas.batch_matmul, inputs[0], bb.normalize(weight), transb=True)
-        return bb.emit(relax.op.vtx_mm(inputs[0], bb.normalize(weight)))
+        return bb.emit_te(tvm.contrib.cublas.batch_matmul, inputs[0], bb.normalize(weight), transb=True)
+        #return bb.emit(relax.op.vtx_mm(inputs[0], bb.normalize(weight)))
 
 
 
@@ -715,9 +715,9 @@ class Expand(OnnxOpConverter):
         # Assume a fixed shape for the two ops in the graph, absolutely a filthy hack.
         if not isinstance(inputs[1], relax.Constant):
             if inputs[1].shape[0] == 3:
-                shape = [8, 512, 768]
+                shape = [128, 512, 768]
         else:
-            shape = [8, 100]
+            shape = [128, 100]
         return bb.emit_te(topi.broadcast_to, inputs[0], shape)
 
 

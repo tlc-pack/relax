@@ -33,8 +33,8 @@ parser.add_argument('--fp16', action='store_true', default=False)
 ARGS = parser.parse_args()
 
 SRC_FILE = "./fmha.cu"
-#PKG_FILE = "./packaged.o"
-PKG_FILE = "./packaged.so"
+PKG_FILE = "./packaged.o"
+#PKG_FILE = "./packaged.so"
 
 BATCH_SIZE = 8
 SEQ_LEN = 512
@@ -306,9 +306,9 @@ if __name__ == "__main__":
         import_source_module(relax_ex)
         relax_ex.mod.export_library(
             PKG_FILE,
-            #fcompile=create_archive,
+            fcompile=create_archive,
             cc="nvcc",
-            #options=["-r"],
+            options=["-Xcompiler=-r"],
         )
         print("Exported")
     executable = tvm.runtime.load_module(PKG_FILE)
