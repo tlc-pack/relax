@@ -36,7 +36,7 @@ SRC_FILE = "./fmha.cu"
 PKG_FILE = "./packaged.o"
 #PKG_FILE = "./packaged.so"
 
-BATCH_SIZE = 8
+BATCH_SIZE = 128
 SEQ_LEN = 512
 NUM_HEADS = 12
 HEAD_SIZE = 64
@@ -287,13 +287,13 @@ if __name__ == "__main__":
             ms.relax_integration.extract_tasks(mod, target, params=None),
             work_dir=WORK_DIR,
         )
-        #database = ms.tune_tasks(
-        #    tasks=tasks,
-        #    task_weights=task_weights,
-        #    work_dir=WORK_DIR,
-        #    max_trials_global=500,
-        #    num_trials_per_iter=32,
-        #)
+        database = ms.tune_tasks(
+            tasks=tasks,
+            task_weights=task_weights,
+            work_dir=WORK_DIR,
+            max_trials_global=500,
+            num_trials_per_iter=32,
+        )
         database = ms.database.create(work_dir=WORK_DIR)
         print("Database Loaded")
         relax_ex = ms.relax_integration.compile_relax(
