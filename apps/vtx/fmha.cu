@@ -69,10 +69,10 @@ int _FusedQKVToCxtImpl(DLTensor* QKV, DLTensor* Mask, DLTensor* Output) {
   p.v_strideH = p.head_dim_value;
   p.o_strideH = p.head_dim_value * p.num_queries;
 
-  p.q_strideB = p.q_strideH * p.num_queries;
-  p.k_strideB = p.k_strideH * p.num_keys;
-  p.v_strideB = p.v_strideH * p.num_keys;
-  p.o_strideB = p.o_strideH * p.num_queries;
+  p.q_strideB = p.q_strideM * p.num_queries;
+  p.k_strideB = p.k_strideM * p.num_keys;
+  p.v_strideB = p.v_strideM * p.num_keys;
+  p.o_strideB = p.o_strideH * p.num_heads;
 
   constexpr auto kernel_fn = attention_kernel_batched_impl<Attention>;
   int smem_bytes = sizeof(typename Attention::SharedStorage);
