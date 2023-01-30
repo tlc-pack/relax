@@ -168,9 +168,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       for (const auto& index : load->indices) {
         this->VisitExpr(index);
       }
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
     }
+    StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const VarNode* buf) final {
