@@ -324,5 +324,121 @@ relay::OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func) {
   return analyzer.GetResult();
 }
 
+bool HasReshapePattern(const PrimFunc& func) {
+  class ReshapeDetector : public StmtVisitor {
+   public:
+    static bool Detect(const Buffer& src_buffer, const Buffer& dst_buffer, Stmt stmt) {
+      ReshapeDetector detector(src_buffer, dst_buffer);
+      detector(stmt);
+      return detector.is_reshape_;
+    }
+
+   private:
+    explicit ReshapeDetector(const Buffer& src_buffer, const Buffer& dst_buffer)
+        : is_reshape_(false), src_buffer_(src_buffer), dst_buffer_(dst_buffer) {}
+
+    void VisitStmt_(const ForNode* loop) final {
+      ana_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+      // To detect the reshape pattern, we require each For to have
+      // either another For or a BlockRealize as body.
+      if (!(loop->body->IsInstance<ForNode>() || loop->body->IsInstance<BlockRealizeNode>())) {
+        return;
+      }
+      this->VisitStmt(loop->body);
+    }
+
+    void VisitStmt_(const BlockRealizeNode* block_realize) final {
+      // Constructing the mapping from block iterators to iterator
+      // binding values. The mapping will be used in the substitution of
+      // the flattened buffer access index.
+      const Block& block = block_realize->block;
+      const Array<IterVar>& block_iter = block->iter_vars;
+      const Array<PrimExpr>& iter_values = block_realize->iter_values;
+      ICHECK_EQ(block_iter.size(), iter_values.size());
+      int n_iter = block_iter.size();
+      for (int i = 0; i < n_iter; ++i) {
+        // To detect the reshape pattern, we require each block iter to be data-parallel.
+        if (block_iter[i]->iter_type != tir::IterVarType::kDataPar) {
+          return;
+        }
+        var_map_.Set(block_iter[i]->var, iter_values[i]);
+      }
+
+      // Recurse into the block.
+      this->VisitStmt(block);
+    }
+
+    void VisitStmt_(const BlockNode* block) final {
+      // Step 0. If the block body is a ForNode, recurse into it.
+      if (block->body->IsInstance<ForNode>()) {
+        this->VisitStmt(block->body);
+        return;
+      }
+
+      // Step 1. Get the load/store pattern of the block body.
+      // To detect the reshape pattern, we require the block body to be a
+      // BufferStore, which has a BufferLoad as value.
+      const auto* buffer_store = block->body.as<BufferStoreNode>();
+      if (buffer_store == nullptr) {
+        return;
+      }
+      const auto* buffer_load = buffer_store->value.as<BufferLoadNode>();
+      if (buffer_load == nullptr) {
+        return;
+      }
+      // Further, we require the buffer being stored and being loaded to
+      // match the parameter of the PrimFunc, namely `dst_buffer_` and `src_buffer_`.
+      if (!(buffer_store->buffer.same_as(dst_buffer_) &&
+            buffer_load->buffer.same_as(src_buffer_))) {
+        return;
+      }
+
+      // Step 3. Calculate the flattened access index according to the load/store pattern.
+      auto f_calc_flattened_idx = [](const Buffer& buffer, const Array<PrimExpr>& indices) {
+        ICHECK_EQ(indices.size(), buffer->shape.size());
+        int ndim = indices.size();
+        PrimExpr idx = 0;
+        for (int i = 0; i < ndim; ++i) {
+          idx = idx * buffer->shape[i] + indices[i];
+        }
+        return idx;
+      };
+      PrimExpr src_idx = f_calc_flattened_idx(src_buffer_, buffer_load->indices);
+      PrimExpr dst_idx = f_calc_flattened_idx(dst_buffer_, buffer_store->indices);
+
+      // Step 4. Substitute the block iterators in the flattened index
+      // with loop variables, and check if we can prove their equality.
+      src_idx = tir::Substitute(std::move(src_idx), var_map_);
+      dst_idx = tir::Substitute(std::move(dst_idx), var_map_);
+      if (ana_.CanProveEqual(src_idx, dst_idx)) {
+        this->is_reshape_ = true;
+      }
+    }
+
+    bool is_reshape_;
+    /*! \brief The mapping from block vars to block binding values. */
+    Map<tir::Var, PrimExpr> var_map_;
+    const Buffer& src_buffer_;
+    const Buffer& dst_buffer_;
+    arith::Analyzer ana_;
+  };
+
+  if (func->params.size() < 2) {
+    return false;
+  }
+  Optional<Buffer> src_buffer = func->buffer_map.Get(func->params.front());
+  Optional<Buffer> dst_buffer = func->buffer_map.Get(func->params.back());
+  if (!(src_buffer.defined() && dst_buffer.defined())) {
+    return false;
+  }
+
+  // To detect the reshape pattern, we require each For to have
+  // either another For or a BlockRealize as body.
+  ICHECK(func->body->IsInstance<BlockRealizeNode>());
+  return ReshapeDetector::Detect(src_buffer.value(), dst_buffer.value(), func->body);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.has_reshape_pattern").set_body_typed(HasReshapePattern);
+
 }  // namespace relax
 }  // namespace tvm

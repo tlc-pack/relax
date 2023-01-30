@@ -101,6 +101,19 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
     return _ffi_api.CallTIRRewrite()  # type: ignore
 
 
+def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
+    """Convert all reshape-like call_tir to VM reshape operator call.
+    The VM reshape operator calls will be further lowered to a CreateView
+    operation at runtime, instead of doing real data copy.
+    Here "reshape-like" includes reshape, expand_dims, flatten, etc.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.RewriteDataflowReshape()  # type: ignore
+
+
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
     """Lowering generic intrinsic to VM intrinsics.
 
