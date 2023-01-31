@@ -175,7 +175,7 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
  * \param annotate_codegen If true, wrap each created composite function with another function,
  * whose body consists only of a call to the composite function, and annotate the outer function
- * with kCodegen and kGlobalSymbo attributes. The kCodegen attribute is set as the prefix of the
+ * with kCodegen and kGlobalSymbol attributes. The kCodegen attribute is set as the prefix of the
  * corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
  * This must be True if the created composite functions are intended to be offloaded to
  * an external backend without using the MergeCompositeFunctions pass.
