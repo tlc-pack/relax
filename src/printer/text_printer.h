@@ -613,7 +613,10 @@ class TextPrinter {
                                   node->IsInstance<relax::BindingNode>() ||       //
                                   node->IsInstance<relax::BindingBlockNode>() ||  //
                                   node->IsInstance<relax::SeqExprNode>() ||       //
-                                  node->IsInstance<relax::ExternFuncNode>())) {
+                                  node->IsInstance<relax::ExternFuncNode>() ||    //
+                                  node->IsInstance<relax::PrimValueNode>() ||     //
+                                  node->IsInstance<relax::StringImmNode>() ||     //
+                                  node->IsInstance<relax::DataTypeImmNode>())) {
       doc << relax_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

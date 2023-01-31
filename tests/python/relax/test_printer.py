@@ -593,5 +593,20 @@ def test_extern_func_pretty_print():
     assert extern_func.__str__() == '"my_func"'
 
 
+def test_primvalue_pretty_print():
+    int_prim_value = relax.PrimValue(1)
+    assert int_prim_value.__str__() == "R.prim_value(1)"
+
+
+def test_stringimm_pretty_print():
+    strimm = relax.StringImm("test")
+    assert strimm.__str__() == 'R.str("test")'
+
+
+def test_dtypeimm_pretty_print():
+    dtypeimm = relax.DataTypeImm("float32")
+    assert dtypeimm.__str__() == 'R.dtype("float32")'
+
+
 if __name__ == "__main__":
     tvm.testing.main()
