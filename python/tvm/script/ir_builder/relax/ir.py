@@ -41,7 +41,7 @@ from tvm.relax.op import (
     astype,
     broadcast_to,
     builtin,
-    call_builtin,
+    call_builtin_with_ctx,
     call_tir,
     ceil,
     concat,
@@ -298,7 +298,7 @@ def _sinfo_arg_wrapper(func):
 
 invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-name
 
-call_builtin = _sinfo_arg_wrapper(call_builtin)  # pylint: disable=invalid-name
+call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
 
 ############################### Bindings ###############################
 
@@ -463,7 +463,7 @@ __all__ = [
     "builtin",
     "call_packed",
     "call_tir",
-    "call_builtin",
+    "call_builtin_with_ctx",
     "ceil",
     "cos",
     "cosh",

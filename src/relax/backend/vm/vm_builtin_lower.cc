@@ -21,7 +21,6 @@
  * \brief Lowers most builtin functions and packed calls.
  */
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/backend.h>
@@ -55,13 +54,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
     }
   }
 
-  static ObjectPtr<BuiltinFuncAttrs> DefaultBuiltinAttrs() {
-    // initialize with default value
-    auto n = make_object<BuiltinFuncAttrs>();
-    n->InitBySeq();
-    return n;
-  }
-
   Expr ComputeStorageSize(const Expr& shape, const DataType& dtype) const {
     // Question: what if the dtype of tensor_type is unknown?
     // Symbolic/static shape case
@@ -73,9 +65,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
       }
       return ShapeExpr({ret});
     } else {
-      auto attrs = DefaultBuiltinAttrs();
-      attrs->dtype_arg = dtype;
-      return Call(call_builtin_op_, {builtin_compute_alloc_shape_, Tuple({shape})}, Attrs(attrs),
+      return Call(builtin_compute_alloc_shape_, {shape, DataTypeImm(dtype)}, Attrs(),
                   {GetStructInfo(shape)});
     }
   }
@@ -109,8 +99,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
     }
-    auto attrs = DefaultBuiltinAttrs();
-    return Call(call_builtin_op_, {builtin_call_tir_dyn_, Tuple(args)}, Attrs(attrs));
+    return Call(builtin_call_tir_dyn_, args, Attrs(), {void_sinfo_});
   }
 
   Expr MakeClosure(const Call& call_node) {
@@ -126,10 +115,8 @@ class VMBuiltinLowerMutator : public ExprMutator {
     for (Expr arg : closure_args->fields) {
       args.push_back(arg);
     }
-    auto attrs = DefaultBuiltinAttrs();
 
-    return Call(call_builtin_op_, {builtin_make_closure_, Tuple(args)}, Attrs(attrs),
-                {object_sinfo_});
+    return Call(builtin_make_closure_, args, Attrs(), {object_sinfo_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -146,14 +133,13 @@ class VMBuiltinLowerMutator : public ExprMutator {
     for (Expr arg : invoke_closure_args->fields) {
       args.push_back(arg);
     }
-    auto attrs = DefaultBuiltinAttrs();
-    attrs->require_ctx = true;
-    return Call(call_builtin_op_, {builtin_invoke_closure_, Tuple(args)}, Attrs(attrs),
+    return Call(call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)}, Attrs(),
                 {object_sinfo_});
   }
 
-  const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
+  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const StructInfo object_sinfo_ = ObjectStructInfo();
+  const StructInfo void_sinfo_ = TupleStructInfo(Array<StructInfo>({}));
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");

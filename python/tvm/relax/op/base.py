@@ -90,15 +90,11 @@ def call_tir(
 
 
 @args_converter.auto
-def call_builtin(
+def call_builtin_with_ctx(
     func: Union[str, Expr],
     args: Expr,
     *,
     sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
-    int_args: Optional[List[int]] = None,
-    dtype_arg: Optional[str] = None,
-    str_args: Optional[List[str]] = None,
-    require_ctx: bool = False,
 ) -> Call:
     """Call a builtin function func.
 
@@ -113,18 +109,6 @@ def call_builtin(
     sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
         The struct info arguments to the call node.
 
-    int_args: Optional[List[int]]
-        List of additional int arguments passed to the builtin.
-
-    dtype_arg: str
-        Additional dtype argument passed to the builtin
-
-    str_args:  Optional[List[str]]
-        List of additional int arguments passed to the builtin.
-
-    require_ctx: bool
-        Whether we need to pass context as first argument.
-
     Returns
     -------
     ret: Call
@@ -136,8 +120,10 @@ def call_builtin(
     if sinfo_args is not None and not isinstance(sinfo_args, (list, tuple)):
         sinfo_args = [sinfo_args]
 
-    return _ffi_api.call_builtin(  # type: ignore
-        func, args, sinfo_args, int_args, dtype_arg, str_args, require_ctx  # type: ignore
+    return _ffi_api.call_builtin_with_ctx(  # type: ignore
+        func,
+        args,
+        sinfo_args,  # type: ignore
     )
 
 

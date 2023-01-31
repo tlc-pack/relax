@@ -17,7 +17,6 @@
  * under the License.
  */
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/expr.h>
@@ -35,7 +34,6 @@ TVM_REGISTER_NODE_TYPE(MemAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(VMAllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(VMAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeHeapAttrs);
-TVM_REGISTER_NODE_TYPE(BuiltinFuncAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
@@ -118,7 +116,7 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 // call builtin
-StructInfo InferStructInfoCallBuiltin(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() == 0) {
     // by default return void.
     return TupleStructInfo(Array<StructInfo>());
@@ -128,30 +126,18 @@ StructInfo InferStructInfoCallBuiltin(const Call& call, const BlockBuilder& ctx)
   }
 }
 
-TVM_REGISTER_OP("relax.call_builtin")
+TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .set_num_inputs(4)
     .add_argument("func", "Expr", "The builtin packed func.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltin);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx);
 
-Expr MakeCallBuiltin(Expr func, Tuple args, Array<StructInfo> sinfo_args, Array<IntImm> int_args,
-                     DataType dtype_arg, Array<String> str_args, bool require_ctx) {
-  auto attrs = make_object<BuiltinFuncAttrs>();
-  attrs->int_args = int_args.Map([](IntImm value) {
-    if (value->dtype != DataType::Int(64)) {
-      return IntImm(DataType::Int(64), value->value);
-    } else {
-      return value;
-    }
-  });
-  attrs->dtype_arg = dtype_arg;
-  attrs->str_args = std::move(str_args);
-  attrs->require_ctx = require_ctx;
-  static const Op& op = Op::Get("relax.call_builtin");
-  return Call(op, {func, args}, Attrs(attrs), sinfo_args);
+Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
+  static const Op& op = Op::Get("relax.call_builtin_with_ctx");
+  return Call(op, {func, args}, Attrs(), sinfo_args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_builtin").set_body_typed(MakeCallBuiltin);
+TVM_REGISTER_GLOBAL("relax.op.call_builtin_with_ctx").set_body_typed(MakeCallBuiltinWithCtx);
 
 TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
