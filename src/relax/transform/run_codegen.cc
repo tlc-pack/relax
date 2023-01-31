@@ -112,9 +112,7 @@ class CodeGenRunner : ExprMutator {
           auto f = Downcast<Function>(e);
           if (auto target_opt = f->GetAttr<String>(attr::kCodegen)) {
             String target = target_opt.value();
-            if (target_options.empty() || target_options.count(target)) {
-              target_functions[target].push_back(f);
-            }
+            target_functions[target].push_back(f);
           }
         }
       });
