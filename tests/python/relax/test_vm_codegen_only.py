@@ -192,39 +192,37 @@ def test_shape_check_builtin(exec_mode):
             R.func_attr({"global_symbol": "main"})
             n = T.Var("n", "int64")
             k = T.Var("k", "int64")
-            shape_heap = R.call_builtin(
+            shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
-                [],
-                int_args=[3],
-                require_ctx=True,
+                [R.prim_value(3)],
                 sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
-            _ = R.call_builtin(
-                "vm.builtin.check_tensor_info",
-                [x],
-                int_args=[2],
-                dtype_arg="float32",
-                str_args=[""],
+            _ = R.call_packed(
+                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
             )
-            _ = R.call_builtin(
+            _ = R.call_packed(
                 "vm.builtin.match_shape",
-                [x, shape_heap],
-                int_args=[2, MS.STORE_TO_HEAP, sindex["n"], MS.STORE_TO_HEAP, sindex["m"]],
-                str_args=[""],
+                x,
+                shape_heap,
+                2,
+                MS.STORE_TO_HEAP,
+                sindex["n"],
+                MS.STORE_TO_HEAP,
+                sindex["m"],
+                "",
+                sinfo_args=[R.Tuple()],
             )
             # construct shape value for return
-            s = R.call_builtin(
+            s = R.call_packed(
                 "vm.builtin.make_shape",
-                [shape_heap],
-                int_args=[
-                    3,
-                    MK.LOAD_SHAPE,
-                    sindex["m"],
-                    MK.LOAD_SHAPE,
-                    sindex["n"],
-                    MK.USE_IMM,
-                    2,
-                ],
+                shape_heap,
+                3,
+                MK.LOAD_SHAPE,
+                sindex["m"],
+                MK.LOAD_SHAPE,
+                sindex["n"],
+                MK.USE_IMM,
+                2,
                 sinfo_args=[R.Shape(ndim=3)],
             )
             return s

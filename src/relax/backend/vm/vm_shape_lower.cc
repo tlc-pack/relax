@@ -21,7 +21,6 @@
  * \brief Lower the function boundary type checks and symbolic shape computations.
  */
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
@@ -308,43 +307,10 @@ class VMShapeLowerMutator
     }
   }
   //-------------------------------------------------------
-  // Helper functions to construct BuiltinFuncAttrs
+  // Helper functions
   //-------------------------------------------------------
-  // Builtin attrs that contains extra int arguments.
-  Attrs ExtraIntArgs(std::vector<int64_t> int_args, Optional<String> err_ctx = NullOpt) {
-    // initialize with default value
-    auto n = make_object<BuiltinFuncAttrs>();
-    Array<IntImm> arr;
-    for (int64_t val : int_args) {
-      arr.push_back(IntImm(DataType::Int(64), val));
-    }
-
-    n->int_args = arr;
-    n->dtype_arg = DataType::Void();
-    if (err_ctx) {
-      if (emit_err_ctx_) {
-        n->str_args = {err_ctx.value()};
-      } else {
-        n->str_args = {""};
-      }
-    }
-    n->require_ctx = false;
-    return Attrs(n);
-  }
-
-  // Builtin attrs that contains extra int arguments.
-  Attrs ExtraTensorInfoArgs(int ndim, DataType dtype, String err_ctx) {
-    // initialize with default value
-    auto n = make_object<BuiltinFuncAttrs>();
-    n->int_args = {IntImm(DataType::Int(64), ndim)};
-    n->dtype_arg = dtype;
-    if (emit_err_ctx_) {
-      n->str_args = {err_ctx};
-    } else {
-      n->str_args = {""};
-    }
-    n->require_ctx = false;
-    return Attrs(n);
+  StringImm GetErrContext(String err_ctx) const {
+    return emit_err_ctx_ ? StringImm(err_ctx) : StringImm("");
   }
 
   VarBinding AllocShapeHeapBinding(IntImm heap_size) {
@@ -352,13 +318,8 @@ class VMShapeLowerMutator
       TensorStructInfo heap_sinfo(ShapeDType(), 1);
       Var var("shape_heap", heap_sinfo);
       // set up the builtin func.
-      auto n = make_object<BuiltinFuncAttrs>();
-      n->int_args = {heap_size};
-      n->dtype_arg = DataType::Void();
-      n->str_args = NullValue<Array<String>>();
-      n->require_ctx = true;
-      Call call(call_builtin_op_, {builtin_alloc_shape_heap_, Tuple(Array<Expr>())}, Attrs(n),
-                {heap_sinfo});
+      Call call(call_builtin_with_ctx_op_,
+                {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_sinfo});
       UpdateStructInfo(call, heap_sinfo);
       return VarBinding(var, call);
     } else {
@@ -387,23 +348,24 @@ class VMShapeLowerMutator
     if (is_const_shape) {
       return GetRef<Expr>(op);
     }
-    std::vector<int64_t> int_args = {static_cast<int64_t>(op->values.size())};
+
+    Array<Expr> args = {shape_heap_, PrimValue::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
       if (auto* int_expr = expr.as<IntImmNode>()) {
-        int_args.push_back(static_cast<int>(MakeShapeCode::kUseImm));
-        int_args.push_back(int_expr->value);
+        args.push_back(PrimValue::Int64(static_cast<int>(MakeShapeCode::kUseImm)));
+        args.push_back(PrimValue::Int64(int_expr->value));
       } else {
         auto it = slot_map_.find(expr);
         ICHECK(it != slot_map_.end());
         auto* slot = it->second;
         ICHECK(slot->value_computed) << "PrimExpr " << expr << " has not been computed";
-        int_args.push_back(static_cast<int>(MakeShapeCode::kLoadShape));
-        int_args.push_back(slot->index);
+        args.push_back(PrimValue::Int64(static_cast<int>(MakeShapeCode::kLoadShape)));
+        args.push_back(PrimValue::Int64(slot->index));
       }
     }
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(call_builtin_op_, {builtin_make_shape_, Tuple({shape_heap_})}, ExtraIntArgs(int_args),
+    Call call(builtin_make_shape_, args, Attrs(),
               {ShapeStructInfo(static_cast<int>(op->values.size()))});
     return call;
   }
@@ -457,9 +419,10 @@ class VMShapeLowerMutator
     using runtime::relax_vm::MatchShapeCode;
     for (const MatchShapeTodoItem& item : match_todos) {
       int64_t shape_len = static_cast<int64_t>(item.pattern.size());
-      std::vector<int64_t> int_args = {shape_len};
       bool all_nop = true;
       int num_outstanding_exprs = 0;
+
+      Array<Expr> args = {item.input, shape_heap_, PrimValue::Int64(shape_len)};
 
       for (PrimExpr expr : item.pattern) {
         MatchShapeCode code = MatchShapeCode::kNoOp;
@@ -492,15 +455,15 @@ class VMShapeLowerMutator
           }
         }
         all_nop = all_nop && code == MatchShapeCode::kNoOp;
-        int_args.push_back(static_cast<int>(code));
-        int_args.push_back(rvalue);
+        args.push_back(PrimValue::Int64(static_cast<int>(code)));
+        args.push_back(PrimValue::Int64(rvalue));
       }
       if (num_outstanding_exprs != 0) {
         outstanding_todos.push_back(item);
       }
+      args.push_back(GetErrContext(item.err_ctx));
       if (!all_nop) {
-        Call call(call_builtin_op_, {builtin_match_shape_, Tuple({item.input, shape_heap_})},
-                  ExtraIntArgs(int_args, item.err_ctx));
+        Call call(builtin_match_shape_, args, Attrs(), {void_sinfo_});
         builder_->Emit(call, "_");
       }
     }
@@ -621,8 +584,9 @@ class VMShapeLowerMutator
     // emit runtime check of shape
     if (always_check || !IsBaseOf(ShapeStructInfo(op->ndim), GetStructInfo(value))) {
       // check_shape_info(value, ndim, err_ctx)
-      Call call(call_builtin_op_, {builtin_check_shape_info_, Tuple({value})},
-                ExtraIntArgs({op->ndim}, err_ctx));
+      Call call(builtin_check_shape_info_,
+                {value, PrimValue::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(),
+                {void_sinfo_});
       builder_->Emit(call, "_");
     }
     if (op->values.defined()) {
@@ -639,8 +603,9 @@ class VMShapeLowerMutator
     // emit runtime check of shape
     if (always_check || !IsBaseOf(TensorStructInfo(op->dtype, op->ndim), GetStructInfo(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
-      Call call(call_builtin_op_, {builtin_check_tensor_info_, Tuple({value})},
-                ExtraTensorInfoArgs(op->ndim, op->dtype, err_ctx));
+      Call call(builtin_check_tensor_info_,
+                {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype), GetErrContext(err_ctx)},
+                Attrs(), {void_sinfo_});
       builder_->Emit(call, "_");
     }
 
@@ -672,8 +637,7 @@ class VMShapeLowerMutator
       return ret;
     } else {
       // call runtime tuple get item, and return a object.
-      Call call(call_builtin_op_, {builtin_tuple_getitem_, Tuple({value})}, ExtraIntArgs({index}),
-                {object_sinfo_});
+      Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_sinfo_});
       UpdateStructInfo(call, ObjectStructInfo());
       return call;
     }
@@ -688,8 +652,10 @@ class VMShapeLowerMutator
     }
     if (always_check || !value_tinfo) {
       // check_tuple_info(value, tuple_size)
-      Call call(call_builtin_op_, {builtin_check_tuple_info_, Tuple({value})},
-                ExtraIntArgs({static_cast<int64_t>(op->fields.size())}, err_ctx));
+      Call call(builtin_check_tuple_info_,
+                {value, PrimValue::Int64(static_cast<int64_t>(op->fields.size())),
+                 GetErrContext(err_ctx)},
+                Attrs(), {void_sinfo_});
       builder_->Emit(call, "_");
     }
     // recursively visit each sub-field and run matching
@@ -704,8 +670,7 @@ class VMShapeLowerMutator
     // we only check function is callable.
     if (!always_check && MatchStructInfo<FuncStructInfo>(value)) return;
     // check_func_info(value, err_ctx)
-    Call call(call_builtin_op_, {builtin_check_func_info_, Tuple({value})},
-              ExtraIntArgs({}, err_ctx));
+    Call call(builtin_check_func_info_, {value, GetErrContext(err_ctx)}, Attrs(), {void_sinfo_});
     builder_->Emit(call, "_");
   }
 
@@ -728,10 +693,11 @@ class VMShapeLowerMutator
    */
   std::vector<PrimExprSlot*> ready_vars_;
   // call builtin cop
-  const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
+  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
   // common struct info
   const StructInfo object_sinfo_ = ObjectStructInfo();
+  const StructInfo void_sinfo_ = TupleStructInfo(Array<StructInfo>({}));
   // check function
   const ExternFunc builtin_alloc_shape_heap_{"vm.builtin.alloc_shape_heap"};
   const ExternFunc builtin_match_shape_{"vm.builtin.match_shape"};

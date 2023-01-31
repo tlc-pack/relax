@@ -208,7 +208,7 @@ def test_call_packed():
 def test_relax_base_op():
     @R.function
     def foo(x: R.Tensor((2, 4), dtype="float32")):
-        gv = R.call_builtin("test_intrin", [x], sinfo_args=R.Object)
+        gv = R.call_builtin_with_ctx("test_intrin", [x], sinfo_args=R.Object)
         return gv
 
     check_roundtrip(foo)

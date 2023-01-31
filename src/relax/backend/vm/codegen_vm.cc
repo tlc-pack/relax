@@ -22,7 +22,6 @@
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
 #include <tvm/driver/driver_api.h>
-#include <tvm/relax/attrs/builtin.h>
 #include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/set.h>
 #include <tvm/relax/attrs/shape.h>
@@ -159,10 +158,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         // If the operator has a registered packed function implementation, emit call to that packed
         // function.
         EmitPackedFuncCall(call, name, dst_reg);
-      } else if (call_node->op == call_builtin_op_) {
+      } else if (call_node->op == call_builtin_with_ctx_op_) {
         // TODO(relax-team) migrate most handling of op to
-        // directly map to call_builtin before codegen and simplify vm codegen.
-        EmitCallBuiltin(call, dst_reg);
+        // directly map to call_builtin_with_ctx before codegen and simplify vm codegen.
+        EmitCallBuiltinWithCtx(call, dst_reg);
       } else if (call_node->op == alloc_storage_op_) {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
@@ -360,14 +359,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
-  void EmitCallBuiltin(const Call& call_node, RegName dst_reg) {
-    auto builtin_attrs = call_node->attrs.as<BuiltinFuncAttrs>();
-    ICHECK(builtin_attrs != nullptr);
+  void EmitCallBuiltinWithCtx(const Call& call_node, RegName dst_reg) {
     std::vector<Instruction::Arg> args;
-    // if context is required, pass as first argument.
-    if (builtin_attrs->require_ctx) {
-      args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
-    }
+    args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
 
     auto func = this->VisitExpr(call_node->args[0]);
     auto tuple_arg = Downcast<Tuple>(call_node->args[1]);
@@ -375,21 +369,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // Handle args of the call
     for (Expr arg : tuple_arg->fields) {
       args.push_back(this->VisitExpr(arg));
-    }
-
-    if (builtin_attrs->int_args.defined()) {
-      for (auto val : builtin_attrs->int_args) {
-        args.push_back(builder_->ConvertConstant(val->value));
-      }
-    }
-    if (builtin_attrs->dtype_arg != DataType::Void()) {
-      args.push_back(builder_->ConvertConstant(builtin_attrs->dtype_arg));
-    }
-
-    if (builtin_attrs->str_args.defined()) {
-      for (auto val : builtin_attrs->str_args) {
-        args.push_back(builder_->ConvertConstant(val));
-      }
     }
 
     builder_->EmitCall(func, args, dst_reg);
@@ -463,7 +442,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
-  const Op& call_builtin_op_ = Op::Get("relax.call_builtin");
+  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
   const Op& unique_op_ = Op::Get("relax.unique");
   const Op& print_op_ = Op::Get("relax.print");
