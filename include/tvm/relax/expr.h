@@ -113,7 +113,7 @@ class CallNode : public ExprNode {
   /*!
    * \brief The structure info arguments of a CallNode.
    * sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
-   * call_tir, call_builtin, etc.) and calls to ExternFuncs, with the main
+   * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
    * usage of structure info inference.
    */
   Array<StructInfo> sinfo_args;
@@ -576,6 +576,14 @@ class PrimValue : public LeafExpr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit PrimValue(PrimExpr value, Span span = Span());
+
+  /*!
+   * \brief Create a int64 prim value.
+   * \param value The input value.
+   * \param span The source span of the expression.
+   * \return The created prim value.
+   */
+  TVM_DLL static PrimValue Int64(int64_t value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimValue, LeafExpr, PrimValueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
