@@ -561,12 +561,10 @@ class OperatorFusor : public ExprMutator {
   using Group = GraphPartitioner::Group;
   using GroupMap = std::unordered_map<const Object*, Group*>;
 
-  OperatorFusor(IRModule mod, const GroupMap& obj2group,
-                bool create_single_binding_function = false, bool lift_constants = true)
+  OperatorFusor(IRModule mod, const GroupMap& obj2group, bool lift_constants = true)
       : ExprMutator(mod),
         mod_(std::move(mod)),
         obj2group_(obj2group),
-        create_single_binding_function_(create_single_binding_function),
         lift_constants_(lift_constants) {}
 
   /*!
@@ -998,8 +996,7 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
       auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
       group_map.insert(map.begin(), map.end());
     }
-    mod = MakeGroupedFunctions(mod, group_map, /*create_single_binding_function*/ false,
-                               /*lift_constants*/ false);
+    mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ false);
   }
   return mod;
 }

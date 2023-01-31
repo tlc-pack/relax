@@ -107,7 +107,7 @@ class CodeGenRunner : ExprMutator {
     std::unordered_map<std::string, Array<Function>> target_functions;
 
     for (const auto& entry : mod->functions) {
-      PostOrderVisit(entry.second, [&target_functions, &target_options](Expr e) {
+      PostOrderVisit(entry.second, [&target_functions](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
           auto f = Downcast<Function>(e);
           if (auto target_opt = f->GetAttr<String>(attr::kCodegen)) {
