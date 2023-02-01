@@ -200,6 +200,15 @@ class ASTPrinter(ExprFunctor):
             false_branch=self.visit_expr(op.false_branch),
         )
 
+    def visit_prim_value_(self, op: relax.PrimValue) -> str:
+        return self.build_expr(op, "PrimValue", value=self.visit_prim_expr_(op.value))
+
+    def visit_string_imm_(self, op: relax.StringImm) -> str:
+        return self.build_expr(op, "StringImm", value=wrap_quotes(op.value))
+
+    def visit_data_type_imm_(self, op: relax.DataTypeImm) -> str:
+        return self.build_expr(op, "DataTypeImm", value=op.value)
+
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
         # op is not actually a Relax expr and does not have checked_type_
@@ -228,6 +237,8 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("ObjectType")
         if isinstance(type_node, relax.PackedFuncType):
             return self.build_ast_node("PackedFuncType")
+        if isinstance(type_node, tvm.ir.PrimType):
+            return self.build_ast_node("PrimType", dtype=type_node.dtype)
         if isinstance(type_node, relax.DynTensorType):
             fields = {}
             if type_node.ndim is not None:
