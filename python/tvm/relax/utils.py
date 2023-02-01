@@ -249,9 +249,9 @@ class _ArgsConverter:
 
         for param in sig.parameters.values():
             anno = param.annotation
-            if anno is Expr or anno is Optional[Expr]:
+            if anno in (Expr, Optional[Expr]):
                 args_to_expr.append(param.name)
-            elif anno is List[Expr] or anno is Optional[List[Expr]]:
+            if anno in (List[Expr], Optional[List[Expr]]):
                 args_to_list_expr.append(param.name)
 
         return _ArgsConverter.convert(args_to_expr, args_to_list_expr)(func)
