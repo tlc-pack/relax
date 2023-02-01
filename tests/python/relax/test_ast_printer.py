@@ -586,5 +586,47 @@ def test_tuple_get_item():
     assert "index=0" in body_str
 
 
+def test_prim_value():
+    prim_value = rx.PrimValue(tir.IntImm("int64", 1))
+    prim_str = strip_whitespace(dump_ast(prim_value))
+    assert prim_str == strip_whitespace(
+        """
+        PrimValue(
+            value=PrimExpr(value=`1i64`),
+            struct_info=PrimStructInfo(dtype=int64),
+            checked_type_=PrimType(dtype=int64)
+        )
+    """
+    )
+
+
+def test_string_imm():
+    string_imm = rx.StringImm("test")
+    str_str = strip_whitespace(dump_ast(string_imm))
+    assert str_str == strip_whitespace(
+        """
+        StringImm(
+            value="test",
+            struct_info=ObjectStructInfo(),
+            checked_type_=ObjectType()
+        )
+    """
+    )
+
+
+def test_datatype_imm():
+    data_type_imm = rx.DataTypeImm("int32")
+    data_type_str = strip_whitespace(dump_ast(data_type_imm))
+    assert data_type_str == strip_whitespace(
+        """
+        DataTypeImm(
+            value=int32,
+            struct_info=ObjectStructInfo(),
+            checked_type_=ObjectType()
+        )
+    """
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
