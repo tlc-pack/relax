@@ -360,6 +360,7 @@ class GraphCreator : public ExprVisitor {
  */
 class FunctionCreator : public ExprMutator {
  public:
+  explicit FunctionCreator(bool lift_constant) : lift_constant_(lift_constant) {}
   /*!
    * \brief Append a new binding to this function and possibly create new parameters for the
    * function accordingly
@@ -507,7 +508,8 @@ class FunctionCreator : public ExprMutator {
     // If the expression is not a variable or is a undefined variable, it should be populated as a
     // parameter of the relax function.
     const auto* var = expr.as<VarNode>();
-    if (var == nullptr || defined_vars_.count(var) == 0) {
+    if ((var == nullptr || defined_vars_.count(var) == 0) &&
+        (lift_constant_ || !expr->IsInstance<ConstantNode>())) {
       String name{nullptr};
       if (var != nullptr) {
         name = var->name_hint();
@@ -538,6 +540,8 @@ class FunctionCreator : public ExprMutator {
   int n_param_for_const_ = 0;
   /*! \brief The output vars */
   std::vector<const VarNode*> output_vars_;
+  /*! \brief Whether or not to lift bound constants to parameters */
+  bool lift_constant_;
 };
 
 /*!
@@ -560,6 +564,15 @@ class OperatorFusor : public ExprMutator {
  public:
   using Group = GraphPartitioner::Group;
   using GroupMap = std::unordered_map<const Object*, Group*>;
+
+  OperatorFusor(IRModule mod, const GroupMap& obj2group,
+                bool create_single_binding_function = false, bool lift_constants = true)
+      : ExprMutator(mod),
+        mod_(std::move(mod)),
+        obj2group_(obj2group),
+        create_single_binding_function_(create_single_binding_function),
+        lift_constants_(lift_constants) {}
+
   /*!
    * \brief Construct a new operator fusor. Given the indexed-forward graph and the graph partition
    * result on that graph, the constructor creates a mapping from each leaf AST object
@@ -569,26 +582,10 @@ class OperatorFusor : public ExprMutator {
    * \param graph The indexed-forward graph of the input IRModule
    * \param groups The grouped result of the group partition on the input indexed-forward graph.
    */
-  explicit OperatorFusor(IRModule mod, const IndexedForwardGraph& graph,
-                         const std::vector<Group*>& groups,
-                         bool create_single_binding_function = false)
-      : ExprMutator(mod),
-        mod_(std::move(mod)),
-        create_single_binding_function_(create_single_binding_function) {
-    for (int nid = 0; nid < static_cast<int>(graph.post_dfs_order.size()); ++nid) {
-      Group* group_root = groups[nid]->FindRoot();
-      ICHECK(group_root != nullptr);
-      ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
-      obj2group_[graph.post_dfs_order[nid]->ref] = group_root;
-    }
-  }
-
-  OperatorFusor(IRModule mod, const GroupMap& obj2group,
-                bool create_single_binding_function = false)
-      : ExprMutator(mod),
-        mod_(std::move(mod)),
-        obj2group_(obj2group),
-        create_single_binding_function_(create_single_binding_function) {}
+  OperatorFusor(IRModule mod, const IndexedForwardGraph& graph, const std::vector<Group*>& groups,
+                bool create_single_binding_function = false, bool lift_constant = true)
+      : OperatorFusor(mod, CreateGroupMap(graph, groups), create_single_binding_function,
+                      lift_constant) {}
 
   /*!
    * \brief The main transformation on the IRModule
@@ -606,6 +603,18 @@ class OperatorFusor : public ExprMutator {
   }
 
  private:
+  static GroupMap CreateGroupMap(const IndexedForwardGraph& graph,
+                                 const std::vector<Group*>& groups) {
+    GroupMap obj2group;
+    for (int nid = 0; nid < static_cast<int>(graph.post_dfs_order.size()); ++nid) {
+      Group* group_root = groups[nid]->FindRoot();
+      ICHECK(group_root != nullptr);
+      ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
+      obj2group[graph.post_dfs_order[nid]->ref] = group_root;
+    }
+    return obj2group;
+  }
+
   bool IsTupleOutput(Function f) {
     auto sinfo = GetStructInfo(f).as<FuncStructInfoNode>();
     ICHECK(sinfo);
@@ -730,8 +739,10 @@ class OperatorFusor : public ExprMutator {
       }
       // Add the binding to the grouped function it's in, and update the function information
       // accordingly.
-      FunctionCreator& func_info = group2func_[group];
-      func_info.AppendBinding(binding);
+      if (!group2func_.count(group)) {
+        group2func_.emplace(group, lift_constants_);
+      }
+      group2func_.find(group)->second.AppendBinding(binding);
     }
   }
 
@@ -757,10 +768,9 @@ class OperatorFusor : public ExprMutator {
             group_deps_[cur_group].insert(producer_group);
           }
 
-          if (producer_group != cur_group &&
-              group2func_.find(producer_group) != group2func_.end()) {
-            FunctionCreator& producer_func_info = group2func_[producer_group];
-            auto output_index = producer_func_info.AppendOutput(used_var);
+          if (auto producer = group2func_.find(producer_group);
+              producer_group != cur_group && producer != group2func_.end()) {
+            auto output_index = producer->second.AppendOutput(used_var);
             tuple_get_indices_[used_var.get()] = output_index;
           }
         }
@@ -866,6 +876,8 @@ class OperatorFusor : public ExprMutator {
   std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
   /*! \brief Whether or not a grouped function with a single binding should be created. */
   bool create_single_binding_function_{false};
+  /*! \brief Whether or not to lift bound constants to parameters of the grouped function. */
+  bool lift_constants_{true};
 };
 
 IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
@@ -880,13 +892,15 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 
   // Step 3. Transform the IRModule by fusing the operators in accordance with the graph partition
   // results.
-  return OperatorFusor(mod, graph, groups).Transform();
+  return OperatorFusor(mod, graph, groups, /*create_single_binding_function*/ false,
+                       /*lift_constants*/ true)
+      .Transform();
 }
 
 IRModule MakeGroupedFunctions(
     IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
-    bool create_single_binding_function) {
-  return OperatorFusor(mod, partition, create_single_binding_function).Transform();
+    bool create_single_binding_function, bool lift_constants) {
+  return OperatorFusor(mod, partition, create_single_binding_function, lift_constants).Transform();
 }
 
 static Map<Expr, Var> GetBindingInverse(const Map<Var, Expr>& binding) {
@@ -994,7 +1008,8 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
       auto map = PatternBasedPartitioner::Run(pattern_names[i], patterns[i], entry.second, &arena);
       group_map.insert(map.begin(), map.end());
     }
-    mod = MakeGroupedFunctions(mod, group_map);
+    mod = MakeGroupedFunctions(mod, group_map, /*create_single_binding_function*/ false,
+                               /*lift_constants*/ false);
   }
   return mod;
 }
