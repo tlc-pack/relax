@@ -378,6 +378,10 @@ class CodegenCBase {
       dtype = "int";
     } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 64)) {
       dtype = "int64_t";
+    } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 8)) {
+      dtype = "int8_t";
+    } else if (runtime::TypeMatch(ttype->dtype, kDLUInt, 8)) {
+      dtype = "uint8_t";
     } else {
       LOG(FATAL) << "Unsupported dtype " << ttype->dtype;
     }
