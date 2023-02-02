@@ -24,8 +24,6 @@
 
 #include <tvm/relay/op_attr_types.h>
 
-#include <optional>
-
 #include "../../support/arena.h"
 
 namespace tvm {
@@ -178,8 +176,8 @@ class GraphPartitioner {
      */
     uint32_t num_nodes{1};
 
-    /*! \brief The name to identify the pattern this group is created from, if any. */
-    std::optional<std::string> composite_name;
+    /*! \brief Optional attributes to annotate the grouped function. */
+    runtime::Map<runtime::String, ObjectRef> attrs;
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.
