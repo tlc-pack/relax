@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value
+# pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
 import os
 import multiprocessing
 import tvm
-from tvm import runtime, relay
+from tvm import runtime, relay, relax
 from tvm.contrib.nvcc import get_cuda_version
 from tvm._ffi.registry import register_func
 from .gen_gemm import CutlassGemmProfiler
@@ -516,6 +516,167 @@ def tune_cutlass_function(
     )
 
 
+def _extract_relax_function_info(f):
+    signature = {}
+
+    for i, arg in enumerate(f.params):
+        sinfo = arg.struct_info
+        signature["arg%d_shape" % i] = list(sinfo.shape)
+        signature["arg%d_dtype" % i] = sinfo.dtype
+
+    ret_sinfo = f.ret_struct_info
+    signature["ret_shape"] = list(ret_sinfo.shape)
+    signature["ret_dtype"] = ret_sinfo.dtype
+
+    op_attrs = {}
+
+    def fvisit(e):
+        nonlocal op_attrs
+        if isinstance(e, relax.Call) and str(e.op) in ["relax.nn.conv2d"]:
+            op_attrs = e.attrs
+
+    relax.analysis.post_order_visit(f.body, fvisit)
+
+    return signature, op_attrs
+
+
+@relax.expr_functor.mutator
+class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
+    """A Relax function mutator that tunes and annotates CUTLASS composite functions
+    with shape, dtype and generated templates.
+    """
+
+    def __init__(self, mod, conv2d_profiler, options):
+        super().__init__(mod)
+        self.options = options
+        self.conv2d_profiler = conv2d_profiler
+
+    def handle_conv2d(self, f, op_type):
+        """Tune and annotate a conv2d op."""
+        signature, op_attrs = _extract_relax_function_info(f)
+
+        d_shape = signature["arg0_shape"]
+        w_shape = signature["arg1_shape"]
+        out_shape = signature["ret_shape"]
+        data_dtype = signature["arg0_dtype"]
+        weight_dtype = signature["arg1_dtype"]
+        out_dtype = signature["ret_dtype"]
+        padding = op_attrs["padding"]
+        strides = op_attrs["strides"]
+        dilation = op_attrs["dilation"]
+        conv_kind = ConvKind.Fprop
+
+        use_3xtf32 = self.options.get("use_3xtf32", False)
+        profile_all_alignments = self.options.get("profile_all_alignments", False)
+        find_first_valid = self.options.get("find_first_valid", True)
+        use_multiprocessing = self.options.get("use_multiprocessing", True)
+        split_k_slices = self.options.get("split_k_slices", [1])
+
+        op_name, op_def, _ = self.conv2d_profiler.profile(
+            op_type,
+            d_shape,
+            w_shape,
+            padding,
+            strides,
+            dilation,
+            out_dtype,
+            data_dtype,
+            weight_dtype,
+            use_3xtf32,
+            conv_kind,
+            split_k_slices,
+            profile_all_alignments,
+            find_first_valid=find_first_valid,
+            use_multiprocessing=use_multiprocessing,
+        )
+
+        return f.with_attrs(
+            {
+                "op_type": op_type,
+                "arg0_dtype": data_dtype,
+                "arg1_dtype": weight_dtype,
+                "ret_dtype": out_dtype,
+                "arg0_shape": d_shape,
+                "arg1_shape": w_shape,
+                "ret_shape": out_shape,
+                "strides": strides,
+                "padding": padding,
+                "dilation": dilation,
+                "cutlass_op_name": op_name,
+                "cutlass_op_def": op_def,
+            }
+        )
+
+    def visit_function_(self, f):
+        if "Composite" not in f.attrs:
+            body = super().visit_expr(f.body)
+            return relax.Function(f.params, body, f.ret_struct_info, f.attrs, f.span)
+
+        op_type = f.attrs["Composite"]
+
+        if "conv2d" in op_type:
+            return self.handle_conv2d(f, op_type)
+
+        raise ValueError("Unsupported composite {}".format(op_type))
+
+    def visit_span(self, span):
+        return span
+
+
+@register_func("contrib.cutlass.tune_relax_function")
+def profile_relax_function(functions, options):
+    """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
+    tmp_dir = options.get("tmp_dir", "./tmp")
+    sm = options.get("sm", 80)
+    conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
+
+    annotated_functions = []
+
+    for f in functions:
+        annotator = CutlassRelaxFunctionAnnotator(
+            tvm.IRModule.from_expr(f), conv2d_profiler, options
+        )
+        annotated_functions.append(annotator.visit_expr(f))
+
+    return annotated_functions
+
+
+@register_func("contrib.cutlass.compile")
+def compile_cutlass_module(c_source_module, options):
+    """Compile all CUTLASS kernels in the given C-source module.
+
+    Parameters
+    ----------
+    c_source_module: runtime.Module
+        A C-source module containing CUTLASS kernels.
+
+    options: dict
+        Compilation options. Currently recognizes
+          "sm": The target architecture (compute capability), for example 75 or 80 (default: 80)
+          "threads": The number of threads to use in NVCC parallel compilation (default:
+          use all logical cores)
+          "use_fast_math": Whether or not to use faster but approximate arithmetic in some
+          CUTLASS epilogues (default: False)
+
+    Returns
+    -------
+    rt_mod : runtime.Module
+        A runtime module where all cutlass kernels have been compiled.
+    """
+    tmp_dir = options.get("tmp_dir", "./tmp")
+    defaults = {"sm": 80, "threads": -1, "use_fast_math": False}
+    compile_config = {key: options.get(key, val) for key, val in defaults.items()}
+
+    function_names = c_source_module.get_function("get_func_names")()
+    compile_options = _get_cutlass_compile_options(**compile_config)
+    lib_path = os.path.join(tmp_dir, "cutlass.o")
+    logger.info("Compiling generated CUTLASS code")
+    c_source_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
+
+    # Recover static library
+    return tvm.runtime.load_static_library(lib_path, function_names)
+
+
 @register_func("relay.ext.cutlass.compile_for_cutlass")
 def compile_for_cutlass(mod, cutlass_target):
     """Given an IRModule with at least one Compiler='cutlass' Relay function, return a
@@ -549,6 +710,7 @@ def compile_for_cutlass(mod, cutlass_target):
         key: cutlass_target.attrs.get(key) for key in ["sm", "threads", "use_fast_math"]
     }
     tmp_dir = cutlass_target.attrs.get("tmp_dir")
+    compile_config["tmp_dir"] = tmp_dir
 
     # Tune
     logger.info("Tuning for CUTLASS")
@@ -558,18 +720,7 @@ def compile_for_cutlass(mod, cutlass_target):
     logger.info("Creating CSource module for CUTLASS")
     create_c_source_module = tvm._ffi.get_global_func("relay.ext.cutlass.create_c_source_module")
     c_module = create_c_source_module(mod)
-    function_names = c_module.get_function("get_func_names")()
-    compile_options = _get_cutlass_compile_options(**compile_config)
-    lib_path = os.path.join(tmp_dir, "cutlass.o")
-    logger.info("Compiling generated CUTLASS code")
-    c_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
-
-    # Recover static library
-    logger.info("Loading compiled CUTLASS code")
-    final_mod = tvm.runtime.load_static_library(lib_path, function_names)
-
-    logger.info("Done with CUTLASS compilation")
-    return final_mod
+    return compile_cutlass_module(c_module, compile_config)
 
 
 def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):
@@ -633,3 +784,29 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
         fo.write(code)
     lib = tvm.runtime.load_module(lib_path)
     return tvm.runtime.vm.Executable.load_exec(code, lib)
+
+
+def finalize_modules_relax(vm_exec, lib_path="compile.so", tmp_dir="./tmp"):
+    """finalize_modules_vm equivalent for Relax VM.
+
+    Parameters
+    ----------
+    vm_exec : vm.Executable
+        The output from relax.vm.build containing compiled host code and kernels.
+
+    lib_path : string
+        The path to a shared library which will be generated as the result of the build process.
+
+    tmp_dir : string
+        A temporary directory where intermediate compiled artifacts will be stored.
+
+    Returns
+    -------
+    updated_vm_exec : relax.vm.Executable
+        The updated VM executable with all compilation and linking completed.
+    """
+    lib_path = os.path.join(tmp_dir, lib_path)
+    vm_exec.mod.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
+    lib = tvm.runtime.load_module(lib_path)
+
+    return relax.vm.Executable(lib)

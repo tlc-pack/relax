@@ -27,6 +27,8 @@
 
 #include <tvm/ir/transform.h>
 
+#include "../codegen_c/codegen_c.h"
+
 namespace tvm {
 namespace relay {
 namespace contrib {
@@ -39,6 +41,64 @@ namespace cutlass {
  * those functions using the CUTLASS C++ template library.
  */
 transform::Pass CompileForCutlass();
+
+// The rest is sparsely documented since they are exposed only for code sharing between Relay
+// and Relax backend implementations.
+using Str2StrMap = std::unordered_map<std::string, std::string>;
+
+inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int indent = 2) {
+  for (int i = 0; i < indent; ++i) {
+    os << " ";
+  }
+  os << stmt;
+}
+
+/*! \brief Convert a dimension attribute to a string */
+std::string GetDimAsStr(ObjectRef dim);
+
+/*! \brief Utilities for converting a attribute map for an op to a mapping between strings */
+Str2StrMap ArgsCommon(const Map<String, ObjectRef>& attrs);
+
+Str2StrMap GemmArgsCommon(const Map<String, ObjectRef>& attrs);
+
+Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs);
+
+Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs);
+
+Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
+                      bool is_wgrad = false);
+
+/*! \brief Utilities for emitting the body of GEMM or Conv2D kernels */
+void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
+                    const std::vector<std::string>& func_args, const std::string& kernel,
+                    bool has_bias, bool is_gelu, int m_axis_idx, int n_axis_idx, int k_axis_idx);
+
+void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel);
+
+std::string DenseOp(std::string id, const Str2StrMap& attrs,
+                    const std::vector<std::string>& func_args);
+
+std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
+                          const std::vector<std::string>& func_args);
+
+std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
+                     const std::vector<std::string>& func_args, bool has_residual_block = false);
+
+/*! \brief Get CUTLASS headers to be included by all generated source code */
+std::string EmitHeaders();
+
+/*! \brief Emit the function signature for a kernel */
+std::string EmitSignature(const std::vector<relay::contrib::Output>& out,
+                          const std::string& func_id, const std::vector<std::string>& arg_names);
+
+/*! \brief Generate the body of the kernel */
+GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
+                                const std::vector<std::string>& func_args,
+                                const std::vector<std::string>& output_types,
+                                const Str2StrMap& attribute_args, int* buf_idx);
+
+/*! \brief Create a C-source module from the given kernel string */
+runtime::Module Finalize(const std::string& code, const Array<String>& func_names);
 
 }  // namespace cutlass
 }  // namespace contrib

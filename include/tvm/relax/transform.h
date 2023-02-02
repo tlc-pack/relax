@@ -183,20 +183,21 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * of a fused function after successful matching.
  * \param patterns The patterns to detect. The order of the patterns determines the order
  * of priority in which they are matched. Higher-priority patterns should come earlier in the list.
+ * \param annotate_codegen If true, wrap each created composite function with another function,
+ * whose body consists only of a call to the composite function, and annotate the outer function
+ * with kCodegen and kGlobalSymbol attributes. The kCodegen attribute is set as the prefix of the
+ * corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
+ * This must be True if the created composite functions are intended to be offloaded to
+ * an external backend without using the MergeCompositeFunctions pass.
  * \return The Pass.
  */
 TVM_DLL Pass FuseOpsByPattern(const tvm::Array<runtime::String>& pattern_names,
-                              const tvm::Array<DFPattern>& patterns);
+                              const tvm::Array<DFPattern>& patterns, bool annotate_codegen = false);
 
 /*!
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new
  *  function. The new function will be annotated with kCodegen and GlobalSymbol attributes,
  *  and it is intented to be offloaded to an external backend.
- *
- *  Even if there is only one composite function, or a backend does not benefit from receiving
- *  larger subgraphs, this pass is required to run for offloading (BYOC) since a composite function
- *  needs to be wrapped by an outer function that are annotated with "Codegen" and "global_symbol"
- *  attributes.
  *
  * \return The Pass.
  */
