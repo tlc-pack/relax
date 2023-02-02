@@ -102,6 +102,16 @@ TVM_DLL Pass ToNonDataflow();
 TVM_DLL Pass CallTIRRewrite();
 
 /*!
+ * \brief Convert all reshape-like call_tir to VM reshape operator call.
+ * The VM reshape operator calls will be further lowered to a CreateView
+ * operation at runtime, instead of doing real data copy.
+ * Here "reshape-like" includes reshape, expand_dims, flatten, etc.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass RewriteDataflowReshape();
+
+/*!
  * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
  *
  * \return The Pass.
