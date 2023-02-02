@@ -35,6 +35,8 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/function.h>
 
+#include <optional>
+
 #include "../../support/arena.h"
 #include "utils.h"
 
