@@ -1002,7 +1002,7 @@ class PatternBasedPartitioner : ExprVisitor {
 /*!
  * \brief Wrap each created composite function with another function, whose body consists
  * only of a call to the composite function, and annotate the outer function  with kCodegen
- * and kGlobalSymbo attributes.
+ * and kGlobalSymbol attributes.
  */
 class CompositeFunctionAnnotator : public ExprMutator {
  public:

@@ -318,20 +318,6 @@ class Branch:
         return out
 
 
-@tvm.script.ir_module
-class Conv2dReLU:
-    @R.function
-    def main(
-        data: R.Tensor((1, 64, 56, 56), "float32"),
-        weight: R.Tensor((64, 64, 3, 3), "float32"),
-    ):
-        with R.dataflow():
-            conv = R.nn.relu(R.nn.conv2d(data, weight, padding=(1, 1)))
-            R.output(conv)
-
-        return conv
-
-
 conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=None)
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
@@ -380,7 +366,7 @@ def test_bind_params():
     weight_np = np.random.randn(64, 64, 3, 3).astype("float32")
     mod = tvm.transform.Sequential(
         [
-            relax.transform.BindParams("main", {"weight": weight_np}),
+            relax.transform.BindParams("main", {"weight1": weight_np}),
             relax.transform.FuseOpsByPattern([("dnnl.conv2d_relu", conv2d_relu_pat)]),
         ]
     )(Conv2dReLU)
