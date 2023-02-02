@@ -32,7 +32,10 @@ class PatternKindAnalyzer : public StmtExprVisitor {
  public:
   explicit PatternKindAnalyzer(const tir::PrimFunc& func) {
     for (const tir::Var& param : func->params) {
-      param_buffers_.insert(func->buffer_map.Get(param).value());
+      Optional<Buffer> param_buf = func->buffer_map.Get(param);
+      if (param_buf.defined()) {
+        param_buffers_.insert(param_buf.value());
+      }
     }
   }
 
