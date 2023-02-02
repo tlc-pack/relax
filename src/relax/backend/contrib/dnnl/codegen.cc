@@ -39,7 +39,7 @@ using backend::contrib::NodeEntries;
 
 class DNNLJSONSerializer : public JSONSerializer {
  public:
-  DNNLJSONSerializer(Map<Var, Expr> bindings, Map<Constant, String> constant_names)
+  DNNLJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -85,7 +85,7 @@ Array<runtime::Module> DNNLCompiler(Array<Function> functions, Map<String, Objec
   Array<runtime::Module> compiled_functions;
 
   for (const auto& func : functions) {
-    DNNLJSONSerializer serializer(AnalyzeVar2Value(func), constant_names);
+    DNNLJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();

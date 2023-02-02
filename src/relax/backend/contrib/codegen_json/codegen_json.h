@@ -153,10 +153,10 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   /*!
    * \brief Constructor
-   *
-   * \param constant_names TODO
+   * \param constant_names The names of all constants in the original module.
    */
-  explicit JSONSerializer(Map<Constant, String> constant_names) : constant_names_(constant_names) {}
+  explicit JSONSerializer(const Map<Constant, String>& constant_names)
+      : constant_names_(constant_names) {}
 
   void serialize(Function func) {
     // First we convert all the parameters into input nodes.
@@ -410,10 +410,10 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   std::vector<JSONGraphObjectPtr> nodes_;
   /*! \brief Output of the JSON graph. */
   NodeEntries heads_;
-  /*! \brief The list of required constants. */
+  /*! \brief The list of required constants, ordered. */
   Array<String> constants_used_;
-  /*! \brief TODO */
-  Map<Constant, String> constant_names_;
+  /*! \brief The names of all constants in the original module. */
+  const Map<Constant, String>& constant_names_;
 };
 
 }  // namespace contrib

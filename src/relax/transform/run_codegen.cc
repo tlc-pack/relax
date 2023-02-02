@@ -55,6 +55,7 @@ class CodeGenRunner : ExprMutator {
     }
 
     if (constant_names.size()) {
+      // Some backends (e.g. TensorRT) expect constants to be passed when they are instantiated
       Map<String, runtime::NDArray> constants;
       for (const auto& [constant, name] : constant_names) {
         ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
@@ -109,6 +110,7 @@ class CodeGenRunner : ExprMutator {
       size_t count = 0;
       PostOrderVisit(func->body, [=, &count](Expr e) {
         if (e->IsInstance<ConstantNode>()) {
+          // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
           auto constant = Downcast<Constant>(e);
           constant_names.Set(constant, name);
@@ -153,7 +155,7 @@ class CodeGenRunner : ExprMutator {
     return ext_mods;
   }
 
-  /*! \brief TODO */
+  /*! \brief The names of all constants in the original module. */
   Map<Constant, String> constant_names;
 };
 
