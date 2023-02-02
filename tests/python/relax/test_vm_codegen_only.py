@@ -300,3 +300,28 @@ def test_datatype_imm(exec_mode):
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"]()
     assert res == "float32"
+
+
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_vm_builtin_reshape(exec_mode):
+    @tvm.script.ir_module
+    class TestVMBuiltinReshape:
+        @R.function
+        def main(x: R.Tensor((3, 4), "float32")):
+            R.func_attr({"global_symbol": "main"})
+            y = R.call_packed(
+                "vm.builtin.reshape", x, (6, 2), sinfo_args=R.Tensor((6, 2), "float32")
+            )
+            return y
+
+    mod = TestVMBuiltinReshape
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    dev = tvm.cpu()
+    vm = relax.VirtualMachine(ex, dev)
+
+    input_np = np.random.rand(3, 4).astype("float32")
+    input = tvm.nd.array(input_np, dev)
+    res = vm["main"](input)
+    expected = input_np.reshape(6, 2)
+    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)

@@ -321,6 +321,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body([](TVMArgs args, TVMRetValue* rv
   *rv = args[0];
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeTuple new_shape) {
+  return data.CreateView(new_shape, data->dtype);
+});
+
 /*!
  * \brief Load the scalar value in cond and return the result value.
  * \param cond The condition
