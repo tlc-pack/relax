@@ -58,6 +58,28 @@ def test_annotate_opkind_outewisefusable():
     assert new_mod["tir_matmul"].attrs["op_pattern"] == OpPatternKind.kOutEWiseFusable
 
 
+def test_annotate_opkind_outewisefusable_int_var_signature():
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle, m: T.int64, n: T.int64, k: T.int64):
+            T.func_attr({"global_symbol": "tir_matmul"})
+            A = T.match_buffer(x, (m, n))
+            B = T.match_buffer(y, (n, k))
+            C = T.match_buffer(z, (m, k))
+
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+    mod = InputModule
+    new_mod = relax.transform.AnnotateTIROpPattern()(mod)
+    assert new_mod["tir_matmul"].attrs["op_pattern"] == OpPatternKind.kOutEWiseFusable
+
+
 def test_annotate_opkind_reduce():
     @tvm.script.ir_module
     class InputModule:
