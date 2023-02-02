@@ -475,19 +475,19 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
     CutlassPrint(conv2d_decl,
                  " reinterpret_cast<Conv2d::ElementAccumulator*> (workspace.get()),\n");
     CutlassPrint(conv2d_decl,
-                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::ImplicitGemmKernel::"
+                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::UnderlyingKernel::"
                  "kTensorCStrideIdx])\n");
     CutlassPrint(conv2d_decl, "},\n");
     CutlassPrint(conv2d_decl, "{\n");
     CutlassPrint(conv2d_decl, "tensor_d.data(),\n");
     CutlassPrint(conv2d_decl,
-                 "ReductionStrideIndex(tensor_d.stride()[Conv2d::ImplicitGemmKernel::"
+                 "ReductionStrideIndex(tensor_d.stride()[Conv2d::UnderlyingKernel::"
                  "kTensorCStrideIdx])\n");
     CutlassPrint(conv2d_decl, "},\n");
     CutlassPrint(conv2d_decl, "{\n");
     CutlassPrint(conv2d_decl, "tensor_c.data(),\n");
     CutlassPrint(conv2d_decl,
-                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::ImplicitGemmKernel::"
+                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::UnderlyingKernel::"
                  "kTensorCStrideIdx])\n");
     CutlassPrint(conv2d_decl, "},\n");
     CutlassPrint(conv2d_decl, "   {alpha, beta}\n");
