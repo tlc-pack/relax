@@ -22,6 +22,8 @@
  * \brief The 'custom' compilation pass for CUTLASS (invoked by the RelayToTIRTargetHook pass).
  */
 
+#include "codegen.h"
+
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
@@ -41,22 +43,6 @@ namespace relay {
 namespace contrib {
 namespace cutlass {
 
-namespace {
-
-/*! \brief Return the "cutlass" Target instance to use to guide compilation. */
-Target GetCutlassTarget() {
-  Target target = Target::Current(/*allow_not_defined=*/true);
-  if (!target.defined() || target->kind->name != "cutlass") {
-    // Use the default CUTLASS compilation options if no specific "cutlass" target was given
-    // in the overall targets list. In that case target_hooks.cc will invoke the custom pass
-    // without pushing any target instance onto the implicit target stack.
-    target = Target("cutlass");
-  }
-  return target;
-}
-
-using Str2StrMap = std::unordered_map<std::string, std::string>;
-
 static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"},
                                {"float32", "float"},
                                {"int8", "int8_t"},
@@ -70,13 +56,6 @@ std::string GetDimAsStr(ObjectRef dim) {
     return std::to_string(d->value);
   }
   return kAnyDim;
-}
-
-inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int indent = 2) {
-  for (int i = 0; i < indent; ++i) {
-    os << " ";
-  }
-  os << stmt;
 }
 
 Str2StrMap ArgsCommon(const Map<String, ObjectRef>& attrs) {
@@ -252,8 +231,7 @@ std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
   return gemm_decl.str();
 }
 
-Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
-                      bool is_wgrad = false) {
+Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad, bool is_wgrad) {
   Str2StrMap args = ArgsCommon(attrs);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
@@ -291,7 +269,7 @@ Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false
 }
 
 std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
-                     const std::vector<std::string>& func_args, bool has_residual_block = false) {
+                     const std::vector<std::string>& func_args, bool has_residual_block) {
   auto op_type = attrs.at("op_type");
   bool has_bias = op_type.find("bias") != std::string::npos;
   bool no_bias_scaling = op_type != "cutlass.conv2d_bias_sigmoid" &&
@@ -361,6 +339,7 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(conv2d_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
 
   if (has_residual_block) {
+    // TODO(masahi): This code assumes that there is always a bias_add in a residual block.
     ICHECK(func_args.size() >= 4);
     CutlassPrint(conv2d_decl, "void* ptr_bias = (void*)(" + func_args[2] + "->data);\n");
     CutlassPrint(conv2d_decl, "void* ptr_residual = (void*)(" + func_args[3] + "->data);\n");
@@ -497,19 +476,19 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
     CutlassPrint(conv2d_decl,
                  " reinterpret_cast<Conv2d::ElementAccumulator*> (workspace.get()),\n");
     CutlassPrint(conv2d_decl,
-                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::ImplicitGemmKernel::"
+                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::UnderlyingKernel::"
                  "kTensorCStrideIdx])\n");
     CutlassPrint(conv2d_decl, "},\n");
     CutlassPrint(conv2d_decl, "{\n");
     CutlassPrint(conv2d_decl, "tensor_d.data(),\n");
     CutlassPrint(conv2d_decl,
-                 "ReductionStrideIndex(tensor_d.stride()[Conv2d::ImplicitGemmKernel::"
+                 "ReductionStrideIndex(tensor_d.stride()[Conv2d::UnderlyingKernel::"
                  "kTensorCStrideIdx])\n");
     CutlassPrint(conv2d_decl, "},\n");
     CutlassPrint(conv2d_decl, "{\n");
     CutlassPrint(conv2d_decl, "tensor_c.data(),\n");
     CutlassPrint(conv2d_decl,
-                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::ImplicitGemmKernel::"
+                 "ReductionStrideIndex(tensor_c.stride()[Conv2d::UnderlyingKernel::"
                  "kTensorCStrideIdx])\n");
     CutlassPrint(conv2d_decl, "},\n");
     CutlassPrint(conv2d_decl, "   {alpha, beta}\n");
@@ -519,6 +498,117 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   }
 
   return conv2d_decl.str();
+}
+
+std::string EmitHeaders() {
+  std::ostringstream out;
+  // create header
+  out << "#include <cstdint>\n";
+  out << "#include <cstdlib>\n";
+  out << "#include <cstring>\n";
+  out << "#include <vector>\n";
+  out << "#include <tvm/runtime/c_runtime_api.h>\n";
+  out << "#include <tvm/runtime/packed_func.h>\n";
+  out << "#include <dlpack/dlpack.h>\n";
+  // cutlass header
+  out << "#include <cuda_fp16.h>\n";
+  out << "#include <cutlass/cutlass.h>\n";
+  out << "#include <cutlass/coord.h>\n";
+  out << "#include <cutlass/tensor_ref.h>\n";
+  out << "#include <cutlass/util/host_tensor.h>\n";
+  out << "#include <cutlass/gemm/device/gemm.h>\n";
+  out << "#include <cutlass/gemm/device/gemm_batched.h>\n";
+  out << "#include <cutlass/conv/kernel/default_conv2d_fprop.h>\n";
+  out << "#include <cutlass/conv/kernel/default_conv2d_wgrad.h>\n";
+  out << "#include <cutlass/conv/kernel/default_conv2d_dgrad.h>\n";
+  out << "#include <cutlass/conv/device/implicit_gemm_convolution.h>\n";
+  out << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
+  out << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
+  out << "#include <cutlass/epilogue/thread/linear_combination_sigmoid.h>\n";
+  out << "#include <cutlass/epilogue/thread/linear_combination_silu.h>\n";
+  out << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
+  out << "#include <cutlass/epilogue/thread/linear_combination_residual_block.h>\n";
+  out << "#include <cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h>\n";
+  out << "#include <cutlass/reduction/device/reduce_split_k.h>\n";
+  out << "#include <cutlass/reduction/thread/reduction_operators.h>\n";
+  return out.str();
+}
+
+std::string EmitSignature(const std::vector<Output>& out, const std::string& func_id,
+                          const std::vector<std::string>& arg_names) {
+  std::ostringstream code_stream_;
+  code_stream_ << "void " << func_id << "_(";
+  for (const auto& arg_name : arg_names) {
+    code_stream_ << "DLTensor* " << arg_name << ", ";
+  }
+  for (size_t i = 0; i < out.size() - 1; ++i) {
+    code_stream_ << "DLTensor* out" << i << ", ";
+  }
+  code_stream_ << "DLTensor* out" << out.size() - 1 << ")";
+  return code_stream_.str();
+}
+
+runtime::Module Finalize(const std::string& code, const Array<String>& func_names) {
+  ICHECK(!func_names.empty())
+      << "Should only create CUTLASS CSourceModule if have at least one CUTLASS partition";
+  const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
+  ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
+  VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
+  return (*pf)(code, "cu", func_names, /*const_vars=*/Array<String>());
+}
+
+bool IsConv2dResidualBlock(const std::string& func_name) {
+  return func_name.find("conv2d") != std::string::npos &&
+         func_name.find("residual") != std::string::npos;
+}
+
+GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
+                                const std::vector<std::string>& func_args,
+                                const std::vector<std::string>& output_types,
+                                const Str2StrMap& attribute_args, int* buf_idx) {
+  // Make function call with input buffers when visiting arguements
+  ICHECK_GT(func_args.size(), 0);
+  std::ostringstream decl_stream;
+  decl_stream << "(" << func_args[0];
+  for (size_t i = 1; i < func_args.size(); ++i) {
+    decl_stream << ", " << func_args[i];
+  }
+  GenerateBodyOutput ret;
+  for (const auto& out_type : output_types) {
+    const std::string out = "out" + std::to_string(*buf_idx++);
+    decl_stream << ", " << out;
+    Output output;
+    output.name = out;
+    output.dtype = out_type;
+    output.need_copy = false;
+    ret.outputs.push_back(output);
+  }
+  decl_stream << ");";
+  if (func_name.find("dense") != std::string::npos) {
+    ret.decl = DenseOp(ext_func_id, attribute_args, func_args);
+  } else if (func_name == "cutlass_batch_matmul") {
+    ret.decl = BatchMatmulOp(ext_func_id, attribute_args, func_args);
+  } else if (IsConv2dResidualBlock(func_name)) {
+    ret.decl = Conv2dOp(ext_func_id, attribute_args, func_args, true);
+  } else if (func_name.find("conv2d") != std::string::npos) {
+    ret.decl = Conv2dOp(ext_func_id, attribute_args, func_args);
+  }
+
+  return ret;
+}
+
+namespace {
+
+/*! \brief Return the "cutlass" Target instance to use to guide compilation. */
+Target GetCutlassTarget() {
+  Target target = Target::Current(/*allow_not_defined=*/true);
+  if (!target.defined() || target->kind->name != "cutlass") {
+    // Use the default CUTLASS compilation options if no specific "cutlass" target was given
+    // in the overall targets list. In that case target_hooks.cc will invoke the custom pass
+    // without pushing any target instance onto the implicit target stack.
+    target = Target("cutlass");
+  }
+  return target;
 }
 
 class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output>>,
@@ -549,15 +639,13 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   }
 
   std::string JIT(const std::vector<Output>& out) {
-    code_stream_ << "void " << ext_func_id_ << "_(";
-
+    std::vector<std::string> arg_names;
     for (const auto& arg : ext_func_args_) {
-      code_stream_ << "DLTensor* " << arg->name_hint() << ", ";
+      arg_names.push_back(arg->name_hint());
     }
-    for (size_t i = 0; i < out.size() - 1; ++i) {
-      code_stream_ << "DLTensor* out" << i << ", ";
-    }
-    code_stream_ << "DLTensor* out" << out.size() - 1 << ") {\n";
+
+    code_stream_ << EmitSignature(out, ext_func_id_, arg_names) << "{\n";
+
     this->EnterScope();
 
     // Function body
@@ -588,11 +676,6 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
       }
     }
     return arg_names;
-  }
-
-  bool IsConv2dResidualBlock(const std::string& func_name) {
-    return func_name.find("conv2d") != std::string::npos &&
-           func_name.find("residual") != std::string::npos;
   }
 
   // Is node `x` an ancestor of `y`?
@@ -712,9 +795,24 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
         residual_index = IsAncestor(rhs, lhs) ? 1 : 0;
       }
       const auto* non_residual_input = binop->args[!residual_index].as<CallNode>();
+      const auto residual_input = binop->args[residual_index];
       const auto* conv2d_call = GetRootCall(non_residual_input, "nn.conv2d");
       ICHECK(conv2d_call);
-      return GenerateBody(conv2d_call, pattern_name.value(), GetArgumentNames(caller),
+      auto call_args = GetArgumentNames(caller);
+      auto func_args = call_args;
+      if (call_args.size() == 3) {
+        // TODO(masahi): This code assumes that there is always a bias_add in a residual block.
+        for (size_t i = 0; i < call_args.size(); ++i) {
+          if (callee->params[i] == residual_input) {
+            auto residual_input_name = call_args[i];
+            func_args.push_back(residual_input_name);
+          }
+        }
+      } else {
+        ICHECK_EQ(func_args.size(), 4) << "Residual block fusion expects 4 input tensors: data, "
+                                          "weight, bias, and residual tensor.";
+      }
+      return GenerateBody(conv2d_call, pattern_name.value(), func_args,
                           Conv2dArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.conv2d_transpose") {
       const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0,
@@ -734,14 +832,6 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
                                   const std::vector<std::string>& func_args,
                                   const Str2StrMap& attribute_args) {
-    // Make function call with input buffers when visiting arguements
-    ICHECK_GT(func_args.size(), 0);
-    std::ostringstream decl_stream;
-    decl_stream << "(" << func_args[0];
-    for (size_t i = 1; i < func_args.size(); ++i) {
-      decl_stream << ", " << func_args[i];
-    }
-    // Analyze the output buffers
     std::vector<Type> out_types;
     if (root_call->checked_type()->IsInstance<TupleTypeNode>()) {
       auto type_node = root_call->checked_type().as<TupleTypeNode>();
@@ -755,29 +845,16 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
     } else {
       LOG(FATAL) << "Unrecognized type node: " << AsText(root_call->checked_type(), false);
     }
-    GenerateBodyOutput ret;
+
+    std::vector<std::string> out_types_str;
     for (const auto& out_type : out_types) {
-      const std::string out = "out" + std::to_string(buf_idx_++);
-      decl_stream << ", " << out;
-      Output output;
-      output.name = out;
-      output.dtype = GetDtypeString(out_type.as<TensorTypeNode>());
-      output.need_copy = false;
-      ret.outputs.push_back(output);
-    }
-    decl_stream << ");";
-    if (func_name.find("dense") != std::string::npos) {
-      ret.decl = DenseOp(ext_func_id_, attribute_args, func_args);
-    } else if (func_name == "cutlass_batch_matmul") {
-      ret.decl = BatchMatmulOp(ext_func_id_, attribute_args, func_args);
-    } else if (IsConv2dResidualBlock(func_name)) {
-      ret.decl = Conv2dOp(ext_func_id_, attribute_args, func_args, true);
-    } else if (func_name.find("conv2d") != std::string::npos) {
-      ret.decl = Conv2dOp(ext_func_id_, attribute_args, func_args);
+      out_types_str.push_back(GetDtypeString(out_type.as<TensorTypeNode>()));
     }
 
-    return ret;
+    return cutlass::GenerateBody(func_name, ext_func_id_, func_args, out_types_str, attribute_args,
+                                 &buf_idx_);
   }
+
   /*! \brief The id of the external cutlass ext_func. */
   std::string ext_func_id_;
   /*! \brief The attrs of the external cutlass ext_func. */
@@ -800,48 +877,17 @@ class CutlassModuleCodegen {
   explicit CutlassModuleCodegen(IRModule mod) : mod_(std::move(mod)) {}
 
   runtime::Module CreateCSourceModule() {
-    EmitPreamble();
-    for (const auto& kv : mod_->functions) {
-      if (const auto* function_node = GetCutlassFunctionNode(kv.second)) {
+    code_stream_ << EmitHeaders();
+
+    for (const auto& entry : mod_->functions) {
+      if (const auto* function_node = GetCutlassFunctionNode(entry.second)) {
         GenCutlassFunc(GetRef<Function>(function_node));
       }
     }
-    return Finalize();
+    return Finalize(code_stream_.str(), func_names_);
   }
 
  private:
-  void EmitPreamble() {
-    // create header
-    code_stream_ << "#include <cstdint>\n";
-    code_stream_ << "#include <cstdlib>\n";
-    code_stream_ << "#include <cstring>\n";
-    code_stream_ << "#include <vector>\n";
-    code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
-    code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
-    code_stream_ << "#include <dlpack/dlpack.h>\n";
-    // cutlass header
-    code_stream_ << "#include <cuda_fp16.h>\n";
-    code_stream_ << "#include <cutlass/cutlass.h>\n";
-    code_stream_ << "#include <cutlass/coord.h>\n";
-    code_stream_ << "#include <cutlass/tensor_ref.h>\n";
-    code_stream_ << "#include <cutlass/util/host_tensor.h>\n";
-    code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
-    code_stream_ << "#include <cutlass/gemm/device/gemm_batched.h>\n";
-    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_fprop.h>\n";
-    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_wgrad.h>\n";
-    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_dgrad.h>\n";
-    code_stream_ << "#include <cutlass/conv/device/implicit_gemm_convolution.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_sigmoid.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_silu.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
-    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_residual_block.h>\n";
-    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h>\n";
-    code_stream_ << "#include <cutlass/reduction/device/reduce_split_k.h>\n";
-    code_stream_ << "#include <cutlass/reduction/thread/reduction_operators.h>\n";
-  }
-
   void GenCutlassFunc(const Function& function) {
     ICHECK(function.defined()) << "Input error: expect a Relay function.";
 
@@ -863,15 +909,6 @@ class CutlassModuleCodegen {
     VLOG(1) << "Creating cutlass C code for '" << sid << "' from:\n" << PrettyPrint(function);
     auto out = builder.VisitExpr(function->body);
     code_stream_ << builder.JIT(out);
-  }
-
-  runtime::Module Finalize() {
-    ICHECK(!func_names_.empty())
-        << "Should only create CUTLASS CSourceModule if have at least one CUTLASS partition";
-    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
-    ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
-    VLOG(1) << "Generated CUTLASS code:" << std::endl << code_stream_.str();
-    return (*pf)(code_stream_.str(), "cu", func_names_, /*const_vars=*/Array<String>());
   }
 
   /*!
