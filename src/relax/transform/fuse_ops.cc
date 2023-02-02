@@ -987,8 +987,72 @@ class PatternBasedPartitioner : ExprVisitor {
   GroupMap group_map_;
 };
 
+/*!
+ * \brief Wrap each created composite function with another function, whose body consists
+ * only of a call to the composite function, and annotate the outer function  with kCodegen
+ * and kGlobalSymbol attributes.
+ */
+class CompositeFunctionAnnotator : public ExprMutator {
+ public:
+  explicit CompositeFunctionAnnotator(IRModule mod) : ExprMutator(mod) {}
+  using ExprMutator::VisitExpr_;
+
+  IRModule Run() {
+    auto mod = builder_->GetContextIRModule();
+    auto gvar = mod->GetGlobalVar("main");
+    auto func = Downcast<Function>(mod->Lookup(gvar));
+    auto new_func =
+        Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->attrs);
+    builder_->UpdateFunction(gvar, new_func);
+    return builder_->GetContextIRModule();
+  }
+
+  Expr VisitExpr_(const CallNode* call_node) final {
+    if (auto const* gvar = call_node->op.as<GlobalVarNode>()) {
+      auto func = builder_->GetContextIRModule()->Lookup(GetRef<GlobalVar>(gvar));
+      if (auto composite_name = func->GetAttr<String>(attr::kComposite)) {
+        auto new_func = Downcast<Function>(VisitExpr(func));
+        auto codegen_name = GetCodegenName(composite_name.value());
+        auto gsymbol = gvar->name_hint + "_" + codegen_name;
+        new_func = WithAttrs(new_func,
+                             {{attr::kCodegen, codegen_name}, {tvm::attr::kGlobalSymbol, gsymbol}});
+        builder_->GetContextIRModule()->Remove(GetRef<GlobalVar>(gvar));
+        auto new_gvar = builder_->AddFunction(new_func, gsymbol);
+        return Call(new_gvar, call_node->args);
+      }
+    }
+    return ExprMutator::VisitExpr_(call_node);
+  }
+
+  Expr VisitExpr_(const FunctionNode* func_node) final {
+    auto f_inner = ExprMutator::VisitExpr_(func_node);
+    auto composite_name = func_node->GetAttr<String>(attr::kComposite);
+    ICHECK(composite_name);
+
+    Array<Var> param_vars;
+    Array<Expr> params;
+
+    for (auto v : func_node->params) {
+      Var new_v(v->name_hint(), GetStructInfo(v));
+      param_vars.push_back(new_v);
+      params.push_back(new_v);
+    }
+
+    return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info);
+  }
+
+ private:
+  String GetCodegenName(const std::string& composite_name) {
+    auto delim_pos = composite_name.find(".");
+    ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
+                                              "start with a compiler name followed by period.";
+    return composite_name.substr(0, delim_pos);
+  }
+};
+
 IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
-                          const tvm::Array<DFPattern>& patterns, IRModule mod) {
+                          const tvm::Array<DFPattern>& patterns, IRModule mod,
+                          bool annotate_codegen) {
   support::Arena arena;
   for (size_t i = 0; i < pattern_names.size(); ++i) {
     OperatorFusor::GroupMap group_map;
@@ -997,6 +1061,9 @@ IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
       group_map.insert(map.begin(), map.end());
     }
     mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ false);
+  }
+  if (annotate_codegen) {
+    return CompositeFunctionAnnotator(mod).Run();
   }
   return mod;
 }
@@ -1019,10 +1086,10 @@ Pass FuseOps(int fuse_opt_level) {
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<String>& pattern_names,
-                      const tvm::Array<DFPattern>& patterns) {
+                      const tvm::Array<DFPattern>& patterns, bool annotate_codegen) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        return relax::FuseOpsByPattern(pattern_names, patterns, m);
+        return relax::FuseOpsByPattern(pattern_names, patterns, m, annotate_codegen);
       };
   return CreateModulePass(/*pass_function=*/pass_func,       //
                           /*opt_level=*/0,                   //
