@@ -54,6 +54,15 @@ class CodeGenRunner : ExprMutator {
       out_mod = WithAttr(out_mod, tvm::attr::kExternalMods, std::move(ext_mods));
     }
 
+    if (constant_names.size()) {
+      Map<String, runtime::NDArray> constants;
+      for (const auto& [constant, name] : constant_names) {
+        ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
+        constants.Set(name, constant->data);
+      }
+      out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
+    }
+
     // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
     return RemoveUnusedFunctions(out_mod, entry_functions);
   }
@@ -96,6 +105,15 @@ class CodeGenRunner : ExprMutator {
     Function func = GetRef<Function>(func_node);
     auto opt_codegen = func->GetAttr<String>(attr::kCodegen);
     if (opt_codegen) {
+      auto ext_symbol = GetExtSymbol(func);
+      size_t count = 0;
+      PostOrderVisit(func->body, [=, &count](Expr e) {
+        if (e->IsInstance<ConstantNode>()) {
+          auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
+          auto constant = Downcast<Constant>(e);
+          constant_names.Set(constant, name);
+        }
+      });
       return ExternFunc(GetExtSymbol(func));
     } else {
       return ExprMutator::VisitExpr_(func_node);
@@ -128,12 +146,15 @@ class CodeGenRunner : ExprMutator {
       auto codegen = runtime::Registry::Get(codegen_name);
       ICHECK(codegen) << "Codegen is not found: " << codegen_name << "\n";
 
-      Array<runtime::Module> compiled_functions = (*codegen)(functions, options);
+      Array<runtime::Module> compiled_functions = (*codegen)(functions, options, constant_names);
       ext_mods.insert(ext_mods.end(), compiled_functions.begin(), compiled_functions.end());
     }
 
     return ext_mods;
   }
+
+  /*! \brief TODO */
+  Map<Constant, String> constant_names;
 };
 
 }  // namespace relax

@@ -39,8 +39,8 @@ using backend::contrib::NodeEntries;
 
 class DNNLJSONSerializer : public JSONSerializer {
  public:
-  DNNLJSONSerializer(const std::string& symbol, const Map<Var, Expr>& bindings)
-      : JSONSerializer(symbol), bindings_(bindings) {}
+  DNNLJSONSerializer(Map<Var, Expr> bindings, Map<Constant, String> constant_names)
+      : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
 
@@ -80,18 +80,19 @@ class DNNLJSONSerializer : public JSONSerializer {
   Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> DNNLCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/) {
+Array<runtime::Module> DNNLCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+                                    Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
 
   for (const auto& func : functions) {
-    auto func_name = GetExtSymbol(func);
-    DNNLJSONSerializer serializer(func_name, AnalyzeVar2Value(func));
+    DNNLJSONSerializer serializer(AnalyzeVar2Value(func), constant_names);
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
-    auto param_names = serializer.GetParams();
+    auto constant_names = serializer.GetConstantNames();
     const auto* pf = runtime::Registry::Get("runtime.DNNLJSONRuntimeCreate");
     ICHECK(pf != nullptr) << "Cannot find DNNL runtime module create function.";
-    compiled_functions.push_back((*pf)(func_name, graph_json, param_names));
+    auto func_name = GetExtSymbol(func);
+    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
   }
 
   return compiled_functions;

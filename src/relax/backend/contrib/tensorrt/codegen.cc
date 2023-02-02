@@ -91,107 +91,13 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* constant_node) final;
   void VisitExpr_(const CallNode* call_node) final;
-  /*
-    void SetPadNodeAttribute(const CallNode* call_node) {
-      const auto* pad_attr = call_node->attrs.as<PadAttrs>();
-      ICHECK(pad_attr);
-      auto p = pad_attr->pad_width;
-      const int dim_h = (p.size() == 5) ? 3 : 2;
-      const int dim_w = (p.size() == 5) ? 4 : 3;
-      std::vector<std::string> padding = {std::to_string(p[dim_h][0].as<IntImmNode>()->value),
-                                          std::to_string(p[dim_w][0].as<IntImmNode>()->value),
-                                          std::to_string(p[dim_h][1].as<IntImmNode>()->value),
-                                          std::to_string(p[dim_w][1].as<IntImmNode>()->value)};
-      std::vector<dmlc::any> padding_attr;
-      padding_attr.emplace_back(padding);
-      node_->SetAttr("padding", padding_attr);
-    }
 
-    void SetStridedSliceNodeAttribute(const CallNode* call_node) {
-      const auto* attrs = call_node->attrs.as<StridedSliceAttrs>();
-      ICHECK(attrs && attrs->begin && attrs->end && attrs->strides)
-          << "StridedSlice must have static begin, end, and strides.";
-      const bool default_strides =
-          !attrs->strides.value().defined() || attrs->strides.value().size() == 0;
-      auto ishape = backend::GetShape(call_node->args[0]->checked_type());
+  void SetGenericAttributes(const CallNode* call_node) {
+    OpAttrExtractor extractor(node_);
+    const Object* attr_obj = call_node->attrs.get();
+    extractor.Extract(const_cast<Object*>(attr_obj));
+  }
 
-      auto process_slice_index = [](Integer x, int default_value, int dim_value) {
-        if (!x.defined()) return default_value;
-        int value = x.as<IntImmNode>()->value;
-        if (value < 0) value += dim_value;
-        return value;
-      };
-
-      std::vector<std::string> start, size, strides;
-      for (size_t i = 0; i < attrs->begin.value().size(); ++i) {
-        const int begin_value = process_slice_index(attrs->begin.value()[i], 0, ishape[i]);
-        ICHECK_GE(begin_value, 0);
-        start.push_back(std::to_string(begin_value));
-        const int stride_value = (default_strides || i >= attrs->strides.value().size() ||
-                                  !attrs->strides.value()[i].defined())
-                                     ? 1
-                                     : attrs->strides.value()[i].as<IntImmNode>()->value;
-        ICHECK_GT(stride_value, 0);
-        strides.push_back(std::to_string(stride_value));
-        int size_value;
-        if (attrs->slice_mode == "end") {
-          const int end_value = process_slice_index(attrs->end.value()[i], ishape[i], ishape[i]);
-          size_value = (end_value - begin_value + stride_value - 1) / stride_value;
-        } else if (attrs->slice_mode == "size") {
-          // with slice_mode = "size", attrs->end_value mean the size of the slice
-          int end_value = attrs->end.value()[i].as<IntImmNode>()->value;
-          size_value = (end_value == -1) ? ishape[i] - begin_value : end_value;
-        } else {
-          LOG(FATAL) << "Unexpected slice_mode " << attrs->slice_mode << ", expected end or size";
-          throw;
-        }
-        ICHECK_GT(size_value, 0);
-        size.push_back(std::to_string(size_value));
-      }
-      std::vector<dmlc::any> start_attr, size_attr, strides_attr;
-      start_attr.emplace_back(start);
-      size_attr.emplace_back(size);
-      strides_attr.emplace_back(strides);
-      node_->SetAttr("start", start_attr);
-      node_->SetAttr("size", size_attr);
-      node_->SetAttr("strides", strides_attr);
-    }
-
-    void SetSplitNodeAttribute(const CallNode* call_node) {
-      const auto* split_attr = call_node->attrs.as<SplitAttrs>();
-      ICHECK(split_attr);
-
-      std::vector<std::string> indices_or_sections;
-      std::vector<std::string> mode;
-      std::vector<std::string> axis = {std::to_string(split_attr->axis)};
-      if (const auto* sections = split_attr->indices_or_sections.as<IntImmNode>()) {
-        mode.emplace_back("sections");
-        indices_or_sections.emplace_back(std::to_string(sections->value));
-      } else {
-        mode.emplace_back("indices");
-        auto indices = Downcast<tvm::Array<Integer>>(split_attr->indices_or_sections);
-        for (const auto& i : indices) {
-          indices_or_sections.emplace_back(std::to_string(i->value));
-        }
-      }
-
-      std::vector<dmlc::any> indices_or_sections_attr;
-      std::vector<dmlc::any> mode_attr;
-      std::vector<dmlc::any> axis_attr;
-      indices_or_sections_attr.emplace_back(indices_or_sections);
-      mode_attr.emplace_back(mode);
-      axis_attr.emplace_back(axis);
-      node_->SetAttr("indices_or_sections", indices_or_sections_attr);
-      node_->SetAttr("mode", mode_attr);
-      node_->SetAttr("axis", axis_attr);
-    }
-
-    void SetGenericAttributes(const CallNode* call_node) {
-      OpAttrExtractor extractor(node_);
-      const Object* attr_obj = call_node->attrs.get();
-      extractor.Extract(const_cast<Object*>(attr_obj));
-    }
-  */
   TensorRTJSONSerializer* serializer_;
   /*! \brief Accumulated translated arguments. */
   std::vector<JSONGraphNodeEntry> args_;
@@ -209,23 +115,24 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
-  explicit TensorRTJSONSerializer(const std::string& symbol) : JSONSerializer(symbol) {}
+  explicit TensorRTJSONSerializer(Map<Var, Expr> bindings, Map<Constant, String> constant_names)
+      : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     // The call must be to an inline "Composite" function
-    const auto* function_node = call_node->op.as<FunctionNode>();
-    // ICHECK(function_node != nullptr);
-    if (!function_node) return JSONSerializer::VisitExpr_(call_node);
+    const auto* fn_var = call_node->op.as<VarNode>();
+    ICHECK(fn_var);
+    const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
 
-    auto opt_composite = function_node->GetAttr<String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<String>(attr::kComposite);
     ICHECK(opt_composite.defined());
     std::string name = opt_composite.value();
 
     // Collect the constants and attributes of all operator calls inside the composite body.
     CollectFromCompositeFunctionBody collector(this);
-    collector.VisitExpr(function_node->body);
+    collector.VisitExpr(fn->body);
 
     // Capture the args to the "Composite" function as inputs for this node.
     std::vector<JSONGraphNodeEntry> inputs;
@@ -238,9 +145,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     for (const auto& node : collector.args_) {
       inputs.emplace_back(node);
     }
-    // TODO(@sunggg): Revisit when we have op naming convention.
-    // Currently, simply remove "relax." prefix to make it work.
-    name = std::string("tensorrt.") + name.substr(6);
+
     // Create the final node.
     auto node = std::make_shared<JSONGraphNode>(name,
                                                 /*op_type=*/"kernel", inputs,
@@ -285,6 +190,10 @@ class TensorRTJSONSerializer : public JSONSerializer {
     node->SetAttr("use_fp16", use_fp16_attr);
     node->SetAttr("use_uint8", use_uint8_attr);
   }
+
+ private:
+  /*! \brief The bindings to look up composite functions. */
+  Map<Var, Expr> bindings_;
 };
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
@@ -294,21 +203,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_n
 }
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
-  const auto* op_node = call_node->op.as<OpNode>();
-  ICHECK(op_node != nullptr);
-  std::string name = op_node->name;
-  /*
-  // TODO(@sunggg): revisit when relax supports these ops.
-  if (name == "nn.pad") {
-    SetPadNodeAttribute(call_node);
-  } else if (name == "strided_slice") {
-    SetStridedSliceNodeAttribute(call_node);
-  } else if (name == "split") {
-    SetSplitNodeAttribute(call_node);
-  } else {
-    SetGenericAttributes(call_node);
-  }
-  */
+  SetGenericAttributes(call_node);
   ExprVisitor::VisitExpr_(call_node);
 }
 
@@ -318,20 +213,21 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  * \return Runtime modules.
  */
 Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
-                                        Map<String, ObjectRef> /*unused*/) {
+                                        Map<String, ObjectRef> /*unused*/,
+                                        Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
-    std::string func_name = GetExtSymbol(func);
     VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
-    TensorRTJSONSerializer serializer(func_name);
+    TensorRTJSONSerializer serializer(AnalyzeVar2Value(func), constant_names);
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
-    auto param_names = serializer.GetParams();
+    auto constant_names = serializer.GetConstantNames();
     const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
     ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+    std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, param_names));
+    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
   }
   return compiled_functions;
 }
