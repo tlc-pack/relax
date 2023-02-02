@@ -56,10 +56,10 @@ class Conv2dReLUx2:
     ):
         with R.dataflow():
             conv1 = relax.op.nn.relu(relax.op.nn.conv2d(data, weight1, padding=(1, 1)))
-            conv2d = relax.op.nn.relu(relax.op.nn.conv2d(conv1, weight2, padding=(0, 0)))
-            R.output(conv2d)
+            conv2 = relax.op.nn.relu(relax.op.nn.conv2d(conv1, weight2, padding=(0, 0)))
+            R.output(conv2)
 
-        return conv2d
+        return conv2
 
 
 has_dnnl = tvm.get_global_func("relax.ext.dnnl", True)

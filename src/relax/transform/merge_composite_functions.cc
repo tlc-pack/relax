@@ -71,20 +71,11 @@ using relay::GraphPartitioner;
 
 namespace {
 
-/*! \brief Extract the target name from the given composite name, for example, "dnnl.conv2d_relu" ->
- * "dnnl" */
-static String GetCodegenName(const std::string& composite_name) {
-  auto delim_pos = composite_name.find(".");
-  ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
-                                            "start with a compiler name followed by period.";
-  return composite_name.substr(0, delim_pos);
-}
-
 /*! \brief A label for a group of composite functions, consisting of the representative group and
  * the target backend name */
 struct CompositeGroup {
   GraphPartitioner::Group* representative;
-  std::string target;
+  String target;
 };
 
 /*! \brief Assign a "CompositeGroup" label to each subexpression in a function according to its
@@ -157,15 +148,15 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
 
   CompositeGroup VisitExpr_(const CallNode* call) {
     // Only a call to a composite function is relevant.
-    if (auto composite_name = GetCompositeName(call->op)) {
+    if (auto codegen_name = GetCodegenName(call->op)) {
       // Designate one of the parent groups as the "representative" group.
-      auto rep_group = GetRepresentative(call->args, *composite_name);
+      auto rep_group = GetRepresentative(call->args, *codegen_name);
 
       if (rep_group->num_nodes != 0) {
         // Merge other parent groups into the representative group.
         for (const auto& arg : call->args) {
           auto& arg_group = memo_[arg];
-          if (arg_group.target == composite_name && arg_group.representative != rep_group) {
+          if (arg_group.target == codegen_name && arg_group.representative != rep_group) {
             rep_group->num_nodes += arg_group.representative->num_nodes;
             arg_group.representative->num_nodes = 0;
             arg_group.representative = rep_group;
@@ -175,13 +166,20 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
 
       // Merge this call node into the representative group.
       ++rep_group->num_nodes;
-      return CompositeGroup{rep_group, *composite_name};
+      return CompositeGroup{rep_group, *codegen_name};
     }
     return default_group_;
   }
 
  private:
-  std::optional<std::string> GetCompositeName(const Expr& callee) {
+  String GetCodegenName(const std::string& composite_name) {
+    auto delim_pos = composite_name.find(".");
+    ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
+                                              "start with a compiler name followed by period.";
+    return composite_name.substr(0, delim_pos);
+  }
+
+  std::optional<String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
     if (!gvar) {
       return std::nullopt;
@@ -196,7 +194,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
     return GetCodegenName(composite_name_opt.value());
   }
 
-  Group* GetRepresentative(const Array<Expr>& args, const std::string& composite_name) {
+  Group* GetRepresentative(const Array<Expr>& args, String codegen_name) {
     Group* rep = nullptr;
     std::unordered_set<Group*> parent_deps;
 
@@ -209,7 +207,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
 
     for (const auto& arg : args) {
       auto arg_group = memo_[arg];
-      if (arg_group.target == composite_name && !parent_deps.count(arg_group.representative)) {
+      if (arg_group.target == codegen_name && !parent_deps.count(arg_group.representative)) {
         // If there is a parent group with the same target, which none of the parent dependency
         // groups depends on, merging "this" call node into the parent group will not form a cyclic
         // dependency.
@@ -223,12 +221,13 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
       rep = arena_->make<Group>();
       // Set num_nodes to 0 to signify that this representative groups has been newly created.
       rep->num_nodes = 0;
+      rep->attrs.Set(attr::kCodegen, codegen_name);
     }
 
     // Record direct parent dependencies.
     for (const auto& arg : args) {
       auto arg_group = memo_[arg];
-      if (arg_group.target != composite_name) {
+      if (arg_group.target != codegen_name) {
         group_deps_[rep].insert(arg_group.representative);
       }
     }
@@ -241,7 +240,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<CompositeGroup> {
     return rep;
   }
 
-  const std::string kDefaultTarget = "default";
+  const String kDefaultTarget = "default";
   IRModule mod_;
   support::Arena* arena_;
   CompositeGroup default_group_;
@@ -257,36 +256,26 @@ class CompositeInliner : public ExprMutator {
   explicit CompositeInliner(IRModule mod) : ExprMutator(mod), mod_(mod) {}
   using ExprMutator::VisitExpr_;
 
-  std::pair<Function, std::string> Run(Function func) {
-    target_name_ = "";
+  Function Run(Function func) {
     auto new_body = VisitExpr(func->body);
-    ICHECK(!target_name_.empty());
     auto new_func =
         Function(func->params, new_body, func->ret_struct_info, func->attrs, func->span);
-    return {new_func, target_name_};
+    return new_func;
   }
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto gvar = Downcast<GlobalVar>(call->op);
       auto func = CopyWithNewParams(Downcast<Function>(mod_->Lookup(gvar)));
-      auto composite_name_opt = func->GetAttr<String>(attr::kComposite);
-      ICHECK(composite_name_opt);
-      std::string composite_name = composite_name_opt.value();
-      auto tgt_name = GetCodegenName(composite_name);
-      if (!target_name_.empty()) {
-        ICHECK(tgt_name == target_name_);
-      } else {
-        target_name_ = tgt_name;
+      if (func->GetAttr<String>(attr::kComposite)) {
+        return Call(func, call->args);
       }
-      return Call(func, call->args);
     }
     return ExprMutator::VisitExpr_(call);
   }
 
  private:
   IRModule mod_;
-  String target_name_;
 };
 
 }  // namespace
@@ -296,14 +285,13 @@ IRModule MergeCompositeFunctions(IRModule mod) {
   auto func = Downcast<Function>(mod->Lookup(gvar));
   support::Arena arena;
   auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
-  auto new_mod = MakeGroupedFunctions(mod, group_map, true);
+  auto new_mod = MakeGroupedFunctions(mod, group_map);
 
   CompositeInliner inliner(mod);
   for (const auto& [gvar, func] : new_mod->functions) {
-    if (!mod->functions.count(gvar)) {
-      auto [new_func, target_name] = inliner.Run(Downcast<Function>(func));
-      new_func = WithAttrs(new_func, {{tvm::attr::kGlobalSymbol, gvar->name_hint},
-                                      {attr::kCodegen, String(target_name)}});
+    if (func->GetAttr<String>(attr::kCodegen)) {
+      auto new_func = inliner.Run(Downcast<Function>(func));
+      new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, gvar->name_hint);
       new_mod->Update(gvar, new_func);
     }
   }
