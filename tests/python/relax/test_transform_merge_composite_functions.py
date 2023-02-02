@@ -592,6 +592,78 @@ class MergeCompilerRegionsExampleRef:
         return gv6
 
 
+@tvm.script.ir_module
+class ModuleWithNonComposite:
+    @R.function
+    def main(
+        data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+    ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        with R.dataflow():
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d(data, weight)
+            conv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
+            R.output(conv)
+        return conv
+
+    @R.function
+    def fused_relax_nn_conv2d(
+        data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+    ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+        with R.dataflow():
+            gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
+                data1,
+                weight1,
+                padding=[1, 1, 1, 1],
+            )
+            R.output(gv)
+        return gv
+
+
+@tvm.script.ir_module
+class ModuleWithNonComposite_ref:
+    @R.function
+    def main(
+        data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+    ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        with R.dataflow():
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = fused_relax_nn_conv2d1(data, weight)
+            conv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv)
+            R.output(conv)
+        return conv
+
+    @R.function
+    def fused_relax_nn_conv2d1(
+        data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
+        weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
+    ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+        R.func_attr(
+            {"Codegen": "tensorrt", "Primitive": 1, "global_symbol": "fused_relax_nn_conv2d1"}
+        )
+        with R.dataflow():
+
+            @R.function
+            def lv1(
+                data2: R.Tensor((1, 64, 56, 56), dtype="float32"),
+                weight2: R.Tensor((64, 64, 3, 3), dtype="float32"),
+            ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
+                R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+                with R.dataflow():
+                    gv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
+                        data2,
+                        weight2,
+                        padding=[1, 1, 1, 1],
+                    )
+                    R.output(gv)
+                return gv
+
+            gv1: R.Tensor((1, 64, 56, 56), dtype="float32") = lv1(data1, weight1)
+            R.output(gv1)
+        return gv1
+
+
 def check(mod, expected):
     partitioned = relax.transform.MergeCompositeFunctions()(mod)
     tvm.ir.structural_equal(partitioned, expected)
@@ -636,6 +708,10 @@ def test_merge_compiler_regions_example():
         MergeCompilerRegionsExample,
         MergeCompilerRegionsExampleRef,
     )
+
+
+def test_mixed_non_composite():
+    check(ModuleWithNonComposite, ModuleWithNonComposite_ref)
 
 
 if __name__ == "__main__":
