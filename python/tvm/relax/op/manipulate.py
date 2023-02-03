@@ -148,7 +148,7 @@ def layout_transform(
         elif "float" in x_dtype and (isinstance(pad_value, (int, float))):
             pad_value = FloatImm(x_dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
-    return _ffi_api.layout_transform(x, index_map, pad_value)
+    return _ffi_api.layout_transform(x, index_map, pad_value)  # type: ignore
 
 
 def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
