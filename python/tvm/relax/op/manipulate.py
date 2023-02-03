@@ -145,7 +145,7 @@ def layout_transform(
     elif not isinstance(pad_value, PrimValue):
         if "int" in x_dtype and isinstance(pad_value, int):
             pad_value = IntImm(x_dtype, pad_value)
-        elif "float" in x_dtype and (isinstance(pad_value, float) or isinstance(pad_value, int)):
+        elif "float" in x_dtype and (isinstance(pad_value, (int, float))):
             pad_value = FloatImm(x_dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
     return _ffi_api.layout_transform(x, index_map, pad_value)
