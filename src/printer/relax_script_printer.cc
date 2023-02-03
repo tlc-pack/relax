@@ -24,6 +24,7 @@
 
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/ir_functor.h>
 #include <tvm/relax/utils.h>
 
@@ -491,6 +492,8 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
     for (const auto& k : dict_attrs->dict) {
       kwargs.push_back(Doc::Text(k.first) << "=" << Print(k.second));
     }
+  } else if (const LayoutTransformAttrs* layout_attrs = attrs.as<LayoutTransformAttrs>()) {
+    kwargs.push_back(Doc::Text("index_map=") << layout_attrs->index_map->ToPythonString());
   } else {
     AttrPrinter attr_printer(&kwargs, this);
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_printer);

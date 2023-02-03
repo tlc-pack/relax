@@ -60,6 +60,14 @@ Expr expand_dims(Expr x, Array<Integer> axis);
 Expr flatten(Expr x);
 
 /*!
+ * \brief Transform layout of a tensor.
+ * \param x The input data to the operator.
+ * \param index_map The transformation to apply.
+ * \return The transformed result.
+ */
+Expr layout_transform(Expr x, tir::IndexMap index_map);
+
+/*!
  * \brief Permutes the dimensions of an array.
  * \param x The input data to the operator.
  * \param axes The target axes order, reverse order if not specified.

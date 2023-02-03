@@ -25,6 +25,7 @@
 #define TVM_RELAX_ATTRS_MANIPULATE_H_
 
 #include <tvm/relax/expr.h>
+#include <tvm/tir/index_map.h>
 
 namespace tvm {
 namespace relax {
@@ -51,6 +52,15 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
         "with the convention of negative indexing.");
   }
 };  // struct ExpandDimsAttrs
+
+/*! \brief Attributes used in layout_transform operator */
+struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
+  tir::IndexMap index_map;
+
+  TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relax.attrs.LayoutTransformAttrs") {
+    TVM_ATTR_FIELD(index_map).describe("The layout transformation to apply.");
+  }
+};  // struct LayoutTransformAttrs
 
 /*! \brief Attributes used in permute_dims operator */
 struct PermuteDimsAttrs : public tvm::AttrsNode<PermuteDimsAttrs> {

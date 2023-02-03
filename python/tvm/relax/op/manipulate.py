@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manipulation operators."""
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Callable
 
 from tvm.ir.expr import PrimExpr
-from tvm.tir import IntImm
+from tvm.tir import IntImm, IndexMap
 
 from . import _ffi_api
 from ..expr import Expr, ShapeExpr, Tuple as RxTuple
@@ -108,6 +108,27 @@ def flatten(x: Expr) -> Expr:
         The flattened result.
     """
     return _ffi_api.flatten(x)  # type: ignore
+
+
+def layout_transform(x: Expr, index_map: Union[Callable, IndexMap]):
+    """Modifies the layout of a tensor.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input tensor to the operator.
+
+    index_map : Union[Callable, IndexMap]
+        The transformation to apply.
+
+    Returns
+    -------
+    result : relax.Expr
+        The transformed tensor.
+    """
+    if callable(index_map):
+        index_map = IndexMap.from_func(index_map)
+    return _ffi_api.layout_transform(x, index_map)
 
 
 def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:

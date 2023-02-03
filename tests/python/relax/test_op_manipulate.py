@@ -33,6 +33,9 @@ def test_op_correctness():
     assert relax.op.reshape(x, (4, 5, 3)).op == Op.get("relax.reshape")
     assert relax.op.split(x, indices_or_sections=1).op == Op.get("relax.split")
     assert relax.op.squeeze(x).op == Op.get("relax.squeeze")
+    assert relax.op.layout_transform(x, index_map=lambda a, b, c: (b, c, a)).op == Op.get(
+        "relax.layout_transform"
+    )
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -647,6 +650,118 @@ def test_expand_dims_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.expand_dims(x0, axis=[]))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.expand_dims(x1, axis=[]))
+
+
+def test_layout_transform_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((10, 20, 30), "float32"))
+
+    transpose_transform = lambda a, b, c: (a, c, b)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x, index_map=transpose_transform),
+        relax.TensorStructInfo((10, 30, 20), "float32"),
+    )
+
+    tiling_transform = lambda a, b, c: (a, b // 2, c, b % 2)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x, index_map=tiling_transform),
+        relax.TensorStructInfo((10, 10, 30, 2), "float32"),
+    )
+
+    implicit_padding_transform = lambda a, b, c: (a, c, b // 3, b % 3)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x, index_map=implicit_padding_transform),
+        relax.TensorStructInfo((10, 30, 7, 3), "float32"),
+    )
+
+    flatten_transform = lambda a, b, c: (a * 600 + b * 30 + c)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x, index_map=flatten_transform),
+        relax.TensorStructInfo((6000,), "float32"),
+    )
+
+
+def test_layout_transform_infer_struct_info_unknown_shape():
+    bb = relax.BlockBuilder()
+    x_unknown_shape = relax.Var("x", R.Tensor("float32", ndim=2))
+    x_unknown_rank_dtype = relax.Var("x", R.Tensor())
+
+    tiling_transform = lambda a, b: (a, b // 2, b % 2)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_shape, index_map=tiling_transform),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_rank_dtype, index_map=tiling_transform),
+        relax.TensorStructInfo(dtype="", ndim=3),
+    )
+
+
+def test_layout_transform_infer_struct_info_symbolic_shape():
+    bb = relax.BlockBuilder()
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    x0 = relax.Var("x", R.Tensor((a, b), "float32"))
+
+    tiling_transform = lambda a, b: (a, b // 3, b % 3)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x0, index_map=tiling_transform),
+        relax.TensorStructInfo((a, (b - b % (-3)) // 3, 3), "float32"),
+    )
+
+
+def test_layout_transform_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+
+    s = relax.Var("s", relax.ShapeStructInfo((30, 20)))
+    x = relax.Var("x", relax.TensorStructInfo(s, "float32"))
+    tiling_padding_transform = lambda a, b: (a, b // 3, b % 3)
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x, index_map=tiling_padding_transform),
+        relax.TensorStructInfo((30, 7, 3), "float32"),
+    )
+
+    s_unknown_shape = relax.Var("s", relax.ShapeStructInfo(ndim=2))
+    x_unknown_shape = relax.Var("x", relax.TensorStructInfo(s_unknown_shape, "float32"))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_shape, index_map=tiling_padding_transform),
+        relax.TensorStructInfo(ndim=3, dtype="float32"),
+    )
+
+    s_unknown_rank = relax.Var("s", relax.ShapeStructInfo())
+    x_unknown_rank = relax.Var("x", relax.TensorStructInfo(s_unknown_rank, "float32"))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_rank, index_map=tiling_padding_transform),
+        relax.TensorStructInfo(ndim=3, dtype="float32"),
+    )
+
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    s_symbolic_shape = relax.Var("s", relax.ShapeStructInfo((a, b)))
+    x_symbolic_shape = relax.Var("x", relax.TensorStructInfo(s_symbolic_shape, "float32"))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_symbolic_shape, index_map=tiling_padding_transform),
+        relax.TensorStructInfo((a, (b - b % (-3)) // 3, 3), "float32"),
+    )
+
+
+def test_layout_transform_infer_struct_info_invalid_index_map():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((10, 20, 30), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.layout_transform(x, index_map=lambda a, b: (b, a)))
 
 
 def test_squeeze_infer_struct_info():

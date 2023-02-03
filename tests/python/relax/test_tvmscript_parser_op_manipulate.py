@@ -119,6 +119,23 @@ def test_flatten():
     _check(foo, bb.get()["foo"])
 
 
+def test_layout_transform():
+    transformation = lambda n, c, h, w: (n, h, w, c)
+
+    @R.function
+    def foo(x: R.Tensor((2, 3, 4, 5), "float32")):
+        gv: R.Tensor((2, 4, 5, 3), "float32") = R.layout_transform(x, index_map=transformation)
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.layout_transform(x, index_map=transformation))
+        bb.emit_func_output(gv)
+    
+        _check(foo, bb.get()["foo"])
+
+
 def test_permute_dims():
     @R.function
     def foo(x: R.Tensor((1, 2, 3, 4), "float32")) -> R.Tensor((2, 4, 3, 1), "float32"):

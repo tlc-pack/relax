@@ -391,6 +391,57 @@ TVM_REGISTER_OP("relax.flatten")
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten);
 
+/* relax.layout_transform */
+TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
+
+Expr layout_transform(Expr x, tir::IndexMap index_map) {
+  ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
+  attrs->index_map = std::move(index_map);
+
+  static const Op& op = Op::Get("relax.layout_transform");
+  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
+
+StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
+  tir::IndexMap index_map = attrs->index_map;
+
+  if (!data_sinfo->shape.defined()) {
+    // For unknown input shape, the best we can do is get the #dims in output from index map
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+  }
+  Array<PrimExpr> input_shape;
+  if (const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())) {
+    if (!shape_sinfo->values.defined()) {
+      // For unknown input shape, the best we can do is get the #dims in output from index map
+      return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+    }
+    input_shape = shape_sinfo->values.value();
+  } else {
+    const auto* shape_expr = data_sinfo->shape.as<ShapeExprNode>();
+    ICHECK(shape_expr);
+    input_shape = shape_expr->values;
+  }
+
+  if (input_shape.size() != index_map->initial_indices.size()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "number of dimensions in input must match the number of source dimensions "
+                        "in index map, but got "
+                     << input_shape.size() << " != " << index_map->initial_indices.size());
+  }
+  Array<PrimExpr> output_shape = index_map->MapShape(input_shape);
+  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
+}
+
+TVM_REGISTER_OP("relax.layout_transform")
+    .set_num_inputs(1)
+    .set_attrs_type<LayoutTransformAttrs>()
+    .add_argument("x", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayoutTransform);
+
 /* relax.permute_dims */
 TVM_REGISTER_NODE_TYPE(PermuteDimsAttrs);
 
