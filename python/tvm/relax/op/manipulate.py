@@ -110,7 +110,9 @@ def flatten(x: Expr) -> Expr:
     return _ffi_api.flatten(x)  # type: ignore
 
 
-def layout_transform(x: Expr, index_map: Union[Callable, IndexMap], pad_value: Optional[DataTypeImm]):
+def layout_transform(
+    x: Expr, index_map: Union[Callable, IndexMap], pad_value: Optional[DataTypeImm]
+):
     """Modifies the layout of a tensor.
 
     Parameters
@@ -120,6 +122,10 @@ def layout_transform(x: Expr, index_map: Union[Callable, IndexMap], pad_value: O
 
     index_map : Union[Callable, IndexMap]
         The transformation to apply.
+
+    pad_value : Optional[DataTypeImm]
+        The value used for padding if the transformation results in implicit padding.
+        If not specified, any value can be used.
 
     Returns
     -------
