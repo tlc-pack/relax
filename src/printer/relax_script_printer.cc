@@ -494,6 +494,9 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
     }
   } else if (const LayoutTransformAttrs* layout_attrs = attrs.as<LayoutTransformAttrs>()) {
     kwargs.push_back(Doc::Text("index_map=") << layout_attrs->index_map->ToPythonString());
+    if (layout_attrs->pad_value.defined()) {
+      kwargs.push_back(Doc::Text("pad_value=") << Print(layout_attrs->pad_value.value()));
+    }
   } else {
     AttrPrinter attr_printer(&kwargs, this);
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&attr_printer);

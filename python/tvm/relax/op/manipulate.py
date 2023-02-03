@@ -21,7 +21,7 @@ from tvm.ir.expr import PrimExpr
 from tvm.tir import IntImm, IndexMap
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr, Tuple as RxTuple
+from ..expr import Expr, DataTypeImm, ShapeExpr, Tuple as RxTuple
 
 
 PrimExprLike = Union[int, PrimExpr]
@@ -110,7 +110,7 @@ def flatten(x: Expr) -> Expr:
     return _ffi_api.flatten(x)  # type: ignore
 
 
-def layout_transform(x: Expr, index_map: Union[Callable, IndexMap]):
+def layout_transform(x: Expr, index_map: Union[Callable, IndexMap], pad_value: Optional[DataTypeImm]):
     """Modifies the layout of a tensor.
 
     Parameters
@@ -128,7 +128,7 @@ def layout_transform(x: Expr, index_map: Union[Callable, IndexMap]):
     """
     if callable(index_map):
         index_map = IndexMap.from_func(index_map)
-    return _ffi_api.layout_transform(x, index_map)
+    return _ffi_api.layout_transform(x, index_map, pad_value)
 
 
 def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
