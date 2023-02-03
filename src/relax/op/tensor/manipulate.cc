@@ -394,7 +394,7 @@ TVM_REGISTER_OP("relax.flatten")
 /* relax.layout_transform */
 TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
 
-Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<DataTypeImm> pad_value) {
+Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value) {
   ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
   attrs->index_map = std::move(index_map);
   attrs->pad_value = std::move(pad_value);
@@ -403,7 +403,10 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<DataTypeImm> pad
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
+TVM_REGISTER_GLOBAL("relax.op.layout_transform")
+    .set_body_typed([](Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value) {
+      return layout_transform(x, index_map, pad_value);
+    });
 
 StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);

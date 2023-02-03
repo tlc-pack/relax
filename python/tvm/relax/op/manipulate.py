@@ -21,7 +21,7 @@ from tvm.ir.expr import PrimExpr
 from tvm.tir import IntImm, IndexMap
 
 from . import _ffi_api
-from ..expr import Expr, DataTypeImm, ShapeExpr, Tuple as RxTuple
+from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
 
 
 PrimExprLike = Union[int, PrimExpr]
@@ -111,7 +111,7 @@ def flatten(x: Expr) -> Expr:
 
 
 def layout_transform(
-    x: Expr, index_map: Union[Callable, IndexMap], pad_value: Optional[DataTypeImm]
+    x: Expr, index_map: Union[Callable, IndexMap], pad_value: Optional[Union[int, PrimValue]] = None
 ):
     """Modifies the layout of a tensor.
 
@@ -123,7 +123,7 @@ def layout_transform(
     index_map : Union[Callable, IndexMap]
         The transformation to apply.
 
-    pad_value : Optional[DataTypeImm]
+    pad_value : Optional[Union[int, float, PrimValue]]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
 
@@ -134,6 +134,8 @@ def layout_transform(
     """
     if callable(index_map):
         index_map = IndexMap.from_func(index_map)
+    if isinstance(pad_value, int):
+        pad_value = PrimValue(pad_value)
     return _ffi_api.layout_transform(x, index_map, pad_value)
 
 

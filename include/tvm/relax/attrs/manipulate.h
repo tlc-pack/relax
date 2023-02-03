@@ -56,7 +56,7 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
 /*! \brief Attributes used in layout_transform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   tir::IndexMap index_map;
-  Optional<DataTypeImm> pad_value;
+  Optional<PrimValue> pad_value;
 
   TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relax.attrs.LayoutTransformAttrs") {
     TVM_ATTR_FIELD(index_map).describe("The layout transformation to apply.");

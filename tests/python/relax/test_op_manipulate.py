@@ -673,7 +673,7 @@ def test_layout_transform_infer_struct_info():
     implicit_padding_transform = lambda a, b, c: (a, c, b // 3, b % 3)
     _check_inference(
         bb,
-        relax.op.layout_transform(x, index_map=implicit_padding_transform),
+        relax.op.layout_transform(x, index_map=implicit_padding_transform, pad_value=2),
         relax.TensorStructInfo((10, 30, 7, 3), "float32"),
     )
 
