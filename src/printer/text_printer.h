@@ -290,6 +290,7 @@ class RelaxScriptPrinter : public relax::IRFunctor<Doc(const ObjectRef&)>,
   // PrimExpr nodes allowed in Relax
   Doc VisitExpr_(const tir::VarNode* op) override;
   Doc VisitExpr_(const tir::IntImmNode* op) override;
+  Doc VisitExpr_(const tir::FloatImmNode* op) override;
   Doc VisitExpr_(const tir::AddNode* op) override;
   Doc VisitExpr_(const tir::SubNode* op) override;
   Doc VisitExpr_(const tir::MulNode* op) override;

@@ -18,7 +18,7 @@
 from typing import List, Optional, Tuple, Union, Callable
 
 from tvm.ir.expr import PrimExpr
-from tvm.tir import IntImm, IndexMap
+from tvm.tir import IntImm, FloatImm, IndexMap
 
 from . import _ffi_api
 from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
@@ -111,7 +111,9 @@ def flatten(x: Expr) -> Expr:
 
 
 def layout_transform(
-    x: Expr, index_map: Union[Callable, IndexMap], pad_value: Optional[Union[int, PrimValue]] = None
+    x: Expr,
+    index_map: Union[Callable, IndexMap],
+    pad_value: Optional[Union[int, float, PrimValue]] = None,
 ):
     """Modifies the layout of a tensor.
 
@@ -134,7 +136,17 @@ def layout_transform(
     """
     if callable(index_map):
         index_map = IndexMap.from_func(index_map)
-    if isinstance(pad_value, int):
+    x_dtype = x.checked_type.dtype
+
+    # Explicitly convert python int/float pad_value to the x's type.  If the default behavior
+    # is applied, it would be converted to int32/float32, which may not match the x's type.
+    if pad_value is None:
+        pass
+    elif not isinstance(pad_value, PrimValue):
+        if "int" in x_dtype and isinstance(pad_value, int):
+            pad_value = IntImm(x_dtype, pad_value)
+        elif "float" in x_dtype and (isinstance(pad_value, float) or isinstance(pad_value, int)):
+            pad_value = FloatImm(x_dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
     return _ffi_api.layout_transform(x, index_map, pad_value)
 

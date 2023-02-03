@@ -401,6 +401,10 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::IntImmNode* op) {
   return Doc::Text(std::to_string(op->value));
 }
 
+Doc RelaxScriptPrinter::VisitExpr_(const tir::FloatImmNode* op) {
+  return Doc::Text(std::to_string(op->value));
+}
+
 #define TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(OpName, OpString) \
   Doc RelaxScriptPrinter::VisitExpr_(const OpName* op) {          \
     Doc doc;                                                      \

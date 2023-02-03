@@ -132,7 +132,26 @@ def test_layout_transform():
     with bb.function("foo", [x]):
         gv = bb.emit(relax.op.layout_transform(x, index_map=transformation))
         bb.emit_func_output(gv)
-    
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_layout_transform_with_padding():
+    transformation = lambda n, c, h, w: (n, c // 3, h, w, c % 3)
+
+    @R.function
+    def foo(x: R.Tensor((10, 20, 2, 2), "float32")):
+        gv: R.Tensor((10, 7, 2, 2, 3), "float32") = R.layout_transform(
+            x, index_map=transformation, pad_value=2
+        )
+        return gv
+
+    x = relax.Var("x", R.Tensor((10, 20, 2, 2), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x]):
+        gv = bb.emit(relax.op.layout_transform(x, index_map=transformation, pad_value=2))
+        bb.emit_func_output(gv)
+
         _check(foo, bb.get()["foo"])
 
 
