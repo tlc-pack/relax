@@ -63,9 +63,11 @@ Expr flatten(Expr x);
  * \brief Transform layout of a tensor.
  * \param x The input data to the operator.
  * \param index_map The transformation to apply.
+ * \param pad_value The value used for padding if the transformation results in implicit padding. If
+ * not specified, any value can be used.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tir::IndexMap index_map);
+Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value);
 
 /*!
  * \brief Permutes the dimensions of an array.
