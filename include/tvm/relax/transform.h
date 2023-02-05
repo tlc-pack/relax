@@ -116,6 +116,15 @@ TVM_DLL Pass CallTIRRewrite();
 TVM_DLL Pass RewriteDataflowReshape();
 
 /*!
+ * \brief The static memory planning pass on BindingBlock level.
+ * The pass will reuse allocated memory to its best effort, in order to
+ * reduce the total amount of allocated memory size.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass StaticPlanBlockMemory();
+
+/*!
  * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
  *
  * \return The Pass.

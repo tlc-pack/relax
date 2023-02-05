@@ -216,6 +216,7 @@ def is_relax_expr(expr: RelayExpr) -> bool:
     if isinstance(
         expr,
         (
+            relax.Constant,
             relax.Call,
             relax.Tuple,
             relax.TupleGetItem,
