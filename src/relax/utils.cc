@@ -86,24 +86,30 @@ class FunctionCopier : public ExprMutator {
  public:
   static Function Transform(Function func) {
     FunctionCopier copier;
-    // the parameters would be copied and substituted to satisfy the restriction in the well-formed
-    // check: any two functions cannot share the same parameter variable.
-    Array<Var> new_params;
-    for (Var param : func->params) {
-      Var new_param = Var(param->vid, GetStructInfo(param), param->span);
-      copier.var_remap_[param->vid] = new_param;
-      new_params.push_back(new_param);
-    }
+    // All variables that are bound inside the original function would be copied
+    // to satisfy the restriction in the well-formed check: Variables in Relax
+    // must be bound exactly once.
+    return Downcast<Function>(copier.VisitExpr(func));
+  }
 
-    Expr body = copier.VisitWithNewScope(func->body, new_params);
+  Var VisitVarDef_(const DataflowVarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    return copied_var;
+  }
 
-    return Function(new_params, body, func->ret_struct_info, func->attrs);
+  Var VisitVarDef_(const VarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    return copied_var;
   }
 };
 
-Function CopyWithNewParams(Function func) { return FunctionCopier::Transform(func); }
+Function CopyWithNewVars(Function func) { return FunctionCopier::Transform(func); }
 
-TVM_REGISTER_GLOBAL("relax.CopyWithNewParams").set_body_typed(CopyWithNewParams);
+TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
 
 }  // namespace relax
 }  // namespace tvm

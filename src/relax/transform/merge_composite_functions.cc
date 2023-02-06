@@ -266,7 +266,7 @@ class CompositeInliner : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto gvar = Downcast<GlobalVar>(call->op);
-      auto func = CopyWithNewParams(Downcast<Function>(mod_->Lookup(gvar)));
+      auto func = CopyWithNewVars(Downcast<Function>(mod_->Lookup(gvar)));
       if (func->GetAttr<String>(attr::kComposite)) {
         return Call(func, call->args);
       }
