@@ -15,23 +15,92 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
+import tvm
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import relax as R
 
 
-def test_copy_with_new_params():
+def test_copy_with_new_vars():
     @R.function
     def before(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
         gv = R.add(x, y)
         return gv
 
-    after = relax.utils.copy_with_new_params(before)
+    after = relax.utils.copy_with_new_vars(before)
     assert_structural_equal(after, before)
 
     assert len(after.params) == len(before.params)
     for before_var, after_var in zip(before.params, after.params):
         assert before_var != after_var
+
+
+def test_copy_with_new_vars_on_ir_module():
+    @tvm.script.ir_module
+    class Actual:
+        @R.function
+        def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
+            gv = R.add(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
+            gv = R.add(x, y)
+            return gv
+
+        @R.function
+        def func_copied(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
+            gv = R.add(x, y)
+            return gv
+
+    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"])
+
+    # Assertion will fail if the f_copied contains the same VarNode that's used in
+    # the original function, due to var mapping during structural equal.
+    assert_structural_equal(Actual, Expected)
+
+
+def test_copy_with_new_vars_on_ir_module_nested_function():
+    @tvm.script.ir_module
+    class Actual:
+        @R.function
+        def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
+            @R.function
+            def inner(x: R.Tensor((3,), "float32")):
+                gv = R.add(x, x)
+                return gv
+
+            gv = R.add(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
+            @R.function
+            def inner(x: R.Tensor((3,), "float32")):
+                gv = R.add(x, x)
+                return gv
+
+            gv = R.add(x, y)
+            return gv
+
+        @R.function
+        def func_copied(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")):
+            @R.function
+            def inner(x: R.Tensor((3,), "float32")):
+                gv = R.add(x, x)
+                return gv
+
+            gv = R.add(x, y)
+            return gv
+
+    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"])
+
+    assert_structural_equal(Actual, Expected)
 
 
 if __name__ == "__main__":
