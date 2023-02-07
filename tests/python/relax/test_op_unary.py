@@ -51,6 +51,7 @@ def test_op_correctness():
     assert relax.op.sqrt(x).op == Op.get("relax.sqrt")
     assert relax.op.tan(x).op == Op.get("relax.tan")
     assert relax.op.tanh(x).op == Op.get("relax.tanh")
+    assert relax.op.clip(x, 0, 6).op == Op.get("relax.clip")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -172,6 +173,30 @@ def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable
         bb.normalize(unary_arith_op(x0))
     with pytest.raises(TVMError):
         bb.normalize(unary_arith_op(x1))
+
+
+def test_clip_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
+    x3 = relax.Var("x", R.Tensor((2, 3)))
+    x4 = relax.Var("x", R.Tensor())
+
+    _check_inference(bb, relax.op.clip(x0, 0, 6), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.clip(x1, 0, 6), relax.TensorStructInfo(dtype="float32", ndim=3))
+    _check_inference(bb, relax.op.clip(x2, 0, 6), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, relax.op.clip(x3, 0, 6), relax.TensorStructInfo((2, 3), dtype=""))
+    _check_inference(bb, relax.op.clip(x4, 0, 6), relax.TensorStructInfo(dtype=""))
+
+    # Symbolic
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x5 = relax.Var("x", R.Tensor((m, n), "float32"))
+    x6 = relax.Var("x", R.Tensor((4, n), "float32"))
+
+    _check_inference(bb, relax.op.clip(x5, 0, 6), relax.TensorStructInfo((m, n), "float32"))
+    _check_inference(bb, relax.op.clip(x6, 0, 6), relax.TensorStructInfo((4, n), "float32"))
 
 
 if __name__ == "__main__":
