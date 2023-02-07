@@ -428,6 +428,32 @@ NestedMsg<T> CombineNestedMsg(NestedMsg<T> lhs, NestedMsg<T> rhs, FType fcombine
 }
 
 /*!
+ * \brief Recursively map a nested message to another one, with leaf mapped by the input fmapleaf.
+ * \param msg The nested message to be mapped.
+ * \param fmapleaf The leaf map function, with signature NestedMsg<T> fmapleaf(T msg)
+ * \tparam T The content type of nested message.
+ * \tparam FType The leaf map function type.
+ * \return The new nested message.
+ */
+template <typename T, typename FType>
+NestedMsg<T> MapNestedMsg(NestedMsg<T> msg, FType fmapleaf) {
+  if (msg.IsNull()) {
+    return msg;
+  } else if (msg.IsLeaf()) {
+    return fmapleaf(msg.LeafValue());
+  } else {
+    ICHECK(msg.IsNested());
+    Array<NestedMsg<T>> arr = msg.NestedArray();
+    Array<NestedMsg<T>> res;
+    res.reserve(arr.size());
+    for (int i = 0; i < static_cast<int>(arr.size()); ++i) {
+      res.push_back(MapNestedMsg(arr[i], fmapleaf));
+    }
+    return NestedMsg<T>(res);
+  }
+}
+
+/*!
  * \brief Recursively decompose the tuple structure in expr and msg along with it.
  *
  * This function will call fvisitleaf for each leaf expression in expr.

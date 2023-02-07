@@ -260,6 +260,29 @@ TEST(NestedMsg, CombineNestedMsg) {
                     [](Integer lhs, Integer rhs) -> bool { return lhs->value == rhs->value; }));
 }
 
+TEST(NestedMsg, MapNestedMsg) {
+  auto c0 = Integer(0);
+  auto c1 = Integer(1);
+  auto c2 = Integer(2);
+  auto c3 = Integer(3);
+
+  NestedMsg<Integer> msg = {c0, {c0, c1}, NullOpt, {c0, {c2, c1}}};
+  NestedMsg<Integer> expected = {c3, {c3, NullOpt}, NullOpt, {c3, {c2, NullOpt}}};
+
+  auto output = MapNestedMsg(msg, [](Integer x) {
+    if (x->value == 0) {
+      return NestedMsg<Integer>(Integer(3));
+    } else if (x->value == 1) {
+      return NestedMsg<Integer>();
+    } else {
+      return NestedMsg<Integer>(x);
+    }
+  });
+
+  EXPECT_TRUE(Equal(output, expected,
+                    [](Integer lhs, Integer rhs) -> bool { return lhs->value == rhs->value; }));
+}
+
 TEST(NestedMsg, TransformTupleLeaf) {
   auto c0 = Integer(0);
   auto c1 = Integer(1);
