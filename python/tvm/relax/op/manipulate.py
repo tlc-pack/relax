@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manipulation operators."""
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Callable
 
 from tvm.ir.expr import PrimExpr
-from tvm.tir import IntImm
+from tvm.tir import IntImm, FloatImm, IndexMap
 
 from . import _ffi_api
-from ..expr import Expr, ShapeExpr, Tuple as RxTuple
+from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
 
 
 PrimExprLike = Union[int, PrimExpr]
@@ -108,6 +108,47 @@ def flatten(x: Expr) -> Expr:
         The flattened result.
     """
     return _ffi_api.flatten(x)  # type: ignore
+
+
+def layout_transform(
+    x: Expr,
+    index_map: Union[Callable, IndexMap],
+    pad_value: Optional[Union[int, float, PrimValue]] = None,
+):
+    """Modifies the layout of a tensor.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input tensor to the operator.
+
+    index_map : Union[Callable, IndexMap]
+        The transformation to apply.
+
+    pad_value : Optional[Union[int, float, PrimValue]]
+        The value used for padding if the transformation results in implicit padding.
+        If not specified, any value can be used.
+
+    Returns
+    -------
+    result : relax.Expr
+        The transformed tensor.
+    """
+    if callable(index_map):
+        index_map = IndexMap.from_func(index_map)
+    x_dtype = x.checked_type.dtype
+
+    # Explicitly convert python int/float pad_value to the x's type.  If the default behavior
+    # is applied, it would be converted to int32/float32, which may not match the x's type.
+    if pad_value is None:
+        pass
+    elif not isinstance(pad_value, PrimValue):
+        if "int" in x_dtype and isinstance(pad_value, int):
+            pad_value = IntImm(x_dtype, pad_value)
+        elif "float" in x_dtype and (isinstance(pad_value, (int, float))):
+            pad_value = FloatImm(x_dtype, float(pad_value))
+        pad_value = PrimValue(pad_value)
+    return _ffi_api.layout_transform(x, index_map, pad_value)  # type: ignore
 
 
 def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
