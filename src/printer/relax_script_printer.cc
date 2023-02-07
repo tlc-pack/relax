@@ -24,6 +24,7 @@
 
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/ir_functor.h>
 #include <tvm/relax/utils.h>
 
@@ -400,6 +401,10 @@ Doc RelaxScriptPrinter::VisitExpr_(const tir::IntImmNode* op) {
   return Doc::Text(std::to_string(op->value));
 }
 
+Doc RelaxScriptPrinter::VisitExpr_(const tir::FloatImmNode* op) {
+  return Doc::Text(std::to_string(op->value));
+}
+
 #define TVM_DEFINE_RELAX_PRINTER_PRIMEXPR_BINOP(OpName, OpString) \
   Doc RelaxScriptPrinter::VisitExpr_(const OpName* op) {          \
     Doc doc;                                                      \
@@ -490,6 +495,11 @@ std::vector<Doc> RelaxScriptPrinter::PrintAttrs(const Attrs& attrs) {
   } else if (const DictAttrsNode* dict_attrs = attrs.as<DictAttrsNode>()) {
     for (const auto& k : dict_attrs->dict) {
       kwargs.push_back(Doc::Text(k.first) << "=" << Print(k.second));
+    }
+  } else if (const LayoutTransformAttrs* layout_attrs = attrs.as<LayoutTransformAttrs>()) {
+    kwargs.push_back(Doc::Text("index_map=") << layout_attrs->index_map->ToPythonString());
+    if (layout_attrs->pad_value.defined()) {
+      kwargs.push_back(Doc::Text("pad_value=") << Print(layout_attrs->pad_value.value()));
     }
   } else {
     AttrPrinter attr_printer(&kwargs, this);

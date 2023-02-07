@@ -139,6 +139,11 @@ class BatchNormAttrs(Attrs):
     """Attributes used in batch_norm operator"""
 
 
+@tvm._ffi.register_object("relax.attrs.LayoutTransformAttrs")
+class LayoutTransformAttrs(Attrs):
+    """Attributes used in layout_transform operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.LayerNormAttrs")
 class LayerNormAttrs(Attrs):
     """Attributes used in layer_norm operator"""
