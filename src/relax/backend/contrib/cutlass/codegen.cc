@@ -249,7 +249,8 @@ class CutlassModuleCodegen {
   Array<String> func_names_;
 };
 
-Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ObjectRef> options) {
+Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ObjectRef> options,
+                                       Map<Constant, String> /*unused*/) {
   const auto* tune_func = runtime::Registry::Get("contrib.cutlass.tune_relax_function");
   ICHECK(tune_func != nullptr)
       << "The packed function contrib.cutlass.tune_relax_function not found, "
