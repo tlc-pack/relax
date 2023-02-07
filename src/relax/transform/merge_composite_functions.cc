@@ -44,10 +44,10 @@
  *    \ /             \ /
  *     O               O
  *
- * The algorithm proceeds by assigning a "label", consisting of a pointer to the representative
- * group and the name of the target backend, to each subexpression in the function according to
+ * The algorithm proceeds by assigning a group to each subexpression in the function according to
  * its dataflow. On encountering a call node whose callee is a composite function, we check the
- * two conditions above to see if we can merge this call node into one of its parent groups.
+ * two conditions above to see if we can merge this call node into one of its parent groups, and
+ * if we can merge some of its parent groups.
  *
  * To detect cyclic dependencies between groups, we propagate dependency relations, both direct
  * and indirect ones, as we flow through the function. The propagation of indirect dependencies
