@@ -696,20 +696,15 @@ def test_layout_transform_infer_struct_info_mismatch_dtype():
 
 def test_layout_transform_infer_struct_info_unknown_shape():
     bb = relax.BlockBuilder()
-    x_unknown_shape = relax.Var("x", R.Tensor("float32", ndim=2))
-    x_unknown_rank_dtype = relax.Var("x", R.Tensor())
-
     tiling_transform = lambda a, b: (a, b // 2, b % 2)
-    _check_inference(
-        bb,
-        relax.op.layout_transform(x_unknown_shape, index_map=tiling_transform),
-        relax.TensorStructInfo(dtype="float32", ndim=3),
-    )
-    _check_inference(
-        bb,
-        relax.op.layout_transform(x_unknown_rank_dtype, index_map=tiling_transform),
-        relax.TensorStructInfo(dtype="", ndim=3),
-    )
+
+    x_unknown_shape = relax.Var("x", R.Tensor("float32", ndim=2))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.layout_transform(x_unknown_shape, index_map=tiling_transform))
+
+    x_unknown_rank_dtype = relax.Var("x", R.Tensor())
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.layout_transform(x_unknown_rank_dtype, index_map=tiling_transform))
 
 
 def test_layout_transform_infer_struct_info_symbolic_shape():
@@ -740,19 +735,13 @@ def test_layout_transform_infer_struct_info_shape_var():
 
     s_unknown_shape = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     x_unknown_shape = relax.Var("x", relax.TensorStructInfo(s_unknown_shape, "float32"))
-    _check_inference(
-        bb,
-        relax.op.layout_transform(x_unknown_shape, index_map=tiling_padding_transform),
-        relax.TensorStructInfo(ndim=3, dtype="float32"),
-    )
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.layout_transform(x_unknown_shape, index_map=tiling_padding_transform))
 
     s_unknown_rank = relax.Var("s", relax.ShapeStructInfo())
     x_unknown_rank = relax.Var("x", relax.TensorStructInfo(s_unknown_rank, "float32"))
-    _check_inference(
-        bb,
-        relax.op.layout_transform(x_unknown_rank, index_map=tiling_padding_transform),
-        relax.TensorStructInfo(ndim=3, dtype="float32"),
-    )
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.layout_transform(x_unknown_rank, index_map=tiling_padding_transform))
 
     a = tir.Var("a", "int64")
     b = tir.Var("b", "int64")

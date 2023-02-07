@@ -418,16 +418,25 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "layout_transform pad_value dtype (" << padded_value->dtype
                        << ") and input dtype (" << data_sinfo->dtype << ") must be the same");
-      return {};
     }
   }
 
-  // For unknown input shape, the best we can do is get the #dims in output from index map
-  auto inferred_sinfo_for_unknown_shape = [&]() {
-    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
-  };
+  // We would like to ensure safety, and therefore placed a stronger requirement for user to
+  // use MatchCast before layout_transform if the shape of input is not known at compile time.
+  // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
+  // this requirement to reduce the workload of importers and better support dynamic shapes.
+  auto report_error_for_unknown_shape =
+      [&]() {
+        ctx->ReportFatal(
+            Diagnostic::Error(call)
+            << "layout_transform expects the input tensor to have known rank (expected rank = "
+            << index_map->initial_indices.size()
+            << ") and shape. For input tensors, whose shape cannot be determined at compile time, "
+               "please use MatchCast to get input with symbolic shape.");
+        return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+      };
 
-  if (data_sinfo->IsUnknownNdim()) return inferred_sinfo_for_unknown_shape();
+  if (data_sinfo->IsUnknownNdim()) return report_error_for_unknown_shape();
 
   // If rank is known, check that it is compatible with the index_map, i.e., #dims match.
   if (index_map->initial_indices.size() != static_cast<size_t>(data_sinfo->ndim)) {
@@ -437,12 +446,12 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
                      << data_sinfo->ndim << " != " << index_map->initial_indices.size());
   }
 
-  if (!data_sinfo->shape.defined()) return inferred_sinfo_for_unknown_shape();
+  if (!data_sinfo->shape.defined()) return report_error_for_unknown_shape();
 
   // If input shape is known, get the ShapeStructInfo of the shape expr.
   const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value());
 
-  if (!shape_sinfo->values.defined()) return inferred_sinfo_for_unknown_shape();
+  if (!shape_sinfo->values.defined()) return report_error_for_unknown_shape();
 
   Array<PrimExpr> input_shape = shape_sinfo->values.value();
   Array<PrimExpr> output_shape = index_map->MapShape(input_shape);
