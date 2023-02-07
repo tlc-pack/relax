@@ -86,7 +86,11 @@ Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
   args["M"] = GetDimAsStr(arg0_shape->at(0));
   args["K"] = GetDimAsStr(arg0_shape->at(1));
-  args["N"] = GetDimAsStr(arg1_shape->at(0));
+  if (args["ldb"] == "N") {
+    args["N"] = GetDimAsStr(arg1_shape->at(1));
+  } else {
+    args["N"] = GetDimAsStr(arg1_shape->at(0));
+  }
   return args;
 }
 
@@ -100,7 +104,11 @@ Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs) {
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
   args["M"] = GetDimAsStr(arg0_shape->at(1));
   args["K"] = GetDimAsStr(arg0_shape->at(2));
-  args["N"] = GetDimAsStr(arg1_shape->at(1));
+  if (args["ldb"] == "N") {
+    args["N"] = GetDimAsStr(arg1_shape->at(2));
+  } else {
+    args["N"] = GetDimAsStr(arg1_shape->at(1));
+  }
   return args;
 }
 

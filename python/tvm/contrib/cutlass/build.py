@@ -27,7 +27,7 @@ from tvm.contrib.nvcc import get_cuda_version
 
 from .gen_conv2d import CutlassConv2DProfiler
 from .gen_gemm import CutlassGemmProfiler
-from .library import ConvKind
+from .library import ConvKind, LayoutType
 
 logger = logging.getLogger("cutlass")
 
@@ -552,10 +552,17 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     with shape, dtype and generated templates.
     """
 
-    def __init__(self, mod, conv2d_profiler, options):
+    def __init__(
+        self,
+        mod,
+        conv2d_profiler: CutlassConv2DProfiler,
+        gemm_profiler: CutlassGemmProfiler,
+        options,
+    ):
         super().__init__(mod)
         self.options = options
         self.conv2d_profiler = conv2d_profiler
+        self.gemm_profiler = gemm_profiler
 
     def handle_conv2d(self, f, op_type):
         """Tune and annotate a conv2d op."""
@@ -613,6 +620,57 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             }
         )
 
+    def handle_dense(self, f, op_type):
+        """Tune and annotate a dense op."""
+        signature, op_attrs = _extract_relax_function_info(f)
+
+        arg0_shape = signature["arg0_shape"]
+        arg1_shape = signature["arg1_shape"]
+        out_shape = signature["ret_shape"]
+        arg0_dtype = signature["arg0_dtype"]
+        arg1_dtype = signature["arg1_dtype"]
+        out_dtype = signature["ret_dtype"]
+
+        MM = arg0_shape[0]
+        KK = arg0_shape[1]
+        NN = arg1_shape[1]
+
+        use_3xtf32 = self.options.get("use_3xtf32", False)
+        find_first_valid = self.options.get("find_first_valid", True)
+        use_multiprocessing = self.options.get("use_multiprocessing", True)
+
+        op_name, op_def, _ = self.gemm_profiler.profile(
+            op_type,
+            MM,
+            NN,
+            KK,
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            use_3xtf32,
+            batched=False,
+            find_first_valid=find_first_valid,
+            use_multiprocessing=use_multiprocessing,
+            layout_b=LayoutType.RowMajor,
+        )
+
+        return f.with_attrs(
+            {
+                "op_type": op_type,
+                "arg0_dtype": arg0_dtype,
+                "arg1_dtype": arg1_dtype,
+                "ret_dtype": out_dtype,
+                "arg0_shape": arg0_shape,
+                "arg1_shape": arg1_shape,
+                "ret_shape": out_shape,
+                "lda": "K",
+                "ldb": "N",
+                "ldc": "N",
+                "cutlass_op_name": op_name,
+                "cutlass_op_def": op_def,
+            }
+        )
+
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
@@ -622,6 +680,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         if "conv2d" in op_type:
             return self.handle_conv2d(f, op_type)
+        elif "dense" in op_type:
+            return self.handle_dense(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
 
@@ -635,12 +695,13 @@ def profile_relax_function(functions, options):
     tmp_dir = options.get("tmp_dir", "./tmp")
     sm = options.get("sm", 80)
     conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
+    gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
 
     annotated_functions = []
 
     for f in functions:
         annotator = CutlassRelaxFunctionAnnotator(
-            tvm.IRModule.from_expr(f), conv2d_profiler, options
+            tvm.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
         )
         annotated_functions.append(annotator.visit_expr(f))
 

@@ -296,6 +296,7 @@ EPILOGUE_MAP = {
     "cutlass.dense": (EpilogueFunctor.LinearCombination, False),
     "cutlass.dense_bias": (EpilogueFunctor.LinearCombinationBias, True),
     "cutlass.dense_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
+    "cutlass.dense_bias_gelu": (EpilogueFunctor.LinearCombinationGelu, False),
     "cutlass.dense_bias_gelu_fp16": (EpilogueFunctor.LinearCombinationGelu, False),
     "cutlass.dense_bias_gelu_fp32": (EpilogueFunctor.LinearCombinationGelu, False),
     "cutlass.batch_matmul": (EpilogueFunctor.LinearCombination, False),

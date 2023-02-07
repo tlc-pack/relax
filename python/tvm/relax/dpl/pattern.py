@@ -19,19 +19,19 @@
 # pylint: disable=no-member
 # pylint: disable=pointless-statement
 
-from typing import List, Optional, Dict, Union, Tuple
 import typing
+from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
 import tvm._ffi as tvm_ffi
+from tvm.ir.container import Array
 from tvm.ir.expr import PrimExpr
 from tvm.relay.op import get
-from tvm.ir.container import Array
 
-from ..expr import Expr, Var
 from ...ir import make_node
-from ...runtime import Object
 from ...ir.base import Node
+from ...runtime import Object
+from ..expr import Expr, Var
 from . import _ffi as ffi
 
 
@@ -1046,6 +1046,17 @@ def _only_used_by(
     return ffi.only_used_by(lhs, rhs, index)  # type: ignore
 
 
+def _add_bias_activation_pattern(out, with_bias=False, activation=None):
+    if with_bias:
+        bias = wildcard()
+        out = is_op("relax.add")(out, bias)
+
+    if activation:
+        return is_op(activation)(out)
+
+    return out
+
+
 def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None):
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
@@ -1070,11 +1081,15 @@ def make_fused_bias_activation_pattern(op_name, with_bias=False, activation=None
     rhs = wildcard()
     out = is_op(op_name)(lhs, rhs)
 
-    if with_bias:
-        bias = wildcard()
-        out = is_op("relax.add")(out, bias)
+    return _add_bias_activation_pattern(out, with_bias, activation)
 
-    if activation:
-        return is_op(activation)(out)
 
-    return out
+def make_matmul_pattern(with_bias=False, activation=None, transposed_b=False):
+    lhs = wildcard()
+    if transposed_b:
+        rhs = is_op("relax.permute_dims")(wildcard())
+    else:
+        rhs = wildcard()
+    out = is_op("relax.matmul")(lhs, rhs)
+
+    return _add_bias_activation_pattern(out, with_bias, activation)
