@@ -486,38 +486,26 @@ def test_call_tir():
 
 
 def test_inline_tir():
-    @R.function
-    def f(x: R.Tensor(("B", 128), "float32"), y: R.Tensor((128, 128), "float32")):
-        @T.prim_func
-        def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
-            C = T.match_buffer(c, (128, 128))
+    with pytest.raises(tvm.error.DiagnosticError):
 
-            for i, j, k in T.grid(128, 128, 128):
-                with T.block():
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
-                        C[vi, vj] = 0.0
-                    C[vi, vj] += A[vi, vk] * B[vj, vk]
+        @R.function
+        def f(x: R.Tensor(("B", 128), "float32"), y: R.Tensor((128, 128), "float32")):
+            @T.prim_func
+            def my_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                C = T.match_buffer(c, (128, 128))
 
-        B = T.var("int64")
-        z = R.call_tir(my_matmul, (x, y), R.Tensor((B, 128), dtype="float32"))
-        return z
+                for i, j, k in T.grid(128, 128, 128):
+                    with T.block():
+                        vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                        with T.init():
+                            C[vi, vj] = 0.0
+                        C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-    x, y = f.params
-    B = x.struct_info.shape[0]
-    mm_bind, z_bind = f.body.blocks[0].bindings
-
-    assert mm_bind.var.name_hint == "my_matmul"
-    assert isinstance(mm_bind.value, tir.PrimFunc)
-
-    check_call(
-        z_bind.value,
-        "relax.call_tir",
-        [mm_bind.var, relax.Tuple([x, y])],
-        sinfo_args=[R.Tensor((B, 128), dtype="float32")],
-    )
+            B = T.var("int64")
+            z = R.call_tir(my_matmul, (x, y), R.Tensor((B, 128), dtype="float32"))
+            return z
 
 
 def test_call_packed():
@@ -665,8 +653,8 @@ def test_call_tir_extern():
 
 
 def test_empty_shape():
-    @R.function
-    def f(x: R.Tensor((), "float32"), y: R.Tensor((), "float32")):
+    @tvm.script.ir_module
+    class MyModule:
         @T.prim_func
         def scalar_add(a: T.handle, b: T.handle, c: T.handle) -> None:
             A = T.match_buffer(a, ())
@@ -676,19 +664,27 @@ def test_empty_shape():
             with T.block("add"):
                 C[()] = A[()] + B[()]
 
-        z = relax.call_tir(scalar_add, (x, y), R.Tensor((), dtype="float32"))
-        return z
+        @R.function
+        def f(x: R.Tensor((), "float32"), y: R.Tensor((), "float32")):
+            z = relax.call_tir(scalar_add, (x, y), R.Tensor((), dtype="float32"))
+            return z
 
-    x, y = f.params
-    add_bind, z_bind = f.body.blocks[0].bindings
+    my_module = MyModule
+    assert isinstance(my_module, tvm.IRModule)
+    add_g = my_module.get_global_var("scalar_add")
+    f_g = my_module.get_global_var("f")
+    func_f = my_module[f_g]
+    func_add = my_module[add_g]
+    x, y = func_f.params
+    assert func_f.body.blocks[0].bindings[-1].value.args[0] == add_g
+    bind = func_f.body.blocks[0].bindings[0]
 
-    assert add_bind.var.name_hint == "scalar_add"
-    assert isinstance(add_bind.value, tir.PrimFunc)
+    assert isinstance(func_add, tir.PrimFunc)
 
     check_call(
-        z_bind.value,
+        bind.value,
         "relax.call_tir",
-        [add_bind.var, relax.Tuple([x, y])],
+        [add_g, relax.Tuple([x, y])],
         sinfo_args=[R.Tensor((), dtype="float32")],
     )
 
