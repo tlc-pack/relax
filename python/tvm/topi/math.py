@@ -18,8 +18,9 @@
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
 from tvm import te
-from . import tag
-from . import cpp
+from tvm.tir import PrimExpr
+
+from . import cpp, tag
 from .utils import get_const_tuple
 
 
@@ -633,8 +634,16 @@ def clip(x, a_min, a_max):
 
     def _compute(*indices):
         value = x(*indices)
-        const_min = tvm.tir.const(a_min, value.dtype)
-        const_max = tvm.tir.const(a_max, value.dtype)
+        const_min = (
+            tvm.tir.Cast(value.dtype, a_min)
+            if isinstance(a_min, PrimExpr)
+            else tvm.tir.const(a_min, value.dtype)
+        )
+        const_max = (
+            tvm.tir.Cast(value.dtype, a_max)
+            if isinstance(a_max, PrimExpr)
+            else tvm.tir.const(a_max, value.dtype)
+        )
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
 
     return te.compute(x.shape, _compute)
