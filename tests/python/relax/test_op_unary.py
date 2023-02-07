@@ -51,6 +51,7 @@ def test_op_correctness():
     assert relax.op.sqrt(x).op == Op.get("relax.sqrt")
     assert relax.op.tan(x).op == Op.get("relax.tan")
     assert relax.op.tanh(x).op == Op.get("relax.tanh")
+    assert relax.op.clip(x, 0, 6).op == Op.get("relax.clip")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):

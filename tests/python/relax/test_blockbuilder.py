@@ -617,6 +617,30 @@ def test_emit_te_extern():
     assert call_node.sinfo_args[0].shape[1] == n
 
 
+def test_emit_te_prime_value():
+    bb = rx.BlockBuilder()
+    n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+    x = rx.Var("x", R.Tensor([n, m], "float32"))
+    a_min = rx.PrimValue(0)
+    a_max = rx.PrimValue(6)
+
+    with bb.function("rx_clip", [x]):
+        out = bb.emit_te(topi.clip, x, a_min, a_max)
+        bb.emit_func_output(out)
+
+    rx_func = bb.get()["rx_clip"]
+    print(rx_func)
+
+    # check Relax function calls TIR function with call_tir call
+    assert rx_func.params[0] == x
+    assert len(rx_func.body.blocks) == 1
+    call_node = rx_func.body.blocks[0].bindings[0].value
+    assert isinstance(call_node, rx.Call)
+    assert call_node.op == relay.op.get("relax.call_tir")
+    assert len(call_node.args) == 2
+    assert call_node.args[1][0] == x
+
+
 def test_emit_tuple_get_item():
     bb = rx.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")

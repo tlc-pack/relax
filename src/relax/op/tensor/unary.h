@@ -124,6 +124,9 @@ Expr tan(Expr x);
 /*! \brief Compute element-wise tanh of data. */
 Expr tanh(Expr x);
 
+/*! \brief Clips tensor values to a specified min and max. */
+Expr clip(Expr x, Expr min, Expr max);
+
 /***************** Check operators *****************/
 
 /*! \brief Check if input value is finite. */
