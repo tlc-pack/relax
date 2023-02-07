@@ -18,6 +18,7 @@
 """Relax unary arithmetic operators."""
 from . import _ffi_api
 from ..expr import Expr
+from ..utils import args_converter
 
 ###################### Arithmetic operators ######################
 
@@ -452,6 +453,29 @@ def tanh(x: Expr) -> Expr:
     The input tensor is required to have float dtype
     """
     return _ffi_api.tanh(x)  # type: ignore
+
+
+@args_converter.auto
+def clip(x: Expr, min: Expr, max: Expr) -> Expr:
+    """Clips tensor values to a specified min and max.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    min : relax.Expr
+        The minimum value
+
+    max : relax.Expr
+        The maximum value
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.clip(x, min, max)  # type: ignore
 
 
 ###################### Check operators ######################

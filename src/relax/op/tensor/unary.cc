@@ -24,6 +24,8 @@
 
 #include "unary.h"
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
@@ -57,6 +59,27 @@ RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(square, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(sqrt, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(tan, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(tanh, /*require_float_dtype=*/true);
+
+// relax.clip
+TVM_REGISTER_OP("relax.clip")
+    .set_num_inputs(3)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
+    .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>);
+
+Expr clip(Expr x, Expr min, Expr max) {
+  CHECK(min->IsInstance<PrimValueNode>())
+      << "The argument `min` of relax.clip is expected to be a PrimValue, but got"
+      << min->GetTypeKey();
+  CHECK(max->IsInstance<PrimValueNode>())
+      << "The argument `max` of relax.clip is expected to be a PrimValue, but got"
+      << max->GetTypeKey();
+  static const Op& op = Op::Get("relax.clip");
+  return Call(op, {std::move(x), std::move(min), std::move(max)});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.clip").set_body_typed(clip);
 
 /***************** Check operators *****************/
 
