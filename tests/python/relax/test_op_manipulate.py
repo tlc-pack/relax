@@ -294,6 +294,8 @@ def test_permute_dims_infer_struct_info():
     x3 = relax.Var("x", R.Tensor((1, 2, 3, 4)))
     x4 = relax.Var("x", R.Tensor(ndim=4))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((1,), "float32"))
+    x7 = relax.Var("x", R.Tensor((), "float32"))
 
     _check_inference(
         bb, relax.op.permute_dims(x0, [2, 3, 1, 0]), relax.TensorStructInfo((3, 4, 2, 1), "float32")
@@ -333,6 +335,12 @@ def test_permute_dims_infer_struct_info():
         bb, relax.op.permute_dims(x4, axes=None), relax.TensorStructInfo(dtype="", ndim=4)
     )
     _check_inference(bb, relax.op.permute_dims(x5, axes=None), relax.TensorStructInfo(dtype=""))
+    _check_inference(
+        bb, relax.op.permute_dims(x6, axes=None), relax.TensorStructInfo((1,), "float32")
+    )
+    _check_inference(
+        bb, relax.op.permute_dims(x7, axes=None), relax.TensorStructInfo((), "float32")
+    )
 
 
 def test_permute_dims_infer_struct_info_shape_symbolic():
