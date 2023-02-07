@@ -629,7 +629,6 @@ def test_emit_te_prime_value():
         bb.emit_func_output(out)
 
     rx_func = bb.get()["rx_clip"]
-    print(rx_func)
 
     # check Relax function calls TIR function with call_tir call
     assert rx_func.params[0] == x
