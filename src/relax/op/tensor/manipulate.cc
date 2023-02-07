@@ -391,6 +391,79 @@ TVM_REGISTER_OP("relax.flatten")
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten);
 
+/* relax.layout_transform */
+TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
+
+Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value) {
+  ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
+  attrs->index_map = std::move(index_map);
+  attrs->pad_value = std::move(pad_value);
+
+  static const Op& op = Op::Get("relax.layout_transform");
+  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
+
+StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
+  tir::IndexMap index_map = attrs->index_map;
+  Optional<PrimValue> optional_pad_value = attrs->pad_value;
+
+  // Check pad_value has same dtype as input.
+  if (optional_pad_value.defined()) {
+    PrimExpr padded_value = optional_pad_value.value()->value;
+    if (padded_value->dtype != data_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "layout_transform pad_value dtype (" << padded_value->dtype
+                       << ") and input dtype (" << data_sinfo->dtype << ") must be the same");
+    }
+  }
+
+  // We would like to ensure safety, and therefore placed a stronger requirement for user to
+  // use MatchCast before layout_transform if the shape of input is not known at compile time.
+  // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
+  // this requirement to reduce the workload of importers and better support dynamic shapes.
+  auto report_error_for_unknown_shape =
+      [&]() {
+        ctx->ReportFatal(
+            Diagnostic::Error(call)
+            << "layout_transform expects the input tensor to have known rank (expected rank = "
+            << index_map->initial_indices.size()
+            << ") and shape. For input tensors, whose shape cannot be determined at compile time, "
+               "please use MatchCast to get input with symbolic shape.");
+        return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+      };
+
+  if (data_sinfo->IsUnknownNdim()) return report_error_for_unknown_shape();
+
+  // If rank is known, check that it is compatible with the index_map, i.e., #dims match.
+  if (index_map->initial_indices.size() != static_cast<size_t>(data_sinfo->ndim)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "number of dimensions in input must match the number of source dimensions "
+                        "in index map, but got "
+                     << data_sinfo->ndim << " != " << index_map->initial_indices.size());
+  }
+
+  if (!data_sinfo->shape.defined()) return report_error_for_unknown_shape();
+
+  // If input shape is known, get the ShapeStructInfo of the shape expr.
+  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value());
+
+  if (!shape_sinfo->values.defined()) return report_error_for_unknown_shape();
+
+  Array<PrimExpr> input_shape = shape_sinfo->values.value();
+  Array<PrimExpr> output_shape = index_map->MapShape(input_shape);
+  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
+}
+
+TVM_REGISTER_OP("relax.layout_transform")
+    .set_num_inputs(1)
+    .set_attrs_type<LayoutTransformAttrs>()
+    .add_argument("x", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayoutTransform);
+
 /* relax.permute_dims */
 TVM_REGISTER_NODE_TYPE(PermuteDimsAttrs);
 

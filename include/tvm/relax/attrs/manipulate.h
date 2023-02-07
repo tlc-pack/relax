@@ -25,6 +25,7 @@
 #define TVM_RELAX_ATTRS_MANIPULATE_H_
 
 #include <tvm/relax/expr.h>
+#include <tvm/tir/index_map.h>
 
 namespace tvm {
 namespace relax {
@@ -51,6 +52,21 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
         "with the convention of negative indexing.");
   }
 };  // struct ExpandDimsAttrs
+
+/*! \brief Attributes used in layout_transform operator */
+struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
+  tir::IndexMap index_map;
+  // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
+  // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
+  Optional<PrimValue> pad_value;
+
+  TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relax.attrs.LayoutTransformAttrs") {
+    TVM_ATTR_FIELD(index_map).describe("The layout transformation to apply.");
+    TVM_ATTR_FIELD(pad_value).describe(
+        "The specific value to be used to pad if the layout transform would result in implicit "
+        "padding. If not specified, the compiler is free to choose any value.");
+  }
+};  // struct LayoutTransformAttrs
 
 /*! \brief Attributes used in permute_dims operator */
 struct PermuteDimsAttrs : public tvm::AttrsNode<PermuteDimsAttrs> {
