@@ -144,14 +144,12 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       auto it = groups_to_merge.cbegin();
       // Assign the first mergable group to current node
       // to reduce the number of groups created
-      group = *it;
+      group = *it++;
       group->num_nodes += 1;
 
       // Merge all groups
-      std::advance(it, 1);
-      while (it != groups_to_merge.cend()) {
+      for (; it != groups_to_merge.cend(); ++it) {
         MergeGroup(*it, group);
-        ++it;
       }
     }
 
@@ -167,16 +165,16 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     return composite_name.substr(0, delim_pos);
   }
 
-  std::optional<String> GetCodegenName(const Expr& callee) {
+  Optional<String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
     if (!gvar) {
-      return std::nullopt;
+      return NullOpt;
     }
 
     auto composite_name_opt =
         mod_->Lookup(GetRef<GlobalVar>(gvar))->GetAttr<String>(attr::kComposite);
     if (!composite_name_opt) {
-      return std::nullopt;
+      return NullOpt;
     }
 
     return GetCodegenName(composite_name_opt.value());
@@ -188,8 +186,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   Group* CreateNewGroup(const CallNode* call) {
     Group* group = arena_->make<Group>();
-    if (std::optional<String> codegen_name = GetCodegenName(call->op)) {
-      group->attrs.Set(attr::kCodegen, *codegen_name);
+    if (Optional<String> codegen_name = GetCodegenName(call->op)) {
+      group->attrs.Set(attr::kCodegen, codegen_name.value());
     }
     return group;
   }
@@ -251,8 +249,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   std::vector<Group*> GetGroupsToMerge(const CallNode* call) {
-    std::optional<String> codegen_name = GetCodegenName(call->op);
-    if (!codegen_name) {
+    Optional<String> codegen_name = GetCodegenName(call->op);
+    if (!codegen_name.defined()) {
       return {};
     }
 
@@ -262,8 +260,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     for (const auto& arg : call->args) {
       auto arg_group = memo_[arg];
       Optional<String> arg_codegen_name = GetCodegenName(arg_group);
-      if (arg_codegen_name.defined() && arg_codegen_name.value() == *codegen_name &&
-          !parent_dependencies.count(arg_group->FindRoot())) {
+      if (arg_codegen_name == codegen_name && !parent_dependencies.count(arg_group->FindRoot())) {
         // If there is a parent group with the same target, which none of the parent dependency
         // groups depends on, merging "this" call node into the parent group will not form a cyclic
         // dependency.
