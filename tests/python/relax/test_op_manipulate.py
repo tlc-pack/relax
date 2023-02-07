@@ -685,6 +685,15 @@ def test_layout_transform_infer_struct_info():
     )
 
 
+def test_layout_transform_infer_struct_info_mismatch_dtype():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((10, 20, 30), "int32"))
+
+    transpose_transform = lambda a, b, c: (a, c, b)
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.layout_transform(x, index_map=transpose_transform, pad_value=2.2))
+
+
 def test_layout_transform_infer_struct_info_unknown_shape():
     bb = relax.BlockBuilder()
     x_unknown_shape = relax.Var("x", R.Tensor("float32", ndim=2))

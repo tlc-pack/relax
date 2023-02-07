@@ -403,39 +403,48 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.layout_transform")
-    .set_body_typed([](Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value) {
-      return layout_transform(x, index_map, pad_value);
-    });
+TVM_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
 
 StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
   tir::IndexMap index_map = attrs->index_map;
+  Optional<PrimValue> optional_pad_value = attrs->pad_value;
 
-  if (!data_sinfo->shape.defined()) {
-    // For unknown input shape, the best we can do is get the #dims in output from index map
-    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
-  }
-  Array<PrimExpr> input_shape;
-  if (const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())) {
-    if (!shape_sinfo->values.defined()) {
-      // For unknown input shape, the best we can do is get the #dims in output from index map
-      return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+  // Check pad_value has same dtype as input.
+  if (optional_pad_value.defined()) {
+    PrimExpr padded_value = optional_pad_value.value()->value;
+    if (padded_value->dtype != data_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "layout_transform pad_value dtype (" << padded_value->dtype
+                       << ") and input dtype (" << data_sinfo->dtype << ") must be the same");
+      return {};
     }
-    input_shape = shape_sinfo->values.value();
-  } else {
-    const auto* shape_expr = data_sinfo->shape.as<ShapeExprNode>();
-    ICHECK(shape_expr);
-    input_shape = shape_expr->values;
   }
 
-  if (input_shape.size() != index_map->initial_indices.size()) {
+  // For unknown input shape, the best we can do is get the #dims in output from index map
+  auto inferred_sinfo_for_unknown_shape = [&]() {
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+  };
+
+  if (data_sinfo->IsUnknownNdim()) return inferred_sinfo_for_unknown_shape();
+
+  // If rank is known, check that it is compatible with the index_map, i.e., #dims match.
+  if (index_map->initial_indices.size() != static_cast<size_t>(data_sinfo->ndim)) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "number of dimensions in input must match the number of source dimensions "
                         "in index map, but got "
-                     << input_shape.size() << " != " << index_map->initial_indices.size());
+                     << data_sinfo->ndim << " != " << index_map->initial_indices.size());
   }
+
+  if (!data_sinfo->shape.defined()) return inferred_sinfo_for_unknown_shape();
+
+  // If input shape is known, get the ShapeStructInfo of the shape expr.
+  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value());
+
+  if (!shape_sinfo->values.defined()) return inferred_sinfo_for_unknown_shape();
+
+  Array<PrimExpr> input_shape = shape_sinfo->values.value();
   Array<PrimExpr> output_shape = index_map->MapShape(input_shape);
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }

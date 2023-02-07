@@ -56,6 +56,8 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
 /*! \brief Attributes used in layout_transform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   tir::IndexMap index_map;
+  // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
+  // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
   Optional<PrimValue> pad_value;
 
   TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relax.attrs.LayoutTransformAttrs") {
