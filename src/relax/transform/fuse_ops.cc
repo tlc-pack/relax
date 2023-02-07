@@ -949,18 +949,11 @@ class PatternBasedPartitioner : ExprVisitor {
 
       for (const auto& [pat, match] : matches_opt.value()) {
         ICHECK(group_map_.count(match.get()));
-        // The op node itself is also a part of the matched expressions, but it can be ignored.
-        if (!match->IsInstance<OpNode>()) {
-          // Put all matching expressions into the parent group.
+        // Put all matching call nodes into the parent group.
+        if (pat->IsInstance<CallPatternNode>() && match != GetRef<Call>(call)) {
           AddToGroup(match, parent_group);
-          if (match != GetRef<Call>(call) && !pat->IsInstance<WildcardPatternNode>()) {
-            // In the example above, we hit this code path when "match" is the conv2d call node
-            // on the RHS.
-            // After we put the conv2d into the parent group, "conv1", we also need to put "lv"
-            // on the LHS into the same parent group. We need this additional handling because
-            // "lv" does not appear as part of the matched expressions.
-            AddToGroup(value_to_bound_var_[match], parent_group);
-          }
+          // Put the bound variable on the LHS into the same parent group.
+          AddToGroup(value_to_bound_var_[match], parent_group);
         }
       }
     }
