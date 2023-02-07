@@ -52,5 +52,28 @@ def test_matmul():
     _check(foo, bb.get()["foo"])
 
 
+def test_linear():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 3, 4, 5), "float32"),
+        w: R.Tensor((3, 5), "float32"),
+        bias: R.Tensor((3,), "float32"),
+    ):
+        gv = R.linear(x, w, bias)
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    w = relax.Var("y", R.Tensor((3, 5), "float32"))
+    bias = relax.Var("bias", R.Tensor((3,), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, w, bias]):
+        w_T = bb.emit(relax.op.permute_dims(w, axes=None))
+        matmul = bb.emit(relax.op.matmul(x, w_T))
+        out = matmul + bias
+        bb.emit_func_output(out)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

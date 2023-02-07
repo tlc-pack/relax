@@ -20,8 +20,9 @@ from typing import Optional, Union
 
 from tvm import DataType
 
-from . import _ffi_api
 from ..expr import Expr
+from . import _ffi_api
+from .manipulate import permute_dims
 
 
 def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None) -> Expr:
@@ -48,3 +49,42 @@ def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None)
         The computed result.
     """
     return _ffi_api.matmul(x1, x2, out_dtype)  # type: ignore
+
+
+def linear(
+    data: Expr,
+    weight: Expr,
+    bias: Optional[Expr] = None,
+    out_dtype: Optional[Union[str, DataType]] = None,
+) -> Expr:
+    """Applies a linear transformation to the incoming data: y = xA^T + b
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    weight : relax.Expr
+        The weight tensor.
+
+    bias : Optional[Expr]
+        The bias tensor.
+
+    out_dtype: Optional[Union[str, DataType]]
+        The data type of the matmul result.
+        When it is not specified, the output dtype will be the the same as input dtype.
+
+    Notes
+    -----
+    Relax does not regard the Linear Op as a primitive Op,
+    while combine the transpose, matmul and add op to implement it.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+
+    # Since weight can be 1D or 2D, we use `axes=None` to support both cases.
+    x = matmul(data, permute_dims(weight, axes=None), out_dtype=out_dtype)
+    return x + bias if bias is not None else x
