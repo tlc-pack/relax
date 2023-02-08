@@ -17,15 +17,16 @@
 
 import pytest
 import tvm
+import tvm.script
 import tvm.testing
 from tvm import relax
-import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def check_if_func_exists(mod, func_name):
-    gvs = [str(gv) for gv in mod.get_global_vars()]
-    return ("@" + func_name) in gvs
+    gvs = [gv.name_hint for gv in mod.get_global_vars()]
+    return func_name in gvs
 
 
 def test_unused_relax_func():

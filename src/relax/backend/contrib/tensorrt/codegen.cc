@@ -217,7 +217,7 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
                                         Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
-    VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
+    VLOG(1) << "TensorRT partition:" << std::endl << func;
     TensorRTJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();

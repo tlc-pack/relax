@@ -136,7 +136,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing function pass with opt level: " << pass_info->opt_level;
-  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
+  VLOG(1) << "Input module:" << std::endl << mod;
 
   IRModule updated_mod = mod->ShallowCopy();
 
@@ -160,7 +160,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
-  VLOG(1) << "Output module:" << std::endl << PrettyPrint(updated_mod);
+  VLOG(1) << "Output module:" << std::endl << updated_mod;
 
   return updated_mod;
 }
@@ -357,7 +357,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing DataflowBlock pass with opt level: " << pass_info->opt_level;
-  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
+  VLOG(1) << "Input module:" << std::endl << mod;
 
   IRModule updated_mod = mod->ShallowCopy();
 
@@ -382,7 +382,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
 
-  VLOG(1) << "Output module:" << std::endl << PrettyPrint(updated_mod);
+  VLOG(1) << "Output module:" << std::endl << updated_mod;
 
   return updated_mod;
 }

@@ -116,7 +116,7 @@ inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
       return call;
     }
   }
-  LOG(FATAL) << op_name << " not found in the function " << PrettyPrint(f);
+  LOG(FATAL) << op_name << " not found in the function:\n" << f;
   return nullptr;
 }
 
