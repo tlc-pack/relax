@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Dict, Optional, Union
+from typing import Dict, Union
 
 import tvm._ffi
 from tvm._ffi.base import string_types

@@ -721,14 +721,14 @@ def test_if_branch():
     # in the seq expr "body" to a var
     y_bind = ite.true_branch.blocks[-1].bindings[-1]
     assert w_bind.var.name_hint == "w"
-    check_call(w_bind.value, "relax.add", [x, x])
-    check_call(y_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
+    check_call(w_bind.value, "Op(relax.add)", [x, x])
+    check_call(y_bind.value, "Op(relax.multiply)", [w_bind.var, w_bind.var])
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
     y_bind = ite.false_branch.blocks[-1].bindings[-1]
     assert w_bind.var.name_hint == "w"
-    check_call(w_bind.value, "relax.multiply", [x, x])
-    check_call(y_bind.value, "relax.add", [w_bind.var, w_bind.var])
+    check_call(w_bind.value, "Op(relax.multiply)", [x, x])
+    check_call(y_bind.value, "Op(relax.add)", [w_bind.var, w_bind.var])
 
 
 def test_if_inside_dataflow():

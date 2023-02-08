@@ -21,7 +21,7 @@ import tvm
 import tvm._ffi
 from tvm.runtime import Scriptable
 
-from . import Span, _ffi_api
+from . import _ffi_api
 from .base import Node
 
 
@@ -168,7 +168,7 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields, span: Span = None):
+    def __init__(self, fields, span=None):
         self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)
 
 

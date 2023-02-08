@@ -755,25 +755,13 @@ Doc RelayTextPrinter::VisitType_(const TypeDataNode* node) {
   return doc;
 }
 
-Doc RelayTextPrinter::VisitType_(const relax::DynTensorTypeNode* node) {
-  Doc doc;
-  doc << "Tensor[ndim=" << node->ndim << ", dtype=\"" << PrintDType(node->dtype) << "\"]";
-  return doc;
-}
-
-Doc RelayTextPrinter::VisitType_(const relax::ObjectTypeNode* node) {
-  Doc doc;
-  doc << "Object";
-  return doc;
-}
-
 //------------------------------------
 // Overload of Attr printing functions
 //------------------------------------
 
 Doc RelayTextPrinter::VisitAttrDefault_(const Object* op) {
   // Since we don't have any overload for a specific attribute type we'll need to force
-  // the metadata[...] representation to avoid infinite regress.
+  // the meta[...] representation to avoid infinite regress.
   return PrintAttributeValue(GetRef<ObjectRef>(op), /*force_meta=*/true);
 }
 
@@ -875,8 +863,7 @@ std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr
   const auto* op_node = op.as<OpNode>();
   if (show_meta_data_ && op_node && (attrs->type_index() != op_node->attrs_type_index)) {
     // The parser can only understand calls with attributes if they match the operator's
-    // declared attribute type. If that's not the case fall back to the metadata[...]
-    // representation.
+    // declared attribute type. If that's not the case fall back to the meta[...] representation.
     docs.push_back(meta_->GetMetaNode(attrs));
   } else {
     AppendGenericAttrs(&docs, attrs, /*include_type_key=*/!op_node);

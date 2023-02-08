@@ -65,8 +65,6 @@
 
 #include <unordered_set>
 
-#include "../../printer/text_printer.h"
-
 namespace tvm {
 namespace relax {
 
@@ -223,8 +221,8 @@ class WellFormedChecker : public relax::ExprVisitor,
         Malformed(Diagnostic::Error(param->span)
                   << "Relax variable " << param->name_hint()
                   << " is repeatedly used as parameters in function:\n"
-                  << AsRelaxScript(param_var_func_map_[param], false) << "\nand function:\n"
-                  << AsRelaxScript(GetRef<Function>(op), false));
+                  << param_var_func_map_[param] << "\nand function:\n"
+                  << GetRef<Function>(op));
       }
       param_var_func_map_.insert({param, GetRef<Function>(op)});
     }
