@@ -18,7 +18,7 @@
  */
 /*!
  * \file src/relax/transform/rewrite_dataflow_reshape.cc
- * \brief Transform all reshape within dataflow block to a specialized reshape operator
+ * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -75,8 +75,11 @@ class DataflowReshapeRewriter : public ExprMutator {
     if (call->op != call_tir_op) {
       return false;
     }
-    GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
-    const auto* func = mod_->functions.Get(gv).as<tir::PrimFuncNode>();
+    const auto* gv = call->args[0].as<GlobalVarNode>();
+    if (gv == nullptr) {
+      return false;
+    }
+    const auto* func = mod_->functions.Get(GetRef<GlobalVar>(gv)).as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
     return HasReshapePattern(GetRef<tir::PrimFunc>(func));
   }
