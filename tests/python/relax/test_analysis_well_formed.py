@@ -361,26 +361,36 @@ def test_inline_prim_func():
     # Error: inline prim_func is disallowed in Relax IR
     x = rx.Var("x", R.Tensor([], "int32"))
     y = rx.Var("y", R.Tensor([], "int32"))
-    z = rx.Var("z", R.Tensor([], "int32"))
     new_func = rx.Function(
-        [x, y],
+        [],
         rx.SeqExpr(
             [
                 rx.BindingBlock(
                     [
                         rx.VarBinding(
-                            var=z,
-                            value=tir.PrimFunc([x, y], tir.Evaluate(x + y)),
-                        )
+                            var=x,
+                            value=tir.PrimFunc([], tir.Evaluate(0)),
+                        ),
+                        rx.VarBinding(
+                            var=y,
+                            value=rx.Call(
+                                op=tvm.ir.Op.get("relax.call_tir"),
+                                args=[
+                                    rx.GlobalVar("GlobalVar0"),
+                                    rx.Tuple([x, tir.PrimFunc([], tir.Evaluate(0))]),
+                                    rx.ShapeExpr([]),
+                                ],
+                            ),
+                        ),
                     ]
                 )
             ],
-            z,
+            y,
         ),
         R.Tensor(ndim=0, dtype="int32"),
     ).with_attr("global_symbol", "foo")
     new_mod = tvm.IRModule.from_expr(new_func)
-    assert rx.analysis.well_formed(new_mod, check_struct_info=False)
+    assert not rx.analysis.well_formed(new_mod, check_struct_info=False)
 
 
 def test_ANF():

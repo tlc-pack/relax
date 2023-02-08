@@ -470,7 +470,6 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
    * \note This function create a new binding for non-leaf expressions except for tuple.
    */
   Expr NormalizeArgument(const Expr& arg) final {
-
     if (!block_stack_.empty()) {
       // cache lookup
       BlockFrame* cur_frame = CurrentBlockFrame();
