@@ -119,7 +119,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \brief Create a specific instance of VM.
    * \return Created VM
    */
-  static ObjectPtr<VirtualMachine> Create();
+  static ObjectPtr<VirtualMachine> Create(bool profile=false);
   /*!
    * \brief Helper function for vm closure functions to get the context ptr
    * \param arg The argument value.

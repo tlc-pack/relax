@@ -63,6 +63,7 @@ class VirtualMachine(object):
         exec: Union[Executable, Module],
         device: Union[Device, List[Device]],
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
+        profile: bool = False,
     ) -> None:
         """
         Construct a VirtualMachine wrapper object.
@@ -83,10 +84,11 @@ class VirtualMachine(object):
             type specified in the dict, or pooled allocator if not specified in the
             dict.
         """
+        load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
         self.module = (
-            exec.mod["vm_load_executable"]()
+            exec.mod[load_exec]()
             if isinstance(exec, Executable)
-            else exec["vm_load_executable"]()
+            else exec[load_exec]()
         )
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
@@ -448,6 +450,10 @@ class VirtualMachine(object):
             repeats_to_cooldown=repeats_to_cooldown,
             f_preproc=f_preproc,
         )
+
+
+    def profile(self, func_name, *args):
+        return self.module["profile"](func_name, *args)
 
 
 def _vmcodegen(

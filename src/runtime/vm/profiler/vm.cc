@@ -69,10 +69,10 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
             invoke(arg_name);
           }
 
-          prof_.operator*().Start();
+          prof_->Start();
           invoke(arg_name);
-          prof_.operator*().Stop();
-          auto report = prof_.operator*().Report();
+          prof_->Stop();
+          auto report = prof_->Report();
           prof_ = std::nullopt;  // releases hardware counters
           return report;
         });
@@ -98,15 +98,15 @@ void VirtualMachineDebug::LoadExecutable(const ObjectPtr<Executable>& exec) {
 }
 
 void VirtualMachineDebug::OpStartHook(Instruction instr) {
-  if (prof_ && prof_.operator*().IsRunning()) {
+  if (prof_ && prof_->IsRunning()) {
     if (instr.op == Opcode::LoadConst) {
       Device dev = GetDevice(exec_->const_device_indexes[instr.const_index]);
-      prof_.operator*().StartCall("VM::LoadConst", dev, {});
+      prof_->StartCall("VM::LoadConst", dev, {});
     } else if (instr.op == Opcode::DeviceCopy) {
       Device dst_dev = GetDevice(instr.device_copy.dst_device_index);
-      prof_.operator*().StartCall("VM::DeviceCopy", dst_dev, {});
+      prof_->StartCall("VM::DeviceCopy", dst_dev, {});
     } else if (instr.op == Opcode::ReshapeTensor) {
-      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[exec_->host_device_index], {});
+      prof_->StartCall("VM::ReshapeTensor", devices_[exec_->host_device_index], {});
     } else if (instr.op == Opcode::AllocTensor) {
       auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
 
@@ -115,7 +115,7 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       }
       auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
       auto storage = Downcast<Storage>(storage_obj);
-      prof_.operator*().StartCall(
+      prof_->StartCall(
           "VM::AllocTensor", storage->buffer.device,
           {{"Argument Shapes", profiling::ShapeString(shape, instr.alloc_tensor.dtype)}});
     } else if (instr.op == Opcode::AllocTensorReg) {
@@ -124,26 +124,24 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       Device cpu_dev = GetDevice(exec_->host_device_index);
       auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
       NDArray shape_tensor = Downcast<NDArray>(shape_obj).CopyTo(cpu_dev);
-      prof_.operator*().StartCall(
-          "VM::AllocTensorReg", storage->buffer.device,
-          {{"Argument Shapes",
-            profiling::ShapeString(shape_tensor, instr.alloc_tensor_reg.dtype)}});
+      prof_->StartCall("VM::AllocTensorReg", storage->buffer.device,
+                       {{"Argument Shapes",
+                         profiling::ShapeString(shape_tensor, instr.alloc_tensor_reg.dtype)}});
     } else if (instr.op == Opcode::AllocStorage) {
       auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
       std::ostringstream shape;
       shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
       Device dev = GetDevice(instr.alloc_storage.device_index);
-      prof_.operator*().StartCall("VM::AllocStorage", dev,
-                                  {{"VM::Argument Shapes", String(shape.str())}});
+      prof_->StartCall("VM::AllocStorage", dev, {{"VM::Argument Shapes", String(shape.str())}});
     } else {
-      prof_.operator*().StartCall("VM::UnknownOp", GetDevice(exec_->host_device_index), {});
+      prof_->StartCall("VM::UnknownOp", GetDevice(exec_->host_device_index), {});
     }
   }
 }
 
 void VirtualMachineDebug::OpStopHook() {
-  if (prof_ && prof_.operator*().IsRunning()) {
-    prof_.operator*().StopCall();
+  if (prof_ && prof_->IsRunning()) {
+    prof_->StopCall();
   }
 }
 
@@ -151,7 +149,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
                                        Index output_size, const std::vector<ObjectRef>& args) {
   ICHECK(exec_);
   ICHECK(!devices_.empty()) << "Device has not been initialized yet.";
-  if (prof_ && prof_.operator*().IsRunning()) {
+  if (prof_ && prof_->IsRunning()) {
     // The device of any input of the operator is used for synchronization.
     ICHECK_GT(arg_count, 0U);
     ObjectRef arg = args[0];
@@ -193,11 +191,11 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
     }
     metrics["Argument Shapes"] = profiling::ShapeString(shapes);
 
-    prof_.operator*().StartCall(packed_index_map_[packed_index], dev, metrics);
+    prof_->StartCall(packed_index_map_[packed_index], dev, metrics);
   }
   VirtualMachine::InvokePacked(packed_index, func, arg_count, output_size, args);
-  if (prof_ && prof_.operator*().IsRunning()) {
-    prof_.operator*().StopCall();
+  if (prof_ && prof_->IsRunning()) {
+    prof_->StopCall();
   }
 }
 

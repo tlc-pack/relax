@@ -72,7 +72,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   bool IsCallingTIRReshape(const CallNode* call) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op != call_tir_op) {
+    if (call->op != call_tir_op || call->args[0]->IsInstance<ExternFuncNode>()) {
       return false;
     }
     const auto* gv = call->args[0].as<GlobalVarNode>();

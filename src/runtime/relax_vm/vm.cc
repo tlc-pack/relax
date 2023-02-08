@@ -23,7 +23,10 @@
 
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/relax_vm/vm.h>
+
+#include <optional>
 
 namespace tvm {
 namespace runtime {
@@ -177,7 +180,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   VMClosure GetClosure(const String& func_name) final;
 
@@ -315,10 +318,12 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param curr_frame The current frame.
    * \param inst The call instruction.
    */
-  inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
+  virtual inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
+
+  inline std::string GetFuncName(int idx) { return exec_->func_table[idx].name; }
 
  private:
   //--------------------------------------------------------
@@ -706,7 +711,7 @@ void VirtualMachineImpl::InitFuncPool() {
 }
 
 void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
-  DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << exec_->func_table[instr.func_idx].name;
+  DLOG(INFO) << "\n  pc = " << pc_ << ", execute: " << GetFuncName(instr.func_idx);
 
   // Use the call arg stack from the current frame to increase reuse
   // and avoid re-allocation
@@ -804,7 +809,87 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
-ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualMachineImpl>(); }
+class VirtualMachineProfiler : public VirtualMachineImpl {
+ public:
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+    if (name == "profile") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        std::string f_name = args[0];
+        VMClosure clo = this->GetClosure(f_name);
+
+        std::vector<Device> devices;
+        for (auto dev : this->devices) {
+          if (dev.device_type > 0) {
+            devices.push_back(dev);
+          }
+        }
+
+        prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
+
+        TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
+
+        // warmup
+        for (int i = 0; i < 3; i++) {
+          this->InvokeClosurePacked(clo, f_args, rv);
+        }
+
+        prof_->Start();
+        this->InvokeClosurePacked(clo, f_args, rv);
+        prof_->Stop();
+        *rv = prof_->Report();
+      });
+    } else {
+      return VirtualMachineImpl::GetFunction(name, sptr_to_self);
+    }
+  }
+
+ protected:
+  void RunInstrCall(VMFrame* curr_frame, Instruction inst) override {
+    bool profiling = false;
+    if (prof_ && prof_->IsRunning()) {
+      auto f_name = GetFuncName(inst.func_idx);
+      std::optional<Device> dev;
+      std::vector<NDArray> arrs;
+      for (Index i = 0; i < inst.num_args; ++i) {
+        Instruction::Arg arg = inst.args[i];
+        if (arg.kind() == Instruction::ArgKind::kRegister) {
+          auto reg = ReadRegister(curr_frame, arg.value());
+          if (reg.type_code() == kTVMNDArrayHandle) {
+            NDArray arr = reg;
+            dev = arr->device;
+            arrs.push_back(arr);
+          }
+        } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
+          // auto c = this->const_pool_[arg.value()];
+        }
+      }
+
+      std::unordered_map<std::string, ObjectRef> metrics;
+      metrics["Argument Shapes"] = profiling::ShapeString(arrs);
+
+      if (dev) {
+        profiling = true;
+        prof_->StartCall(f_name, *dev, metrics);
+      }
+    }
+
+    VirtualMachineImpl::RunInstrCall(curr_frame, inst);
+
+    if (profiling) {
+      prof_->StopCall();
+    }
+  }
+
+ private:
+  std::optional<profiling::Profiler> prof_;
+};
+
+ObjectPtr<VirtualMachine> VirtualMachine::Create(bool profile) {
+  if (profile) {
+    return make_object<VirtualMachineProfiler>();
+  }
+  return make_object<VirtualMachineImpl>();
+}
 
 }  // namespace relax_vm
 }  // namespace runtime
