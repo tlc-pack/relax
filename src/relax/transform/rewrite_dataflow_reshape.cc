@@ -24,6 +24,8 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
+#include "../op/tensor/manipulate.h"
+
 namespace tvm {
 namespace relax {
 
@@ -32,6 +34,8 @@ class DataflowReshapeRewriter : public ExprMutator {
   explicit DataflowReshapeRewriter(const IRModule& mod) : mod_(mod) {}
 
  private:
+  using ExprMutator::VisitExpr_;
+
   BindingBlock VisitBindingBlock(const BindingBlock& block) final {
     // We only rewrite the bindings inside dataflow blocks.
     if (const auto* dataflow_block = block.as<DataflowBlockNode>()) {
@@ -55,12 +59,15 @@ class DataflowReshapeRewriter : public ExprMutator {
     if (!IsCallingTIRReshape(call)) {
       return GetRef<Call>(call);
     }
-    static const ExternFunc& vm_builtin_reshape = ExternFunc("vm.builtin.reshape");
+
+    // We bring the calls of reshape PrimFunc back to calls of high-level
+    // relax.reshape op, which will be lowered to calls of the ExternFunc
+    // vm.builtin.reshape in the VMBuiltinLower pass.
     Array<Expr> args = Downcast<Tuple>(call->args[1])->fields;
     ICHECK_EQ(args.size(), 1);
     TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_);
-    ShapeExpr new_shape = Downcast<ShapeExpr>(res_sinfo->shape);
-    return Call(vm_builtin_reshape, {args[0], new_shape}, Attrs(), {res_sinfo});
+    ICHECK(res_sinfo->shape.defined());
+    return reshape(args[0], res_sinfo->shape.value());
   }
 
   bool IsCallingTIRReshape(const CallNode* call) {

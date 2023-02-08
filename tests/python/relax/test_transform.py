@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import pytest
+
 import tvm
+import tvm.script
+import tvm.testing
 from tvm import relax
 from tvm.ir import structural_equal
 from tvm.ir.base import assert_structural_equal
-
-import tvm.script
 from tvm.script import tir as T, relax as R
 
 
@@ -320,5 +320,26 @@ def test_vm_memory_lower():
     assert s3.op.global_symbol == "test.op.identity"
 
 
+def test_vm_builtin_lower_reshape():
+    @tvm.script.ir_module
+    class TestVMReshape:
+        @R.function
+        def main(x: R.Tensor((3, 4), "float32")):
+            y = R.reshape(x, (6, 2))
+            return y
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 4), "float32")):
+            y: R.Tensor((6, 2), "float32") = R.call_packed(
+                "vm.builtin.reshape", x, (6, 2), sinfo_args=R.Tensor((6, 2), "float32")
+            )
+            return y
+
+    mod = relax.transform.VMBuiltinLower()(TestVMReshape)
+    assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
