@@ -859,8 +859,6 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
             dev = arr->device;
             arrs.push_back(arr);
           }
-        } else if (arg.kind() == Instruction::ArgKind::kConstIdx) {
-          // auto c = this->const_pool_[arg.value()];
         }
       }
 

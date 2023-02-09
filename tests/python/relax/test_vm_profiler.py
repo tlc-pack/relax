@@ -19,7 +19,9 @@ import numpy as np
 import tvm
 import tvm.testing
 
-from tvm import relax, relay
+from tvm import relax, relay, rpc
+from tvm.contrib import utils
+
 from tvm.relax.testing import relay_translator
 
 
@@ -45,24 +47,48 @@ def get_relay_conv2d_relu_x2(d_shape, w_shape):
     )
 
 
-def test_conv2d_cpu():
-    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+def get_exec(data_shape):
     weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
     weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
 
-    relay_mod = tvm.IRModule.from_expr(get_relay_conv2d_relu_x2(data_np.shape, weight1_np.shape))
+    relay_mod = tvm.IRModule.from_expr(get_relay_conv2d_relu_x2(data_shape, weight1_np.shape))
     params = {"weight1": weight1_np, "weight2": weight2_np}
+
     target = "llvm"
     mod = relay_translator.from_relay(relay_mod["main"], target, params)
 
-    ex = relax.vm.build(mod, target)
+    return relax.vm.build(mod, target)
+
+
+def test_conv2d_cpu():
+    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+    ex = get_exec(data_np.shape)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
-
     report = vm.profile("main", tvm.nd.array(data_np))
+    print(report)
 
+
+def test_rpc():
+    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+    ex = get_exec(data_np.shape)
+
+    temp = utils.tempdir()
+    path = temp.relpath("vm_library.so")
+    ex.mod.export_library(path)
+
+    server = rpc.Server("127.0.0.1")
+    remote = rpc.connect(server.host, server.port, session_timeout=10)
+
+    remote.upload(path)
+    rexec = remote.load_module("vm_library.so")
+
+    device = remote.cpu()
+
+    vm = relax.vm.VirtualMachine(exec=rexec, device=device, profile=True)
+    report = vm.profile("main", tvm.nd.array(data_np, device))
     print(report)
 
 
 if __name__ == "__main__":
-    test_conv2d_cpu()
+    test_rpc()
