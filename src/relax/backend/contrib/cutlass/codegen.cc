@@ -183,8 +183,12 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
     ICHECK(pattern_name.defined()) << "Only functions with composite attribute are supported.";
 
+    auto matched_call_nodes =
+        callee->GetAttr<Map<String, Array<Call>>>(attr::kMatchedCallNodes).value_or({});
+
     if (pattern_name == "cutlass.conv2d_bias_relu") {
-      const CallNode* conv2d_call = backend::GetOpInFunction(callee, "relax.nn.conv2d");
+      ICHECK_EQ(matched_call_nodes["relax.nn.conv2d"].size(), 1);
+      Call conv2d_call = matched_call_nodes["relax.nn.conv2d"][0];
       return GenerateBody(conv2d_call, "cutlass_conv2d_bias_relu", GetArgumentNames(caller),
                           Conv2dArgs(callee->attrs->dict));
     }
@@ -193,10 +197,10 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     return {};
   }
 
-  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
+  GenerateBodyOutput GenerateBody(Call root_call, const std::string& func_name,
                                   const std::vector<std::string>& func_args,
                                   const Str2StrMap& attribute_args) {
-    auto struct_info = GetStructInfo(GetRef<Call>(root_call));
+    auto struct_info = GetStructInfo(root_call);
 
     std::vector<std::string> out_types;
     if (const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>()) {

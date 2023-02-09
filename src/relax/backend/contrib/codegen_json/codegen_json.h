@@ -231,7 +231,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     return ret;
   }
 
-  void SetCallNodeAttribute(JSONGraphObjectPtr node, const CallNode* cn) {
+  void SetCallNodeAttribute(JSONGraphObjectPtr node, Call cn) {
     if (cn->op.as<OpNode>()) {
       OpAttrExtractor extractor(node);
       const Object* call_attr = cn->attrs.get();
@@ -246,6 +246,10 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       attr.emplace_back(values);
       node->SetAttr("PartitionedFromPattern", attr);
     }
+  }
+
+  void SetCallNodeAttribute(JSONGraphObjectPtr node, const CallNode* cn) {
+    SetCallNodeAttribute(node, GetRef<Call>(cn));
   }
 
   NodeEntries VisitBinding_(const MatchCastNode* binding) {

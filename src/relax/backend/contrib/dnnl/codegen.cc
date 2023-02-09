@@ -64,13 +64,18 @@ class DNNLJSONSerializer : public JSONSerializer {
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
 
-    const CallNode* root_call = nullptr;
+    auto matched_call_nodes =
+        fn->GetAttr<Map<String, Array<Call>>>(attr::kMatchedCallNodes).value_or({});
+
+    Call root_call;
     if (composite_name.find("conv2d") != std::string::npos) {
-      root_call = backend::GetOpInFunction(fn, "relax.nn.conv2d");
+      ICHECK_EQ(matched_call_nodes["relax.nn.conv2d"].size(), 1);
+      root_call = matched_call_nodes["relax.nn.conv2d"][0];
     } else {
       LOG(FATAL) << "Unimplemented pattern: " << composite_name;
     }
 
+    ICHECK(root_call.defined());
     SetCallNodeAttribute(node, root_call);
     return AddNode(node, GetRef<Expr>(call_node));
   }
