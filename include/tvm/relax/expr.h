@@ -942,8 +942,10 @@ constexpr const char* kPrimitive = "Primitive";
  * When this is unset or set to "default", the default compilation pipeline will be used.
  */
 constexpr const char* kCodegen = "Codegen";
-/*! \brief Treat the function as a composite operator. */
+/*! \brief Treat the function as a composite function. */
 constexpr const char* kComposite = "Composite";
+/*! \brief Attach matched call nodes in a composite function. */
+constexpr const char* kMatchedCallNodes = "MatchedCallNodes";
 /*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 }  // namespace attr

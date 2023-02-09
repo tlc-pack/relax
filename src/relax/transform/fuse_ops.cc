@@ -947,6 +947,8 @@ class PatternBasedPartitioner : ExprVisitor {
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
 
+      Map<String, Array<Call>> matched_call_nodes;
+
       for (const auto& [pat, match] : matches_opt.value()) {
         ICHECK(group_map_.count(match.get()));
         // Put all matching call nodes into the parent group.
@@ -954,8 +956,22 @@ class PatternBasedPartitioner : ExprVisitor {
           AddToGroup(match, parent_group);
           // Put the bound variable on the LHS into the same parent group.
           AddToGroup(value_to_bound_var_[match], parent_group);
+
+          auto matched_call = Downcast<Call>(match);
+          if (auto op = matched_call->op.as<OpNode>()) {
+            auto op_name = op->name;
+            if (matched_call_nodes.count(op_name)) {
+              auto tmp = matched_call_nodes[op_name];
+              tmp.push_back(matched_call);
+              matched_call_nodes.Set(op_name, tmp);
+            } else {
+              matched_call_nodes.Set(op_name, {matched_call});
+            }
+          }
         }
       }
+
+      parent_group->attrs.Set(attr::kMatchedCallNodes, matched_call_nodes);
     }
   }
 

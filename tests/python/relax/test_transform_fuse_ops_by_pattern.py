@@ -322,8 +322,30 @@ conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=No
 conv2d_relu_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation="relax.nn.relu")
 
 
+@relax.expr_functor.mutator
+class AttributeRemover(relax.PyExprMutator):
+    def __init__(self, mod, attrs_to_remove):
+        super().__init__(mod)
+        self.attrs_to_remove = attrs_to_remove
+
+    def visit_function_(self, f):
+        f = super().visit_function_(f)
+        if f.attrs:
+            new_attrs = {}
+            for attr_name, v in f.attrs.items():
+                if attr_name not in self.attrs_to_remove:
+                    new_attrs[attr_name] = v
+            new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
+            return relax.Function(f.params, f.body, f.ret_struct_info, new_attrs, f.span)
+        return f
+
+
 def check(mod, patterns, expected, annoatate_codegen=False):
     partitioned = relax.transform.FuseOpsByPattern(patterns, annoatate_codegen)(mod)
+    for gvar, f in partitioned.functions.items():
+        new_f = AttributeRemover(partitioned, ["MatchedCallNodes"]).visit_expr(f)
+        partitioned[gvar] = new_f
+
     tvm.ir.assert_structural_equal(partitioned, expected)
 
 
