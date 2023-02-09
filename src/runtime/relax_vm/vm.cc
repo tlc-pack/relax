@@ -323,10 +323,21 @@ class VirtualMachineImpl : public VirtualMachine {
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
+  /*!
+   * \brief Retrieve the name of the function identified by the given index.
+   * \param idx The index into the VM executable function table.
+   * \return The name of the function.
+   */
   inline std::string GetFuncName(int idx) { return exec_->func_table[idx].name; }
 
-  /*! \brief The function name to input register mapping. */
-  std::unordered_map<std::string, std::vector<RegType>> inputs_;
+  /*!
+   * \brief Retrieve the inputs for a function.
+   * \param func_name The name of the function.
+   * \return The function inputs.
+   */
+  inline const std::vector<RegType>& GetInputsFor(const std::string& func_name) {
+    return inputs_[func_name];
+  }
 
  private:
   //--------------------------------------------------------
@@ -343,7 +354,8 @@ class VirtualMachineImpl : public VirtualMachine {
   //--------------------------------------------------------
   // Executor interface support
   //--------------------------------------------------------
-
+  /*! \brief The function name to input register mapping. */
+  std::unordered_map<std::string, std::vector<RegType>> inputs_;
   /*! \brief The function name to output register. */
   std::unordered_map<std::string, RegType> outputs_;
   /*! \brief A store of closures created by `save_function`. */
@@ -831,13 +843,15 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
         SetInput(f_name, args, 1);
 
+        auto inputs = GetInputsFor(f_name);
+
         // warmup
         for (int i = 0; i < 3; i++) {
-          this->InvokeClosureInternal(clo, inputs_[f_name]);
+          this->InvokeClosureInternal(clo, inputs);
         }
 
         prof_->Start();
-        this->InvokeClosureInternal(clo, inputs_[f_name]);
+        this->InvokeClosureInternal(clo, inputs);
         prof_->Stop();
         std::string report_json = prof_->Report()->AsJSON();
         *rv = report_json;

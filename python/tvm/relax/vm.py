@@ -84,6 +84,9 @@ class VirtualMachine(object):
             allocator type. If memory_cfg is a dict, each device uses the allocator
             type specified in the dict, or pooled allocator if not specified in the
             dict.
+
+        profile : Optional[bool]
+            Whether or not to enable profiling.
         """
         load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
         self.module = (
@@ -452,11 +455,9 @@ class VirtualMachine(object):
             f_preproc=f_preproc,
         )
 
-
     def profile(self, func_name, *args):
         report_json = self.module["profile"](func_name, *args)
         return Report.from_json(report_json)
-
 
 
 def _vmcodegen(
