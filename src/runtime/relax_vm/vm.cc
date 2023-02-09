@@ -325,6 +325,9 @@ class VirtualMachineImpl : public VirtualMachine {
 
   inline std::string GetFuncName(int idx) { return exec_->func_table[idx].name; }
 
+  /*! \brief The function name to input register mapping. */
+  std::unordered_map<std::string, std::vector<RegType>> inputs_;
+
  private:
   //--------------------------------------------------------
   // Internal states for execution.
@@ -340,8 +343,7 @@ class VirtualMachineImpl : public VirtualMachine {
   //--------------------------------------------------------
   // Executor interface support
   //--------------------------------------------------------
-  /*! \brief The function name to input register mapping. */
-  std::unordered_map<std::string, std::vector<RegType>> inputs_;
+
   /*! \brief The function name to output register. */
   std::unordered_map<std::string, RegType> outputs_;
   /*! \brief A store of closures created by `save_function`. */
@@ -827,16 +829,18 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
 
         TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
+        SetInput(f_name, args, 1);
 
         // warmup
         for (int i = 0; i < 3; i++) {
-          this->InvokeClosurePacked(clo, f_args, rv);
+          this->InvokeClosureInternal(clo, inputs_[f_name]);
         }
 
         prof_->Start();
-        this->InvokeClosurePacked(clo, f_args, rv);
+        this->InvokeClosureInternal(clo, inputs_[f_name]);
         prof_->Stop();
-        *rv = prof_->Report();
+        std::string report_json = prof_->Report()->AsJSON();
+        *rv = report_json;
       });
     } else {
       return VirtualMachineImpl::GetFunction(name, sptr_to_self);

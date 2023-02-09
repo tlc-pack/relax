@@ -25,6 +25,7 @@ from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Device, Module, PackedFunc, container
 from tvm.runtime.object import Object
+from tvm.runtime.profiling import Report
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from ..rpc.base import RPC_SESS_MASK
@@ -453,7 +454,9 @@ class VirtualMachine(object):
 
 
     def profile(self, func_name, *args):
-        return self.module["profile"](func_name, *args)
+        report_json = self.module["profile"](func_name, *args)
+        return Report.from_json(report_json)
+
 
 
 def _vmcodegen(
