@@ -102,14 +102,22 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
 
 
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
-    """Convert all reshape-like call_tir to VM reshape operator call.
-    The VM reshape operator calls will be further lowered to a CreateView
-    operation at runtime, instead of doing real data copy.
+    """Convert all reshape-like call_tir whose corresponding binding
+    vars are DataflowVars to relax.reshape operator calls. The relax.reshape
+    calls will be lowered an external builtin function call in a subsequent
+    pass, where the external builtin function does a CreateView operation
+    at runtime, instead of doing real data copy.
+
     Here "reshape-like" includes reshape, expand_dims, flatten, etc.
 
     Returns
     -------
     ret : tvm.ir.transform.Pass
+
+    Notes
+    -----
+    The pass is applied at the first stage of Relax VM build, before
+    rewriting call_tir, as this pass requires dataflow information.
     """
     return _ffi_api.RewriteDataflowReshape()  # type: ignore
 
