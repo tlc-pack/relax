@@ -21,7 +21,6 @@
  * \brief Lowers most builtin functions and packed calls.
  */
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
@@ -87,21 +86,22 @@ class VMBuiltinLowerMutator : public ExprMutator {
   }
 
   Expr MakeAllocTensor(const Call& call) {
+    for (int32_t i = 0; i < call->args.size(); ++i) {
+      LOG(INFO) << "76 MakeAllocTensor arg_[" << i << "]'s type = " << call->args[i]->GetTypeKey();
+    }
     ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-    auto alloc_attrs = call->attrs.as<AllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
-    DataType dtype = alloc_attrs->dtype;
+    DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[1]);
+    DataType dtype = output_dtype->value;
     Expr storage_size = ComputeStorageSize(output_shape, dtype);
-    auto storage_attr = make_object<VMAllocStorageAttrs>();
-    storage_attr->dtype = dtype;
-    storage_attr->runtime_device_index = alloc_attrs->runtime_device_index;
+    PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
     Var storage =
-        builder_->Emit(Call(vm_alloc_storage_op_, {storage_size}, Attrs(storage_attr)), "storage");
-    auto tensor_attr = make_object<VMAllocTensorAttrs>();
-    tensor_attr->offset = 0;
-    tensor_attr->dtype = dtype;
+        builder_->Emit(Call(vm_alloc_storage_op_,
+                            {storage_size, output_dtype, runtime_device_index}, Attrs()),
+                       "storage");
     Expr shape = call->args[0];
-    return Call(vm_alloc_tensor_op_, {storage, shape}, Attrs(tensor_attr));
+    PrimValue offset = PrimValue::Int64(0);
+    return Call(vm_alloc_tensor_op_, {storage, shape, offset, DataTypeImm(dtype)},
+                Attrs());
   }
 
   Expr MakeMemAllocStorage(const Call& call) {

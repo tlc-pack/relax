@@ -22,7 +22,6 @@
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
 #include <tvm/driver/driver_api.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/set.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
@@ -323,38 +322,32 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocStorage(const Call& call_node, RegName dst_reg) {
+    ICHECK_EQ(call_node->args.size(), 3);
     // Handle args of the call
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
-    for (Expr arg : call_node->args) {
+    // buffer size, dtype, device index
+    for (auto arg : call_node->args) {
       args.push_back(this->VisitExpr(arg));
     }
-
-    // Handle attrs of the call
-    auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
-    Index runtime_device_index = alloc_attrs->runtime_device_index;
-    args.push_back(builder_->ConvertConstant(runtime_device_index));
-    args.push_back(builder_->ConvertConstant(alloc_attrs->dtype));
-
     builder_->EmitCall("vm.builtin.alloc_storage", args, dst_reg);
   }
 
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 2);
+    ICHECK_EQ(call_node->args.size(), 4);
+    for (int32_t i = 0; i < 4; ++i) {
+      LOG(INFO) << "340 call_node arg_[" << i << "]'s type = " << call_node->args[i]->GetTypeKey();
+    }
     std::vector<Instruction::Arg> args;
     args.reserve(4);
     // Handle `self`
     args.push_back(this->VisitExpr(call_node->args[0]));
-    // Handle `offset`
-    auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
-    int offset = alloc_attrs->offset;
-    args.push_back(builder_->ConvertConstant(offset));
+    // Handle offset
+    args.push_back(this->VisitExpr(call_node->args[2]));
     // Handle `shape`
     args.push_back(this->VisitExpr(call_node->args[1]));
     // Handle `dtype`
-    args.push_back(builder_->ConvertConstant(alloc_attrs->dtype));
+    args.push_back(this->VisitExpr(call_node->args[3]));
 
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }

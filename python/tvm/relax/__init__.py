@@ -68,7 +68,6 @@ from .vm import VirtualMachine
 
 # Operator
 from .op.base import call_tir, make_closure, invoke_closure
-from .op.op_attrs import VMAllocStorageAttrs, VMAllocTensorAttrs
 
 # IRBuilder
 from .block_builder import BlockBuilder

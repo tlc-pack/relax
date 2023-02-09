@@ -19,31 +19,6 @@ from tvm.ir import Attrs
 import tvm._ffi
 
 
-@tvm._ffi.register_object("relax.attrs.AllocTensorAttrs")
-class AllocTensorAttrs(Attrs):
-    """Attributes used in alloc_tensor operators"""
-
-
-@tvm._ffi.register_object("relax.attrs.MemAllocStorageAttrs")
-class MemAllocStorageAttrs(Attrs):
-    """Attributes used in memory planning alloc_storage operators"""
-
-
-@tvm._ffi.register_object("relax.attrs.MemAllocTensorAttrs")
-class MemAllocTensorAttrs(Attrs):
-    """Attributes used in memory planning alloc_tensor operators"""
-
-
-@tvm._ffi.register_object("relax.attrs.VMAllocStorageAttrs")
-class VMAllocStorageAttrs(Attrs):
-    """Attributes used in VM alloc_storage operators"""
-
-
-@tvm._ffi.register_object("relax.attrs.VMAllocTensorAttrs")
-class VMAllocTensorAttrs(Attrs):
-    """Attributes used in VM alloc_tensor operators"""
-
-
 @tvm._ffi.register_object("relax.attrs.PrintAttrs")
 class PrintAttrs(Attrs):
     """Attributes used for the print operator"""

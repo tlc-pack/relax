@@ -23,7 +23,6 @@
  */
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/module.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -390,29 +389,41 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     // Handle args of the call
     Array<PrimExpr> args;
     args.push_back(ctx_ptr_);
-    for (Expr arg : call_node->args) {
-      args.push_back(this->VisitExpr(arg).value());
+    for (int32_t i = 0; i < 2; ++i) {
+      args.push_back(this->VisitExpr(call_node->args[i]).value());
     }
     // Handle attrs of the call
-    auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
-    args.push_back(ConstInt64(alloc_attrs->runtime_device_index));
-    args.push_back(ConstListGet(builder_->ConvertConstant(alloc_attrs->dtype).value()));
+    // auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
+    // ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
+    // args.push_back(ConstInt64(alloc_attrs->runtime_device_index));
+
+    args.push_back(ConstListGet(builder_->ConvertConstant(call_node->args[2]).value()));
     this->EmitCallPacked("vm.builtin.alloc_storage", args, dst_reg);
   }
 
   void EmitAllocTensor(const Call& call_node, int64_t dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 2);
+    ICHECK_EQ(call_node->args.size(), 4);
     Array<PrimExpr> args;
     args.reserve(4);
     args.push_back(this->VisitExpr(call_node->args[0]).value());
-    auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
-    int offset = alloc_attrs->offset;
-    args.push_back(ConstInt64(offset));
-    args.push_back(this->VisitExpr(call_node->args[1]).value());
+    // auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
+    // ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
+    PrimValue offset = PrimValue::Int64(0);
+    if (const auto* offset_node = call_node->args[1].as<PrimValueNode>()) {
+      offset = GetRef<PrimValue>(offset_node);
+    }
+    // args.push_back(ConstInt64(offset->value));
+    // args.push_back(offset);
+    // todo(yongwww): how to get a valid primexpr
+    // 1): change all PrimValue to PrimExpr
+    // 2): Convert into PrimExpr
+    // 3): Get constant value to int64_t
+    args.push_back(this->VisitExpr(offset).value());
+    args.push_back(this->VisitExpr(call_node->args[2]).value());
     // Handle `dtype`
-    args.push_back(ConstListGet(builder_->ConvertConstant(alloc_attrs->dtype).value()));
+    DataType dtype = DataType::Float(32);
+    // args.push_back(ConstListGet(builder_->ConvertConstant(call_node->args[3]).value()));
+    args.push_back(ConstListGet(builder_->ConvertConstant(dtype).value()));
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 

@@ -152,6 +152,7 @@ def test_vm_compile_e2e(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
+    print(ex.as_text())
 
     shape = (32, 16)
     inp = tvm.nd.array(np.random.rand(*shape).astype(np.float32))
@@ -939,4 +940,6 @@ def test_set_input_get_failure_rpc(exec_mode):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    for arg in ["bytecode", "compiled"]:
+        test_vm_compile_e2e(arg)
