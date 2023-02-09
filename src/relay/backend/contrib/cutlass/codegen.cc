@@ -586,7 +586,7 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
   decl_stream << ");";
   if (func_name.find("dense") != std::string::npos) {
     ret.decl = DenseOp(ext_func_id, attribute_args, func_args);
-  } else if (func_name == "cutlass_batch_matmul") {
+  } else if (func_name.find("batch_matmul") != std::string::npos) {
     ret.decl = BatchMatmulOp(ext_func_id, attribute_args, func_args);
   } else if (IsConv2dResidualBlock(func_name)) {
     ret.decl = Conv2dOp(ext_func_id, attribute_args, func_args, true);
