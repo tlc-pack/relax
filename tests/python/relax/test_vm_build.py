@@ -285,7 +285,6 @@ def test_vm_emit_te_dtype_change(exec_mode):
     mod = bb.get()
 
     new_mod = relax.transform.CallTIRRewrite()(mod)
-    assert new_mod["rx_func"].body.blocks[0].bindings[0].value.attrs.dtype == "int16"
 
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target, exec_mode=exec_mode)

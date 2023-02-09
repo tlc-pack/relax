@@ -169,7 +169,7 @@ def test_vm_storage():
     with ib.function("main", num_inputs=0):
         ib.emit_call(
             "vm.builtin.alloc_storage",
-            args=[ib.vm_state(), (24,), ib.convert_constant(0), dtype],
+            args=[ib.vm_state(), (24,), dtype, ib.convert_constant(0)],
             dst=ib.r(1),
         )
         ib.emit_call(

@@ -879,10 +879,8 @@ def test_memory_op():
     b0, b1, b2, b3 = memory.body.blocks[0].bindings
     assert b0.value.op.name == "relax.memory.alloc_storage"
     assert isinstance(b0.value.args[0], relax.ShapeExpr)
-    assert isinstance(b0.value.attrs, relax.op.MemAllocStorageAttrs)
 
     assert b1.value.op.name == "relax.memory.alloc_tensor"
-    assert isinstance(b1.value.attrs, relax.op.MemAllocTensorAttrs)
 
     assert b2.value.op.name == "relax.memory.kill_tensor"
     assert b3.value.op.name == "relax.memory.kill_storage"
