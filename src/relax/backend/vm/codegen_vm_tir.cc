@@ -389,15 +389,9 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     // Handle args of the call
     Array<PrimExpr> args;
     args.push_back(ctx_ptr_);
-    for (int32_t i = 0; i < 2; ++i) {
-      args.push_back(this->VisitExpr(call_node->args[i]).value());
+    for (auto arg : call_node->args) {
+      args.push_back(this->VisitExpr(arg).value());
     }
-    // Handle attrs of the call
-    // auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
-    // ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
-    // args.push_back(ConstInt64(alloc_attrs->runtime_device_index));
-
-    args.push_back(ConstListGet(builder_->ConvertConstant(call_node->args[2]).value()));
     this->EmitCallPacked("vm.builtin.alloc_storage", args, dst_reg);
   }
 
@@ -406,24 +400,12 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     Array<PrimExpr> args;
     args.reserve(4);
     args.push_back(this->VisitExpr(call_node->args[0]).value());
-    // auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
-    // ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
-    PrimValue offset = PrimValue::Int64(0);
-    if (const auto* offset_node = call_node->args[1].as<PrimValueNode>()) {
-      offset = GetRef<PrimValue>(offset_node);
-    }
-    // args.push_back(ConstInt64(offset->value));
-    // args.push_back(offset);
-    // todo(yongwww): how to get a valid primexpr
-    // 1): change all PrimValue to PrimExpr
-    // 2): Convert into PrimExpr
-    // 3): Get constant value to int64_t
-    args.push_back(this->VisitExpr(offset).value());
+    // Handle offset
     args.push_back(this->VisitExpr(call_node->args[2]).value());
+    // Handle `shape`
+    args.push_back(this->VisitExpr(call_node->args[1]).value());
     // Handle `dtype`
-    DataType dtype = DataType::Float(32);
-    // args.push_back(ConstListGet(builder_->ConvertConstant(call_node->args[3]).value()));
-    args.push_back(ConstListGet(builder_->ConvertConstant(dtype).value()));
+    args.push_back(this->VisitExpr(call_node->args[3]).value());
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 

@@ -940,6 +940,4 @@ def test_set_input_get_failure_rpc(exec_mode):
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    for arg in ["bytecode", "compiled"]:
-        test_vm_compile_e2e(arg)
+    tvm.testing.main()
