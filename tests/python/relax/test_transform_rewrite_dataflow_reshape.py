@@ -114,12 +114,7 @@ def test_reshape_expand_dims():
             x: R.Tensor((8, 3), dtype="float32")
         ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
             with R.dataflow():
-                y = R.call_packed(
-                    "vm.builtin.reshape",
-                    x,
-                    (2, 4, 3),
-                    sinfo_args=R.Tensor((2, 4, 3), "float32"),
-                )
+                y: R.Tensor((2, 4, 3), "float32") = R.reshape(x, (2, 4, 3))
                 # Note: `z` is the output var of the dataflow block, and is thus
                 # not expected to be rewritten.
                 z = R.call_tir(
