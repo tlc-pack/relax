@@ -667,23 +667,19 @@ def test_cross_function_call():
             s = R.add(x, x)
             return s
 
-    with pytest.raises(OSError):
+    @I.ir_module
+    class Mod2:
+        @R.function
+        def main(x: R.Tensor((10, 5), "float32")):
+            inner = foo
+            gv1 = inner(x)
+            gv2 = foo(x)
+            return (inner, gv1, gv2)
 
-        @I.ir_module
-        class ErrorMod:
-            @R.function
-            def main(x: R.Tensor((10, 5), "float32")):
-                inner = foo
-                gv1 = inner(x)
-                gv2 = foo(x)
-                return (inner, gv1, gv2)
-
-            @R.function
-            def foo(
-                x: R.Tensor((10, 5), "float32")
-            ):  # need function ret info since it is parse later than `main`
-                s = R.add(x, x)
-                return s
+        @R.function
+        def foo(x: R.Tensor((10, 5), "float32")):  # the return type is automatically inferred
+            s = R.add(x, x)
+            return s
 
 
 def test_if_branch():

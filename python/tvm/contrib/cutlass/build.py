@@ -17,14 +17,16 @@
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
-import os
 import multiprocessing
+import os
+
 import tvm
-from tvm import runtime, relay, relax
-from tvm.contrib.nvcc import get_cuda_version
+from tvm import relax, relay, runtime
 from tvm._ffi.registry import register_func
-from .gen_gemm import CutlassGemmProfiler
+from tvm.contrib.nvcc import get_cuda_version
+
 from .gen_conv2d import CutlassConv2DProfiler
+from .gen_gemm import CutlassGemmProfiler
 from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
@@ -532,7 +534,7 @@ def _extract_relax_function_info(f):
 
     def fvisit(e):
         nonlocal op_attrs
-        if isinstance(e, relax.Call) and str(e.op) in ["relax.nn.conv2d"]:
+        if isinstance(e, relax.Call) and e.op.name in ["relax.nn.conv2d"]:
             op_attrs = e.attrs
 
     relax.analysis.post_order_visit(f.body, fvisit)
