@@ -86,9 +86,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
   }
 
   Expr MakeAllocTensor(const Call& call) {
-    for (int32_t i = 0; i < call->args.size(); ++i) {
-      LOG(INFO) << "76 MakeAllocTensor arg_[" << i << "]'s type = " << call->args[i]->GetTypeKey();
-    }
     ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
     DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[1]);
     DataType dtype = output_dtype->value;

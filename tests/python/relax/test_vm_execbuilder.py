@@ -256,7 +256,3 @@ def test_vm_invoke_closure():
     tvm.testing.assert_allclose(
         res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
     )
-
-
-if __name__ == "__main__":
-    test_vm_storage()

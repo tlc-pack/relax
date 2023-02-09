@@ -59,9 +59,6 @@ class CallTIRMutator : public ExprMutator {
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
         ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
-        // auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
-        // alloc_tensor_attr->dtype = tensor_sinfo->dtype;
-        // alloc_tensor_attr->runtime_device_index = 0;
         outs.push_back(
             builder_->Emit(Call(alloc_tensor_op,  //
                                 {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
@@ -81,9 +78,6 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
-          // auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
-          // alloc_tensor_attr->dtype = field_tensor->dtype;
-          // alloc_tensor_attr->runtime_device_index = 0;
           outs.push_back(
               builder_->Emit(Call(alloc_tensor_op,
                                   {Downcast<ShapeExpr>(field_tensor->shape.value()),

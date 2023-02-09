@@ -335,9 +335,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
     ICHECK_EQ(call_node->args.size(), 4);
-    for (int32_t i = 0; i < 4; ++i) {
-      LOG(INFO) << "340 call_node arg_[" << i << "]'s type = " << call_node->args[i]->GetTypeKey();
-    }
     std::vector<Instruction::Arg> args;
     args.reserve(4);
     // Handle `self`

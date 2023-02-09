@@ -27,9 +27,6 @@
 namespace tvm {
 namespace relax {
 
-// TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
-// TVM_REGISTER_NODE_TYPE(MemAllocStorageAttrs); // todo: remove?
-// TVM_REGISTER_NODE_TYPE(MemAllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeHeapAttrs);
 
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
@@ -268,21 +265,20 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 // alloc_tensor
 
 StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
-  // const auto* attrs = call->attrs.as<AllocTensorAttrs>();
-  // ICHECK(attrs != nullptr) << "must be AllocTensorAttrs, but got " << call->attrs->GetTypeKey();
   ICHECK(call->args[0].as<ShapeExprNode>())
       << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
-  ICHECK(call->args[1].as<DataTypeImmNode>())
-      << "must be ShapeExpr, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype = DataType::Float(32);
-  // if (const auto* output_dtype = call->args[1].as<DataTypeImmNode>()) { // todo(yongwww)
-  //   out_dtype = GetRef<DataType>(output_dtype);
-  //}
+  if (const auto* leaf_node = call->args[1].as<LeafExprNode>()) {
+    const LeafExpr leaf_expr = GetRef<LeafExpr>(leaf_node);
+    if (const auto* dtype_node = leaf_expr.as<DataTypeImmNode>()) {
+      const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+      out_dtype = dtype_imm->value;
+    }
+  }
   return TensorStructInfo(call->args[0], out_dtype);
 }
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
-    //.set_attrs_type<AllocTensorAttrs>()
     .set_num_inputs(3)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataType", "The dtype of the tensor to allocate.")
@@ -292,9 +288,6 @@ RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
 
 Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
-  // auto attrs = make_object<AllocTensorAttrs>();
-  // attrs->dtype = std::move(dtype);
-  // attrs->runtime_device_index = std::move(runtime_device_index);
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
   return Call(op, {shape, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)}, Attrs(), {});
 }
@@ -304,7 +297,6 @@ TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTen
 // memory planning alloc_storage
 
 RELAY_REGISTER_OP("relax.memory.alloc_storage")
-    // .set_attrs_type<MemAllocStorageAttrs>()
     .set_num_inputs(4)
     .add_argument("total_space", "Expr", "The total space of the storage to allocate.")
     .add_argument(
@@ -318,10 +310,6 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
 
 Expr MakeAllocStorage(Expr size, int64_t virtual_device_index, std::string storage_scope,
                       DataType dtype) {
-  // auto attrs = make_object<MemAllocStorageAttrs>();
-  // attrs->virtual_device_index = std::move(virtual_device_index);
-  // attrs->storage_scope = std::move(storage_scope);
-  // attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("relax.memory.alloc_storage");
   return Call(
       op,
@@ -334,20 +322,20 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocSto
 // memory planning alloc_tensor
 
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
-  // const auto* attrs = call->attrs.as<MemAllocTensorAttrs>();
-  // ICHECK(attrs != nullptr) << "must be MemAllocTensorAttrs, but got " <<
-  // call->attrs->GetTypeKey();
   ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[1]))
       << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype = DataType::Float(32);
-  // if (const auto* output_dtype = call->args[3].as<DataTypeImmNode>()) { // todo(yongwww)
-  //   out_dtype = GetRef<DataType>(output_dtype);
-  //}
+  if (const auto* leaf_node = call->args[3].as<LeafExprNode>()) {
+    const LeafExpr leaf_expr = GetRef<LeafExpr>(leaf_node);
+    if (const auto* dtype_node = leaf_expr.as<DataTypeImmNode>()) {
+      const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+      out_dtype = dtype_imm->value;
+    }
+  }
   return TensorStructInfo(call->args[1], out_dtype);
 }
 
 RELAY_REGISTER_OP("relax.memory.alloc_tensor")
-    // .set_attrs_type<MemAllocTensorAttrs>()
     .set_num_inputs(4)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
@@ -356,9 +344,6 @@ RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor);
 
 Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
-  // auto attrs = make_object<MemAllocTensorAttrs>();
-  // attrs->offset = std::move(offset);
-  // attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
   return Call(op, {storage, shape, PrimValue::Int64(offset), DataTypeImm(dtype)}, Attrs(), {});
 }
@@ -396,7 +381,6 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTen
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.alloc_storage")
-    //.set_attrs_type<VMAllocStorageAttrs>()
     .set_num_inputs(3)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
     .add_argument("dtype", "DataType", "The dtype of the tensor to allocate.")
@@ -406,9 +390,6 @@ RELAY_REGISTER_OP("relax.vm.alloc_storage")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
 Expr MakeVMAllocStorage(Expr size, DataType dtype, int64_t runtime_device_index) {
-  // auto attrs = make_object<VMAllocStorageAttrs>();
-  // attrs->dtype = std::move(dtype);
-  // attrs->runtime_device_index = std::move(runtime_device_index);
   static const Op& op = Op::Get("relax.vm.alloc_storage");
   return Call(op, {size, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)}, Attrs(), {});
 }
@@ -420,15 +401,14 @@ TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStora
 Expr InferShapeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) { return call->args[1]; }
 
 StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
-  // auto attrs = call->attrs.as<VMAllocTensorAttrs>();
-
-  // ICHECK(attrs != nullptr) << "must be VMAllocTensorAttrs , but got " <<
-  // call->attrs->GetTypeKey();
-
   DataType out_dtype = DataType::Float(32);
-  // if (const auto* output_dtype = call->args[3].as<DataTypeImmNode>()) { // todo(yongwww)
-  //   out_dtype = GetRef<DataType>(output_dtype);
-  //}
+  if (const auto* leaf_node = call->args[3].as<LeafExprNode>()) {
+    const LeafExpr leaf_expr = GetRef<LeafExpr>(leaf_node);
+    if (const auto* dtype_node = leaf_expr.as<DataTypeImmNode>()) {
+      const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+      out_dtype = dtype_imm->value;
+    }
+  }
   if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
     return TensorStructInfo(GetRef<Expr>(output_shape), out_dtype);
   }
@@ -436,7 +416,6 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
 }
 
 RELAY_REGISTER_OP("relax.vm.alloc_tensor")
-    // .set_attrs_type<VMAllocTensorAttrs>()
     .set_num_inputs(4)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
@@ -445,9 +424,6 @@ RELAY_REGISTER_OP("relax.vm.alloc_tensor")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor);
 
 Expr MakeVMAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
-  // auto attrs = make_object<VMAllocTensorAttrs>();
-  // attrs->offset = std::move(offset);
-  // attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
   return Call(op, {storage, shape, PrimValue::Int64(offset), DataTypeImm(dtype)}, Attrs(), {});
 }
