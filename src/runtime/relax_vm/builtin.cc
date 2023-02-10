@@ -243,8 +243,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_func_info").set_body_typed(CheckFuncInfo);
 //-------------------------------------------------
 //  Storage management.
 //-------------------------------------------------
-Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_size, DLDataType dtype_hint,
-                       Index device_index) {
+Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_size, Index device_index,
+                       DLDataType dtype_hint) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
 
   ICHECK_EQ(buffer_size.size(), 1);

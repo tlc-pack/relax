@@ -25,7 +25,7 @@ from . import _ffi_api
 
 
 @args_converter.auto
-def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index: int) -> Call:
+def alloc_storage(size: Expr, runtime_device_index: int, dtype: Union[DataType, str]) -> Call:
     """Construct a Call to allocate storage with specific size, dtype, runtime_device_index.
 
     Parameters
@@ -33,12 +33,12 @@ def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index:
     size: Expr
         The size of the storage to be allocated.
 
-    dtype: Union[DataType, str]
-        The data type of the storage to be allocated.
-
     runtime_device_index : int
         The device index indicating on which device the storage is to be allocated at runtime.
         Index -1 is reserved for the host device.
+
+    dtype: Union[DataType, str]
+        The data type of the storage to be allocated.
 
     Returns
     -------
@@ -46,7 +46,7 @@ def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index:
         A relax Call, which gets the allocated storage.
     """
 
-    return _ffi_api.alloc_storage(size, dtype, runtime_device_index)  # type: ignore
+    return _ffi_api.alloc_storage(size, runtime_device_index, dtype)  # type: ignore
 
 
 @args_converter.auto

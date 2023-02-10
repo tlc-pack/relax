@@ -389,9 +389,9 @@ RELAY_REGISTER_OP("relax.vm.alloc_storage")
                   "to be allocated at runtime.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
 
-Expr MakeVMAllocStorage(Expr size, DataType dtype, int64_t runtime_device_index) {
+Expr MakeVMAllocStorage(Expr size, int64_t runtime_device_index, DataType dtype) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
-  return Call(op, {size, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)}, Attrs(), {});
+  return Call(op, {size, PrimValue::Int64(runtime_device_index), DataTypeImm(dtype)}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);

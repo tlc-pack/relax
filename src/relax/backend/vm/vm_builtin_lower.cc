@@ -92,7 +92,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
     Expr storage_size = ComputeStorageSize(output_shape, dtype);
     PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
     Var storage = builder_->Emit(
-        Call(vm_alloc_storage_op_, {storage_size, output_dtype, runtime_device_index}, Attrs()),
+        Call(vm_alloc_storage_op_, {storage_size, runtime_device_index, output_dtype}, Attrs()),
         "storage");
     Expr shape = call->args[0];
     PrimValue offset = PrimValue::Int64(0);
