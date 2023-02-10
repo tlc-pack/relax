@@ -470,5 +470,33 @@ def test_sinfo_args_tir_var_used_before_define_call_tir():
     assert not rx.analysis.well_formed(mod, check_struct_info=False)
 
 
+def test_leaves():
+    x = rx.Var("x", struct_info=rx.TensorStructInfo(shape=[], dtype="int32"))
+    y = rx.DataflowVar("y", struct_info=rx.TensorStructInfo(shape=[], dtype="int32"))
+    z = rx.Var("z", struct_info=rx.ObjectStructInfo())
+    # ensure that it is valid to have these within a tuple
+    tup = rx.Tuple(
+        [
+            x,
+            y,
+            rx.ShapeExpr([]),
+            rx.Tuple([]),
+            rx.const(1),
+            rx.PrimValue(1),
+            rx.StringImm("str"),
+            rx.DataTypeImm("int32"),
+        ]
+    )
+    body = rx.SeqExpr(
+        blocks=[
+            rx.DataflowBlock([rx.VarBinding(y, rx.const(1, dtype="int32")), rx.VarBinding(z, tup)])
+        ],
+        body=rx.const(1, dtype="int32"),
+    )
+    func = rx.Function([x], ret_struct_info=rx.TensorStructInfo(shape=[], dtype="int32"), body=body)
+    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
+    assert rx.analysis.well_formed(mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
