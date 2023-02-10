@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import relax, rpc, te, tir, topi, TVMError
+from tvm import relax, rpc, te, tir, topi
 from tvm.contrib import utils
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T
