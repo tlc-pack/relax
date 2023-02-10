@@ -680,79 +680,7 @@ class TorchFXImporter:
         }
 
     def from_fx(self, model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
-        """Convert a PyTorch FX GraphModule to a Relax program
-
-        Parameters
-        ----------
-        model : fx.GraphModule
-            The PyTorch FX GraphModule to convert.
-
-        input_info : List[Tuple[Tuple[int], str]]
-            A list of shapes and data types of input tensors.
-
-        Returns
-        -------
-        module : tvm.IRModule
-            The converted Relax program.
-
-        Examples
-        --------
-        Users can use the FX tracer or dynamo.export() to extract
-        a fx.GraphModule from a PyTorch model. The following codes show
-        how to convert a PyTorch model to a Relax program.
-
-        .. code-block:: python
-
-            # Import the importer.
-            import numpy as np
-            import torch
-            from tvm.relax.frontend.torch_fx import from_fx
-            from torch import _dynamo as dynamo
-
-            # Define the module
-            class MyModule(torch.nn.Module):
-                def __init__(self):
-                    super().__init__()
-                    self.linear = torch.nn.Linear(in_features=10, out_features=7, bias=True)
-
-                def forward(self, input):
-                    return self.linear(input)
-
-            # Instantiate the model and create the input info dict.
-            torch_model = MyModule()
-            input_info = [((128, 10), "float32")]
-            input_tensors = [
-                torch.astensor(np.random.randn(*shape).astype(dtype))
-                for shape, dtype in input_info
-            ]
-
-            # Use FX tracer to trace the PyTorch model.
-            graph_module = fx.symbolic_trace(torch_model)
-
-            # Use the dynamo.export() to export the PyTorch model to FX.
-            try:
-                graph_module = dynamo.export(torch_model, *input_tensors)
-            except:
-                raise RuntimeError("Failed to export the PyTorch model to FX.")
-
-            # Use the importer to import the PyTorch model to Relax.
-            mod: tvm.IRModule = from_pytorch(graph_module, input_info)
-
-            # Print out the imported model.
-            print(mod.script())
-
-        Notes
-        -----
-        For a given PyTorch model, to lookup the names of the model inputs in
-        FX, one can use
-
-        .. code-block:: python
-
-            fx.symbolic_trace(model).graph.print_tabular()
-
-        to print out the tabular representation of the PyTorch module, and then
-        check the placeholder rows in the beginning of the tabular.
-        """
+        """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
 
         self.named_modules = dict(model.named_modules())
@@ -819,7 +747,77 @@ class TorchFXImporter:
 
 
 def from_fx(model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
-    """The public interface of PyTorch FX importer for Relax.
-    See `TorchFXImporter.from_fx` for full documentation.
+    """Convert a PyTorch FX GraphModule to a Relax program
+
+    Parameters
+    ----------
+    model : fx.GraphModule
+        The PyTorch FX GraphModule to convert.
+
+    input_info : List[Tuple[Tuple[int], str]]
+        A list of shapes and data types of input tensors.
+
+    Returns
+    -------
+    module : tvm.IRModule
+        The converted Relax program.
+
+    Examples
+    --------
+    Users can use the FX tracer or dynamo.export() to extract
+    a fx.GraphModule from a PyTorch model. The following codes show
+    how to convert a PyTorch model to a Relax program.
+
+    .. code-block:: python
+
+        # Import the importer.
+        import numpy as np
+        import torch
+        from tvm.relax.frontend.torch_fx import from_fx
+        from torch import _dynamo as dynamo
+
+        # Define the module
+        class MyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.linear = torch.nn.Linear(in_features=10, out_features=7, bias=True)
+
+            def forward(self, input):
+                return self.linear(input)
+
+        # Instantiate the model and create the input info dict.
+        torch_model = MyModule()
+        input_info = [((128, 10), "float32")]
+        input_tensors = [
+            torch.astensor(np.random.randn(*shape).astype(dtype))
+            for shape, dtype in input_info
+        ]
+
+        # Use FX tracer to trace the PyTorch model.
+        graph_module = fx.symbolic_trace(torch_model)
+
+        # Use the dynamo.export() to export the PyTorch model to FX.
+        try:
+            graph_module = dynamo.export(torch_model, *input_tensors)
+        except:
+            raise RuntimeError("Failed to export the PyTorch model to FX.")
+
+        # Use the importer to import the PyTorch model to Relax.
+        mod: tvm.IRModule = from_pytorch(graph_module, input_info)
+
+        # Print out the imported model.
+        print(mod.script())
+
+    Notes
+    -----
+    For a given PyTorch model, to lookup the names of the model inputs in
+    FX, one can use
+
+    .. code-block:: python
+
+        fx.symbolic_trace(model).graph.print_tabular()
+
+    to print out the tabular representation of the PyTorch module, and then
+    check the placeholder rows in the beginning of the tabular.
     """
     return TorchFXImporter().from_fx(model, input_info)
