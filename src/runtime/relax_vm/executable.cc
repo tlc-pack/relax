@@ -60,15 +60,22 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   } else if (name == "as_python") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsPython(); });
-  } else if (name.find("load_executable") != std::string::npos) {
-    bool profile = name.find("profile") != std::string::npos;
-    return PackedFunc([sptr_to_self, this, profile](TVMArgs args, TVMRetValue* rv) {
-      ObjectPtr<VirtualMachine> vm = VirtualMachine::Create(profile);
+  } else if (name == "vm_load_executable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
+      *rv = Module(vm);
+    });
+  } else if (name == "vm_profiler_load_executable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
       ICHECK(sptr_to_self.get() == this);
       vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
   }
+
   return nullptr;
 }
 

@@ -825,6 +825,8 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
+ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualMachineImpl>(); }
+
 /*!
  * \brief An extension of VirtualMachineImpl to support per-op profiling
  * It overrides RunInstrCall to add instrumentations around it.
@@ -920,11 +922,8 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
   std::optional<profiling::Profiler> prof_;
 };
 
-ObjectPtr<VirtualMachine> VirtualMachine::Create(bool profile) {
-  if (profile) {
-    return make_object<VirtualMachineProfiler>();
-  }
-  return make_object<VirtualMachineImpl>();
+ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
+  return make_object<VirtualMachineProfiler>();
 }
 
 }  // namespace relax_vm

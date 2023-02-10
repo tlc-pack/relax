@@ -117,10 +117,14 @@ class VirtualMachine : public runtime::ModuleNode {
                                    TVMRetValue* rv) = 0;
   /*!
    * \brief Create a specific instance of VM.
-   * \param profile Whether or not to enable profiling.
    * \return Created VM
    */
-  static ObjectPtr<VirtualMachine> Create(bool profile = false);
+  static ObjectPtr<VirtualMachine> Create();
+  /*!
+   * \brief Create an instance of VM with the profiling feature enabled.
+   * \return Created VM
+   */
+  static ObjectPtr<VirtualMachine> CreateProfiler();
   /*!
    * \brief Helper function for vm closure functions to get the context ptr
    * \param arg The argument value.
