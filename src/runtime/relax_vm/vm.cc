@@ -823,6 +823,10 @@ void VirtualMachineImpl::RunLoop() {
   }
 }
 
+/*!
+ * \brief An extension of VirtualMachineImpl to support per-op profiling
+ * It overrides RunInstrCall to add instrumentations around it.
+ */
 class VirtualMachineProfiler : public VirtualMachineImpl {
  public:
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
@@ -883,6 +887,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       std::unordered_map<std::string, ObjectRef> metrics;
       metrics["Argument Shapes"] = profiling::ShapeString(arrs);
 
+      // If a sutiable device is found, enable profiling.
       if (dev) {
         profiling = true;
         prof_->StartCall(f_name, *dev, metrics);
