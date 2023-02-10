@@ -309,7 +309,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
       args.push_back(this->VisitExpr(arg).value());
     }
     int32_t dst_register = NewRegister();
-    this->EmitCallPacked("runtime.Tuple", args, dst_register);
+    this->EmitCallPacked("vm.builtin.make_tuple", args, dst_register);
     return RegListGet(dst_register);
   }
 

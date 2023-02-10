@@ -114,7 +114,7 @@ def test_check_tensor_info():
 def test_check_tuple_info():
     check_tuple_info = tvm.get_global_func("vm.builtin.check_tuple_info")
     x = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
-    t = tvm.runtime.container.tuple_object([x, x, x])
+    t = tvm.runtime.convert([x, x, x])
 
     check_tuple_info(t, 3, "")
 
@@ -143,7 +143,7 @@ def test_tuple_getitem():
     tuple_getitem = tvm.get_global_func("vm.builtin.tuple_getitem")
     x = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
     y = tvm.nd.array(np.zeros((2, 3)).astype("int32"))
-    t = tvm.runtime.container.tuple_object([x, y])
+    t = tvm.runtime.convert([x, y])
 
     assert tuple_getitem(t, 0) == x
     assert tuple_getitem(t, 1) == y

@@ -269,7 +269,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(this->VisitExpr(arg));
     }
     size_t dst_register = NewRegister();
-    builder_->EmitCall("runtime.Tuple", args, dst_register);
+    builder_->EmitCall("vm.builtin.make_tuple", args, dst_register);
 
     return Instruction::Arg::Register(dst_register);
   }
