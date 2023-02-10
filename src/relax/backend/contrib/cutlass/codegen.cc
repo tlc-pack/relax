@@ -98,10 +98,17 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     const auto* fn_var = call->op.as<VarNode>();
     ICHECK(fn_var);
     const auto func = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    const auto pattern_name = func->GetAttr<runtime::String>(attr::kComposite);
-    ICHECK(pattern_name) << "Only composite function is supported for CUTLASS.";
-    auto ret = GenerateBody(call, pattern_name.value(), GetArgumentNames(call),
-                            Conv2dArgs(func->attrs->dict));
+    const auto pattern_name_opt = func->GetAttr<runtime::String>(attr::kComposite);
+    ICHECK(pattern_name_opt) << "Only composite function is supported for CUTLASS.";
+
+    std::string pattern_name = pattern_name_opt.value();
+    Str2StrMap attribute_args;
+
+    if (pattern_name.find("conv2d") != std::string::npos) {
+      attribute_args = Conv2dArgs(func->attrs->dict);
+    }
+
+    auto ret = GenerateBody(call, pattern_name, GetArgumentNames(call), attribute_args);
     ext_func_body_.push_back(ret.decl);
     return ret.outputs;
   }
