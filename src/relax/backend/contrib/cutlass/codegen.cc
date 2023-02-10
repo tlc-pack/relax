@@ -106,6 +106,8 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 
     if (pattern_name.find("conv2d") != std::string::npos) {
       attribute_args = Conv2dArgs(func->attrs->dict);
+    } else {
+      LOG(FATAL) << "Unsupported pattern: " << pattern_name;
     }
 
     auto ret = GenerateBody(call, pattern_name, GetArgumentNames(call), attribute_args);
