@@ -96,7 +96,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
         "storage");
     Expr shape = call->args[0];
     PrimValue offset = PrimValue::Int64(0);
-    return Call(vm_alloc_tensor_op_, {storage, shape, offset, DataTypeImm(dtype)}, Attrs());
+    return Call(vm_alloc_tensor_op_, {storage, offset, shape, DataTypeImm(dtype)}, Attrs());
   }
 
   Expr MakeMemAllocStorage(const Call& call) {

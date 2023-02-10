@@ -264,7 +264,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const TupleNode* op) final {
     Tuple tuple = GetRef<Tuple>(op);
     std::vector<Instruction::Arg> args;
-    for (auto arg : tuple->fields) {
+    for (Expr arg : tuple->fields) {
       args.push_back(this->VisitExpr(arg));
     }
     size_t dst_register = NewRegister();
@@ -337,15 +337,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     ICHECK_EQ(call_node->args.size(), 4);
     std::vector<Instruction::Arg> args;
     args.reserve(4);
-    // Handle `self`
-    args.push_back(this->VisitExpr(call_node->args[0]));
-    // Handle offset
-    args.push_back(this->VisitExpr(call_node->args[2]));
-    // Handle `shape`
-    args.push_back(this->VisitExpr(call_node->args[1]));
-    // Handle `dtype`
-    args.push_back(this->VisitExpr(call_node->args[3]));
-
+    for (Expr arg : call_node->args) {
+      args.push_back(this->VisitExpr(arg));
+    }
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }
 

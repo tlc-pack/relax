@@ -389,7 +389,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     // Handle args of the call
     Array<PrimExpr> args;
     args.push_back(ctx_ptr_);
-    for (auto arg : call_node->args) {
+    for (Expr arg : call_node->args) {
       args.push_back(this->VisitExpr(arg).value());
     }
     this->EmitCallPacked("vm.builtin.alloc_storage", args, dst_reg);
@@ -399,13 +399,9 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     ICHECK_EQ(call_node->args.size(), 4);
     Array<PrimExpr> args;
     args.reserve(4);
-    args.push_back(this->VisitExpr(call_node->args[0]).value());
-    // Handle offset
-    args.push_back(this->VisitExpr(call_node->args[2]).value());
-    // Handle `shape`
-    args.push_back(this->VisitExpr(call_node->args[1]).value());
-    // Handle `dtype`
-    args.push_back(this->VisitExpr(call_node->args[3]).value());
+    for (Expr arg : call_node->args) {
+      args.push_back(this->VisitExpr(arg).value());
+    }
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
