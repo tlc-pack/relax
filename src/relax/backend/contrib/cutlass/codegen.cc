@@ -98,8 +98,10 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     const auto* fn_var = call->op.as<VarNode>();
     ICHECK(fn_var);
     const auto func = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    ICHECK(func.defined()) << "Only composite function is supported for CUTLASS.";
-    GenerateBodyOutput ret = GenerateCompositeFunctionCall(func, call);
+    const auto pattern_name = func->GetAttr<runtime::String>(attr::kComposite);
+    ICHECK(pattern_name) << "Only composite function is supported for CUTLASS.";
+    auto ret = GenerateBody(call, pattern_name.value(), GetArgumentNames(call),
+                            Conv2dArgs(func->attrs->dict));
     ext_func_body_.push_back(ret.decl);
     return ret.outputs;
   }
@@ -179,24 +181,10 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     return arg_names;
   }
 
-  GenerateBodyOutput GenerateCompositeFunctionCall(Function callee, const CallNode* caller) {
-    const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
-    ICHECK(pattern_name.defined()) << "Only functions with composite attribute are supported.";
-
-    if (pattern_name == "cutlass.conv2d_bias_relu") {
-      const CallNode* conv2d_call = backend::GetOpInFunction(callee, "relax.nn.conv2d");
-      return GenerateBody(conv2d_call, "cutlass_conv2d_bias_relu", GetArgumentNames(caller),
-                          Conv2dArgs(callee->attrs->dict));
-    }
-
-    LOG(FATAL) << "Unknown composite function: " << pattern_name;
-    return {};
-  }
-
-  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
+  GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
                                   const std::vector<std::string>& func_args,
                                   const Str2StrMap& attribute_args) {
-    auto struct_info = GetStructInfo(GetRef<Call>(root_call));
+    auto struct_info = GetStructInfo(GetRef<Call>(call));
 
     std::vector<std::string> out_types;
     if (const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>()) {
