@@ -23,7 +23,6 @@
  */
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/module.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -393,26 +392,16 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     for (Expr arg : call_node->args) {
       args.push_back(this->VisitExpr(arg).value());
     }
-    // Handle attrs of the call
-    auto alloc_attrs = call_node->attrs.as<VMAllocStorageAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be VMAllocStorageAttrs";
-    args.push_back(ConstInt64(alloc_attrs->runtime_device_index));
-    args.push_back(ConstListGet(builder_->ConvertConstant(alloc_attrs->dtype).value()));
     this->EmitCallPacked("vm.builtin.alloc_storage", args, dst_reg);
   }
 
   void EmitAllocTensor(const Call& call_node, int64_t dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 2);
+    ICHECK_EQ(call_node->args.size(), 4);
     Array<PrimExpr> args;
     args.reserve(4);
-    args.push_back(this->VisitExpr(call_node->args[0]).value());
-    auto alloc_attrs = call_node->attrs.as<VMAllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be VMAllocTensorAttrs";
-    int offset = alloc_attrs->offset;
-    args.push_back(ConstInt64(offset));
-    args.push_back(this->VisitExpr(call_node->args[1]).value());
-    // Handle `dtype`
-    args.push_back(ConstListGet(builder_->ConvertConstant(alloc_attrs->dtype).value()));
+    for (Expr arg : call_node->args) {
+      args.push_back(this->VisitExpr(arg).value());
+    }
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 

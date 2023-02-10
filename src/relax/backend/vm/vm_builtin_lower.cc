@@ -21,7 +21,6 @@
  * \brief Lowers most builtin functions and packed calls.
  */
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
@@ -88,40 +87,28 @@ class VMBuiltinLowerMutator : public ExprMutator {
 
   Expr MakeAllocTensor(const Call& call) {
     ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-    auto alloc_attrs = call->attrs.as<AllocTensorAttrs>();
-    ICHECK(alloc_attrs != nullptr) << "must be AllocTensorAttrs";
-    DataType dtype = alloc_attrs->dtype;
+    DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[1]);
+    DataType dtype = output_dtype->value;
     Expr storage_size = ComputeStorageSize(output_shape, dtype);
-    auto storage_attr = make_object<VMAllocStorageAttrs>();
-    storage_attr->dtype = dtype;
-    storage_attr->runtime_device_index = alloc_attrs->runtime_device_index;
-    Var storage =
-        builder_->Emit(Call(vm_alloc_storage_op_, {storage_size}, Attrs(storage_attr)), "storage");
-    auto tensor_attr = make_object<VMAllocTensorAttrs>();
-    tensor_attr->offset = 0;
-    tensor_attr->dtype = dtype;
+    PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
+    Var storage = builder_->Emit(
+        Call(vm_alloc_storage_op_, {storage_size, runtime_device_index, output_dtype}, Attrs()),
+        "storage");
     Expr shape = call->args[0];
-    return Call(vm_alloc_tensor_op_, {storage, shape}, Attrs(tensor_attr));
+    PrimValue offset = PrimValue::Int64(0);
+    return Call(vm_alloc_tensor_op_, {storage, offset, shape, DataTypeImm(dtype)}, Attrs());
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
-    const auto* mem_attrs = call->attrs.as<MemAllocStorageAttrs>();
-    ICHECK_NOTNULL(mem_attrs);
-    ICHECK(call->args.size() == 1);
-    ObjectPtr<VMAllocStorageAttrs> vm_attr = make_object<VMAllocStorageAttrs>();
-    vm_attr->dtype = mem_attrs->dtype;
-    vm_attr->runtime_device_index = mem_attrs->virtual_device_index;
-    return Call(vm_alloc_storage_op_, {call->args[0]}, Attrs(vm_attr));
+    PrimValue runtime_device_index = Downcast<PrimValue>(call->args[1]);
+    DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[3]);
+    return Call(vm_alloc_storage_op_, {call->args[0], runtime_device_index, output_dtype}, Attrs());
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
-    const auto* mem_attrs = call->attrs.as<MemAllocTensorAttrs>();
-    ICHECK_NOTNULL(mem_attrs);
-    ICHECK_EQ(call->args.size(), 2);
-    ObjectPtr<VMAllocTensorAttrs> vm_attr = make_object<VMAllocTensorAttrs>();
-    vm_attr->offset = mem_attrs->offset;
-    vm_attr->dtype = mem_attrs->dtype;
-    return Call(vm_alloc_tensor_op_, {call->args[0], call->args[1]}, Attrs(vm_attr));
+    PrimValue offset = Downcast<PrimValue>(call->args[1]);
+    DataTypeImm dtype = Downcast<DataTypeImm>(call->args[3]);
+    return Call(vm_alloc_tensor_op_, {call->args[0], offset, call->args[2], dtype}, Attrs());
   }
 
   Expr CallTIRDyn(const Call& call_node) {

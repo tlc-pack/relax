@@ -20,7 +20,6 @@
  * \file src/relax/transform/call_tir_rewrite.cc
  * \brief Perform explicit tensor allocation for call_tir.
  */
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -60,13 +59,12 @@ class CallTIRMutator : public ExprMutator {
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
         ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
-        auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
-        alloc_tensor_attr->dtype = tensor_sinfo->dtype;
-        alloc_tensor_attr->runtime_device_index = 0;
-        outs.push_back(builder_->Emit(Call(alloc_tensor_op,                                     //
-                                           {Downcast<ShapeExpr>(tensor_sinfo->shape.value())},  //
-                                           Attrs(alloc_tensor_attr)),
-                                      "alloc"));
+        outs.push_back(
+            builder_->Emit(Call(alloc_tensor_op,  //
+                                {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
+                                 DataTypeImm(tensor_sinfo->dtype), PrimValue::Int64(0)},  //
+                                Attrs()),
+                           "alloc"));
       } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
         // multiple output case
         const TupleStructInfo& tuple_sinfo = _tuple_sinfo.value();
@@ -80,13 +78,12 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
-          auto alloc_tensor_attr = make_object<AllocTensorAttrs>();
-          alloc_tensor_attr->dtype = field_tensor->dtype;
-          alloc_tensor_attr->runtime_device_index = 0;
-          outs.push_back(builder_->Emit(
-              Call(alloc_tensor_op, {Downcast<ShapeExpr>(field_tensor->shape.value())},
-                   Attrs(alloc_tensor_attr)),
-              "alloc"));
+          outs.push_back(
+              builder_->Emit(Call(alloc_tensor_op,
+                                  {Downcast<ShapeExpr>(field_tensor->shape.value()),
+                                   DataTypeImm(field_tensor->dtype), PrimValue::Int64(0)},
+                                  Attrs()),
+                             "alloc"));
         }
       } else {
         LOG(FATAL) << "TypeError: The struct info of call_tir expects to be TensorStructInfo or "

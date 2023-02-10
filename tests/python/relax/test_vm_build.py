@@ -284,7 +284,6 @@ def test_vm_emit_te_dtype_change(exec_mode):
     mod = bb.get()
 
     new_mod = relax.transform.CallTIRRewrite()(mod)
-    assert new_mod["rx_func"].body.blocks[0].bindings[0].value.attrs.dtype == "int16"
 
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.vm.build(mod, target, exec_mode=exec_mode)
@@ -512,7 +511,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
             storage = R.memory.alloc_storage(
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
-            y = R.memory.alloc_tensor(storage, (2, 3), offset=0, dtype="float32")
+            y = R.memory.alloc_tensor(storage, 0, (2, 3), dtype="float32")
             _ = copy(x, y)
             return y
 

@@ -19,7 +19,6 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/function.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>

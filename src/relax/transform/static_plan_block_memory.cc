@@ -50,7 +50,6 @@
  * only works on block level.
  */
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/memory.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
@@ -386,12 +385,10 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - no storage token was created for this call before.
     const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    const auto* attrs = call->attrs.as<AllocTensorAttrs>();
     ICHECK_NOTNULL(sinfo);
     ICHECK_NOTNULL(shape);
-    ICHECK_NOTNULL(attrs);
     ICHECK(!sinfo->IsUnknownDtype());
-    ICHECK(sinfo->dtype == attrs->dtype);
+    ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
     ICHECK(!token_map_.count(call));
 
     // No support for symbolic shape at this moment.
@@ -538,12 +535,8 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
         // is not considered by the planning.
         return;
       }
-
-      const auto* attrs = call->attrs.as<AllocTensorAttrs>();
-      ICHECK_NOTNULL(attrs);
       ICHECK(it->second.IsLeaf());
-      StorageToken new_token =
-          this->RequestReuseOrAlloc(it->second.LeafValue(), attrs->runtime_device_index);
+      StorageToken new_token = this->RequestReuseOrAlloc(it->second.LeafValue());
 
       // Record that this alloc_tensor is using the token.
       alloc_tensor2token.insert({call, new_token});
@@ -584,7 +577,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   }
 
   /*! \brief Request a storage reuse, or allocate storage if no appropriate storage is reusable. */
-  StorageToken RequestReuseOrAlloc(StorageToken prototype, int64_t virtual_device_idx) {
+  StorageToken RequestReuseOrAlloc(StorageToken prototype) {
     Optional<StorageToken> token = allocator_.RequestReuse(prototype);
     if (!token.defined()) {
       return allocator_.Alloc(prototype, this->n_storage_++);
@@ -684,8 +677,7 @@ class StorageAllocationRewriter : public ExprMutator {
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
       ICHECK_NOTNULL(sinfo);
       ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
-      const auto* attrs = call->attrs.as<AllocTensorAttrs>();
-      ICHECK_NOTNULL(attrs);
+      PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
 
       // If the token is visited for the first time, create a storage variable using
       // `memory.alloc_storage` for it.
@@ -693,21 +685,23 @@ class StorageAllocationRewriter : public ExprMutator {
       if (!token->storage.defined()) {
         static const Op& mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
         ShapeExpr size({tir::make_const(DataType::Int(64), token->bytes)});
-        ObjectPtr<MemAllocStorageAttrs> alloc_storage_attrs = make_object<MemAllocStorageAttrs>();
-        alloc_storage_attrs->virtual_device_index = attrs->runtime_device_index;
-        alloc_storage_attrs->storage_scope = "global";
-        alloc_storage_attrs->dtype = token->dtype;
-        Call alloc_storage(mem_alloc_storage, {std::move(size)}, Attrs(alloc_storage_attrs));
+        PrimValue virtual_device_index = runtime_device_index;
+        std::string storage_scope = "global";
+        DataType dtype = token->dtype;
+        Call alloc_storage(
+            mem_alloc_storage,
+            {std::move(size), virtual_device_index, StringImm(storage_scope), DataTypeImm(dtype)},
+            Attrs());
         token->storage = builder_->Emit(alloc_storage, "storage");
       }
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       static const Op& mem_alloc_tensor = Op::Get("relax.memory.alloc_tensor");
-      ObjectPtr<MemAllocTensorAttrs> alloc_tensor_attrs = make_object<MemAllocTensorAttrs>();
-      alloc_tensor_attrs->offset = 0;
-      alloc_tensor_attrs->dtype = sinfo->dtype;
-      return Call(mem_alloc_tensor, {token->storage.value(), sinfo->shape.value()},
-                  Attrs(alloc_tensor_attrs));
+      PrimValue offset = PrimValue::Int64(0);
+      DataType dtype = sinfo->dtype;
+      return Call(mem_alloc_tensor,
+                  {token->storage.value(), offset, sinfo->shape.value(), DataTypeImm(dtype)},
+                  Attrs());
     }
 
     return ExprMutator::VisitExpr_(call);

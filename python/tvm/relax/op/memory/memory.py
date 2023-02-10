@@ -49,7 +49,7 @@ def alloc_storage(size: Expr, virtual_device_index: int, storage_scope: str, dty
 
 
 @args_converter.auto
-def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
+def alloc_tensor(storage: Expr, offset: int, shape: Expr, dtype: str) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
     Parameters
@@ -57,11 +57,11 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     storage : Expr
         The storage to allocate the tensor to.
 
-    shape : Expr
-        The shape of the tensor to be allocated.
-
     offset : int
         The storage offset to allocate the tensor.
+
+    shape : Expr
+        The shape of the tensor to be allocated.
 
     dtype : str
         The datatype of the tensor to be allocated.
@@ -71,7 +71,7 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: str) -> Call:
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
+    return _ffi_api.alloc_tensor(storage, offset, shape, dtype)  # type: ignore
 
 
 @args_converter.auto
