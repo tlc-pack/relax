@@ -88,9 +88,16 @@ def test_rpc():
     device = remote.cpu()
 
     vm = relax.vm.VirtualMachine(exec=rexec, device=device, profile=True)
-    report = vm.profile("main", tvm.nd.array(data_np, device))
+    data = tvm.nd.array(data_np, device)
+
+    vm.profile("main", data)
+
+    vm.set_input("main", data)
+    report = vm.profile("main")
     print(report)
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_rpc()
+    # test_conv2d_cpu()

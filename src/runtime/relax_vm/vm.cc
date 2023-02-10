@@ -318,7 +318,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param curr_frame The current frame.
    * \param inst The call instruction.
    */
-  virtual inline void RunInstrCall(VMFrame* curr_frame, Instruction inst);
+  virtual void RunInstrCall(VMFrame* curr_frame, Instruction inst);
 
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
@@ -328,16 +328,18 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param idx The index into the VM executable function table.
    * \return The name of the function.
    */
-  inline std::string GetFuncName(int idx) { return exec_->func_table[idx].name; }
+  const std::string& GetFuncName(int idx) { return exec_->func_table[idx].name; }
 
   /*!
    * \brief Retrieve the inputs for a function.
    * \param func_name The name of the function.
    * \return The function inputs.
    */
-  inline const std::vector<RegType>& GetInputsFor(const std::string& func_name) {
+  const std::vector<RegType>& GetInputsFor(const std::string& func_name) {
     return inputs_[func_name];
   }
+
+  void ClearInputsFor(const std::string& func_name) { inputs_.erase(func_name); }
 
  private:
   //--------------------------------------------------------
@@ -538,7 +540,7 @@ void VirtualMachineImpl::SetInput(std::string func_name, TVMArgs args, int offse
       int index = i - offset;
       func_args[index] = ConvertArgToDevice(args[i], devices[0]);
     }
-    inputs_.emplace(func_name, func_args);
+    inputs_[func_name] = func_args;
   } else {
     LOG(FATAL) << "ValueError: Unknown function: " << func_name;
   }
@@ -844,15 +846,21 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
 
         prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
 
-        TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
-        SetInput(f_name, args, 1);
-
         auto inputs = GetInputsFor(f_name);
 
-        // warmup
-        for (int i = 0; i < 3; i++) {
-          this->InvokeClosureInternal(clo, inputs);
+        bool clear_inputs = false;
+        if (inputs.size() == 0) {
+          ICHECK(args.num_args > 1) << "No input is provided";
+          TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
+          SetInput(f_name, args, 1);
+          inputs = GetInputsFor(f_name);
+          clear_inputs = true;
+        } else {
+          ICHECK_EQ(args.num_args, 1) << "Inputs are already provided by set_input.";
         }
+
+        // warmup
+        this->InvokeClosureInternal(clo, inputs);
 
         prof_->Start();
         this->InvokeClosureInternal(clo, inputs);
@@ -860,7 +868,12 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         // Return the report as json, since profiling::Report object is not supported by RPC
         std::string report_json = prof_->Report()->AsJSON();
         *rv = report_json;
+
         prof_ = std::nullopt;  // releases hardware counters
+
+        if (clear_inputs) {
+          ClearInputsFor(f_name);
+        }
       });
     } else {
       return VirtualMachineImpl::GetFunction(name, sptr_to_self);
