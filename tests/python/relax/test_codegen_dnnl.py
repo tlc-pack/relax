@@ -109,9 +109,12 @@ def test_dnnl_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
     profiler_vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
-    report = profiler_vm.profile("main", tvm.nd.array(data_np), tvm.nd.array(weight1_np), tvm.nd.array(weight2_np))
+    report = profiler_vm.profile(
+        "main", tvm.nd.array(data_np), tvm.nd.array(weight1_np), tvm.nd.array(weight2_np)
+    )
 
     print(report)
+
 
 if __name__ == "__main__":
     test_dnnl_offload()

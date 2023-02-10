@@ -89,11 +89,7 @@ class VirtualMachine(object):
             Whether or not to enable profiling.
         """
         load_exec = "vm_profiler_load_executable" if profile else "vm_load_executable"
-        self.module = (
-            exec.mod[load_exec]()
-            if isinstance(exec, Executable)
-            else exec[load_exec]()
-        )
+        self.module = exec.mod[load_exec]() if isinstance(exec, Executable) else exec[load_exec]()
         self._invoke_closure = self.module["invoke_closure"]
         self._save_function = self.module["save_function"]
         self._set_input = self.module["set_input"]
