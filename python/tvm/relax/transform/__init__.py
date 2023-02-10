@@ -19,3 +19,4 @@
 
 from .transform import *
 from .fma_rewrite import *
+from .legalize_ops import LegalizeOps

@@ -151,8 +151,6 @@ StructInfo InferStructInfoUnaryArith(const Call& call, const BlockBuilder& ctx) 
       call, ctx, [](const TensorStructInfo& input_sinfo) { return input_sinfo->dtype; });
 }
 
-/************ Utilities ************/
-
 /*!
  * \brief Infer the output datatype for binary arithmetic operators.
  * \param call The context Call to the operator.
