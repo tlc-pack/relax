@@ -755,5 +755,70 @@ def test_softmax():
     _check(before(), expected())
 
 
+def test_multiple_relax_functions():
+    def before():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        with bb.function("func1", [x]):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.add, x, relax.const(1, "float32"))
+                lv1 = bb.emit_te(topi.exp, lv0)
+                gv = bb.emit_output(bb.call_te(topi.squeeze, lv1))
+            bb.emit_func_output(gv)
+
+        x = relax.Var("x", R.Tensor([20, 10], "float32"))
+        with bb.function("func2", [x]):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.add, x, relax.const(1, "float32"))
+                lv1 = bb.emit_te(topi.exp, lv0)
+                gv = bb.emit_output(bb.call_te(topi.squeeze, lv1))
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    def expected():
+        bb = relax.BlockBuilder()
+
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.add, x, p0)
+                lv1 = bb.emit_te(topi.exp, lv0)
+                gv = bb.emit_output(bb.call_te(topi.squeeze, lv1))
+            bb.emit_func_output(gv)
+        fused_add_exp_squeeze = bb.get().get_global_var("fused_add_exp_squeeze")
+
+        x = relax.Var("x", R.Tensor([20, 10], "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.add, x, p0)
+                lv1 = bb.emit_te(topi.exp, lv0)
+                gv = bb.emit_output(bb.call_te(topi.squeeze, lv1))
+            bb.emit_func_output(gv)
+        fused_add1_exp1_squeeze1 = bb.get().get_global_var("fused_add1_exp1_squeeze1")
+
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        with bb.function("func1", [x]):
+            with bb.dataflow():
+                gv = bb.emit_output(
+                    relax.Call(fused_add_exp_squeeze, [x, relax.const(1, "float32")])
+                )
+            bb.emit_func_output(gv)
+
+        x = relax.Var("x", R.Tensor([20, 10], "float32"))
+        with bb.function("func2", [x]):
+            with bb.dataflow():
+                gv = bb.emit_output(
+                    relax.Call(fused_add1_exp1_squeeze1, [x, relax.const(1, "float32")])
+                )
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    _check(before(), expected())
+
+
 if __name__ == "__main__":
     tvm.testing.main()
