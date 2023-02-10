@@ -79,8 +79,7 @@ bool IsBoolScalarType(const Type& ty, bool permit_unknown_rank, bool permit_unkn
 
 bool IsLeafOrTuple(const Expr& expr) {
   return expr.as<LeafExprNode>() || expr.as<GlobalVarNode>() || expr.as<ExternFuncNode>() ||
-         expr.as<OpNode>() || expr.as<PrimExprNode>() || expr.as<StringImmNode>() ||
-         expr.as<DataTypeImmNode>() || expr.as<TupleNode>();
+         expr.as<OpNode>() || expr.as<TupleNode>();
 }
 
 class FunctionCopier : public ExprMutator {
