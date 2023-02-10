@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 import numpy as np
 import tvm
 import tvm.testing
@@ -68,6 +67,9 @@ def test_conv2d_cpu():
     report = vm.profile("main", tvm.nd.array(data_np))
     print(report)
 
+    assert "Duration" in str(report)
+    assert "conv2d" in str(report)
+
 
 def test_rpc():
     data_np = np.random.randn(1, 64, 56, 56).astype("float32")
@@ -91,4 +93,4 @@ def test_rpc():
 
 
 if __name__ == "__main__":
-    test_rpc()
+    tvm.testing.main()

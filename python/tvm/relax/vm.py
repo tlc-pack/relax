@@ -455,8 +455,28 @@ class VirtualMachine(object):
             f_preproc=f_preproc,
         )
 
-    def profile(self, func_name, *args):
-        report_json = self.module["profile"](func_name, *args)
+    def profile(self, func_name: str, *args):
+        """Profile a function call.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+        args: List of NDArray or other objects supported by PackedFunc.
+            The arguments to the function.
+
+        Returns
+        -------
+        report: tvm.runtime.profiling.Report
+            The formatted profiling result, showing per-op timing measuraments.
+        """
+
+        cargs: List[Any] = []
+
+        for arg in args:
+            self._convert(arg, cargs)
+
+        report_json = self.module["profile"](func_name, *cargs)
         return Report.from_json(report_json)
 
 
