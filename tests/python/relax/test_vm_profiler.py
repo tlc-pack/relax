@@ -121,7 +121,7 @@ def test_tuple():
 
     def callback(vm, data):
         report = vm.profile("main", data)
-        assert "runtime.Tuple" in str(report)
+        assert "vm.builtin.make_tuple" in str(report)
 
     with_rpc(ex, callback, data_np)
 

@@ -21,7 +21,6 @@
  * \file src/runtime/relax_vm/vm.cc
  */
 
-#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -68,20 +67,20 @@ PackedFunc VMClosure::BindLastArgs(PackedFunc func, std::vector<TVMRetValue> las
 // Utility functions.
 //-----------------------------------------------------------
 // Use the args after `starting_arg_idx` as a series of indices into `obj`,
-// indexing into nested ADTs and returning the final indexed object.
+// indexing into nested Arrays and returning the final indexed object.
 ObjectRef IndexIntoNestedObject(ObjectRef obj, TVMArgs args, int starting_arg_idx) {
   for (int i = starting_arg_idx; i < args.size(); i++) {
-    // the object must be an ADT to be able to index into it
-    if (!obj.as<ADTObj>()) {
-      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
+    // the object must be an Array to be able to index into it
+    auto* arr = obj.as<runtime::ArrayNode>();
+    if (arr == nullptr) {
+      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
     int index = args[i];
-    auto adt = Downcast<ADT>(obj);
     // make sure the index is in bounds
-    if (index >= static_cast<int>(adt.size())) {
-      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << adt.size() << ").";
+    if (index >= static_cast<int>(arr->size())) {
+      LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr->size() << ").";
     }
-    obj = adt[index];
+    obj = arr->at(index);
   }
   return obj;
 }
@@ -96,13 +95,12 @@ NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev) {
 ObjectRef ConvertObjectToDevice(ObjectRef src, const Device& dev) {
   if (src->IsInstance<NDArray::ContainerType>()) {
     return ConvertNDArrayToDevice(Downcast<NDArray>(src), dev);
-  } else if (src->IsInstance<ADTObj>()) {
-    std::vector<ObjectRef> ret;
-    ADT adt = Downcast<ADT>(src);
-    for (size_t i = 0; i < adt.size(); i++) {
-      ret.push_back(ConvertObjectToDevice(adt[i], dev));
+  } else if (auto* arraynode = src.as<runtime::ArrayNode>()) {
+    Array<ObjectRef> ret;
+    for (size_t i = 0; i < arraynode->size(); ++i) {
+      ret.push_back(ConvertObjectToDevice(arraynode->at(i), dev));
     }
-    return ADT(adt->tag, ret.begin(), ret.end());
+    return ret;
   } else {
     return src;
   }
@@ -222,7 +220,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param save_name The saved name of the function.
    * \param include_return Whether forward the return value, set it to false allows
    *        us to ignore forwarding return value, which can be helpful to do benchmarking
-   *        in RPC environment when return value is complicated ADT.
+   *        in RPC environment when return value is complicated Array.
    *
    * \param args The arguments to bound to the function.
    * \note This function is used by RPC server to help benchmarking.
@@ -479,8 +477,8 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
       // use remaining args as indices
       ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
       // after chasing through the indices, examine the final object
-      if (const auto* adt = obj.as<ADTObj>()) {
-        *rv = static_cast<int>(adt->size);
+      if (const auto* arr = obj.as<runtime::ArrayNode>()) {
+        *rv = static_cast<int>(arr->size());
       } else {
         *rv = -1;
       }
@@ -491,7 +489,7 @@ PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
       RegType out = LookupVMOutput(func_name);
       // use remaining args as indices
       ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
-      if (obj.as<ADTObj>()) {
+      if (obj.as<runtime::ArrayNode>()) {
         LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
                       "Please specify another index argument.";
         return;

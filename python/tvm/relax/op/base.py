@@ -203,14 +203,11 @@ def render_object(val: tvm.Object) -> str:
         return str(val)
     # no pretty-printer by default, so if we don't handle this,
     # then we can't look inside tuples
-    if isinstance(val, tvm.runtime.container.ADT):
-        # the fields array of an ADT cannot be directly accessed in Python
+    if isinstance(val, tvm.ir.Array):
+        # the fields array of an array cannot be directly accessed in Python
         # so we have to get the length and index into the fields separately
         fields = ", ".join([render_object(val[i]) for i in range(len(val))])
-        # special case: tag = 0 is a tuple
-        if val.tag == 0:
-            return f"({fields})"
-        return f"ADT(tag={val.tag}, fields=[{fields}])"
+        return f"({fields})"
     return str(val)
 
 

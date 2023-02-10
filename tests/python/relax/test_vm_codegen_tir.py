@@ -173,7 +173,7 @@ def test_const():
             T.anylist_setitem_call_packed(
                 r,
                 T.int32(2),
-                "runtime.Tuple",
+                "vm.builtin.make_tuple",
                 T.anylist_getitem(c, T.int32(0)),
                 T.anylist_getitem(c, T.int32(1)),
                 T.anylist_getitem(r, T.int32(0)),

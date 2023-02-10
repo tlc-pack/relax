@@ -23,7 +23,7 @@ from tvm._ffi import base as _base
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.runtime import Device, Module, PackedFunc, container
+from tvm.runtime import Device, Module, PackedFunc
 from tvm.runtime.object import Object
 from tvm.runtime.profiling import Report
 from tvm.tir.function import PrimFunc
@@ -232,7 +232,7 @@ class VirtualMachine(object):
             field_args: List[Any] = []
             for field in arg:
                 self._convert(field, field_args)
-            cargs.append(container.tuple_object(field_args))
+            cargs.append(tvm.runtime.convert(field_args))
         elif isinstance(arg, (_base.numeric_types, bool)):
             dtype = _gettype(arg)
             value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
