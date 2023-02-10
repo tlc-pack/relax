@@ -267,13 +267,12 @@ TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
   ICHECK(call->args[0].as<ShapeExprNode>())
       << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
+  ICHECK(call->args[1].as<DataTypeImmNode>())
+      << "must be DataTypeImm, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
-  if (const auto* leaf_node = call->args[1].as<LeafExprNode>()) {
-    const LeafExpr leaf_expr = GetRef<LeafExpr>(leaf_node);
-    if (const auto* dtype_node = leaf_expr.as<DataTypeImmNode>()) {
-      const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
-      out_dtype = dtype_imm->value;
-    }
+  if (const auto* dtype_node = call->args[1].as<DataTypeImmNode>()) {
+    const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+    out_dtype = dtype_imm->value;
   }
   return TensorStructInfo(call->args[0], out_dtype);
 }
@@ -325,12 +324,9 @@ StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& c
   ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[1]))
       << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
-  if (const auto* leaf_node = call->args[3].as<LeafExprNode>()) {
-    const LeafExpr leaf_expr = GetRef<LeafExpr>(leaf_node);
-    if (const auto* dtype_node = leaf_expr.as<DataTypeImmNode>()) {
-      const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
-      out_dtype = dtype_imm->value;
-    }
+  if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
+    const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+    out_dtype = dtype_imm->value;
   }
   return TensorStructInfo(call->args[1], out_dtype);
 }
@@ -402,12 +398,9 @@ Expr InferShapeVMAllocTensor(const Call& call, DiagnosticContext diag_ctx) { ret
 
 StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
   DataType out_dtype;
-  if (const auto* leaf_node = call->args[3].as<LeafExprNode>()) {
-    const LeafExpr leaf_expr = GetRef<LeafExpr>(leaf_node);
-    if (const auto* dtype_node = leaf_expr.as<DataTypeImmNode>()) {
-      const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
-      out_dtype = dtype_imm->value;
-    }
+  if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
+    const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
+    out_dtype = dtype_imm->value;
   }
   if (const auto* output_shape = call->args[1].as<ShapeExprNode>()) {
     return TensorStructInfo(GetRef<Expr>(output_shape), out_dtype);
