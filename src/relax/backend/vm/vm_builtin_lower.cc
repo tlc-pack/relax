@@ -100,23 +100,15 @@ class VMBuiltinLowerMutator : public ExprMutator {
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
-    const auto* mem_attrs = call->attrs.as<MemAllocStorageAttrs>();
-    ICHECK_NOTNULL(mem_attrs);
-    ICHECK(call->args.size() == 1);
-    ObjectPtr<VMAllocStorageAttrs> vm_attr = make_object<VMAllocStorageAttrs>();
-    vm_attr->dtype = mem_attrs->dtype;
-    vm_attr->runtime_device_index = mem_attrs->virtual_device_index;
-    return Call(vm_alloc_storage_op_, {call->args[0]}, Attrs(vm_attr));
+    PrimValue runtime_device_index = Downcast<PrimValue>(call->args[1]);
+    DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[3]);
+    return Call(vm_alloc_storage_op_, {call->args[0], runtime_device_index, output_dtype}, Attrs());
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
-    const auto* mem_attrs = call->attrs.as<MemAllocTensorAttrs>();
-    ICHECK_NOTNULL(mem_attrs);
-    ICHECK_EQ(call->args.size(), 2);
-    ObjectPtr<VMAllocTensorAttrs> vm_attr = make_object<VMAllocTensorAttrs>();
-    vm_attr->offset = mem_attrs->offset;
-    vm_attr->dtype = mem_attrs->dtype;
-    return Call(vm_alloc_tensor_op_, {call->args[0], call->args[1]}, Attrs(vm_attr));
+    PrimValue offset = Downcast<PrimValue>(call->args[1]);
+    DataTypeImm dtype = Downcast<DataTypeImm>(call->args[3]);
+    return Call(vm_alloc_tensor_op_, {call->args[0], offset, call->args[2], dtype}, Attrs());
   }
 
   Expr CallTIRDyn(const Call& call_node) {

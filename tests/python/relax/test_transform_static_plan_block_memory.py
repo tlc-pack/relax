@@ -98,21 +98,21 @@ def test_basic():
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             storage: R.Object = R.memory.alloc_storage((32,), virtual_device_index=0, storage_scope="global", dtype="float32")
-            alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, (2, 4), offset=0, dtype="float32")
+            alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, (2, 4), dtype="float32")
             _: R.Tuple() = exp(x, alloc)
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.reshape(lv, (8,))
             storage1: R.Object = R.memory.alloc_storage((40,), virtual_device_index=0, storage_scope="global", dtype="float32")
-            alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage1, (8,), offset=0, dtype="float32")
+            alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage1, 0, (8,), dtype="float32")
             _1: R.Tuple() = relu(lv1, alloc1)
             _2: R.Tuple() = R.memory.kill_tensor(alloc)
             _3: R.Tuple() = R.memory.kill_tensor(lv1)
             lv2: R.Tensor((8,), dtype="float32") = alloc1
-            alloc2: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, (8,), offset=0, dtype="float32")
+            alloc2: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, 0, (8,), dtype="float32")
             _4: R.Tuple() = add(lv2, R.const(1, "float32"), alloc2)
             _5: R.Tuple() = R.memory.kill_tensor(alloc1)
             lv3: R.Tensor((8,), dtype="float32") = alloc2
-            alloc3: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, (10,), offset=0, dtype="float32")
+            alloc3: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, 0, (10,), dtype="float32")
             _6: R.Tuple() = pad(lv3, alloc3)
             _7: R.Tuple() = R.memory.kill_tensor(alloc2)
             lv4: R.Tensor((10,), dtype="float32") = alloc3
@@ -190,7 +190,7 @@ def test_different_dtype():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage, (2, 3), offset=0, dtype="float32"
+                storage, 0, (2, 3), dtype="float32"
             )
             _: R.Tuple() = add(x, x, alloc)
             _1: R.Tuple() = R.memory.kill_tensor(alloc)
@@ -199,7 +199,7 @@ def test_different_dtype():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="int32"
             )
             alloc1: R.Tensor((2, 3), dtype="int32") = R.memory.alloc_tensor(
-                storage1, (2, 3), offset=0, dtype="int32"
+                storage1, 0, (2, 3), dtype="int32"
             )
             _2: R.Tuple() = add1(y, y, alloc1)
             _3: R.Tuple() = R.memory.kill_tensor(alloc1)
@@ -257,13 +257,13 @@ def test_same_dtype():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage, (2, 3), offset=0, dtype="float32"
+                storage, 0, (2, 3), dtype="float32"
             )
             _: R.Tuple() = add(x, x, alloc)
             _1: R.Tuple() = R.memory.kill_tensor(alloc)
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage, (2, 3), offset=0, dtype="float32"
+                storage, 0, (2, 3), dtype="float32"
             )
             _2: R.Tuple() = add(y, y, alloc1)
             _3: R.Tuple() = R.memory.kill_tensor(alloc1)
@@ -440,7 +440,7 @@ def test_nested_tuple():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage, (2, 3), offset=0, dtype="float32"
+                storage, 0, (2, 3), dtype="float32"
             )
             _: R.Tuple() = exp(x, alloc)
             y1: R.Tensor((2, 3), dtype="float32") = alloc
@@ -448,7 +448,7 @@ def test_nested_tuple():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage1, (2, 3), offset=0, dtype="float32"
+                storage1, 0, (2, 3), dtype="float32"
             )
             _1: R.Tuple() = exp(x, alloc1)
             y2: R.Tensor((2, 3), dtype="float32") = alloc1
@@ -456,7 +456,7 @@ def test_nested_tuple():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc2: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage2, (2, 3), offset=0, dtype="float32"
+                storage2, 0, (2, 3), dtype="float32"
             )
             _2: R.Tuple() = exp(x, alloc2)
             y3: R.Tensor((2, 3), dtype="float32") = alloc2
@@ -478,21 +478,21 @@ def test_nested_tuple():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc3: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage3, (2, 3), offset=0, dtype="float32"
+                storage3, 0, (2, 3), dtype="float32"
             )
             _3: R.Tuple() = exp(y1_, alloc3)
             _4: R.Tuple() = R.memory.kill_tensor(alloc)
             _11: R.Tuple() = R.memory.kill_tensor(alloc3)
             z1: R.Tensor((2, 3), dtype="float32") = alloc3
             alloc4: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage, (2, 3), offset=0, dtype="float32"
+                storage, 0, (2, 3), dtype="float32"
             )
             _41: R.Tuple() = exp(y2_, alloc4)
             _21: R.Tuple() = R.memory.kill_tensor(alloc1)
             _31: R.Tuple() = R.memory.kill_tensor(alloc4)
             z2: R.Tensor((2, 3), dtype="float32") = alloc4
             alloc5: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage3, (2, 3), offset=0, dtype="float32"
+                storage3, 0, (2, 3), dtype="float32"
             )
             _5: R.Tuple() = exp(y3_, alloc5)
             _42: R.Tuple() = R.memory.kill_tensor(alloc2)
@@ -570,7 +570,7 @@ def test_zero_reference():
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
-                storage, (2, 3), offset=0, dtype="float32"
+                storage, 0, (2, 3), dtype="float32"
             )
             _: R.Tuple() = R.memory.kill_storage(storage)
             return x

@@ -511,7 +511,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
             storage = R.memory.alloc_storage(
                 (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
-            y = R.memory.alloc_tensor(storage, (2, 3), offset=0, dtype="float32")
+            y = R.memory.alloc_tensor(storage, 0, (2, 3), dtype="float32")
             _ = copy(x, y)
             return y
 

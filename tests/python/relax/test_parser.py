@@ -871,7 +871,7 @@ def test_memory_op():
     @R.function
     def memory(x: R.Tensor) -> R.Tensor:
         storage = R.memory.alloc_storage((1024,), -1, "global", "float32")
-        alloca = R.memory.alloc_tensor(storage, (1, 256), 0, "float32")
+        alloca = R.memory.alloc_tensor(storage, 0, (1, 256), "float32")
         _ = R.memory.kill_tensor(alloca)
         _ = R.memory.kill_storage(storage)
         return alloca

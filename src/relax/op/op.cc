@@ -321,27 +321,27 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocSto
 // memory planning alloc_tensor
 
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[1]))
+  ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[2]))
       << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
   if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
     const DataTypeImm dtype_imm = GetRef<DataTypeImm>(dtype_node);
     out_dtype = dtype_imm->value;
   }
-  return TensorStructInfo(call->args[1], out_dtype);
+  return TensorStructInfo(call->args[2], out_dtype);
 }
 
 RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .set_num_inputs(4)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
-    .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("offset", "int", "Storage offset to allocate the tensor.")
+    .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataType", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor);
 
-Expr MakeMemAllocTensor(Expr storage, Expr shape, int offset, DataType dtype) {
+Expr MakeMemAllocTensor(Expr storage, int offset, Expr shape, DataType dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
-  return Call(op, {storage, shape, PrimValue::Int64(offset), DataTypeImm(dtype)}, Attrs(), {});
+  return Call(op, {storage, PrimValue::Int64(offset), shape, DataTypeImm(dtype)}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocTensor);
