@@ -857,8 +857,10 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         prof_->Start();
         this->InvokeClosureInternal(clo, inputs);
         prof_->Stop();
+        // Return the report as json, since profiling::Report object is not supported by RPC
         std::string report_json = prof_->Report()->AsJSON();
         *rv = report_json;
+        prof_ = std::nullopt;  // releases hardware counters
       });
     } else {
       return VirtualMachineImpl::GetFunction(name, sptr_to_self);
