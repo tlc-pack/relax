@@ -466,7 +466,6 @@ class VirtualMachine(object):
         report: tvm.runtime.profiling.Report
             The formatted profiling result, showing per-op timing measurements.
         """
-
         cargs: List[Any] = []
 
         for arg in args:

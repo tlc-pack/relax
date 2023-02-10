@@ -18,49 +18,39 @@ import numpy as np
 import tvm
 import tvm.testing
 
-from tvm import relax, relay, rpc
+from tvm import relax, rpc
 from tvm.contrib import utils
-
-from tvm.relax.testing import relay_translator
-
-
-def get_relay_conv2d_relu_x2(d_shape, w_shape):
-    data = relay.var("data", shape=d_shape)
-    weight1 = relay.var("weight1", shape=w_shape)
-    weight2 = relay.var("weight2", shape=w_shape)
-    conv1 = relay.nn.relu(
-        relay.nn.conv2d(
-            data=data,
-            weight=weight1,
-            kernel_size=w_shape[2:],
-            padding=(1, 1),
-        )
-    )
-    return relay.nn.relu(
-        relay.nn.conv2d(
-            data=conv1,
-            weight=weight2,
-            kernel_size=w_shape[2:],
-            padding=(0, 0),
-        )
-    )
+from tvm.relax.testing import nn
 
 
 def get_exec(data_shape):
-    weight1_np = np.random.randn(64, 64, 3, 3).astype("float32")
-    weight2_np = np.random.randn(64, 64, 3, 3).astype("float32")
+    builder = relax.BlockBuilder()
+    weight1_np = np.random.randn(64, 64).astype("float32")
+    weight2_np = np.random.randn(64, 64).astype("float32")
 
-    relay_mod = tvm.IRModule.from_expr(get_relay_conv2d_relu_x2(data_shape, weight1_np.shape))
-    params = {"weight1": weight1_np, "weight2": weight2_np}
+    with builder.function("main"):
+      model = nn.Sequential(
+        nn.Linear(data_shape[1], weight1_np.shape[0], bias=False),
+        nn.ReLU(),
+        nn.Linear(weight2_np.shape[0], weight2_np.shape[1], bias=False),
+        nn.ReLU(),
+      )
+      data = nn.Placeholder(data_shape, name="data")
+      output = model(data)
+      params = [data] + model.parameters()
+      builder.emit_func_output(output, params=params)
+
+    mod = builder.get()
+
+    params = {"linear_weight": weight1_np, "linear_weight1": weight2_np}
+    mod = relax.transform.BindParams("main", params)(mod)
 
     target = "llvm"
-    mod = relay_translator.from_relay(relay_mod["main"], target, params)
-
     return relax.vm.build(mod, target)
 
 
 def test_conv2d_cpu():
-    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+    data_np = np.random.randn(1, 64).astype("float32")
     ex = get_exec(data_np.shape)
 
     vm = relax.VirtualMachine(ex, tvm.cpu(), profile=True)
@@ -68,11 +58,11 @@ def test_conv2d_cpu():
     print(report)
 
     assert "Duration" in str(report)
-    assert "conv2d" in str(report)
+    assert "matmul" in str(report)
 
 
 def test_rpc():
-    data_np = np.random.randn(1, 64, 56, 56).astype("float32")
+    data_np = np.random.randn(1, 64).astype("float32")
     ex = get_exec(data_np.shape)
 
     temp = utils.tempdir()
@@ -98,6 +88,4 @@ def test_rpc():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_rpc()
-    # test_conv2d_cpu()
+    tvm.testing.main()

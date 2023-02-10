@@ -112,7 +112,7 @@ def _unpack_params(value: object) -> List[relax.Var]:
         for v in value:
             params += _unpack_params(v)
         return params
-    if isinstance(value, (int, float, str)):
+    if value is None or isinstance(value, (int, float, str)):
         return []
     raise TypeError("not supported type when unpacking parameters: {}".format(type(value)))
 
