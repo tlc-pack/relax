@@ -503,6 +503,35 @@ def test_vm_tuplegetitem(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
+@pytest.mark.parametrize("exec_mode", ["bytecode", "compiled"])
+def test_lower_memory_alloc_storage_tensor(exec_mode):
+    @tvm.script.ir_module
+    class TestMemoryAllocStorageTensor:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32")):
+            storage = R.memory.alloc_storage(
+                (24,), virtual_device_index=0, storage_scope="global", dtype="float32"
+            )
+            y = R.memory.alloc_tensor(storage, (2, 3), offset=0, dtype="float32")
+            _ = copy(x, y)
+            return y
+
+        @T.prim_func
+        def copy(A: T.Buffer[(2, 3), "float32"], B: T.Buffer[(2, 3), "float32"]):
+            for i0, i1 in T.grid(2, 3):
+                with T.block("block"):
+                    vi0, vi1 = T.axis.remap("SS", [i0, i1])
+                    B[vi0, vi1] = A[vi0, vi1]
+
+    mod = TestMemoryAllocStorageTensor
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.vm.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    y = vm["main"](x)
+    tvm.testing.assert_allclose(y.numpy(), x.numpy(), rtol=1e-7, atol=1e-7)
+
+
 def test_vm_print_const():
     # do not support print for now in compiled
     # just to simplify impl and we can unify after PrimValue

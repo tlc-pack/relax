@@ -37,6 +37,16 @@ namespace relax {
 class VMBuiltinLowerMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
+
+  // A workaround to remove the CallNodes of killing tensors and storages.
+  void VisitBinding_(const VarBindingNode* binding) final {
+    const auto* call = binding->value.as<CallNode>();
+    if (call != nullptr && (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_)) {
+      return;
+    }
+    ExprMutator::VisitBinding_(binding);
+  }
+
   Expr VisitExpr_(const CallNode* call_node) final {
     // post-order mutation
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
@@ -51,6 +61,10 @@ class VMBuiltinLowerMutator : public ExprMutator {
       return InvokeClosure(call);
     } else if (call->op == alloc_tensor_op_) {
       return MakeAllocTensor(call);
+    } else if (call->op == mem_alloc_storage_op_) {
+      return MakeMemAllocStorage(call);
+    } else if (call->op == mem_alloc_tensor_op_) {
+      return MakeMemAllocTensor(call);
     } else {
       return call;
     }
@@ -88,6 +102,26 @@ class VMBuiltinLowerMutator : public ExprMutator {
     tensor_attr->dtype = dtype;
     Expr shape = call->args[0];
     return Call(vm_alloc_tensor_op_, {storage, shape}, Attrs(tensor_attr));
+  }
+
+  Expr MakeMemAllocStorage(const Call& call) {
+    const auto* mem_attrs = call->attrs.as<MemAllocStorageAttrs>();
+    ICHECK_NOTNULL(mem_attrs);
+    ICHECK(call->args.size() == 1);
+    ObjectPtr<VMAllocStorageAttrs> vm_attr = make_object<VMAllocStorageAttrs>();
+    vm_attr->dtype = mem_attrs->dtype;
+    vm_attr->runtime_device_index = mem_attrs->virtual_device_index;
+    return Call(vm_alloc_storage_op_, {call->args[0]}, Attrs(vm_attr));
+  }
+
+  Expr MakeMemAllocTensor(const Call& call) {
+    const auto* mem_attrs = call->attrs.as<MemAllocTensorAttrs>();
+    ICHECK_NOTNULL(mem_attrs);
+    ICHECK_EQ(call->args.size(), 2);
+    ObjectPtr<VMAllocTensorAttrs> vm_attr = make_object<VMAllocTensorAttrs>();
+    vm_attr->offset = mem_attrs->offset;
+    vm_attr->dtype = mem_attrs->dtype;
+    return Call(vm_alloc_tensor_op_, {call->args[0], call->args[1]}, Attrs(vm_attr));
   }
 
   Expr CallTIRDyn(const Call& call_node) {
@@ -156,6 +190,10 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
   const Op& alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
+  const Op& mem_alloc_storage_op_ = Op::Get("relax.memory.alloc_storage");
+  const Op& mem_alloc_tensor_op_ = Op::Get("relax.memory.alloc_tensor");
+  const Op& mem_kill_storage_op_ = Op::Get("relax.memory.kill_storage");
+  const Op& mem_kill_tensor_op_ = Op::Get("relax.memory.kill_tensor");
   // functions to lower to
   const Op& vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
