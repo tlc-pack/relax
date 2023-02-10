@@ -601,7 +601,7 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderEmitMatchCast(self, value, struct_info)  # type: ignore
 
-    def emit_output(self, output: Union[Expr, Tuple, List[Expr]]) -> None:
+    def emit_output(self, output: Union[Expr, Tuple, List[Expr]]) -> Var:
         """Emit output for the current dataflow block or function.
 
         Parameters
