@@ -933,7 +933,7 @@ def test_vm_ops():
         m = T.var("int64")
         n = T.var("int64")
         storage = R.vm.alloc_storage((4 * m * n,), dtype="float32", runtime_device_index=0)
-        alloc = R.vm.alloc_tensor(storage, (m, n), offset=0, dtype="float32")
+        alloc = R.vm.alloc_tensor(storage, shape=(m, n), offset=0, dtype="float32")
         tensor = R.builtin.alloc_tensor((m, n), dtype="float32", runtime_device_index=0)
         _ = R.vm.call_tir_dyn("te_func", (x, tensor, (m, n)))
         gv = tensor

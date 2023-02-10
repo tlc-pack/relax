@@ -50,7 +50,7 @@ def alloc_storage(size: Expr, dtype: Union[DataType, str], runtime_device_index:
 
 
 @args_converter.auto
-def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: Union[DataType, str]) -> Call:
+def alloc_tensor(storage: Expr, offset: int, shape: Expr, dtype: Union[DataType, str]) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 
     Parameters
@@ -58,11 +58,11 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: Union[DataType,
     storage: Expr
         The storage location to be allocated.
 
-    shape: Expr
-        The shape of the tensor to be allocated.
-
     offset: int
         The offset of the tensor to be allocated.
+
+    shape: Expr
+        The shape of the tensor to be allocated.
 
     dtype: Union[DataType, str]
         The datatype of the tensor to be allocated.
@@ -72,7 +72,7 @@ def alloc_tensor(storage: Expr, shape: Expr, offset: int, dtype: Union[DataType,
     result : Call
         A relax Call, which gets the allocated tensor.
     """
-    return _ffi_api.alloc_tensor(storage, shape, offset, dtype)  # type: ignore
+    return _ffi_api.alloc_tensor(storage, offset, shape, dtype)  # type: ignore
 
 
 @args_converter.auto
