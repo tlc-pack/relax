@@ -85,3 +85,6 @@ from .struct_info import (
     TupleStructInfo,
     FuncStructInfo,
 )
+
+# pipeline
+from .pipeline import get_pipeline
