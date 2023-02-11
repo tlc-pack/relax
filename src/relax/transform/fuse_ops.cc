@@ -102,11 +102,15 @@ class GraphCreator : public ExprVisitor {
    * \return The created IndexedForwardGraph
    */
   static IndexedForwardGraph Create(IRModule mod, support::Arena* arena) {
-    // Since cross-function call is not supported yet, FuseOps only serves the entry function, whose
-    // name is "main".
-    auto relax_func = Downcast<Function>(mod->Lookup("main"));
     GraphCreator creator(mod, arena);
-    creator(relax_func);
+    for (const auto& it : mod->functions) {
+      // Only visit Relax function without attr kPrimitive.
+      const auto* func = it.second.as<FunctionNode>();
+      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive)) {
+        continue;
+      }
+      creator(GetRef<Function>(func));
+    }
 
     // The algorithm of the graph creator ensures that each created node will be added to the
     // post-dfs order and will be set its op pattern. Thus we check whether all these containers
@@ -186,7 +190,6 @@ class GraphCreator : public ExprVisitor {
       // Override args for call_tir
       args = Downcast<Tuple>(call->args[1])->fields;
 
-      // TODO(tvm-team): handle the shape argument (args[3])
       Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
       if (opt_pattern.defined()) {
         pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
@@ -198,7 +201,7 @@ class GraphCreator : public ExprVisitor {
     SetNodePattern(binding_var_node, pattern);
     // Visit all call args
     for (const Expr& arg : args) {
-      ICHECK(IsLeaf(arg));
+      ICHECK(IsLeafOrTuple(arg));
       VisitLeaf(arg, binding_var_node, pattern);
     }
   }
@@ -254,21 +257,6 @@ class GraphCreator : public ExprVisitor {
   }
 
   /********** Helper Functions **********/
-
-  /*!
-   * \brief Check whether the expression is a leaf expression
-   * \param expr The expression to be checked
-   * \return Whether the expression is a leaf expression
-   * \note In order to avoid too much refactor, this method is a simple copy-paste of the is-leaf
-   * check in "block_builder.cc". And it should be refactored in the future.
-   * \sa src/relax/ir/block_builder.cc
-   */
-  static bool IsLeaf(const Expr& expr) {
-    // NOTE: Tuples are treated as leaf nodes for ergonomics
-    return expr.as<VarNode>() || expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
-           expr.as<ShapeExprNode>() || expr.as<ExternFuncNode>() || expr.as<OpNode>() ||
-           expr.as<TupleNode>();
-  }
 
   /*!
    * \brief Create a graph node corresponding to the input key
