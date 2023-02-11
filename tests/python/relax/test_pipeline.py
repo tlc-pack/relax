@@ -14,8 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-PyTorch Frontends for constructing Relax programs, with the model importers
-"""
-from .fx_translator import from_fx
-from .dynamo import relax_dynamo, dynamo_capture_subgraphs
+import numpy as np
+import tvm
+from tvm import relax
+from tvm.script import relax as R
+
+
+def test_pipeline_compile():
+    pipeline = relax.get_pipeline()
+
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
+            lv0 = R.add(x, y)
+            return lv0
+
+    mod = Mod
+    mod = pipeline(mod)
+    target = tvm.target.Target("llvm", host="llvm")
+
+    ex = relax.vm.build(mod, target)
+    x_np = np.random.rand(3, 4).astype(np.float32)
+    y_np = np.random.rand(3, 4).astype(np.float32)
+    x = tvm.nd.array(x_np)
+    y = tvm.nd.array(y_np)
+
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    z = vm["main"](x, y)
+    tvm.testing.assert_allclose(z.numpy(), x_np + y_np, rtol=1e-7, atol=1e-7)
