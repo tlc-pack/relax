@@ -684,5 +684,19 @@ def test_multiple_relax_functions():
     _check(before(), Expected)
 
 
+def test_skip_call_dps_packed():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")):
+            with R.dataflow():
+                y = R.call_tir("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                R.output(y)
+            return y
+
+    # FuseTIR should does no change to it.
+    _check(Module, Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

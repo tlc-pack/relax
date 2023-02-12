@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax, topi
-from tvm.script import relax as R
+from tvm.script import ir as I, relax as R
 
 
 def _check(mod_actual, mod_expected):
@@ -818,6 +818,20 @@ def test_multiple_relax_functions():
         return bb.get()
 
     _check(before(), expected())
+
+
+def test_skip_call_dps_packed():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")):
+            with R.dataflow():
+                y = R.call_tir("func_packed_dps", x, R.Tensor((2, 3), "float32"))
+                R.output(y)
+            return y
+
+    # FuseOps should does no change to it.
+    _check(Module, Module)
 
 
 if __name__ == "__main__":

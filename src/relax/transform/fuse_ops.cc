@@ -184,17 +184,19 @@ class GraphCreator : public ExprVisitor {
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get()) {
-      const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-      tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
+      // Skip ExternFunc for call_dps_packed.
+      if (const auto* global_var = call->args[0].as<GlobalVarNode>()) {
+        tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(global_var)));
 
-      // Override args for call_tir
-      args = Downcast<Tuple>(call->args[1])->fields;
+        // Override args for call_tir
+        args = Downcast<Tuple>(call->args[1])->fields;
 
-      Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
-      if (opt_pattern.defined()) {
-        pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
-      } else {
-        pattern = OpPatternKind::kOpaque;
+        Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
+        if (opt_pattern.defined()) {
+          pattern = static_cast<OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+        } else {
+          pattern = OpPatternKind::kOpaque;
+        }
       }
     }
     // The pattern of the current binding variable node is set to the pattern of this operator.
@@ -231,6 +233,10 @@ class GraphCreator : public ExprVisitor {
   void VisitLeaf(const Expr& leaf_expr, IndexedForwardGraph::Node* binding_var_node,
                  const OpPatternKind& pattern) {
     ICHECK_NOTNULL(binding_var_node);
+    if (!leaf_expr->IsInstance<LeafExprNode>()) {
+      // Skip GlobalVar, ExternFunc, OpNode.
+      return;
+    }
 
     // Recursive visit if it's Tuple
     if (const auto* tuple = leaf_expr.as<TupleNode>()) {
