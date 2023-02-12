@@ -55,7 +55,7 @@ def test_conv():
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
             w1: R.Tensor((6, 3, 7, 7), dtype="float32"),
-            w2: R.Tensor((1, 6, 1, 1), dtype="float32"),
+            w2: R.Tensor((6,), dtype="float32"),
         ) -> R.Tensor((1, 6, 4, 4), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -70,7 +70,8 @@ def test_conv():
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
-                lv3: R.Tensor((1, 6, 4, 4), dtype="float32") = R.add(lv1, w2)
+                lv2: R.Tensor((1, 6, 1, 1)) = R.reshape(w2, [1, 6, 1, 1])
+                lv3: R.Tensor((1, 6, 4, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4, 4), dtype="float32") = lv3
                 R.output(gv)
             return gv
@@ -110,7 +111,7 @@ def test_conv():
     input_info = [([1, 3, 10, 10], "float32")]
 
     model = Conv2D1()
-    binding = {"w1": model.conv.weight.numpy(), "w2": model.conv.bias.numpy().reshape(1, 6, 1, 1)}
+    binding = {"w1": model.conv.weight.numpy(), "w2": model.conv.bias.numpy()}
     verify_model(model, input_info, binding, expected1)
 
     model = Conv2D2()
@@ -140,16 +141,17 @@ def test_linear():
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor((10, 7), dtype="float32"),
+            w1: R.Tensor((7, 10), dtype="float32"),
             w2: R.Tensor((1, 7), dtype="float32"),
         ) -> R.Tensor((1, 3, 10, 7), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 7), dtype="float32") = R.matmul(
-                    input_1, w1, out_dtype="float32"
+                lv: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=None)
+                lv1: R.Tensor((1, 3, 10, 7), dtype="float32") = R.matmul(
+                    input_1, lv, out_dtype="float32"
                 )
-                lv1: R.Tensor((1, 3, 10, 7), dtype="float32") = R.add(lv, w2)
-                gv: R.Tensor((1, 3, 10, 7), dtype="float32") = lv1
+                lv2: R.Tensor((1, 3, 10, 7), dtype="float32") = R.add(lv1, w2)
+                gv: R.Tensor((1, 3, 10, 7), dtype="float32") = lv2
                 R.output(gv)
             return gv
 
@@ -166,12 +168,13 @@ def test_linear():
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            w1: R.Tensor((10, 7), dtype="float32"),
+            w1: R.Tensor((7, 10), dtype="float32"),
         ) -> R.Tensor((1, 3, 10, 7), dtype="float32"):
             # block 0
             with R.dataflow():
+                lv: R.Tensor((10, 7), dtype="float32") = R.permute_dims(w1, axes=None)
                 lv1: R.Tensor((1, 3, 10, 7), dtype="float32") = R.matmul(
-                    input_1, w1, out_dtype="float32"
+                    input_1, lv, out_dtype="float32"
                 )
                 gv: R.Tensor((1, 3, 10, 7), dtype="float32") = lv1
                 R.output(gv)
@@ -180,11 +183,11 @@ def test_linear():
     input_info = [([1, 3, 10, 10], "float32")]
 
     model = Dense1()
-    binding = {"w1": model.linear.weight.numpy().T, "w2": model.linear.bias.numpy()}
+    binding = {"w1": model.linear.weight.numpy(), "w2": model.linear.bias.numpy()}
     verify_model(model, input_info, binding, expected1)
 
     model = Dense2()
-    binding = {"w1": model.linear.weight.numpy().T}
+    binding = {"w1": model.linear.weight.numpy()}
     verify_model(model, input_info, binding, expected2)
 
     # matmul
@@ -226,13 +229,17 @@ def test_relu():
 
     torch.set_grad_enabled(False)
 
-    class ReLU(Module):
+    class ReLU0(Module):
         def __init__(self):
             super().__init__()
             self.relu = torch.nn.ReLU()
 
         def forward(self, input):
             return self.relu(input)
+
+    class ReLU1(Module):
+        def forward(self, input):
+            return torch.nn.functional.relu(input)
 
     @tvm.script.ir_module
     class expected:
@@ -248,7 +255,8 @@ def test_relu():
             return gv
 
     input_info = [([10, 10], "float32")]
-    verify_model(ReLU(), input_info, {}, expected)
+    verify_model(ReLU0(), input_info, {}, expected)
+    verify_model(ReLU1(), input_info, {}, expected)
 
 
 @tvm.testing.requires_gpu
@@ -393,13 +401,17 @@ def test_adaptive_avgpool2d():
 
     input_info = [([1, 3, 10, 10], "float32")]
 
-    class AdaptiveAvgPool2d(Module):
+    class AdaptiveAvgPool2d0(Module):
         def __init__(self):
             super().__init__()
             self.pool = torch.nn.AdaptiveAvgPool2d([10, 10])
 
         def forward(self, input):
             return self.pool(input)
+
+    class AdaptiveAvgPool2d1(Module):
+        def forward(self, input):
+            return torch.nn.functional.adaptive_avg_pool2d(input, [10, 10])
 
     @tvm.script.ir_module
     class expected1:
@@ -416,7 +428,8 @@ def test_adaptive_avgpool2d():
                 R.output(gv)
             return gv
 
-    verify_model(AdaptiveAvgPool2d(), input_info, {}, expected1)
+    verify_model(AdaptiveAvgPool2d0(), input_info, {}, expected1)
+    verify_model(AdaptiveAvgPool2d1(), input_info, {}, expected1)
 
 
 @tvm.testing.requires_gpu

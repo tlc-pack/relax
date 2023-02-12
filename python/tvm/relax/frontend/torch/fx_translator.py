@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
-from typing import Dict, Tuple, List
+from typing import Callable, Dict, List, Tuple, Union
 from functools import reduce
 
 import tvm
@@ -37,7 +37,6 @@ class TorchFXImporter:
 
         self.env: Dict[fx.node.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Constant] = {}
-        self.params_transpose: Dict[torch.Tensor, relax.Constant] = {}
         self.named_modules: Dict[str, torch.Module] = None
         self.block_builder: relax.BlockBuilder = None
         self.create_convert_map()
@@ -76,6 +75,7 @@ class TorchFXImporter:
 
     @staticmethod
     def _convert_torch_tensor_to_relax(tensor: torch.Tensor) -> relax.Var:
+        tensor = tensor.detach().cpu()
         shape = tensor.data.shape
         dtype = TorchFXImporter._convert_data_type(str(tensor.data.dtype))
         return relax.const(tensor.data.numpy(), relax.TensorStructInfo(shape, dtype))
@@ -319,19 +319,9 @@ class TorchFXImporter:
     def _linear(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
-        if module.weight not in self.params_transpose:
-            self.params_transpose[module.weight] = self._convert_torch_tensor_to_relax(
-                module.weight.T
-            )
-
-        weight_T = self.params_transpose[module.weight]
-        dense = self._matmul_impl(x, weight_T)
-
-        if module.bias is None:
-            return dense
-
-        bias = self.params[module.bias]
-        return self.block_builder.emit(relax.op.add(dense, bias))
+        weight = self.params[module.weight]
+        bias = None if module.bias is None else self.params[module.bias]
+        return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
     def _conv2d(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -356,12 +346,8 @@ class TorchFXImporter:
             return conv2d
 
         bias = self.params[module.bias]
-        if len(bias.data.shape) == 1:
-            bias_data = bias.data.numpy().reshape(1, -1, 1, 1)
-            reshaped_bias = relax.const(
-                bias_data, relax.TensorStructInfo(bias_data.shape, bias.data.dtype)
-            )
-            bias = self.params[module.bias] = reshaped_bias
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1))
 
         return self.block_builder.emit(relax.op.add(conv2d, bias))
 
@@ -396,13 +382,22 @@ class TorchFXImporter:
             )
         )
 
-    def _adaptive_avg_pool2d(self, node: fx.node.Node) -> relax.Var:
-        module = self.named_modules[node.target]
-        x = self.env[node.args[0]]
+    def _adaptive_avg_pool2d(self, is_module: bool) -> Callable:
+        from torch import fx
 
-        return self.block_builder.emit(
-            relax.op.nn.adaptive_avg_pool2d(x, module.output_size, layout="NCHW")
-        )
+        def _impl(node: fx.node.Node) -> relax.Var:
+            if is_module:
+                module = self.named_modules[node.target]
+                x = self.env[node.args[0]]
+                output_size = module.output_size
+            else:
+                x = self.env[node.args[0]]
+                output_size = node.args[1]
+            return self.block_builder.emit(
+                relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
+            )
+
+        return _impl
 
     def _softmax(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -620,13 +615,14 @@ class TorchFXImporter:
 
     def create_convert_map(self):
         from torch import nn
+        from torch import fx
 
-        self.convert_map = {
+        self.convert_map: Dict[Union[nn.Module, str], Callable[[fx.node.Node], relax.Var]] = {
             # call_module
             nn.Linear: self._linear,
             nn.Conv2d: self._conv2d,
             nn.MaxPool2d: self._max_pool2d,
-            nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d,
+            nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d(is_module=True),
             nn.Softmax: self._softmax,
             nn.ReLU: lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
             nn.ReLU6: lambda node: self.block_builder.emit(
@@ -677,6 +673,7 @@ class TorchFXImporter:
             "getattr": self._getattr,
             "getitem": self._getitem,
             "contiguous": lambda node: self.env[node.args[0]],
+            "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
         }
 
     def from_fx(self, model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
@@ -803,7 +800,7 @@ def from_fx(model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
             raise RuntimeError("Failed to export the PyTorch model to FX.")
 
         # Use the importer to import the PyTorch model to Relax.
-        mod: tvm.IRModule = from_pytorch(graph_module, input_info)
+        mod: tvm.IRModule = from_fx(graph_module, input_info)
 
         # Print out the imported model.
         print(mod.script())
