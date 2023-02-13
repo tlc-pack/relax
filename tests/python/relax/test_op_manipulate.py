@@ -707,12 +707,18 @@ def test_layout_transform_infer_struct_info_unknown_shape():
     tiling_transform = lambda a, b: (a, b // 2, b % 2)
 
     x_unknown_shape = relax.Var("x", R.Tensor("float32", ndim=2))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.layout_transform(x_unknown_shape, index_map=tiling_transform))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_shape, index_map=tiling_transform),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
 
     x_unknown_rank_dtype = relax.Var("x", R.Tensor())
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.layout_transform(x_unknown_rank_dtype, index_map=tiling_transform))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_rank_dtype, index_map=tiling_transform),
+        relax.TensorStructInfo(dtype="", ndim=3),
+    )
 
 
 def test_layout_transform_infer_struct_info_symbolic_shape():
@@ -743,13 +749,19 @@ def test_layout_transform_infer_struct_info_shape_var():
 
     s_unknown_shape = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     x_unknown_shape = relax.Var("x", relax.TensorStructInfo(s_unknown_shape, "float32"))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.layout_transform(x_unknown_shape, index_map=tiling_padding_transform))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_shape, index_map=tiling_padding_transform),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
 
     s_unknown_rank = relax.Var("s", relax.ShapeStructInfo())
     x_unknown_rank = relax.Var("x", relax.TensorStructInfo(s_unknown_rank, "float32"))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.layout_transform(x_unknown_rank, index_map=tiling_padding_transform))
+    _check_inference(
+        bb,
+        relax.op.layout_transform(x_unknown_rank, index_map=tiling_padding_transform),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
 
     a = tir.Var("a", "int64")
     b = tir.Var("b", "int64")
@@ -924,12 +936,10 @@ def test_squeeze_infer_struct_info_axis_length_not_one():
 
     with pytest.raises(TVMError):
         bb.normalize(relax.op.squeeze(x0, [0]))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.squeeze(x1, [0]))
+    _check_inference(bb, relax.op.squeeze(x1, [0]), relax.TensorStructInfo((3, 4), "float32"))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.squeeze(x2, [0]))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.squeeze(x3, [0]))
+    _check_inference(bb, relax.op.squeeze(x3, [0]), relax.TensorStructInfo(dtype="float32", ndim=2))
 
 
 def test_squeeze_infer_struct_info_wrong_input_type():
@@ -1513,14 +1523,12 @@ def test_concat_infer_struct_info_without_axis_but_tensor_not_one_dimensional():
         bb.normalize(relax.op.concat([x0], axis=None))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.concat([x1], axis=None))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.concat([x2], axis=None))
+    _check_inference(bb, relax.op.concat([x2], axis=None), relax.TensorStructInfo(dtype="float32"))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.concat([x3], axis=None))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.concat([x4], axis=None))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.concat([x5], axis=None))
+    _check_inference(bb, relax.op.concat([x5], axis=None), relax.TensorStructInfo(s2, "float32"))
 
 
 def test_concat_infer_struct_info_inconsistent_dtype():
@@ -2323,30 +2331,30 @@ def test_broadcast_to_infer_struct_info_not_broadcastable_symbolic():
     stgt1 = relax.Var("stgt", relax.ShapeStructInfo((2, 1)))
     stgt2 = relax.Var("stgt", relax.ShapeStructInfo((b, a)))
 
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x0, (2, b)))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x0, (2, 1)))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x0, (b, a)))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x0, stgt0))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x0, stgt1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x0, stgt2))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x1, (2, b)))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x1, (2, 1)))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x1, (b, a)))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x1, stgt0))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x1, stgt1))
-    with pytest.raises(TVMError):
-        bb.normalize(relax.op.broadcast_to(x1, stgt2))
+    _check_inference(
+        bb, relax.op.broadcast_to(x0, (2, b)), relax.TensorStructInfo((2, b), "float32")
+    )
+    _check_inference(
+        bb, relax.op.broadcast_to(x0, (2, 1)), relax.TensorStructInfo((2, 1), "float32")
+    )
+    _check_inference(
+        bb, relax.op.broadcast_to(x0, (b, a)), relax.TensorStructInfo((b, a), "float32")
+    )
+    _check_inference(bb, relax.op.broadcast_to(x0, stgt0), relax.TensorStructInfo(stgt0, "float32"))
+    _check_inference(bb, relax.op.broadcast_to(x0, stgt1), relax.TensorStructInfo(stgt1, "float32"))
+    _check_inference(bb, relax.op.broadcast_to(x0, stgt2), relax.TensorStructInfo(stgt2, "float32"))
+    _check_inference(
+        bb, relax.op.broadcast_to(x1, (2, b)), relax.TensorStructInfo((2, b), "float32")
+    )
+    _check_inference(
+        bb, relax.op.broadcast_to(x1, (2, 1)), relax.TensorStructInfo((2, 1), "float32")
+    )
+    _check_inference(
+        bb, relax.op.broadcast_to(x1, (b, a)), relax.TensorStructInfo((b, a), "float32")
+    )
+    _check_inference(bb, relax.op.broadcast_to(x1, stgt0), relax.TensorStructInfo(stgt0, "float32"))
+    _check_inference(bb, relax.op.broadcast_to(x1, stgt1), relax.TensorStructInfo(stgt1, "float32"))
+    _check_inference(bb, relax.op.broadcast_to(x1, stgt2), relax.TensorStructInfo(stgt2, "float32"))
 
 
 def test_broadcast_to_infer_struct_info_wrong_input_type():
