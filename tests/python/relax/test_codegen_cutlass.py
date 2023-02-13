@@ -19,11 +19,46 @@ import numpy as np
 import tvm
 import tvm.testing
 
-from tvm import relax
+from tvm import relax, relay
 from tvm.script import relax as R
 from tvm.relax.dpl import make_fused_bias_activation_pattern
 from tvm.contrib.cutlass.build import finalize_modules_relax
-from tvm.relax.transform import LegalizeOps
+
+
+def get_relay_conv2d_bias_relu(
+    d_shape, w_shape, data_dtype="float16", weight_dtype="float16", out_dtype="float16"
+):
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+    bias = relay.var("bias", shape=(1, 1, 1, w_shape[0]), dtype=out_dtype)
+    return relay.nn.relu(
+        relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="OHWI",
+            out_dtype=out_dtype,
+        )
+        + bias
+    )
+
+
+def get_ref(data_np, weight_np, bias_np):
+    relay_mod = tvm.IRModule.from_expr(get_relay_conv2d_bias_relu(data_np.shape, weight_np.shape))
+
+    with tvm.transform.PassContext(opt_level=3):
+        seq = tvm.transform.Sequential(
+            [relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "HWIO"]})]
+        )
+        relay_mod = seq(relay_mod)
+
+    return (
+        relay.create_executor("graph", mod=relay_mod, device=tvm.gpu(0), target="cuda")
+        .evaluate()(*[data_np, weight_np, bias_np])
+        .numpy()
+    )
 
 
 @tvm.script.ir_module
@@ -46,20 +81,6 @@ class Conv2dBiasReLU:
             R.output(conv1)
 
         return conv1
-
-
-def get_ref(data_np, weight_np, bias_np):
-    mod = LegalizeOps()(Conv2dBiasReLU)
-    target = "llvm"
-    dev = tvm.device(target, 0)
-    ex = relax.vm.build(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-
-    data = tvm.nd.array(data_np, dev)
-    weight = tvm.nd.array(weight_np, dev)
-    bias = tvm.nd.array(bias_np, dev)
-
-    return vm["main"](data, weight, bias).numpy()
 
 
 has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
@@ -105,6 +126,7 @@ def test_conv2d_offload():
     out = vm["main"](data, weight, bias).numpy()
 
     ref = get_ref(data_np, weight_np, bias_np)
+
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
