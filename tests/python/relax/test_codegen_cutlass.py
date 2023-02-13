@@ -28,6 +28,11 @@ from tvm.relax.dpl import make_fused_bias_activation_pattern, make_matmul_patter
 from tvm.script import relax as R
 
 
+@pytest.fixture(autouse=True)
+def reset_seed():
+    np.random.seed(0)
+
+
 def get_relay_conv2d_bias_relu(
     d_shape, w_shape, data_dtype="float16", weight_dtype="float16", out_dtype="float16"
 ):
@@ -353,4 +358,4 @@ def test_matmul_bias_gelu_offload():
 
 
 if __name__ == "__main__":
-    test_conv2d_offload()
+    tvm.testing.main()
