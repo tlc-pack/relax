@@ -62,6 +62,7 @@ def test_implicit_op():
     _check_call(x <= y, "less_equal")
 
     # Arithmetic operators
+    _check_call(-x, "negative")
     _check_call(x + y, "add")
     _check_call(x - y, "subtract")
     _check_call(x * y, "multiply")
