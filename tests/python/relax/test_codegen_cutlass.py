@@ -25,10 +25,12 @@ from tvm.relax.dpl import make_fused_bias_activation_pattern
 from tvm.contrib.cutlass.build import finalize_modules_relax
 
 
-def get_relay_conv2d_bias_relu(d_shape, w_shape):
-    data = relay.var("data", shape=d_shape)
-    weight = relay.var("weight", shape=w_shape)
-    bias = relay.var("bias", shape=(1, 1, 1, w_shape[0]))
+def get_relay_conv2d_bias_relu(
+    d_shape, w_shape, data_dtype="float16", weight_dtype="float16", out_dtype="float16"
+):
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
+    bias = relay.var("bias", shape=(1, 1, 1, w_shape[0]), dtype=out_dtype)
     return relay.nn.relu(
         relay.nn.conv2d(
             data=data,
@@ -37,6 +39,7 @@ def get_relay_conv2d_bias_relu(d_shape, w_shape):
             padding=(1, 1),
             data_layout="NHWC",
             kernel_layout="OHWI",
+            out_dtype=out_dtype,
         )
         + bias
     )
@@ -51,13 +54,11 @@ def get_ref(data_np, weight_np, bias_np):
         )
         relay_mod = seq(relay_mod)
 
-    ref = (
+    return (
         relay.create_executor("graph", mod=relay_mod, device=tvm.gpu(0), target="cuda")
         .evaluate()(*[data_np, weight_np, bias_np])
         .numpy()
     )
-
-    return ref
 
 
 @tvm.script.ir_module
@@ -126,8 +127,7 @@ def test_conv2d_offload():
 
     ref = get_ref(data_np, weight_np, bias_np)
 
-    # TODO(masahi): Accuracy difference seems larger than the test cases in Relay BYOC.
-    tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
