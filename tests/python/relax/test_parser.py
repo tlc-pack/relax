@@ -624,7 +624,7 @@ def test_primexpr_arithmetic():
         z: R.Tensor((n * m,), "float32") = R.call_packed(
             "my_flatten", (x,), sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
         )
-        sh: R.Shape = (n + m, n // m)
+        sh: R.Shape = R.shape([n + m, n // m])
         return z
 
     x = f.params[0]
@@ -870,8 +870,8 @@ def test_class_normalize():
 def test_memory_op():
     @R.function
     def memory(x: R.Tensor) -> R.Tensor:
-        storage = R.memory.alloc_storage((1024,), -1, "global", "float32")
-        alloca = R.memory.alloc_tensor(storage, 0, (1, 256), "float32")
+        storage = R.memory.alloc_storage(R.shape([1024]), -1, "global", "float32")
+        alloca = R.memory.alloc_tensor(storage, 0, R.shape([1, 256]), "float32")
         _ = R.memory.kill_tensor(alloca)
         _ = R.memory.kill_storage(storage)
         return alloca

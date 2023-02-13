@@ -292,7 +292,7 @@ def test_vm_memory_lower():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
             m, n = T.var("int64"), T.var("int64")
-            alloc = R.builtin.alloc_tensor((m, n), runtime_device_index=0, dtype="float32")
+            alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
                 "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
             )
@@ -325,7 +325,7 @@ def test_vm_builtin_lower_reshape():
     class TestVMReshape:
         @R.function
         def main(x: R.Tensor((3, 4), "float32")):
-            y = R.reshape(x, (6, 2))
+            y = R.reshape(x, R.shape([6, 2]))
             return y
 
     @tvm.script.ir_module
@@ -333,7 +333,7 @@ def test_vm_builtin_lower_reshape():
         @R.function
         def main(x: R.Tensor((3, 4), "float32")):
             y: R.Tensor((6, 2), "float32") = R.call_packed(
-                "vm.builtin.reshape", x, (6, 2), sinfo_args=R.Tensor((6, 2), "float32")
+                "vm.builtin.reshape", x, R.shape([6, 2]), sinfo_args=R.Tensor((6, 2), "float32")
             )
             return y
 

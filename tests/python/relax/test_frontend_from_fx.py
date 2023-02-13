@@ -1041,7 +1041,7 @@ def test_size():
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Shape([1, 3, 10, 10]):
             # block 0
             with R.dataflow():
-                gv: R.Shape([1, 3, 10, 10]) = (1, 3, 10, 10)
+                gv: R.Shape([1, 3, 10, 10]) = R.shape([1, 3, 10, 10])
                 R.output(gv)
             return gv
 
@@ -1116,7 +1116,7 @@ def test_getattr():
         def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Shape([1, 3, 10, 10]):
             # block 0
             with R.dataflow():
-                gv: R.Shape([1, 3, 10, 10]) = (1, 3, 10, 10)
+                gv: R.Shape([1, 3, 10, 10]) = R.shape([1, 3, 10, 10])
                 R.output(gv)
             return gv
 
