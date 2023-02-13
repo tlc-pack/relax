@@ -111,11 +111,10 @@ def get_relay_matmul_bias_gelu(
 ):
     bias_add = get_relay_matmul_bias(x_shape, y_shape, x_dtype, y_dtype, bias_dtype, out_dtype)
     mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype=out_dtype)
-    erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
-    # if out_dtype == "float16":
-    #     erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
-    # else:
-    #     erf = relay.op.erf(mul)
+    if out_dtype == "float16":
+        erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
+    else:
+        erf = relay.op.erf(mul)
     mul_half = erf * relay.const(0.5, dtype=out_dtype)
     add = mul_half + relay.const(0.5, dtype=out_dtype)
     return add * bias_add
@@ -350,7 +349,7 @@ def test_matmul_bias_gelu_offload():
     ref_relay_expr = get_relay_matmul_bias_gelu(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

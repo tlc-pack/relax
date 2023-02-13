@@ -179,8 +179,7 @@ void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel)
 std::string MatmulOp(std::string id, const Str2StrMap& attrs,
                      const std::vector<std::string>& func_args) {
   bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
-  bool is_gelu =
-      attrs.at("op_type").find("cutlass.dense_bias_gelu") != std::string::npos;  // fp32 or fp16
+  bool is_gelu = attrs.at("op_type").find("gelu") != std::string::npos;  // fp32 or fp16
   std::ostringstream gemm_decl;
   AppendPrologue(gemm_decl, attrs, func_args, "Gemm", has_bias, is_gelu, 0, 0, 1);
 
