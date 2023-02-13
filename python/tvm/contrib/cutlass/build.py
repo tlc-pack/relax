@@ -95,7 +95,11 @@ class OpAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
 
-        if str(op) in ["nn.conv2d", "nn.conv2d_transpose", "nn.conv2d_backward_weight"]:
+        elif isinstance(op, tvm.ir.Op) and op.name in [
+            "nn.conv2d",
+            "nn.conv2d_transpose",
+            "nn.conv2d_backward_weight",
+        ]:
             self.op_attrs = call.attrs
 
         for arg in call.args:
