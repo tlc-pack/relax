@@ -382,11 +382,11 @@ def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
 ############################### R.tuple ################################
 
 
-def tuple(*fields: List[Expr]) -> Expr:
+def tuple(*fields: Expr) -> Expr:
     """Create a tuple expression.
     Parameters
     ----------
-    fields : List[Expr]
+    *fields : Expr
         The fields of the tuple.
     Returns
     -------
@@ -397,6 +397,23 @@ def tuple(*fields: List[Expr]) -> Expr:
         fields = []
 
     return relax.Tuple(fields)  # pylint: disable=no-member # type: ignore
+
+
+############################### R.shape ################################
+
+
+def shape(value: List[PrimExpr]) -> Expr:
+    """Create a ShapeExpr.
+    Parameters
+    ----------
+    value : List[PrimExpr]
+        The fields of the tuple.
+    Returns
+    -------
+    res : Expr
+        The result tuple.
+    """
+    return relax.ShapeExpr(value)  # pylint: disable=no-member # type: ignore
 
 
 ############################### PrimValue ##############################
@@ -524,6 +541,7 @@ __all__ = [
     "prod",
     "reshape",
     "round",
+    "shape",
     "shape_of",
     "sigmoid",
     "sign",

@@ -22,7 +22,6 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.relax import DynTensorType
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -113,7 +112,7 @@ def test_relax_tensor_op():
 def test_relax_base_op():
     @R.function
     def foo(x: R.Tensor((4, 4), "float32")):
-        alloc = R.builtin.alloc_tensor((4, 4), runtime_device_index=0, dtype="float32")
+        alloc = R.builtin.alloc_tensor(R.shape([4, 4]), runtime_device_index=0, dtype="float32")
         shape = R.shape_of(alloc)
         return shape
 
@@ -199,7 +198,7 @@ def test_match_cast():
             y0 = R.match_cast(y, R.Tensor([n], "float32"))
             gv = y0
             R.output(gv)
-        return (x0, (m, n * 2))
+        return (x0, R.shape([m, n * 2]))
 
     x = relax.Var("x", R.Tensor("float32"))
     y = relax.Var("y", R.Tensor("float32"))
@@ -239,7 +238,7 @@ def test_tuple_return_2():
     def foo(x: R.Tensor("float32", ndim=2)):
         n, m = T.var("int64"), T.var("int64")
         x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
-        return (x0, (n + 1, m, 1))
+        return (x0, R.shape([n + 1, m, 1]))
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
@@ -257,7 +256,7 @@ def test_tuple_binding():
         n, m = T.var("int64"), T.var("int64")
         x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
         t0 = (x, x0)
-        t1 = (x, (n, m), t0)
+        t1 = (x, R.shape([n, m]), t0)
         return t1
 
     x = relax.Var("x", R.Tensor("float32", ndim=2))
@@ -932,9 +931,9 @@ def test_vm_ops():
     def foo(x: R.Tensor(("m", "n"), dtype="float32")):
         m = T.var("int64")
         n = T.var("int64")
-        storage = R.vm.alloc_storage((4 * m * n,), dtype="float32", runtime_device_index=0)
-        alloc = R.vm.alloc_tensor(storage, shape=(m, n), offset=0, dtype="float32")
-        tensor = R.builtin.alloc_tensor((m, n), dtype="float32", runtime_device_index=0)
+        storage = R.vm.alloc_storage(R.shape([4 * m * n]), dtype="float32", runtime_device_index=0)
+        alloc = R.vm.alloc_tensor(storage, shape=R.shape([m, n]), offset=0, dtype="float32")
+        tensor = R.builtin.alloc_tensor(R.shape([m, n]), dtype="float32", runtime_device_index=0)
         _ = R.vm.call_tir_dyn("te_func", (x, tensor, (m, n)))
         gv = tensor
         return alloc, gv
@@ -1091,4 +1090,5 @@ def test_meta():
 
 
 if __name__ == "__main__":
+    test_simple_func()
     tvm.testing.main()
