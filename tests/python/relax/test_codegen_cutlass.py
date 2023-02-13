@@ -48,27 +48,76 @@ def get_relay_conv2d_bias_relu(
     )
 
 
-def get_relay_matmul(x_shape, y_shape):
-    x = relay.var("x", shape=x_shape, dtype="float16")
-    y = relay.var("y", shape=y_shape, dtype="float16")
-    return relay.nn.dense(x, y)
+def get_relay_matmul(
+    x_shape,
+    y_shape,
+    x_dtype="float16",
+    y_dtype="float16",
+    out_dtype="float16",
+):
+    x = relay.var("x", shape=x_shape, dtype=x_dtype)
+    y = relay.var("y", shape=y_shape, dtype=y_dtype)
+    return relay.nn.dense(x, y, out_dtype=out_dtype)
 
 
-def get_relay_matmul_bias(x_shape, y_shape):
-    bias = relay.var("bias", shape=(y_shape[0],), dtype="float16")
-    return relay.nn.bias_add(get_relay_matmul(x_shape, y_shape), bias)
+def get_relay_matmul_bias(
+    x_shape,
+    y_shape,
+    x_dtype="float16",
+    y_dtype="float16",
+    bias_dtype="float16",
+    out_dtype="float16",
+):
+    bias = relay.var("bias", shape=(y_shape[0],), dtype=bias_dtype)
+    return relay.nn.bias_add(
+        get_relay_matmul(
+            x_shape,
+            y_shape,
+            x_dtype,
+            y_dtype,
+            out_dtype,
+        ),
+        bias,
+    )
 
 
-def get_relay_matmul_bias_relu(x_shape, y_shape):
-    return relay.nn.relu(get_relay_matmul_bias(x_shape, y_shape))
+def get_relay_matmul_bias_relu(
+    x_shape,
+    y_shape,
+    x_dtype="float16",
+    y_dtype="float16",
+    bias_dtype="float16",
+    out_dtype="float16",
+):
+    return relay.nn.relu(
+        get_relay_matmul_bias(
+            x_shape,
+            y_shape,
+            x_dtype,
+            y_dtype,
+            bias_dtype,
+            out_dtype,
+        )
+    )
 
 
-def get_relay_matmul_bias_gelu(x_shape, y_shape):
-    bias_add = get_relay_matmul_bias(x_shape, y_shape)
-    mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype="float16")
+def get_relay_matmul_bias_gelu(
+    x_shape,
+    y_shape,
+    x_dtype="float16",
+    y_dtype="float16",
+    bias_dtype="float16",
+    out_dtype="float16",
+):
+    bias_add = get_relay_matmul_bias(x_shape, y_shape, x_dtype, y_dtype, bias_dtype, out_dtype)
+    mul = bias_add * relay.const((1.0 / math.sqrt(2.0)), dtype=out_dtype)
     erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
-    mul_half = erf * relay.const(0.5, dtype="float16")
-    add = mul_half + relay.const(0.5, dtype="float16")
+    # if out_dtype == "float16":
+    #     erf = relay.cast(relay.op.erf(relay.cast(mul, "float32")), "float16")
+    # else:
+    #     erf = relay.op.erf(mul)
+    mul_half = erf * relay.const(0.5, dtype=out_dtype)
+    add = mul_half + relay.const(0.5, dtype=out_dtype)
     return add * bias_add
 
 
@@ -188,7 +237,7 @@ def test_matmul_offload():
     ref_relay_expr = get_relay_matmul(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose())
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 def test_matmul_bias_offload():
@@ -225,7 +274,7 @@ def test_matmul_bias_offload():
     ref_relay_expr = get_relay_matmul_bias(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 def test_matmul_bias_relu_offload():
@@ -263,7 +312,7 @@ def test_matmul_bias_relu_offload():
     ref_relay_expr = get_relay_matmul_bias_relu(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 def test_matmul_bias_gelu_offload():
