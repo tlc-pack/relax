@@ -23,7 +23,7 @@ from .. import tir
 from ..runtime import String, convert_to_object
 from ..tir import PrimExpr
 from . import _ffi_api
-from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm
+from .expr import Expr, Function, PrimValue, StringImm
 from .expr import Tuple as rx_Tuple
 
 

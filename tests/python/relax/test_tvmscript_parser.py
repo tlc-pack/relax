@@ -1090,5 +1090,4 @@ def test_meta():
 
 
 if __name__ == "__main__":
-    test_simple_func()
     tvm.testing.main()
