@@ -620,9 +620,9 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             }
         )
 
-    def handle_dense(self, f, op_type):
+    def handle_matmul(self, f, op_type):
         """Tune and annotate a dense op."""
-        signature, op_attrs = _extract_relax_function_info(f)
+        signature, _ = _extract_relax_function_info(f)
 
         arg0_shape = signature["arg0_shape"]
         arg1_shape = signature["arg1_shape"]
@@ -680,8 +680,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         if "conv2d" in op_type:
             return self.handle_conv2d(f, op_type)
-        elif "dense" in op_type:
-            return self.handle_dense(f, op_type)
+        elif "matmul" in op_type:
+            return self.handle_matmul(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
 

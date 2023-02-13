@@ -177,7 +177,7 @@ def test_matmul_offload():
 
     patterns = [
         (
-            "cutlass.dense",
+            "cutlass.matmul",
             make_matmul_pattern(
                 with_bias=False,
             ),
@@ -214,7 +214,7 @@ def test_matmul_bias_offload():
 
     patterns = [
         (
-            "cutlass.dense_bias",
+            "cutlass.matmul_bias",
             make_matmul_pattern(
                 with_bias=True,
             ),
@@ -251,7 +251,7 @@ def test_matmul_bias_relu_offload():
 
     patterns = [
         (
-            "cutlass.dense_bias_relu",
+            "cutlass.matmul_bias_relu",
             make_matmul_pattern(
                 with_bias=True,
                 activation="relax.nn.relu",
@@ -289,7 +289,7 @@ def test_matmul_bias_gelu_offload():
 
     patterns = [
         (
-            "cutlass.dense_bias_gelu",
+            "cutlass.matmul_bias_gelu",
             make_matmul_pattern(
                 with_bias=True,
                 activation="relax.nn.gelu",

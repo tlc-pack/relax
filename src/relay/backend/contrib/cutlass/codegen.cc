@@ -80,7 +80,7 @@ Str2StrMap GemmArgsCommon(const Map<String, ObjectRef>& attrs) {
   return args;
 }
 
-Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs) {
+Str2StrMap MatmulArgs(const Map<String, ObjectRef>& attrs) {
   Str2StrMap args = GemmArgsCommon(attrs);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
@@ -176,8 +176,8 @@ void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel)
   CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
 }
 
-std::string DenseOp(std::string id, const Str2StrMap& attrs,
-                    const std::vector<std::string>& func_args) {
+std::string MatmulOp(std::string id, const Str2StrMap& attrs,
+                     const std::vector<std::string>& func_args) {
   bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
   bool is_gelu =
       attrs.at("op_type").find("cutlass.dense_bias_gelu") != std::string::npos;  // fp32 or fp16
@@ -592,10 +592,11 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
     ret.outputs.push_back(output);
   }
   decl_stream << ");";
-  if (func_name.find("dense") != std::string::npos) {
-    ret.decl = DenseOp(ext_func_id, attribute_args, func_args);
-  } else if (func_name.find("batch_matmul") != std::string::npos) {
+  if (func_name.find("batch_matmul") != std::string::npos) {
     ret.decl = BatchMatmulOp(ext_func_id, attribute_args, func_args);
+  } else if (func_name.find("dense") != std::string::npos ||
+             func_name.find("matmul") != std::string::npos) {
+    ret.decl = MatmulOp(ext_func_id, attribute_args, func_args);
   } else if (IsConv2dResidualBlock(func_name)) {
     ret.decl = Conv2dOp(ext_func_id, attribute_args, func_args, true);
   } else if (func_name.find("conv2d") != std::string::npos) {
@@ -707,21 +708,21 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
       const auto* dense_call =
           GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.dense"});
       return GenerateBody(dense_call, "cutlass_dense", GetArgumentNames(caller),
-                          DenseArgs(std::ref(attrs_)));
+                          MatmulArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->op.as<OpNode>()->name;
       const auto* dense_call =
           GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense", add_or_bias_add});
       return GenerateBody(dense_call, "cutlass_dense_bias", GetArgumentNames(caller),
-                          DenseArgs(std::ref(attrs_)));
+                          MatmulArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_relu") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
       const auto* dense_call =
           GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.relu"});
       return GenerateBody(dense_call, "cutlass_dense_bias_relu", GetArgumentNames(caller),
-                          DenseArgs(std::ref(attrs_)));
+                          MatmulArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_gelu_fp16") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
@@ -729,7 +730,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
                                            {"nn.dense", add_or_bias_add, "multiply", "cast", "erf",
                                             "cast", "multiply", "add", "multiply"});
       return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
-                          DenseArgs(std::ref(attrs_)));
+                          MatmulArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.dense_bias_gelu_fp32") {
       const CallNode* current_call = callee->body.as<CallNode>();
       std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
@@ -737,7 +738,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
           callee->body.as<CallNode>(), 6,
           {"nn.dense", add_or_bias_add, "multiply", "erf", "multiply", "add", "multiply"});
       return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
-                          DenseArgs(std::ref(attrs_)));
+                          MatmulArgs(std::ref(attrs_)));
     } else if (pattern_name == "cutlass.batch_matmul") {
       const auto* batch_matmul_call =
           GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.batch_matmul"});
