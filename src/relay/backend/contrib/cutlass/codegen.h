@@ -76,7 +76,7 @@ void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
 void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel);
 
 std::string MatmulOp(std::string id, const Str2StrMap& attrs,
-                    const std::vector<std::string>& func_args);
+                     const std::vector<std::string>& func_args);
 
 std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
                           const std::vector<std::string>& func_args);
