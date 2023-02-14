@@ -214,19 +214,29 @@ def test_conv2d_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
+def get_relax_matmul():
+    from tvm.script.ir_builder import IRBuilder
+    from tvm.script.ir_builder import relax as relax_builder
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            x = R.arg("x", R.Tensor((32, 64), "float16"))
+            y = R.arg("y", R.Tensor((64, 128), "float16"))
+
+            with R.dataflow() as frame:
+                result = R.emit(R.matmul(x, y))
+                R.output(result)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    func = builder.get()
+    return tvm.IRModule({"main": func})
+
+
 def test_matmul_offload():
     x = np.random.randn(32, 64).astype("float16")
     y = np.random.randn(64, 128).astype("float16")
-
-    @tvm.script.ir_module
-    class Matmul:
-        @R.function
-        def main(x: R.Tensor((32, 64), "float16"), y: R.Tensor((64, 128), "float16")):
-            with R.dataflow():
-                result = R.matmul(x, y)
-                R.output(result)
-
-            return result
 
     patterns = [
         (
@@ -236,7 +246,8 @@ def test_matmul_offload():
             ),
         ),
     ]
-    out = get_result_with_relax_cutlass_offload(Matmul, patterns, x, y)
+    mod = get_relax_matmul()
+    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y)
 
     ref_relay_expr = get_relay_matmul(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose())
