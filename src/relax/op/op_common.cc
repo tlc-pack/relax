@@ -25,11 +25,15 @@ namespace tvm {
 namespace relax {
 
 Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
+  for (auto arg : call->args) {
+    LOG(INFO) << "call arg: " << arg << "  --  type: " << arg->GetTypeKey();
+  }
   Op op = Downcast<Op>(call->op);
-  int n_input = op->arguments.size();
-  if (static_cast<int>(call->args.size()) != n_input) {
+
+  int n_input = call->args.size();
+  if (static_cast<int>(op->arguments.size()) < n_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << op << " op should have " << n_input << " arguments");
+                     << op << " op shouldn't have " << n_input << " arguments");
   }
   Array<TensorStructInfo> input_tensor_sinfo;
   input_tensor_sinfo.reserve(n_input);
@@ -42,6 +46,8 @@ Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBu
                        << call->args[i]->struct_info_->GetTypeKey());
     }
     input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));
+    // todo (yongwww): remove the break
+    break;
   }
   return input_tensor_sinfo;
 }

@@ -145,20 +145,23 @@ Expr MakeCallNullValue() {
 TVM_REGISTER_GLOBAL("relax.op.null_value").set_body_typed(MakeCallNullValue);
 
 // print
-TVM_REGISTER_NODE_TYPE(PrintAttrs);
 
 RELAY_REGISTER_OP("relax.print")
-    .set_attrs_type<PrintAttrs>()
     .set_num_inputs(-1)
-    .add_argument("vals", "Array<Expr>", "Values to print.")
+    .add_argument("vals", "Array<Expr>",
+                  "The first value is Python-style format string to use to print. The others "
+                  "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
 
 Expr MakePrint(Array<Expr> vals, std::string format) {
-  auto attrs = make_object<PrintAttrs>();
-  attrs->format = format;
+  Array<Expr> params;
+  params.push_back(StringImm(format));
+  for (const auto val : vals) {
+    params.push_back(val);
+  }
   static const Op& op = Op::Get("relax.print");
-  return Call(op, vals, Attrs(attrs));
+  return Call(op, params, Attrs());
 }
 
 TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
@@ -215,26 +218,23 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   return ReturnVoidStructInfo(call, ctx);
 }
 
-TVM_REGISTER_NODE_TYPE(AssertOpAttrs);
-
 RELAY_REGISTER_OP("relax.assert_op")
-    .set_attrs_type<AssertOpAttrs>()
     .set_num_inputs(-1)
     .add_argument("vals", "Array<Expr>",
-                  "The first value is used as the assertion condition. The others are used as "
-                  "format arguments if there is an error.")
+                  "The first value is used as the assertion condition. The second value is "
+                  "Python-style format string to use for displaying an error message, if the "
+                  "assert fails. The others are used as format arguments if there is an error.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
 
 Expr MakeAssertOp(Expr condition, Array<Expr> vals, std::string format) {
-  auto attrs = make_object<AssertOpAttrs>();
-  attrs->format = format;
   static const Op& op = Op::Get("relax.assert_op");
   Array<Expr> args = {condition};
+  args.push_back(StringImm(format));
   for (auto val : vals) {
     args.push_back(val);
   }
-  return Call(op, args, Attrs(attrs));
+  return Call(op, args, Attrs());
 }
 
 TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);

@@ -19,16 +19,6 @@ from tvm.ir import Attrs
 import tvm._ffi
 
 
-@tvm._ffi.register_object("relax.attrs.PrintAttrs")
-class PrintAttrs(Attrs):
-    """Attributes used for the print operator"""
-
-
-@tvm._ffi.register_object("relax.attrs.AssertOpAttrs")
-class AssertOpAttrs(Attrs):
-    """Attributes used for the assert operator"""
-
-
 @tvm._ffi.register_object("relax.attrs.StatisticalAttrs")
 class StatisticalAttrs(Attrs):
     """Attributes used in statistical operator"""
@@ -42,11 +32,6 @@ class InitAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.TriluAttrs")
 class TriluAttrs(Attrs):
     """Attributes used in tril and triu operator"""
-
-
-@tvm._ffi.register_object("relax.attrs.UniqueAttrs")
-class UniqueAttrs(Attrs):
-    """Attributes used for the unique operator"""
 
 
 @tvm._ffi.register_object("relax.attrs.ConcatAttrs")

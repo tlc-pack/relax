@@ -22,7 +22,6 @@
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
 #include <tvm/driver/driver_api.h>
-#include <tvm/relax/attrs/set.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -371,24 +370,18 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     if (!attrs.defined()) return;
 
     if (call_node->op == unique_op_) {
-      auto unique_attrs = call_node->attrs.as<UniqueAttrs>();
-      args.push_back(builder_->ConvertConstant(unique_attrs->sorted));
-      args.push_back(builder_->ConvertConstant(unique_attrs->return_index));
-      args.push_back(builder_->ConvertConstant(unique_attrs->return_inverse));
-      args.push_back(builder_->ConvertConstant(unique_attrs->return_counts));
-      args.push_back(builder_->ConvertConstant(unique_attrs->axis));
+      for (Expr arg : call_node->args) {
+        LOG(INFO) << "codegen unique arg: " << arg->GetTypeKey();
+        args.push_back(this->VisitExpr(arg));
+      }
       return;
     }
     if (call_node->op == print_op_) {
-      auto print_attrs = call_node->attrs.as<PrintAttrs>();
-      // format string is the first argument
-      args.insert(args.begin(), builder_->ConvertConstant(print_attrs->format));
+      args.insert(args.begin(), this->VisitExpr(call_node->args[call_node->args.size() - 1]));
       return;
     }
     if (call_node->op == assert_op_) {
-      auto assert_attrs = call_node->attrs.as<AssertOpAttrs>();
-      // format string comes before the format args
-      args.insert(args.begin() + 1, builder_->ConvertConstant(assert_attrs->format));
+      args.insert(args.begin() + 1, this->VisitExpr(call_node->args[call_node->args.size() - 1]));
       return;
     }
     LOG(FATAL) << "Support for attributes of Op " << call_node->op

@@ -324,7 +324,7 @@ def assert_op(
     format_args: Optional[Union[Expr, List[Expr]]]
         Format arguments for the error message if the condition fails.
 
-    format_str: str
+    format: str
         The format string for the error message.
 
     Returns
