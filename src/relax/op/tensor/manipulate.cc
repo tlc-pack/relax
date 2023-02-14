@@ -88,21 +88,16 @@ StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx)
     const auto* old_len_int = old_len.as<IntImmNode>();
     if (old_len_int != nullptr && old_len_int->value == 1) {
       continue;
-    } else if (!analyzer->CanProveEqual(old_len, tgt_len)) {
-      // We would like to ensure safety, and therefore placed a stronger requirement for user to
-      // use MatchCast.
-      // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
-      // this requirement to reduce the workload of importers and better support dynamic shapes.
+    } else if (analyzer->CanProve(old_len != tgt_len)) {
       ctx->ReportFatal(
           Diagnostic::Error(call)
           << "broadcast_to expects the input tensor shape is broadcastable to the target shape. "
              "The target shape at dim "
           << tgt_ndim - i - 1 << " is " << tgt_len << " while the input tensor shape at dim "
-          << old_ndim - i - 1 << " is " << old_len
-          << ", where the broadcastability cannot be determined at compile-time. If the old shape "
-             "at this dim is symbolic and will be 1 at runtime, to ensure safety, please use "
-             "MatchCast to explicitly make the shape at this dimension be static 1.");
+          << old_ndim - i - 1 << " is " << old_len << ", which are not equal.");
     }
+    // Todo(relax-team): revisit here for better check on if the tensor length
+    // is consistent with the length in the given shape.
   }
   return TensorStructInfo(/*shape=*/call->args[1], data_sinfo->dtype);
 }
@@ -200,7 +195,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
-  int output_ndim = kUnknownNDim;
+  int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
   DataType output_dtype = DataType::Void();
   bool shape_unknown = false;
   bool is_void_dtype = false;
@@ -221,19 +216,9 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
     }
 
     // Update the output ndim.
-    if (!attrs->axis.defined() && sinfo->ndim != 1) {
-      // To ensure safety, we require all tensors to explicitly have ndim 1 when the concat axis
-      // is not specified.
-      // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
-      // this requirement to reduce the workload of importers and better support dynamic shapes.
-      ctx->ReportFatal(
-          Diagnostic::Error(call)
-          << "Concat expects all input tensors to be flattened 1-dimensional tensor when the axis "
-             "is not specified. However, the input contains a tensor with ndim dimension "
-          << (sinfo->ndim == kUnknownNDim ? "unknown" : std::to_string(sinfo->ndim))
-          << ". If the ndim is unknown, please use MatchCast to match it to 1-dimensional tensor "
-             "first.");
-    } else if (output_ndim == kUnknownNDim) {
+    // Todo(relax-team): revisit here for better check on if the input tensor has
+    // ndim 1 when the input axis is undefined.
+    if (output_ndim == kUnknownNDim) {
       output_ndim = sinfo->ndim;
     } else if (sinfo->ndim != kUnknownNDim && sinfo->ndim != output_ndim) {
       ctx->ReportFatal(Diagnostic::Error(call)
@@ -421,22 +406,10 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
     }
   }
 
-  // We would like to ensure safety, and therefore placed a stronger requirement for user to
-  // use MatchCast before layout_transform if the shape of input is not known at compile time.
-  // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
-  // this requirement to reduce the workload of importers and better support dynamic shapes.
-  auto report_error_for_unknown_shape =
-      [&]() {
-        ctx->ReportFatal(
-            Diagnostic::Error(call)
-            << "layout_transform expects the input tensor to have known rank (expected rank = "
-            << index_map->initial_indices.size()
-            << ") and shape. For input tensors, whose shape cannot be determined at compile time, "
-               "please use MatchCast to get input with symbolic shape.");
-        return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
-      };
-
-  if (data_sinfo->IsUnknownNdim()) return report_error_for_unknown_shape();
+  if (data_sinfo->IsUnknownNdim()) {
+    // Todo(relax-team): revisit here for better check on if the input tensor has desired ndim.
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+  }
 
   // If rank is known, check that it is compatible with the index_map, i.e., #dims match.
   if (index_map->initial_indices.size() != static_cast<size_t>(data_sinfo->ndim)) {
@@ -446,15 +419,16 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
                      << data_sinfo->ndim << " != " << index_map->initial_indices.size());
   }
 
-  if (!data_sinfo->shape.defined()) return report_error_for_unknown_shape();
+  if (!data_sinfo->shape.defined()) {
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+  }
 
-  // If input shape is known, get the ShapeStructInfo of the shape expr.
-  const auto* shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value());
+  ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(data_sinfo->shape.value()->struct_info_);
+  if (!shape_sinfo->values.defined()) {
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
+  }
 
-  if (!shape_sinfo->values.defined()) return report_error_for_unknown_shape();
-
-  Array<PrimExpr> input_shape = shape_sinfo->values.value();
-  Array<PrimExpr> output_shape = index_map->MapShape(input_shape);
+  Array<PrimExpr> output_shape = index_map->MapShape(shape_sinfo->values.value());
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
 
@@ -490,22 +464,16 @@ StructInfo InferStructInfoPermuteDims(const Call& call, const BlockBuilder& ctx)
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
 
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
-  if (data_sinfo->IsUnknownNdim()) {
-    if (attrs->axes.defined()) {
-      // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
-      // this requirement to reduce the workload of importers and better support dynamic shapes.
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "PermuteDims cannot be performed when the input tensor " << data_sinfo
-                       << " ndim is unknown while the given number of axes " << attrs->axes.value()
-                       << " is clear. Please use MatchCast to match the input tensor to a specific "
-                          "ndim before doing PermuteDims.");
-    }
+
+  // Todo(relax-team): revisit here for better check on if the input tensor has
+  // ndim same as the number of input axes.
+  if (!attrs->axes.defined() && data_sinfo->IsUnknownNdim()) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
   }
 
   if (attrs->axes.defined()) {
     int n_axis = attrs->axes.value().size();
-    if (n_axis != data_sinfo->ndim) {
+    if (!data_sinfo->IsUnknownNdim() && n_axis != data_sinfo->ndim) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "PermuteDims expects the number of input axes to equal the ndim of the "
                           "input tensor. However, the tensor ndim is "
@@ -811,13 +779,10 @@ StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
       return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim - axes.size());
     }
     for (int i = 0; i < static_cast<int>(axes.size()); ++i) {
-      // When `axis` is given, the dim lengths at the axes must be static constant integer 1.
+      // Todo(relax-team): revisit here for better check on if the axis being squeezed has length 1.
+      // When `axis` is given, the dim lengths at the axes must be integer 1 when it is not symbolic
       const auto* int_len = shape_value.value()[axes[i]].as<IntImmNode>();
-      if (int_len == nullptr || int_len->value != 1) {
-        // We would like to ensure safety, and therefore placed a stronger requirement for user to
-        // use MatchCast.
-        // Todo(relax-team): At this moment, enforcing MatchCast is fine. But we may need to revisit
-        // this requirement to reduce the workload of importers and better support dynamic shapes.
+      if (int_len != nullptr && int_len->value != 1) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "Squeeze expects the input tensor shape values at the given axis "
                             "positions to be all 1. However, the tensor shape at axis "
