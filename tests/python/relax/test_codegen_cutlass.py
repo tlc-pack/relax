@@ -214,18 +214,28 @@ def test_conv2d_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def get_relax_matmul():
+def get_relax_matmul_module(x, y, with_bias=False, activation=None):
+    m, k = x.shape
+    n = y.shape[-1]
+    dtype = str(x.dtype)
+
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
 
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            x = R.arg("x", R.Tensor((32, 64), "float16"))
-            y = R.arg("y", R.Tensor((64, 128), "float16"))
+            x = R.arg("x", R.Tensor((m, k), dtype))
+            y = R.arg("y", R.Tensor((k, n), dtype))
+            if with_bias:
+                bias = R.arg("bias", R.Tensor((n,), dtype))
 
             with R.dataflow() as frame:
                 result = R.emit(R.matmul(x, y))
+                if with_bias:
+                    result = R.emit(result + bias)
+                if activation is not None:
+                    result = R.emit(activation(result))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -234,9 +244,43 @@ def get_relax_matmul():
     return tvm.IRModule({"main": func})
 
 
-def test_matmul_offload():
-    x = np.random.randn(32, 64).astype("float16")
-    y = np.random.randn(64, 128).astype("float16")
+@pytest.fixture(params=["float16"])
+def target_dtype(request):
+    return request.param
+
+
+@pytest.fixture(
+    params=[
+        # M, K, N
+        (32, 6, 16),
+        (29, 17, 19),
+        (64, 512, 1024),
+    ]
+)
+def matmul_size(request):
+    return request.param
+
+
+@pytest.fixture
+def matmul_x(matmul_size, target_dtype):
+    m, k, _ = matmul_size
+    return np.random.randn(m, k).astype(target_dtype)
+
+
+@pytest.fixture
+def matmul_y(matmul_size, target_dtype):
+    _, k, n = matmul_size
+    return np.random.randn(k, n).astype(target_dtype)
+
+
+@pytest.fixture
+def matmul_bias(matmul_size, target_dtype):
+    _, _, n = matmul_size
+    return np.random.randn(n).astype(target_dtype)
+
+
+def test_matmul_offload(matmul_x, matmul_y):
+    x, y = matmul_x, matmul_y
 
     patterns = [
         (
@@ -246,35 +290,17 @@ def test_matmul_offload():
             ),
         ),
     ]
-    mod = get_relax_matmul()
-    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y)
 
+    mod = get_relax_matmul_module(x, y)
+    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y)
     ref_relay_expr = get_relay_matmul(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose())
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-4)
 
 
-def test_matmul_bias_offload():
-    x = np.random.randn(32, 64).astype("float16")
-    y = np.random.randn(64, 128).astype("float16")
-    bias = np.random.randn(
-        128,
-    ).astype("float16")
-
-    @tvm.script.ir_module
-    class MatmulBias:
-        @R.function
-        def main(
-            x: R.Tensor((32, 64), "float16"),
-            y: R.Tensor((64, 128), "float16"),
-            bias: R.Tensor((128,), "float16"),
-        ):
-            with R.dataflow():
-                result = R.matmul(x, y) + bias
-                R.output(result)
-
-            return result
+def test_matmul_bias_offload(matmul_x, matmul_y, matmul_bias):
+    x, y, bias = matmul_x, matmul_y, matmul_bias
 
     patterns = [
         (
@@ -284,34 +310,17 @@ def test_matmul_bias_offload():
             ),
         ),
     ]
-    out = get_result_with_relax_cutlass_offload(MatmulBias, patterns, x, y, bias)
+    mod = get_relax_matmul_module(x, y, with_bias=True)
+    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y, bias)
 
     ref_relay_expr = get_relay_matmul_bias(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-4)
 
 
-def test_matmul_bias_relu_offload():
-    x = np.random.randn(32, 64).astype("float16")
-    y = np.random.randn(64, 128).astype("float16")
-    bias = np.random.randn(
-        128,
-    ).astype("float16")
-
-    @tvm.script.ir_module
-    class MatmulBiasRelu:
-        @R.function
-        def main(
-            x: R.Tensor((32, 64), "float16"),
-            y: R.Tensor((64, 128), "float16"),
-            bias: R.Tensor((128,), "float16"),
-        ):
-            with R.dataflow():
-                result = R.nn.relu(R.matmul(x, y) + bias)
-                R.output(result)
-
-            return result
+def test_matmul_bias_relu_offload(matmul_x, matmul_y, matmul_bias):
+    x, y, bias = matmul_x, matmul_y, matmul_bias
 
     patterns = [
         (
@@ -322,34 +331,17 @@ def test_matmul_bias_relu_offload():
             ),
         ),
     ]
-    out = get_result_with_relax_cutlass_offload(MatmulBiasRelu, patterns, x, y, bias)
+    mod = get_relax_matmul_module(x, y, with_bias=True, activation=R.nn.relu)
+    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y, bias)
 
     ref_relay_expr = get_relay_matmul_bias_relu(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-4)
 
 
-def test_matmul_bias_gelu_offload():
-    x = np.random.randn(32, 64).astype("float16")
-    y = np.random.randn(64, 128).astype("float16")
-    bias = np.random.randn(
-        128,
-    ).astype("float16")
-
-    @tvm.script.ir_module
-    class MatmulBiasGelu:
-        @R.function
-        def main(
-            x: R.Tensor((32, 64), "float16"),
-            y: R.Tensor((64, 128), "float16"),
-            bias: R.Tensor((128,), "float16"),
-        ):
-            with R.dataflow():
-                result = R.nn.gelu(R.matmul(x, y) + bias)
-                R.output(result)
-
-            return result
+def test_matmul_bias_gelu_offload(matmul_x, matmul_y, matmul_bias):
+    x, y, bias = matmul_x, matmul_y, matmul_bias
 
     patterns = [
         (
@@ -360,12 +352,13 @@ def test_matmul_bias_gelu_offload():
             ),
         ),
     ]
-    out = get_result_with_relax_cutlass_offload(MatmulBiasGelu, patterns, x, y, bias)
+    mod = get_relax_matmul_module(x, y, with_bias=True, activation=R.nn.gelu)
+    out = get_result_with_relax_cutlass_offload(mod, patterns, x, y, bias)
 
     ref_relay_expr = get_relay_matmul_bias_gelu(x.shape, y.shape[::-1])
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
 
 
 if __name__ == "__main__":
