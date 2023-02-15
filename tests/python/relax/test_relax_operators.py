@@ -173,5 +173,41 @@ def test_op_shape_of():
     assert tensor_shape == tvm.runtime.ShapeTuple([1, 2, 3])
 
 
+@tvm.script.ir_module
+class ShapeEqualsTest:
+    @R.function
+    def compare(s1: R.Shape(ndim=-1), s2: R.Shape(ndim=-1)) -> R.Tensor((), "bool"):
+        return R.shape_equals(s1, s2)
+
+
+def test_shape_equals():
+    def get_bool(input: tvm.nd.NDArray) -> bool:
+        return bool(input.numpy())
+
+    # simple equality
+    assert get_bool(
+        run_cpu(
+            ShapeEqualsTest,
+            "compare",
+            tvm.runtime.ShapeTuple([1, 2, 3]),
+            tvm.runtime.ShapeTuple([1, 2, 3]),
+        )
+    )
+
+    # pointer equality, why not
+    shape = tvm.runtime.ShapeTuple([1, 2, 3])
+    assert get_bool(run_cpu(ShapeEqualsTest, "compare", shape, shape))
+
+    # mismatched dim
+    assert not get_bool(
+        run_cpu(ShapeEqualsTest, "compare", shape, tvm.runtime.ShapeTuple([1, 2, 4]))
+    )
+
+    # mismatched length
+    assert not get_bool(
+        run_cpu(ShapeEqualsTest, "compare", shape, tvm.runtime.ShapeTuple([1, 2, 3, 4]))
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

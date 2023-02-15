@@ -353,3 +353,46 @@ def shape_of(expr: Expr) -> Expr:
         A relax Call, which gets the shape of the input
     """
     return _ffi_api.shape_of(expr)  # type: ignore # pylint: disable=no-member
+
+
+@tvm.register_func("relax.run.shape_equals")
+def relax_shape_equals(
+    shape1: tvm.runtime.ShapeTuple, shape2: tvm.runtime.ShapeTuple
+) -> tvm.nd.NDArray:
+    """
+    Compares two shapes for equality, returning a boolean scalar representing the result.
+
+    Parameters
+    ----------
+    shape1: tvm.runtime.ShapeTuple
+        The first shape for comparison
+
+    shape2: tvm.runtime.ShapeTuple
+        The second shape for comparison
+
+    Returns
+    -------
+    result: tvm.nd.NDArray
+        The result of the comparison, a boolean scalar (true if the shapes are equal, false otherwise)
+    """
+    # the ShapeTuple __eq__ override suffices
+    return tvm.nd.array(shape1 == shape2)  # type: ignore
+
+
+def shape_equals(shape1: Expr, shape2: Expr) -> Expr:
+    """Compare two shapes for equality.
+
+    Parameters
+    ----------
+    shape1 : Expr
+        The first shape input argument.
+
+    shape2 : Expr
+        The second shape input argument.
+
+    Returns
+    -------
+    result : Expr
+        A Relax call that results in a call to the shape_equals operator.
+    """
+    return _ffi_api.shape_equals(shape1, shape2)  # type: ignore # pylint: disable=no-member
