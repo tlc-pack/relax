@@ -21,16 +21,17 @@ import os
 import tempfile
 import subprocess
 import multiprocessing
+from tvm._ffi.registry import register_func
 from .library import (
     MathInstruction,
     DataType,
+    DataTypeTag,
     OpcodeClass,
     MathOperation,
     TileDescription,
     EpilogueFunctor,
 )
 from .gemm_operation import instantiate_gemm_template
-from tvm._ffi.registry import register_func
 
 
 logger = logging.getLogger("cutlass")
@@ -39,6 +40,7 @@ logger = logging.getLogger("cutlass")
 dtype_map = {
     "int8": DataType.s8,
     "uint8": DataType.u8,
+    "int32": DataType.s32,
     "float32": DataType.f32,
     "float16": DataType.f16,
 }
@@ -401,22 +403,14 @@ def instantiate_template(func_name, annotations, func_args):
     code : str
         Generated CUTLASS host code.
     """
-    dtype_map = {
-        "float16": "cutlass::half_t",
-        "float32": "float",
-        "int8": "int8_t",
-        "uint8": "uint8_t",
-        "int32": "int32_t",
-    }
-
     attrs = {}
 
     if "dense" in func_name or "matmul" in func_name:
         arg0_shape = annotations["arg0_shape"]
         arg1_shape = annotations["arg1_shape"]
-        attrs["ElementInputA"] = dtype_map[annotations["arg0_dtype"]]
-        attrs["ElementInputB"] = dtype_map[annotations["arg1_dtype"]]
-        attrs["ElementOutput"] = dtype_map[annotations["ret_dtype"]]
+        attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
+        attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
+        attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
         attrs["M"] = str(int(arg0_shape[0]))
         attrs["K"] = str(int(arg0_shape[1]))
 
