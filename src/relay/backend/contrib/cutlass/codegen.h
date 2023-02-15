@@ -61,7 +61,7 @@ Str2StrMap ArgsCommon(const Map<String, ObjectRef>& attrs);
 
 Str2StrMap GemmArgsCommon(const Map<String, ObjectRef>& attrs);
 
-Str2StrMap DenseArgs(const Map<String, ObjectRef>& attrs);
+Str2StrMap MatmulArgs(const Map<String, ObjectRef>& attrs);
 
 Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs);
 
@@ -75,8 +75,8 @@ void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
 
 void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel);
 
-std::string DenseOp(std::string id, const Str2StrMap& attrs,
-                    const std::vector<std::string>& func_args);
+std::string MatmulOp(std::string id, const Str2StrMap& attrs,
+                     const std::vector<std::string>& func_args);
 
 std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
                           const std::vector<std::string>& func_args);
