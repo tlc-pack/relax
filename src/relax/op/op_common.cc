@@ -25,29 +25,19 @@ namespace tvm {
 namespace relax {
 
 Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
-  for (auto arg : call->args) {
-    LOG(INFO) << "call arg: " << arg << "  --  type: " << arg->GetTypeKey();
-  }
   Op op = Downcast<Op>(call->op);
 
   int n_input = call->args.size();
-  if (static_cast<int>(op->arguments.size()) < n_input) {
+  if (static_cast<int>(op->arguments.size()) != n_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << op << " op shouldn't have " << n_input << " arguments");
+                     << op << " op should have " << n_input << " arguments");
   }
   Array<TensorStructInfo> input_tensor_sinfo;
   input_tensor_sinfo.reserve(n_input);
   for (int i = 0; i < n_input; ++i) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    if (sinfo == nullptr) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << op << " requires the input " << op->arguments[i]->name
-                       << " to be Tensor. However, the given one is "
-                       << call->args[i]->struct_info_->GetTypeKey());
+    if (const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i])) {
+      input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));
     }
-    input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));
-    // todo (yongwww): remove the break
-    break;
   }
   return input_tensor_sinfo;
 }

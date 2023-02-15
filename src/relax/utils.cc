@@ -79,6 +79,12 @@ bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
 }
 
 bool IsLeafOrTuple(const Expr& expr) {
+  if (const auto* call_node = expr.as<CallNode>()) {
+    static const Op& null_value_op_ = Op::Get("relax.null_value");
+    if (call_node->op == null_value_op_) {
+      return true;
+    }
+  }
   return expr.as<LeafExprNode>() || expr.as<GlobalVarNode>() || expr.as<ExternFuncNode>() ||
          expr.as<OpNode>() || expr.as<TupleNode>();
 }

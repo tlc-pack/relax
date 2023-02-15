@@ -36,33 +36,27 @@ namespace relax {
 
 Expr unique(Expr x, bool sorted, bool return_index, bool return_inverse, bool return_counts,
             Optional<Integer> axis) {
-  static const Op& op = Op::Get("relax.unique");
-  Call call;
+  static const Op& unique_op = Op::Get("relax.unique");
+  Expr new_axis;
   if (!axis) {
-    call = Call(op,
-                {std::move(x), PrimValue(Bool(sorted)), PrimValue(Bool(return_index)),
-                 PrimValue(Bool(return_inverse)), PrimValue(Bool(return_counts))},
-                Attrs(), {});
+    static const Op& null_value_op = Op::Get("relax.null_value");
+    new_axis = Call(null_value_op, {}, {}, {});
   } else {
-    PrimValue pv_axis = PrimValue::Int64(axis.value().IntValue());
-    call = Call(op,
-                {std::move(x), PrimValue(Bool(sorted)), PrimValue(Bool(return_index)),
-                 PrimValue(Bool(return_inverse)), PrimValue(Bool(return_counts)), pv_axis},
-                Attrs(), {});
+    new_axis = PrimValue::Int64(axis.value().IntValue());
   }
-  return call;
+  return Call(unique_op,
+              {std::move(x), PrimValue(Bool(sorted)), PrimValue(Bool(return_index)),
+               PrimValue(Bool(return_inverse)), PrimValue(Bool(return_counts)), new_axis},
+              Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(unique);
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> unique_sinfo = GetInputTensorStructInfo(call, ctx);
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   PrimValue axis, return_index, return_inverse, return_counts;
-  if (call->args.size() == 6) {
-    if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
-      axis = GetRef<PrimValue>(prim_value_node);
-    }
+  if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
+    axis = GetRef<PrimValue>(prim_value_node);
   }
   if (!data_sinfo->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.
@@ -70,15 +64,13 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
       NormalizeAxis(call, ctx, data_sinfo->ndim, axis_int->value);
     }
   }
-  if (const auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
-    return_index = GetRef<PrimValue>(prim_value_node);
-  }
-  if (const auto* prim_value_node = call->args[3].as<PrimValueNode>()) {
-    return_inverse = GetRef<PrimValue>(prim_value_node);
-  }
-  if (const auto* prim_value_node = call->args[4].as<PrimValueNode>()) {
-    return_counts = GetRef<PrimValue>(prim_value_node);
-  }
+  ICHECK(call->args[2]->IsInstance<PrimValueNode>());
+  ICHECK(call->args[3]->IsInstance<PrimValueNode>());
+  ICHECK(call->args[4]->IsInstance<PrimValueNode>());
+
+  return_index = Downcast<PrimValue>(call->args[2]);
+  return_inverse = Downcast<PrimValue>(call->args[3]);
+  return_counts = Downcast<PrimValue>(call->args[4]);
 
   auto f_convert_to_int64 = [](const PrimExpr& value) {
     CHECK(value->IsInstance<IntImmNode>())
@@ -98,7 +90,7 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   // unique values
   if (data_sinfo->ndim == 0) {
     output_sinfo.push_back(
-        TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), 1)}), data_sinfo->dtype));
+        TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), data_sinfo->dtype));
   } else if (axis.defined()) {
     output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim));
   } else {
@@ -108,7 +100,8 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   // index, reverse and counts
   TensorStructInfo int_return{nullptr};
   if (data_sinfo->ndim == 0) {
-    int_return = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), 1)}), DataType::Int(64));
+    int_return =
+        TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), DataType::Int(64));
   } else {
     int_return = TensorStructInfo(DataType::Int(64), /*ndim=*/1);
   }

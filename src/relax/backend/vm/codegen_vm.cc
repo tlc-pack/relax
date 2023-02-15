@@ -371,16 +371,17 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     if (call_node->op == unique_op_) {
       for (Expr arg : call_node->args) {
-        LOG(INFO) << "codegen unique arg: " << arg->GetTypeKey();
         args.push_back(this->VisitExpr(arg));
       }
       return;
     }
     if (call_node->op == print_op_) {
+      // format string is the first argument
       args.insert(args.begin(), this->VisitExpr(call_node->args[call_node->args.size() - 1]));
       return;
     }
     if (call_node->op == assert_op_) {
+      // format string comes before the format args
       args.insert(args.begin() + 1, this->VisitExpr(call_node->args[call_node->args.size() - 1]));
       return;
     }
