@@ -373,7 +373,8 @@ def relax_shape_equals(
     Returns
     -------
     result: tvm.nd.NDArray
-        The result of the comparison, a boolean scalar (true if the shapes are equal, false otherwise)
+        The result of the comparison, a boolean scalar 
+        (true if the shapes are equal, false otherwise).
     """
     # the ShapeTuple __eq__ override suffices
     return tvm.nd.array(shape1 == shape2)  # type: ignore
