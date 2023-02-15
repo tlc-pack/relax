@@ -29,6 +29,9 @@ from .library import (
     TileDescription,
     EpilogueFunctor,
 )
+from .gemm_operation import instantiate_gemm_template
+from tvm._ffi.registry import register_func
+
 
 logger = logging.getLogger("cutlass")
 
@@ -376,3 +379,37 @@ class ProfilerEngine:
         except subprocess.CalledProcessError:
             rt = float("inf")
         return rt
+
+
+@register_func("contrib.cutlass.instantiate_template")
+def instantiate_template(func_name, annotations, func_args):
+    dtype_map = {
+        "float16": "cutlass::half_t",
+        "float32": "float",
+        "int8": "int8_t",
+        "uint8": "uint8_t",
+        "int32": "int32_t",
+    }
+
+    attrs = {}
+
+    if "dense" in func_name or "matmul" in func_name:
+        arg0_shape = annotations["arg0_shape"]
+        arg1_shape = annotations["arg1_shape"]
+        attrs["ElementInputA"] = dtype_map[annotations["arg0_dtype"]]
+        attrs["ElementInputB"] = dtype_map[annotations["arg1_dtype"]]
+        attrs["ElementOutput"] = dtype_map[annotations["ret_dtype"]]
+        attrs["M"] = str(arg0_shape[0])
+        attrs["K"] = str(arg0_shape[1])
+
+        if annotations["ldb"] == "N":
+            attrs["N"] = str(arg1_shape[1])
+        else:
+            attrs["N"] = str(arg1_shape[0])
+
+        for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
+            attrs[k] = annotations[k]
+
+        return instantiate_gemm_template(attrs, func_args)
+
+    raise ValueError("Do not have a template for {}".format(func_name))

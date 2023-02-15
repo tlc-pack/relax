@@ -100,19 +100,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     const auto func = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
     const auto pattern_name_opt = func->GetAttr<runtime::String>(attr::kComposite);
     ICHECK(pattern_name_opt) << "Only composite function is supported for CUTLASS.";
-
-    std::string pattern_name = pattern_name_opt.value();
-    Str2StrMap attribute_args;
-
-    if (pattern_name.find("conv2d") != std::string::npos) {
-      attribute_args = Conv2dArgs(func->attrs->dict);
-    } else if (pattern_name.find("matmul") != std::string::npos) {
-      attribute_args = MatmulArgs(func->attrs->dict);
-    } else {
-      LOG(FATAL) << "Unsupported pattern: " << pattern_name;
-    }
-
-    auto ret = GenerateBody(call, pattern_name, GetArgumentNames(call), attribute_args);
+    auto ret = GenerateBody(call, pattern_name_opt.value(), func->attrs->dict);
     ext_func_body_.push_back(ret.decl);
     return ret.outputs;
   }
@@ -193,8 +181,8 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
-                                  const std::vector<std::string>& func_args,
-                                  const Str2StrMap& attribute_args) {
+				  const Map<String, ObjectRef>& attrs) {
+    auto func_args = GetArgumentNames(call);
     auto struct_info = GetStructInfo(GetRef<Call>(call));
 
     std::vector<std::string> out_types;
@@ -204,8 +192,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
       LOG(FATAL) << "Unimplemented sinfo type: " << struct_info;
     }
 
-    return contrib::GenerateBody(func_name, ext_func_id_, func_args, out_types, attribute_args,
-                                 &buf_idx_);
+    return contrib::GenerateBody(func_name, ext_func_id_, func_args, out_types, attrs, &buf_idx_);
   }
 
   /*! \brief The id of the external cutlass ext_func. */
