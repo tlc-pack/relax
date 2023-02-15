@@ -148,5 +148,30 @@ def test_assert_op():
     )
 
 
+@tvm.script.ir_module
+class ShapeOfTest:
+    @R.function
+    def get_shape(t: R.Tensor(ndim=-1, dtype="int32")) -> R.Shape(ndim=-1):
+        return R.shape_of(t)
+
+    @R.function
+    def get_shape_const() -> R.Shape(ndim=-1):
+        x: R.Tensor((), "int32") = R.const(1, dtype="int32")
+        return R.shape_of(x)
+
+
+def test_op_shape_of():
+    const_shape = run_cpu(ShapeOfTest, "get_shape_const")
+    assert const_shape == tvm.runtime.ShapeTuple([])
+
+    scalar_shape = run_cpu(ShapeOfTest, "get_shape", tvm.nd.array(np.array(1, dtype="int32")))
+    assert scalar_shape == tvm.runtime.ShapeTuple([])
+
+    tensor_shape = run_cpu(
+        ShapeOfTest, "get_shape", tvm.nd.array(np.zeros((1, 2, 3)).astype("int32"))
+    )
+    assert tensor_shape == tvm.runtime.ShapeTuple([1, 2, 3])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
