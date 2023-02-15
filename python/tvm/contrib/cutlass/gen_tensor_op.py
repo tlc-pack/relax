@@ -417,13 +417,13 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["ElementInputA"] = dtype_map[annotations["arg0_dtype"]]
         attrs["ElementInputB"] = dtype_map[annotations["arg1_dtype"]]
         attrs["ElementOutput"] = dtype_map[annotations["ret_dtype"]]
-        attrs["M"] = str(arg0_shape[0])
-        attrs["K"] = str(arg0_shape[1])
+        attrs["M"] = str(int(arg0_shape[0]))
+        attrs["K"] = str(int(arg0_shape[1]))
 
         if annotations["ldb"] == "N":
-            attrs["N"] = str(arg1_shape[1])
+            attrs["N"] = str(int(arg1_shape[1]))
         else:
-            attrs["N"] = str(arg1_shape[0])
+            attrs["N"] = str(int(arg1_shape[0]))
 
         for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
             attrs[k] = annotations[k]
