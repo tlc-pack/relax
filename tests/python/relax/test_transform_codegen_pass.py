@@ -192,6 +192,81 @@ def test_mix_use_tensorrt_and_tvm():
     check_roundtrip(ex0, dev, inputs, expected)
 
 
+@tvm.script.ir_module
+class Conv2dx2:
+    @R.function
+    def main(
+        data: R.Tensor((16, 32, 32, 16), dtype="float16"),
+        weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+        weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
+    ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+        with R.dataflow():
+            lv: R.Tensor((16, 32, 32, 16), dtype="float16") = fused_relax_nn_conv2d_tensorrt(
+                data, weight1
+            )
+            gv: R.Tensor((16, 32, 32, 16), dtype="float16") = fused_relax_nn_conv2d_tensorrt(
+                lv, weight2
+            )
+            R.output(gv)
+        return gv
+
+    @R.function
+    def fused_relax_nn_conv2d_tensorrt(
+        data: R.Tensor((16, 32, 32, 16), dtype="float16"),
+        weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+    ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+        R.func_attr({"Codegen": "tensorrt", "global_symbol": "fused_relax_nn_conv2d_tensorrt"})
+
+        @R.function
+        def gv(
+            data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
+            weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+        ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+            with R.dataflow():
+                gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
+                    data_1,
+                    weight1_1,
+                    padding=[1, 1, 1, 1],
+                    data_layout="NHWC",
+                    kernel_layout="OHWI",
+                    out_layout="NHWC",
+                )
+                R.output(gv_1)
+            return gv_1
+
+        gv1: R.Tensor((16, 32, 32, 16), dtype="float16") = gv(data, weight1)
+        return gv1
+
+
+@tvm.script.ir_module
+class Conv2dx2_after:
+    @R.function
+    def main(
+        data: R.Tensor((16, 32, 32, 16), dtype="float16"),
+        weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+        weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
+    ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+        with R.dataflow():
+            lv = R.call_tir(
+                "fused_relax_nn_conv2d_tensorrt",
+                (data, weight1),
+                out_sinfo=R.Tensor((16, 32, 32, 16), dtype="float16"),
+            )
+            gv = R.call_tir(
+                "fused_relax_nn_conv2d_tensorrt",
+                (lv, weight2),
+                out_sinfo=R.Tensor((16, 32, 32, 16), dtype="float16"),
+            )
+            R.output(gv)
+        return gv
+
+
+def test_multiple_calls_same_extern():
+    mod = relax.transform.RunCodegen()(Conv2dx2)
+    tvm.ir.assert_structural_equal(mod["main"], Conv2dx2_after["main"])
+
+
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
 
 if __name__ == "__main__":

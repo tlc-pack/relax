@@ -125,6 +125,33 @@ def get_relay_matmul_bias_gelu(
     return add * bias_add
 
 
+def get_relay_conv2d_relu_x2(
+    d_shape, w_shape, data_dtype="float16", weight_dtype="float16", out_dtype="float16"
+):
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight1 = relay.var("weight1", shape=w_shape, dtype=weight_dtype)
+    weight2 = relay.var("weight2", shape=w_shape, dtype=weight_dtype)
+
+    conv1 = relay.nn.conv2d(
+        data=data,
+        weight=weight1,
+        kernel_size=(3, 3),
+        padding=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="OHWI",
+        out_dtype=out_dtype,
+    )
+    return relay.nn.conv2d(
+        data=conv1,
+        weight=weight2,
+        kernel_size=(3, 3),
+        padding=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="OHWI",
+        out_dtype=out_dtype,
+    )
+
+
 def get_relay_ref(relay_expr, *args):
     relay_mod = tvm.IRModule.from_expr(relay_expr)
 
@@ -161,6 +188,26 @@ class Conv2dBiasReLU:
             R.output(conv1)
 
         return conv1
+
+
+@tvm.script.ir_module
+class Conv2dx2:
+    @R.function
+    def main(
+        data: R.Tensor((16, 32, 32, 16), "float16"),
+        weight1: R.Tensor((16, 3, 3, 16), "float16"),
+        weight2: R.Tensor((16, 3, 3, 16), "float16"),
+    ):
+        with R.dataflow():
+            conv1 = relax.op.nn.conv2d(
+                data, weight1, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+            )
+            conv2 = relax.op.nn.conv2d(
+                conv1, weight2, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+            )
+            R.output(conv2)
+
+        return conv2
 
 
 has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
@@ -359,6 +406,38 @@ def test_matmul_bias_gelu_offload(matmul_x, matmul_y, matmul_bias):
     ref = get_relay_ref(ref_relay_expr, x, y.transpose(), bias)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-3)
+
+
+def test_kernel_sharing():
+    data_np = np.random.randn(16, 32, 32, 16).astype("float16")
+    weight1_np = np.random.randn(16, 3, 3, 16).astype("float16")
+    weight2_np = np.random.randn(16, 3, 3, 16).astype("float16")
+
+    pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
+
+    mod = tvm.transform.Sequential(
+        [
+            relax.transform.FuseOpsByPattern([("cutlass.conv2d", pat)], annotate_codegen=True),
+            relax.transform.RunCodegen({"cutlass": {"sm": 80}}),
+        ]
+    )(Conv2dx2)
+
+    target = tvm.target.Target("cuda")
+    ex = relax.vm.build(mod, target)
+    ex = finalize_modules_relax(ex)
+
+    dev = tvm.gpu(0)
+    vm = relax.VirtualMachine(ex, dev)
+
+    data = tvm.nd.array(data_np, dev)
+    weight1 = tvm.nd.array(weight1_np, dev)
+    weight2 = tvm.nd.array(weight2_np, dev)
+    out = vm["main"](data, weight1, weight2).numpy()
+
+    relay_expr = get_relay_conv2d_relu_x2(data_np.shape, weight1_np.shape)
+    ref = get_relay_ref(relay_expr, [data_np, weight1_np, weight2_np])
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":
