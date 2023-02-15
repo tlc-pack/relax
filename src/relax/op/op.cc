@@ -175,11 +175,11 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Assert must have at least one argument (the condition).");
   }
-  Type arg_type = call->args[0]->checked_type();
-  if (!IsBoolScalarType(arg_type)) {
+  StructInfo arg_struct_info = GetStructInfo(call->args[0]);
+  if (!IsBoolStructInfo(arg_struct_info)) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "The argument to assert must be a boolean scalar type, but received "
-                     << arg_type);
+                     << "The argument to assert must be a boolean scalar, but received "
+                     << arg_struct_info);
   }
   return ReturnVoidStructInfo(call, ctx);
 }
