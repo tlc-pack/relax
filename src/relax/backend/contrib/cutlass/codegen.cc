@@ -169,8 +169,8 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
  private:
-  std::vector<std::string> GetArgumentNames(const CallNode* call) {
-    std::vector<std::string> arg_names;
+  Array<String> GetArgumentNames(const CallNode* call) {
+    Array<String> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
       auto res = VisitExpr(call->args[i]);
       for (const auto& out : res) {
@@ -192,7 +192,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
       LOG(FATAL) << "Unimplemented sinfo type: " << struct_info;
     }
 
-    return contrib::GenerateBody(func_name, ext_func_id_, func_args, out_types, attrs, &buf_idx_);
+    return contrib::GenerateBody(func_name, ext_func_id_, out_types, func_args, attrs, &buf_idx_);
   }
 
   /*! \brief The id of the external cutlass ext_func. */

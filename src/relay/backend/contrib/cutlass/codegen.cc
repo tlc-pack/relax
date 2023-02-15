@@ -101,8 +101,8 @@ Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs) {
 }
 
 void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
-                    const std::vector<std::string>& func_args, const std::string& kernel,
-                    bool has_bias, bool is_gelu, int m_axis_idx, int n_axis_idx, int k_axis_idx) {
+                    const Array<String>& func_args, const std::string& kernel, bool has_bias,
+                    bool is_gelu, int m_axis_idx, int n_axis_idx, int k_axis_idx) {
   CutlassPrint(gemm_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
   CutlassPrint(gemm_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
   CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
@@ -114,7 +114,7 @@ void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
     if (attrs.at(axis) == kAnyDim) {
       return func_args[arg_idx] + "->shape[" + std::to_string(axis_idx) + "]";
     } else {
-      return attrs.at(axis);
+      return String(attrs.at(axis));
     }
   };
   CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, m_axis_idx) + ";\n");
@@ -164,7 +164,7 @@ void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel)
   CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
 }
 
-std::string BatchMatmulOp(const Str2StrMap& attrs, const std::vector<std::string>& func_args) {
+std::string BatchMatmulOp(const Str2StrMap& attrs, const Array<String>& func_args) {
   std::ostringstream gemm_decl;
   AppendPrologue(gemm_decl, attrs, func_args, "BatchedGemm", false, false, 1, 1, 2);
 
@@ -174,7 +174,7 @@ std::string BatchMatmulOp(const Str2StrMap& attrs, const std::vector<std::string
       return func_args[arg0_idx] + "->shape[" + std::to_string(arg0_axis_idx) + "] * " +
              func_args[arg1_idx] + "->shape[" + std::to_string(arg1_axis_idx) + "]";
     } else {
-      return attrs.at(name);
+      return String(attrs.at(name));
     }
   };
 
@@ -236,7 +236,7 @@ Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false
   return args;
 }
 
-std::string Conv2dOp(const Str2StrMap& attrs, const std::vector<std::string>& func_args,
+std::string Conv2dOp(const Str2StrMap& attrs, const Array<String>& func_args,
                      bool has_residual_block = false) {
   auto op_type = attrs.at("op_type");
   bool has_bias = op_type.find("bias") != std::string::npos;
@@ -531,9 +531,9 @@ bool IsConv2dResidualBlock(const std::string& func_name) {
 }
 
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
-                                const std::vector<std::string>& func_args,
                                 const std::vector<std::string>& output_types,
-                                const Map<String, ObjectRef>& attrs, int* buf_idx) {
+                                const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
+                                int* buf_idx) {
   // Make function call with input buffers when visiting arguements
   ICHECK_GT(func_args.size(), 0);
   std::ostringstream decl_stream;
@@ -559,12 +559,7 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
 
   if (func_name.find("dense") != std::string::npos ||
       func_name.find("matmul") != std::string::npos) {
-    // TODO(masahi): Remove this conversion
-    Array<String> args;
-    for (const auto& arg : func_args) {
-      args.push_back(arg);
-    }
-    std::string code = (*instantiate_template_func)(func_name, attrs, args);
+    std::string code = (*instantiate_template_func)(func_name, attrs, func_args);
     ret.decl = code;
   }
 
@@ -654,8 +649,8 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   }
 
  private:
-  std::vector<std::string> GetArgumentNames(const CallNode* call) {
-    std::vector<std::string> arg_names;
+  Array<String> GetArgumentNames(const CallNode* call) {
+    Array<String> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
       auto res = VisitExpr(call->args[i]);
       for (const auto& out : res) {
@@ -723,7 +718,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
-                                  const std::vector<std::string>& func_args,
+                                  const Array<String>& func_args,
                                   const Map<String, ObjectRef>& attrs) {
     std::vector<Type> out_types;
     if (call->checked_type()->IsInstance<TupleTypeNode>()) {
@@ -744,7 +739,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
       out_types_str.push_back(GetDtypeString(out_type.as<TensorTypeNode>()));
     }
 
-    return cutlass::GenerateBody(func_name, ext_func_id_, func_args, out_types_str, attrs,
+    return cutlass::GenerateBody(func_name, ext_func_id_, out_types_str, func_args, attrs,
                                  &buf_idx_);
   }
 

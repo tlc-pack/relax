@@ -61,9 +61,9 @@ std::string EmitSignature(const std::vector<relay::contrib::Output>& out,
 
 /*! \brief Generate the body of the kernel */
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
-                                const std::vector<std::string>& func_args,
                                 const std::vector<std::string>& output_types,
-                                const Map<String, ObjectRef>& attrs, int* buf_idx);
+                                const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
+                                int* buf_idx);
 
 /*! \brief Create a C-source module from the given kernel string */
 runtime::Module Finalize(const std::string& code, const Array<String>& func_names);
