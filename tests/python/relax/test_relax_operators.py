@@ -216,6 +216,8 @@ def test_shape_equals():
         run_cpu(ShapeEqualsTest, "compare", shape, tvm.runtime.ShapeTuple([1, 2, 3, 4]))
     )
 
+    # TODO: shape_of fails to execute due to oversights in the VM code gen. Uncomment when fixed
+
     # try with tensors too
     # t1 = tvm.nd.array(np.array([1, 2, 3]).astype("int32"))
     # t2 = tvm.nd.array(np.array([1, 2, 4]).astype("int32"))
