@@ -260,6 +260,8 @@ class EmitGemmInstance:
 
 
 def instantiate_gemm_template(attrs, func_args):
+    """Return CUTLASS host code for GEMM based on a template and the provided attribute map."""
+
     template = """
   using ElementInputA = ${ElementInputA};
   using ElementInputB = ${ElementInputB};

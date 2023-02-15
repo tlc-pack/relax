@@ -383,6 +383,24 @@ class ProfilerEngine:
 
 @register_func("contrib.cutlass.instantiate_template")
 def instantiate_template(func_name, annotations, func_args):
+    """Return CUTLASS host code based on a template and the provided annotations.
+
+    Parameters
+    ----------
+    func_name: str
+        A string to identify the type of the kernel (dense/matmul, batched_matmul, or conv2d).
+
+    annotations: container.Map
+        Key and value pairs annotated during kernel selection.
+
+    func_args: list
+        Names of the function arguments.
+
+    Returns
+    -------
+    code : str
+        Generated CUTLASS host code.
+    """
     dtype_map = {
         "float16": "cutlass::half_t",
         "float32": "float",
