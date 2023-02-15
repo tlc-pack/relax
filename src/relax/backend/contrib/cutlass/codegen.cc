@@ -181,7 +181,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
-				  const Map<String, ObjectRef>& attrs) {
+                                  const Map<String, ObjectRef>& attrs) {
     auto func_args = GetArgumentNames(call);
     auto struct_info = GetStructInfo(GetRef<Call>(call));
 
