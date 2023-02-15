@@ -219,9 +219,9 @@ def test_shape_equals():
     # TODO: shape_of fails to execute due to oversights in the VM code gen. Uncomment when fixed
 
     # try with tensors too
-    # t1 = tvm.nd.array(np.array([1, 2, 3]).astype("int32"))
-    # t2 = tvm.nd.array(np.array([1, 2, 4]).astype("int32"))
-    # t3 = tvm.nd.array(np.array([1, 2, 3, 4]).astype("int32"))
+    # t1 = tvm.nd.array(np.zeros((1, 2, 3)).astype("int32"))
+    # t2 = tvm.nd.array(np.zeros((1, 2, 4)).astype("int32"))
+    # t3 = tvm.nd.array(np.array((1, 2, 3, 4)).astype("int32"))
 
     # assert get_bool(run_cpu(ShapeEqualsTest, "compare_shapes_of_tensors", t1, t1))
     # assert not get_bool(run_cpu(ShapeEqualsTest, "compare_shapes_of_tensors", t1, t2))
