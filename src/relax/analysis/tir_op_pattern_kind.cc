@@ -334,11 +334,11 @@ bool HasReshapePattern(const PrimFunc& func) {
       // To be a reshape, the flattened size must be equal
       PrimExpr src_size(1);
       PrimExpr dst_size(1);
-      for(auto s: src_buffer->shape) src_size *= s;
-      for(auto s: dst_buffer->shape) dst_size *= s;
+      for (auto s : src_buffer->shape) src_size *= s;
+      for (auto s : dst_buffer->shape) dst_size *= s;
       arith::Analyzer analyzer;
       // return false on mismatch
-      if(analyzer.CanProve(src_size != dst_size)) return false;
+      if (analyzer.CanProve(src_size != dst_size)) return false;
 
       ReshapeDetector detector(src_buffer, dst_buffer);
       detector(stmt);
