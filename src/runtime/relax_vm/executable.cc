@@ -74,6 +74,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
+  } else if (name == "check_linked") {
+    return PackedFunc([this](TVMArgs, TVMRetValue*) { return CheckLinked(); });
   }
 
   return nullptr;
@@ -575,6 +577,25 @@ String Executable::AsPython() const {
     }
   }
   return String(os.str());
+}
+
+bool Executable::CheckLinked() {
+  auto exists_in_imports = [this](const String& name) {
+    for (auto& lib : imports_) {
+      PackedFunc func = lib->GetFunction(name, true);
+      if (func.defined()) return true;
+    }
+    return false;
+  };
+  for (size_t func_index = 0; func_index < func_table.size(); ++func_index) {
+    const VMFuncInfo& info = func_table[func_index];
+    if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
+      if (!exists_in_imports(info.name) && Registry::Get(info.name) == nullptr) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(Executable::LoadFromFile);

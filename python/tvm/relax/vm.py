@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return
 """The Relax virtual machine"""
+import os
+import tempfile
 from typing import Callable, List, Optional, Union, Dict, Tuple, Any
 import numpy as np  # type: ignore
 
@@ -39,6 +41,7 @@ class Executable(object):
         self._stats = self.mod["stats"]
         self._as_text = self.mod["as_text"]
         self._as_python = self.mod["as_python"]
+        self._check_linked = self.mod["check_linked"]
 
     def stats(self) -> str:
         """print the detailed statistics of the executable."""
@@ -51,6 +54,10 @@ class Executable(object):
     def as_python(self) -> str:
         """print the instructions as python program."""
         return self._as_python()
+
+    def check_linked(self) -> bool:
+        """Check if all imported modules have been fully linked."""
+        return self._check_linked()
 
 
 class VirtualMachine(object):
@@ -512,6 +519,7 @@ def _vmlink(
     tir_mod: Optional[tvm.IRModule] = None,
     ext_libs: List[tvm.runtime.Module] = None,
     params: Optional[Dict[str, list]] = None,
+    cc_for_link: Optional[str] = None,
 ):
     """
     Internal codegen function to make executable.
@@ -537,6 +545,9 @@ def _vmlink(
     params: Optional[Dict[str, list]]
         Extra parameter mappings.
 
+    cc_for_link: Optional[str]
+        The name of the compiler to use for an additional linking step if necessary.
+
     Returns
     -------
     ex: tvm.relax.vm.Executable
@@ -551,7 +562,24 @@ def _vmlink(
     lib = None
     if tir_mod is not None:
         lib = tvm.build(tir_mod, target=target)
-    return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
+    exe = Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
+
+    if not exe.check_linked():
+        if cc_for_link:
+            cc = cc_for_link
+        elif "cuda" in target.kind.name:
+            cc = "nvcc"
+        else:
+            raise ValueError("The compiler to use for the additional linking step is required.")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lib_path = "lib.so"
+            lib_path = os.path.join(tmp_dir, lib_path)
+            exe.mod.export_library(lib_path, workspace_dir=tmp_dir, cc=cc)
+            lib = tvm.runtime.load_module(lib_path)
+            return relax.vm.Executable(lib)
+
+    return exe
 
 
 def build(
@@ -559,6 +587,7 @@ def build(
     target: Union[str, tvm.target.Target],
     params: Optional[Dict[str, list]] = None,
     exec_mode: str = "bytecode",
+    cc_for_link: Optional[str] = None,
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -583,6 +612,9 @@ def build(
 
     exec_mode: {"bytecode", "compiled"}
         The execution mode.
+
+    cc_for_link: Optional[str]
+        The name of the compiler to use for an additional linking step if necessary.
 
     Returns
     -------
@@ -632,7 +664,7 @@ def build(
     builder = relax.ExecBuilder()
     leftover_mod = _vmcodegen(builder, new_mod, exec_mode=exec_mode)
     tir_mod = _filter_tir(leftover_mod)
-    return _vmlink(builder, target, tir_mod, ext_libs, params)
+    return _vmlink(builder, target, tir_mod, ext_libs, params, cc_for_link)
 
 
 def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:

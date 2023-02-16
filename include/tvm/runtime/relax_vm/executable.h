@@ -141,6 +141,9 @@ class Executable : public runtime::ModuleNode {
    */
   static Module LoadFromFile(const std::string& file_name);
 
+  /*! \brief Check if all imported modules have been fully linked. */
+  bool CheckLinked();
+
   /*! \brief The virtual machine's function table. */
   std::vector<VMFuncInfo> func_table;
   /*! \brief A map from globals (as strings) to their index in the function map. */
