@@ -22,6 +22,7 @@ import tempfile
 import subprocess
 import multiprocessing
 from tvm._ffi.registry import register_func
+from tvm.tir import IntImm
 from .library import (
     MathInstruction,
     DataType,
@@ -405,22 +406,51 @@ def instantiate_template(func_name, annotations, func_args):
     """
     attrs = {}
 
+    for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
+        attrs[k] = annotations[k]
+
+    arg0_shape = annotations["arg0_shape"]
+    arg1_shape = annotations["arg1_shape"]
+    attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
+    attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
+    attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
+
+    def get_dim(shape_annot, arg_idx, axis_idx, batched_offset=0):
+        if isinstance(shape_annot, IntImm):
+            return str(int(shape_annot))
+        return func_args[arg_idx] + "->shape[{}]".format(batched_offset + axis_idx)
+
+    def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
+        if isinstance(stride_annot, IntImm):
+            return str(int(stride_annot))
+        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
+        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
+        return dim1 + " * " + dim2
+
     if "dense" in func_name or "matmul" in func_name:
-        arg0_shape = annotations["arg0_shape"]
-        arg1_shape = annotations["arg1_shape"]
-        attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
-        attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
-        attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
-        attrs["M"] = str(int(arg0_shape[0]))
-        attrs["K"] = str(int(arg0_shape[1]))
+        batched = "batch_matmul" in func_name
+        batched_offset = 1 if batched else 0
+        attrs["K"] = str(int(arg0_shape[batched_offset + 1]))
+        attrs["M"] = get_dim(arg0_shape[batched_offset], 0, 0, batched_offset)
 
         if annotations["ldb"] == "N":
-            attrs["N"] = str(int(arg1_shape[1]))
+            attrs["N"] = get_dim(arg1_shape[batched_offset + 1], 1, 1, batched_offset)
         else:
-            attrs["N"] = str(int(arg1_shape[0]))
+            attrs["N"] = get_dim(arg1_shape[batched_offset], 1, 0, batched_offset)
 
-        for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
-            attrs[k] = annotations[k]
+        if batched:
+            attrs["batch"] = get_dim(arg0_shape[0], 0, 0)
+            attrs["batch_stride_A"] = get_batch_stride(annotations["batch_stride_A"], 0, 0, 1, 2)
+            attrs["batch_stride_B"] = get_batch_stride(annotations["batch_stride_B"], 1, 1, 1, 2)
+
+            if annotations["ldb"] == "N":
+                attrs["batch_stride_C"] = get_batch_stride(
+                    annotations["batch_stride_C"], 0, 1, 1, 2
+                )
+            else:
+                attrs["batch_stride_C"] = get_batch_stride(
+                    annotations["batch_stride_C"], 0, 1, 1, 1
+                )
 
         return instantiate_gemm_template(attrs, func_args)
 

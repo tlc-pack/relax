@@ -45,13 +45,6 @@ transform::Pass CompileForCutlass();
 // The rest is sparsely documented since they are exposed only for code sharing between Relay
 // and Relax backend implementations.
 
-inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int indent = 2) {
-  for (int i = 0; i < indent; ++i) {
-    os << " ";
-  }
-  os << stmt;
-}
-
 /*! \brief Get CUTLASS headers to be included by all generated source code */
 std::string EmitHeaders();
 

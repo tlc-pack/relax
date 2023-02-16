@@ -282,17 +282,18 @@ def instantiate_gemm_template(attrs, func_args):
   ${bias_decl}
   void* ptr_out = (void*)(out0->data);
 
-  typename Gemm::Arguments arguments{
+  typename ${kernel}::Arguments arguments{
    problem_size,
-   {static_cast<ElementInputA*>(ptr_a), ${lda}},
-   {static_cast<ElementInputB*>(ptr_b), ${ldb}},
-   {static_cast<ElementOutput*>(${ptr_c}), ${c_stride}},
-   {static_cast<ElementOutput*>(ptr_out), ${ldc}},
+   {static_cast<ElementInputA*>(ptr_a), ${lda}}, ${batch_stride_A}
+   {static_cast<ElementInputB*>(ptr_b), ${ldb}}, ${batch_stride_B}
+   {static_cast<ElementOutput*>(${ptr_c}), ${c_stride}}, ${batch_stride_C}
+   {static_cast<ElementOutput*>(ptr_out), ${ldc}}, ${batch_stride_C}
    {${alpha_beta}},
-   1};
+   ${split_k_slices_or_batch}
+  };
   size_t workspace_size = ${kernel}::get_workspace_size(arguments);
   cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);
-  Gemm gemm_op;
+  ${kernel} gemm_op;
   cutlass::Status status = gemm_op.can_implement(arguments);
   CHECK(status == cutlass::Status::kSuccess);
   status = gemm_op.initialize(arguments, workspace.get());
@@ -302,6 +303,7 @@ def instantiate_gemm_template(attrs, func_args):
 """
     has_bias = "bias" in attrs["op_type"]
     is_gelu = "gelu" in attrs["op_type"]
+    batched = "batch_matmul" in attrs["op_type"]
 
     aux_map = {"kernel": "Gemm"}
 
@@ -326,6 +328,17 @@ def instantiate_gemm_template(attrs, func_args):
         aux_map["alpha_beta"] = "alpha"
     else:
         aux_map["alpha_beta"] = "alpha, beta"
+
+    for key in ["batch_stride_A", "batch_stride_B", "batch_stride_C"]:
+        if not batched:
+            aux_map[key] = ""
+        else:
+            aux_map[key] = attrs[key] + ","
+
+    if batched:
+        attrs["split_k_slices_or_batch"] = attrs["batch"]
+    else:
+        attrs["split_k_slices_or_batch"] = "1"
 
     template = substitute_template(template, aux_map)
 
