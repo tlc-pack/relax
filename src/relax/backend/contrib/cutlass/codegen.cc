@@ -86,6 +86,8 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     return code_stream_.str();
   }
 
+  Array<String> GetHeaders() { return headers_; }
+
  protected:
   OutputType VisitExpr_(const VarNode* node) final {
     ext_func_args_.push_back(GetRef<Var>(node));
@@ -102,6 +104,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     ICHECK(pattern_name_opt) << "Only composite function is supported for CUTLASS.";
     auto ret = GenerateBody(call, pattern_name_opt.value(), func->attrs->dict);
     ext_func_body_.push_back(ret.decl);
+    headers_ = ret.headers;
     return ret.outputs;
   }
 
@@ -210,17 +213,23 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   std::vector<std::string> buf_decl_;
   /*! \brief The binding to look up composite functions. */
   Map<Var, Expr> bindings_;
+  Array<String> headers_;
 };
 
 class CutlassModuleCodegen {
  public:
   runtime::Module CreateCSourceModule(Function f, const Map<String, ObjectRef>& options) {
-    auto code = EmitHeaders() + GenCutlassFunc(f, options);
-    return Finalize(code, func_names_);
+    std::string headers = "";
+    auto [code, op_headers] = GenCutlassFunc(f, options);
+    for (const auto& header : op_headers) {
+      headers += "#include <" + header + ">\n";
+    }
+    return Finalize(headers + "\n" + code, func_names_);
   }
 
  private:
-  std::string GenCutlassFunc(const Function& function, const Map<String, ObjectRef>& options) {
+  std::pair<std::string, Array<String>> GenCutlassFunc(const Function& function,
+                                                       const Map<String, ObjectRef>& options) {
     ICHECK(function.defined()) << "Input error: expect a Relay function.";
 
     auto sid = GetExtSymbol(function);
@@ -228,7 +237,7 @@ class CutlassModuleCodegen {
 
     CodegenCutlass builder(sid, AnalyzeVar2Value(function));
     auto out = builder.VisitExpr(function->body);
-    return builder.JIT(out);
+    return {builder.JIT(out), builder.GetHeaders()};
   }
 
   /*! \brief The accumulated function names. */

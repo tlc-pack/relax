@@ -60,7 +60,8 @@ std::string GetDimAsStr(ObjectRef dim) {
   return kAnyDim;
 }
 
-Str2StrMap ArgsCommon(const Map<String, ObjectRef>& attrs) {
+Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
+                      bool is_wgrad = false) {
   Str2StrMap args;
   auto arg0_dtype = std::string(attrs["arg0_dtype"].as<StringObj>()->data);
   auto arg1_dtype = std::string(attrs["arg1_dtype"].as<StringObj>()->data);
@@ -71,12 +72,7 @@ Str2StrMap ArgsCommon(const Map<String, ObjectRef>& attrs) {
   args["op_def"] = std::string(attrs["cutlass_op_def"].as<StringObj>()->data);
   args["op_name"] = std::string(attrs["cutlass_op_name"].as<StringObj>()->data);
   args["op_type"] = std::string(attrs["op_type"].as<StringObj>()->data);
-  return args;
-}
 
-Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
-                      bool is_wgrad = false) {
-  Str2StrMap args = ArgsCommon(attrs);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
   auto ret_shape = attrs["ret_shape"].as<ArrayNode>();
@@ -351,40 +347,6 @@ std::string Conv2dOp(const Str2StrMap& attrs, const Array<String>& func_args,
   return conv2d_decl.str();
 }
 
-std::string EmitHeaders() {
-  std::ostringstream out;
-  // create header
-  out << "#include <cstdint>\n";
-  out << "#include <cstdlib>\n";
-  out << "#include <cstring>\n";
-  out << "#include <vector>\n";
-  out << "#include <tvm/runtime/c_runtime_api.h>\n";
-  out << "#include <tvm/runtime/packed_func.h>\n";
-  out << "#include <dlpack/dlpack.h>\n";
-  // cutlass header
-  out << "#include <cuda_fp16.h>\n";
-  out << "#include <cutlass/cutlass.h>\n";
-  out << "#include <cutlass/coord.h>\n";
-  out << "#include <cutlass/tensor_ref.h>\n";
-  out << "#include <cutlass/util/host_tensor.h>\n";
-  out << "#include <cutlass/gemm/device/gemm.h>\n";
-  out << "#include <cutlass/gemm/device/gemm_batched.h>\n";
-  out << "#include <cutlass/conv/kernel/default_conv2d_fprop.h>\n";
-  out << "#include <cutlass/conv/kernel/default_conv2d_wgrad.h>\n";
-  out << "#include <cutlass/conv/kernel/default_conv2d_dgrad.h>\n";
-  out << "#include <cutlass/conv/device/implicit_gemm_convolution.h>\n";
-  out << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
-  out << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
-  out << "#include <cutlass/epilogue/thread/linear_combination_sigmoid.h>\n";
-  out << "#include <cutlass/epilogue/thread/linear_combination_silu.h>\n";
-  out << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
-  out << "#include <cutlass/epilogue/thread/linear_combination_residual_block.h>\n";
-  out << "#include <cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h>\n";
-  out << "#include <cutlass/reduction/device/reduce_split_k.h>\n";
-  out << "#include <cutlass/reduction/thread/reduction_operators.h>\n";
-  return out.str();
-}
-
 std::string EmitSignature(const std::vector<Output>& out, const std::string& func_id,
                           const std::vector<std::string>& arg_names) {
   std::ostringstream code_stream_;
@@ -402,10 +364,20 @@ std::string EmitSignature(const std::vector<Output>& out, const std::string& fun
 runtime::Module Finalize(const std::string& code, const Array<String>& func_names) {
   ICHECK(!func_names.empty())
       << "Should only create CUTLASS CSourceModule if have at least one CUTLASS partition";
+
+  std::ostringstream default_headers;
+  default_headers << "#include <tvm/runtime/packed_func.h>\n";
+  default_headers << "#include <dlpack/dlpack.h>\n";
+  default_headers << "#include <cuda_fp16.h>\n";
+  default_headers << "#include <cutlass/cutlass.h>\n";
+  default_headers << "#include <cutlass/coord.h>\n";
+  default_headers << "#include <cutlass/tensor_ref.h>\n";
+  default_headers << "#include <cutlass/util/host_tensor.h>\n";
+
   const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
   ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
   VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
-  return (*pf)(code, "cu", func_names, /*const_vars=*/Array<String>());
+  return (*pf)(default_headers.str() + code, "cu", func_names, /*const_vars=*/Array<String>());
 }
 
 bool IsConv2dResidualBlock(const std::string& func_name) {
@@ -442,12 +414,10 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
 
   if (func_name.find("dense") != std::string::npos ||
       func_name.find("matmul") != std::string::npos) {
-    std::string code = (*instantiate_template_func)(func_name, attrs, func_args);
-    ret.decl = code;
-  }
-
-  // TODO(masahi): Handle all ops by instantiate_template_func
-  if (func_name.find("conv2d_transpose") != std::string::npos) {
+    Array<String> code_and_headers = (*instantiate_template_func)(func_name, attrs, func_args);
+    ret.decl = code_and_headers[0];
+    ret.headers = Array<String>(code_and_headers.begin() + 1, code_and_headers.end());
+  } else if (func_name.find("conv2d_transpose") != std::string::npos) {
     ret.decl = Conv2dOp(Conv2dArgs(attrs, true, false), func_args, true);
   } else if (func_name.find("backward_weight") != std::string::npos) {
     ret.decl = Conv2dOp(Conv2dArgs(attrs, false, true), func_args, true);
@@ -498,6 +468,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
     ICHECK(func) << "Only composite function is supported for CUTLASS.";
     GenerateBodyOutput ret = GenerateCompositeFunctionCall(func, call);
     ext_func_body_.push_back(ret.decl);
+    headers_ = ret.headers;
     return ret.outputs;
   }
 
@@ -528,6 +499,8 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
     this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, /*const_arr_name=*/"", out, true);
     return code_stream_.str();
   }
+
+  Array<String> GetHeaders() { return headers_; }
 
  private:
   Array<String> GetArgumentNames(const CallNode* call) {
@@ -645,6 +618,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   std::vector<std::string> ext_func_body_;
   /*! \brief The declaration of intermediate buffers. */
   std::vector<std::string> buf_decl_;
+  Array<String> headers_;
 };  // class CodegenCutlass
 
 class CutlassModuleCodegen {
@@ -652,8 +626,6 @@ class CutlassModuleCodegen {
   explicit CutlassModuleCodegen(IRModule mod) : mod_(std::move(mod)) {}
 
   runtime::Module CreateCSourceModule() {
-    code_stream_ << EmitHeaders();
-
     for (const auto& entry : mod_->functions) {
       if (const auto* function_node = GetCutlassFunctionNode(entry.second)) {
         GenCutlassFunc(GetRef<Function>(function_node));
@@ -683,7 +655,11 @@ class CutlassModuleCodegen {
     CodegenCutlass builder(sid, dict);
     VLOG(1) << "Creating cutlass C code for '" << sid << "' from:\n" << PrettyPrint(function);
     auto out = builder.VisitExpr(function->body);
-    code_stream_ << builder.JIT(out);
+    auto code = builder.JIT(out);
+    for (const auto& header : builder.GetHeaders()) {
+      code_stream_ << "#include <" << header << ">\n";
+    }
+    code_stream_ << "\n" + code;
   }
 
   /*!

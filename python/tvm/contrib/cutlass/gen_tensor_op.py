@@ -427,6 +427,24 @@ def instantiate_template(func_name, annotations, func_args):
         dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
         return dim1 + " * " + dim2
 
+    headers = []
+
+    if "relu" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_bias_relu.h")
+    elif "gelu" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_gelu.h")
+    elif "sigmoid" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_sigmoid.h")
+    elif "silu" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_silu.h")
+    elif "hardswish" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_hardswish.h")
+    else:
+        headers.append("cutlass/epilogue/thread/linear_combination.h")
+
+    if "residual" in func_name:
+        headers.append("cutlass/epilogue/thread/linear_combination_residual_block.h")
+
     if "dense" in func_name or "matmul" in func_name:
         batched = "batch_matmul" in func_name
         batched_offset = 1 if batched else 0
@@ -439,6 +457,7 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["N"] = get_dim(arg1_shape[batched_offset], 1, 0, batched_offset)
 
         if batched:
+            headers.append("cutlass/gemm/device/gemm_batched.h")
             attrs["batch"] = get_dim(arg0_shape[0], 0, 0)
             attrs["batch_stride_A"] = get_batch_stride(annotations["batch_stride_A"], 0, 0, 1, 2)
             attrs["batch_stride_B"] = get_batch_stride(annotations["batch_stride_B"], 1, 1, 1, 2)
@@ -451,7 +470,10 @@ def instantiate_template(func_name, annotations, func_args):
                 attrs["batch_stride_C"] = get_batch_stride(
                     annotations["batch_stride_C"], 0, 1, 1, 1
                 )
+        else:
+            headers.append("cutlass/gemm/device/gemm.h")
 
-        return instantiate_gemm_template(attrs, func_args)
+        code = instantiate_gemm_template(attrs, func_args)
+        return [code] + headers
 
     raise ValueError("Do not have a template for {}".format(func_name))
