@@ -162,5 +162,30 @@ def test_reshape_non_dataflow():
     tvm.ir.assert_structural_equal(mod, Module)
 
 
+def test_strided_slice_with_stride_one():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def strided_slice(
+            rxplaceholder: T.Buffer((T.int64(20), T.int64(10), T.int64(5)), "float32"),
+            T_strided_slice_with_axes: T.Buffer((T.int64(3), T.int64(10), T.int64(5)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            for ax0, ax1, ax2 in T.grid(T.int64(3), T.int64(10), T.int64(5)):
+                with T.block("T_strided_slice_with_axes"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2])
+                    T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2] = rxplaceholder[
+                        v_ax0, v_ax1, v_ax2
+                    ]
+
+    assert not relax.analysis.has_reshape_pattern(Module["strided_slice"])
+    # This is not a reshape pattern, so the pass does no change.
+    mod = relax.transform.RewriteDataflowReshape()(Module)
+    tvm.ir.assert_structural_equal(mod, Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
