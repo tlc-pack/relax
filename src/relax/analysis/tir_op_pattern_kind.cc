@@ -331,7 +331,7 @@ bool HasReshapePattern(const PrimFunc& func) {
   class ReshapeDetector : public StmtVisitor {
    public:
     static bool Detect(const Buffer& src_buffer, const Buffer& dst_buffer, Stmt stmt) {
-      // To be a reshape, the flattened size must be equal. 
+      // To be a reshape, the flattened size must be equal
       PrimExpr src_size(1);
       PrimExpr dst_size(1);
       for(auto s: src_buffer->shape) src_size *= s;
