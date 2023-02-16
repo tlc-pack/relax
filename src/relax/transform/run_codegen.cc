@@ -72,26 +72,37 @@ class CodeGenRunner : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
-    if (auto const* gvarnode = call_node->op.as<GlobalVarNode>()) {
-      const GlobalVar gvar = GetRef<GlobalVar>(gvarnode);
-      // TODO(@sunggg): Is there any better way to get this func?
-      Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
-      Expr new_op = VisitExpr(func);
-      if (new_op->IsInstance<ExternFuncNode>()) {
-        Array<Expr> new_args({new_op});
+    if (auto const* gvar_node = call_node->op.as<GlobalVarNode>()) {
+      const GlobalVar gvar = GetRef<GlobalVar>(gvar_node);
+
+      auto create_call_tir = [call_node, this](Expr extern_func, StructInfo ret_struct_info) {
+        Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
         static const Op& call_op = Op::Get("relax.call_tir");
 
-        // Remove global symbol and codegen from the function so that it can be removed.
-        static const runtime::PackedFunc* RemoveFuncAttrFunc =
-            runtime::Registry::Get("ir.BaseFuncWithoutAttr");
-        ICHECK(RemoveFuncAttrFunc);
-        func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
-        func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
-        builder_->UpdateFunction(gvar, func);
+        return Call(call_op, new_args, tvm::Attrs(), {ret_struct_info});
+      };
 
-        return Call(call_op, new_args, tvm::Attrs(), {func->ret_struct_info});
+      if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
+        return create_call_tir(it->second.first, it->second.second);
+      } else {
+        // TODO(@sunggg): Is there any better way to get this func?
+        Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
+        Expr new_func = VisitExpr(func);
+
+        if (new_func->IsInstance<ExternFuncNode>()) {
+          extern_funcs_[gvar_node] = {new_func, func->ret_struct_info};
+          // Remove the global symbol and codegen attributes from the function so that it can be
+          // removed the module.
+          static const runtime::PackedFunc* RemoveFuncAttrFunc =
+              runtime::Registry::Get("ir.BaseFuncWithoutAttr");
+          ICHECK(RemoveFuncAttrFunc);
+          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
+          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
+          builder_->UpdateFunction(gvar, func);
+          return create_call_tir(new_func, func->ret_struct_info);
+        }
       }
     }
     Array<Expr> new_args;
@@ -157,6 +168,8 @@ class CodeGenRunner : ExprMutator {
 
   /*! \brief The names of all constants in the original module. */
   Map<Constant, String> constant_names;
+  /*! \brief Extern funcs and their return struct infos for each global variable.  */
+  std::unordered_map<const GlobalVarNode*, std::pair<Expr, StructInfo>> extern_funcs_;
 };
 
 }  // namespace relax

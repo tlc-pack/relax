@@ -36,6 +36,7 @@
 #include <tvm/tir/function.h>
 
 #include <optional>
+#include <unordered_map>
 
 #include "../../support/arena.h"
 #include "utils.h"
@@ -998,6 +999,9 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto const* gvar = call_node->op.as<GlobalVarNode>()) {
+      if (auto it = gvar_map_.find(gvar); it != gvar_map_.end()) {
+        return Call(it->second, call_node->args);
+      }
       auto func = builder_->GetContextIRModule()->Lookup(GetRef<GlobalVar>(gvar));
       if (auto composite_name = func->GetAttr<String>(attr::kComposite)) {
         auto new_func = Downcast<Function>(VisitExpr(func));
@@ -1007,6 +1011,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
                              {{attr::kCodegen, codegen_name}, {tvm::attr::kGlobalSymbol, gsymbol}});
         builder_->GetContextIRModule()->Remove(GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
+        gvar_map_[gvar] = new_gvar;
         return Call(new_gvar, call_node->args);
       }
     }
@@ -1037,6 +1042,9 @@ class CompositeFunctionAnnotator : public ExprMutator {
                                               "start with a compiler name followed by period.";
     return composite_name.substr(0, delim_pos);
   }
+
+  /*! \brief A map from old global vars to their replacements. */
+  std::unordered_map<const GlobalVarNode*, GlobalVar> gvar_map_;
 };
 
 IRModule FuseOpsByPattern(const tvm::Array<String>& pattern_names,
