@@ -68,6 +68,53 @@ def generate_tensor_op_common(
     return ops
 
 
+def generate_sm50_simt(
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    check_align,
+    use_3xtf32,
+    profile_all_alignments=False,
+    accumulator_dtype="float32",
+):
+    min_cc = 50
+    max_cc = 1024
+    if arg0_dtype == "float32" and arg1_dtype == "float32":
+        assert out_dtype == "float32" and accumulator_dtype == "float32"
+        math_instructions = [
+            MathInstruction(
+                [1, 1, 1],
+                DataType.f32,
+                DataType.f32,
+                DataType.f32,
+                OpcodeClass.Simt,
+                MathOperation.multiply_add,
+            ),
+        ]
+        alignment_constraints = [
+            1,
+        ]
+        tile_descriptions = [
+            ([128, 128, 8], 2, [4, 2, 1], min_cc, max_cc),
+            ([128, 64, 8], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 128, 8], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 64, 8], 2, [2, 1, 1], min_cc, max_cc),
+            ([128, 32, 8], 2, [2, 1, 1], min_cc, max_cc),
+            ([32, 128, 8], 2, [1, 2, 1], min_cc, max_cc),
+        ]
+
+        def get_tile_descriptions(math_inst):
+            return [
+                TileDescription(threadblock_shape, stages, warp_count, math_inst, min_cc, max_cc)
+                for threadblock_shape, stages, warp_count, min_cc, max_cc in tile_descriptions
+            ]
+
+        return generate_tensor_op_common(
+            math_instructions, alignment_constraints, get_tile_descriptions, op_creator
+        )
+
+
 def generate_sm75_tensor_op_1688(
     out_dtype,
     arg0_dtype,
@@ -106,7 +153,9 @@ def generate_sm75_tensor_op_1688(
             ([64, 128, 64], 2, [1, 2, 2], min_cc, max_cc),
         ]
 
-    else:
+    elif (arg0_dtype == "int8" and arg1_dtype == "int8") or (
+        arg0_dtype == "uint8" and arg1_dtype == "uint8"
+    ):
         assert out_dtype == "int32"
         math_instructions = [
             MathInstruction(
@@ -130,6 +179,18 @@ def generate_sm75_tensor_op_1688(
             ([128, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
         ]
+    elif arg0_dtype == "float32" and arg1_dtype == "float32" and out_dtype == "float32":
+        return generate_sm50_simt(
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            op_creator,
+            check_align,
+            profile_all_alignments,
+            accumlator_dtype,
+        )
+    else:
+        raise NotImplementedError()
 
     alignment_constraints = [align for align in alignment_constraints if check_align(align)]
     assert len(alignment_constraints) > 0
@@ -230,6 +291,7 @@ def generate_sm80_tensor_op_16816(
                 ([64, 64, 32], 3, [2, 2, 1], min_cc, max_cc),
             ]
         else:
+            # tf32
             tile_descriptions = get_default_tile_descriptions(0.5)
     else:
         assert out_dtype == "int32"

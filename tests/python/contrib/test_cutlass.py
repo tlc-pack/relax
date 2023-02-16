@@ -511,6 +511,17 @@ def test_dense():
     )
 
     dense_fp32 = get_dense(M, N, K, "float32", "float32", "float32")
+    # fp32
+    verify_dense(
+        dense_fp32,
+        M,
+        N,
+        K,
+        data_dtype="float32",
+        weight_dtype="float32",
+        use_3xtf32=False,
+        sm=75,
+    )
     # tf32
     verify_dense(
         dense_fp32,
