@@ -18,6 +18,7 @@
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 import logging
 import os
+import re
 import tempfile
 import subprocess
 import multiprocessing
@@ -33,6 +34,7 @@ from .library import (
     EpilogueFunctor,
 )
 from .gemm_operation import instantiate_gemm_template
+from .conv2d_operation import instantiate_conv2d_template
 
 
 logger = logging.getLogger("cutlass")
@@ -401,31 +403,20 @@ def instantiate_template(func_name, annotations, func_args):
 
     Returns
     -------
-    code : str
-        Generated CUTLASS host code.
+    code_and_headers : List[str]
+        Generated CUTLASS host code followed by required header-file names.
     """
     attrs = {}
 
     for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
-        attrs[k] = annotations[k]
+        if k in annotations:
+            attrs[k] = annotations[k]
 
     arg0_shape = annotations["arg0_shape"]
     arg1_shape = annotations["arg1_shape"]
     attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
     attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
     attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
-
-    def get_dim(shape_annot, arg_idx, axis_idx, batched_offset=0):
-        if isinstance(shape_annot, IntImm):
-            return str(int(shape_annot))
-        return func_args[arg_idx] + "->shape[{}]".format(batched_offset + axis_idx)
-
-    def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
-        if isinstance(stride_annot, IntImm):
-            return str(int(stride_annot))
-        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
-        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
-        return dim1 + " * " + dim2
 
     headers = []
 
@@ -445,20 +436,32 @@ def instantiate_template(func_name, annotations, func_args):
     if "residual" in func_name:
         headers.append("cutlass/epilogue/thread/linear_combination_residual_block.h")
 
+    def get_dim(shape_annot, var_name, axis_idx, batched_offset=0):
+        if isinstance(shape_annot, IntImm):
+            return str(int(shape_annot))
+        return "{}->shape[{}]".format(var_name, batched_offset + axis_idx)
+
+    def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
+        if isinstance(stride_annot, IntImm):
+            return str(int(stride_annot))
+        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
+        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
+        return dim1 + " * " + dim2
+
     if "dense" in func_name or "matmul" in func_name:
         batched = "batch_matmul" in func_name
         batched_offset = 1 if batched else 0
         attrs["K"] = str(int(arg0_shape[batched_offset + 1]))
-        attrs["M"] = get_dim(arg0_shape[batched_offset], 0, 0, batched_offset)
+        attrs["M"] = get_dim(arg0_shape[batched_offset], func_args[0], 0, batched_offset)
 
         if annotations["ldb"] == "N":
-            attrs["N"] = get_dim(arg1_shape[batched_offset + 1], 1, 1, batched_offset)
+            attrs["N"] = get_dim(arg1_shape[batched_offset + 1], func_args[1], 1, batched_offset)
         else:
-            attrs["N"] = get_dim(arg1_shape[batched_offset], 1, 0, batched_offset)
+            attrs["N"] = get_dim(arg1_shape[batched_offset], func_args[1], 0, batched_offset)
 
         if batched:
             headers.append("cutlass/gemm/device/gemm_batched.h")
-            attrs["batch"] = get_dim(arg0_shape[0], 0, 0)
+            attrs["batch"] = get_dim(arg0_shape[0], func_args[0], 0)
             attrs["batch_stride_A"] = get_batch_stride(annotations["batch_stride_A"], 0, 0, 1, 2)
             attrs["batch_stride_B"] = get_batch_stride(annotations["batch_stride_B"], 1, 1, 1, 2)
 
@@ -474,6 +477,62 @@ def instantiate_template(func_name, annotations, func_args):
             headers.append("cutlass/gemm/device/gemm.h")
 
         code = instantiate_gemm_template(attrs, func_args)
+        return [code] + headers
+
+    elif "conv2d" in func_name:
+        activation_shape = arg0_shape
+        weight_shape = arg1_shape
+        output_shape = annotations["ret_shape"]
+        activation_var = func_args[0]
+
+        if "conv2d_transpose" in func_name:
+            headers.append("cutlass/conv/kernel/default_conv2d_dgrad.h")
+            activation_shape = output_shape
+            output_shape = arg0_shape
+        elif "backward" in func_name:
+            headers.append("cutlass/conv/kernel/default_conv2d_wgrad.h")
+            activation_shape = arg1_shape
+            weight_shape = output_shape
+            output_shape = arg0_shape
+        elif "residual" in func_name:
+            headers.append("cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h")
+        else:
+            headers.append("cutlass/conv/kernel/default_conv2d_fprop.h")
+
+        headers.append("cutlass/conv/device/implicit_gemm_convolution.h")
+
+        op_name = attrs["cutlass_op_name"]
+
+        if "splitk" in op_name:
+            headers += [
+                "cutlass/reduction/device/reduce_split_k.h",
+                "cutlass/reduction/thread/reduction_operators.h",
+            ]
+
+        attrs["N"] = get_dim(activation_shape[0], activation_var, 0)
+        attrs["H"] = get_dim(activation_shape[1], activation_var, 1)
+        attrs["W"] = get_dim(activation_shape[2], activation_var, 2)
+        attrs["C"] = str(int(activation_shape[3]))
+        attrs["P"] = get_dim(output_shape[1], "out0", 1)
+        attrs["Q"] = get_dim(output_shape[2], "out0", 2)
+        attrs["K"] = str(int(output_shape[3]))
+        attrs["R"] = str(int(weight_shape[1]))
+        attrs["S"] = str(int(weight_shape[2]))
+        attrs["pad_h"] = str(int(annotations["padding"][0]))
+        attrs["pad_w"] = str(int(annotations["padding"][1]))
+        attrs["stride_h"] = str(int(annotations["strides"][0]))
+        attrs["stride_w"] = str(int(annotations["strides"][1]))
+        attrs["dilation_h"] = str(int(annotations["dilation"][0]))
+        attrs["dilation_w"] = str(int(annotations["dilation"][1]))
+
+        if "splitk" in op_name:
+            attrs["split_k_mode"] = "kParallel"
+            attrs["split_k_slices"] = str(re.search(r"splitk(\d+)", op_name).group(1))
+        else:
+            attrs["split_k_mode"] = "kSerial"
+            attrs["split_k_slices"] = "1"
+
+        code = instantiate_conv2d_template(attrs, func_args)
         return [code] + headers
 
     raise ValueError("Do not have a template for {}".format(func_name))

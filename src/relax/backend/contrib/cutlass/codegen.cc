@@ -213,6 +213,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   std::vector<std::string> buf_decl_;
   /*! \brief The binding to look up composite functions. */
   Map<Var, Expr> bindings_;
+  /*! \brief Required header-file names. */
   Array<String> headers_;
 };
 
