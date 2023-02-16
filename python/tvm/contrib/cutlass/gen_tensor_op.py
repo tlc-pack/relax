@@ -388,7 +388,6 @@ class ProfilerEngine:
         return rt
 
 
-@tvm._ffi.register_object("contrib.cutlass.CodegenResult")
 class CodegenResult(Object):
     """The holder for the generated code and required headers."""
 
