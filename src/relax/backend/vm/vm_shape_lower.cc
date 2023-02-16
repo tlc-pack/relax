@@ -319,7 +319,7 @@ class VMShapeLowerMutator
       Var var("shape_heap", heap_sinfo);
       // set up the builtin func.
       Call call(call_builtin_with_ctx_op_,
-                {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_sinfo});
+                {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, {}, {heap_sinfo});
       UpdateStructInfo(call, heap_sinfo);
       return VarBinding(var, call);
     } else {
@@ -365,7 +365,7 @@ class VMShapeLowerMutator
     }
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(builtin_make_shape_, args, Attrs(),
+    Call call(builtin_make_shape_, args, {},
               {ShapeStructInfo(static_cast<int>(op->values.size()))});
     return call;
   }
@@ -463,7 +463,7 @@ class VMShapeLowerMutator
       }
       args.push_back(GetErrContext(item.err_ctx));
       if (!all_nop) {
-        Call call(builtin_match_shape_, args, Attrs(), {void_sinfo_});
+        Call call(builtin_match_shape_, args, {}, {void_sinfo_});
         builder_->Emit(call, "_");
       }
     }
@@ -585,8 +585,7 @@ class VMShapeLowerMutator
     if (always_check || !IsBaseOf(ShapeStructInfo(op->ndim), GetStructInfo(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(builtin_check_shape_info_,
-                {value, PrimValue::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(),
-                {void_sinfo_});
+                {value, PrimValue::Int64(op->ndim), GetErrContext(err_ctx)}, {}, {void_sinfo_});
       builder_->Emit(call, "_");
     }
     if (op->values.defined()) {
@@ -605,7 +604,7 @@ class VMShapeLowerMutator
       // check_tensor_info(value, ndim, dtype, err_ctx)
       Call call(builtin_check_tensor_info_,
                 {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype), GetErrContext(err_ctx)},
-                Attrs(), {void_sinfo_});
+                {}, {void_sinfo_});
       builder_->Emit(call, "_");
     }
 
@@ -637,7 +636,7 @@ class VMShapeLowerMutator
       return ret;
     } else {
       // call runtime tuple get item, and return a object.
-      Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_sinfo_});
+      Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, {}, {object_sinfo_});
       UpdateStructInfo(call, ObjectStructInfo());
       return call;
     }
@@ -655,7 +654,7 @@ class VMShapeLowerMutator
       Call call(builtin_check_tuple_info_,
                 {value, PrimValue::Int64(static_cast<int64_t>(op->fields.size())),
                  GetErrContext(err_ctx)},
-                Attrs(), {void_sinfo_});
+                {}, {void_sinfo_});
       builder_->Emit(call, "_");
     }
     // recursively visit each sub-field and run matching
@@ -670,7 +669,7 @@ class VMShapeLowerMutator
     // we only check function is callable.
     if (!always_check && MatchStructInfo<FuncStructInfo>(value)) return;
     // check_func_info(value, err_ctx)
-    Call call(builtin_check_func_info_, {value, GetErrContext(err_ctx)}, Attrs(), {void_sinfo_});
+    Call call(builtin_check_func_info_, {value, GetErrContext(err_ctx)}, {}, {void_sinfo_});
     builder_->Emit(call, "_");
   }
 

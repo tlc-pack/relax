@@ -128,7 +128,7 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.call_builtin_with_ctx");
-  return Call(op, {func, args}, Attrs(), sinfo_args);
+  return Call(op, {func, args}, {}, sinfo_args);
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_builtin_with_ctx").set_body_typed(MakeCallBuiltinWithCtx);
@@ -154,14 +154,14 @@ RELAY_REGISTER_OP("relax.print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
 
-Expr MakePrint(Array<Expr> vals, std::string format) {
+Expr MakePrint(Array<Expr> vals, StringImm format) {
   Array<Expr> params;
-  params.push_back(StringImm(format));
+  params.push_back(format);
   for (const auto val : vals) {
     params.push_back(val);
   }
   static const Op& op = Op::Get("relax.print");
-  return Call(op, params, Attrs());
+  return Call(op, params);
 }
 
 TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
@@ -227,14 +227,14 @@ RELAY_REGISTER_OP("relax.assert_op")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
 
-Expr MakeAssertOp(Expr condition, Array<Expr> vals, std::string format) {
+Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
   static const Op& op = Op::Get("relax.assert_op");
   Array<Expr> args = {condition};
-  args.push_back(StringImm(format));
+  args.push_back(format);
   for (auto val : vals) {
     args.push_back(val);
   }
-  return Call(op, args, Attrs());
+  return Call(op, args);
 }
 
 TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
@@ -319,7 +319,7 @@ RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
 
 Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)}, Attrs(), {});
+  return Call(op, {shape, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
@@ -341,10 +341,8 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
 Expr MakeAllocStorage(Expr size, int64_t virtual_device_index, std::string storage_scope,
                       DataType dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_storage");
-  return Call(
-      op,
-      {size, PrimValue::Int64(virtual_device_index), StringImm(storage_scope), DataTypeImm(dtype)},
-      Attrs(), {});
+  return Call(op, {size, PrimValue::Int64(virtual_device_index), StringImm(storage_scope),
+                   DataTypeImm(dtype)});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocStorage);
@@ -372,7 +370,7 @@ RELAY_REGISTER_OP("relax.memory.alloc_tensor")
 
 Expr MakeMemAllocTensor(Expr storage, int offset, Expr shape, DataType dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
-  return Call(op, {storage, PrimValue::Int64(offset), shape, DataTypeImm(dtype)}, Attrs(), {});
+  return Call(op, {storage, PrimValue::Int64(offset), shape, DataTypeImm(dtype)});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocTensor);
@@ -418,7 +416,7 @@ RELAY_REGISTER_OP("relax.vm.alloc_storage")
 
 Expr MakeVMAllocStorage(Expr size, int64_t runtime_device_index, DataType dtype) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
-  return Call(op, {size, PrimValue::Int64(runtime_device_index), DataTypeImm(dtype)}, Attrs(), {});
+  return Call(op, {size, PrimValue::Int64(runtime_device_index), DataTypeImm(dtype)});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);
@@ -449,7 +447,7 @@ RELAY_REGISTER_OP("relax.vm.alloc_tensor")
 
 Expr MakeVMAllocTensor(Expr storage, int offset, Expr shape, DataType dtype) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
-  return Call(op, {storage, PrimValue::Int64(offset), shape, DataTypeImm(dtype)}, Attrs(), {});
+  return Call(op, {storage, PrimValue::Int64(offset), shape, DataTypeImm(dtype)});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
@@ -465,7 +463,7 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");
-  return Call(op, {func, args}, Attrs(), {});
+  return Call(op, {func, args});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);

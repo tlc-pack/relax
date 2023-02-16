@@ -82,7 +82,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
       }
       return ShapeExpr({ret});
     } else {
-      return Call(builtin_compute_alloc_shape_, {shape, DataTypeImm(dtype)}, Attrs(),
+      return Call(builtin_compute_alloc_shape_, {shape, DataTypeImm(dtype)}, {},
                   {GetStructInfo(shape)});
     }
   }
@@ -94,23 +94,22 @@ class VMBuiltinLowerMutator : public ExprMutator {
     Expr storage_size = ComputeStorageSize(output_shape, dtype);
     PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
     Var storage = builder_->Emit(
-        Call(vm_alloc_storage_op_, {storage_size, runtime_device_index, output_dtype}, Attrs()),
-        "storage");
+        Call(vm_alloc_storage_op_, {storage_size, runtime_device_index, output_dtype}), "storage");
     Expr shape = call->args[0];
     PrimValue offset = PrimValue::Int64(0);
-    return Call(vm_alloc_tensor_op_, {storage, offset, shape, DataTypeImm(dtype)}, Attrs());
+    return Call(vm_alloc_tensor_op_, {storage, offset, shape, DataTypeImm(dtype)});
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
     PrimValue runtime_device_index = Downcast<PrimValue>(call->args[1]);
     DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[3]);
-    return Call(vm_alloc_storage_op_, {call->args[0], runtime_device_index, output_dtype}, Attrs());
+    return Call(vm_alloc_storage_op_, {call->args[0], runtime_device_index, output_dtype});
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
     PrimValue offset = Downcast<PrimValue>(call->args[1]);
     DataTypeImm dtype = Downcast<DataTypeImm>(call->args[3]);
-    return Call(vm_alloc_tensor_op_, {call->args[0], offset, call->args[2], dtype}, Attrs());
+    return Call(vm_alloc_tensor_op_, {call->args[0], offset, call->args[2], dtype});
   }
 
   Expr CallTIRDyn(const Call& call_node) {
@@ -124,7 +123,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
     }
-    return Call(builtin_call_tir_dyn_, args, Attrs(), {void_sinfo_});
+    return Call(builtin_call_tir_dyn_, args, {}, {void_sinfo_});
   }
 
   Expr Reshape(const Call& call_node) {
@@ -132,13 +131,13 @@ class VMBuiltinLowerMutator : public ExprMutator {
     ICHECK(call_node->struct_info_.defined());
     CHECK(call_node->args[1]->IsInstance<ShapeExprNode>())
         << "VMBuiltinLower expects the shape arg of reshape op to be a ShapeExpr";
-    return Call(builtin_reshape_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    return Call(builtin_reshape_, call_node->args, {}, {GetStructInfo(call_node)});
   }
 
   Expr ShapeOf(const Call& call_node) {
     ICHECK(call_node->args.size() == 1);
     ICHECK(call_node->struct_info_.defined());
-    return Call(builtin_shape_of_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+    return Call(builtin_shape_of_, call_node->args, {}, {GetStructInfo(call_node)});
   }
 
   Expr MakeClosure(const Call& call_node) {
@@ -155,7 +154,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
       args.push_back(arg);
     }
 
-    return Call(builtin_make_closure_, args, Attrs(), {object_sinfo_});
+    return Call(builtin_make_closure_, args, {}, {object_sinfo_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -172,7 +171,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
     for (Expr arg : invoke_closure_args->fields) {
       args.push_back(arg);
     }
-    return Call(call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)}, Attrs(),
+    return Call(call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)}, {},
                 {object_sinfo_});
   }
 

@@ -363,38 +363,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall(func, args, dst_reg);
   }
 
-  // TODO(relax-team) revisit after PrimValue.
-  // Emit the `call_node` attributes as constants and append these constants to `args` vector.
-  void AppendAttrsAsConstants(const Call& call_node, std::vector<Instruction::Arg>& args) {
-    auto attrs = call_node->attrs;
-    if (!attrs.defined()) return;
-
-    if (call_node->op == unique_op_) {
-      for (Expr arg : call_node->args) {
-        args.push_back(this->VisitExpr(arg));
-      }
-      return;
-    }
-    if (call_node->op == print_op_) {
-      // format string is the first argument
-      args.insert(args.begin(), this->VisitExpr(call_node->args[call_node->args.size() - 1]));
-      return;
-    }
-    if (call_node->op == assert_op_) {
-      // format string comes before the format args
-      args.insert(args.begin() + 1, this->VisitExpr(call_node->args[call_node->args.size() - 1]));
-      return;
-    }
-    LOG(FATAL) << "Support for attributes of Op " << call_node->op
-               << " has not been implemented yet.";
-    return;
-  }
-
-  // Emits call to packed function `name` with arguments copied over from `call_node` args and
-  // attributes.
+  // Emits call to packed function `name` with arguments copied over from `call_node` args
   void EmitPackedFuncCall(const Call& call_node, const FCallPacked& name, RegName dst_reg) {
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);
-    AppendAttrsAsConstants(call_node, args);
     builder_->EmitCall(name, args, dst_reg);
   }
 
@@ -422,9 +393,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
-  const Op& unique_op_ = Op::Get("relax.unique");
-  const Op& print_op_ = Op::Get("relax.print");
-  const Op& assert_op_ = Op::Get("relax.assert_op");
 };
 
 /*!

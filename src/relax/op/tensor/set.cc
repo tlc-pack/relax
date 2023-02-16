@@ -34,20 +34,18 @@ namespace relax {
 
 /* relax.unique */
 
-Expr unique(Expr x, bool sorted, bool return_index, bool return_inverse, bool return_counts,
-            Optional<Integer> axis) {
+Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
+            PrimValue return_counts, Optional<PrimValue> axis) {
   static const Op& unique_op = Op::Get("relax.unique");
   Expr new_axis;
   if (!axis) {
     static const Op& null_value_op = Op::Get("relax.null_value");
     new_axis = Call(null_value_op, {}, {}, {});
   } else {
-    new_axis = PrimValue::Int64(axis.value().IntValue());
+    new_axis = axis.value();
   }
   return Call(unique_op,
-              {std::move(x), PrimValue(Bool(sorted)), PrimValue(Bool(return_index)),
-               PrimValue(Bool(return_inverse)), PrimValue(Bool(return_counts)), new_axis},
-              Attrs(), {});
+              {std::move(x), sorted, return_index, return_inverse, return_counts, new_axis});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(unique);
