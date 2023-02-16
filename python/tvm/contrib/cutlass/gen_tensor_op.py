@@ -390,7 +390,7 @@ class ProfilerEngine:
 
 @tvm._ffi.register_object("contrib.cutlass.CodegenResult")
 class CodegenResult(Object):
-    """The holder for the generated code and required heades."""
+    """The holder for the generated code and required headers."""
 
     def __init__(self, code, headers):
         self.__init_handle_by_constructor__(ffi.CodegenResult, code, headers)
@@ -413,8 +413,8 @@ def instantiate_template(func_name, annotations, func_args):
 
     Returns
     -------
-    code_and_headers : List[str]
-        Generated CUTLASS host code followed by required header-file names.
+    codegen_result : CodegenResult
+        Generated CUTLASS host code and required header-file names.
     """
     attrs = {}
 
