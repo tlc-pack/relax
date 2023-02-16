@@ -43,6 +43,8 @@ namespace relay {
 namespace contrib {
 namespace cutlass {
 
+using Str2StrMap = std::unordered_map<std::string, std::string>;
+
 static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"},
                                {"float32", "float"},
                                {"int8", "int8_t"},
@@ -72,173 +74,8 @@ Str2StrMap ArgsCommon(const Map<String, ObjectRef>& attrs) {
   return args;
 }
 
-Str2StrMap GemmArgsCommon(const Map<String, ObjectRef>& attrs) {
-  Str2StrMap args = ArgsCommon(attrs);
-  args["lda"] = std::string(attrs["lda"].as<StringObj>()->data);
-  args["ldb"] = std::string(attrs["ldb"].as<StringObj>()->data);
-  args["ldc"] = std::string(attrs["ldc"].as<StringObj>()->data);
-  return args;
-}
-
-Str2StrMap MatmulArgs(const Map<String, ObjectRef>& attrs) {
-  Str2StrMap args = GemmArgsCommon(attrs);
-  auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
-  auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
-  args["M"] = GetDimAsStr(arg0_shape->at(0));
-  args["K"] = GetDimAsStr(arg0_shape->at(1));
-  if (args["ldb"] == "N") {
-    args["N"] = GetDimAsStr(arg1_shape->at(1));
-  } else {
-    args["N"] = GetDimAsStr(arg1_shape->at(0));
-  }
-  return args;
-}
-
-Str2StrMap BatchMatmulArgs(const Map<String, ObjectRef>& attrs) {
-  Str2StrMap args = GemmArgsCommon(attrs);
-  args["batch"] = GetDimAsStr(attrs["batch"]);
-  args["batch_stride_A"] = GetDimAsStr(attrs["batch_stride_A"]);
-  args["batch_stride_B"] = GetDimAsStr(attrs["batch_stride_B"]);
-  args["batch_stride_C"] = GetDimAsStr(attrs["batch_stride_C"]);
-  auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
-  auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
-  args["M"] = GetDimAsStr(arg0_shape->at(1));
-  args["K"] = GetDimAsStr(arg0_shape->at(2));
-  if (args["ldb"] == "N") {
-    args["N"] = GetDimAsStr(arg1_shape->at(2));
-  } else {
-    args["N"] = GetDimAsStr(arg1_shape->at(1));
-  }
-  return args;
-}
-
-void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
-                    const std::vector<std::string>& func_args, const std::string& kernel,
-                    bool has_bias, bool is_gelu, int m_axis_idx, int n_axis_idx, int k_axis_idx) {
-  CutlassPrint(gemm_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
-  CutlassPrint(gemm_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
-  CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
-  CutlassPrint(gemm_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
-  CutlassPrint(gemm_decl, attrs.at("op_def"));
-  CutlassPrint(gemm_decl, "using " + kernel + " = Operation_" + attrs.at("op_name") + ";\n");
-
-  auto get_dim = [&attrs, &func_args](const std::string& axis, int arg_idx, int axis_idx) {
-    if (attrs.at(axis) == kAnyDim) {
-      return func_args[arg_idx] + "->shape[" + std::to_string(axis_idx) + "]";
-    } else {
-      return attrs.at(axis);
-    }
-  };
-  CutlassPrint(gemm_decl, "int M = " + get_dim("M", 0, m_axis_idx) + ";\n");
-  CutlassPrint(gemm_decl, "int N = " + get_dim("N", 1, n_axis_idx) + ";\n");
-  CutlassPrint(gemm_decl, "int K = " + get_dim("K", 0, k_axis_idx) + ";\n");
-  CutlassPrint(gemm_decl, "cutlass::gemm::GemmCoord problem_size(M, N, K);\n");
-  CutlassPrint(gemm_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (is_gelu) {
-    // GeLU epilogue does not compile with NoBetaScaling, so we explicitly specify the scale.
-    CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
-  } else {
-    CutlassPrint(gemm_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
-  }
-
-  ICHECK(func_args.size() >= 2);
-  CutlassPrint(gemm_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
-  CutlassPrint(gemm_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
-  if (has_bias) {
-    ICHECK(func_args.size() >= 3);
-    CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + "->data);\n");
-  }
-
-  CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0->data);\n");
-
-  CutlassPrint(gemm_decl, "typename " + kernel + "::Arguments arguments{\n");
-  CutlassPrint(gemm_decl, " problem_size,\n");
-}
-
-void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel) {
-  // Using the arguments, query for extra workspace required for matrix multiplication computation
-  CutlassPrint(gemm_decl,
-               "size_t workspace_size = " + kernel + "::get_workspace_size(arguments);\n");
-  // Allocate workspace memory
-  CutlassPrint(gemm_decl,
-               "cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);\n");
-  // Instantiate CUTLASS kernel depending on template
-  CutlassPrint(gemm_decl, kernel + " gemm_op;\n");
-
-  // Check the problem size is supported or not
-  CutlassPrint(gemm_decl, "cutlass::Status status = gemm_op.can_implement(arguments);\n");
-  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
-  // Initialize CUTLASS kernel with arguments and workspace pointer
-  CutlassPrint(gemm_decl, "status = gemm_op.initialize(arguments, workspace.get());\n");
-  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
-  // Launch initialized CUTLASS kernel
-  CutlassPrint(gemm_decl, "status = gemm_op();\n");
-  CutlassPrint(gemm_decl, "CHECK(status == cutlass::Status::kSuccess);\n");
-}
-
-std::string MatmulOp(std::string id, const Str2StrMap& attrs,
-                     const std::vector<std::string>& func_args) {
-  bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
-  bool is_gelu = attrs.at("op_type").find("gelu") != std::string::npos;  // fp32 or fp16
-  std::ostringstream gemm_decl;
-  AppendPrologue(gemm_decl, attrs, func_args, "Gemm", has_bias, is_gelu, 0, 0, 1);
-
-  CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
-  CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
-  if (has_bias) {
-    CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_c_bias), 0},\n");
-  } else {
-    CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  }
-  CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  if (has_bias && !is_gelu) {
-    CutlassPrint(gemm_decl, " {alpha},\n");
-  } else {
-    // For GeLU, we explicitly specify the scale.
-    CutlassPrint(gemm_decl, " {alpha, beta},\n");
-  }
-  CutlassPrint(gemm_decl, " 1};\n");  // split_k_slices
-
-  AppendGemmExecute(gemm_decl, "Gemm");
-  return gemm_decl.str();
-}
-
-std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
-                          const std::vector<std::string>& func_args) {
-  std::ostringstream gemm_decl;
-  AppendPrologue(gemm_decl, attrs, func_args, "BatchedGemm", false, false, 1, 1, 2);
-
-  auto get_batch_stride = [&attrs, &func_args](const std::string& name, int arg0_idx, int arg1_idx,
-                                               int arg0_axis_idx, int arg1_axis_idx) {
-    if (attrs.at(name) == kAnyDim) {
-      return func_args[arg0_idx] + "->shape[" + std::to_string(arg0_axis_idx) + "] * " +
-             func_args[arg1_idx] + "->shape[" + std::to_string(arg1_axis_idx) + "]";
-    } else {
-      return attrs.at(name);
-    }
-  };
-
-  CutlassPrint(gemm_decl, " {static_cast<ElementInputA*>(ptr_a), " + attrs.at("lda") + "},\n");
-  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_A", 0, 0, 1, 2) + ",\n");
-  CutlassPrint(gemm_decl, " {static_cast<ElementInputB*>(ptr_b), " + attrs.at("ldb") + "},\n");
-  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_B", 1, 1, 1, 2) + ",\n");
-  CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_C", 0, 1, 1, 1) + ",\n");
-  CutlassPrint(gemm_decl, " {static_cast<ElementOutput*>(ptr_out), " + attrs.at("ldc") + "},\n");
-  CutlassPrint(gemm_decl, get_batch_stride("batch_stride_C", 0, 1, 1, 1) + ",\n");
-  CutlassPrint(gemm_decl, " {alpha, beta},\n");
-
-  if (attrs.at("batch") == kAnyDim) {
-    CutlassPrint(gemm_decl, func_args[0] + "->shape[0]" + "};\n");
-  } else {
-    CutlassPrint(gemm_decl, attrs.at("batch") + "};\n");
-  }
-
-  AppendGemmExecute(gemm_decl, "BatchedGemm");
-  return gemm_decl.str();
-}
-
-Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad, bool is_wgrad) {
+Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
+                      bool is_wgrad = false) {
   Str2StrMap args = ArgsCommon(attrs);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
@@ -275,8 +112,15 @@ Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad, bool i
   return args;
 }
 
-std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
-                     const std::vector<std::string>& func_args, bool has_residual_block) {
+inline void CutlassPrint(std::ostringstream& os, const std::string& stmt, int indent = 2) {
+  for (int i = 0; i < indent; ++i) {
+    os << " ";
+  }
+  os << stmt;
+}
+
+std::string Conv2dOp(const Str2StrMap& attrs, const Array<String>& func_args,
+                     bool has_residual_block = false) {
   auto op_type = attrs.at("op_type");
   bool has_bias = op_type.find("bias") != std::string::npos;
   bool no_bias_scaling = op_type != "cutlass.conv2d_bias_sigmoid" &&
@@ -570,9 +414,9 @@ bool IsConv2dResidualBlock(const std::string& func_name) {
 }
 
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
-                                const std::vector<std::string>& func_args,
                                 const std::vector<std::string>& output_types,
-                                const Str2StrMap& attribute_args, int* buf_idx) {
+                                const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
+                                int* buf_idx) {
   // Make function call with input buffers when visiting arguements
   ICHECK_GT(func_args.size(), 0);
   std::ostringstream decl_stream;
@@ -591,15 +435,26 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
     ret.outputs.push_back(output);
   }
   decl_stream << ");";
-  if (func_name.find("batch_matmul") != std::string::npos) {
-    ret.decl = BatchMatmulOp(ext_func_id, attribute_args, func_args);
-  } else if (func_name.find("dense") != std::string::npos ||
-             func_name.find("matmul") != std::string::npos) {
-    ret.decl = MatmulOp(ext_func_id, attribute_args, func_args);
+
+  const auto* instantiate_template_func =
+      runtime::Registry::Get("contrib.cutlass.instantiate_template");
+  ICHECK(instantiate_template_func);
+
+  if (func_name.find("dense") != std::string::npos ||
+      func_name.find("matmul") != std::string::npos) {
+    std::string code = (*instantiate_template_func)(func_name, attrs, func_args);
+    ret.decl = code;
+  }
+
+  // TODO(masahi): Handle all ops by instantiate_template_func
+  if (func_name.find("conv2d_transpose") != std::string::npos) {
+    ret.decl = Conv2dOp(Conv2dArgs(attrs, true, false), func_args, true);
+  } else if (func_name.find("backward_weight") != std::string::npos) {
+    ret.decl = Conv2dOp(Conv2dArgs(attrs, false, true), func_args, true);
   } else if (IsConv2dResidualBlock(func_name)) {
-    ret.decl = Conv2dOp(ext_func_id, attribute_args, func_args, true);
+    ret.decl = Conv2dOp(Conv2dArgs(attrs), func_args, true);
   } else if (func_name.find("conv2d") != std::string::npos) {
-    ret.decl = Conv2dOp(ext_func_id, attribute_args, func_args);
+    ret.decl = Conv2dOp(Conv2dArgs(attrs), func_args);
   }
 
   return ret;
@@ -675,8 +530,8 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   }
 
  private:
-  std::vector<std::string> GetArgumentNames(const CallNode* call) {
-    std::vector<std::string> arg_names;
+  Array<String> GetArgumentNames(const CallNode* call) {
+    Array<String> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
       auto res = VisitExpr(call->args[i]);
       for (const auto& out : res) {
@@ -698,92 +553,10 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
                                                    const CallNode* caller) {
-    using backend::GetRootCall;
-
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
     ICHECK(pattern_name.defined()) << "Only functions with composite attribute are supported.";
 
-    if (pattern_name == "cutlass.dense") {
-      const auto* dense_call =
-          GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.dense"});
-      return GenerateBody(dense_call, "cutlass_dense", GetArgumentNames(caller),
-                          MatmulArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.dense_bias") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->op.as<OpNode>()->name;
-      const auto* dense_call =
-          GetRootCall(callee->body.as<CallNode>(), 1, {"nn.dense", add_or_bias_add});
-      return GenerateBody(dense_call, "cutlass_dense_bias", GetArgumentNames(caller),
-                          MatmulArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.dense_bias_relu") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* dense_call =
-          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.dense", add_or_bias_add, "nn.relu"});
-      return GenerateBody(dense_call, "cutlass_dense_bias_relu", GetArgumentNames(caller),
-                          MatmulArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.dense_bias_gelu_fp16") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* dense_call = GetRootCall(callee->body.as<CallNode>(), 8,
-                                           {"nn.dense", add_or_bias_add, "multiply", "cast", "erf",
-                                            "cast", "multiply", "add", "multiply"});
-      return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
-                          MatmulArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.dense_bias_gelu_fp32") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[1].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* dense_call = GetRootCall(
-          callee->body.as<CallNode>(), 6,
-          {"nn.dense", add_or_bias_add, "multiply", "erf", "multiply", "add", "multiply"});
-      return GenerateBody(dense_call, "cutlass_dense_bias_gelu", GetArgumentNames(caller),
-                          MatmulArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.batch_matmul") {
-      const auto* batch_matmul_call =
-          GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.batch_matmul"});
-      return GenerateBody(batch_matmul_call, "cutlass_batch_matmul", GetArgumentNames(caller),
-                          BatchMatmulArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d") {
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 0, std::vector<std::string>{"nn.conv2d"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d_bias") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->op.as<OpNode>()->name;
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 1, {"nn.conv2d", add_or_bias_add});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_bias", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d_bias_relu") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "nn.relu"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_bias_relu", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d_bias_sigmoid") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "sigmoid"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_bias_sigmoid", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d_bias_silu") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "multiply"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_bias_silu", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d_bias_hardswish") {
-      const CallNode* current_call = callee->body.as<CallNode>();
-      std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      const auto* conv2d_call =
-          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "multiply"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_bias_hardswish", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (IsConv2dResidualBlock(pattern_name.value())) {
+    if (IsConv2dResidualBlock(pattern_name.value())) {
       const CallNode* current_call = callee->body.as<CallNode>();
       bool has_relu = current_call->args.size() == 1;
       const CallNode* binop = has_relu ? current_call->args[0].as<CallNode>() : current_call;
@@ -802,10 +575,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
         // The residual input should be an ancestor of the non-residual input
         residual_index = IsAncestor(rhs, lhs) ? 1 : 0;
       }
-      const auto* non_residual_input = binop->args[!residual_index].as<CallNode>();
       const auto residual_input = binop->args[residual_index];
-      const auto* conv2d_call = GetRootCall(non_residual_input, "nn.conv2d");
-      ICHECK(conv2d_call);
       auto call_args = GetArgumentNames(caller);
       auto func_args = call_args;
       if (call_args.size() == 3) {
@@ -820,38 +590,29 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
         ICHECK_EQ(func_args.size(), 4) << "Residual block fusion expects 4 input tensors: data, "
                                           "weight, bias, and residual tensor.";
       }
-      return GenerateBody(conv2d_call, pattern_name.value(), func_args,
-                          Conv2dArgs(std::ref(attrs_)));
-    } else if (pattern_name == "cutlass.conv2d_transpose") {
-      const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0,
-                                            std::vector<std::string>{"nn.conv2d_transpose"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_transpose", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_), true, false));
-    } else if (pattern_name == "cutlass.conv2d_backward_weight") {
-      const auto* conv2d_call = GetRootCall(callee->body.as<CallNode>(), 0,
-                                            std::vector<std::string>{"nn.conv2d_backward_weight"});
-      return GenerateBody(conv2d_call, "cutlass_conv2d_backward_weight", GetArgumentNames(caller),
-                          Conv2dArgs(std::ref(attrs_), false, true));
+      return GenerateBody(caller, pattern_name.value(), func_args, attrs_);
+    } else {
+      return GenerateBody(caller, pattern_name.value(), attrs_);
     }
 
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
   }
 
-  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
-                                  const std::vector<std::string>& func_args,
-                                  const Str2StrMap& attribute_args) {
+  GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
+                                  const Array<String>& func_args,
+                                  const Map<String, ObjectRef>& attrs) {
     std::vector<Type> out_types;
-    if (root_call->checked_type()->IsInstance<TupleTypeNode>()) {
-      auto type_node = root_call->checked_type().as<TupleTypeNode>();
+    if (call->checked_type()->IsInstance<TupleTypeNode>()) {
+      auto type_node = call->checked_type().as<TupleTypeNode>();
       for (auto field : type_node->fields) {
         ICHECK(field->IsInstance<TensorTypeNode>());
         out_types.push_back(field);
       }
-    } else if (root_call->checked_type()->IsInstance<TensorTypeNode>()) {
-      ICHECK(root_call->checked_type()->IsInstance<TensorTypeNode>());
-      out_types.push_back(root_call->checked_type());
+    } else if (call->checked_type()->IsInstance<TensorTypeNode>()) {
+      ICHECK(call->checked_type()->IsInstance<TensorTypeNode>());
+      out_types.push_back(call->checked_type());
     } else {
-      LOG(FATAL) << "Unrecognized type node: " << AsText(root_call->checked_type(), false);
+      LOG(FATAL) << "Unrecognized type node: " << AsText(call->checked_type(), false);
     }
 
     std::vector<std::string> out_types_str;
@@ -859,8 +620,14 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
       out_types_str.push_back(GetDtypeString(out_type.as<TensorTypeNode>()));
     }
 
-    return cutlass::GenerateBody(func_name, ext_func_id_, func_args, out_types_str, attribute_args,
+    return cutlass::GenerateBody(func_name, ext_func_id_, out_types_str, func_args, attrs,
                                  &buf_idx_);
+  }
+
+  GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
+                                  const Map<String, ObjectRef>& attrs) {
+    auto func_args = GetArgumentNames(call);
+    return GenerateBody(call, func_name, func_args, attrs);
   }
 
   /*! \brief The id of the external cutlass ext_func. */

@@ -21,14 +21,19 @@ import os
 import tempfile
 import subprocess
 import multiprocessing
+from tvm._ffi.registry import register_func
+from tvm.tir import IntImm
 from .library import (
     MathInstruction,
     DataType,
+    DataTypeTag,
     OpcodeClass,
     MathOperation,
     TileDescription,
     EpilogueFunctor,
 )
+from .gemm_operation import instantiate_gemm_template
+
 
 logger = logging.getLogger("cutlass")
 
@@ -36,6 +41,7 @@ logger = logging.getLogger("cutlass")
 dtype_map = {
     "int8": DataType.s8,
     "uint8": DataType.u8,
+    "int32": DataType.s32,
     "float32": DataType.f32,
     "float16": DataType.f16,
 }
@@ -376,3 +382,76 @@ class ProfilerEngine:
         except subprocess.CalledProcessError:
             rt = float("inf")
         return rt
+
+
+@register_func("contrib.cutlass.instantiate_template")
+def instantiate_template(func_name, annotations, func_args):
+    """Return CUTLASS host code based on a template and the provided annotations.
+
+    Parameters
+    ----------
+    func_name: str
+        A string to identify the type of the kernel (dense/matmul, batched_matmul, or conv2d).
+
+    annotations: container.Map
+        Key and value pairs annotated during kernel selection.
+
+    func_args: list
+        Names of the function arguments.
+
+    Returns
+    -------
+    code : str
+        Generated CUTLASS host code.
+    """
+    attrs = {}
+
+    for k in ["lda", "ldb", "ldc", "cutlass_op_def", "cutlass_op_name", "op_type"]:
+        attrs[k] = annotations[k]
+
+    arg0_shape = annotations["arg0_shape"]
+    arg1_shape = annotations["arg1_shape"]
+    attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
+    attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
+    attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
+
+    def get_dim(shape_annot, arg_idx, axis_idx, batched_offset=0):
+        if isinstance(shape_annot, IntImm):
+            return str(int(shape_annot))
+        return func_args[arg_idx] + "->shape[{}]".format(batched_offset + axis_idx)
+
+    def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
+        if isinstance(stride_annot, IntImm):
+            return str(int(stride_annot))
+        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
+        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
+        return dim1 + " * " + dim2
+
+    if "dense" in func_name or "matmul" in func_name:
+        batched = "batch_matmul" in func_name
+        batched_offset = 1 if batched else 0
+        attrs["K"] = str(int(arg0_shape[batched_offset + 1]))
+        attrs["M"] = get_dim(arg0_shape[batched_offset], 0, 0, batched_offset)
+
+        if annotations["ldb"] == "N":
+            attrs["N"] = get_dim(arg1_shape[batched_offset + 1], 1, 1, batched_offset)
+        else:
+            attrs["N"] = get_dim(arg1_shape[batched_offset], 1, 0, batched_offset)
+
+        if batched:
+            attrs["batch"] = get_dim(arg0_shape[0], 0, 0)
+            attrs["batch_stride_A"] = get_batch_stride(annotations["batch_stride_A"], 0, 0, 1, 2)
+            attrs["batch_stride_B"] = get_batch_stride(annotations["batch_stride_B"], 1, 1, 1, 2)
+
+            if annotations["ldb"] == "N":
+                attrs["batch_stride_C"] = get_batch_stride(
+                    annotations["batch_stride_C"], 0, 1, 1, 2
+                )
+            else:
+                attrs["batch_stride_C"] = get_batch_stride(
+                    annotations["batch_stride_C"], 0, 1, 1, 1
+                )
+
+        return instantiate_gemm_template(attrs, func_args)
+
+    raise ValueError("Do not have a template for {}".format(func_name))
