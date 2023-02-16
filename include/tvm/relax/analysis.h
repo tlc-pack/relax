@@ -33,6 +33,7 @@
 #include <tvm/tir/function.h>
 
 #include <functional>
+#include <unordered_map>
 #include <utility>
 
 namespace tvm {
@@ -423,6 +424,19 @@ std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
  * \return The function that contains no unused statements in DataflowBlock.
  */
 TVM_DLL Function RemoveAllUnused(const Function fn);
+
+/*!
+ * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks
+ * and buffers for the PrimFunc.
+ *
+ * \param fn The PrimFunc to be analyzed.
+ * \param write_buffer_transformations Array of IndexMap transformations on PrimFunc outputs.
+ * \return Suggested transforms per block in `fn`. For each block the returned value is a map
+ * from the object (block or buffer) to it's index map transformation.
+ */
+
+TVM_DLL Map<tir::Block, Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
+    const Function& fn, Array<tir::IndexMap> write_buffer_transformations);
 
 }  // namespace relax
 }  // namespace tvm

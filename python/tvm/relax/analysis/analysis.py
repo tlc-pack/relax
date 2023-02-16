@@ -21,7 +21,7 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Union, Callable
 from enum import IntEnum
 
 import tvm
@@ -29,6 +29,7 @@ from tvm import tir
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
 from tvm.relax.expr import DataflowBlock, GlobalVar, Var, Expr, Function, Binding, Call
+from tvm.tir import IndexMap, PrimFunc, Block, Buffer
 from . import _ffi_api
 
 
@@ -401,3 +402,31 @@ def called_global_vars(expr: Expr) -> List[GlobalVar]:
         in post-DFS order
     """
     return _ffi_api.called_global_vars(expr)  # type: ignore
+
+
+def suggest_layout_transforms(
+    func: PrimFunc, write_buffer_transforms: List[Union[IndexMap, Callable]]
+) -> Dict[Block, Dict[Union[Block, Buffer], IndexMap]]:
+    """Transform layout of a function.
+
+    Parameters
+    ----------
+    func: PrimFunc
+        PrimFunc on which analysis will be performed and transformations suggested.
+
+    write_buffer_transforms: List[Union[IndexMap, Callable]
+        List of layout transformations on the output buffers. The number of layout
+        transformations must match the number of outputs of the PrimFunc.
+
+    Returns
+    -------
+    ret: Dict[Block, Dict[Union[Block, Buffer], IndexMap]]
+         Suggested transforms per block in `func`. For each block the returned value is a map
+         from the object (block or buffer) to it's index map transformation.
+    """
+    write_buffer_index_maps = []
+    for transform in write_buffer_transforms:
+        if callable(transform):
+            transform = IndexMap.from_func(transform)
+        write_buffer_index_maps.append(transform)
+    return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore
