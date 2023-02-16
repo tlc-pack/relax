@@ -418,9 +418,9 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
     ret.decl = code_and_headers[0];
     ret.headers = Array<String>(code_and_headers.begin() + 1, code_and_headers.end());
   } else if (func_name.find("conv2d_transpose") != std::string::npos) {
-    ret.decl = Conv2dOp(Conv2dArgs(attrs, true, false), func_args, true);
+    ret.decl = Conv2dOp(Conv2dArgs(attrs, true, false), func_args);
   } else if (func_name.find("backward_weight") != std::string::npos) {
-    ret.decl = Conv2dOp(Conv2dArgs(attrs, false, true), func_args, true);
+    ret.decl = Conv2dOp(Conv2dArgs(attrs, false, true), func_args);
   } else if (IsConv2dResidualBlock(func_name)) {
     ret.decl = Conv2dOp(Conv2dArgs(attrs), func_args, true);
   } else if (func_name.find("conv2d") != std::string::npos) {
