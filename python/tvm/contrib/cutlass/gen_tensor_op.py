@@ -22,8 +22,10 @@ import re
 import tempfile
 import subprocess
 import multiprocessing
-from tvm._ffi.registry import register_func
+import tvm._ffi
 from tvm.tir import IntImm
+from tvm.runtime import Object
+from . import _ffi_api as ffi
 from .library import (
     MathInstruction,
     DataType,
@@ -386,7 +388,15 @@ class ProfilerEngine:
         return rt
 
 
-@register_func("contrib.cutlass.instantiate_template")
+@tvm._ffi.register_object("contrib.cutlass.CodegenResult")
+class CodegenResult(Object):
+    """The holder for the generated code and required heades."""
+
+    def __init__(self, code, headers):
+        self.__init_handle_by_constructor__(ffi.CodegenResult, code, headers)
+
+
+@tvm._ffi.register_func("contrib.cutlass.instantiate_template")
 def instantiate_template(func_name, annotations, func_args):
     """Return CUTLASS host code based on a template and the provided annotations.
 
@@ -477,7 +487,7 @@ def instantiate_template(func_name, annotations, func_args):
             headers.append("cutlass/gemm/device/gemm.h")
 
         code = instantiate_gemm_template(attrs, func_args)
-        return [code] + headers
+        return CodegenResult(code, headers)
 
     elif "conv2d" in func_name:
         activation_shape = arg0_shape
@@ -533,6 +543,6 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["split_k_slices"] = "1"
 
         code = instantiate_conv2d_template(attrs, func_args)
-        return [code] + headers
+        return CodegenResult(code, headers)
 
     raise ValueError("Do not have a template for {}".format(func_name))

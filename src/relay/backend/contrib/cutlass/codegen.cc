@@ -76,6 +76,38 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
   return (*pf)(default_headers.str() + code, "cu", func_names, /*const_vars=*/Array<String>());
 }
 
+class CodegenResultNode : public Object {
+ public:
+  String code;
+  Array<String> headers;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("code", &code);
+    v->Visit("headers", &headers);
+  }
+  static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
+};
+
+class CodegenResult : public ObjectRef {
+ public:
+  CodegenResult(String code, Array<String> headers) {
+    auto n = make_object<CodegenResultNode>();
+    n->code = std::move(code);
+    n->headers = std::move(headers);
+    data_ = std::move(n);
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode)
+};
+
+TVM_REGISTER_NODE_TYPE(CodegenResultNode);
+
+TVM_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
+    .set_body_typed([](String code, Array<String> headers) {
+      return CodegenResult(code, headers);
+    });
+
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
                                 const std::vector<std::string>& output_types,
                                 const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
@@ -103,9 +135,9 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
       runtime::Registry::Get("contrib.cutlass.instantiate_template");
   ICHECK(instantiate_template_func);
 
-  Array<String> code_and_headers = (*instantiate_template_func)(func_name, attrs, func_args);
-  ret.decl = code_and_headers[0];
-  ret.headers = Array<String>(code_and_headers.begin() + 1, code_and_headers.end());
+  CodegenResult codegen_res = (*instantiate_template_func)(func_name, attrs, func_args);
+  ret.decl = codegen_res->code;
+  ret.headers = codegen_res->headers;
 
   return ret;
 }
