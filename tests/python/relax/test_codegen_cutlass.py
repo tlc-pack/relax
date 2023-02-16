@@ -415,27 +415,12 @@ def test_kernel_sharing():
 
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
 
-    mod = tvm.transform.Sequential(
-        [
-            relax.transform.FuseOpsByPattern([("cutlass.conv2d", pat)], annotate_codegen=True),
-            relax.transform.RunCodegen({"cutlass": {"sm": 80}}),
-        ]
-    )(Conv2dx2)
-
-    target = tvm.target.Target("cuda")
-    ex = relax.vm.build(mod, target)
-    ex = finalize_modules_relax(ex)
-
-    dev = tvm.gpu(0)
-    vm = relax.VirtualMachine(ex, dev)
-
-    data = tvm.nd.array(data_np, dev)
-    weight1 = tvm.nd.array(weight1_np, dev)
-    weight2 = tvm.nd.array(weight2_np, dev)
-    out = vm["main"](data, weight1, weight2).numpy()
+    out = get_result_with_relax_cutlass_offload(
+        Conv2dx2, [("cutlass.conv2d", pat)], data_np, weight1_np, weight2_np
+    )
 
     relay_expr = get_relay_conv2d_relu_x2(data_np.shape, weight1_np.shape)
-    ref = get_relay_ref(relay_expr, [data_np, weight1_np, weight2_np])
+    ref = get_relay_ref(relay_expr, data_np, weight1_np, weight2_np)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
