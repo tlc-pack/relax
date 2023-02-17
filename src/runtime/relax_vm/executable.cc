@@ -590,7 +590,7 @@ bool Executable::CheckLinked() {
   for (size_t func_index = 0; func_index < func_table.size(); ++func_index) {
     const VMFuncInfo& info = func_table[func_index];
     if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
-      if (!exists_in_imports(info.name) && Registry::Get(info.name) == nullptr) {
+      if (Registry::Get(info.name) == nullptr && !exists_in_imports(info.name)) {
         return false;
       }
     }
