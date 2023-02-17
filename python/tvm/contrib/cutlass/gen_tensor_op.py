@@ -78,6 +78,8 @@ def generate_sm50_simt(
     profile_all_alignments=False,
     accumulator_dtype="float32",
 ):
+    """Gemerate GEMM or Conv2D SIMT kernels"""
+    # pylint: disable=unused-argument
     min_cc = 50
     max_cc = 1024
     if arg0_dtype == "float32" and arg1_dtype == "float32":
@@ -113,6 +115,8 @@ def generate_sm50_simt(
         return generate_tensor_op_common(
             math_instructions, alignment_constraints, get_tile_descriptions, op_creator
         )
+    else:
+        raise NotImplementedError()
 
 
 def generate_sm75_tensor_op_1688(
