@@ -75,7 +75,7 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       *rv = Module(vm);
     });
   } else if (name == "check_linked") {
-    return PackedFunc([this](TVMArgs, TVMRetValue*) { return CheckLinked(); });
+    return PackedFunc([sptr_to_self, this](TVMArgs, TVMRetValue* rv) { *rv = CheckLinked(); });
   }
 
   return nullptr;
