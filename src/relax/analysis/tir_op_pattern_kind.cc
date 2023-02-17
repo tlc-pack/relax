@@ -332,6 +332,15 @@ bool HasReshapePattern(const PrimFunc& func) {
    public:
     static bool Detect(const Buffer& src_buffer, const Buffer& dst_buffer, Stmt stmt) {
       ReshapeDetector detector(src_buffer, dst_buffer);
+      // To be a reshape, the flattened size must be equal
+      PrimExpr src_size(1);
+      PrimExpr dst_size(1);
+      for (auto s : src_buffer->shape) src_size *= s;
+      for (auto s : dst_buffer->shape) dst_size *= s;
+
+      // return false on mismatch
+      if (!detector.ana_.CanProveEqual(src_size, dst_size)) return false;
+
       detector(stmt);
       return detector.is_reshape_;
     }
