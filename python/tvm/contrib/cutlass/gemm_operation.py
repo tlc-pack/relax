@@ -342,8 +342,6 @@ def instantiate_gemm_template(attrs, func_args):
 
     template = substitute_template(template, aux_map)
 
-    attrs = dict(attrs)
-
     for i, arg in enumerate(func_args):
         attrs["arg{}".format(i)] = arg
 

@@ -45,9 +45,6 @@ transform::Pass CompileForCutlass();
 // The rest is sparsely documented since they are exposed only for code sharing between Relay
 // and Relax backend implementations.
 
-/*! \brief Get CUTLASS headers to be included by all generated source code */
-std::string EmitHeaders();
-
 /*! \brief Emit the function signature for a kernel */
 std::string EmitSignature(const std::vector<relay::contrib::Output>& out,
                           const std::string& func_id, const std::vector<std::string>& arg_names);
