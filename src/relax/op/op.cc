@@ -163,6 +163,37 @@ Expr MakePrint(Array<Expr> vals, std::string format) {
 
 TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
 
+// shape_equals
+
+StructInfo InferStructInfoShapeEquals(const Call& call, const BlockBuilder& ctx) {
+  // arguments need to be shapes, result is a bool
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "shape_equals expects exactly two arguments.");
+  }
+  const auto* shape1_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
+  const auto* shape2_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
+  if (!shape1_sinfo || !shape2_sinfo) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "shape_equals expects both arguments to have ShapeStructInfo.");
+  }
+
+  return TensorStructInfo(ShapeExpr(Array<PrimExpr>{}), DataType::Bool());
+}
+
+RELAY_REGISTER_OP("relax.shape_equals")
+    .set_num_inputs(2)
+    .add_argument("shape1", "Expr", "First shape to compare.")
+    .add_argument("shape2", "Expr", "Second shape to compare.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeEquals)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_equals");
+
+Expr MakeShapeEquals(const Expr& shape1, const Expr& shape2) {
+  static const Op& op = Op::Get("relax.shape_equals");
+  return Call(op, {shape1, shape2});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.shape_equals").set_body_typed(MakeShapeEquals);
+
 // assert_op
 
 // can't actually name it assert or else Python will consider it a syntax error
