@@ -25,6 +25,7 @@ from tvm.script import relax as R
 from tvm.relax.testing import transform
 import tempfile
 from tvm.relax.transform.tuning_api import Trace
+from tvm.relax.dpl import is_op, wildcard
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -71,7 +72,7 @@ def gen_ground_truth(mod, target, dev, inputs):
         with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
             seq = tvm.transform.Sequential(
                 [
-                    transform.LowerWithRelayOpStrategyPass(target),
+                    relax.transform.LegalizeOps(),
                     relax.transform.MetaScheduleTuneIRMod(
                         params={}, work_dir=work_dir, max_trials_global=8
                     ),
@@ -85,27 +86,23 @@ def gen_ground_truth(mod, target, dev, inputs):
     return vm["main"](*inputs)
 
 
-@tvm.testing.requires_gpu
-def test_single_annot_func():
-    @tvm.script.ir_module
-    class InputModule:
-        @R.function
-        def byoc_func(
-            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
-            R.func_attr({"Codegen": "tensorrt", "global_symbol": "byoc_func"})
+@tvm.script.ir_module
+class InputModule:
+    @R.function
+    def main(
+        x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
+    ) -> R.Tensor((16, 16), "float32"):
+        with R.dataflow():
             z1 = R.multiply(x, y)
-            z2 = R.add(z1, z1)
+            z2 = R.add(z1, x)
             z3 = R.add(z1, z2)
-            return z3
+            z4 = R.multiply(z3, z2)
+            z5 = R.add(z4, z1)
+            R.output(z5)
+        return z5
 
-        @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
-            lv0: R.Tensor((16, 16), "float32") = byoc_func(x, y)
-            return lv0
 
+def setup_test():
     # Prepare IRModule and its input
     mod = InputModule
     assert isinstance(mod, tvm.IRModule)
@@ -120,70 +117,62 @@ def test_single_annot_func():
     # due to the conflict with MS task extraction
     # TODO(@sunggg): Sort this out
     expected = gen_ground_truth(mod, target, dev, inputs)
+    return mod, inputs, expected
 
-    # Run Codegen pass
-    new_mod = relax.transform.RunCodegen()(mod)
+
+@tvm.testing.requires_gpu
+def test_tensorrt_only():
+    mod, inputs, expected = setup_test()
+
+    # Define patterns that we want to offload to byoc
+    # This test will offload entire model
+    # Thus, define patterns for both `multiply` and `add` ops
+    patterns = [
+        ("tensorrt.multiply", is_op("relax.multiply")(wildcard(), wildcard())),
+        ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
+    ]
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
+            new_mod = tvm.transform.Sequential(
+                [
+                    relax.transform.FuseOpsByPattern(patterns),
+                    relax.transform.MergeCompositeFunctions(),
+                    relax.transform.RunCodegen(),
+                ]
+            )(mod)
+
     ex0 = relax.vm.build(new_mod, target, params={})
-
     # Sanity check for the correctness and rountrip
     check_roundtrip(ex0, dev, inputs, expected)
 
 
 @tvm.testing.requires_gpu
 def test_mix_use_tensorrt_and_tvm():
-    @tvm.script.ir_module
-    class InputModule:
-        @R.function
-        def byoc_func(
-            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
-            R.func_attr({"Codegen": "tensorrt", "global_symbol": "byoc_func"})
-            z1 = R.multiply(x, y)
-            z2 = R.add(z1, z1)
-            z3 = R.add(z1, z2)
-            return z3
+    mod, inputs, expected = setup_test()
 
-        @R.function
-        def tvm_func(
-            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
-            gv0 = R.multiply(x, w)
-            gv1 = R.add(x, gv0)
-            return gv1
-
-        @R.function
-        def main(
-            x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
-        ) -> R.Tensor((16, 16), "float32"):
-            lv0 = byoc_func(x, y)
-            lv1 = tvm_func(x, lv0)
-            return lv1
-
-    # Prepare IRModule and its inputs
-    mod = InputModule
-    assert isinstance(mod, tvm.IRModule)
-
-    np0 = np.random.rand(16, 16).astype(np.float32)
-    np1 = np.random.rand(16, 16).astype(np.float32)
-    data0 = tvm.nd.array(np0, dev)
-    data1 = tvm.nd.array(np1, dev)
-    inputs = [data0, data1]
-    expected = gen_ground_truth(mod, target, dev, [data0, data1])
+    # Define patterns that we want to offload to byoc
+    # This test will only offload `add` op to tensorrt
+    # and tune `multiply` op with MetaSchedule
+    patterns = [
+        ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
+    ]
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=3):
-            seq = tvm.transform.Sequential(
+        with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
+            new_mod = tvm.transform.Sequential(
                 [
+                    relax.transform.FuseOpsByPattern(patterns),
+                    relax.transform.MergeCompositeFunctions(),
                     relax.transform.RunCodegen(),
-                    transform.LowerWithRelayOpStrategyPass(target),
+                    relax.transform.LegalizeOps(),
                     relax.transform.MetaScheduleTuneIRMod(
                         params={}, work_dir=work_dir, max_trials_global=8
                     ),
                     relax.transform.MetaScheduleApplyDatabase(work_dir),
                 ]
-            )
-            new_mod = seq(mod)
+            )(mod)
     assert relax.analysis.well_formed(new_mod)
     with transform.PassContext(opt_level=0):
         ex0 = relax.vm.build(new_mod, target, params={})

@@ -301,15 +301,11 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   NodeEntries VisitExpr_(const SeqExprNode* op) {
     NodeEntries nodes;
-
     for (BindingBlock block : op->blocks) {
-      auto from_bb = VisitBindingBlock(block);
-      // nodes.insert(nodes.end(), from_bb.begin(), from_bb.end());
+      VisitBindingBlock(block);
     }
-
     auto from_body = VisitExpr(op->body);
     nodes.insert(nodes.end(), from_body.begin(), from_body.end());
-
     return nodes;
   }
 
