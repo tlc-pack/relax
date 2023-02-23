@@ -26,18 +26,22 @@ namespace relax {
 
 Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-
-  int n_input = call->args.size();
-  if (static_cast<int>(op->arguments.size()) != n_input) {
+  int n_input = op->arguments.size();
+  if (static_cast<int>(call->args.size()) != n_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " op should have " << n_input << " arguments");
   }
   Array<TensorStructInfo> input_tensor_sinfo;
   input_tensor_sinfo.reserve(n_input);
   for (int i = 0; i < n_input; ++i) {
-    if (const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i])) {
-      input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));
+    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    if (sinfo == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " requires the input " << op->arguments[i]->name
+                       << " to be Tensor. However, the given one is "
+                       << call->args[i]->struct_info_->GetTypeKey());
     }
+    input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));
   }
   return input_tensor_sinfo;
 }

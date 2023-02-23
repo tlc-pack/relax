@@ -22,13 +22,11 @@
  * \brief Relax set operators.
  */
 
-#include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
+#include "set.h"
 
 #include <utility>
 #include <vector>
 
-#include "../op_common.h"
 namespace tvm {
 namespace relax {
 
@@ -36,25 +34,26 @@ namespace relax {
 
 Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_inverse,
             PrimValue return_counts, Optional<PrimValue> axis) {
-  static const Op& unique_op = Op::Get("relax.unique");
-  Expr new_axis;
+  static const Op& op = Op::Get("relax.unique");
+  Call call;
   if (!axis) {
-    static const Op& null_value_op = Op::Get("relax.null_value");
-    new_axis = Call(null_value_op, {}, {}, {});
+    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts});
   } else {
-    new_axis = axis.value();
+    PrimValue pv_axis = axis.value();
+    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
   }
-  return Call(unique_op,
-              {std::move(x), sorted, return_index, return_inverse, return_counts, new_axis});
+  return call;
 }
 
 TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(unique);
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
   PrimValue axis, return_index, return_inverse, return_counts;
-  if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
-    axis = GetRef<PrimValue>(prim_value_node);
+  if (call->args.size() == 6) {
+    if (auto* prim_value_node = call->args[5].as<PrimValueNode>()) {
+      axis = GetRef<PrimValue>(prim_value_node);
+    }
   }
   if (!data_sinfo->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.

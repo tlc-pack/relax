@@ -688,8 +688,10 @@ class StorageAllocationRewriter : public ExprMutator {
         PrimValue virtual_device_index = runtime_device_index;
         std::string storage_scope = "global";
         DataType dtype = token->dtype;
-        Call alloc_storage(mem_alloc_storage, {std::move(size), virtual_device_index,
-                                               StringImm(storage_scope), DataTypeImm(dtype)});
+        Call alloc_storage(
+            mem_alloc_storage,
+            {std::move(size), virtual_device_index, StringImm(storage_scope), DataTypeImm(dtype)},
+            Attrs());
         token->storage = builder_->Emit(alloc_storage, "storage");
       }
 
@@ -698,7 +700,8 @@ class StorageAllocationRewriter : public ExprMutator {
       PrimValue offset = PrimValue::Int64(0);
       DataType dtype = sinfo->dtype;
       return Call(mem_alloc_tensor,
-                  {token->storage.value(), offset, sinfo->shape.value(), DataTypeImm(dtype)});
+                  {token->storage.value(), offset, sinfo->shape.value(), DataTypeImm(dtype)},
+                  Attrs());
     }
 
     return ExprMutator::VisitExpr_(call);

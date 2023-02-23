@@ -91,7 +91,6 @@ def numpy_unique(
     return_index: int,
     return_inverse: int,
     return_counts: int,
-    axis: Optional[int],
 ) -> tvm.nd.array:
     """Returns the unique elements of the input tensor.
 
