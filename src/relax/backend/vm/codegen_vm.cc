@@ -22,7 +22,6 @@
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
 #include <tvm/driver/driver_api.h>
-#include <tvm/relax/attrs/set.h>
 #include <tvm/relax/attrs/shape.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -364,43 +363,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall(func, args, dst_reg);
   }
 
-  // TODO(relax-team) revisit after PrimValue.
-  // Emit the `call_node` attributes as constants and append these constants to `args` vector.
-  void AppendAttrsAsConstants(const Call& call_node, std::vector<Instruction::Arg>& args) {
-    auto attrs = call_node->attrs;
-    if (!attrs.defined()) return;
-
-    if (call_node->op == unique_op_) {
-      auto unique_attrs = call_node->attrs.as<UniqueAttrs>();
-      args.push_back(builder_->ConvertConstant(unique_attrs->sorted));
-      args.push_back(builder_->ConvertConstant(unique_attrs->return_index));
-      args.push_back(builder_->ConvertConstant(unique_attrs->return_inverse));
-      args.push_back(builder_->ConvertConstant(unique_attrs->return_counts));
-      args.push_back(builder_->ConvertConstant(unique_attrs->axis));
-      return;
-    }
-    if (call_node->op == print_op_) {
-      auto print_attrs = call_node->attrs.as<PrintAttrs>();
-      // format string is the first argument
-      args.insert(args.begin(), builder_->ConvertConstant(print_attrs->format));
-      return;
-    }
-    if (call_node->op == assert_op_) {
-      auto assert_attrs = call_node->attrs.as<AssertOpAttrs>();
-      // format string comes before the format args
-      args.insert(args.begin() + 1, builder_->ConvertConstant(assert_attrs->format));
-      return;
-    }
-    LOG(FATAL) << "Support for attributes of Op " << call_node->op
-               << " has not been implemented yet.";
-    return;
-  }
-
-  // Emits call to packed function `name` with arguments copied over from `call_node` args and
-  // attributes.
+  // Emits call to packed function `name` with arguments copied over from `call_node` args
   void EmitPackedFuncCall(const Call& call_node, const FCallPacked& name, RegName dst_reg) {
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);
-    AppendAttrsAsConstants(call_node, args);
     builder_->EmitCall(name, args, dst_reg);
   }
 
@@ -428,9 +393,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
-  const Op& unique_op_ = Op::Get("relax.unique");
-  const Op& print_op_ = Op::Get("relax.print");
-  const Op& assert_op_ = Op::Get("relax.assert_op");
 };
 
 /*!
