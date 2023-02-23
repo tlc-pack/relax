@@ -311,15 +311,15 @@ StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& c
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_num_inputs(3)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
-    .add_argument("dtype", "DataType", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "int64_t",
+    .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
+    .add_argument("runtime_device_index", "PrimValue",
                   "The device index indicating on which device the tensor is to be "
                   "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
 
-Expr MakeAllocTensor(Expr shape, DataType dtype, int64_t runtime_device_index) {
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape, DataTypeImm(dtype), PrimValue::Int64(runtime_device_index)}, Attrs(), {});
+  return Call(op, {shape, dtype, runtime_device_index}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
